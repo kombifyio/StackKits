@@ -14,7 +14,6 @@ import (
 	"github.com/kombifyio/stackkits/internal/productkits"
 	"github.com/kombifyio/stackkits/internal/stackspecintent"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
-	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
 )
 
@@ -264,10 +263,6 @@ func selectArchitectureV2InitKit(args []string) (string, *prompter, error) {
 	if stackkitName == "" {
 		stackkitName = string(stackspecmigration.KitProfileBasement)
 	}
-	if models.IsLegacyStackKitName(stackkitName) {
-		printWarning("StackKit %q is a retired alias; using %q.", stackkitName, models.NormalizeStackKitName(stackkitName))
-	}
-	stackkitName = models.NormalizeStackKitName(stackkitName)
 	if err := productkits.Validate(stackkitName); err != nil {
 		return "", nil, err
 	}

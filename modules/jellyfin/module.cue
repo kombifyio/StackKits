@@ -3,9 +3,9 @@
 // Transitional module contract mirroring the currently deployed Base Kit app.
 package jellyfin
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "jellyfin"
 		displayName: "Jellyfin"
@@ -67,7 +67,7 @@ Contract: base.#ModuleContract & {
 		}
 	}
 
-	services: jellyfin: base.#ServiceDefinition & {
+	services: jellyfin: foundation.#ServiceDefinition & {
 		name:     "jellyfin"
 		type:     "media"
 		image:    "jellyfin/jellyfin"

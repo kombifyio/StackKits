@@ -5,9 +5,9 @@
 // Home package handoff instead of this local module.
 package home_assistant
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "home-assistant"
 		displayName: "Home Assistant"
@@ -82,7 +82,7 @@ Contract: base.#ModuleContract & {
 		rejection_reason:   "Managed realization is control-plane owned; the OSS module only implements the self-hosted container profile."
 	}
 
-	services: "home-assistant": base.#ServiceDefinition & {
+	services: "home-assistant": foundation.#ServiceDefinition & {
 		name:        "home-assistant"
 		displayName: "Home Assistant"
 		type:        "application"

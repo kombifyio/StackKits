@@ -6,10 +6,10 @@
 // PROVEN CONFIG: Validated via reference-compose.yml.
 package uptimekuma
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
 // Contract declares what this module requires and provides.
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "uptime-kuma"
 		displayName: "Uptime Kuma"
@@ -64,7 +64,7 @@ Contract: base.#ModuleContract & {
 		pi: {}
 	}
 
-	services: "uptime-kuma": base.#ServiceDefinition & {
+	services: "uptime-kuma": foundation.#ServiceDefinition & {
 		name: "uptime-kuma"
 		type: "monitoring"
 		// Pin matches the release pre-pull list (cmd/stackkit/commands/prepare_docker.go).
@@ -153,7 +153,7 @@ Contract: base.#ModuleContract & {
 		}
 	}
 
-	provisioners: "init-kuma": base.#ProvisionerService & {
+	provisioners: "init-kuma": foundation.#ProvisionerService & {
 		image:     "python:3.11-alpine"
 		dependsOn: "uptime-kuma"
 		networks: ["base_net"]

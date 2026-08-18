@@ -8,10 +8,10 @@
 // PROVEN CONFIG: Validated via reference-compose.yml.
 package dashboard
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
 // Contract declares what this module requires and provides.
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "dashboard"
 		displayName: "StackKits Node Hub"
@@ -60,7 +60,7 @@ Contract: base.#ModuleContract & {
 		pi: {}
 	}
 
-	services: dashboard: base.#ServiceDefinition & {
+	services: dashboard: foundation.#ServiceDefinition & {
 		name:     "dashboard"
 		type:     "dashboard"
 		image:    "nginx"

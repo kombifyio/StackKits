@@ -1,4 +1,4 @@
-// Package cloud_kit — mode-support matrix declaration (see base/mode_matrix.cue).
+// Package cloud_kit — mode-support matrix declaration (see foundation/mode_matrix.cue).
 //
 // Cloud Kit graduated with v0.5.1 (2026-07-07): the canonical cloud
 // verification path — SK-S2 managed kombify.me subdomain (Komodo) and SK-S3
@@ -8,10 +8,10 @@
 package cloud_kit
 
 import (
-	"github.com/kombifyio/stackkits/base"
+	"github.com/kombifyio/stackkits/foundation"
 )
 
-modeMatrix: base.#KitModeSupport & {
+modeMatrix: foundation.#KitModeSupport & {
 	kit: "cloud-kit"
 
 	placement: {

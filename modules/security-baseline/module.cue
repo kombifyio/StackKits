@@ -11,9 +11,9 @@
 // service or container-based provisioner.
 package security_baseline
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "security-baseline"
 		displayName: "Security Baseline"

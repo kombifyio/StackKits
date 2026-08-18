@@ -1,7 +1,7 @@
 package commands
 
 // registry_emit.go implements `stackkit registry emit-cue`: it renders the
-// committed base/generated CUE artifacts from the registry snapshot
+// committed foundation/generated CUE artifacts from the registry snapshot
 // (truth-consolidation plan 2026-06-10, WS-1).
 //
 // Replaces the legacy kombify-admin/scripts/generate-cue.ts path: instead of
@@ -15,7 +15,7 @@ package commands
 //     same source bake-from-cue uses. Service identity stays CUE-owned until
 //     sk_service exists (registry types.go, Services doc comment).
 //   - Tool categories: NOT emitted anymore. The curated taxonomy lives in
-//     hand-written base/tool_categorization.cue (#ToolCategory); the emitted
+//     hand-written foundation/tool_categorization.cue (#ToolCategory); the emitted
 //     #CatalogTool.category references it, so `cue vet` enforces membership
 //     (resolves the TODO recorded in tool_categorization.cue).
 //
@@ -47,8 +47,8 @@ var (
 
 var registryEmitCmd = &cobra.Command{
 	Use:   "emit-cue",
-	Short: "Render base/generated CUE artifacts from the registry snapshot",
-	Long: `Render base/generated/tool_catalog.cue from the registry snapshot plus the
+	Short: "Render foundation/generated CUE artifacts from the registry snapshot",
+	Long: `Render foundation/generated/tool_catalog.cue from the registry snapshot plus the
 local CUE module tree.
 
 Reads the snapshot JSON (default: internal/registry/data/registry_snapshot.json,
@@ -62,7 +62,7 @@ detectable; CI regenerates from the committed snapshot and diffs.`,
 func init() {
 	registryEmitCmd.Flags().StringVar(&registryEmitInput, "input", defaultSnapshotPath(), "Snapshot JSON to render from")
 	registryEmitCmd.Flags().StringVar(&registryEmitModulesDir, "modules-dir", "modules", "Directory containing modules/<slug>/module.cue (service catalog source)")
-	registryEmitCmd.Flags().StringVar(&registryEmitOutputDir, "output-dir", filepath.Join("base", "generated"), "Directory for the rendered CUE files")
+	registryEmitCmd.Flags().StringVar(&registryEmitOutputDir, "output-dir", filepath.Join("foundation", "generated"), "Directory for the rendered CUE files")
 	registryCmd.AddCommand(registryEmitCmd)
 }
 
@@ -135,10 +135,10 @@ func renderToolCatalogCUE(snap registry.Snapshot, services []registry.Service) [
 // Snapshot content_hash: %s
 // Services: rendered from CUE module contracts (modules/<slug>/module.cue),
 // the same source 'registry bake-from-cue' uses.
-// Tool categories: see base/tool_categorization.cue (#ToolCategory) — the
+// Tool categories: see foundation/tool_categorization.cue (#ToolCategory) — the
 // curated taxonomy is hand-written there and enforced here via 'cue vet'.
 
-package base
+package foundation
 `, snap.Source, snap.GeneratedAt.UTC().Format("2006-01-02T15:04:05Z"), hash)
 
 	b.WriteString(`

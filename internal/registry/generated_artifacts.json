@@ -8,13 +8,13 @@
       "generator": "stackkit registry snapshot"
     },
     {
-      "path": "base/generated/tool_catalog.cue",
+      "path": "foundation/generated/tool_catalog.cue",
       "kind": "cue",
       "state": "generated",
       "generator": "stackkit registry emit-cue"
     },
     {
-      "path": "base/generated/admin_profiles.cue",
+      "path": "foundation/generated/admin_profiles.cue",
       "kind": "cue",
       "state": "frozen",
       "generator": "",

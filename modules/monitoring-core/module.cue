@@ -18,9 +18,9 @@
 // Requires Pi 4B (4 GB) or better as the designated central monitoring node.
 package monitoringcore
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "monitoring-core"
 		displayName: "Monitoring Core (VictoriaMetrics)"
@@ -65,14 +65,14 @@ Contract: base.#ModuleContract & {
 		flexible: {
 			// The selected CUE profile is passed intact to runtime lowering.
 			// Default service resources below are the exact single-node values.
-			selectedProfile: *"single-node" | base.#MonitoringProfile
-			runtimeProfile: base.#MonitoringModuleRuntimeProfile & {
+			selectedProfile: *"single-node" | foundation.#MonitoringProfile
+			runtimeProfile: foundation.#MonitoringModuleRuntimeProfile & {
 				profile: selectedProfile
 			}
-			backend: base.#VictoriaMetricsConfig & {
+			backend: foundation.#VictoriaMetricsConfig & {
 				enabled: true
 			}
-			gateway: base.#MonitoringGatewayConfig & {
+			gateway: foundation.#MonitoringGatewayConfig & {
 				enabled: true
 			}
 		}
@@ -86,7 +86,7 @@ Contract: base.#ModuleContract & {
 
 	// OTel gateway — receives OTLP/gRPC from all monitoring-agent nodes,
 	// fans out to VictoriaMetrics via Remote Write.
-	services: "otel-gateway": base.#ServiceDefinition & {
+	services: "otel-gateway": foundation.#ServiceDefinition & {
 		name:  "otel-gateway"
 		type:  "observability"
 		image: "otel/opentelemetry-collector-contrib"
@@ -154,7 +154,7 @@ Contract: base.#ModuleContract & {
 	}
 
 	// VictoriaMetrics single-node — central long-term TSDB.
-	services: "victoriametrics": base.#ServiceDefinition & {
+	services: "victoriametrics": foundation.#ServiceDefinition & {
 		name:  "victoriametrics"
 		type:  "database"
 		image: "victoriametrics/victoria-metrics"

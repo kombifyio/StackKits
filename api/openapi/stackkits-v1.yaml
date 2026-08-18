@@ -3162,7 +3162,7 @@ components:
           $ref: "#/components/schemas/ArchitectureV2RestoreModuleContract"
         recoveryContract:
           $ref: "#/components/schemas/ArchitectureV2RecoveryModuleContract"
-    # Plan-only module contracts (base/architecture_v2_backup.cue plus the
+    # Plan-only module contracts (foundation/architecture_v2_backup.cue plus the
     # storage and data-binding contracts). They bind the shared Application
     # Lifecycle to exact workload storage facts in ResolvedPlan; they never
     # create repositories, schedule jobs, hold credentials, choose targets, or

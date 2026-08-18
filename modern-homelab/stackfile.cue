@@ -9,11 +9,11 @@ package modern_homelab
 import (
 	"list"
 
-	"github.com/kombifyio/stackkits/base"
+	"github.com/kombifyio/stackkits/foundation"
 )
 
 // Definition is the sole Modern Homelab architecture authority.
-Definition: base.#ProductKitDefinition & {
+Definition: foundation.#ProductKitDefinition & {
 	apiVersion: "stackkit/v2alpha1"
 	kind:       "KitDefinition"
 	metadata: {
@@ -88,7 +88,7 @@ Definition: base.#ProductKitDefinition & {
 		}
 	}
 	capabilities: {
-		required: list.Concat([base.#CommonCapabilityIDs, [
+		required: list.Concat([foundation.#CommonCapabilityIDs, [
 			"site-local",
 			"site-cloud",
 			"site-federation",
@@ -403,9 +403,9 @@ Definition: base.#ProductKitDefinition & {
 	evidenceScenarios: ["SK-S4"]
 }
 
-#ModernHomelabStackV2: base.#KitSpecBinding & {definition: Definition}
+#ModernHomelabStackV2: foundation.#KitSpecBinding & {definition: Definition}
 
-#ModernHomelabAuthoringBinding: base.#KitSpecBinding & {
+#ModernHomelabAuthoringBinding: foundation.#KitSpecBinding & {
 	definition: Definition
 	spec:       Definition.authoring.initialSpec
 }

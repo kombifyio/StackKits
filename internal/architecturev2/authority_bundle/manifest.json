@@ -11,15 +11,15 @@
   },
   "schemaVersion": "stackkit.architecture-authority-bundle/v2",
   "sourceHashes": {
-    "base/application_lifecycle.cue": "sha256:4a8de27c746d727018e1788ed2e9d50be5fe580cc22cec019740759f882a8ad7",
-    "base/architecture_v2.cue": "sha256:99c461bb2004028b35d4d1dec097dbbc94c71cddbe88721d0a5d3828ac373829",
-    "base/architecture_v2_backup.cue": "sha256:e6b05f90eeb3705f38ce096fb83dcfe258cbbf3359fd8863f556229dbfe734bc",
-    "base/architecture_v2_catalog.cue": "sha256:b2b9f912f91b400ce18f2bc3eec468dc23836b444ec62cbf077c6ecc8994c4a9",
-    "base/architecture_v2_definition_binding.cue": "sha256:692c5ec5ed511c8ee23e5a0a11c4911c8a865efda9464dbceb6c28d92aa9a5bd",
-    "base/architecture_v2_federation.cue": "sha256:35d8735150dbaed887dfa73fd50a8ce4c5ce117f77ada096d339252e8f7ce352",
-    "base/architecture_v2_profiles.cue": "sha256:c84224e712a22c99dd0c5c352ab00f3f8b05c7691f9dce79d152d5100f35e514",
-    "base/architecture_v2_storage.cue": "sha256:f6fac8445802045892a1a98e3e8ecf856365bc94889f1708811466edb3df1471",
-    "base/use_case_identity.cue": "sha256:f844170a3bf235a04aeabcd344abe687d7faeada7dd8b861e86d4883631b9a27",
-    "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee"
+    "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee",
+    "foundation/application_lifecycle.cue": "sha256:2dd53768204f8abebe9c5417c036470e6465769042e359afb05987c421a6307d",
+    "foundation/architecture_v2.cue": "sha256:056bb1a4bd7b7bcbd8b16558c1efd5a9e9004d9d73ba9fbf7e1a5abb9943785d",
+    "foundation/architecture_v2_backup.cue": "sha256:750b23662d20956156394cf61ad1466e651372a18aa06075883a2a70199c93e0",
+    "foundation/architecture_v2_catalog.cue": "sha256:b2e1e1defe53d9826aac83bff90a731fbbd094034877331939caccbb66237e73",
+    "foundation/architecture_v2_definition_binding.cue": "sha256:eb672ae095f461383f94d7212cc92a6a16a01f5abcd9722523015457bc3484a4",
+    "foundation/architecture_v2_federation.cue": "sha256:6b8720e5ebd55f3d85661a43f16fb9781be983fb63f0e7e09a182ed414429e81",
+    "foundation/architecture_v2_profiles.cue": "sha256:1b80546a4156f4aeba80f8149f5847fbd2315f2269ed8128fe3cb8b36e7128f3",
+    "foundation/architecture_v2_storage.cue": "sha256:299057ef61b0f600cb5eff5e3d9d0423613daffb295fd4f0ecd39ff3d9b53adf",
+    "foundation/use_case_identity.cue": "sha256:69434bf7d383b41ae037fad46003b1196e219025895d81c603fd398cfc461b87"
   }
 }

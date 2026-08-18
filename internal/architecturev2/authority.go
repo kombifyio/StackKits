@@ -42,7 +42,7 @@ func loadCUEAuthority(moduleRoot string) (*cueAuthority, error) {
 	}
 	authority.definitions = make(map[stackspecmigration.KitProfile]resolvedplan.KitDefinition, len(profiles))
 
-	catalogDocument, err := authority.loadObject("base", "ArchitectureV2Catalog")
+	catalogDocument, err := authority.loadObject("foundation", "ArchitectureV2Catalog")
 	if err != nil {
 		return nil, fmt.Errorf("load base.ArchitectureV2Catalog: %w", err)
 	}
@@ -111,7 +111,7 @@ func validateContractFixtureDefinition(document map[string]any) error {
 }
 
 func (a *cueAuthority) loadProfiles() ([]authorityProfile, error) {
-	data, err := a.loadJSON("base", "ArchitectureV2AuthorityProfiles")
+	data, err := a.loadJSON("foundation", "ArchitectureV2AuthorityProfiles")
 	if err != nil {
 		return nil, err
 	}

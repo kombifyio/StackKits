@@ -12,10 +12,10 @@
 // Reference: NETWORK-SECURITY-STACKKITS_1.md §4.2
 package socket_proxy
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
 // Contract declares what this module requires and provides.
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "socket-proxy"
 		displayName: "Docker Socket Proxy"
@@ -73,7 +73,7 @@ Contract: base.#ModuleContract & {
 		pi: {}
 	}
 
-	services: "socket-proxy": base.#ServiceDefinition & {
+	services: "socket-proxy": foundation.#ServiceDefinition & {
 		name:     "socket-proxy"
 		type:     "infrastructure"
 		image:    "tecnativa/docker-socket-proxy"

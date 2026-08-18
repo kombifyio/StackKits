@@ -1,7 +1,7 @@
 // Package stackactiongen generates StackAction Go and OpenAPI projections from
 // the canonical StackKits CUE authority.
 //
-// Authority: base/stack_action.cue owns the contract. This package owns only
+// Authority: foundation/stack_action.cue owns the contract. This package owns only
 // deterministic projection mechanics and drift detection.
 //
 // Non-authority: the generator does not admit or execute actions and does not

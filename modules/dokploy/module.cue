@@ -5,9 +5,9 @@
 // Requires Traefik for ingress routing.
 package dokploy
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "dokploy"
 		displayName: "Dokploy"
@@ -78,7 +78,7 @@ Contract: base.#ModuleContract & {
 	}
 
 	services: {
-		dokploy: base.#ServiceDefinition & {
+		dokploy: foundation.#ServiceDefinition & {
 			name:     "dokploy"
 			type:     "paas"
 			image:    "dokploy/dokploy"
@@ -169,7 +169,7 @@ Contract: base.#ModuleContract & {
 			}
 		}
 
-		"dokploy-postgres": base.#ServiceDefinition & {
+		"dokploy-postgres": foundation.#ServiceDefinition & {
 			name:     "dokploy-postgres"
 			type:     "database"
 			image:    "postgres"
@@ -226,7 +226,7 @@ Contract: base.#ModuleContract & {
 			}
 		}
 
-		"dokploy-redis": base.#ServiceDefinition & {
+		"dokploy-redis": foundation.#ServiceDefinition & {
 			name:     "dokploy-redis"
 			type:     "cache"
 			image:    "redis"

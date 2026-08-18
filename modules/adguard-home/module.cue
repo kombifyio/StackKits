@@ -8,10 +8,10 @@
 // PROVEN CONFIG: Validated via reference-compose.yml.
 package adguard_home
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
 // Contract declares what this module requires and provides.
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "adguard-home"
 		displayName: "AdGuard Home"
@@ -91,7 +91,7 @@ Contract: base.#ModuleContract & {
 		}
 	}
 
-	services: "adguard-home": base.#ServiceDefinition & {
+	services: "adguard-home": foundation.#ServiceDefinition & {
 		name:     "adguard-home"
 		type:     "dns"
 		image:    "adguard/adguardhome"
@@ -153,7 +153,7 @@ Contract: base.#ModuleContract & {
 		}
 	}
 
-	provisioners: "adguard-provisioner": base.#ProvisionerService & {
+	provisioners: "adguard-provisioner": foundation.#ProvisionerService & {
 		image:     "alpine/curl:latest"
 		dependsOn: "adguard-home"
 		networks: ["frontend"]

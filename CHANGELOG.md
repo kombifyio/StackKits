@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.18.22](https://github.com/kombifyio/stackKits/compare/v0.18.14...v0.18.22) (2026-08-18)
+
+### Changed
+
+* **cue:** rename the shared schema package from `base` to `foundation` (`github.com/kombifyio/stackkits/foundation`). Product kits are unchanged.
+* **cue:** remove the `#BaseStackKit` alias. Kits extend `#FoundationStackKit`.
+* **cli:** reject the retired `base-kit` slug instead of rewriting it to `basement-kit`.
+* **release:** ship `foundation/` in the Docker image, public export, and installer. Archives must contain `foundation/`.
+
+### Fixed
+
+* **release:** keep historical CHANGELOG path mentions as text so the public export no longer links to retired `base/*.cue` files.
+* **release:** require `foundation/stackkit.cue` in published archives instead of the retired `base/stackkit.cue` path.
+
 ## [0.18.14](https://github.com/kombifyio/stackKits/compare/v0.18.13...v0.18.14) (2026-08-15)
 
 ### Fixed
@@ -1912,7 +1926,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   kit-taxonomy propagation, OpenAPI examples + website mirror, the agent-run
   manifest schema, `cue vet` command examples, and assorted runbooks/comments.
   The `base-kit` → `basement-kit` deprecation alias is preserved.
-- Per-kit templates are generated from the canonical `base/templates/` source
+- Per-kit templates are generated from the canonical `foundation/templates/` source
   (`cmd/gen-kit-templates`, freshness-test guarded); `public/base` and
   `public/cloud` installers are generated from the canonical installers.
 - Removed the orphaned, retired `release-please` config (publish-oss owns
@@ -2234,8 +2248,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Node Hub service-guide metadata in CUE, registry, and generated catalog paths; the generated `base.<domain>` dashboard now starts with Getting Started, important links, and a compact enabled-service matrix with public Mintlify how-to links.
 - ADR-0018 — Kit-Update-Lifecycle (Channels, Atomic-Snapshot, Compatibility-Resolver). See the private ADR-0018 record.
 - Kit-update design consolidated into ADR-0018, the private kit update lifecycle doc, and the operator runbooks.
-- CUE — `#ToolType` (`oss`/`managed`/`hybrid`) + `#ToolCategory` (curated 18-Set) in [`base/tool_categorization.cue`](base/tool_categorization.cue).
-- CUE — `#IaCDefaults` schema (`provider_versions`, `default_tags`, `backend`) in [`base/iac-defaults.cue`](base/iac-defaults.cue).
+- CUE — `#ToolType` (`oss`/`managed`/`hybrid`) + `#ToolCategory` (curated 18-Set) in `base/tool_categorization.cue`.
+- CUE — `#IaCDefaults` schema (`provider_versions`, `default_tags`, `backend`) in `base/iac-defaults.cue`.
 - IaC — Shared `iac/defaults/` module (`main.tf`, `variables.tf`, `outputs.tf`, `README.md`) — kits import as `module "defaults"` and consume `module.defaults.tags`.
 - Go — `internal/snapshot/` package: `Kopia` CLI wrapper (`kopia.go`) + `AtomicSnapshotter` orchestrating Kopia + tfstate copy + manifest.yaml (`atomic.go`). `ErrKopiaNotConfigured` is the canonical pre-flight failure.
 - Go — `internal/registry/channel_resolver.go` — client for `/api/v1/sk/compat/resolve` with `ResolveResult.SummarizeReasons()` helper.

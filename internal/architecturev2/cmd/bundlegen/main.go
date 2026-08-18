@@ -251,7 +251,7 @@ func generateBundleProjection(repoRoot, staging string, source sourceManifest, p
 		result.SourceHashes[relativePath] = contentHash(data)
 	}
 
-	requests := []cueJSONRequest{{Directory: "base", Expression: "ArchitectureV2Catalog"}}
+	requests := []cueJSONRequest{{Directory: "foundation", Expression: "ArchitectureV2Catalog"}}
 	for _, profile := range profiles {
 		requests = append(requests, cueJSONRequest{Directory: profile.Package, Expression: "Definition"})
 	}
@@ -690,8 +690,8 @@ func renderProfileSource(profiles []sourceProfile) ([]byte, error) {
 	}
 	var output strings.Builder
 	output.WriteString("// Code generated from the governed Architecture v2 authority source; DO NOT EDIT.\n")
-	output.WriteString("// Package base declares the exact product profiles present in this authority.\n")
-	output.WriteString("package base\n\n#KitSlug: ")
+	output.WriteString("// Package foundation declares the exact product profiles present in this authority.\n")
+	output.WriteString("package foundation\n\n#KitSlug: ")
 	for index, profile := range profiles {
 		if index > 0 {
 			output.WriteString(" | ")

@@ -11,7 +11,7 @@ package identity
 // root-only .txt convenience copy (so a logged-in operator on the node
 // can read it without redecrypting).
 //
-// YAML field names mirror base/break-glass.cue #BundlePayload exactly so
+// YAML field names mirror foundation/break-glass.cue #BundlePayload exactly so
 // the encrypted artifact can be diffed against the CUE schema during
 // review.
 
@@ -26,7 +26,7 @@ import (
 )
 
 // BundlePayload is the structure that is serialized to YAML and then
-// encrypted into the .age file. Field names match base/break-glass.cue
+// encrypted into the .age file. Field names match foundation/break-glass.cue
 // #BundlePayload (camelCase).
 type BundlePayload struct {
 	Version             int               `yaml:"version"`

@@ -78,7 +78,7 @@ func NewLayerValidator(baseDir string) *LayerValidator {
 	return &LayerValidator{
 		ctx:       cuecontext.New(),
 		baseDir:   baseDir,
-		schemaDir: filepath.Join(baseDir, "base"),
+		schemaDir: filepath.Join(baseDir, "foundation"),
 	}
 }
 

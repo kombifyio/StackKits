@@ -6,10 +6,10 @@
 // PROVEN CONFIG: Validated via reference-compose.yml.
 package dozzle
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
 // Contract declares what this module requires and provides.
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "dozzle"
 		displayName: "Dozzle"
@@ -66,7 +66,7 @@ Contract: base.#ModuleContract & {
 		pi: {}
 	}
 
-	services: dozzle: base.#ServiceDefinition & {
+	services: dozzle: foundation.#ServiceDefinition & {
 		name:     "dozzle"
 		type:     "logging"
 		image:    "amir20/dozzle"

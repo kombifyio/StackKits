@@ -7,10 +7,10 @@
 // PROVEN CONFIG: Validated via reference-compose.yml (8/8 tests pass).
 package tinyauth
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
 // Contract declares what this module requires and provides.
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "tinyauth"
 		displayName: "TinyAuth"
@@ -99,7 +99,7 @@ Contract: base.#ModuleContract & {
 		}
 	}
 
-	services: tinyauth: base.#ServiceDefinition & {
+	services: tinyauth: foundation.#ServiceDefinition & {
 		name: "tinyauth"
 		type: "auth"
 		// Pin matches base/services.cue and the release pre-pull list.

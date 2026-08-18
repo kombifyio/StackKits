@@ -405,15 +405,6 @@ func selectKitProfile(
 			Reason: "operator supplied targetKitProfile because the legacy product identity is absent",
 		})
 		return target, "", nil
-	case "base-kit":
-		source = KitProfileBasement
-		report.Decisions = append(report.Decisions, Decision{
-			Code:   "kit.base-alias",
-			Field:  "kit.slug",
-			From:   legacyKit,
-			To:     string(source),
-			Reason: "ADR-0029 defines base-kit as a Basement compatibility alias",
-		})
 	case string(KitProfileBasement), string(KitProfileCloud):
 		source = KitProfile(legacyKit)
 		report.Decisions = append(report.Decisions, Decision{
@@ -483,14 +474,14 @@ func selectKitProfile(
 	}
 
 	// The only deterministic profile reclassification in the v1 shape is an
-	// explicitly accepted Basement/base-kit + all-cloud context -> Cloud target.
+	// explicitly accepted Basement + all-cloud context -> Cloud target.
 	if source == KitProfileBasement && target == KitProfileCloud {
 		report.Decisions = append(report.Decisions, Decision{
 			Code:   "kit.explicit-target",
 			Field:  "kit.slug",
 			From:   string(source),
 			To:     string(target),
-			Reason: "operator explicitly selected Cloud for the legacy all-cloud Basement/base-kit ambiguity",
+			Reason: "operator explicitly selected Cloud for the all-cloud Basement ambiguity",
 		})
 		return target, source, nil
 	}

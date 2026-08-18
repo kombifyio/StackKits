@@ -2,11 +2,11 @@
 // STACKKIT: basement-kit - Local single-environment homelab (home base)
 // =============================================================================
 //
-// The legacy v1 rollout shape below still derives from base.#StackBase and
+// The legacy v1 rollout shape below still derives from foundation.#StackBase and
 // accepts local/pi context for one-minor compatibility. The additive v2
 // Definition is the architecture authority for new work: home Sites, explicit
 // local capabilities, and hardware separated from locality (ADR-0029).
-// "base-kit" is retired as a kit; the shared contracts live in base/.
+// "base-kit" is retired as a kit; the shared contracts live in foundation/.
 //
 // Installer: https://base.stackkit.cc  (base = home base)
 // =============================================================================
@@ -14,19 +14,19 @@
 package basement_kit
 
 import (
-	"github.com/kombifyio/stackkits/base"
+	"github.com/kombifyio/stackkits/foundation"
 	"list"
 )
 
 // #BasementKitStack is the legacy v1 compatibility projection. Do not add new
 // product semantics here; add them to Definition/capability contracts.
-#BasementKitStack: base.#StackBase & {
+#BasementKitStack: foundation.#StackBase & {
 	context: *"local" | "pi"
 }
 
 // Definition is the additive v2 architecture profile. The existing
 // #BasementKitStack remains untouched until the resolved-plan compiler cutover.
-Definition: base.#ProductKitDefinition & {
+Definition: foundation.#ProductKitDefinition & {
 	apiVersion: "stackkit/v2alpha1"
 	kind:       "KitDefinition"
 	metadata: {
@@ -100,7 +100,7 @@ Definition: base.#ProductKitDefinition & {
 		}
 	}
 	capabilities: {
-		required: list.Concat([base.#CommonCapabilityIDs, [
+		required: list.Concat([foundation.#CommonCapabilityIDs, [
 			"site-local",
 			"local-ingress",
 			"lan-access-policy",
@@ -299,9 +299,9 @@ Definition: base.#ProductKitDefinition & {
 	evidenceScenarios: ["SK-S1"]
 }
 
-#BasementKitStackV2: base.#KitSpecBinding & {definition: Definition}
+#BasementKitStackV2: foundation.#KitSpecBinding & {definition: Definition}
 
-#BasementKitAuthoringBinding: base.#KitSpecBinding & {
+#BasementKitAuthoringBinding: foundation.#KitSpecBinding & {
 	definition: Definition
 	spec:       Definition.authoring.initialSpec
 }

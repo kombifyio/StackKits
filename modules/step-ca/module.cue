@@ -15,10 +15,10 @@
 // Reference: IDENTITY-STACKKITS.md §3
 package step_ca
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
 // Contract declares what this module requires and provides.
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "step-ca"
 		displayName: "Step-CA"
@@ -93,7 +93,7 @@ Contract: base.#ModuleContract & {
 		}
 	}
 
-	services: "step-ca": base.#ServiceDefinition & {
+	services: "step-ca": foundation.#ServiceDefinition & {
 		name:     "step-ca"
 		type:     "pki"
 		image:    "smallstep/step-ca"

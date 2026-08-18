@@ -4,9 +4,9 @@
 // Requires Traefik for ingress routing.
 package pocketid
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "pocketid"
 		displayName: "PocketID"
@@ -74,7 +74,7 @@ Contract: base.#ModuleContract & {
 		}
 	}
 
-	services: pocketid: base.#ServiceDefinition & {
+	services: pocketid: foundation.#ServiceDefinition & {
 		name:  "pocketid"
 		type:  "auth"
 		image: "ghcr.io/pocket-id/pocket-id"

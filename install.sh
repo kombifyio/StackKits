@@ -17,7 +17,7 @@ set -eu
 
 # KIT_NAME controls which kit definitions are downloaded alongside the binary.
 # ""             → CLI + the public kit catalog
-# "basement-kit" → CLI + basement-kit definitions ("base-kit" aliases here)
+# "basement-kit" → CLI + basement-kit definitions
 # "cloud-kit"    → CLI + cloud-kit definitions
 # "modern-homelab" → CLI + Modern Homelab Preview definitions
 KIT_NAME="${1:-}"
@@ -298,8 +298,8 @@ if [ -n "$INSTALL_KITS" ]; then
   mkdir -p "$STACKKITS_DIR"
 
   # Shared CUE schemas — needed inside each kit dir for module resolution.
-  if [ -d "$TMP/base" ]; then
-    cp -r "$TMP/base" "$STACKKITS_DIR/"
+  if [ -d "$TMP/foundation" ]; then
+    cp -r "$TMP/foundation" "$STACKKITS_DIR/"
   fi
 
   if [ -d "$TMP/cue.mod" ]; then
@@ -318,9 +318,9 @@ if [ -n "$INSTALL_KITS" ]; then
       rm -rf "$STACKKITS_DIR/$kit"
       cp -r "$TMP/$kit" "$STACKKITS_DIR/"
       # Also place shared schemas inside the kit dir for CUE module resolution.
-      if [ -d "$TMP/base" ]; then
-        rm -rf "$STACKKITS_DIR/$kit/base"
-        cp -r "$TMP/base" "$STACKKITS_DIR/$kit/"
+      if [ -d "$TMP/foundation" ]; then
+        rm -rf "$STACKKITS_DIR/$kit/foundation"
+        cp -r "$TMP/foundation" "$STACKKITS_DIR/$kit/"
       fi
       echo "  -> Installed $kit to $STACKKITS_DIR/$kit"
     fi

@@ -1,9 +1,9 @@
 // Package kittemplates renders the per-kit OpenTofu/Terramate template trees
-// from the single canonical source under base/templates/.
+// from the single canonical source under foundation/templates/.
 //
-// base/templates/ is the source of truth. The committed per-kit trees
+// foundation/templates/ is the source of truth. The committed per-kit trees
 // (basement-kit/templates/, cloud-kit/templates/) are generated artifacts:
-// edit base/templates/, then run `go generate ./...` (or
+// edit foundation/templates/, then run `go generate ./...` (or
 // `go run ./cmd/gen-kit-templates`). The freshness test in this package fails
 // if a per-kit tree drifts from what the canonical source would produce, so the
 // duplication can never be edited out of sync.
@@ -26,7 +26,7 @@ import (
 )
 
 // CanonicalDir is the repo-relative path to the canonical template source.
-const CanonicalDir = "base/templates"
+const CanonicalDir = "foundation/templates"
 
 // Kit identifies a derived product kit. Slug is also the output directory name
 // and matches the kit's stackkit.yaml metadata.name.

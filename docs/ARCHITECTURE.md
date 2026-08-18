@@ -1724,7 +1724,7 @@ Layer definitions are enforced by CUE contracts.
 
 ## API Surface
 
-The API server registers endpoints in `internal/api/server.go`; the general contract source is [../api/openapi/stackkits-v1.yaml](../api/openapi/stackkits-v1.yaml). Node-operational StackAction fields, vocabularies, and paths are owned by [../base/stack_action.cue](../base/stack_action.cue), which generates `internal/stackaction` and marked OpenAPI regions. No separate RuntimeAction or RIL HTTP admission surface exists in StackKits. The human summary is [API.md](API.md).
+The API server registers endpoints in `internal/api/server.go`; the general contract source is [../api/openapi/stackkits-v1.yaml](../api/openapi/stackkits-v1.yaml). Node-operational StackAction fields, vocabularies, and paths are owned by [../foundation/stack_action.cue](../foundation/stack_action.cue), which generates `internal/stackaction` and marked OpenAPI regions. No separate RuntimeAction or RIL HTTP admission surface exists in StackKits. The human summary is [API.md](API.md).
 
 Public unauthenticated endpoints:
 

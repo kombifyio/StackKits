@@ -28,14 +28,14 @@ const (
 var kitRoots = []string{"basement-kit/", "cloud-kit/", "modern-homelab/"}
 
 // architectureAuthoritySources covers every input the embedded authority bundle
-// declares in its own manifest sourceHashes. Keying on the "base/architecture_v2"
-// name prefix missed base/application_lifecycle.cue, which is a bundle source
+// declares in its own manifest sourceHashes. Keying on the "foundation/architecture_v2"
+// name prefix missed foundation/application_lifecycle.cue, which is a bundle source
 // too: changing it left the bundle and the canonical plan fixtures stale while
 // the plan ran neither drift check.
-var architectureAuthoritySources = []string{"base/", "cue.mod/"}
+var architectureAuthoritySources = []string{"foundation/", "cue.mod/"}
 
 var coreCUERoots = []string{
-	"./base/...",
+	"./foundation/...",
 	"./basement-kit/...",
 	"./cloud-kit/...",
 	"./modern-homelab/...",
@@ -309,11 +309,11 @@ func buildPlan(input plannerInput) testPlan {
 			))
 		}
 	}
-	// Per-kit templates are generated copies of base/templates. Editing either
+	// Per-kit templates are generated copies of foundation/templates. Editing either
 	// side is the only way they can diverge, and nothing else in the plan would
 	// notice: template files are not Go and not CUE, so they would otherwise
 	// classify as unknown and receive hygiene checks only.
-	if anyPathUnder(files, "base/templates/", "basement-kit/templates/", "cloud-kit/templates/") {
+	if anyPathUnder(files, "foundation/templates/", "basement-kit/templates/", "cloud-kit/templates/") {
 		const templatesPattern = "./internal/kittemplates"
 		goSelection.Changed = sortedUnique(append(goSelection.Changed, templatesPattern))
 		goSelection.CompileOnly = withoutString(goSelection.CompileOnly, templatesPattern)
@@ -476,7 +476,7 @@ func classifyFiles(files []string) classification {
 
 		if strings.HasSuffix(file, ".cue") {
 			switch top {
-			case "base", "cue.mod", "schemas", "architecture", "addons", "platforms":
+			case "foundation", "base", "cue.mod", "schemas", "architecture", "addons", "platforms":
 				result.CUEShared = true
 				known = true
 			case productkits.Basement, productkits.Cloud, productkits.Modern:

@@ -6,9 +6,9 @@
 // Deterministic output: edit the facts and re-scaffold; do not hand-diff.
 package {{.Package}}
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        {{quote .Slug}}
 		displayName: {{quote .DisplayName}}
@@ -63,7 +63,7 @@ Contract: base.#ModuleContract & {
 
 	services: {
 {{- range .Services}}
-		{{quote .Name}}: base.#ServiceDefinition & {
+		{{quote .Name}}: foundation.#ServiceDefinition & {
 			name:     {{quote .Name}}
 			type:     {{quote .Type}}
 			image:    {{quote .Image}}

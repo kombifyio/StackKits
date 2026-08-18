@@ -156,9 +156,9 @@ func validateArchitectureAuthorityRoot(root string) error {
 	root = filepath.Clean(root)
 	required := []string{
 		filepath.Join("cue.mod", "module.cue"),
-		filepath.Join("base", "architecture_v2_profiles.cue"),
-		filepath.Join("base", "architecture_v2.cue"),
-		filepath.Join("base", "architecture_v2_catalog.cue"),
+		filepath.Join("foundation", "architecture_v2_profiles.cue"),
+		filepath.Join("foundation", "architecture_v2.cue"),
+		filepath.Join("foundation", "architecture_v2_catalog.cue"),
 	}
 	for _, relativePath := range required {
 		info, err := os.Stat(filepath.Join(root, relativePath))

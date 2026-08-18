@@ -14,7 +14,7 @@ const (
 	ProductionBackupRestoreNone = "not-applicable"
 )
 
-// ProductionServicePolicy is the Go representation of base.#ProductionServicePolicy.
+// ProductionServicePolicy is the Go representation of foundation.#ProductionServicePolicy.
 type ProductionServicePolicy struct {
 	Grade     string
 	Auth      ProductionAuthPolicy

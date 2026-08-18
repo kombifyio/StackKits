@@ -14,10 +14,10 @@
 // a stand-in for the PaaS Traefik, connected via socket-proxy.
 package traefik
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
 // Contract declares what this module requires and provides.
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "traefik"
 		displayName: "Traefik"
@@ -102,7 +102,7 @@ Contract: base.#ModuleContract & {
 	// Service definition describes the PaaS-shipped Traefik's expected config.
 	// In production this container is managed by the selected router, not by StackKit.
 	// The service definition is used for: label generation, middleware config, tests.
-	services: traefik: base.#ServiceDefinition & {
+	services: traefik: foundation.#ServiceDefinition & {
 		name:     "traefik"
 		type:     "reverse-proxy"
 		image:    "traefik"

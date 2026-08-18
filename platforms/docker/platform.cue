@@ -13,11 +13,11 @@
 package docker
 
 import (
-	"github.com/kombifyio/stackkits/base"
+	"github.com/kombifyio/stackkits/foundation"
 )
 
 // #DockerPlatform extends base configuration for Docker deployments
-#DockerPlatform: base.#BaseStackKit & {
+#DockerPlatform: foundation.#FoundationStackKit & {
 	// Platform identifier
 	platform: "docker"
 	

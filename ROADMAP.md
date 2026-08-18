@@ -6,7 +6,7 @@ Basement, Cloud, and Modern Homelab kits.
 
 ## Current Focus
 
-- Three public OSS kit surfaces share the `base/` foundation library:
+- Three public OSS kit surfaces share the `foundation/` library:
   - Basement Kit (`basement-kit`, local `context`, installed via
     `base.stackkit.cc`) — the stable v0.5 one-click path.
   - Cloud Kit (`cloud-kit`, cloud `context`, installed via

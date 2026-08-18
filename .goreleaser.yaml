@@ -131,7 +131,7 @@ archives:
       - basement-kit/**
       - cloud-kit/**
       - modern-homelab/**
-      - base/**
+      - foundation/**
       - modules/**
 
   # Per-kit archives — CLI + specific kit + base schemas
@@ -183,7 +183,7 @@ archives:
       - addons/backup/restic-importer.cue
       - cue.mod/**
       - basement-kit/**
-      - base/**
+      - foundation/**
       - modules/**
 
   - id: cloud-kit
@@ -234,7 +234,7 @@ archives:
       - addons/backup/restic-importer.cue
       - cue.mod/**
       - cloud-kit/**
-      - base/**
+      - foundation/**
       - modules/**
 
   - id: modern-homelab
@@ -285,7 +285,7 @@ archives:
       - addons/backup/restic-importer.cue
       - cue.mod/**
       - modern-homelab/**
-      - base/**
+      - foundation/**
       - modules/**
 
 nfpms:

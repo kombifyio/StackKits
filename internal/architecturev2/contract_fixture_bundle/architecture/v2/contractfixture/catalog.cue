@@ -7,7 +7,7 @@ package contractfixture
 
 import (
 	basement "github.com/kombifyio/stackkits/basement-kit:basement_kit"
-	"github.com/kombifyio/stackkits/base"
+	"github.com/kombifyio/stackkits/foundation"
 	"list"
 )
 
@@ -15,7 +15,7 @@ import (
 // while carrying a distinct definition hash and evidence namespace. A plan
 // resolved by this authority can therefore never masquerade as the product
 // Basement definition or its SK-S1 evidence.
-ContractFixtureDefinition: base.#KitDefinition & {
+ContractFixtureDefinition: foundation.#KitDefinition & {
 	let fixtureIdentityOwner = {
 		kind:        "catalog"
 		providerRef: "fixture-basement-provider"
@@ -80,7 +80,7 @@ ContractFixtureDefinition: base.#KitDefinition & {
 	evidenceScenarios: ["contract-fixture-two-node"]
 }
 
-_architectureV2ContractFixtureRequiredCapabilities: list.Concat([base.#CommonCapabilityIDs, [
+_architectureV2ContractFixtureRequiredCapabilities: list.Concat([foundation.#CommonCapabilityIDs, [
 	"site-local",
 	"lan-discovery",
 	"local-ingress",
@@ -293,11 +293,11 @@ _architectureV2ContractFixtureModules: [
 // catalog and is accepted only by the explicitly named contract-fixture
 // service constructors. It cannot graduate a Basement, Cloud, or Modern
 // profile into product readiness.
-ArchitectureV2ContractFixtureCatalog: base.#ArchitectureV2CatalogContract & {
+ArchitectureV2ContractFixtureCatalog: foundation.#ArchitectureV2CatalogContract & {
 	capabilities: [
-		for contract in base.ArchitectureV2Catalog.capabilities
+		for contract in foundation.ArchitectureV2Catalog.capabilities
 		for requiredRef in _architectureV2ContractFixtureRequiredCapabilities
-		if contract.metadata.id == requiredRef {base.#CapabilityContract & {
+		if contract.metadata.id == requiredRef {foundation.#CapabilityContract & {
 			metadata:           contract.metadata
 			supportedSiteKinds: contract.supportedSiteKinds
 			evidence: ["resolved-plan-contract"]
@@ -321,9 +321,9 @@ ArchitectureV2ContractFixtureCatalog: base.#ArchitectureV2CatalogContract & {
 		selection: defaultForSiteKinds: ["home"]
 		health: [{id: "fixture-basement-provider-contract", kind: "contract"}]
 		evidence: ["fixture-basement-provider-contract"]
-	}] {base.#CapabilityProvider & contract}]
+	}] {foundation.#CapabilityProvider & contract}]
 	addons: []
-	modules: [for contract in _architectureV2ContractFixtureModules {base.#ModuleContractV2 & contract}]
+	modules: [for contract in _architectureV2ContractFixtureModules {foundation.#ModuleContractV2 & contract}]
 	workloads: []
 	privilegedInterfaceApprovals: [for contract in [{
 		id:            "approve-fixture-socket-proxy-backing"
@@ -335,6 +335,6 @@ ArchitectureV2ContractFixtureCatalog: base.#ArchitectureV2CatalogContract & {
 		policyProfile: "docker-provider-backing"
 		reasonCode:    "provider-backing"
 		evidenceRef:   "fixture-socket-proxy-reviewed"
-	}] {base.#PrivilegedInterfaceApprovalV2 & contract}]
-	planArtifacts: base.ArchitectureV2Catalog.planArtifacts
+	}] {foundation.#PrivilegedInterfaceApprovalV2 & contract}]
+	planArtifacts: foundation.ArchitectureV2Catalog.planArtifacts
 }

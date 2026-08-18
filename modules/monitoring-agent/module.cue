@@ -12,10 +12,10 @@
 //   full     — 10s interval, adds per-process metrics, ~250 MB RAM
 package monitoringagent
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
 // Contract declares what this module requires and provides.
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "monitoring-agent"
 		displayName: "Monitoring Agent (OTel)"
@@ -49,13 +49,13 @@ Contract: base.#ModuleContract & {
 			// The chosen capacity profile is a renderer input. The default
 			// service resources below are the exact single-node projection;
 			// Pi and multi-node require a renderer to consume runtimeProfile.
-			selectedProfile: *"single-node" | base.#MonitoringProfile
-			runtimeProfile: base.#MonitoringModuleRuntimeProfile & {
+			selectedProfile: *"single-node" | foundation.#MonitoringProfile
+			runtimeProfile: foundation.#MonitoringModuleRuntimeProfile & {
 				profile: selectedProfile
 			}
 			// Canonical monitoring-agent contract.
 			// Consumers should use this collector object rather than bespoke flat fields.
-			collector: base.#OtelCollectorConfig
+			collector: foundation.#OtelCollectorConfig
 		}
 	}
 
@@ -65,7 +65,7 @@ Contract: base.#ModuleContract & {
 		pi: {}
 	}
 
-	services: "otel-collector": base.#ServiceDefinition & {
+	services: "otel-collector": foundation.#ServiceDefinition & {
 		name:  "otel-collector"
 		type:  "observability"
 		image: "otel/opentelemetry-collector-contrib"

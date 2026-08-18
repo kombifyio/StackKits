@@ -11,10 +11,10 @@
 // Reference: NETWORK-SECURITY-STACKKITS_1.md §7.3
 package crowdsec
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
 // Contract declares what this module requires and provides.
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "crowdsec"
 		displayName: "CrowdSec"
@@ -95,7 +95,7 @@ Contract: base.#ModuleContract & {
 		}
 	}
 
-	services: crowdsec: base.#ServiceDefinition & {
+	services: crowdsec: foundation.#ServiceDefinition & {
 		name:     "crowdsec"
 		type:     "security"
 		image:    "crowdsecurity/crowdsec"

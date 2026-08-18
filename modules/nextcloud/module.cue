@@ -1,9 +1,9 @@
 // Package nextcloud -- Nextcloud files module alternative.
 package nextcloud
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "nextcloud"
 		displayName: "Nextcloud"
@@ -56,7 +56,7 @@ Contract: base.#ModuleContract & {
 		cloud: {}
 	}
 
-	services: nextcloud: base.#ServiceDefinition & {
+	services: nextcloud: foundation.#ServiceDefinition & {
 		name:        "nextcloud"
 		displayName: "Files"
 		description: "Document management and file sharing backed by Nextcloud"

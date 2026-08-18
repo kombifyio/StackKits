@@ -3,9 +3,9 @@
 // Transitional module contract mirroring the currently deployed Base Kit app.
 package immich
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "immich"
 		displayName: "Immich"
@@ -70,7 +70,7 @@ Contract: base.#ModuleContract & {
 	}
 
 	services: {
-		immich: base.#ServiceDefinition & {
+		immich: foundation.#ServiceDefinition & {
 			name:  "immich"
 			type:  "application"
 			image: "ghcr.io/immich-app/immich-server"
@@ -176,7 +176,7 @@ Contract: base.#ModuleContract & {
 			}
 		}
 
-		"immich-machine-learning": base.#ServiceDefinition & {
+		"immich-machine-learning": foundation.#ServiceDefinition & {
 			name:  "immich-machine-learning"
 			type:  "application"
 			image: "ghcr.io/immich-app/immich-machine-learning"
@@ -221,7 +221,7 @@ Contract: base.#ModuleContract & {
 			output: {description: "Immich machine-learning worker (internal)"}
 		}
 
-		"immich-postgres": base.#ServiceDefinition & {
+		"immich-postgres": foundation.#ServiceDefinition & {
 			name:  "immich-postgres"
 			type:  "database"
 			image: "ghcr.io/immich-app/postgres"
@@ -284,7 +284,7 @@ Contract: base.#ModuleContract & {
 		// rollout. The Immich PostgreSQL image normally creates POSTGRES_DB on a
 		// fresh volume; this idempotent unit also repairs an already-initialized
 		// cluster where the application database is absent.
-		"immich-postgres-init": base.#ServiceDefinition & {
+		"immich-postgres-init": foundation.#ServiceDefinition & {
 			name:  "immich-postgres-init"
 			type:  "automation"
 			image: "ghcr.io/immich-app/postgres"
@@ -328,7 +328,7 @@ Contract: base.#ModuleContract & {
 			output: {description: "Idempotent Immich database initialization (one-shot)"}
 		}
 
-		"immich-redis": base.#ServiceDefinition & {
+		"immich-redis": foundation.#ServiceDefinition & {
 			name:  "immich-redis"
 			type:  "cache"
 			image: "ghcr.io/valkey-io/valkey"
@@ -367,7 +367,7 @@ Contract: base.#ModuleContract & {
 		}
 	}
 
-	provisioners: "init-immich": base.#ProvisionerService & {
+	provisioners: "init-immich": foundation.#ProvisionerService & {
 		image:     "python:3.11-alpine"
 		dependsOn: "immich"
 		networks: ["base_net"]

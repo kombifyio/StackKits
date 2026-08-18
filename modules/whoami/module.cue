@@ -9,10 +9,10 @@
 // PROVEN CONFIG: Validated via reference-compose.yml.
 package whoami
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
 // Contract declares what this module requires and provides.
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "whoami"
 		displayName: "Whoami"
@@ -57,7 +57,7 @@ Contract: base.#ModuleContract & {
 		pi: {}
 	}
 
-	services: whoami: base.#ServiceDefinition & {
+	services: whoami: foundation.#ServiceDefinition & {
 		name:     "whoami"
 		type:     "test"
 		image:    "traefik/whoami"

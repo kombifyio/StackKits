@@ -209,7 +209,7 @@ The Node Hub posts setup/retry actions to `POST /api/v1/setup/services/{service}
 ## StackAction contract
 
 The exact request/response vocabulary, action set, and paths are generated from
-`base/stack_action.cue`; the marked OpenAPI regions are the human- and
+`foundation/stack_action.cue`; the marked OpenAPI regions are the human- and
 machine-readable projection. Rollout, verification, restore drill, backup run,
 backup status, backup restore, and backup wipe remain implemented through this
 single contract. The retired RuntimeAction envelopes are not accepted aliases.

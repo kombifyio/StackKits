@@ -521,11 +521,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	isLocalPath := strings.Contains(stackkitName, "/") || strings.Contains(stackkitName, "\\")
-	if !isLocalPath && models.IsLegacyStackKitName(stackkitName) {
-		printWarning("StackKit %q is a retired alias; using %q.", stackkitName, models.NormalizeStackKitName(stackkitName))
-	}
 	if !isLocalPath {
-		stackkitName = models.NormalizeStackKitName(stackkitName)
 		if err := validateInitializableStackKit(stackkitName); err != nil {
 			return err
 		}

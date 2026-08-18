@@ -4,9 +4,9 @@
 // generated Corefile, health routing, and user guidance.
 package kombify_point
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "kombify-point"
 		displayName: "kombify Point DNS"
@@ -65,7 +65,7 @@ Contract: base.#ModuleContract & {
 		cloud: {_enabled: false}
 	}
 
-	services: "kombify-point": base.#ServiceDefinition & {
+	services: "kombify-point": foundation.#ServiceDefinition & {
 		name:  "kombify-point"
 		type:  "dns"
 		image: "coredns/coredns"

@@ -121,10 +121,10 @@ tar -xzf "$archive" -C "$extract"
 release_stackkit="$(find "$extract" -maxdepth 2 -type f -name stackkit -print -quit)"
 test -n "$release_stackkit"
 chmod +x "$release_stackkit"
-for directory in base modules cue.mod modern-homelab; do
+for directory in foundation modules cue.mod modern-homelab; do
   cp -R "$extract/$directory" "$home/.stackkits/"
 done
-cp -R "$extract/base" "$home/.stackkits/modern-homelab/"
+cp -R "$extract/foundation" "$home/.stackkits/modern-homelab/"
 export HOME="$home"
 export PATH="$(dirname "$release_stackkit"):$PATH"
 export STACKKIT_RELEASE_FIXTURE_URL="$fixture_url"

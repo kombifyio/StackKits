@@ -3,7 +3,7 @@
 //
 // # Authority
 //
-// base/stack_action.cue owns wire fields, vocabularies, paths, and
+// foundation/stack_action.cue owns wire fields, vocabularies, paths, and
 // validation constraints. This package is generated output and must not be
 // edited as an independent contract.
 //

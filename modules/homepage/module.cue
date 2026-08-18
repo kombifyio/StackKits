@@ -5,9 +5,9 @@
 // Docker Socket Proxy, not by mounting the Docker socket into Homepage.
 package homepage
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "homepage"
 		displayName: "Homepage"
@@ -65,7 +65,7 @@ Contract: base.#ModuleContract & {
 	}
 
 	services: {
-		homepage: base.#ServiceDefinition & {
+		homepage: foundation.#ServiceDefinition & {
 			name:     "homepage"
 			type:     "dashboard"
 			image:    "ghcr.io/gethomepage/homepage"
@@ -160,7 +160,7 @@ Contract: base.#ModuleContract & {
 			}
 		}
 
-		"homepage-socket-proxy": base.#ServiceDefinition & {
+		"homepage-socket-proxy": foundation.#ServiceDefinition & {
 			name:     "homepage-socket-proxy"
 			type:     "infrastructure"
 			image:    "tecnativa/docker-socket-proxy"

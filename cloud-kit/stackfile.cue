@@ -2,7 +2,7 @@
 // STACKKIT: cloud-kit - Cloud single-environment homelab
 // =============================================================================
 //
-// The legacy v1 rollout shape below still derives from base.#StackBase and
+// The legacy v1 rollout shape below still derives from foundation.#StackBase and
 // pins cloud context for one-minor compatibility. The additive v2 Definition
 // is the architecture authority for new work: cloud Sites, externally supplied
 // host admission, edge/DNS/TLS intent, host-local hardening, and default-closed service publication
@@ -14,19 +14,19 @@
 package cloud_kit
 
 import (
-	"github.com/kombifyio/stackkits/base"
+	"github.com/kombifyio/stackkits/foundation"
 	"list"
 )
 
 // #CloudKitStack is the legacy v1 compatibility projection. Do not add new
 // product semantics here; add them to Definition/capability contracts.
-#CloudKitStack: base.#StackBase & {
+#CloudKitStack: foundation.#StackBase & {
 	context: "cloud"
 }
 
 // Definition is the additive v2 architecture profile. Public-capable does not
 // mean publicly open: service publications remain default-closed.
-Definition: base.#ProductKitDefinition & {
+Definition: foundation.#ProductKitDefinition & {
 	apiVersion: "stackkit/v2alpha1"
 	kind:       "KitDefinition"
 	metadata: {
@@ -100,7 +100,7 @@ Definition: base.#ProductKitDefinition & {
 		}
 	}
 	capabilities: {
-		required: list.Concat([base.#CommonCapabilityIDs, [
+		required: list.Concat([foundation.#CommonCapabilityIDs, [
 			"site-cloud",
 			"cloud-core-runtime",
 			"host-local-internet-firewall",
@@ -329,9 +329,9 @@ Definition: base.#ProductKitDefinition & {
 	evidenceScenarios: ["SK-S2", "SK-S3"]
 }
 
-#CloudKitStackV2: base.#KitSpecBinding & {definition: Definition}
+#CloudKitStackV2: foundation.#KitSpecBinding & {definition: Definition}
 
-#CloudKitAuthoringBinding: base.#KitSpecBinding & {
+#CloudKitAuthoringBinding: foundation.#KitSpecBinding & {
 	definition: Definition
 	spec:       Definition.authoring.initialSpec
 }

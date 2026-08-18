@@ -1,6 +1,6 @@
 // Command gen-kit-templates materializes the per-kit OpenTofu/Terramate template
 // trees (basement-kit/templates/, cloud-kit/templates/) from the single
-// canonical source in base/templates/.
+// canonical source in foundation/templates/.
 //
 // It is wired via the `//go:generate` directive in internal/kittemplates and
 // therefore runs as part of `go generate ./...` (including the goreleaser

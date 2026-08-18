@@ -117,12 +117,11 @@ cp "$archive" "$sbom" "$attestation" "$trusted_root" "$fixture_dir/"
 cp "$release_index" "$fixture_dir/stackkits-release-index-v1.json"
 cp "$release_index_attestation" "$fixture_dir/stackkits-release-index-v1.json.intoto.jsonl"
 tar xzf "$archive" -C "$extract_dir"
-for directory in base modules cue.mod basement-kit; do
+for directory in foundation modules cue.mod basement-kit; do
   if [ -e "$extract_dir/$directory" ]; then
     cp -R "$extract_dir/$directory" "$home_dir/.stackkits/"
   fi
 done
-cp -R "$extract_dir/base" "$home_dir/.stackkits/basement-kit/"
 
 archive_name="$(basename "$archive")"
 version="$(jq -er --arg name "$archive_name" '.assets[] | select(.kit == "basement-kit" and .platform.os == "linux" and .archive.name == $name) | .version' "$release_index")"

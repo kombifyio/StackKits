@@ -299,14 +299,14 @@ func loadSource(root string, release ReleaseIdentity) (sourceCatalog, error) {
 			} `json:"notApplicable"`
 		} `json:"entries"`
 	}
-	if err := loadCUE(root, "base", "UseCaseCatalog", &registry); err != nil {
+	if err := loadCUE(root, "foundation", "UseCaseCatalog", &registry); err != nil {
 		return sourceCatalog{}, err
 	}
 	var architecture struct {
 		Workloads             []map[string]any `json:"workloads"`
 		ApplicationLifecycles []map[string]any `json:"applicationLifecycles"`
 	}
-	if err := loadCUE(root, "base", "ArchitectureV2Catalog", &architecture); err != nil {
+	if err := loadCUE(root, "foundation", "ArchitectureV2Catalog", &architecture); err != nil {
 		return sourceCatalog{}, err
 	}
 	result := sourceCatalog{Packages: map[string]map[string]any{}, Workloads: map[string]map[string]any{}, Lifecycles: map[string]map[string]any{}, Modules: map[string]bool{}, NotApplicable: map[string]map[string]string{}, RuntimeEvidence: map[string]string{}}
@@ -566,25 +566,25 @@ func internalProjection(source sourceCatalog, receipt *TestReceipt, releaseProje
 		if source.RuntimeEvidenceSourceMismatch {
 			runtimeReason = "RUNTIME_EVIDENCE_SOURCE_MISMATCH"
 		}
-		packageSource := "base/use_case_catalog.cue"
+		packageSource := "foundation/use_case_catalog.cue"
 		if pkg != nil {
 			packageSource = "use-cases/" + useCase.ID + "/use-case.cue"
 		}
 		gates := []Gate{
-			completeGate("product-intent", "typed CUE catalog entry exists", "base/use_case_catalog.cue"),
+			completeGate("product-intent", "typed CUE catalog entry exists", "foundation/use_case_catalog.cue"),
 			gate("use-case-package", pkg != nil, "typed UseCasePackage exists", "USE_CASE_PACKAGE_MISSING", packageSource),
-			gate("runtime-workload", workload != nil, "Architecture v2 application workload exists", "RUNTIME_WORKLOAD_MISSING", "base/architecture_v2_catalog.cue"),
-			gate("component-closure", completeComponents, "all declared component IDs resolve to module contracts", "COMPONENT_REFERENCE_MISSING", "base/use_case_catalog.cue"),
-			gate("delivery-adapter", hasDelivery(workload), "runtime workload declares delivery adapter rows", "DELIVERY_ADAPTER_MISSING", "base/architecture_v2_catalog.cue"),
-			gate("setup-network-auth-data-backup", hasOperationalShape(pkg, workload), "setup and runtime data/backup shape exist", "OPERATIONAL_CONTRACTS_INCOMPLETE", "docs/USE_CASE_PACKAGES.md", "base/architecture_v2_catalog.cue"),
-			gate("application-lifecycle", lifecycle != nil, "seven-stage Architecture v2 lifecycle exists", "APPLICATION_LIFECYCLE_MISSING", "base/architecture_v2_catalog.cue"),
+			gate("runtime-workload", workload != nil, "Architecture v2 application workload exists", "RUNTIME_WORKLOAD_MISSING", "foundation/architecture_v2_catalog.cue"),
+			gate("component-closure", completeComponents, "all declared component IDs resolve to module contracts", "COMPONENT_REFERENCE_MISSING", "foundation/use_case_catalog.cue"),
+			gate("delivery-adapter", hasDelivery(workload), "runtime workload declares delivery adapter rows", "DELIVERY_ADAPTER_MISSING", "foundation/architecture_v2_catalog.cue"),
+			gate("setup-network-auth-data-backup", hasOperationalShape(pkg, workload), "setup and runtime data/backup shape exist", "OPERATIONAL_CONTRACTS_INCOMPLETE", "docs/USE_CASE_PACKAGES.md", "foundation/architecture_v2_catalog.cue"),
+			gate("application-lifecycle", lifecycle != nil, "seven-stage Architecture v2 lifecycle exists", "APPLICATION_LIFECYCLE_MISSING", "foundation/architecture_v2_catalog.cue"),
 			gate("source-sha-tests", tested, "source-SHA-bound catalog tests passed", "SOURCE_SHA_TEST_EVIDENCE_MISSING", "schemas/stackkits-use-case-evidence-v1.schema.json"),
 			gate("runtime-evidence", runtimeEvidence, "runtime evidence is bound to the same source SHA: "+runtimeEvidenceRef, runtimeReason, "docs/data/use-case-runtime-evidence/latest.json"),
 			gate("release-documentation", releaseProjection, "release manifests are being emitted for a published tag", "RELEASE_DOCUMENTATION_PENDING", "schemas/stackkits-use-case-catalog-v1.schema.json"),
 		}
 		for index := range gates {
 			if reason, ok := source.NotApplicable[useCase.ID][gates[index].ID]; ok {
-				gates[index] = Gate{ID: gates[index].ID, Status: "not-applicable", ReasonCode: "NOT_APPLICABLE_WITH_REASON", Detail: reason, Sources: []string{"base/use_case_catalog.cue"}}
+				gates[index] = Gate{ID: gates[index].ID, Status: "not-applicable", ReasonCode: "NOT_APPLICABLE_WITH_REASON", Detail: reason, Sources: []string{"foundation/use_case_catalog.cue"}}
 			}
 		}
 		result = append(result, InternalUseCase{UseCase: useCase, Gates: gates})

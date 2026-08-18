@@ -4,10 +4,10 @@
 package modern_homelab
 
 import (
-	"github.com/kombifyio/stackkits/base"
+	"github.com/kombifyio/stackkits/foundation"
 )
 
-modeMatrix: base.#KitModeSupport & {
+modeMatrix: foundation.#KitModeSupport & {
 	kit: "modern-homelab"
 
 	placement: {

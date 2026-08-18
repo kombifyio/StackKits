@@ -15,7 +15,7 @@ StackKits is designed around safe defaults and release evidence:
 
 The public OSS scope contains Basement Kit (`basement-kit`, local, stable),
 Cloud Kit (`cloud-kit`, cloud), and Modern Homelab (`modern-homelab`, Home plus
-Cloud, Preview), all built on the shared `base/` foundation. Modern archive
+Cloud, Preview), all built on the shared `foundation/` library. Modern archive
 availability does not graduate incomplete federation runtime owners.
 Unreleased extensions, internal runbooks, provider credentials, and
 operator-only controller paths remain excluded from the public repository and

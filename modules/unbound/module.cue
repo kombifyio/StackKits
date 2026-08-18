@@ -9,10 +9,10 @@
 // PROVEN CONFIG: Validated via reference-compose.yml.
 package unbound
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
 // Contract declares what this module requires and provides.
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "unbound"
 		displayName: "Unbound"
@@ -71,7 +71,7 @@ Contract: base.#ModuleContract & {
 		}
 	}
 
-	services: unbound: base.#ServiceDefinition & {
+	services: unbound: foundation.#ServiceDefinition & {
 		name:     "unbound"
 		type:     "dns"
 		image:    "klutchell/unbound"

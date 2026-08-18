@@ -100,7 +100,7 @@ ENV STACKKITS_BASE_DIR=/workspace
 
 # Copy StackKit directories
 COPY cue.mod/ /workspace/cue.mod/
-COPY base/ /workspace/base/
+COPY foundation/ /workspace/foundation/
 COPY basement-kit/ /workspace/basement-kit/
 COPY cloud-kit/ /workspace/cloud-kit/
 

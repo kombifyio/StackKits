@@ -3,9 +3,9 @@
 // Transitional module contract mirroring the currently deployed Base Kit app.
 package vaultwarden
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "vaultwarden"
 		displayName: "Vaultwarden"
@@ -64,7 +64,7 @@ Contract: base.#ModuleContract & {
 		pi: {}
 	}
 
-	services: vaultwarden: base.#ServiceDefinition & {
+	services: vaultwarden: foundation.#ServiceDefinition & {
 		name:     "vaultwarden"
 		type:     "application"
 		image:    "vaultwarden/server"

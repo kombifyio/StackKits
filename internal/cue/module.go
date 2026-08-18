@@ -25,7 +25,7 @@ type ModuleContract struct {
 	Placement *PlacementSupport
 }
 
-// PlacementSupport mirrors base/placement.cue #PlacementSupport: publishable
+// PlacementSupport mirrors foundation/placement.cue #PlacementSupport: publishable
 // eligibility metadata, not realization.
 type PlacementSupport struct {
 	LocalOnly         bool

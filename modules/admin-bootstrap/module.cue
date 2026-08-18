@@ -11,9 +11,9 @@
 // STATUS: Scaffolded for V6 Phase 2. Provisioner implementation pending.
 package admin_bootstrap
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "admin-bootstrap"
 		displayName: "Admin Bootstrap"

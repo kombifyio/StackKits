@@ -20,7 +20,7 @@ func KitDeclaresModeMatrix(kitDir string) bool {
 	return err == nil
 }
 
-// Support levels of a mode-matrix cell (base/mode_matrix.cue #SupportLevel).
+// Support levels of a mode-matrix cell (foundation/mode_matrix.cue #SupportLevel).
 const (
 	SupportSupported    = "supported"
 	SupportScaffolding  = "scaffolding"

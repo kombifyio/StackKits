@@ -15,10 +15,10 @@
 // Reference: IDENTITY-STACKKITS.md §2
 package lldap
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
 // Contract declares what this module requires and provides.
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "lldap"
 		displayName: "LLDAP"
@@ -89,7 +89,7 @@ Contract: base.#ModuleContract & {
 		}
 	}
 
-	services: lldap: base.#ServiceDefinition & {
+	services: lldap: foundation.#ServiceDefinition & {
 		name:     "lldap"
 		type:     "directory"
 		image:    "lldap/lldap"

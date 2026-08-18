@@ -12,9 +12,9 @@
 // STATUS: Scaffolded for V6 Phase 2. Enforcement in Composition Engine (Phase 1).
 package login_gateway
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "login-gateway"
 		displayName: "Login Gateway"

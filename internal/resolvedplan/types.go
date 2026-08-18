@@ -23,13 +23,13 @@ const (
 	ResolvedPlanKind       = "ResolvedPlan"
 )
 
-// KitDefinition is a JSON-decoded base.#KitDefinition document.
+// KitDefinition is a JSON-decoded foundation.#KitDefinition document.
 type KitDefinition map[string]any
 
-// StackSpecV2 is a JSON-decoded base.#StackSpecV2 document.
+// StackSpecV2 is a JSON-decoded foundation.#StackSpecV2 document.
 type StackSpecV2 map[string]any
 
-// InventoryFacts is a JSON-decoded base.#InventoryFacts document.
+// InventoryFacts is a JSON-decoded foundation.#InventoryFacts document.
 type InventoryFacts map[string]any
 
 // ExternalHostBinding is the provider-free handoff for a host that has
@@ -72,25 +72,25 @@ type FederationLinkRequirement map[string]any
 // exact FederationLinkRequirement.
 type ExternalFederationLinkBinding map[string]any
 
-// CapabilityContract is a JSON-decoded base.#CapabilityContract document.
+// CapabilityContract is a JSON-decoded foundation.#CapabilityContract document.
 type CapabilityContract map[string]any
 
-// CapabilityProvider is a JSON-decoded base.#CapabilityProvider document.
+// CapabilityProvider is a JSON-decoded foundation.#CapabilityProvider document.
 type CapabilityProvider map[string]any
 
-// AddOnContract is a JSON-decoded base.#AddOnContract document.
+// AddOnContract is a JSON-decoded foundation.#AddOnContract document.
 type AddOnContract map[string]any
 
-// ModuleContract is a JSON-decoded base.#ModuleContractV2 document.
+// ModuleContract is a JSON-decoded foundation.#ModuleContractV2 document.
 type ModuleContract map[string]any
 
-// WorkloadContract is a JSON-decoded base.#WorkloadContractV2 document. It
+// WorkloadContract is a JSON-decoded foundation.#WorkloadContractV2 document. It
 // owns logical workload and alternative selection; StackSpec never supplies
 // the referenced provider or module implementation IDs.
 type WorkloadContract map[string]any
 
 // ApplicationLifecycleContract is a JSON-decoded
-// base.#ApplicationLifecycleContractV1 document. It binds a selected
+// foundation.#ApplicationLifecycleContractV1 document. It binds a selected
 // application workload to the reusable lifecycle and its Application Kit
 // package without exposing either choice as StackSpec input.
 type ApplicationLifecycleContract map[string]any
@@ -99,7 +99,7 @@ type ApplicationLifecycleContract map[string]any
 // narrowly scoped direct runtime-interface exception.
 type PrivilegedInterfaceApproval map[string]any
 
-// PlanArtifactContract is a JSON-decoded base.#CatalogPlanArtifactV2 document.
+// PlanArtifactContract is a JSON-decoded foundation.#CatalogPlanArtifactV2 document.
 // It is CUE catalog authority, not caller-supplied compiler configuration.
 type PlanArtifactContract map[string]any
 
@@ -112,7 +112,7 @@ type RILActionPrimitiveContract map[string]any
 // operation-class boundary for one authenticated in-process action owner.
 type RILActionExecutorContract map[string]any
 
-// ResolvedPlan is a JSON-decoded base.#ResolvedPlan document. It must only be
+// ResolvedPlan is a JSON-decoded foundation.#ResolvedPlan document. It must only be
 // constructed through Compiler.Compile so its source and plan hashes agree.
 type ResolvedPlan map[string]any
 

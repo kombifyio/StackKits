@@ -33,7 +33,7 @@ func NewValidator(baseDir string) *Validator {
 	return &Validator{
 		ctx:       cuecontext.New(),
 		baseDir:   baseDir,
-		schemaDir: filepath.Join(baseDir, "base"),
+		schemaDir: filepath.Join(baseDir, "foundation"),
 	}
 }
 
@@ -53,7 +53,7 @@ func (v *Validator) ValidateStackKit(stackkitDir string) (*models.ValidationResu
 
 	// Prefer an existing workspace/root cue.mod. Creating a nested cue.mod in a
 	// repo checkout makes CUE treat basement-kit as its own module and breaks imports
-	// such as github.com/kombifyio/stackkits/base.
+	// such as github.com/kombifyio/stackkits/foundation.
 	if _, ok := resolveCueModuleRoot(v.baseDir, stackkitDir); !ok {
 		if err := ensureCueModule(stackkitDir); err != nil {
 			result.Warnings = append(result.Warnings, models.ValidationError{
@@ -828,7 +828,7 @@ func hasCueModule(dir string) bool {
 }
 
 func hasRepoBasePackage(dir string) bool {
-	_, err := os.Stat(filepath.Join(dir, "base", "module.cue"))
+	_, err := os.Stat(filepath.Join(dir, "foundation", "module.cue"))
 	return err == nil
 }
 

@@ -96,7 +96,7 @@ check_archive_contents() {
     addons/backup/addon.cue \
     addons/backup/integrity.cue \
     addons/backup/restic-importer.cue \
-    base/stackkit.cue \
+    foundation/stackkit.cue \
     modules/tinyauth/module.cue \
     modules/pocketid/module.cue; do
     require_file "$list" "$p"

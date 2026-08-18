@@ -3,9 +3,9 @@
 // Transitional module contract for the BaseKit files use case.
 package cloudreve
 
-import "github.com/kombifyio/stackkits/base"
+import "github.com/kombifyio/stackkits/foundation"
 
-Contract: base.#ModuleContract & {
+Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "cloudreve"
 		displayName: "Cloudreve"
@@ -62,7 +62,7 @@ Contract: base.#ModuleContract & {
 		pi: {}
 	}
 
-	services: cloudreve: base.#ServiceDefinition & {
+	services: cloudreve: foundation.#ServiceDefinition & {
 		name:        "cloudreve"
 		displayName: "Files"
 		description: "Document management and file sharing backed by Cloudreve"
@@ -157,7 +157,7 @@ Contract: base.#ModuleContract & {
 		}
 	}
 
-	provisioners: "init-cloudreve": base.#ProvisionerService & {
+	provisioners: "init-cloudreve": foundation.#ProvisionerService & {
 		image:     "python:3.11-alpine"
 		dependsOn: "cloudreve"
 		networks: ["base_net"]

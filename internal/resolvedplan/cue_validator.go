@@ -71,10 +71,11 @@ func NewCUEContractValidatorFromSourcesForAuthority(virtualModuleRoot string, so
 	}
 	for _, required := range []string{
 		"cue.mod/module.cue",
-		"base/architecture_v2_profiles.cue",
-		"base/architecture_v2.cue",
-		"base/application_lifecycle.cue",
-		"base/architecture_v2_definition_binding.cue",
+		"foundation/use_case_identity.cue",
+		"foundation/architecture_v2_profiles.cue",
+		"foundation/architecture_v2.cue",
+		"foundation/application_lifecycle.cue",
+		"foundation/architecture_v2_definition_binding.cue",
 	} {
 		if len(frozen[required]) == 0 {
 			return nil, fmt.Errorf("CUE in-memory authority is missing %s", required)
@@ -85,7 +86,7 @@ func NewCUEContractValidatorFromSourcesForAuthority(virtualModuleRoot string, so
 		return nil, fmt.Errorf("load StackKits Architecture v2 in-memory CUE authority: %w", err)
 	}
 	validator.initialized = true
-	if err := validator.validateExpression("constructor", "base.#ArchitectureAPIVersion"); err != nil {
+	if err := validator.validateExpression("constructor", "foundation.#ArchitectureAPIVersion"); err != nil {
 		return nil, fmt.Errorf("load StackKits Architecture v2 in-memory CUE authority: %w", err)
 	}
 	return validator, nil
@@ -101,7 +102,7 @@ func (e *cueBindingError) Unwrap() error { return e.cause }
 
 // NewCUEContractValidator binds validation to a concrete StackKits CUE module.
 // moduleRoot must contain cue.mod/module.cue, the authority profile projection,
-// base/architecture_v2.cue, and the semantic Definition binding.
+// foundation/architecture_v2.cue, and the semantic Definition binding.
 func NewCUEContractValidator(moduleRoot string) (*CUEContractValidator, error) {
 	return NewCUEContractValidatorForAuthority(moduleRoot, DevelopmentPlanAuthority())
 }
@@ -122,10 +123,11 @@ func NewCUEContractValidatorForAuthority(moduleRoot string, authority PlanAuthor
 	absoluteRoot = filepath.Clean(absoluteRoot)
 	for _, required := range []string{
 		filepath.Join(absoluteRoot, "cue.mod", "module.cue"),
-		filepath.Join(absoluteRoot, "base", "architecture_v2_profiles.cue"),
-		filepath.Join(absoluteRoot, "base", "architecture_v2.cue"),
-		filepath.Join(absoluteRoot, "base", "application_lifecycle.cue"),
-		filepath.Join(absoluteRoot, "base", "architecture_v2_definition_binding.cue"),
+		filepath.Join(absoluteRoot, "foundation", "use_case_identity.cue"),
+		filepath.Join(absoluteRoot, "foundation", "architecture_v2_profiles.cue"),
+		filepath.Join(absoluteRoot, "foundation", "architecture_v2.cue"),
+		filepath.Join(absoluteRoot, "foundation", "application_lifecycle.cue"),
+		filepath.Join(absoluteRoot, "foundation", "architecture_v2_definition_binding.cue"),
 	} {
 		info, err := os.Stat(required)
 		if err != nil {
@@ -141,7 +143,7 @@ func NewCUEContractValidatorForAuthority(moduleRoot string, authority PlanAuthor
 		return nil, fmt.Errorf("load StackKits Architecture v2 CUE authority: %w", err)
 	}
 	validator.initialized = true
-	if err := validator.validateExpression("constructor", "base.#ArchitectureAPIVersion"); err != nil {
+	if err := validator.validateExpression("constructor", "foundation.#ArchitectureAPIVersion"); err != nil {
 		return nil, fmt.Errorf("load StackKits Architecture v2 CUE authority: %w", err)
 	}
 	return validator, nil
@@ -156,14 +158,14 @@ func (v *CUEContractValidator) normalizeBinding(definition KitDefinition, spec S
 	if err != nil {
 		return nil, nil, fmt.Errorf("marshal StackSpecV2: %w", err)
 	}
-	value, err := v.normalizeExpression("binding", "base.#KitSpecBinding & {definition: "+string(definitionJSON)+", spec: "+string(specJSON)+"}")
+	value, err := v.normalizeExpression("binding", "foundation.#KitSpecBinding & {definition: "+string(definitionJSON)+", spec: "+string(specJSON)+"}")
 	if err != nil {
 		// If both documents are valid on their own, a failure of the binding is
 		// specifically a definition/spec profile mismatch. If either standalone
 		// document is invalid (for example an unknown field), preserve that as a
 		// general contract-validation failure.
-		definitionErr := v.validateExpression("definition", "base.#KitDefinition & "+string(definitionJSON))
-		specErr := v.validateExpression("spec", "base.#StackSpecV2 & "+string(specJSON))
+		definitionErr := v.validateExpression("definition", "foundation.#KitDefinition & "+string(definitionJSON))
+		specErr := v.validateExpression("spec", "foundation.#StackSpecV2 & "+string(specJSON))
 		return nil, nil, &cueBindingError{cause: err, profileMismatch: definitionErr == nil && specErr == nil}
 	}
 	normalizedDefinition, err := decodeCUEField[KitDefinition](value, "definition")
@@ -190,7 +192,7 @@ func (v *CUEContractValidator) normalizeDefinition(definition KitDefinition) (Ki
 	if err != nil {
 		return nil, fmt.Errorf("marshal KitDefinition: %w", err)
 	}
-	value, err := v.normalizeExpression("definition", "base.#KitDefinition & "+string(definitionJSON))
+	value, err := v.normalizeExpression("definition", "foundation.#KitDefinition & "+string(definitionJSON))
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +208,7 @@ func (v *CUEContractValidator) normalizeInventory(inventory InventoryFacts) (Inv
 	if err != nil {
 		return nil, fmt.Errorf("marshal InventoryFacts: %w", err)
 	}
-	value, err := v.normalizeExpression("inventory", "base.#InventoryFacts & "+string(inventoryJSON))
+	value, err := v.normalizeExpression("inventory", "foundation.#InventoryFacts & "+string(inventoryJSON))
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +224,7 @@ func (v *CUEContractValidator) normalizeResolvedSystem(system map[string]any) (m
 	if err != nil {
 		return nil, fmt.Errorf("marshal resolved system: %w", err)
 	}
-	value, err := v.normalizeExpression("resolved-system", "base.#ResolvedSystemPlanV2 & "+string(systemJSON))
+	value, err := v.normalizeExpression("resolved-system", "foundation.#ResolvedSystemPlanV2 & "+string(systemJSON))
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +283,7 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 	if err != nil {
 		return Catalog{}, fmt.Errorf("marshal Architecture v2 catalog: %w", err)
 	}
-	value, err := v.normalizeExpression("catalog", "base.#ArchitectureV2CatalogContract & "+string(catalogJSON))
+	value, err := v.normalizeExpression("catalog", "foundation.#ArchitectureV2CatalogContract & "+string(catalogJSON))
 	if err != nil {
 		return Catalog{}, err
 	}
@@ -395,7 +397,7 @@ func (v *CUEContractValidator) validateBoundDefinition(plan ResolvedPlan) error 
 	}
 	_, err = v.normalizeExpression(
 		"plan-definition-binding",
-		"base.#ResolvedPlanDefinitionBinding & {definition: "+string(definitionJSON)+", plan: "+string(planJSON)+"}",
+		"foundation.#ResolvedPlanDefinitionBinding & {definition: "+string(definitionJSON)+", plan: "+string(planJSON)+"}",
 	)
 	return err
 }
@@ -413,7 +415,7 @@ func (v *CUEContractValidator) normalizePlanSchema(plan ResolvedPlan) (ResolvedP
 	if err != nil {
 		return nil, fmt.Errorf("marshal expected plan authority: %w", err)
 	}
-	value, err := v.normalizeExpression("plan", "base.#ResolvedPlanValidation & {plan: "+string(planJSON)+"} & {plan: {authority: "+string(authorityJSON)+"}}")
+	value, err := v.normalizeExpression("plan", "foundation.#ResolvedPlanValidation & {plan: "+string(planJSON)+"} & {plan: {authority: "+string(authorityJSON)+"}}")
 	if err != nil {
 		return nil, err
 	}
@@ -516,7 +518,7 @@ func (v *CUEContractValidator) initializeAuthorityScope() error {
 			return parser.ParseFile(name, src, config)
 		}
 	}
-	instances := load.Instances([]string{"./base"}, config)
+	instances := load.Instances([]string{"./foundation"}, config)
 	if len(instances) != 1 {
 		return fmt.Errorf("CUE loader returned %d instances, want 1", len(instances))
 	}
@@ -528,8 +530,8 @@ func (v *CUEContractValidator) initializeAuthorityScope() error {
 	if err := base.Validate(cueapi.All()); err != nil {
 		return err
 	}
-	scope := ctx.CompileString("base: _")
-	scope = scope.FillPath(cueapi.ParsePath("base"), base)
+	scope := ctx.CompileString("foundation: _")
+	scope = scope.FillPath(cueapi.ParsePath("foundation"), base)
 	if err := scope.Err(); err != nil {
 		return err
 	}

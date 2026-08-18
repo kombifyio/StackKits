@@ -1,4 +1,4 @@
-// Package basement_kit — mode-support matrix declaration (see base/mode_matrix.cue).
+// Package basement_kit — mode-support matrix declaration (see foundation/mode_matrix.cue).
 //
 // Honest values, not aspiration: "supported" cells cite the canonical
 // verification path in `evidence`; everything that exists as code but has
@@ -6,10 +6,10 @@
 package basement_kit
 
 import (
-	"github.com/kombifyio/stackkits/base"
+	"github.com/kombifyio/stackkits/foundation"
 )
 
-modeMatrix: base.#KitModeSupport & {
+modeMatrix: foundation.#KitModeSupport & {
 	kit: "basement-kit"
 
 	placement: {

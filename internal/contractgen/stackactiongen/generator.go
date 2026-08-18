@@ -21,7 +21,7 @@ import (
 const (
 	GeneratorVersion = "stackactiongen/v1"
 
-	contractSource       = "base/stack_action.cue"
+	contractSource       = "foundation/stack_action.cue"
 	localGoOutput        = "internal/stackaction/wire_gen.go"
 	openAPIOutput        = "api/openapi/stackkits-v1.yaml"
 	websiteOpenAPIOutput = "website/public/api/openapi.v1.yaml"
@@ -292,7 +292,7 @@ func loadSpec(root string) (generationSpec, string, error) {
 	digestBytes := sha256.Sum256(source)
 	digest := hex.EncodeToString(digestBytes[:])
 
-	instances := load.Instances([]string{"./base"}, &load.Config{Dir: root})
+	instances := load.Instances([]string{"./foundation"}, &load.Config{Dir: root})
 	if len(instances) != 1 {
 		return generationSpec{}, "", fmt.Errorf("load StackAction CUE authority: got %d instances", len(instances))
 	}
