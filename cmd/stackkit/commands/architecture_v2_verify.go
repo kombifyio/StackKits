@@ -23,6 +23,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/kombifyio/stackkits/internal/runtimeobservation"
 )
 
@@ -112,6 +113,7 @@ type architectureV2RuntimeVerifySummary struct {
 	Status        string `json:"status"`
 	ServiceCount  int    `json:"serviceCount"`
 	ProbeCount    int    `json:"probeCount"`
+	cloud         *runtimeexecutorlocal.CloudCoreVerifyObservation
 }
 
 func verifyArchitectureV2LocalState(
@@ -120,10 +122,28 @@ func verifyArchitectureV2LocalState(
 	plan generationartifact.VerifiedPlan,
 	manifest generationartifact.ArtifactManifest,
 	offline bool,
+	appliedRequests ...runtimeexecutor.ExecutionRequest,
 ) (architectureV2OwnerVerifySummary, *architectureV2RuntimeVerifySummary, error) {
+	if len(appliedRequests) > 1 {
+		return architectureV2OwnerVerifySummary{}, nil, errors.New("local Architecture v2 Verify accepts at most one applied runtime request")
+	}
+	var appliedRequest runtimeexecutor.ExecutionRequest
+	if len(appliedRequests) == 1 {
+		appliedRequest = appliedRequests[0]
+	}
 	ownerSummary, localBinding, err := verifyArchitectureV2OwnerCustody(workspaceRoot)
 	if err != nil {
 		return architectureV2OwnerVerifySummary{}, nil, err
+	}
+	kitSlug, domain, err := architectureV2LocalVerifyIdentity(plan)
+	if err != nil {
+		return architectureV2OwnerVerifySummary{}, nil, err
+	}
+	if kitSlug == "cloud-kit" {
+		return verifyArchitectureV2LocalCloudState(ctx, workspaceRoot, appliedRequest, ownerSummary, localBinding, domain, offline)
+	}
+	if kitSlug != "basement-kit" {
+		return architectureV2OwnerVerifySummary{}, nil, fmt.Errorf("local Architecture v2 Verify is not implemented for kit %q", kitSlug)
 	}
 	if _, err := localevidence.LoadBasementRuntimeCustody(workspaceRoot); err != nil {
 		return architectureV2OwnerVerifySummary{}, nil, fmt.Errorf("verify local Basement runtime custody: %w", err)
@@ -153,6 +173,67 @@ func verifyArchitectureV2LocalState(
 		ExecutionMode: "local-runtime", Live: true,
 		ProjectRef: observation.ProjectRef, Status: observation.Status,
 		ServiceCount: len(observation.Services), ProbeCount: len(observation.Probes),
+	}, nil
+}
+
+func architectureV2LocalVerifyIdentity(plan generationartifact.VerifiedPlan) (string, string, error) {
+	var projection struct {
+		Kit struct {
+			Slug string `json:"slug"`
+		} `json:"kit"`
+		Network struct {
+			Configuration struct {
+				Domain struct {
+					Base string `json:"base"`
+				} `json:"domain"`
+			} `json:"configuration"`
+		} `json:"network"`
+	}
+	if err := json.Unmarshal(plan.Canonical(), &projection); err != nil {
+		return "", "", fmt.Errorf("decode verified Architecture v2 local Verify identity: %w", err)
+	}
+	kitSlug := strings.TrimSpace(projection.Kit.Slug)
+	domain := strings.TrimSpace(strings.ToLower(projection.Network.Configuration.Domain.Base))
+	if kitSlug == "" || domain == "" {
+		return "", "", errors.New("verified Architecture v2 plan lacks its local Verify kit or domain identity")
+	}
+	return kitSlug, domain, nil
+}
+
+func verifyArchitectureV2LocalCloudState(
+	ctx context.Context,
+	workspaceRoot string,
+	appliedRequest runtimeexecutor.ExecutionRequest,
+	ownerSummary architectureV2OwnerVerifySummary,
+	localBinding localevidence.LocalBinding,
+	domain string,
+	offline bool,
+) (architectureV2OwnerVerifySummary, *architectureV2RuntimeVerifySummary, error) {
+	custody, err := localevidence.LoadCloudRuntimeCustody(workspaceRoot)
+	if err != nil {
+		return architectureV2OwnerVerifySummary{}, nil, fmt.Errorf("verify local Cloud runtime custody: %w", err)
+	}
+	if custody.OwnerRef != ownerSummary.OwnerRef || custody.KeyID != ownerSummary.KeyID || custody.Domain != domain {
+		return architectureV2OwnerVerifySummary{}, nil, errors.New("Cloud runtime custody differs from the verified plan or local owner")
+	}
+	if offline {
+		return ownerSummary, nil, nil
+	}
+	operations, err := runtimeexecutorlocal.NewOSCloudCoreOperations(workspaceRoot)
+	if err != nil {
+		return ownerSummary, nil, err
+	}
+	observation, err := runtimeexecutorlocal.VerifyAppliedCloudCore(ctx, appliedRequest, runtimeexecutorlocal.LocalTargetBinding{
+		SiteRef: localBinding.SiteRef, NodeRef: localBinding.NodeRef, ExecutionChannelRef: localBinding.ChannelRef,
+	}, operations)
+	if err != nil {
+		return ownerSummary, nil, fmt.Errorf("verify live Cloud core: %w", err)
+	}
+	return ownerSummary, &architectureV2RuntimeVerifySummary{
+		ExecutionMode: "local-runtime", Live: true,
+		ProjectRef: observation.ProjectRef, Status: observation.Status,
+		ServiceCount: len(observation.Services), ProbeCount: len(observation.Probes),
+		cloud: &observation,
 	}, nil
 }
 

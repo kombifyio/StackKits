@@ -6989,13 +6989,41 @@ components:
         version:
           type: string
           example: "1.0.0"
+        maturity:
+          type: string
+          enum: [supported, preview, alpha]
+        status:
+          type: string
         tags:
           type: array
           items:
             type: string
     StackKit:
       type: object
+      oneOf:
+        - required: [apiVersion, kind]
+          properties:
+            apiVersion:
+              type: string
+              enum: [stackkit/v1]
+            kind:
+              type: string
+              enum: [StackKit]
+        - required: [apiVersion, kind]
+          properties:
+            apiVersion:
+              type: string
+              enum: [stackkit.catalog/v1alpha1]
+            kind:
+              type: string
+              enum: [KitCatalogMetadata]
+      discriminator:
+        propertyName: kind
       properties:
+        apiVersion:
+          type: string
+        kind:
+          type: string
         metadata:
           $ref: "#/components/schemas/StackKitMetadata"
         supportedOS:
@@ -7011,10 +7039,6 @@ components:
     StackKitMetadata:
       type: object
       properties:
-        apiVersion:
-          type: string
-        kind:
-          type: string
         name:
           type: string
         version:
@@ -7023,6 +7047,8 @@ components:
           type: string
         description:
           type: string
+        summary:
+          type: string
         author:
           type: string
         license:
@@ -7030,6 +7056,11 @@ components:
         homepage:
           type: string
         repository:
+          type: string
+        maturity:
+          type: string
+          enum: [supported, preview, alpha]
+        status:
           type: string
         tags:
           type: array

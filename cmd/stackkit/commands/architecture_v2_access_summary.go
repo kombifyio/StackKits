@@ -3,17 +3,33 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/servicecatalog"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
+const architectureV2AccessSchemaVersion = "stackkit.access-manifest/v2"
+
+var architectureV2AccessDigestPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
+
+type architectureV2AccessBinding struct {
+	PlanHash, ApplyResultHash string
+	AppliedAt                 time.Time
+}
+
 type architectureV2AccessPlan struct {
 	StackID string `json:"stackId"`
+	Kit     struct {
+		Slug    string `json:"slug"`
+		Version string `json:"version"`
+	} `json:"kit"`
 	Network struct {
 		Configuration struct {
 			Domain struct {
@@ -23,8 +39,10 @@ type architectureV2AccessPlan struct {
 				DefaultMode string `json:"defaultMode"`
 			} `json:"tls"`
 		} `json:"configuration"`
+		Routes []architectureV2AccessRoute `json:"routes"`
 	} `json:"network"`
 	Modules []struct {
+		ID          string `json:"id"`
 		RenderUnits []struct {
 			ServiceEndpoints []struct {
 				ServiceRef string `json:"serviceRef"`
@@ -33,33 +51,75 @@ type architectureV2AccessPlan struct {
 	} `json:"modules"`
 }
 
-func buildArchitectureV2AccessSummary(plan generationartifact.VerifiedPlan, appliedAt time.Time) (*accessSummary, error) {
-	return buildArchitectureV2AccessSummaryFromCanonical(plan.Canonical(), appliedAt)
+type architectureV2AccessRoute struct {
+	ID, ModuleRef, ServiceRef, Exposure, Protocol, Host, Path string
+	Access                                                    struct {
+		PolicyRef     string `json:"policyRef"`
+		DefaultClosed bool   `json:"defaultClosed"`
+	} `json:"access"`
+	TLS struct {
+		Required bool   `json:"required"`
+		Mode     string `json:"mode"`
+	} `json:"tls"`
+	CapabilityRealizations []json.RawMessage `json:"capabilityRealizations"`
 }
 
-func buildArchitectureV2AccessSummaryFromCanonical(canonical []byte, appliedAt time.Time) (*accessSummary, error) {
+func buildArchitectureV2AccessSummary(plan generationartifact.VerifiedPlan, apply architecturev2.ApplyResultSummary) (*accessSummary, error) {
+	return buildArchitectureV2AccessSummaryFromCanonical(plan.Canonical(), architectureV2AccessBinding{
+		PlanHash: plan.Binding().PlanHash, ApplyResultHash: apply.ResultHash, AppliedAt: apply.AppliedAt,
+	})
+}
+
+func buildArchitectureV2AccessSummaryFromCanonical(canonical []byte, binding architectureV2AccessBinding) (*accessSummary, error) {
 	var projection architectureV2AccessPlan
 	if err := json.Unmarshal(canonical, &projection); err != nil {
 		return nil, fmt.Errorf("decode verified Architecture v2 access projection: %w", err)
 	}
 	projection.StackID = strings.TrimSpace(projection.StackID)
+	projection.Kit.Slug = strings.TrimSpace(projection.Kit.Slug)
+	projection.Kit.Version = strings.TrimSpace(projection.Kit.Version)
 	domain := strings.TrimSpace(projection.Network.Configuration.Domain.Base)
-	if projection.StackID == "" || domain == "" {
-		return nil, fmt.Errorf("verified Architecture v2 plan is missing stackId or network.configuration.domain.base")
+	if projection.StackID == "" || projection.Kit.Slug == "" || projection.Kit.Version == "" || domain == "" {
+		return nil, fmt.Errorf("verified Architecture v2 plan is missing stackId, kit identity, or network.configuration.domain.base")
 	}
-	if appliedAt.IsZero() {
-		return nil, fmt.Errorf("verified Architecture v2 Apply result is missing appliedAt")
+	if !architectureV2AccessDigestPattern.MatchString(binding.PlanHash) || !architectureV2AccessDigestPattern.MatchString(binding.ApplyResultHash) || binding.AppliedAt.IsZero() {
+		return nil, fmt.Errorf("verified Architecture v2 access projection requires exact plan and Apply result identity")
 	}
 
 	exposed := map[string]struct{}{}
+	endpointRefs := map[string]struct{}{}
 	for _, module := range projection.Modules {
 		for _, unit := range module.RenderUnits {
 			for _, endpoint := range unit.ServiceEndpoints {
 				key := architectureV2AccessServiceKey(endpoint.ServiceRef)
 				if key != "" {
 					exposed[key] = struct{}{}
+					endpointRefs[module.ID+"\x00"+endpoint.ServiceRef] = struct{}{}
 				}
 			}
+		}
+	}
+	routes := map[string]architectureV2AccessRoute{}
+	if projection.Kit.Slug == "cloud-kit" {
+		exposed = map[string]struct{}{}
+		for _, route := range projection.Network.Routes {
+			key := architectureV2AccessServiceKey(route.ServiceRef)
+			if key == "" || route.ID == "" || route.Exposure != "public" || route.Protocol != "https" || route.Host == "" ||
+				route.Access.PolicyRef == "" || !route.Access.DefaultClosed || !route.TLS.Required || route.TLS.Mode != "terminate-at-edge" ||
+				len(route.CapabilityRealizations) == 0 {
+				return nil, fmt.Errorf("verified Cloud access route %q is not an exact default-closed public HTTPS route", route.ID)
+			}
+			if _, ok := endpointRefs[route.ModuleRef+"\x00"+route.ServiceRef]; !ok {
+				return nil, fmt.Errorf("verified Cloud access route %q has no exact service endpoint", route.ID)
+			}
+			parsed, err := url.Parse(route.Protocol + "://" + route.Host + route.Path)
+			if err != nil || parsed.User != nil || parsed.Hostname() == "" || !strings.HasSuffix(parsed.Hostname(), "."+domain) {
+				return nil, fmt.Errorf("verified Cloud access route %q has no exact plan-domain URL", route.ID)
+			}
+			if _, duplicate := routes[key]; duplicate {
+				return nil, fmt.Errorf("verified Cloud access service %q has multiple public routes", key)
+			}
+			exposed[key], routes[key] = struct{}{}, route
 		}
 	}
 	if len(exposed) == 0 {
@@ -71,8 +131,10 @@ func buildArchitectureV2AccessSummaryFromCanonical(canonical []byte, appliedAt t
 		protocol = "https"
 	}
 	summary := &accessSummary{
-		StackKit: projection.StackID, Mode: "native-v2", Domain: domain,
-		GeneratedAt: appliedAt.UTC(),
+		SchemaVersion: architectureV2AccessSchemaVersion, StackID: projection.StackID,
+		PlanHash: binding.PlanHash, ApplyResultHash: binding.ApplyResultHash,
+		StackKit: projection.Kit.Slug, StackKitVersion: projection.Kit.Version, Mode: "native-v2", Domain: domain,
+		GeneratedAt: binding.AppliedAt.UTC(),
 	}
 
 	catalog := servicecatalog.Default()
@@ -82,7 +144,11 @@ func buildArchitectureV2AccessSummaryFromCanonical(canonical []byte, appliedAt t
 			continue
 		}
 		known[entry.Key] = struct{}{}
-		summary.Services = append(summary.Services, architectureV2AccessService(entry, protocol, domain))
+		service := architectureV2AccessService(entry, protocol, domain)
+		if route, ok := routes[entry.Key]; ok {
+			service = architectureV2RoutedAccessService(service, route)
+		}
+		summary.Services = append(summary.Services, service)
 	}
 	unknown := make([]string, 0)
 	for key := range exposed {
@@ -93,7 +159,11 @@ func buildArchitectureV2AccessSummaryFromCanonical(canonical []byte, appliedAt t
 	sort.Strings(unknown)
 	for _, key := range unknown {
 		entry := servicecatalog.Service{Key: key, Name: key, DisplayName: key, ToolName: key, ModuleSlug: key, LocalSlug: key, PublicSlug: key}
-		summary.Services = append(summary.Services, architectureV2AccessService(entry, protocol, domain))
+		service := architectureV2AccessService(entry, protocol, domain)
+		if route, ok := routes[key]; ok {
+			service = architectureV2RoutedAccessService(service, route)
+		}
+		summary.Services = append(summary.Services, service)
 	}
 	for _, service := range summary.Services {
 		if service.Key == "base" {
@@ -102,6 +172,15 @@ func buildArchitectureV2AccessSummaryFromCanonical(canonical []byte, appliedAt t
 		}
 	}
 	return summary, nil
+}
+
+func architectureV2RoutedAccessService(service accessService, route architectureV2AccessRoute) accessService {
+	service.RouteRef, service.Host = route.ID, route.Host
+	service.URL = route.Protocol + "://" + route.Host
+	if route.Path != "" && route.Path != "/" {
+		service.URL += route.Path
+	}
+	return service
 }
 
 func architectureV2AccessServiceKey(serviceRef string) string {

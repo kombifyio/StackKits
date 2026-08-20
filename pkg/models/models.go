@@ -6,23 +6,31 @@ import (
 	"time"
 )
 
-// StackKitMetadata represents the metadata section of a stackkit.yaml.
+// KitMetadata is the canonical Go representation of the shared metadata
+// envelope in schemas.#KitMetadata.
 //
 // apiVersion and kind are document identity, not metadata: every kit file
 // declares them at the document root. They lived here until 2026-08-14 and
 // therefore never loaded at all, so every kit's declared schema silently read
 // as the empty string. internal/kitio always had them in the right place.
-type StackKitMetadata struct {
+type KitMetadata struct {
 	Name        string   `yaml:"name" json:"name"`
 	Version     string   `yaml:"version" json:"version"`
-	DisplayName string   `yaml:"displayName" json:"displayName"`
-	Description string   `yaml:"description" json:"description"`
+	DisplayName string   `yaml:"displayName,omitempty" json:"displayName,omitempty"`
+	Description string   `yaml:"description,omitempty" json:"description,omitempty"`
+	Summary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
 	Author      string   `yaml:"author,omitempty" json:"author,omitempty"`
-	License     string   `yaml:"license" json:"license"`
+	License     string   `yaml:"license,omitempty" json:"license,omitempty"`
 	Homepage    string   `yaml:"homepage,omitempty" json:"homepage,omitempty"`
 	Repository  string   `yaml:"repository,omitempty" json:"repository,omitempty"`
+	Maturity    string   `yaml:"maturity,omitempty" json:"maturity,omitempty"`
+	Status      string   `yaml:"status,omitempty" json:"status,omitempty"`
 	Tags        []string `yaml:"tags,omitempty" json:"tags,omitempty"`
 }
+
+// StackKitMetadata is retained as a source-compatible alias. KitMetadata is
+// the only concrete Go metadata schema.
+type StackKitMetadata = KitMetadata
 
 // StackKit represents a complete stackkit.yaml file
 type StackKit struct {

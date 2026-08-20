@@ -4,8 +4,9 @@ kind: StackKit
 
 metadata:
   name: basement-kit
+  displayName: "Basement Kit"
   version: "5.1.0"
-  description: "Single-environment homelab with a robust default scope: Platform baseline (Coolify, PocketID, TinyAuth, Node Hub, Homepage, Uptime Kuma, Whoami) plus Photos, Vault, and Files (Cloudreve default). Media, Smart Home, and AI stay opt-in until their first-run paths are production-ready."
+  description: "Local-first StackKit for one or more nodes on private home sites"
   author: "kombify Stack Team"
   license: "Apache-2.0"
   # The one path with end-to-end evidence: the bootstrapped cell is `supported`
@@ -140,11 +141,13 @@ application:
         description: "An existing Immich (or API-compatible) instance is connected as the package backend."
   media:
     role: optional            # Opt-in until Jellyfin first-run UX matches the default live smoke path.
+    package: media
     defaultTool: jellyfin
     alternatives: []
     description: "Media streaming with automated library management"
   vault:
     role: default
+    package: vault
     defaultTool: vaultwarden
     alternatives: []
     description: "Password management and secure notes"
@@ -344,27 +347,32 @@ application:
           requiresApproval: true
           evidence: "Audited document upload/import with OCR/index evidence when DMS is enabled."
   ai:
-    role: optional            # Planned V6 default; opt-in until module exists and passes live smoke.
+    role: optional            # SK-M5 draft; opt-in until modules exist and pass the promotion gate.
+    package: ai
     defaultTool: ollama
     alternatives: []
     description: "Local AI/LLM inference"
   dev:
-    role: optional
+    role: optional            # SK-M5 draft; opt-in until Gitea and CI modules pass the promotion gate.
+    package: dev
     defaultTool: gitea
     alternatives: []
     description: "Self-hosted Git and CI/CD"
   mail:
-    role: optional
+    role: optional            # Post-1.0 catalog intent; no selectable Stalwart module exists.
+    package: mail
     defaultTool: stalwart
     alternatives: []
     description: "Self-hosted email server"
   game:
-    role: optional
+    role: optional            # Post-1.0 catalog intent; no default implementation is selected.
+    package: game
     defaultTool: null
     alternatives: []
     description: "Game server hosting"
   remote:
-    role: optional
+    role: optional            # SK-M5 draft; opt-in until the Guacamole module passes the promotion gate.
+    package: remote
     defaultTool: guacamole
     alternatives: []
     description: "Remote desktop access"

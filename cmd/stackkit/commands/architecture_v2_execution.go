@@ -20,6 +20,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorprocess"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/kombifyio/stackkits/internal/runtimeobservation"
@@ -742,26 +743,56 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 				ServiceCount: result.Summary().RuntimeCount, ProbeCount: result.Summary().HealthCount,
 			}
 		} else {
-			owner, runtime, err = verifyArchitectureV2LocalState(verifyContext, wd, persisted, manifest, options.verifyOffline)
+			var appliedRequest runtimeexecutor.ExecutionRequest
+			if !options.verifyOffline {
+				custody, ok := rawVerifyAuthority.(architectureV2AppliedRuntimeCustody)
+				if !ok {
+					return errors.New("Architecture v2 local Verify requires applied runtime request custody")
+				}
+				requestDigest, digestErr := architectureV2SharedRequestDigest(result)
+				if digestErr != nil {
+					return digestErr
+				}
+				if requestDigest == "" {
+					return errors.New("verified Product Apply result has no applied runtime request custody")
+				}
+				appliedRequest, err = custody.LoadAppliedRuntimeRequest(verifyContext, requestDigest)
+				if err != nil {
+					return err
+				}
+			}
+			owner, runtime, err = verifyArchitectureV2LocalState(verifyContext, wd, persisted, manifest, options.verifyOffline, appliedRequest)
 		}
 		ownerCustody, custodyErr := localevidence.LoadOwnerCustody(wd)
 		if custodyErr != nil {
 			return custodyErr
 		}
 		verifyObservedAt, verifyObservationRunID := historicalRuntimeObservationIdentity(result.Summary().AppliedAt)
-		access, accessErr := readArchitectureV2AccessSummary(wd)
+		observationSource, observationLive := runtimeobservation.SourceVerifiedApplyEvidence, false
+		var cloudVerify *runtimeexecutorlocal.CloudCoreVerifyObservation
+		if runtime != nil && runtime.cloud != nil {
+			now := time.Now
+			if g.now != nil {
+				now = g.now
+			}
+			verifyObservedAt = now().UTC()
+			verifyObservationRunID = runtimeObservationRunID(verifyObservedAt)
+			observationSource, observationLive, cloudVerify = runtimeobservation.SourceLocalRuntime, true, runtime.cloud
+		}
+		access, accessErr := readArchitectureV2AccessSummary(wd, persisted, result.Summary())
 		if accessErr != nil {
 			return accessErr
 		}
 		observations, observationErr := buildArchitectureV2RuntimeObservations(architectureV2RuntimeObservationInput{
 			Plan: persisted, Access: access, Phase: runtimeobservation.PhaseVerify,
-			Source: runtimeobservation.SourceVerifiedApplyEvidence, Live: false,
+			Source: observationSource, Live: observationLive,
 			ObservedAt: verifyObservedAt, RunID: verifyObservationRunID,
 			Apply: result.Summary(), Outcomes: result.ObservationSummary(),
 			FallbackSiteRef: ownerCustody.Binding.SiteRef, FallbackNodeRef: ownerCustody.Binding.NodeRef,
 			FallbackChannelRef: ownerCustody.Binding.ChannelRef,
 			RolloutEvidence:    rolloutRecorder != nil || deployLog != nil,
 			AccessEvidence:     access != nil,
+			CloudVerify:        cloudVerify,
 		})
 		if observationErr != nil {
 			return observationErr
@@ -843,7 +874,7 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 			"urn:stackkit:apply-result:"+result.ResultHash(), now().UTC(), err,
 		)
 	}
-	access, err := buildArchitectureV2AccessSummary(persisted, result.Summary().AppliedAt)
+	access, err := buildArchitectureV2AccessSummary(persisted, result.Summary())
 	if err != nil {
 		return requireArchitectureV2ApplicationLifecycleRecovery(
 			wd, lifecycleRuns, "Product Apply completed but its service access manifest could not be projected",

@@ -15,7 +15,12 @@ import (
 )
 
 type accessSummary struct {
+	SchemaVersion   string          `json:"schemaVersion,omitempty"`
+	StackID         string          `json:"stackId,omitempty"`
+	PlanHash        string          `json:"planHash,omitempty"`
+	ApplyResultHash string          `json:"applyResultHash,omitempty"`
 	StackKit        string          `json:"stackkit"`
+	StackKitVersion string          `json:"stackkitVersion,omitempty"`
 	Mode            string          `json:"mode"`
 	Domain          string          `json:"domain"`
 	SubdomainPrefix string          `json:"subdomainPrefix,omitempty"`
@@ -32,6 +37,7 @@ type accessService struct {
 	ToolName       string   `json:"toolName"`
 	ModuleSlug     string   `json:"moduleSlug"`
 	RouteSlug      string   `json:"routeSlug"`
+	RouteRef       string   `json:"routeRef,omitempty"`
 	Section        string   `json:"section,omitempty"`
 	URL            string   `json:"url"`
 	Host           string   `json:"host"`

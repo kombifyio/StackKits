@@ -101,10 +101,18 @@ func newArchitectureV2ProductVerifyAuthority(workspaceRoot string, _ architectur
 	if err != nil {
 		return nil, fmt.Errorf("construct read-only Architecture v2 product runtime identity: %w", err)
 	}
-	return architecturev2.NewProductEmbeddedServiceWithLocalApplyVerification(
+	service, err := architecturev2.NewProductEmbeddedServiceWithLocalApplyVerification(
 		architecturev2.StackKitsV2Contract(version), identity,
 		[]architecturev2.ProductApplyTrustAnchor{anchor},
 	)
+	if err != nil {
+		return nil, err
+	}
+	journal, err := architecturev2.NewProductApplyFileJournal(workspaceRoot)
+	if err != nil {
+		return nil, fmt.Errorf("open read-only Product Apply runtime custody: %w", err)
+	}
+	return &architectureV2ProductRuntimeAuthority{Service: service, journal: journal}, nil
 }
 
 // newLocalOwnerApplyEvidenceCollector binds Apply evidence to the owner

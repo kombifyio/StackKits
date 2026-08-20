@@ -186,6 +186,8 @@ type stackKitSummary struct {
 	DisplayName string   `json:"displayName"`
 	Description string   `json:"description"`
 	Version     string   `json:"version"`
+	Maturity    string   `json:"maturity"`
+	Status      string   `json:"status,omitempty"`
 	Tags        []string `json:"tags,omitempty"`
 }
 
@@ -203,6 +205,8 @@ func (s *Server) handleListStackKits(w http.ResponseWriter, r *http.Request) {
 			DisplayName: sk.Metadata.DisplayName,
 			Description: sk.Metadata.Description,
 			Version:     sk.Metadata.Version,
+			Maturity:    sk.Metadata.Maturity,
+			Status:      sk.Metadata.Status,
 			Tags:        sk.Metadata.Tags,
 		})
 	}
@@ -993,6 +997,8 @@ func (s *Server) handleGeneratePreview(w http.ResponseWriter, r *http.Request) {
 			Name:        sk.Metadata.Name,
 			DisplayName: sk.Metadata.DisplayName,
 			Version:     sk.Metadata.Version,
+			Maturity:    sk.Metadata.Maturity,
+			Status:      sk.Metadata.Status,
 		}
 	}
 

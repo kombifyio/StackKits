@@ -1,19 +1,24 @@
 package commands
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
 	"github.com/kombifyio/stackkits/internal/runtimeobservation"
+	"github.com/kombifyio/stackkits/internal/servicecontrol"
 )
 
 type architectureV2RuntimeObservationInput struct {
@@ -32,6 +37,7 @@ type architectureV2RuntimeObservationInput struct {
 	RolloutEvidence    bool
 	AccessEvidence     bool
 	ProcessChannelRefs map[string]bool
+	CloudVerify        *runtimeexecutorlocal.CloudCoreVerifyObservation
 }
 
 type architectureV2ApplyCommandResult struct {
@@ -94,6 +100,10 @@ func buildArchitectureV2RuntimeObservations(input architectureV2RuntimeObservati
 	for _, item := range requirements.HealthRequirements {
 		healthByID[item.ID] = item
 	}
+	cloudDigest, cloudProbes, err := runtimeObservationCloudVerification(input.CloudVerify)
+	if err != nil {
+		return nil, err
+	}
 
 	groups := map[runtimeObservationScope]*runtimeobservation.Observation{}
 	for _, outcome := range input.Outcomes.Runtime {
@@ -111,9 +121,15 @@ func buildArchitectureV2RuntimeObservations(input architectureV2RuntimeObservati
 			observation = &created
 			groups[scope] = observation
 		}
+		status, observationRef, observationDigest := outcome.Status, outcome.ObservationRef, outcome.ObservationDigest
+		if input.CloudVerify != nil && outcome.InstanceRef == input.CloudVerify.ProjectRef {
+			status = input.CloudVerify.Status
+			observationRef = "runtime-observation://cloud-core/" + input.CloudVerify.ProjectRef
+			observationDigest = cloudDigest
+		}
 		observation.Runtime = append(observation.Runtime, runtimeobservation.RuntimeEvidence{
-			RequirementID: outcome.RequirementID, InstanceRef: outcome.InstanceRef, Status: outcome.Status,
-			ObservationRef: outcome.ObservationRef, ObservationDigest: outcome.ObservationDigest,
+			RequirementID: outcome.RequirementID, InstanceRef: outcome.InstanceRef, Status: status,
+			ObservationRef: observationRef, ObservationDigest: observationDigest,
 			SiteRef: scope.site, NodeRef: scope.node, ExecutionChannelRef: scope.channel,
 		})
 	}
@@ -132,20 +148,27 @@ func buildArchitectureV2RuntimeObservations(input architectureV2RuntimeObservati
 		if !ok || requirement.TargetRef != outcome.TargetRef {
 			return nil, fmt.Errorf("health observation outcome %q is not bound to the verified plan", outcome.RequirementID)
 		}
-		healthStatus[requirement.SourceRef] = outcome.Status
+		status, observationRef, observationDigest := outcome.Status, outcome.ObservationRef, outcome.ObservationDigest
+		if liveStatus, ok := cloudProbes[outcome.RequirementID]; ok {
+			status = liveStatus
+			observationRef = "health-observation://cloud-core/" + outcome.RequirementID
+			observationDigest = cloudDigest
+		}
+		healthStatus[requirement.SourceRef] = status
 		for scope, observation := range groups {
 			if !scopeMatches(requirement.SiteRefs, requirement.NodeRefs, scope) {
 				continue
 			}
 			observation.Health = append(observation.Health, runtimeobservation.HealthEvidence{
 				RequirementID: outcome.RequirementID, TargetRef: outcome.TargetRef, SourceRef: requirement.SourceRef,
-				Status: outcome.Status, ObservationRef: outcome.ObservationRef, ObservationDigest: outcome.ObservationDigest,
+				Status: status, ObservationRef: observationRef, ObservationDigest: observationDigest,
 				SiteRef: scope.site, NodeRef: scope.node,
 			})
 		}
 	}
 
 	placements := runtimeObservationServicePlacements(projection, input)
+	cloudServices := runtimeObservationCloudServices(input.CloudVerify)
 	accessByRef := map[string]accessService{}
 	if input.Access != nil {
 		for _, service := range input.Access.Services {
@@ -167,6 +190,10 @@ func buildArchitectureV2RuntimeObservations(input architectureV2RuntimeObservati
 				service.Status, service.Health = runtimeobservation.StatusRunning, runtimeobservation.HealthHealthy
 			} else if healthStatus[placement.healthRef] != "" {
 				service.Status, service.Health = runtimeobservation.StatusError, runtimeobservation.HealthUnhealthy
+			}
+			if live, ok := cloudServices[placement.ref]; ok {
+				service.Status = runtimeobservation.ServiceStatus(live.Status)
+				service.Health = runtimeobservation.HealthStatus(live.Health)
 			}
 			observation.Services = append(observation.Services, service)
 		}
@@ -212,6 +239,36 @@ func buildArchitectureV2RuntimeObservations(input architectureV2RuntimeObservati
 	return result, nil
 }
 
+func runtimeObservationCloudVerification(observation *runtimeexecutorlocal.CloudCoreVerifyObservation) (string, map[string]string, error) {
+	probes := map[string]string{}
+	if observation == nil {
+		return "", probes, nil
+	}
+	raw, err := json.Marshal(observation)
+	if err != nil {
+		return "", nil, fmt.Errorf("encode live Cloud verification observation: %w", err)
+	}
+	sum := sha256.Sum256(raw)
+	for _, probe := range observation.Probes {
+		probes[probe.RequirementID] = probe.Status
+	}
+	return "sha256:" + hex.EncodeToString(sum[:]), probes, nil
+}
+
+func runtimeObservationCloudServices(observation *runtimeexecutorlocal.CloudCoreVerifyObservation) map[string]runtimeexecutorlocal.BasementCoreServiceObservation {
+	result := map[string]runtimeexecutorlocal.BasementCoreServiceObservation{}
+	if observation == nil {
+		return result
+	}
+	serviceRefs := map[string]string{"hub": "base", "pocketid": "id", "tinyauth": "auth", "coolify": "coolify"}
+	for _, service := range observation.Services {
+		if ref := serviceRefs[service.Ref]; ref != "" {
+			result[ref] = service
+		}
+	}
+	return result
+}
+
 func newRuntimeObservation(input architectureV2RuntimeObservationInput, stackID string, scope runtimeObservationScope) runtimeobservation.Observation {
 	hash := strings.TrimPrefix(input.Apply.ResultHash, "sha256:")
 	links := []runtimeobservation.EvidenceLink{
@@ -227,6 +284,9 @@ func newRuntimeObservation(input architectureV2RuntimeObservationInput, stackID 
 			runtimeobservation.EvidenceLink{Kind: "rollout-log", Ref: ".stackkit/logs/" + input.RunID + ".jsonl"},
 			runtimeobservation.EvidenceLink{Kind: "rollout-summary", Ref: ".stackkit/runs/" + input.RunID + "/summary.json"},
 		)
+	}
+	if input.CloudVerify != nil {
+		links = append(links, runtimeobservation.EvidenceLink{Kind: "cloud-core-artifact", Ref: "platform/cloud-core/compose.yaml", Digest: input.CloudVerify.ArtifactDigest})
 	}
 	source := input.Source
 	if source != runtimeobservation.SourceVerifiedApplyEvidence && input.ProcessChannelRefs[scope.channel] {
@@ -347,7 +407,7 @@ func unavailableArchitectureV2ProcessRuntime() *architectureV2RuntimeVerifySumma
 	}
 }
 
-func readArchitectureV2AccessSummary(workspaceRoot string) (*accessSummary, error) {
+func readArchitectureV2AccessSummary(workspaceRoot string, plan generationartifact.VerifiedPlan, apply architecturev2.ApplyResultSummary) (*accessSummary, error) {
 	path := filepath.Join(workspaceRoot, ".stackkit", "access.json")
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -360,5 +420,56 @@ func readArchitectureV2AccessSummary(workspaceRoot string) (*accessSummary, erro
 	if err := json.Unmarshal(raw, &summary); err != nil {
 		return nil, fmt.Errorf("decode Architecture v2 access manifest: %w", err)
 	}
+	expected, err := buildArchitectureV2AccessSummary(plan, apply)
+	if err != nil {
+		return nil, err
+	}
+	if summary.SchemaVersion != expected.SchemaVersion || summary.StackID != expected.StackID || summary.PlanHash != expected.PlanHash ||
+		summary.ApplyResultHash != expected.ApplyResultHash || summary.StackKit != expected.StackKit ||
+		summary.StackKitVersion != expected.StackKitVersion || summary.Mode != expected.Mode || summary.Domain != expected.Domain ||
+		summary.SubdomainPrefix != expected.SubdomainPrefix || summary.HubURL != expected.HubURL ||
+		!slices.Equal(summary.SetupActions, expected.SetupActions) || !summary.GeneratedAt.Equal(expected.GeneratedAt) ||
+		!exactArchitectureV2AccessServices(summary.Services, expected.Services) {
+		return nil, errors.New("Architecture v2 access manifest differs from the verified plan or Apply result")
+	}
 	return &summary, nil
+}
+
+func exactArchitectureV2AccessServices(actual, expected []accessService) bool {
+	if len(actual) != len(expected) {
+		return false
+	}
+	byKey := make(map[string]accessService, len(actual))
+	for _, service := range actual {
+		if service.Key == "" {
+			return false
+		}
+		if _, duplicate := byKey[service.Key]; duplicate {
+			return false
+		}
+		byKey[service.Key] = service
+	}
+	for _, want := range expected {
+		got, ok := byKey[want.Key]
+		if !ok || got.Name != want.Name || got.DisplayName != want.DisplayName || got.ToolName != want.ToolName ||
+			got.ModuleSlug != want.ModuleSlug || got.RouteSlug != want.RouteSlug || got.RouteRef != want.RouteRef ||
+			got.Section != want.Section || got.URL != want.URL || got.Host != want.Host || got.Status != want.Status ||
+			!slices.Equal(got.LegacyAliases, want.LegacyAliases) || !validArchitectureV2ServiceControlProjection(got, want) {
+			return false
+		}
+	}
+	return true
+}
+
+func validArchitectureV2ServiceControlProjection(got, expected accessService) bool {
+	if got.DesiredState == expected.DesiredState && slices.Equal(got.AllowedActions, expected.AllowedActions) && got.EvidenceRef == expected.EvidenceRef {
+		return true
+	}
+	if (got.DesiredState != servicecontrol.DesiredRunning && got.DesiredState != servicecontrol.DesiredStopped) ||
+		!slices.Equal(got.AllowedActions, servicecontrol.AllowedActions(expected.Key)) ||
+		!strings.HasPrefix(got.EvidenceRef, "stackkit-evidence://service-control/") ||
+		!architectureV2AccessDigestPattern.MatchString(strings.TrimPrefix(got.EvidenceRef, "stackkit-evidence://service-control/")) {
+		return false
+	}
+	return got.DesiredState != servicecontrol.DesiredStopped || slices.Contains(got.AllowedActions, servicecontrol.ActionStop)
 }

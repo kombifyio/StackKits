@@ -2099,6 +2099,10 @@ _cloudCoreRuntimeListeners: [
 	{id: "coolify-direct", componentRef: "coolify", transport: "tcp", bindAddress: "0.0.0.0", port: 8000, targetPort: 8080, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
 ]
 
+_cloudCoreVerificationRuntimeListeners: list.Concat([_cloudCoreRuntimeListeners, [
+	{id: "hub-health", componentRef: "hub", transport: "tcp", bindAddress: "127.0.0.1", port: 8081, targetPort: 80, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+]])
+
 _basementCoreRuntimeListeners: list.Concat([_cloudCoreRuntimeListeners, [
 	{id: "step-ca-direct", componentRef: "step-ca", transport: "tcp", bindAddress: "0.0.0.0", port: 9000, targetPort: 9000, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
 ]])
@@ -3260,16 +3264,16 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "compose", kind:                                 "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core/compose/v1.yaml", version: "1.0.0"
-			contractHash: "sha256:bb9ba017e21bc0eb9eef0397ef560047089d7d3cc4cf4393ed46ceab62674ba9"
+			contractHash: "sha256:16c7f07e319e63001acca659fd3d245ae9e128749e7a85ac79481033a6341858"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/cloud-core/compose.yaml"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: _cloudCoreServiceEndpoints
-			runtimeListeners: _cloudCoreRuntimeListeners
+			runtimeListeners: _cloudCoreVerificationRuntimeListeners
 		}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
-			contractHash: "sha256:bb9ba017e21bc0eb9eef0397ef560047089d7d3cc4cf4393ed46ceab62674ba9"
+			contractHash: "sha256:16c7f07e319e63001acca659fd3d245ae9e128749e7a85ac79481033a6341858"
 			unitRefs: ["compose"], artifactRefs: ["cloud-core-compose"]
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 		}]

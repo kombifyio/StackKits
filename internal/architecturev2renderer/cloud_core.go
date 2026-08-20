@@ -18,7 +18,7 @@ const (
 	cloudCoreComposeOutputRef = "platform/cloud-core/compose.yaml"
 	cloudCoreRendererRef      = "stackkit"
 	cloudCoreVersion          = "1.0.0"
-	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:3|resolved-network-domain:required|runtime-listeners:catalog-bound|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-tls-alpn|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
+	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:4|resolved-network-domain:required|runtime-listeners:catalog-bound|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-tls-alpn|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
 )
 
 const cloudCoreComponentsJSON = `[
@@ -148,6 +148,7 @@ services:
         printf '%s\n' '<!doctype html><title>StackKit Cloud Hub</title><h1>StackKit Cloud</h1><ul><li><a href="https://id.{{STACKKIT_DOMAIN}}">PocketID</a></li><li><a href="https://auth.{{STACKKIT_DOMAIN}}">TinyAuth</a></li><li><a href="https://coolify.{{STACKKIT_DOMAIN}}">Coolify</a></li></ul>' > /usr/share/nginx/html/index.html
         printf '%s\n' '{"status":"ok","service":"cloud-hub"}' > /usr/share/nginx/html/healthz
         exec nginx -g 'daemon off;'
+    ports: ["127.0.0.1:8081:80"]
     labels:
       - traefik.enable=true
       - traefik.http.routers.hub.rule=Host(` + "`base.{{STACKKIT_DOMAIN}}`" + `)

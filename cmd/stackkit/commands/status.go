@@ -354,7 +354,7 @@ func populateArchitectureV2StatusRuntime(
 	if err != nil {
 		return err
 	}
-	access, err := readArchitectureV2AccessSummary(wd)
+	access, err := readArchitectureV2AccessSummary(wd, plan, result.Summary())
 	if err != nil {
 		return err
 	}

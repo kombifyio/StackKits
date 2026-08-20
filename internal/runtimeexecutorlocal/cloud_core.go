@@ -66,6 +66,92 @@ func NewCloudCoreExecutor(identity runtimeexecutor.ExecutorIdentity, binding Loc
 	return &CloudCoreExecutor{identity: identity, binding: binding, authority: cloneCloudCoreAuthority(authority), operations: operations}
 }
 
+// VerifyAppliedCloudCore verifies the exact Cloud core child contract retained
+// in the sealed Product Apply request without executing Apply a second time.
+func VerifyAppliedCloudCore(ctx context.Context, request runtimeexecutor.ExecutionRequest, expectedBinding LocalTargetBinding, operations CloudCoreOperations) (CloudCoreVerifyObservation, error) {
+	if ctx == nil || operations == nil {
+		return CloudCoreVerifyObservation{}, errors.New("Cloud core verification requires a context and operations owner")
+	}
+	if err := request.Validate(); err != nil {
+		return CloudCoreVerifyObservation{}, fmt.Errorf("validate applied Cloud runtime custody: %w", err)
+	}
+	child, binding, authority, err := appliedCloudCoreRequest(request)
+	if err != nil {
+		return CloudCoreVerifyObservation{}, err
+	}
+	if binding != expectedBinding || strings.TrimSpace(expectedBinding.SiteRef) == "" || strings.TrimSpace(expectedBinding.NodeRef) == "" || strings.TrimSpace(expectedBinding.ExecutionChannelRef) == "" {
+		return CloudCoreVerifyObservation{}, errors.New("applied Cloud core target differs from local owner custody")
+	}
+	_, _, project, err := validateCloudCoreRequest(child, binding, authority)
+	if err != nil {
+		return CloudCoreVerifyObservation{}, err
+	}
+	observation, err := operations.VerifyProject(ctx, project)
+	if err != nil {
+		return CloudCoreVerifyObservation{}, err
+	}
+	if err := validateCloudCoreVerification(project, observation); err != nil {
+		return CloudCoreVerifyObservation{}, err
+	}
+	return observation, nil
+}
+
+func appliedCloudCoreRequest(root runtimeexecutor.ExecutionRequest) (runtimeexecutor.ExecutionRequest, LocalTargetBinding, CloudCoreAuthority, error) {
+	var targets []runtimeexecutor.RuntimeTarget
+	for _, target := range root.RuntimeTargets {
+		if target.OwnerKind == "module" && target.OwnerRef == cloudCoreModuleRef && target.ProviderRef == cloudCoreProviderRef &&
+			target.ModuleRef == cloudCoreModuleRef && target.UnitRef == cloudCoreUnitRef && target.WorkloadRef == cloudCoreWorkloadRef {
+			targets = append(targets, target)
+		}
+	}
+	if len(targets) != 1 {
+		return runtimeexecutor.ExecutionRequest{}, LocalTargetBinding{}, CloudCoreAuthority{}, errors.New("applied runtime custody requires exactly one Cloud core target")
+	}
+	target := targets[0]
+	if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 || strings.TrimSpace(target.ExecutionChannelRef) == "" {
+		return runtimeexecutor.ExecutionRequest{}, LocalTargetBinding{}, CloudCoreAuthority{}, errors.New("applied Cloud core target lacks one exact Site, node, and execution channel")
+	}
+	artifactRefs := make(map[string]struct{}, len(target.ArtifactRefs))
+	for _, ref := range target.ArtifactRefs {
+		artifactRefs[ref] = struct{}{}
+	}
+	artifacts := make([]runtimeexecutor.Artifact, 0, len(artifactRefs))
+	for _, artifact := range root.Artifacts {
+		if _, selected := artifactRefs[artifact.ID]; selected {
+			artifacts = append(artifacts, artifact)
+		}
+	}
+	allowedHealth := make(map[string]struct{}, len(cloudCoreHealthSpecs))
+	for _, spec := range cloudCoreHealthSpecs {
+		allowedHealth[spec.source] = struct{}{}
+	}
+	health := make([]runtimeexecutor.HealthTarget, 0, len(cloudCoreHealthSpecs))
+	healthHashes := make(map[string]string, len(cloudCoreHealthSpecs))
+	for _, item := range root.HealthTargets {
+		belongs := item.RuntimeRequirementID == target.RequirementID
+		if item.RuntimeRequirementID == "" {
+			belongs = item.TargetKind == "module" && item.TargetRef == cloudCoreModuleRef &&
+				slices.Equal(item.SiteRefs, target.SiteRefs) && slices.Equal(item.NodeRefs, target.NodeRefs)
+		}
+		if !belongs {
+			continue
+		}
+		if _, selected := allowedHealth[item.SourceRef]; !selected {
+			return runtimeexecutor.ExecutionRequest{}, LocalTargetBinding{}, CloudCoreAuthority{}, errors.New("applied Cloud core target contains an unknown health contract")
+		}
+		health = append(health, item)
+		healthHashes[item.SourceRef] = item.ContractHash
+	}
+	child := runtimeexecutor.ExecutionRequest{
+		RuntimeTargets: []runtimeexecutor.RuntimeTarget{target}, Artifacts: artifacts, HealthTargets: health,
+	}
+	binding := LocalTargetBinding{SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef}
+	authority := CloudCoreAuthority{
+		ProviderContractHash: target.ProviderContractHash, ModuleContractHash: target.ModuleContractHash, HealthContractHashes: healthHashes,
+	}
+	return child, binding, authority, nil
+}
+
 func (e *CloudCoreExecutor) Identity() runtimeexecutor.ExecutorIdentity { return e.identity }
 
 func (e *CloudCoreExecutor) Execute(ctx context.Context, request runtimeexecutor.ExecutionRequest) (runtimeexecutor.ExecutionOutcome, error) {
@@ -190,7 +276,7 @@ func validateCloudCoreRequest(request runtimeexecutor.ExecutionRequest, binding 
 // probes the exact host listeners published by the Cloud Compose artifact.
 var cloudCoreHealthSpecs = []basementCoreHealthSpec{
 	{source: "cloud-coolify-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/", port: 8080, probePort: 8000, timeout: 30, statuses: []int{200, 302}},
-	{source: "cloud-hub-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/healthz", port: 80, probePort: 80, timeout: 30, statuses: []int{200}},
+	{source: "cloud-hub-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/healthz", port: 80, probePort: 8081, timeout: 30, statuses: []int{200}},
 	{source: "cloud-pocketid-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/", port: 1411, probePort: 1411, timeout: 30, statuses: []int{200, 302}},
 	{source: "cloud-router-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/ping", port: 8080, probePort: 8080, timeout: 30, statuses: []int{200}},
 	{source: "cloud-tinyauth-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/", port: 3000, probePort: 4000, timeout: 30, statuses: []int{200, 302}},

@@ -10132,7 +10132,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:bb9ba017e21bc0eb9eef0397ef560047089d7d3cc4cf4393ed46ceab62674ba9",
+          "contractHash": "sha256:16c7f07e319e63001acca659fd3d245ae9e128749e7a85ac79481033a6341858",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -10216,6 +10216,17 @@
               "sourceServiceRefs": [],
               "targetPort": 8080,
               "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "hub",
+              "exposure": "remote-private",
+              "id": "hub-health",
+              "port": 8081,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 80,
+              "transport": "tcp"
             }
           ],
           "secretInputBindings": {},
@@ -10295,7 +10306,7 @@
           "artifactRefs": [
             "cloud-core-compose"
           ],
-          "contractHash": "sha256:bb9ba017e21bc0eb9eef0397ef560047089d7d3cc4cf4393ed46ceab62674ba9",
+          "contractHash": "sha256:16c7f07e319e63001acca659fd3d245ae9e128749e7a85ac79481033a6341858",
           "id": "compose",
           "planInputRefs": [],
           "publicInputRefs": [],

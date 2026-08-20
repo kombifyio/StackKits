@@ -135,7 +135,7 @@ not yet implemented. Until it lands, rotate manually by re-running
 'stackkit apply' on the node — the apply orchestrator will regenerate
 the per-node break-glass admin and write a fresh bundle.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return fmt.Errorf("break-glass rotate is Phase 5, not yet implemented (see docs/superpowers/plans/2026-04-28-phase-1-standalone-firstnode-localowner.md for the current roadmap)")
+		return fmt.Errorf("break-glass rotate is Phase 5, not yet implemented; rerun stackkit apply to regenerate the per-node bundle")
 	},
 }
 

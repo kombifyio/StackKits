@@ -17,6 +17,7 @@ package kitio
 import (
 	"encoding/json"
 
+	"github.com/kombifyio/stackkits/pkg/models"
 	"gopkg.in/yaml.v3"
 )
 
@@ -147,18 +148,8 @@ func (p *PlatformField) UnmarshalJSON(b []byte) error {
 	return nil // tolerate null
 }
 
-// KitMetadata mirrors stackkit.yaml `metadata:` block.
-type KitMetadata struct {
-	Name        string   `yaml:"name" json:"name"`
-	Version     string   `yaml:"version" json:"version"`
-	Description string   `yaml:"description,omitempty" json:"description,omitempty"`
-	Summary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
-	Author      string   `yaml:"author,omitempty" json:"author,omitempty"`
-	License     string   `yaml:"license,omitempty" json:"license,omitempty"`
-	Repository  string   `yaml:"repository,omitempty" json:"repository,omitempty"`
-	Status      string   `yaml:"status,omitempty" json:"status,omitempty"`
-	Tags        []string `yaml:"tags,omitempty" json:"tags,omitempty"`
-}
+// KitMetadata is a source-compatible alias to the one concrete Go schema.
+type KitMetadata = models.KitMetadata
 
 // ModeDef captures an install/lifecycle mode such as bare, bootstrapped, or advanced.
 type ModeDef struct {

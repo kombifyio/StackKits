@@ -35,7 +35,7 @@ package foundation
 
 #UseCasePackage: {
 	metadata: {
-		name:        =~"^[a-z][a-z0-9-]+$"
+		name: =~"^[a-z][a-z0-9-]+$"
 		// useCaseRef joins this package to the CUE-owned product catalog. A
 		// package remains product/docs input; it does not make a workload
 		// executable or replace Architecture v2 runtime authority.
@@ -49,9 +49,14 @@ package foundation
 	}
 
 	selection: {
-		role:        #UseCaseRole
-		defaultTool: #UseCaseToolRef
+		role: #UseCaseRole
+		// Draft packages may leave the default unresolved when the committed
+		// catalog intentionally has no selected implementation yet.
+		defaultTool?: #UseCaseToolRef
 		alternatives?: [...#UseCaseToolRef] | *[]
+	}
+	if metadata.lifecycle != "draft" {
+		selection: defaultTool: #UseCaseToolRef
 	}
 
 	defaultRuntimeProfile: =~"^[a-z][a-z0-9-]+$"

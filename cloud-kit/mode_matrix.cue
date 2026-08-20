@@ -1,10 +1,12 @@
 // Package cloud_kit — mode-support matrix declaration (see foundation/mode_matrix.cue).
 //
-// Cloud Kit graduated with v0.5.1 (2026-07-07): the canonical cloud
-// verification path — SK-S2 managed kombify.me subdomain (Komodo) and SK-S3
-// provider-leased custom domain (Coolify) — passed live on the release source
-// commit (production-tests run 28881686758, SHA 4d0a34c3). Cells without a
-// proven verification path stay "scaffolding".
+// Historical Cloud capability evidence was first recorded with v0.5.1
+// (2026-07-07): SK-S2 managed kombify.me subdomain (Komodo) and SK-S3
+// provider-leased custom domain (Coolify) passed on production-tests run
+// 28881686758 at SHA 4d0a34c3. The supported cells below describe implemented
+// modes; they do not promote current Cloud Kit beyond its manifest-declared
+// Preview maturity or replace exact-release SK-M2 Product Apply and inventory
+// proof. Cells without a proven verification path stay "scaffolding".
 package cloud_kit
 
 import (

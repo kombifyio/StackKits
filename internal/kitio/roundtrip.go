@@ -77,7 +77,11 @@ func Diff(a, b KitDefinition) []FieldDifference {
 	// Critical: identity + version + metadata core
 	add("metadata.name", "critical", a.Metadata.Name, b.Metadata.Name, "")
 	add("metadata.version", "critical", a.Metadata.Version, b.Metadata.Version, "")
+	add("metadata.displayName", "critical", a.Metadata.DisplayName, b.Metadata.DisplayName, "")
+	add("metadata.maturity", "critical", a.Metadata.Maturity, b.Metadata.Maturity, "")
+	add("metadata.status", "critical", a.Metadata.Status, b.Metadata.Status, "")
 	add("metadata.description", "cosmetic", a.Metadata.Description, b.Metadata.Description, "free-text drift OK")
+	add("metadata.summary", "cosmetic", a.Metadata.Summary, b.Metadata.Summary, "free-text drift OK")
 	add("metadata.license", "critical", a.Metadata.License, b.Metadata.License, "")
 	add("metadata.author", "cosmetic", a.Metadata.Author, b.Metadata.Author, "")
 

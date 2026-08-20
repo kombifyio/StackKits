@@ -53,22 +53,23 @@ are required so the generated public HTTPS routes resolve and ACME certificates 
 
 ## Status
 
-Cloud Kit is a derived product of the shared base. It graduated with `v0.5.1`
-(2026-07-07): the canonical cloud gates — SK-S2 managed `kombify.me` subdomain and
-SK-S3 provider-leased custom domain — passed live from the release source contents
-(production run `28881686758`), so the `bootstrapped`/`standard`/`cloud` cells are
-`supported` (see [`mode_matrix.cue`](mode_matrix.cue)). The `bare` and `advanced`
-install modes remain `scaffolding`. For a local homelab, use
-[basement-kit](../basement-kit/README.md).
+Cloud Kit is a Preview product derived from the shared Foundation. Its native
+core, guarded Product Apply, live Verify projection, and Techstack access
+manifest are implemented on current source. Graduation remains pending until
+an exact published release completes Product Apply and Verify on a prepared,
+authenticated Cloud host and Techstack reads back the four real services. The
+provider lifecycle and its SK-S2/S2A and SK-S3/S3A evidence are owned by
+Techstack; historical provider runs do not promote current source.
+For a local homelab, use [basement-kit](../basement-kit/README.md).
 
 ## Development Gates
 
 ```bash
-cue vet -c=false ./foundation/...
-cue vet ./cloud-kit/...
-go test ./...
-mise run test:cue-binding
+mise run check
 ```
+
+The affected planner selects the changed Cloud CUE and Go boundaries. Full
+repository suites remain optional breadth diagnostics during v0.x.
 
 ## Route health readiness
 

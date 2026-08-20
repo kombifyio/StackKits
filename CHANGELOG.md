@@ -6,17 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.21.1](https://github.com/kombifyio/stackKits/compare/v0.18.22...v0.21.1) (2026-08-20)
+
+### Changed
+
+* **kit metadata:** use one CUE and Go metadata schema across Basement, Cloud, and Modern manifests while retaining their intentionally distinct root document kinds; preserve maturity/status through import, API, OpenAPI, and roundtrip hashing.
+
+### Added
+
+* **use cases:** complete all ten first-class CUE package authorities with Vault, Media, draft AI/Dev/Remote, and post-1.0 draft Mail/Game; bind their existing Basement and Cloud Kit roles without inventing a Game default.
+* **cloud:** implement the provider-neutral Cloud core runtime, guarded local Product Apply, live Verify observation, and the exact access-manifest v2 projection for base/auth/id/coolify while leaving provider and credential custody in Techstack.
+
 ### Fixed
 
+* **cloud:** bind public route-health execution to its Runtime Owner and probe Cloud Hub on its dedicated loopback health listener.
+* **access:** reject stale, foreign, or mutated Cloud service projections during Verify and Status readback.
+* **release:** treat a missing Release Please PR as expected for derived-version publishes instead of failing after the public GitHub Release already exists.
+* **cli:** reject the retired `base-kit` installer argument instead of rewriting it to `basement-kit`.
+* **docs:** restore the documented `docs:use-cases:generate` and `docs:use-cases:check` task routes to the existing CUE-derived projection emitter.
+* **public export:** include the first-class `use-cases/` CUE authorities in the OSS source distribution.
+* **public export:** keep the exported Cloud Kit README independent of the private roadmap tree.
 * **release:** keep the Windows exporter and no-tag public sync aligned with the pre-1.0 structural gate after retired test harnesses were removed.
 * **docs:** keep the exported historical update-lifecycle notes in English.
 
-## [0.18.23](https://github.com/kombifyio/stackKits/compare/v0.18.22...v0.18.23) (2026-08-18)
+### Removed
 
-### Fixed
-
-* **release:** treat a missing Release Please PR as expected for derived-version publishes instead of failing after the public GitHub Release already exists.
-* **cli:** reject the retired `base-kit` installer argument instead of rewriting it to `basement-kit`.
+* **add-ons:** remove every importer-less non-cross-cutting legacy stub: the ten use-case duplicates plus unresolved Authelia and Calendar product definitions. Unimplemented OpenCloud, MQTT/Zigbee, identity, calendar, Mail, Game, AI, Dev, and Remote runtime details remain unclaimed.
 
 ## [0.18.22](https://github.com/kombifyio/stackKits/compare/v0.18.14...v0.18.22) (2026-08-18)
 

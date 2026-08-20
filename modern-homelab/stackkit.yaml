@@ -10,8 +10,9 @@ kind: KitCatalogMetadata
 
 metadata:
   name: modern-homelab
+  displayName: "Modern Homelab"
   version: "1.1.0-alpha"
-  description: "Federated Home and Cloud StackKit with Home-owned authority and a policy-constrained bridge"
+  description: "Federated local and cloud StackKit with a policy-constrained bridge"
   author: "kombify Team"
   license: "Apache-2.0"
   repository: "https://github.com/kombifyio/stackkits"
