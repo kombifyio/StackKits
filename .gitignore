@@ -130,3 +130,8 @@ modules/*/module-release.json
 coverage.out
 .tmp-*
 *.test
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key

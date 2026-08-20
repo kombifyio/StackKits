@@ -16,6 +16,11 @@ import (
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
+const (
+	architectureV2StandaloneApplicationAdapterRef       = "standalone-compose"
+	architectureV2StandaloneApplicationAdapterModuleRef = "stackkits-standalone-compose-runtime"
+)
+
 type architectureV2ProductRuntimeAuthority struct {
 	*architecturev2.Service
 	journal *architecturev2.ProductApplyFileJournal
@@ -320,17 +325,17 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 	standaloneApplications := []func() (architecturev2.ProductRuntimeOwnerRegistration, error){
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductImmichSelectedPaaSRegistration(
-				runtimeVersion, "standalone-compose", "stackkits-standalone-compose-runtime", standaloneOperations,
+				runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations,
 			)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductCloudreveSelectedPaaSRegistration(
-				runtimeVersion, "standalone-compose", "stackkits-standalone-compose-runtime", standaloneOperations,
+				runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations,
 			)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductVaultwardenSelectedPaaSRegistration(
-				runtimeVersion, "standalone-compose", "stackkits-standalone-compose-runtime", standaloneOperations,
+				runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations,
 			)
 		},
 	}

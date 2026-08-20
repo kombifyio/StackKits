@@ -624,12 +624,7 @@ func affectedGoCommands(selection affectedGoSelection, changedTests map[string][
 	}
 	focusedSelections := []focusedSelection{}
 	fullPatterns := []string{}
-	productionCompilePatterns := []string{}
 	for _, pattern := range selection.Changed {
-		if pattern == "./tests/production" {
-			productionCompilePatterns = append(productionCompilePatterns, pattern)
-			continue
-		}
 		dir := strings.TrimPrefix(pattern, "./")
 		if dir == "." {
 			dir = "."
@@ -648,7 +643,6 @@ func affectedGoCommands(selection affectedGoSelection, changedTests map[string][
 			end := min(start+focusedTestBatchSize, len(focused.tests))
 			batch := focused.tests[start:end]
 			args := []string{"go", "test", "-count=1", "-timeout=90s", "-run", exactTestRegex(batch)}
-			args = appendRequiredBuildTags(args, []string{focused.pattern})
 			args = append(args, focused.pattern)
 			commands = append(commands, testCommand{
 				Kind: "go", Scope: "changed-test-functions", Argv: args,
@@ -657,24 +651,14 @@ func affectedGoCommands(selection affectedGoSelection, changedTests map[string][
 		}
 	}
 	if len(fullPatterns) > 0 {
-		args := appendRequiredBuildTags([]string{"go", "test", "-count=1", "-timeout=90s"}, fullPatterns)
+		args := []string{"go", "test", "-count=1", "-timeout=90s"}
 		commands = append(commands, testCommand{
 			Kind: "go", Scope: "changed-packages", Argv: append(args, fullPatterns...),
 			Reason: "run changed packages that have no changed test-function boundary",
 		})
 	}
-	if len(productionCompilePatterns) > 0 {
-		args := []string{"go", "test", "-count=1", "-timeout=90s", "-run", "^$"}
-		args = appendRequiredBuildTags(args, productionCompilePatterns)
-		args = append(args, productionCompilePatterns...)
-		commands = append(commands, testCommand{
-			Kind: "go", Scope: "production-package-compile", Argv: args,
-			Reason: "compile production-tagged live-test sources without running target-dependent tests in the fast path",
-		})
-	}
 	if len(selection.CompileOnly) > 0 {
 		args := []string{"go", "test", "-count=1", "-timeout=90s", "-run", "^$"}
-		args = appendRequiredBuildTags(args, selection.CompileOnly)
 		args = append(args, selection.CompileOnly...)
 		commands = append(commands, testCommand{
 			Kind: "go", Scope: "changed-generated-compile", Argv: args,
@@ -683,7 +667,6 @@ func affectedGoCommands(selection affectedGoSelection, changedTests map[string][
 	}
 	if len(selection.Reverse) > 0 {
 		args := []string{"go", "test", "-count=1", "-timeout=90s", "-run", "^$"}
-		args = appendRequiredBuildTags(args, selection.Reverse)
 		args = append(args, selection.Reverse...)
 		commands = append(commands, testCommand{
 			Kind: "go", Scope: "reverse-dependent-compile", Argv: args,
@@ -691,15 +674,6 @@ func affectedGoCommands(selection affectedGoSelection, changedTests map[string][
 		})
 	}
 	return commands
-}
-
-func appendRequiredBuildTags(args, patterns []string) []string {
-	for _, pattern := range patterns {
-		if pattern == "./tests/production" {
-			return append(args, "-tags", "production")
-		}
-	}
-	return args
 }
 
 func exactTestRegex(names []string) string {

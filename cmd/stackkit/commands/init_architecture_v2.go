@@ -63,10 +63,14 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 	if normalizedName {
 		printInfo("Using normalized deployment contract ID %q for workspace %q", name, filepath.Base(filepath.Clean(wd)))
 	}
+	platform := strings.TrimSpace(initPlatform)
+	if platform == "" && len(initUseCases) > 0 {
+		platform = architectureV2StandaloneApplicationAdapterRef
+	}
 	validation, err := service.MaterializeInitialStackSpec(profile, architecturev2.AuthoringOverrides{
 		Name:               name,
 		DomainBase:         domain,
-		Platform:           strings.TrimSpace(initPlatform),
+		Platform:           platform,
 		EnableCapabilities: initEnableCapabilities,
 		UseCases:           initUseCases,
 	})

@@ -17,8 +17,6 @@ const (
 	Modern   = "modern-homelab"
 )
 
-var active = []string{Basement, Cloud, Modern}
-
 // Slugs returns a copy of the active distribution's product taxonomy.
 func Slugs() []string {
 	return append([]string(nil), active...)

@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Fixed
+
+* **release:** keep the Windows exporter and no-tag public sync aligned with the pre-1.0 structural gate after retired test harnesses were removed.
+* **docs:** keep the exported historical update-lifecycle notes in English.
+
+## [0.18.23](https://github.com/kombifyio/stackKits/compare/v0.18.22...v0.18.23) (2026-08-18)
+
+### Fixed
+
+* **release:** treat a missing Release Please PR as expected for derived-version publishes instead of failing after the public GitHub Release already exists.
+* **cli:** reject the retired `base-kit` installer argument instead of rewriting it to `basement-kit`.
+
 ## [0.18.22](https://github.com/kombifyio/stackKits/compare/v0.18.14...v0.18.22) (2026-08-18)
 
 ### Changed
@@ -2258,24 +2270,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - CLI — `stackkit doctor --check-updates` — queries the Admin API for newer kit-versions in the current channel; appends `updates` and `updates-cta` rows to the doctor report. Network/admin failures degrade to `warn`, never `fail`.
 - Schema — `pkg/models/DeploymentState` gains additive `KitVersionID`, `KitSemver`, `KitChannel`, `LastSnapshotDir` fields (all `omitempty`); state files written by older CLI versions still load.
 - Operator runbooks — the private kit-upgrade runbook + the private kit-rollback runbook: pre-flight checklists, common flows, failure modes, timing expectations, manual recovery for kit-rollback.
-- DB-Migrations (LIVE; in `kombify-DB/migrations/`):
-  - `000107_sk_release_channels` — Dual-Level `release_channel` + `released_at` auf `sk_stackkit` + `sk_module_version`, AFTER-Triggers für `action='channel_promote'`, `target_kind`-Spalte auf `sk_stackkit_audit_log`, Inline-Backfill bestehender Versions auf `stable`.
-  - `000108_sk_node_deployment` — Server-Side-Mirror `(tenant_id, node_name) → (kit_slug, kit_version, kit_channel, module_versions, kopia_snapshot_id, tofu_state_path, status)`.
-  - `000109_sk_compatibility_resolver_view` — VIEW `sk_kit_module_compat` als Resolver-Source.
+- DB migrations (LIVE; in `kombify-DB/migrations/`):
+  - `000107_sk_release_channels` — dual-level `release_channel` + `released_at` on `sk_stackkit` + `sk_module_version`, AFTER triggers for `action='channel_promote'`, a `target_kind` column on `sk_stackkit_audit_log`, and an inline backfill of existing versions to `stable`.
+  - `000108_sk_node_deployment` — server-side mirror `(tenant_id, node_name) → (kit_slug, kit_version, kit_channel, module_versions, kopia_snapshot_id, tofu_state_path, status)`.
+  - `000109_sk_compatibility_resolver_view` — VIEW `sk_kit_module_compat` as the resolver source.
 - Tests — 48 new test cases (`internal/snapshot/`, `internal/registry/`, `cmd/stackkit/commands/kit_upgrade*`, `cmd/stackkit/commands/doctor_update*`); whole repo suite (30 packages) green.
 
 ### Pending (later in this phase)
 
 - Admin: channel-promotion endpoints + resolver endpoint + node-deployments + UI pages shipped in kombify-Administration.
-- Test-Coverage-Hebung Update-Pfade auf 50% (T7).
-- VM-Smoketest v1.0→v1.1 + Rollback (T9).
+- Raise test coverage for update paths to 50% (T7).
+- VM smoke test v1.0→v1.1 plus rollback (T9).
 - Out-of-scope: Multi-Node-Rolling-Update (kit-update-phase-2), Auto-Promotion (kit-update-phase-3).
 
 ### Notes
 
-- Kopia-Repo wird Pflicht-Vorbedingung für Updates — Operator muss `stackkit backup configure` machen, bevor `stackkit kit upgrade` zugelassen wird (ADR-0018 §3).
-- Multi-Node-Rolling-Update ist explizit kit-update-phase-2, nicht Phase 1.
-- Auto-Promotion (edge → beta → stable über Demand-Signal) ist explizit kit-update-phase-3.
+- A Kopia repository becomes a mandatory update prerequisite: the operator must run `stackkit backup configure` before `stackkit kit upgrade` is admitted (ADR-0018 §3).
+- Multi-node rolling updates explicitly belong to kit-update-phase-2, not Phase 1.
+- Auto-promotion (edge → beta → stable via demand signal) explicitly belongs to kit-update-phase-3.
 
 ---
 

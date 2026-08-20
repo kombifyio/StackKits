@@ -10,8 +10,7 @@
 #
 # Called by the short website entrypoints (`base.stackkit.cc`,
 # `cloud.stackkit.cc`) to provide the shared install + kit-download step
-# before the kit-specific flow. The retired `base-kit` name is accepted as a
-# deprecation alias for `basement-kit`.
+# before the kit-specific flow. The retired `base-kit` name is rejected.
 # =============================================================================
 set -eu
 
@@ -159,9 +158,8 @@ case "$KIT_NAME" in
     INSTALL_KITS="modern-homelab"
     ;;
   base-kit)
-    echo "Note: 'base-kit' is retired; installing 'basement-kit' (the local product)." >&2
-    ARCHIVE="stackkits-basement-kit_${LATEST}_${OS}_${ARCH}.tar.gz"
-    INSTALL_KITS="basement-kit"
+    echo "Error: 'base-kit' is retired. Use basement-kit." >&2
+    exit 1
     ;;
   all)
     ARCHIVE="stackkits_${LATEST}_${OS}_${ARCH}.tar.gz"
@@ -361,7 +359,6 @@ if [ -n "$INSTALL_KITS" ]; then
   echo "    curl -sSL https://cloud.stackkit.cc | sh    # Cloud Kit (public domain)"
   echo ""
   case "$KIT_NAME" in
-    base-kit) print_cli_chain basement-kit ;;
     basement-kit|cloud-kit|modern-homelab) print_cli_chain "$KIT_NAME" ;;
     *) print_cli_chain basement-kit ;;
   esac

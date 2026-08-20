@@ -1240,9 +1240,7 @@ func projectPublicRouteList(value any, path string, withProbe, withAuthority boo
 		}
 		result = append(result, projected)
 	}
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].(map[string]any)["id"].(string) < result[j].(map[string]any)["id"].(string)
-	})
+	sortPublicRouteProjectionByID(result)
 	return result, nil
 }
 
@@ -1312,10 +1310,18 @@ func projectPublicRouteListFromNetwork(network, gates map[string]any, path strin
 		}
 		result = append(result, projected)
 	}
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].(map[string]any)["id"].(string) < result[j].(map[string]any)["id"].(string)
-	})
+	sortPublicRouteProjectionByID(result)
 	return result, nil
+}
+
+// sortPublicRouteProjectionByID makes each pre-normalization projection stable.
+// CUE canonicalization may later reorder set-semantic routes by their complete
+// serialized value, so downstream renderers enforce identity uniqueness rather
+// than treating this intermediate order as a contract.
+func sortPublicRouteProjectionByID(routes []any) {
+	sort.Slice(routes, func(i, j int) bool {
+		return routes[i].(map[string]any)["id"].(string) < routes[j].(map[string]any)["id"].(string)
+	})
 }
 
 func projectPublicRoute(route, pool, probe map[string]any, path string, withAuthority bool) (map[string]any, error) {

@@ -406,7 +406,8 @@ tie. The workload bundle carries the exact host, ports, protocol, TLS
 mode/profile/issuer, and route identity, and adapter observations must return
 those fields unchanged. A workload without a declared route remains
 internally reachable through its adapter but advertises no StackKits-owned
-subdomain.
+subdomain. `stackkit init --use-case` selects the workload and its runtime
+adapter; it does not invent a StackSpec route or subdomain.
 
 `standalone-compose` persists a private, digest-pinned Compose project and
 resolves only owner-signed local secret custody. For a routed workload it
