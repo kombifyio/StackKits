@@ -282,13 +282,22 @@ var cloudCoreHealthSpecs = []basementCoreHealthSpec{
 	{source: "cloud-tinyauth-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/", port: 3000, probePort: 4000, timeout: 30, statuses: []int{200, 302}},
 }
 
+var cloudCoreRouteHealthSources = map[string]string{
+	"cloud-coolify-public":  "cloud-coolify-http",
+	"cloud-hub-public":      "cloud-hub-http",
+	"cloud-pocketid-public": "cloud-pocketid-http",
+	"cloud-tinyauth-public": "cloud-tinyauth-http",
+}
+
 func exactCloudCoreHealth(input []runtimeexecutor.HealthTarget, target runtimeexecutor.RuntimeTarget, authority CloudCoreAuthority) ([]runtimeexecutor.HealthTarget, []BasementCoreHealthExpectation, error) {
 	bySource := make(map[string]runtimeexecutor.HealthTarget, len(input))
+	byRequirement := make(map[string]runtimeexecutor.HealthTarget, len(input))
 	for _, item := range input {
 		if _, duplicate := bySource[item.SourceRef]; duplicate {
 			return nil, nil, errors.New("Cloud core health targets contain a duplicate source")
 		}
 		bySource[item.SourceRef] = item
+		byRequirement[item.RequirementID] = item
 	}
 	health := make([]runtimeexecutor.HealthTarget, 0, len(cloudCoreHealthSpecs))
 	expectations := make([]BasementCoreHealthExpectation, 0, len(cloudCoreHealthSpecs))
@@ -314,7 +323,41 @@ func exactCloudCoreHealth(input []runtimeexecutor.HealthTarget, target runtimeex
 		expectations = append(expectations, BasementCoreHealthExpectation{RequirementID: item.RequirementID, SourceRef: item.SourceRef,
 			Kind: item.Kind, Port: spec.probePort, Path: spec.path, ExpectedStatuses: append([]int(nil), spec.statuses...)})
 	}
+	for _, item := range input {
+		if item.TargetKind != "route" {
+			continue
+		}
+		source, found := byRequirement[item.SourceRef]
+		sourceRef, knownRoute := cloudCoreRouteHealthSources[item.TargetRef]
+		spec, knownSource := cloudCoreHealthSpec(sourceRef)
+		hash, trusted := authority.HealthContractHashes[item.SourceRef]
+		if !found || !knownRoute || !knownSource || !trusted || !validCoreHostBootstrapDigest(hash) ||
+			item.ContractHash != hash || item.RuntimeRequirementID != target.RequirementID || item.Phase != "post-apply" ||
+			item.Kind != "http" || item.RouteRef != item.TargetRef || strings.TrimSpace(item.BackendPoolRef) == "" ||
+			source.SourceRef != sourceRef || source.TargetKind != "module" || source.TargetRef != cloudCoreModuleRef ||
+			!slices.Equal(item.SiteRefs, target.SiteRefs) || !slices.Equal(item.NodeRefs, target.NodeRefs) || item.Probe == nil ||
+			item.Probe.Protocol != "http" || item.Probe.Port != spec.port || item.Probe.TimeoutSeconds != spec.timeout ||
+			item.Probe.Method != "GET" || item.Probe.FollowRedirects || item.Probe.Path != spec.path ||
+			!slices.Equal(item.Probe.ExpectedStatuses, spec.statuses) {
+			return nil, nil, errors.New("Cloud core route health authority does not match its exact module probe")
+		}
+		health = append(health, item)
+		expectations = append(expectations, BasementCoreHealthExpectation{RequirementID: item.RequirementID, SourceRef: item.SourceRef,
+			Kind: item.Kind, Port: spec.probePort, Path: spec.path, ExpectedStatuses: append([]int(nil), spec.statuses...)})
+	}
+	if len(health) != len(input) {
+		return nil, nil, errors.New("Cloud core health authority contains an unsupported target")
+	}
 	return health, expectations, nil
+}
+
+func cloudCoreHealthSpec(sourceRef string) (basementCoreHealthSpec, bool) {
+	for _, spec := range cloudCoreHealthSpecs {
+		if spec.source == sourceRef {
+			return spec, true
+		}
+	}
+	return basementCoreHealthSpec{}, false
 }
 
 func validateCloudCoreVerification(project CloudCoreProject, observation CloudCoreVerifyObservation) error {

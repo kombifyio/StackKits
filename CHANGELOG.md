@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.21.7](https://github.com/kombifyio/stackKits/compare/v0.21.6...v0.21.7) (2026-08-21)
+
+### Fixed
+
+* **cloud:** retain exact runtime-owned public-route health outcomes after validating them against their Cloud core module probes.
+
 ## [0.21.6](https://github.com/kombifyio/stackKits/compare/v0.21.5...v0.21.6) (2026-08-21)
 
 ### Fixed
