@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.21.9](https://github.com/kombifyio/stackKits/compare/v0.21.8...v0.21.9) (2026-08-21)
+
+### Fixed
+
+* **apply:** install the packages backing the units Cloud host-security enables and the ruleset it loads, so the owner can reach the posture it declares on a stock Ubuntu host instead of failing on absent `nft` and `fail2ban`.
+* **apply:** reload only a running sshd and ensure the sshd privilege separation directory, so Cloud host-security hardening holds on a socket-activated Ubuntu host.
+
 ## [0.21.8](https://github.com/kombifyio/stackKits/compare/v0.21.7...v0.21.8) (2026-08-21)
 
 ### Fixed

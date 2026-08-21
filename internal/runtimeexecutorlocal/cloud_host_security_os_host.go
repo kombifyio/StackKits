@@ -49,9 +49,39 @@ func cloudHostSecurityIsEnabledArgs(unit string) []string {
 	return []string{"systemctl", "is-enabled", unit}
 }
 
+func cloudHostSecurityIsActiveArgs(unit string) []string {
+	return []string{"systemctl", "is-active", unit}
+}
+
+func cloudHostSecurityPackageRefreshArgs() []string {
+	return []string{"apt-get", "update", "-y"}
+}
+
+func cloudHostSecurityPackageInstallArgs(name string) []string {
+	return []string{"apt-get", "install", "-y", "--no-install-recommends", name}
+}
+
 // cloudHostSecurityManagedUnits is the closed set of units this owner may
 // touch. A policy can select among them; it can never name a new one.
 var cloudHostSecurityManagedUnits = []string{"ssh", "fail2ban", "unattended-upgrades"}
+
+// cloudHostSecurityToolingPackages binds each command this owner depends on to
+// the exact package that provides it. Both sides are closed: a policy can name
+// neither another command nor another package.
+var cloudHostSecurityToolingPackages = map[string]string{
+	"nft":                "nftables",
+	"fail2ban-server":    "fail2ban",
+	"unattended-upgrade": "unattended-upgrades",
+}
+
+func validCloudHostSecurityPackage(name string) bool {
+	for _, managed := range cloudHostSecurityToolingPackages {
+		if managed == name {
+			return true
+		}
+	}
+	return false
+}
 
 // renderCloudHostFirewallRuleset produces the file this owner hands to nft.
 // The create/delete preamble makes the load idempotent: nft applies the whole
@@ -210,13 +240,64 @@ func (o *osCloudHostSecurityOperations) writeSSHHardening(ctx context.Context, p
 	if err := writeCloudHostSecuritySystemFile(cloudHostSecuritySSHDropIn, content); err != nil {
 		return err
 	}
+	if err := ensureCloudHostSecuritySSHDRuntimeDirectory(); err != nil {
+		return err
+	}
 	if _, err := o.runner.Run(ctx, cloudHostSecuritySSHDValidateArgs()); err != nil {
 		return fmt.Errorf("validate the hardened sshd configuration: %w", err)
+	}
+	if err := o.reloadSSHDIfActive(ctx); err != nil {
+		return err
+	}
+	_ = policy
+	return nil
+}
+
+// reloadSSHDIfActive hands the drop-in to an already running sshd. Ubuntu
+// socket-activates ssh, so ssh.service is normally inactive and systemd
+// refuses to reload it; every new connection then starts an sshd that reads
+// the drop-in anyway. The effective configuration is observed separately, so
+// declining an impossible reload does not weaken the postcondition.
+func (o *osCloudHostSecurityOperations) reloadSSHDIfActive(ctx context.Context) error {
+	raw, err := o.runner.Run(ctx, cloudHostSecurityIsActiveArgs("ssh"))
+	if err != nil {
+		return fmt.Errorf("observe the sshd service state: %w", err)
+	}
+	if strings.TrimSpace(string(raw)) != "active" {
+		return nil
 	}
 	if _, err := o.runner.Run(ctx, cloudHostSecurityReloadArgs("ssh")); err != nil {
 		return fmt.Errorf("reload sshd with the hardened configuration: %w", err)
 	}
-	_ = policy
+	return nil
+}
+
+// ensureManagedTooling installs the owner's own packages when the commands
+// they provide are absent. A provider hands over a stock Ubuntu image with
+// none of them, so without this the owner would enable units and load rulesets
+// that cannot exist and would report a posture it can never reach.
+func (o *osCloudHostSecurityOperations) ensureManagedTooling(ctx context.Context, commands ...string) error {
+	missing := make([]string, 0, len(commands))
+	for _, command := range commands {
+		name, managed := cloudHostSecurityToolingPackages[command]
+		if !managed {
+			return errors.New("Cloud host-security tooling is outside the closed contract")
+		}
+		if _, err := exec.LookPath(command); err != nil && !slices.Contains(missing, name) {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	if _, err := o.runner.Run(ctx, cloudHostSecurityPackageRefreshArgs()); err != nil {
+		return fmt.Errorf("refresh the package index for %s: %w", strings.Join(missing, ", "), err)
+	}
+	for _, name := range missing {
+		if _, err := o.runner.Run(ctx, cloudHostSecurityPackageInstallArgs(name)); err != nil {
+			return fmt.Errorf("install the managed %s package: %w", name, err)
+		}
+	}
 	return nil
 }
 
@@ -307,6 +388,24 @@ func (o *osCloudHostSecurityOperations) observeSSHD(ctx context.Context) (cloudH
 	return settings, nil
 }
 
+// ensureCloudHostSecuritySSHDRuntimeDirectory creates the privilege
+// separation directory sshd requires before it will parse a configuration at
+// all. Only ssh.service declares it as a systemd RuntimeDirectory, and Ubuntu
+// socket-activates ssh, so on a stock host the directory is absent and every
+// sshd validation and observation this owner performs would fail.
+func ensureCloudHostSecuritySSHDRuntimeDirectory() error {
+	if info, err := os.Lstat(cloudHostSecuritySSHDRuntimeDirectory); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			return errors.New("the sshd privilege separation path is not a plain directory")
+		}
+		return nil
+	}
+	if err := os.MkdirAll(cloudHostSecuritySSHDRuntimeDirectory, 0o755); err != nil {
+		return fmt.Errorf("create the sshd privilege separation directory: %w", err)
+	}
+	return os.Chmod(cloudHostSecuritySSHDRuntimeDirectory, 0o755)
+}
+
 // writeCloudHostSecuritySystemFile installs one managed drop-in. The parent
 // directory must already exist: creating /etc trees for a package that is not
 // installed would report a posture the host cannot actually enforce.
@@ -343,7 +442,12 @@ func (osCloudHostSecurityProcessRunner) Run(ctx context.Context, args []string) 
 		return nil, fmt.Errorf("required %s tooling is not installed", args[0])
 	}
 	command := exec.CommandContext(ctx, executable, args[1:]...)
-	command.Env = []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin", "LANG=C", "LC_ALL=C"}
+	// The package steps must never wait on an interactive prompt: the owner
+	// runs unattended and a blocked apt-get would hang the whole Apply.
+	command.Env = []string{
+		"PATH=/usr/sbin:/usr/bin:/sbin:/bin", "LANG=C", "LC_ALL=C",
+		"DEBIAN_FRONTEND=noninteractive",
+	}
 	output := &cloudHostSecurityBoundedBuffer{remaining: cloudHostSecurityProcessOutputLimit}
 	command.Stdout, command.Stderr = output, output
 	runErr := command.Run()
@@ -351,9 +455,9 @@ func (osCloudHostSecurityProcessRunner) Run(ctx context.Context, args []string) 
 		return nil, errors.New("Cloud host-security process output exceeded the bound")
 	}
 	if runErr != nil {
-		// systemctl is-enabled reports state through the exit code; its stdout
-		// is the answer the caller has to see.
-		if args[0] == "systemctl" && args[1] == "is-enabled" {
+		// systemctl is-enabled and is-active report state through the exit
+		// code; their stdout is the answer the caller has to see.
+		if args[0] == "systemctl" && (args[1] == "is-enabled" || args[1] == "is-active") {
 			return append([]byte(nil), output.Bytes()...), nil
 		}
 		if detail := strings.TrimSpace(output.String()); detail != "" {
@@ -378,6 +482,13 @@ func validCloudHostSecurityArgs(args []string) error {
 	case len(args) == 4 && args[0] == "systemctl" && args[1] == "enable" && args[2] == "--now" && slices.Contains(cloudHostSecurityManagedUnits, args[3]):
 		return nil
 	case len(args) == 3 && args[0] == "systemctl" && args[1] == "is-enabled" && slices.Contains(cloudHostSecurityManagedUnits, args[2]):
+		return nil
+	case len(args) == 3 && args[0] == "systemctl" && args[1] == "is-active" && slices.Contains(cloudHostSecurityManagedUnits, args[2]):
+		return nil
+	case slices.Equal(args, cloudHostSecurityPackageRefreshArgs()):
+		return nil
+	case len(args) == 5 && args[0] == "apt-get" && args[1] == "install" && args[2] == "-y" &&
+		args[3] == "--no-install-recommends" && validCloudHostSecurityPackage(args[4]):
 		return nil
 	}
 	return errors.New("process is outside the closed Cloud host-security contract")

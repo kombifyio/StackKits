@@ -15,12 +15,14 @@ import (
 )
 
 const (
-	cloudHostSecurityTable        = "stackkits_cloud_host_security"
-	cloudHostSecurityBaseChain    = "stackkits_cloud_host_base"
-	cloudHostSecurityEdgeChain    = "stackkits_cloud_public_edge"
-	cloudHostSecuritySSHDropIn    = "/etc/ssh/sshd_config.d/60-stackkits-cloud-host-security.conf"
-	cloudHostSecurityAPTDropIn    = "/etc/apt/apt.conf.d/60-stackkits-cloud-host-security"
-	cloudHostSecurityEvidenceRoot = "cloud-host-security"
+	cloudHostSecurityTable     = "stackkits_cloud_host_security"
+	cloudHostSecurityBaseChain = "stackkits_cloud_host_base"
+	cloudHostSecurityEdgeChain = "stackkits_cloud_public_edge"
+	cloudHostSecuritySSHDropIn = "/etc/ssh/sshd_config.d/60-stackkits-cloud-host-security.conf"
+	// sshd refuses to parse any configuration without this directory.
+	cloudHostSecuritySSHDRuntimeDirectory = "/run/sshd"
+	cloudHostSecurityAPTDropIn            = "/etc/apt/apt.conf.d/60-stackkits-cloud-host-security"
+	cloudHostSecurityEvidenceRoot         = "cloud-host-security"
 
 	cloudHostSecurityApplyOperation     = "apply-cloud-host-firewall"
 	cloudHostSecurityReconcileOperation = "reconcile-cloud-host-firewall"
@@ -111,6 +113,9 @@ func (o *osCloudHostSecurityOperations) enforceFirewall(ctx context.Context, pol
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	if err := o.ensureManagedTooling(ctx, "nft"); err != nil {
+		return CloudHostSecurityApplyObservation{}, err
+	}
 	ruleset := renderCloudHostFirewallRuleset(policy)
 	rulesetPath, err := o.persist("firewall", "ruleset.nft", []byte(ruleset), 0o600)
 	if err != nil {
@@ -146,6 +151,9 @@ func (o *osCloudHostSecurityOperations) ApplyHardening(ctx context.Context, poli
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	if err := o.ensureManagedTooling(ctx, "fail2ban-server", "unattended-upgrade"); err != nil {
+		return CloudHostSecurityApplyObservation{}, err
+	}
 	if err := o.writeSSHHardening(ctx, policy); err != nil {
 		return CloudHostSecurityApplyObservation{}, err
 	}
