@@ -329,7 +329,7 @@ func validateCloudCoreVerification(project CloudCoreProject, observation CloudCo
 	for index, want := range wantServices {
 		got := gotServices[index]
 		if got.Ref != want.Ref || got.ImageRef != want.ImageRef || got.ImageDigest != want.ImageDigest || got.Status != "running" ||
-			(want.HealthRequired && got.Health != "healthy") || (!want.HealthRequired && got.Health != "not-required") {
+			(want.HealthRequired && got.Health != "healthy") || (!want.HealthRequired && got.Health != "not-configured") {
 			return errors.New("Cloud core service verification differs from the pinned component graph")
 		}
 	}

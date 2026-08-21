@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.21.6](https://github.com/kombifyio/stackKits/compare/v0.21.5...v0.21.6) (2026-08-21)
+
+### Fixed
+
+* **cloud:** accept the shared `not-configured` observation for the intentionally healthcheck-less socket proxy during exact Cloud core verification.
+
 ## [0.21.5](https://github.com/kombifyio/stackKits/compare/v0.21.4...v0.21.5) (2026-08-21)
 
 ### Fixed
