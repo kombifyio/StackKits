@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -369,6 +371,148 @@ func (s cloudHostSecuritySSHDSettings) satisfies(policy CloudHardeningPolicy) er
 	return nil
 }
 
+const (
+	cloudHostSecurityExecutionUser      = "kombify"
+	cloudHostSecurityExecutionShell     = "/bin/bash"
+	cloudHostSecurityExecutionSudoers   = "/etc/sudoers.d/60-stackkits-execution-channel"
+	cloudHostSecurityRootAuthorizedKeys = "/root/.ssh/authorized_keys"
+)
+
+type cloudHostSecurityExecutionLayout struct {
+	user         string
+	rootKeysPath string
+	sudoersPath  string
+	lookup       func(string) (*user.User, error)
+}
+
+func defaultCloudHostSecurityExecutionLayout() cloudHostSecurityExecutionLayout {
+	return cloudHostSecurityExecutionLayout{
+		user:         cloudHostSecurityExecutionUser,
+		rootKeysPath: cloudHostSecurityRootAuthorizedKeys,
+		sudoersPath:  cloudHostSecurityExecutionSudoers,
+		lookup:       user.Lookup,
+	}
+}
+
+func cloudHostSecurityUserAddArgs() []string {
+	return []string{"useradd", "--create-home", "--shell", cloudHostSecurityExecutionShell, cloudHostSecurityExecutionUser}
+}
+
+// preserveExecutionChannelAccount copies the provider-injected SSH key onto a
+// non-root login and grants it passwordless sudo before PermitRootLogin is
+// disabled. Disabling root without that account would lock the control plane
+// out of the same host it is hardening.
+func (o *osCloudHostSecurityOperations) preserveExecutionChannelAccount(ctx context.Context) error {
+	layout := o.execution
+	if strings.TrimSpace(layout.user) == "" {
+		layout = defaultCloudHostSecurityExecutionLayout()
+	}
+	lookup := layout.lookup
+	if lookup == nil {
+		lookup = user.Lookup
+	}
+	account, err := lookup(layout.user)
+	if err != nil {
+		if _, addErr := o.runner.Run(ctx, cloudHostSecurityUserAddArgs()); addErr != nil {
+			return fmt.Errorf("create the Cloud execution-channel account: %w", addErr)
+		}
+		account, err = lookup(layout.user)
+		if err != nil {
+			return errors.New("Cloud execution-channel account is missing after create")
+		}
+	}
+	home := strings.TrimSpace(account.HomeDir)
+	if home == "" {
+		return errors.New("Cloud execution-channel account has no home directory")
+	}
+	uid, uidErr := strconv.Atoi(account.Uid)
+	gid, gidErr := strconv.Atoi(account.Gid)
+	if uidErr != nil || gidErr != nil {
+		uid, gid = -1, -1
+	}
+	keys := mergeAuthorizedSSHKeys(
+		readOptionalFile(layout.rootKeysPath),
+		readOptionalFile(filepath.Join(home, ".ssh", "authorized_keys")),
+		readOptionalFile("/home/ubuntu/.ssh/authorized_keys"),
+	)
+	if strings.TrimSpace(keys) == "" {
+		return errors.New("Cloud host-security would disable root SSH without a key-authenticated execution-channel account")
+	}
+	sshDir := filepath.Join(home, ".ssh")
+	if err := os.MkdirAll(sshDir, 0o700); err != nil {
+		return fmt.Errorf("create the execution-channel SSH directory: %w", err)
+	}
+	if uid >= 0 && gid >= 0 {
+		_ = os.Chown(sshDir, uid, gid)
+	}
+	if err := writeExecutionChannelFile(filepath.Join(sshDir, "authorized_keys"), keys, 0o600, uid, gid); err != nil {
+		return err
+	}
+	sudoers := "# Managed by StackKits Cloud host security. Do not edit.\n" + layout.user + " ALL=(ALL) NOPASSWD:ALL\n"
+	return writeExecutionChannelFile(layout.sudoersPath, sudoers, 0o440, 0, 0)
+}
+
+func mergeAuthorizedSSHKeys(parts ...[]byte) string {
+	seen := map[string]struct{}{}
+	var out []string
+	for _, part := range parts {
+		for _, line := range strings.Split(strings.ReplaceAll(string(part), "\r\n", "\n"), "\n") {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+				continue
+			}
+			if _, exists := seen[trimmed]; exists {
+				continue
+			}
+			seen[trimmed] = struct{}{}
+			out = append(out, trimmed)
+		}
+	}
+	if len(out) == 0 {
+		return ""
+	}
+	return strings.Join(out, "\n") + "\n"
+}
+
+func readOptionalFile(path string) []byte {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	info, err := os.Lstat(path)
+	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return nil
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	return raw
+}
+
+func writeExecutionChannelFile(path, content string, mode os.FileMode, uid, gid int) error {
+	clean := filepath.Clean(path)
+	if clean != path || path == "" || strings.Contains(path, "\x00") {
+		return errors.New("execution-channel path is not canonical")
+	}
+	directory := filepath.Dir(path)
+	if info, err := os.Lstat(directory); err != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		if err := os.MkdirAll(directory, 0o755); err != nil {
+			return fmt.Errorf("create the execution-channel directory: %w", err)
+		}
+	}
+	if existing, err := os.Lstat(path); err == nil && existing.Mode()&os.ModeSymlink != 0 {
+		return errors.New("execution-channel path is a symlink")
+	}
+	if err := os.WriteFile(path, []byte(content), mode); err != nil {
+		return fmt.Errorf("write the execution-channel file: %w", err)
+	}
+	_ = os.Chmod(path, mode)
+	if uid >= 0 && gid >= 0 {
+		_ = os.Chown(path, uid, gid)
+	}
+	return nil
+}
+
 func (o *osCloudHostSecurityOperations) observeSSHD(ctx context.Context) (cloudHostSecuritySSHDSettings, error) {
 	raw, err := o.runner.Run(ctx, cloudHostSecuritySSHDEffectiveArgs())
 	if err != nil {
@@ -489,6 +633,8 @@ func validCloudHostSecurityArgs(args []string) error {
 		return nil
 	case len(args) == 5 && args[0] == "apt-get" && args[1] == "install" && args[2] == "-y" &&
 		args[3] == "--no-install-recommends" && validCloudHostSecurityPackage(args[4]):
+		return nil
+	case slices.Equal(args, cloudHostSecurityUserAddArgs()):
 		return nil
 	}
 	return errors.New("process is outside the closed Cloud host-security contract")

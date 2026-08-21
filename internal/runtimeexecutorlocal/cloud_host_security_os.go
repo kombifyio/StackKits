@@ -38,6 +38,7 @@ const (
 type osCloudHostSecurityOperations struct {
 	workspaceRoot string
 	runner        cloudHostSecurityProcessRunner
+	execution     cloudHostSecurityExecutionLayout
 	mu            sync.Mutex
 	now           func() time.Time
 }
@@ -57,6 +58,7 @@ func newOSCloudHostSecurityOperations(workspaceRoot string, runner cloudHostSecu
 	return &osCloudHostSecurityOperations{
 		workspaceRoot: root,
 		runner:        runner,
+		execution:     defaultCloudHostSecurityExecutionLayout(),
 		now:           func() time.Time { return time.Now().UTC() },
 	}, nil
 }
@@ -152,6 +154,9 @@ func (o *osCloudHostSecurityOperations) ApplyHardening(ctx context.Context, poli
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.ensureManagedTooling(ctx, "fail2ban-server", "unattended-upgrade"); err != nil {
+		return CloudHostSecurityApplyObservation{}, err
+	}
+	if err := o.preserveExecutionChannelAccount(ctx); err != nil {
 		return CloudHostSecurityApplyObservation{}, err
 	}
 	if err := o.writeSSHHardening(ctx, policy); err != nil {

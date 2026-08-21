@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.21.10](https://github.com/kombifyio/stackKits/compare/v0.21.9...v0.21.10) (2026-08-21)
+
+### Fixed
+
+* **apply:** preserve a non-root key-authenticated execution-channel account before Cloud host-security disables `PermitRootLogin`, so Product Apply can still reach the node after hardening.
+
 ## [0.21.9](https://github.com/kombifyio/stackKits/compare/v0.21.8...v0.21.9) (2026-08-21)
 
 ### Fixed
