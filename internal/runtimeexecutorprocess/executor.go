@@ -142,11 +142,7 @@ func (e *Executor) Execute(ctx context.Context, request runtimeexecutor.Executio
 		return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("create private standard process directory: %w", err)
 	}
 	defer os.RemoveAll(tempRoot)
-	executableName := "channel-executor"
-	if runtime.GOOS == "windows" {
-		executableName += ".exe"
-	}
-	privateExecutable := filepath.Join(tempRoot, executableName)
+	privateExecutable := filepath.Join(tempRoot, filepath.Base(e.binding.Executable))
 	if err := os.WriteFile(privateExecutable, executable, 0o700); err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("materialize verified standard process executable: %w", err)
 	}
@@ -235,11 +231,7 @@ func (e *Executor) RemoveWorkload(ctx context.Context, request workloadremoval.R
 		return workloadremoval.Result{}, fmt.Errorf("create private standard workload-removal directory: %w", err)
 	}
 	defer os.RemoveAll(tempRoot)
-	executableName := "channel-executor"
-	if runtime.GOOS == "windows" {
-		executableName += ".exe"
-	}
-	privateExecutable := filepath.Join(tempRoot, executableName)
+	privateExecutable := filepath.Join(tempRoot, filepath.Base(e.binding.Executable))
 	if err := os.WriteFile(privateExecutable, executable, 0o700); err != nil {
 		return workloadremoval.Result{}, fmt.Errorf("materialize verified workload-removal executable: %w", err)
 	}

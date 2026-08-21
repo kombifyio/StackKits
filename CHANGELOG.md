@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.21.5](https://github.com/kombifyio/stackKits/compare/v0.21.4...v0.21.5) (2026-08-21)
+
+### Fixed
+
+* **apply:** execute all-local Cloud Kit owners through their exact local router after managed-channel admission, and preserve a digest-verified process adapter's basename for its closed operations mode.
+
 ## [0.21.4](https://github.com/kombifyio/stackKits/compare/v0.21.1...v0.21.4) (2026-08-21)
 
 ### Fixed

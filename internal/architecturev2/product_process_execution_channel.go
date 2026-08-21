@@ -85,10 +85,21 @@ func (f *productProcessExecutionChannelFactory) executionChannelFor(siteRef, nod
 }
 
 func (a productProcessExecutionChannelAdmission) PrepareExecutionChannel(
-	_ ProductExecutionChannelLocalExecutor,
+	local ProductExecutionChannelLocalExecutor,
 ) (runtimeexecutor.Executor, error) {
-	// This is the security boundary: configured process channels never invoke
-	// the local builder, even when a selector also has a local implementation.
+	if local == nil {
+		return nil, errors.New("process execution channel requires the exact local router builder")
+	}
+	localExecutor, err := local()
+	if err == nil {
+		return localExecutor, nil
+	}
+	var remoteOnly *ProductRuntimeOwnerLocalAdmissionError
+	if !errors.As(err, &remoteOnly) {
+		return nil, err
+	}
+	// A channel containing only explicitly remote owners has no local router.
+	// Preserve the admitted process boundary for that closed target set.
 	return runtimeexecutorprocess.New(a.runtimeVersion, runtimeexecutorprocess.Binding{
 		ChannelRef: a.binding.ChannelRef, SiteRef: a.binding.SiteRef, NodeRef: a.binding.NodeRef,
 		Executable: a.binding.Executable, ExecutableSHA256: a.binding.ExecutableSHA256,
