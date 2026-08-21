@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.21.4](https://github.com/kombifyio/stackKits/compare/v0.21.1...v0.21.4) (2026-08-21)
+
+### Fixed
+
+* **apply:** accept dispatcher plan-class metadata on Cloud Kit owners and host-admission so Product Apply no longer fails closed with `health:stackkits-host-admission=executor-failed`.
+
 ## [0.21.1](https://github.com/kombifyio/stackKits/compare/v0.18.22...v0.21.1) (2026-08-20)
 
 ### Changed

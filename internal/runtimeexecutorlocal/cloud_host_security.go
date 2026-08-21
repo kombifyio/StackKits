@@ -284,8 +284,8 @@ func cloneCloudHostSecurityEvidence(evidence CloudHostSecurityEvidence) CloudHos
 
 func validateCloudHostSecurityRequest(request runtimeexecutor.ExecutionRequest, binding LocalTargetBinding, authority CloudHostSecurityAuthority) (runtimeexecutor.RuntimeTarget, runtimeexecutor.HealthTarget, CloudFirewallPolicy, CloudHardeningPolicy, CloudHostSecurityVerifyExpectation, error) {
 	emptyTarget, emptyHealth := runtimeexecutor.RuntimeTarget{}, runtimeexecutor.HealthTarget{}
-	if !validCoreHostBootstrapDigest(request.RequestDigest) || len(request.RuntimeTargets) != 1 || len(request.HealthTargets) != 1 || len(request.AccessBindings) != 0 || len(request.Artifacts) != 1 {
-		return emptyTarget, emptyHealth, CloudFirewallPolicy{}, CloudHardeningPolicy{}, CloudHostSecurityVerifyExpectation{}, errors.New("Cloud host-security executor requires exactly one runtime, one health target, one artifact, and no access binding")
+	if !validCoreHostBootstrapDigest(request.RequestDigest) || len(request.RuntimeTargets) != 1 || len(request.HealthTargets) != 1 || len(request.AccessBindings) != 0 {
+		return emptyTarget, emptyHealth, CloudFirewallPolicy{}, CloudHardeningPolicy{}, CloudHostSecurityVerifyExpectation{}, errors.New("Cloud host-security executor requires exactly one runtime, one health target, and no access binding")
 	}
 	target := request.RuntimeTargets[0]
 	contract := architecturev2renderer.CloudHostSecurityExecutorBundleRendererContract()
@@ -310,15 +310,11 @@ func validateCloudHostSecurityRequest(request runtimeexecutor.ExecutionRequest, 
 		health.TargetRef != cloudHostSecurityModuleRef || health.RouteRef != "" || health.BackendPoolRef != "" || !slices.Equal(health.SiteRefs, target.SiteRefs) || !slices.Equal(health.NodeRefs, target.NodeRefs) {
 		return emptyTarget, emptyHealth, CloudFirewallPolicy{}, CloudHardeningPolicy{}, CloudHostSecurityVerifyExpectation{}, errors.New("health target is not the exact Cloud host-security postcondition")
 	}
-	var artifact runtimeexecutor.Artifact
-	found := 0
-	for _, candidate := range request.Artifacts {
-		if candidate.ID == wantArtifactID {
-			artifact = candidate
-			found++
-		}
+	artifact, err := exactOwnedArtifactWithPlanMetadata(request.Artifacts, wantArtifactID)
+	if err != nil {
+		return emptyTarget, emptyHealth, CloudFirewallPolicy{}, CloudHardeningPolicy{}, CloudHostSecurityVerifyExpectation{}, fmt.Errorf("select Cloud host-security artifact: %w", err)
 	}
-	if found != 1 || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" || artifact.OwnerKind != "render-instance" || artifact.OwnerRef != wantInstance ||
+	if artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" || artifact.OwnerKind != "render-instance" || artifact.OwnerRef != wantInstance ||
 		artifact.OwnerContractHash != target.UnitContractHash || artifact.ProviderRef != cloudHostSecurityProviderRef || artifact.ProviderContractHash != target.ProviderContractHash ||
 		artifact.ModuleRef != cloudHostSecurityModuleRef || artifact.ModuleContractHash != target.ModuleContractHash || artifact.UnitRef != cloudHostSecurityUnitRef || artifact.UnitContractHash != target.UnitContractHash ||
 		artifact.InstanceRef != wantInstance || artifact.OutputRef != cloudHostSecurityOutputRef || !slices.Equal(artifact.SiteRefs, target.SiteRefs) || !slices.Equal(artifact.NodeRefs, target.NodeRefs) ||

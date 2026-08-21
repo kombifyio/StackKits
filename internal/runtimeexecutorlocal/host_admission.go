@@ -118,8 +118,7 @@ func (e *HostAdmissionExecutor) Execute(ctx context.Context, request runtimeexec
 
 func hostAdmissionHasOnlyPlanMetadata(artifacts []runtimeexecutor.Artifact) bool {
 	for _, artifact := range artifacts {
-		if artifact.OwnerKind != "plan" || artifact.ExecutionClass != runtimeexecutor.ArtifactExecutionClassPlan ||
-			artifact.Kind != "metadata" || artifact.Format != "json" {
+		if artifact.OwnerKind != "plan" || artifact.ExecutionClass != runtimeexecutor.ArtifactExecutionClassPlan {
 			return false
 		}
 	}

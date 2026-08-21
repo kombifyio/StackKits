@@ -182,8 +182,8 @@ func (e *CloudIdentityTrustPolicyExecutor) Execute(ctx context.Context, request 
 
 func validateCloudIdentityTrustPolicyRequest(request runtimeexecutor.ExecutionRequest, binding CloudIdentityTrustPolicyBinding, authority CloudIdentityTrustPolicyAuthority) (runtimeexecutor.RuntimeTarget, runtimeexecutor.HealthTarget, CloudIdentityTrustRuntimePolicy, error) {
 	emptyTarget, emptyHealth := runtimeexecutor.RuntimeTarget{}, runtimeexecutor.HealthTarget{}
-	if len(request.RuntimeTargets) != 1 || len(request.HealthTargets) != 1 || len(request.Artifacts) != 1 || len(request.AccessBindings) != 0 {
-		return emptyTarget, emptyHealth, CloudIdentityTrustRuntimePolicy{}, errors.New("Cloud identity-trust executor requires exactly one runtime, one health target, one artifact, and no external access binding")
+	if len(request.RuntimeTargets) != 1 || len(request.HealthTargets) != 1 || len(request.AccessBindings) != 0 {
+		return emptyTarget, emptyHealth, CloudIdentityTrustRuntimePolicy{}, errors.New("Cloud identity-trust executor requires exactly one runtime, one health target, and no external access binding")
 	}
 	target := request.RuntimeTargets[0]
 	contract := architecturev2renderer.CloudIdentityTrustPolicyRendererContract()
@@ -201,7 +201,10 @@ func validateCloudIdentityTrustPolicyRequest(request runtimeexecutor.ExecutionRe
 		health.TargetRef != cloudIdentityTrustModuleRef || health.RouteRef != "" || health.BackendPoolRef != "" || !slices.Equal(health.SiteRefs, target.SiteRefs) || !slices.Equal(health.NodeRefs, target.NodeRefs) {
 		return emptyTarget, emptyHealth, CloudIdentityTrustRuntimePolicy{}, errors.New("health target is not the exact Cloud identity-trust enforcement postcondition")
 	}
-	artifact := request.Artifacts[0]
+	artifact, err := exactOwnedArtifactWithPlanMetadata(request.Artifacts, expectedArtifactRef)
+	if err != nil {
+		return emptyTarget, emptyHealth, CloudIdentityTrustRuntimePolicy{}, fmt.Errorf("select Cloud identity-trust artifact: %w", err)
+	}
 	if artifact.ID != expectedArtifactRef || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" || artifact.OwnerKind != "render-instance" ||
 		artifact.OwnerRef != expectedInstanceRef || artifact.OwnerContractHash != contract.ContractHash || artifact.ProviderRef != cloudIdentityTrustProviderRef || artifact.ProviderContractHash != authority.ProviderContractHash ||
 		artifact.ModuleRef != cloudIdentityTrustModuleRef || artifact.ModuleContractHash != authority.ModuleContractHash || artifact.UnitRef != cloudIdentityTrustUnitRef || artifact.UnitContractHash != contract.ContractHash ||

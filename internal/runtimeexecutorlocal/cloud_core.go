@@ -241,10 +241,10 @@ func validateCloudCoreRequest(request runtimeexecutor.ExecutionRequest, binding 
 		target.RuntimeAdapter != nil || !slices.Equal(target.ArtifactRefs, []string{artifactID}) {
 		return runtimeexecutor.RuntimeTarget{}, nil, CloudCoreProject{}, errors.New("runtime target is not the exact bound Cloud core Compose contract")
 	}
-	if len(request.Artifacts) != 1 {
-		return runtimeexecutor.RuntimeTarget{}, nil, CloudCoreProject{}, errors.New("Cloud core requires one exact generated artifact")
+	artifact, err := exactOwnedArtifactWithPlanMetadata(request.Artifacts, artifactID)
+	if err != nil {
+		return runtimeexecutor.RuntimeTarget{}, nil, CloudCoreProject{}, fmt.Errorf("select Cloud core artifact: %w", err)
 	}
-	artifact := request.Artifacts[0]
 	if artifact.ID != artifactID || artifact.Kind != "compose" || artifact.Format != "yaml" || artifact.Mode != "0640" ||
 		artifact.OwnerKind != "render-instance" || artifact.OwnerRef != instanceRef || artifact.OwnerContractHash != contract.ContractHash ||
 		artifact.ProviderRef != cloudCoreProviderRef || artifact.ProviderContractHash != authority.ProviderContractHash || artifact.ModuleRef != cloudCoreModuleRef ||

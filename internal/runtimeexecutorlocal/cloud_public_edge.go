@@ -212,8 +212,8 @@ func (e *CloudPublicEdgeExecutor) Execute(ctx context.Context, request runtimeex
 
 func validateCloudPublicEdgeRequest(request runtimeexecutor.ExecutionRequest, binding LocalTargetBinding, authority CloudPublicEdgeAuthority) (runtimeexecutor.RuntimeTarget, runtimeexecutor.HealthTarget, CloudPublicEdgeApplyPolicy, CloudPublicEdgeExpectation, error) {
 	emptyTarget, emptyHealth := runtimeexecutor.RuntimeTarget{}, runtimeexecutor.HealthTarget{}
-	if !validCoreHostBootstrapDigest(request.RequestDigest) || len(request.RuntimeTargets) != 1 || len(request.HealthTargets) != 1 || len(request.AccessBindings) != 0 || len(request.Artifacts) != 1 {
-		return emptyTarget, emptyHealth, CloudPublicEdgeApplyPolicy{}, CloudPublicEdgeExpectation{}, errors.New("Cloud public-edge executor requires exactly one runtime, one health target, one artifact, and no access binding")
+	if !validCoreHostBootstrapDigest(request.RequestDigest) || len(request.RuntimeTargets) != 1 || len(request.HealthTargets) != 1 || len(request.AccessBindings) != 0 {
+		return emptyTarget, emptyHealth, CloudPublicEdgeApplyPolicy{}, CloudPublicEdgeExpectation{}, errors.New("Cloud public-edge executor requires exactly one runtime, one health target, and no access binding")
 	}
 	target := request.RuntimeTargets[0]
 	contract := architecturev2renderer.CloudPublicEdgeExecutorBundleRendererContract()
@@ -237,7 +237,10 @@ func validateCloudPublicEdgeRequest(request runtimeexecutor.ExecutionRequest, bi
 		health.RouteRef != "" || health.BackendPoolRef != "" || !slices.Equal(health.SiteRefs, target.SiteRefs) || !slices.Equal(health.NodeRefs, target.NodeRefs) {
 		return emptyTarget, emptyHealth, CloudPublicEdgeApplyPolicy{}, CloudPublicEdgeExpectation{}, errors.New("health target is not the exact Cloud public-edge postcondition")
 	}
-	artifact := request.Artifacts[0]
+	artifact, err := exactOwnedArtifactWithPlanMetadata(request.Artifacts, wantArtifactID)
+	if err != nil {
+		return emptyTarget, emptyHealth, CloudPublicEdgeApplyPolicy{}, CloudPublicEdgeExpectation{}, fmt.Errorf("select Cloud public-edge artifact: %w", err)
+	}
 	if artifact.ID != wantArtifactID || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" || artifact.OwnerKind != "render-instance" || artifact.OwnerRef != wantInstance ||
 		artifact.OwnerContractHash != target.UnitContractHash || artifact.ProviderRef != cloudPublicEdgeProviderRef || artifact.ProviderContractHash != target.ProviderContractHash ||
 		artifact.ModuleRef != cloudPublicEdgeModuleRef || artifact.ModuleContractHash != target.ModuleContractHash || artifact.UnitRef != cloudPublicEdgeUnitRef || artifact.UnitContractHash != target.UnitContractHash ||

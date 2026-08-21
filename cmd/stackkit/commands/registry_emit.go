@@ -116,7 +116,8 @@ func cueStr(s string) string {
 }
 
 // renderToolCatalogCUE is pure and deterministic: same snapshot + services in,
-// byte-identical artifact out. Golden-tested in registry_emit_test.go.
+// byte-identical artifact out. The public CUE/catalog contract is validated at
+// the owning boundary; this renderer intentionally has no source-shape test.
 func renderToolCatalogCUE(snap registry.Snapshot, services []registry.Service) []byte {
 	var b strings.Builder
 
