@@ -356,6 +356,9 @@ func (osCloudHostSecurityProcessRunner) Run(ctx context.Context, args []string) 
 		if args[0] == "systemctl" && args[1] == "is-enabled" {
 			return append([]byte(nil), output.Bytes()...), nil
 		}
+		if detail := strings.TrimSpace(output.String()); detail != "" {
+			return nil, fmt.Errorf("bounded %s process failed (%s): %s", args[0], strings.Join(args[1:], " "), detail)
+		}
 		return nil, fmt.Errorf("bounded %s process failed", args[0])
 	}
 	return append([]byte(nil), output.Bytes()...), nil
