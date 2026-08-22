@@ -112,6 +112,19 @@ type Evidence struct {
 	EvidenceDigest string            `json:"evidenceDigest"`
 }
 
+// AppliedPlacement is one exact workload placement recovered from a verified
+// Product Apply result. It may narrow the sealed shared request but can never
+// introduce a workload, requirement, instance, Site, or node outside it.
+type AppliedPlacement struct {
+	AppliedRequestDigest string `json:"appliedRequestDigest"`
+	WorkloadRef          string `json:"workloadRef"`
+	RequirementID        string `json:"requirementId"`
+	InstanceRef          string `json:"instanceRef"`
+	SiteRef              string `json:"siteRef"`
+	NodeRef              string `json:"nodeRef"`
+	ExecutionChannelRef  string `json:"executionChannelRef"`
+}
+
 // SelectAppliedWorkload reduces a sealed Product Apply request to the exact
 // workload child and its referenced immutable artifacts.
 func SelectAppliedWorkload(applied runtimeexecutor.ExecutionRequest, workloadRef string) (runtimeexecutor.ExecutionRequest, error) {
@@ -167,6 +180,60 @@ func SelectAppliedWorkload(applied runtimeexecutor.ExecutionRequest, workloadRef
 		return runtimeexecutor.ExecutionRequest{}, fmt.Errorf("seal applied workload authority: %w", err)
 	}
 	return sealed, nil
+}
+
+// SelectAppliedWorkloadPlacement closes a multi-node Apply target onto one
+// exact placement from the verified Apply result. The placement carries the
+// shared request digest and target identity so a caller cannot use the helper
+// as an unbound host or channel selector.
+func SelectAppliedWorkloadPlacement(applied runtimeexecutor.ExecutionRequest, placement AppliedPlacement) (runtimeexecutor.ExecutionRequest, error) {
+	for _, value := range []string{
+		placement.AppliedRequestDigest, placement.WorkloadRef, placement.RequirementID, placement.InstanceRef,
+		placement.SiteRef, placement.NodeRef, placement.ExecutionChannelRef,
+	} {
+		if value == "" || value != strings.TrimSpace(value) {
+			return runtimeexecutor.ExecutionRequest{}, errors.New("applied workload placement identity is incomplete")
+		}
+	}
+	if placement.AppliedRequestDigest != applied.RequestDigest {
+		return runtimeexecutor.ExecutionRequest{}, errors.New("applied workload placement does not match the sealed request")
+	}
+	selected, err := SelectAppliedWorkload(applied, placement.WorkloadRef)
+	if err != nil {
+		return runtimeexecutor.ExecutionRequest{}, err
+	}
+	target := &selected.RuntimeTargets[0]
+	if target.RequirementID != placement.RequirementID || target.InstanceRef != placement.InstanceRef ||
+		!containsString(target.SiteRefs, placement.SiteRef) || !containsString(target.NodeRefs, placement.NodeRef) ||
+		(target.ExecutionChannelRef != "" && target.ExecutionChannelRef != placement.ExecutionChannelRef) {
+		return runtimeexecutor.ExecutionRequest{}, errors.New("applied workload placement widens the sealed target authority")
+	}
+	target.SiteRefs = []string{placement.SiteRef}
+	target.NodeRefs = []string{placement.NodeRef}
+	target.ExecutionChannelRef = placement.ExecutionChannelRef
+	for index := range selected.Artifacts {
+		artifact := &selected.Artifacts[index]
+		if !containsString(artifact.SiteRefs, placement.SiteRef) || !containsString(artifact.NodeRefs, placement.NodeRef) {
+			return runtimeexecutor.ExecutionRequest{}, errors.New("applied workload placement is outside referenced artifact authority")
+		}
+		artifact.SiteRefs = []string{placement.SiteRef}
+		artifact.NodeRefs = []string{placement.NodeRef}
+	}
+	selected.RequestDigest = ""
+	sealed, err := runtimeexecutor.SealRequest(selected)
+	if err != nil {
+		return runtimeexecutor.ExecutionRequest{}, fmt.Errorf("seal applied workload placement authority: %w", err)
+	}
+	return sealed, nil
+}
+
+func containsString(values []string, candidate string) bool {
+	for _, value := range values {
+		if value == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 func AuthorizationBytes(applied runtimeexecutor.ExecutionRequest, workloadRef string, requestedAt, validUntil time.Time) ([]byte, error) {

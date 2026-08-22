@@ -1043,15 +1043,6 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 	if err != nil {
 		return err
 	}
-	selected, err := workloadremoval.SelectAppliedWorkload(rootRequest, workloadRef)
-	if err != nil {
-		return err
-	}
-	target := selected.RuntimeTargets[0]
-	if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 ||
-		strings.TrimSpace(target.ExecutionChannelRef) == "" {
-		return fmt.Errorf("applied workload %q does not bind exactly one Site, node, and execution channel", workloadRef)
-	}
 	configured, active, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
 	if err != nil {
 		return err
@@ -1059,6 +1050,15 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 	if !active {
 		return errors.New("selected-PaaS workload removal requires the exact configured Standard execution channel from Inventory")
 	}
+	placement, err := appliedWorkloadRemovalPlacement(applied, rootRequest.RequestDigest, workloadRef, options)
+	if err != nil {
+		return err
+	}
+	selected, err := workloadremoval.SelectAppliedWorkloadPlacement(rootRequest, placement)
+	if err != nil {
+		return err
+	}
+	target := selected.RuntimeTargets[0]
 	var processBinding *runtimeexecutorprocess.Binding
 	for _, binding := range configured.bindings {
 		if binding.ChannelRef == target.ExecutionChannelRef &&
@@ -1167,6 +1167,37 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 		"result_hash":   result.ResultDigest,
 	})
 	return nil
+}
+
+func appliedWorkloadRemovalPlacement(applied architecturev2.VerifiedApplyResult, appliedRequestDigest, workloadRef string, options architectureV2ExecutionCLIOptions) (workloadremoval.AppliedPlacement, error) {
+	summary := applied.Summary()
+	if summary.AppliedRequestDigest != appliedRequestDigest {
+		return workloadremoval.AppliedPlacement{}, errors.New("verified Apply result does not match runtime request custody")
+	}
+	candidate := workloadremoval.AppliedPlacement{
+		AppliedRequestDigest: appliedRequestDigest, WorkloadRef: workloadRef,
+		SiteRef: strings.TrimSpace(options.localSiteRef), NodeRef: strings.TrimSpace(options.localNodeRef),
+		ExecutionChannelRef: strings.TrimSpace(options.localChannelRef),
+	}
+	if candidate.SiteRef == "" || candidate.NodeRef == "" || candidate.ExecutionChannelRef == "" {
+		return workloadremoval.AppliedPlacement{}, errors.New("workload removal requires one explicit local Site, node, and execution channel")
+	}
+	matches := 0
+	for _, workload := range summary.AppliedWorkloads {
+		if workload.WorkloadRef != workloadRef {
+			continue
+		}
+		for _, placement := range workload.Placements {
+			if placement.SiteRef == candidate.SiteRef && placement.NodeRef == candidate.NodeRef && placement.ExecutionChannelRef == candidate.ExecutionChannelRef {
+				candidate.RequirementID, candidate.InstanceRef = workload.RequirementID, workload.InstanceRef
+				matches++
+			}
+		}
+	}
+	if matches != 1 {
+		return workloadremoval.AppliedPlacement{}, fmt.Errorf("applied workload %q has %d exact local placements; one is required", workloadRef, matches)
+	}
+	return candidate, nil
 }
 
 func architectureV2SharedRequestDigest(result architecturev2.VerifiedApplyResult) (string, error) {

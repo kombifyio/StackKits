@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.21.12](https://github.com/kombifyio/stackKits/compare/v0.21.11...v0.21.12) (2026-08-22)
+
+### Added
+
+* **runtime:** let Owner-approved workload removal select one exact Site/node/execution-channel placement from a verified multi-node Apply result, preserving node-local absence evidence without widening the sealed runtime authority.
+
 ## [0.21.11](https://github.com/kombifyio/stackKits/compare/v0.21.10...v0.21.11) (2026-08-22)
 
 ### Added

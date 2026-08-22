@@ -25,9 +25,14 @@ type Outcome = public.Outcome
 type Result = public.Result
 type EvidenceAuthority = public.EvidenceAuthority
 type Evidence = public.Evidence
+type AppliedPlacement = public.AppliedPlacement
 
 func SelectAppliedWorkload(applied runtimeexecutor.ExecutionRequest, workloadRef string) (runtimeexecutor.ExecutionRequest, error) {
 	return public.SelectAppliedWorkload(applied, workloadRef)
+}
+
+func SelectAppliedWorkloadPlacement(applied runtimeexecutor.ExecutionRequest, placement AppliedPlacement) (runtimeexecutor.ExecutionRequest, error) {
+	return public.SelectAppliedWorkloadPlacement(applied, placement)
 }
 
 func AuthorizationBytes(applied runtimeexecutor.ExecutionRequest, workloadRef string, requestedAt, validUntil time.Time) ([]byte, error) {
