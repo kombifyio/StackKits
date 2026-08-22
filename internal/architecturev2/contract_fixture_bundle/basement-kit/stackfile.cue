@@ -197,6 +197,13 @@ Definition: foundation.#ProductKitDefinition & {
 		allowedTargets: ["opentofu", "compose", "terramate"]
 		contractVersion: "1.0.0"
 	}
+	upgradePolicy: {
+		support:                    "preview"
+		ownerApprovalRequired:      true
+		snapshotRequired:           true
+		rollbackAnchorRequired:     true
+		liveVolumeCutoverAvailable: false
+	}
 	network: {
 		mode:           "private"
 		domainRequired: false

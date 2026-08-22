@@ -203,6 +203,13 @@ Definition: foundation.#ProductKitDefinition & {
 		allowedTargets: ["opentofu", "compose"]
 		contractVersion: "1.0.0"
 	}
+	upgradePolicy: {
+		support:                    "unsupported"
+		ownerApprovalRequired:      false
+		snapshotRequired:           false
+		rollbackAnchorRequired:     false
+		liveVolumeCutoverAvailable: false
+	}
 	network: {
 		mode:           "hybrid"
 		domainRequired: true

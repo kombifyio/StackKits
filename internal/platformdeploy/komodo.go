@@ -18,6 +18,11 @@ type KomodoAdapter struct {
 	cfg    HTTPConfig
 }
 
+type KomodoStackControlResult struct {
+	UpdateID      string
+	ObservedState string
+}
+
 var (
 	komodoDeployRetryDelay    = 5 * time.Second
 	komodoDeployPollDelay     = 5 * time.Second
@@ -164,31 +169,129 @@ func (a *KomodoAdapter) Deploy(ctx context.Context, ref DeploymentRef) (string, 
 	return "", fmt.Errorf("komodo stack deploy %q: %w", ref.AppName, lastErr)
 }
 
+// ControlStack dispatches one bounded service action through Komodo's Stack
+// authority and waits for the returned update to complete.
+func (a *KomodoAdapter) ControlStack(ctx context.Context, ref DeploymentRef, action string, services []string) (KomodoStackControlResult, error) {
+	if err := a.validateConfig(); err != nil {
+		return KomodoStackControlResult{}, err
+	}
+	if !validKomodoStackControlTarget(ref, services) {
+		return KomodoStackControlResult{}, fmt.Errorf("komodo stack control requires external id and services")
+	}
+	endpoint, observed := "", ""
+	payload := map[string]any{"stack": ref.ExternalID, "services": append([]string(nil), services...)}
+	switch action {
+	case "start":
+		endpoint, observed = "/execute/StartStack", "running"
+	case "stop":
+		endpoint, observed, payload["stop_time"] = "/execute/StopStack", "stopped", 60
+	case "restart":
+		endpoint, observed = "/execute/RestartStack", "running"
+	default:
+		return KomodoStackControlResult{}, fmt.Errorf("unsupported komodo stack action")
+	}
+	var update map[string]any
+	if _, _, err := a.client.postJSON(ctx, endpoint, payload, &update); err != nil {
+		return KomodoStackControlResult{}, fmt.Errorf("komodo stack %s %q: %w", action, ref.AppName, err)
+	}
+	if rejected := komodoOperationError(update); rejected != nil {
+		return KomodoStackControlResult{}, fmt.Errorf("komodo stack %s %q: %w", action, ref.AppName, rejected)
+	}
+	updateID := firstKomodoID(update)
+	if updateID == "" {
+		return KomodoStackControlResult{}, fmt.Errorf("komodo stack %s %q returned no update id", action, ref.AppName)
+	}
+	if isKomodoOperationPending(update) {
+		if _, err := a.waitForUpdateResult(ctx, ref.AppName, updateID); err != nil {
+			return KomodoStackControlResult{}, err
+		}
+	} else if !isKomodoOperationComplete(update) {
+		return KomodoStackControlResult{}, fmt.Errorf("komodo stack %s %q returned no completed operation", action, ref.AppName)
+	}
+	return KomodoStackControlResult{UpdateID: updateID, ObservedState: observed}, nil
+}
+
+// ReadStackLogs retrieves one bounded, non-following log tail. Redaction and
+// durable evidence remain the caller's owner-bound responsibility.
+func (a *KomodoAdapter) ReadStackLogs(ctx context.Context, ref DeploymentRef, services []string, tail int) ([]byte, error) {
+	if err := a.validateConfig(); err != nil {
+		return nil, err
+	}
+	if !validKomodoStackControlTarget(ref, services) || tail < 1 || tail > 200 {
+		return nil, fmt.Errorf("komodo stack logs require external id, services, and tail 1..200")
+	}
+	var result struct {
+		Stdout  string `json:"stdout"`
+		Stderr  string `json:"stderr"`
+		Success bool   `json:"success"`
+	}
+	payload := map[string]any{"stack": ref.ExternalID, "services": append([]string(nil), services...), "tail": tail, "timestamps": true}
+	if _, _, err := a.client.postJSON(ctx, "/read/GetStackLog", payload, &result); err != nil {
+		return nil, fmt.Errorf("komodo stack logs %q: %w", ref.AppName, err)
+	}
+	if !result.Success {
+		return nil, fmt.Errorf("komodo stack logs %q were not successful", ref.AppName)
+	}
+	output := strings.TrimSuffix(result.Stdout, "\n")
+	if stderr := strings.TrimSpace(result.Stderr); stderr != "" {
+		if output != "" {
+			output += "\n"
+		}
+		output += stderr
+	}
+	if output != "" {
+		output += "\n"
+	}
+	return []byte(output), nil
+}
+
+func validKomodoStackControlTarget(ref DeploymentRef, services []string) bool {
+	if ref.ExternalID == "" || ref.ExternalID != strings.TrimSpace(ref.ExternalID) || ref.AppName == "" || ref.AppName != strings.TrimSpace(ref.AppName) || len(services) == 0 {
+		return false
+	}
+	seen := make(map[string]struct{}, len(services))
+	for _, service := range services {
+		if service == "" || service != strings.TrimSpace(service) {
+			return false
+		}
+		if _, duplicate := seen[service]; duplicate {
+			return false
+		}
+		seen[service] = struct{}{}
+	}
+	return true
+}
+
 func (a *KomodoAdapter) waitForUpdateComplete(ctx context.Context, appName, updateID string) error {
+	_, err := a.waitForUpdateResult(ctx, appName, updateID)
+	return err
+}
+
+func (a *KomodoAdapter) waitForUpdateResult(ctx context.Context, appName, updateID string) (map[string]any, error) {
 	payload := map[string]any{"id": updateID}
 	var lastStatus string
 	for attempt := 0; attempt < komodoDeployPollAttempt; attempt++ {
 		var update map[string]any
 		if _, _, err := a.client.postJSON(ctx, "/read/GetUpdate", payload, &update); err != nil {
-			return fmt.Errorf("komodo stack deploy %q update %s: %w", appName, updateID, err)
+			return nil, fmt.Errorf("komodo stack operation %q update %s: %w", appName, updateID, err)
 		}
 		if rejected := komodoOperationError(update); rejected != nil {
-			return fmt.Errorf("komodo stack deploy %q update %s: %w", appName, updateID, rejected)
+			return nil, fmt.Errorf("komodo stack operation %q update %s: %w", appName, updateID, rejected)
 		}
 		lastStatus = komodoOperationStatus(update)
 		if isKomodoOperationComplete(update) {
-			return nil
+			return update, nil
 		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil, ctx.Err()
 		case <-time.After(komodoDeployPollDelay):
 		}
 	}
 	if lastStatus == "" {
 		lastStatus = "unknown"
 	}
-	return fmt.Errorf("komodo stack deploy %q update %s did not complete after %d polls (last status: %s)", appName, updateID, komodoDeployPollAttempt, lastStatus)
+	return nil, fmt.Errorf("komodo stack operation %q update %s did not complete after %d polls (last status: %s)", appName, updateID, komodoDeployPollAttempt, lastStatus)
 }
 
 func (a *KomodoAdapter) Status(ctx context.Context, ref DeploymentRef) error {

@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.21.11](https://github.com/kombifyio/stackKits/compare/v0.21.10...v0.21.11) (2026-08-22)
+
+### Added
+
+* **runtime:** expose deterministic, hash-bound applied workload identities in the verified Apply summary so optional orchestrators can correlate Owner-approved node-local removal without parsing StackKits-owned Plan state.
+* **runtime:** expose the existing owner-approved workload-removal request and terminal absence-result validator as the public `pkg/workloadremoval` contract, with only a deprecated internal compatibility adapter, so pinned cross-repo consumers can verify StackKits evidence without a second implementation.
+* **runtime:** persist and optionally emit bounded `stackkit.workload-removal-evidence/v1` for exact terminal absence validation across pinned channels without exporting applied artifact content or changing the existing removal `--json` result.
+* **secrets:** add an explicit, idempotent `stackkit secrets materialize` path so an existing standalone homelab can establish owner-bound custody after selecting a new workload without re-running or replacing its initial StackSpec.
+
+### Changed
+
+* **development:** make the affected gate independent of ambient `go.work`, build source-bound current-v2 development binaries, and add a documented CLI rebuild loop.
+* **development:** keep shared CUE slices bounded to their changed contract tests plus bundle-drift proof, and compile generated `*_gen.go` projections without replaying unrelated package suites.
+* **apply:** run telemetry-collection before Cloud host-security so kombify-operated kits connect Sentry and PostHog as first tools. Tenant spec envelopes apply Sentry DSN and PostHog keys to process environment without writing them into stack-spec.yaml.
+
+### Fixed
+
+* **use cases:** apply the governed empty placement defaults when a StackSpec author selects a workload without a `placement` block, so programmatic consumers no longer need CLI-specific boilerplate.
+
 ## [0.21.10](https://github.com/kombifyio/stackKits/compare/v0.21.9...v0.21.10) (2026-08-21)
 
 ### Fixed

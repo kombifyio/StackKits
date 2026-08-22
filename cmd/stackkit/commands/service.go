@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -16,7 +17,7 @@ var serviceCmd = newServiceCommand()
 func newServiceCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "service",
-		Short: "Control StackKits-managed Cloud Core services",
+		Short: "Control services declared by the active StackKits plan",
 		Annotations: map[string]string{
 			noDeployObservabilityAnnotation: "true",
 		},
@@ -93,7 +94,16 @@ func serviceController() (*servicecontrol.Controller, error) {
 	if err != nil {
 		return nil, err
 	}
-	return servicecontrol.NewOSController(workspace)
+	authority, err := newArchitectureV2CLIService(workspace, "", os.Getenv(architectureAuthorityRootEnv))
+	if err != nil {
+		return nil, err
+	}
+	planPath := filepath.Join(workspace, "deploy", ".stackkit", "resolved-plan.json")
+	plan, err := authority.ReadCanonicalPlan(planPath)
+	if err != nil {
+		return nil, err
+	}
+	return servicecontrol.NewOSController(workspace, planPath, plan)
 }
 
 func commandContext(cmd *cobra.Command) context.Context {

@@ -191,6 +191,13 @@ Definition: foundation.#ProductKitDefinition & {
 		allowedTargets: ["compose"]
 		contractVersion: "1.0.0"
 	}
+	upgradePolicy: {
+		support:                    "unsupported"
+		ownerApprovalRequired:      false
+		snapshotRequired:           false
+		rollbackAnchorRequired:     false
+		liveVolumeCutoverAvailable: false
+	}
 	network: {
 		mode:           "public-capable"
 		domainRequired: true

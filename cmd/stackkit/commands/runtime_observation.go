@@ -465,8 +465,11 @@ func validArchitectureV2ServiceControlProjection(got, expected accessService) bo
 	if got.DesiredState == expected.DesiredState && slices.Equal(got.AllowedActions, expected.AllowedActions) && got.EvidenceRef == expected.EvidenceRef {
 		return true
 	}
+	if len(expected.AllowedActions) == 0 {
+		return false
+	}
 	if (got.DesiredState != servicecontrol.DesiredRunning && got.DesiredState != servicecontrol.DesiredStopped) ||
-		!slices.Equal(got.AllowedActions, servicecontrol.AllowedActions(expected.Key)) ||
+		!slices.Equal(got.AllowedActions, expected.AllowedActions) ||
 		!strings.HasPrefix(got.EvidenceRef, "stackkit-evidence://service-control/") ||
 		!architectureV2AccessDigestPattern.MatchString(strings.TrimPrefix(got.EvidenceRef, "stackkit-evidence://service-control/")) {
 		return false

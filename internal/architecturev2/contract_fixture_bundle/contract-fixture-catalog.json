@@ -1330,6 +1330,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]
@@ -1507,6 +1508,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]

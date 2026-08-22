@@ -414,13 +414,18 @@ func materializeInitialStackSpec(
 				continue
 			}
 			selection := workloadSelections[id]
-			// Explicit empty placement lists: the authority's policy
-			// comprehensions iterate these fields on the raw candidate,
-			// where CUE list defaults are not yet materialized.
+			siteRef, err := initialWorkloadSiteRef(spec, id)
+			if err != nil {
+				return StackSpecValidation{}, resolveError(ErrAuthorityLoad, "derive initial workload placement: "+err.Error(), err)
+			}
+			// Initial authoring must be concrete enough for resolution, not only
+			// CUE admission. This matters for multi-site kits: an empty site list
+			// can let a home-owned application select a cloud edge whose runtime
+			// provider cannot host it.
 			entry := map[string]any{
 				"alternative": selection.Alternative,
 				"placement": map[string]any{
-					"siteRefs":      []any{},
+					"siteRefs":      []any{siteRef},
 					"nodeRefs":      []any{},
 					"requiresRoles": []any{},
 				},
@@ -454,6 +459,34 @@ func materializeInitialStackSpec(
 		return StackSpecValidation{}, resolveError(ErrResolveFailed, "StackSpec validator returned incomplete canonical evidence", nil)
 	}
 	return validation, nil
+}
+
+func initialWorkloadSiteRef(spec map[string]any, workloadID string) (string, error) {
+	data, _ := spec["data"].(map[string]any)
+	if bindings, ok := data["bindings"].(map[string]any); ok {
+		if binding, ok := bindings[workloadID].(map[string]any); ok {
+			if siteRef, _ := binding["primarySiteRef"].(string); strings.TrimSpace(siteRef) != "" {
+				return requireInitialSite(spec, siteRef)
+			}
+		}
+	}
+	defaultAuthority, _ := data["defaultAuthority"].(string)
+	if strings.TrimSpace(defaultAuthority) == "" {
+		return "", fmt.Errorf("workload %q has neither data binding nor default data authority", workloadID)
+	}
+	return requireInitialSite(spec, defaultAuthority)
+}
+
+func requireInitialSite(spec map[string]any, siteRef string) (string, error) {
+	siteRef = strings.TrimSpace(siteRef)
+	sites, _ := spec["sites"].([]any)
+	for _, raw := range sites {
+		site, _ := raw.(map[string]any)
+		if id, _ := site["id"].(string); id == siteRef {
+			return siteRef, nil
+		}
+	}
+	return "", fmt.Errorf("initial data authority references unknown site %q", siteRef)
 }
 
 // projectCloudInitialPublicRouteHosts keeps the CUE-owned default service

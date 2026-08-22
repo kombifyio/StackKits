@@ -113,6 +113,7 @@ post-install evidence; `status` and HTTP `verify` remain follow-up runtime gaps.
 | `kit` | Public release list, verify, and deprecated upgrade alias; import/export and registry maintenance exist only in `stackkit-publisher`. |
 | `logs` | List and read structured deploy logs. |
 | `registry` | Inspect the embedded CUE-derived registry snapshot. |
+| `secrets` | Establish owner-bound local custody for secret references in canonical StackSpec intent. |
 | `completion` | Generate shell completions. |
 | `version` | Print version, commit, build date, Go version, and OS/arch. |
 
@@ -185,6 +186,16 @@ v0.6 compatibility Owner bootstrap modes:
 | `auto` | `--owner-bootstrap-mode auto --owner-source cloud --recovery-material-ref techstack://...` | SaaS/TechStack handoff. Does not require `--owner-email` or `--owner-username`; Cloud profile resolution happens outside the CLI. |
 | `custom` | `--owner-bootstrap-mode custom --owner-source local --owner-email ... --owner-username ... --recovery-passphrase-hash ...` | Self-hosted explicit Owner. The hash is persisted; plaintext is never stored in `stack-spec.yaml`. |
 | `none` | `--owner-bootstrap-mode none` | Explicitly skip Owner bootstrap for OSS/BYOS or manually managed identity. |
+
+### `stackkit secrets materialize`
+
+After adding a governed workload to an existing standalone StackSpec, run
+`stackkit secrets materialize` before `generate` and `apply`. The command
+validates the current intent through the embedded CUE authority, then creates
+or reuses owner-signed, owner-only custody for its `secret://` references. It
+is idempotent, never prints locators or material, and refuses tampered or
+foreign custody instead of replacing it. `generate` remains deterministic and
+`apply` remains read-only toward secret custody; neither silently mints keys.
 
 ### `stackkit prepare`
 
@@ -282,6 +293,13 @@ plans retain `local-runtime` on local scopes and `standard-process` only on
 the exact configured process channels. This does not transfer provider,
 enrollment, or server lifecycle ownership into StackKits.
 
+The Apply summary also exposes `planHash`, `appliedRequestDigest`, and a
+secret-free `appliedWorkloads` identity list. Each entry is derived inside the
+verified Apply-result boundary and binds workload, runtime owner, plural
+placement, execution channel, and referenced artifact digests. It can route a
+later Owner-approved request, but it is neither removal authorization nor
+terminal absence evidence.
+
 ### `stackkit verify`
 
 Runs read-only checks against an applied workspace.
@@ -372,6 +390,7 @@ Canonical Architecture v2 removes one exact applied workload:
 ```bash
 stackkit remove --workload photos
 stackkit remove --workload photos --auto-approve --json
+stackkit remove --workload photos --auto-approve --terminal-evidence-json
 ```
 
 The command verifies current Plan, generation, Apply, and Owner authority,
@@ -379,7 +398,19 @@ recovers the sealed applied runtime request, and dispatches a fresh
 Owner-signed five-minute removal request through the digest-pinned Standard
 execution channel. Success requires selected-runtime-owner `absent` readback
 for the exact requirement, instance, and applied artifact digest. Request and
-result evidence is persisted below `.stackkit/evidence/removal/`.
+result and bounded terminal evidence is persisted below
+`.stackkit/evidence/removal/`.
+
+`--json` retains the canonical result contract. The opt-in
+`--terminal-evidence-json` form emits
+`stackkit.workload-removal-evidence/v1`: a bounded, canonical projection of the
+exact workload, placement, execution channel, Owner authorization, and terminal
+result. It omits applied artifact content and can be validated with
+`pkg/workloadremoval.ParseEvidence` without reconstructing the local removal
+request. Its digest is an integrity binding, not a new trust root or independent
+authentication; remote consumers still authenticate the pinned StackKits
+producer channel, compare expected custody identity, and use any previously
+established Owner key when authenticating the retained authorization payload.
 
 OpenTofu/Docker whole-deployment cleanup plus `--purge` and `--force` are
 exact-v0.6 compatibility behavior only. Native v2 rejects those flags and

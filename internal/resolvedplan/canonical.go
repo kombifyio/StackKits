@@ -20,9 +20,9 @@ var (
 	compactKeyReplacer     = strings.NewReplacer("_", "", "-", "")
 	setSemanticKeys        = map[string]struct{}{
 		"access": {}, "actionAllowlist": {}, "addons": {}, "allowedAuthorityKinds": {},
-		"allowedExposures": {}, "allowedFlows": {}, "allowedMethods": {}, "allowedModes": {}, "allowedOriginKinds": {}, "allowedSiteKinds": {},
+		"allowedActions": {}, "allowedExposures": {}, "allowedFlows": {}, "allowedMethods": {}, "allowedModes": {}, "allowedOriginKinds": {}, "allowedSiteKinds": {},
 		"allowedStrategies": {}, "allowedTargets": {}, "artifactRefs": {}, "artifacts": {},
-		"authorityKinds": {}, "blockers": {}, "capabilities": {}, "compatibleRendererRefs": {}, "components": {}, "conflicts": {}, "dataClasses": {},
+		"authorityKinds": {}, "blockers": {}, "capabilities": {}, "compatibleRendererRefs": {}, "componentRefs": {}, "components": {}, "conflicts": {}, "dataClasses": {},
 		"backendPools": {}, "defaults": {}, "defaultForSiteKinds": {}, "disable": {}, "edgeKinds": {},
 		"enable": {}, "evidence": {}, "evidenceGateRefs": {}, "evidenceScenarios": {},
 		"daemonBindings": {}, "providesInterfaces": {}, "requiresInterfaces": {}, "providerBindings": {}, "privilegedInterfaceApprovals": {}, "scopes": {},
@@ -31,7 +31,7 @@ var (
 		"nodeRefs": {}, "nodes": {}, "optional": {}, "outputBindings": {}, "outputs": {}, "peerSiteRefs": {},
 		"placement": {}, "privileges": {}, "providers": {}, "provides": {}, "publications": {},
 		"refs": {}, "required": {}, "requiredCapabilities": {}, "requiredRealizations": {}, "requiredRefs": {}, "requiredSiteKinds": {}, "requires": {}, "roles": {}, "routes": {},
-		"inputBindings": {}, "planInputRefs": {}, "publicInputRefs": {}, "renderUnits": {}, "runtimeListeners": {}, "secretInputRefs": {}, "secretInputs": {}, "secretRefs": {}, "serviceEndpoints": {}, "siteRefs": {}, "sites": {}, "sourceKinds": {}, "sourceRouteRefs": {}, "sourceServiceRefs": {},
+		"inputBindings": {}, "planInputRefs": {}, "publicInputRefs": {}, "renderUnits": {}, "runtimeListeners": {}, "secretInputRefs": {}, "secretInputs": {}, "secretRefs": {}, "serviceControls": {}, "serviceEndpoints": {}, "siteRefs": {}, "sites": {}, "sourceKinds": {}, "sourceRouteRefs": {}, "sourceServiceRefs": {},
 		"supportedKits": {}, "supportedSiteKinds": {}, "volumes": {}, "warnings": {},
 	}
 )

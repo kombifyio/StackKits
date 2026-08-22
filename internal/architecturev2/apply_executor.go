@@ -294,6 +294,7 @@ type verifiedApplyResultEnvelope struct {
 	AppliedAt             string                                   `json:"appliedAt"`
 	Runtime               []applyRuntimeObservation                `json:"runtime"`
 	Health                []applyHealthObservation                 `json:"health"`
+	AppliedWorkloads      []AppliedWorkloadIdentity                `json:"appliedWorkloads,omitempty"`
 }
 
 // VerifiedApplyResult is a defensive, hash-bound post-Apply projection. It is
@@ -495,6 +496,10 @@ func verifyApplyRuntimeExecutionResult(
 	if err := verifyApplyHealthObservations(request.Requirements.HealthRequirements, result.Health); err != nil {
 		return VerifiedApplyResult{}, err
 	}
+	appliedWorkloads, err := projectAppliedWorkloadIdentities(request.Requirements, snapshotArtifactDigests(request.Artifacts))
+	if err != nil {
+		return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrInvalidContract, "apply.result.appliedWorkloads", "project verified applied workload identities", err)
+	}
 	envelope := verifiedApplyResultEnvelope{
 		APIVersion: verifiedApplyResultAPIVersion, Kind: verifiedApplyResultKind, Binding: request.Binding,
 		ManifestHash: request.ManifestHash, GenerationReceiptHash: request.GenerationReceiptHash, RequirementsHash: request.RequirementsHash,
@@ -504,8 +509,9 @@ func verifyApplyRuntimeExecutionResult(
 		SharedArtifactSetHash: result.SharedArtifactSetHash, SharedRequestDigest: result.SharedRequestDigest,
 		SharedResultDigest: result.SharedResultDigest,
 		Executor:           request.Executor, AppliedAt: request.ExecutionAt.Format(time.RFC3339Nano),
-		Runtime: append([]applyRuntimeObservation(nil), result.Runtime...),
-		Health:  append([]applyHealthObservation(nil), result.Health...),
+		Runtime:          append([]applyRuntimeObservation(nil), result.Runtime...),
+		Health:           append([]applyHealthObservation(nil), result.Health...),
+		AppliedWorkloads: appliedWorkloads,
 	}
 	canonical, err := resolvedplan.CanonicalJSON(envelope)
 	if err != nil {

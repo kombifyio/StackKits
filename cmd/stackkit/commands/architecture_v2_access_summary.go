@@ -41,14 +41,25 @@ type architectureV2AccessPlan struct {
 		} `json:"configuration"`
 		Routes []architectureV2AccessRoute `json:"routes"`
 	} `json:"network"`
-	Modules []struct {
-		ID          string `json:"id"`
-		RenderUnits []struct {
-			ServiceEndpoints []struct {
-				ServiceRef string `json:"serviceRef"`
-			} `json:"serviceEndpoints"`
-		} `json:"renderUnits"`
-	} `json:"modules"`
+	Modules []architectureV2AccessModule `json:"modules"`
+}
+
+type architectureV2AccessModule struct {
+	ID              string `json:"id"`
+	ServiceControls []struct {
+		Key            string   `json:"key"`
+		ServiceRef     string   `json:"serviceRef"`
+		Adapter        string   `json:"adapter"`
+		RuntimeRef     string   `json:"runtimeRef"`
+		ComponentRefs  []string `json:"componentRefs"`
+		AllowedActions []string `json:"allowedActions"`
+		Critical       bool     `json:"critical"`
+	} `json:"serviceControls"`
+	RenderUnits []struct {
+		ServiceEndpoints []struct {
+			ServiceRef string `json:"serviceRef"`
+		} `json:"serviceEndpoints"`
+	} `json:"renderUnits"`
 }
 
 type architectureV2AccessRoute struct {
@@ -125,6 +136,10 @@ func buildArchitectureV2AccessSummaryFromCanonical(canonical []byte, binding arc
 	if len(exposed) == 0 {
 		return nil, fmt.Errorf("verified Architecture v2 plan exposes no service endpoints")
 	}
+	controls, err := architectureV2AccessServiceControls(projection.Modules)
+	if err != nil {
+		return nil, err
+	}
 
 	protocol := "http"
 	if projection.Network.Configuration.TLS.DefaultMode == "public" || models.IsKombifyMeDomain(domain) {
@@ -145,6 +160,7 @@ func buildArchitectureV2AccessSummaryFromCanonical(canonical []byte, binding arc
 		}
 		known[entry.Key] = struct{}{}
 		service := architectureV2AccessService(entry, protocol, domain)
+		service.AllowedActions = append([]string(nil), controls[entry.Key]...)
 		if route, ok := routes[entry.Key]; ok {
 			service = architectureV2RoutedAccessService(service, route)
 		}
@@ -160,6 +176,7 @@ func buildArchitectureV2AccessSummaryFromCanonical(canonical []byte, binding arc
 	for _, key := range unknown {
 		entry := servicecatalog.Service{Key: key, Name: key, DisplayName: key, ToolName: key, ModuleSlug: key, LocalSlug: key, PublicSlug: key}
 		service := architectureV2AccessService(entry, protocol, domain)
+		service.AllowedActions = append([]string(nil), controls[key]...)
 		if route, ok := routes[key]; ok {
 			service = architectureV2RoutedAccessService(service, route)
 		}
@@ -172,6 +189,40 @@ func buildArchitectureV2AccessSummaryFromCanonical(canonical []byte, binding arc
 		}
 	}
 	return summary, nil
+}
+
+func architectureV2AccessServiceControls(modules []architectureV2AccessModule) (map[string][]string, error) {
+	result := map[string][]string{}
+	knownActions := map[string]struct{}{"start": {}, "stop": {}, "restart": {}, "logs": {}}
+	for _, module := range modules {
+		for _, control := range module.ServiceControls {
+			key := architectureV2AccessServiceKey(control.Key)
+			if key == "" || architectureV2AccessServiceKey(control.ServiceRef) != key ||
+				(control.Adapter != "compose" && control.Adapter != "komodo") ||
+				strings.TrimSpace(control.RuntimeRef) == "" || len(control.ComponentRefs) == 0 || len(control.AllowedActions) == 0 {
+				return nil, fmt.Errorf("verified Architecture v2 plan has an invalid service-control projection")
+			}
+			if _, duplicate := result[key]; duplicate {
+				return nil, fmt.Errorf("verified Architecture v2 plan controls service %q more than once", key)
+			}
+			seen := map[string]struct{}{}
+			for _, action := range control.AllowedActions {
+				action = strings.TrimSpace(action)
+				if _, known := knownActions[action]; !known {
+					return nil, fmt.Errorf("verified Architecture v2 plan has an unsupported service action")
+				}
+				if _, duplicate := seen[action]; duplicate {
+					return nil, fmt.Errorf("verified Architecture v2 plan duplicates a service action")
+				}
+				if control.Critical && action == "stop" {
+					return nil, fmt.Errorf("verified Architecture v2 plan allows stop for critical service %q", key)
+				}
+				seen[action] = struct{}{}
+			}
+			result[key] = append([]string(nil), control.AllowedActions...)
+		}
+	}
+	return result, nil
 }
 
 func architectureV2RoutedAccessService(service accessService, route architectureV2AccessRoute) accessService {

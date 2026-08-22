@@ -32,11 +32,14 @@ for the shared platform, security, and PaaS details.
 
 | | Minimum | Recommended |
 |--|---------|-------------|
-| CPU | 2 cores | 4+ cores |
-| RAM | 2 GB | 4+ GB |
-| Disk | 20 GB | 40+ GB |
+| CPU | 4 cores | 4+ cores |
+| RAM | 8 GB | 8+ GB |
+| Disk | 80 GB | 80+ GB |
 | OS | Ubuntu 22.04+ | Ubuntu 24.04 LTS |
 | Network | Public IP + domain | Public IP + own/custom domain |
+
+Kombify-operated and Techstack-managed Cloud Kit VPS must meet this floor.
+See Techstack `docs/ARCHITECTURE.md` (Managed Cloud Kit VPS size).
 
 ## Quick Start
 

@@ -826,10 +826,15 @@ func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, 
 	if err != nil {
 		return nil, err
 	}
+	serviceControls, err := resolveModuleServiceControls(moduleID, contract)
+	if err != nil {
+		return nil, err
+	}
 	module := map[string]any{
 		"id": moduleID, "version": version, "contractHash": contractHash,
 		"provides": stringSliceAny(provides), "siteRefs": stringSliceAny(siteRefs), "nodeRefs": stringSliceAny(nodeRefs),
-		"runtime": resolvedRuntime, "renderTarget": renderTarget, "renderUnits": resolvedRenderUnits, "realizationSupport": resolvedSupport,
+		"runtime": resolvedRuntime, "serviceControls": serviceControls,
+		"renderTarget": renderTarget, "renderUnits": resolvedRenderUnits, "realizationSupport": resolvedSupport,
 	}
 	if resolvedVariant != nil {
 		module["renderVariant"] = resolvedVariant

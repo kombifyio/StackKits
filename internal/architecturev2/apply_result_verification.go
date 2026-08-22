@@ -26,11 +26,41 @@ type ProductApplyResultVerificationInput struct {
 // ApplyResultSummary is the secret-free public projection consumed by CLI
 // verification output.
 type ApplyResultSummary struct {
-	ResultHash         string    `json:"resultHash"`
-	AppliedAt          time.Time `json:"appliedAt"`
-	EvidenceBundleHash string    `json:"evidenceBundleHash"`
-	RuntimeCount       int       `json:"runtimeCount"`
-	HealthCount        int       `json:"healthCount"`
+	ResultHash           string                    `json:"resultHash"`
+	PlanHash             string                    `json:"planHash"`
+	AppliedRequestDigest string                    `json:"appliedRequestDigest,omitempty"`
+	AppliedAt            time.Time                 `json:"appliedAt"`
+	EvidenceBundleHash   string                    `json:"evidenceBundleHash"`
+	RuntimeCount         int                       `json:"runtimeCount"`
+	HealthCount          int                       `json:"healthCount"`
+	AppliedWorkloads     []AppliedWorkloadIdentity `json:"appliedWorkloads"`
+}
+
+// AppliedArtifactIdentity is the content identity of one artifact referenced
+// by an applied workload. Paths and artifact content remain local custody.
+type AppliedArtifactIdentity struct {
+	Ref    string `json:"ref"`
+	Digest string `json:"digest"`
+}
+
+// AppliedWorkloadPlacement preserves node and execution-channel pairing. A
+// multi-node workload remains multiple explicit placements, never one guess.
+type AppliedWorkloadPlacement struct {
+	SiteRef             string `json:"siteRef"`
+	NodeRef             string `json:"nodeRef"`
+	ExecutionChannelRef string `json:"executionChannelRef,omitempty"`
+}
+
+// AppliedWorkloadIdentity is the secret-free, hash-bound correlation surface
+// for one workload runtime target. It routes a later Owner-approved request;
+// it is not removal authorization or terminal absence evidence.
+type AppliedWorkloadIdentity struct {
+	WorkloadRef     string                     `json:"workloadRef"`
+	RequirementID   string                     `json:"requirementId"`
+	InstanceRef     string                     `json:"instanceRef"`
+	RuntimeOwnerRef string                     `json:"runtimeOwnerRef"`
+	Placements      []AppliedWorkloadPlacement `json:"placements"`
+	Artifacts       []AppliedArtifactIdentity  `json:"artifacts"`
 }
 
 // ApplyRuntimeObservationSummary is the secret-free, immutable runtime
@@ -62,9 +92,11 @@ type ApplyObservationSummary struct {
 func (r VerifiedApplyResult) Summary() ApplyResultSummary {
 	appliedAt, _ := time.Parse(time.RFC3339Nano, r.envelope.AppliedAt)
 	return ApplyResultSummary{
-		ResultHash: r.resultHash, AppliedAt: appliedAt,
+		ResultHash: r.resultHash, PlanHash: r.envelope.Binding.PlanHash,
+		AppliedRequestDigest: r.envelope.SharedRequestDigest, AppliedAt: appliedAt,
 		EvidenceBundleHash: r.envelope.EvidenceBundleHash,
 		RuntimeCount:       len(r.envelope.Runtime), HealthCount: len(r.envelope.Health),
+		AppliedWorkloads: cloneAppliedWorkloadIdentities(r.envelope.AppliedWorkloads),
 	}
 }
 
@@ -193,6 +225,15 @@ func (s *Service) VerifyProductApplyResult(input ProductApplyResultVerificationI
 		return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrInvalidContract, "apply.result.digests", "contains a non-canonical digest", nil)
 	}
 	requirements := input.Plan.ApplyRequirements()
+	if len(envelope.AppliedWorkloads) > 0 {
+		expectedWorkloads, err := projectAppliedWorkloadIdentities(requirements, manifestArtifactDigests(input.Manifest))
+		if err != nil {
+			return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrInvalidContract, "apply.result.appliedWorkloads", "project current applied workload identities", err)
+		}
+		if !equalAppliedWorkloadIdentities(envelope.AppliedWorkloads, expectedWorkloads) {
+			return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrBindingMismatch, "apply.result.appliedWorkloads", "does not match the current verified workload and artifact authority", nil)
+		}
+	}
 	runtimeRequirements := append([]generationartifact.ApplyRuntimeRequirement(nil), requirements.RuntimeInstances...)
 	runtimeObservations := append([]applyRuntimeObservation(nil), envelope.Runtime...)
 	sort.Slice(runtimeRequirements, func(i, j int) bool { return runtimeRequirements[i].ID < runtimeRequirements[j].ID })

@@ -377,7 +377,22 @@ func (s *Server) runServiceStackAction(ctx context.Context, resp stackActionResp
 		return resp, http.StatusBadRequest, skerrors.NewValidationError("service_request_required", "service action requires a service_key")
 	}
 	workspace := strings.TrimSpace(s.config.BaseDir)
-	controller, err := servicecontrol.NewOSController(workspace)
+	authority, err := s.architectureV2ResolveService()
+	if err != nil {
+		return resp, http.StatusServiceUnavailable, skerrors.NewInfrastructureError(
+			"service_runtime_unavailable", "StackKits service authority is unavailable",
+			skerrors.WithCause(err),
+		)
+	}
+	planPath := filepath.Join(workspace, "deploy", ".stackkit", "resolved-plan.json")
+	plan, err := authority.ReadCanonicalPlan(planPath)
+	if err != nil {
+		return resp, http.StatusServiceUnavailable, skerrors.NewInfrastructureError(
+			"service_runtime_unavailable", "StackKits service plan is unavailable",
+			skerrors.WithCause(err),
+		)
+	}
+	controller, err := servicecontrol.NewOSController(workspace, planPath, plan)
 	if err != nil {
 		return resp, http.StatusServiceUnavailable, skerrors.NewInfrastructureError(
 			"service_runtime_unavailable", "StackKits service runtime is unavailable",

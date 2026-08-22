@@ -1731,6 +1731,9 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 		if err := requireCatalogObjectField(module, contract, path, "runtime"); err != nil {
 			return err
 		}
+		if err := validateResolvedServiceControls(module, contract, id, path); err != nil {
+			return err
+		}
 		if err := validateResolvedModuleSupportProjection(module, contract, path); err != nil {
 			return err
 		}
@@ -1815,6 +1818,55 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 		}
 	}
 	return nil
+}
+
+func validateResolvedServiceControls(module, contract map[string]any, moduleID, path string) error {
+	have, err := objectListOptional(module, "serviceControls")
+	if err != nil {
+		return err
+	}
+	wantValues, err := resolveModuleServiceControls(moduleID, contract)
+	if err != nil {
+		return err
+	}
+	want := make([]map[string]any, len(wantValues))
+	for index, value := range wantValues {
+		want[index], err = asObject(value, fmt.Sprintf("catalog.modules.%s.serviceControls[%d]", moduleID, index))
+		if err != nil {
+			return err
+		}
+	}
+	haveByKey, err := indexServiceControlBodies(have, path+".serviceControls")
+	if err != nil {
+		return err
+	}
+	wantByKey, err := indexServiceControlBodies(want, "catalog.modules."+moduleID+".serviceControls")
+	if err != nil {
+		return err
+	}
+	equal, err := canonicalEqual(haveByKey, wantByKey)
+	if err != nil {
+		return err
+	}
+	if !equal {
+		return fmt.Errorf("%s.serviceControls does not match the bound catalog body", path)
+	}
+	return nil
+}
+
+func indexServiceControlBodies(values []map[string]any, path string) (map[string]map[string]any, error) {
+	result := make(map[string]map[string]any, len(values))
+	for index, value := range values {
+		key, err := stringField(value, fmt.Sprintf("%s[%d]", path, index), "key")
+		if err != nil {
+			return nil, err
+		}
+		if _, duplicate := result[key]; duplicate {
+			return nil, fmt.Errorf("%s duplicates key %q", path, key)
+		}
+		result[key] = value
+	}
+	return result, nil
 }
 
 func validateResolvedModuleSupportProjection(module, contract map[string]any, path string) error {

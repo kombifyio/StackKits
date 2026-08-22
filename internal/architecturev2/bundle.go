@@ -239,15 +239,13 @@ func validateAuthorityRoleManifest(role embeddedAuthorityRole, manifest authorit
 	if manifest.Documents[role.document] != "catalog.json" {
 		return fmt.Errorf("embedded product authority catalog must use catalog.json")
 	}
-	var expectedProfileCount int
 	switch manifest.ProfileScope {
 	case "platform", "oss":
-		expectedProfileCount = 3
 	default:
 		return fmt.Errorf("embedded product authority uses unsupported profile scope %q", manifest.ProfileScope)
 	}
-	if len(manifest.Profiles) != expectedProfileCount {
-		return fmt.Errorf("embedded product authority profile set does not match its %s scope", manifest.ProfileScope)
+	if len(manifest.Profiles) == 0 {
+		return fmt.Errorf("embedded product authority does not declare profiles")
 	}
 	paths := make([]string, 0, len(manifest.SourceHashes)+len(manifest.Documents)+len(manifest.Profiles))
 	for relativePath := range manifest.SourceHashes {

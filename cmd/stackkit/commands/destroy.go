@@ -20,12 +20,13 @@ import (
 )
 
 var (
-	removeAutoApprove        bool
-	removeForce              bool
-	removePurge              bool
-	removeJSON               bool
-	removeWorkloadRef        string
-	removeV2ExecutionOptions architectureV2ExecutionCLIOptions
+	removeAutoApprove          bool
+	removeForce                bool
+	removePurge                bool
+	removeJSON                 bool
+	removeTerminalEvidenceJSON bool
+	removeWorkloadRef          string
+	removeV2ExecutionOptions   architectureV2ExecutionCLIOptions
 )
 
 const removeConfirmationValue = "yes"
@@ -58,6 +59,7 @@ func init() {
 	removeCmd.Flags().BoolVar(&removeForce, "force", false, "Force remove even with errors")
 	removeCmd.Flags().BoolVar(&removePurge, "purge", false, "Remove all StackKit data including images, state, and deploy directory")
 	removeCmd.Flags().BoolVar(&removeJSON, "json", false, "Emit the canonical Architecture v2 removal result as JSON")
+	removeCmd.Flags().BoolVar(&removeTerminalEvidenceJSON, "terminal-evidence-json", false, "Emit bounded canonical Architecture v2 terminal evidence as JSON")
 	removeCmd.Flags().StringVar(&removeWorkloadRef, "workload", "", "Exact Architecture v2 ResolvedPlan workload ref to remove")
 	removeCmd.Flags().StringVar(&removeV2ExecutionOptions.inventoryPath, "inventory", "", "Architecture v2 observed Inventory (otherwise one conventional inventory file is selected)")
 	removeCmd.Flags().StringVar(&removeV2ExecutionOptions.planPath, "resolved-plan", "", "Architecture v2 canonical ResolvedPlan")
@@ -94,6 +96,10 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	removeV2ExecutionOptions.context = ctx
 	removeV2ExecutionOptions.workloadRef = strings.TrimSpace(removeWorkloadRef)
 	removeV2ExecutionOptions.removalJSON = removeJSON
+	removeV2ExecutionOptions.removalEvidenceJSON = removeTerminalEvidenceJSON
+	if removeJSON && removeTerminalEvidenceJSON {
+		return errors.New("--json and --terminal-evidence-json are mutually exclusive")
+	}
 	if removeJSON {
 		removeV2ExecutionOptions.removalSink = func(result workloadremoval.Result) error {
 			canonical, err := result.Canonical()
@@ -105,6 +111,18 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		removeV2ExecutionOptions.removalSink = nil
+	}
+	if removeTerminalEvidenceJSON {
+		removeV2ExecutionOptions.removalEvidenceSink = func(evidence workloadremoval.Evidence) error {
+			canonical, err := evidence.Canonical()
+			if err != nil {
+				return err
+			}
+			_, err = cmd.OutOrStdout().Write(canonical)
+			return err
+		}
+	} else {
+		removeV2ExecutionOptions.removalEvidenceSink = nil
 	}
 	_, sourceVersion, classified, classifyErr := classifyArchitectureV2ExecutionSpec(wd, specFile)
 	if classifyErr != nil {
@@ -118,8 +136,8 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	); handled {
 		return err
 	}
-	if strings.TrimSpace(removeWorkloadRef) != "" || removeJSON {
-		return errors.New("--workload and --json require canonical Architecture v2 removal")
+	if strings.TrimSpace(removeWorkloadRef) != "" || removeJSON || removeTerminalEvidenceJSON {
+		return errors.New("--workload, --json, and --terminal-evidence-json require canonical Architecture v2 removal")
 	}
 
 	loader := config.NewLoader(wd)

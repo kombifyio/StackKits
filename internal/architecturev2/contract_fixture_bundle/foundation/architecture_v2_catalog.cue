@@ -340,7 +340,7 @@ _architectureV2WorkloadContracts: [
 			version:     "1.1.0"
 			description: "Self-hosted photo management selected independently from kit architecture capabilities."
 		}
-		kind: "application"
+		kind:       "application"
 		useCaseRef: "photos"
 		functionalCapabilities: ["photo-library", "mobile-photo-backup"]
 		supportedSiteKinds: ["home", "cloud"]
@@ -384,7 +384,7 @@ _architectureV2WorkloadContracts: [
 			version:     "1.1.0"
 			description: "Self-hosted file management and sharing selected independently from kit architecture capabilities."
 		}
-		kind: "application"
+		kind:       "application"
 		useCaseRef: "files"
 		functionalCapabilities: ["file-library", "file-sharing"]
 		supportedSiteKinds: ["home", "cloud"]
@@ -421,7 +421,7 @@ _architectureV2WorkloadContracts: [
 			version:     "1.0.0"
 			description: "Self-hosted password vault selected independently from kit architecture capabilities."
 		}
-		kind: "application"
+		kind:       "application"
 		useCaseRef: "vault"
 		functionalCapabilities: ["password-vault", "secure-notes"]
 		supportedSiteKinds: ["home", "cloud"]
@@ -2107,6 +2107,20 @@ _basementCoreRuntimeListeners: list.Concat([_cloudCoreRuntimeListeners, [
 	{id: "step-ca-direct", componentRef: "step-ca", transport: "tcp", bindAddress: "0.0.0.0", port: 9000, targetPort: 9000, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
 ]])
 
+_sharedCoreServiceControls: [
+	{key: "auth", serviceRef: "auth", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["tinyauth"], allowedActions: ["start", "restart", "logs"], critical: true},
+	{key: "coolify", serviceRef: "coolify", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["coolify", "coolify-postgres", "coolify-redis", "coolify-realtime"], allowedActions: ["start", "stop", "restart", "logs"], critical: false},
+	{key: "id", serviceRef: "id", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["pocketid"], allowedActions: ["start", "restart", "logs"], critical: true},
+]
+
+_cloudCoreServiceControls: list.Concat([_sharedCoreServiceControls, [
+	{key: "base", serviceRef: "base", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["router", "socket-proxy", "hub"], allowedActions: ["start", "restart", "logs"], critical: true},
+]])
+
+_basementCoreServiceControls: list.Concat([_sharedCoreServiceControls, [
+	{key: "base", serviceRef: "basement-hub", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["router", "socket-proxy", "step-ca", "kopia-agent", "hub"], allowedActions: ["start", "restart", "logs"], critical: true},
+]])
+
 _architectureV2Modules: list.Concat([[
 	{
 		metadata: {
@@ -3261,6 +3275,7 @@ _architectureV2Modules: list.Concat([[
 				},
 			]
 		}
+		serviceControls: _cloudCoreServiceControls
 		renderUnits: [{
 			id:           "compose", kind:                                 "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core/compose/v1.yaml", version: "1.0.0"
@@ -3454,6 +3469,7 @@ _architectureV2Modules: list.Concat([[
 				},
 			]
 		}
+		serviceControls: _basementCoreServiceControls
 		renderUnits: [
 			{
 				id:           "compose", kind:                                    "compose", rendererRef: "stackkit"

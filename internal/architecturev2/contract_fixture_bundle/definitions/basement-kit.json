@@ -516,6 +516,13 @@
       }
     }
   },
+  "redactionPolicy": {
+    "enforcement": "required",
+    "exportedEvidence": "redacted-only",
+    "logs": "redacted-only",
+    "opaqueReferences": "preserved",
+    "sensitiveValues": "redacted"
+  },
   "topology": {
     "allowedSiteKinds": [
       "home"
@@ -538,6 +545,13 @@
     "requiredSiteKinds": [
       "home"
     ]
+  },
+  "upgradePolicy": {
+    "liveVolumeCutoverAvailable": false,
+    "ownerApprovalRequired": false,
+    "rollbackAnchorRequired": false,
+    "snapshotRequired": false,
+    "support": "unsupported"
   },
   "workloads": {
     "defaults": [],

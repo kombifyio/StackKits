@@ -11,18 +11,26 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/logging"
+	"github.com/kombifyio/stackkits/internal/platformdeploy"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/pkg/models"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -33,6 +41,7 @@ const (
 	ActionStart   = "start"
 	ActionStop    = "stop"
 	ActionRestart = "restart"
+	ActionLogs    = "logs"
 
 	DesiredRunning = "running"
 	DesiredStopped = "stopped"
@@ -47,23 +56,21 @@ const (
 	stateRelativePath = ".stackkit/service-control/desired-state.json"
 	evidenceRoot      = ".stackkit/service-control/evidence"
 	defaultPlanPath   = "deploy/.stackkit/resolved-plan.json"
-	defaultCompose    = ".stackkit/runtime/cloud-core/compose.yaml"
 )
 
-const serviceContractMaterial = "stackkit.service-control/v1|base:router,socket-proxy,step-ca,hub,kopia-agent:start,restart,logs|auth:tinyauth:start,restart,logs|id:pocketid:start,restart,logs|coolify:coolify,coolify-postgres,coolify-redis,coolify-realtime:start,stop,restart,logs"
-
-var cursorPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
+var (
+	cursorPattern     = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
+	contractIDPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
+)
 
 type serviceDefinition struct {
-	Components []string
-	CanStop    bool
-}
-
-var serviceDefinitions = map[string]serviceDefinition{
-	"base":    {Components: []string{"router", "socket-proxy", "step-ca", "hub", "kopia-agent"}},
-	"auth":    {Components: []string{"tinyauth"}},
-	"id":      {Components: []string{"pocketid"}},
-	"coolify": {Components: []string{"coolify", "coolify-postgres", "coolify-redis", "coolify-realtime"}, CanStop: true},
+	Key            string   `json:"key"`
+	ServiceRef     string   `json:"serviceRef"`
+	Adapter        string   `json:"adapter"`
+	RuntimeRef     string   `json:"runtimeRef"`
+	ComponentRefs  []string `json:"componentRefs"`
+	AllowedActions []string `json:"allowedActions"`
+	Critical       bool     `json:"critical"`
 }
 
 type DesiredService struct {
@@ -98,6 +105,7 @@ type Result struct {
 	Checks        []Check `json:"checks"`
 	ReasonCode    string  `json:"reasonCode,omitempty"`
 	Retryable     bool    `json:"retryable"`
+	OperationRef  string  `json:"operationRef,omitempty"`
 	EvidenceRef   string  `json:"evidenceRef,omitempty"`
 }
 
@@ -123,24 +131,44 @@ type Error struct {
 
 func (e *Error) Error() string { return e.Message }
 
-type Runner interface {
-	Run(context.Context, string, []string) ([]byte, error)
+// runtimeCommandRequest is the fully bounded adapter invocation derived from
+// one canonical ResolvedPlan service-control declaration.
+type runtimeCommandRequest struct {
+	Adapter       string
+	RuntimeRef    string
+	ComposePath   string
+	ExternalID    string
+	HTTPConfig    platformdeploy.HTTPConfig
+	Args          []string
+	ComponentRefs []string
 }
 
-type Signer interface {
+type runtimeCommandOutput struct {
+	Bytes         []byte
+	ObservedState string
+	OperationRef  string
+}
+
+type runner interface {
+	Run(context.Context, runtimeCommandRequest) (runtimeCommandOutput, error)
+}
+
+type signer interface {
 	OwnerRef(string) (string, error)
 	Sign(string, []byte) (localevidence.OwnerPolicyStateSignature, error)
 	Verify(string, []byte, localevidence.OwnerPolicyStateSignature) error
 }
 
 type Controller struct {
-	workspace string
-	runner    Runner
-	signer    Signer
-	now       func() time.Time
+	workspace  string
+	planPath   string
+	runner     runner
+	signer     signer
+	now        func() time.Time
+	verifyPlan func([]byte) error
 }
 
-func NewOSController(workspace string) (*Controller, error) {
+func NewOSController(workspace, planPath string, plan generationartifact.VerifiedPlan) (*Controller, error) {
 	absolute, err := filepath.Abs(workspace)
 	if err != nil || strings.TrimSpace(workspace) == "" {
 		return nil, errors.New("service control requires an absolute workspace")
@@ -149,49 +177,59 @@ func NewOSController(workspace string) (*Controller, error) {
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return nil, errors.New("service control requires an existing plain workspace directory")
 	}
-	return &Controller{workspace: filepath.Clean(absolute), runner: osRunner{}, signer: ownerSigner{}, now: time.Now}, nil
-}
-
-func NewController(workspace string, runner Runner, signer Signer, now func() time.Time) *Controller {
-	return &Controller{workspace: workspace, runner: runner, signer: signer, now: now}
-}
-
-func ServiceContractHash() string {
-	sum := sha256.Sum256([]byte(serviceContractMaterial))
-	return "sha256:" + hex.EncodeToString(sum[:])
-}
-
-func AllowedActions(serviceKey string) []string {
-	definition, ok := serviceDefinitions[normalizeServiceKey(serviceKey)]
-	if !ok {
-		return []string{}
+	if !cursorPattern.MatchString(plan.Binding().PlanHash) {
+		return nil, errors.New("service control requires a CUE-verified ResolvedPlan")
 	}
-	actions := []string{ActionStart}
-	if definition.CanStop {
-		actions = append(actions, ActionStop)
+	if !filepath.IsAbs(planPath) {
+		planPath = filepath.Join(absolute, filepath.FromSlash(planPath))
 	}
-	return append(actions, ActionRestart, "logs")
+	planPath = filepath.Clean(planPath)
+	relativePlan, err := filepath.Rel(absolute, planPath)
+	if err != nil || relativePlan == ".." || strings.HasPrefix(relativePlan, ".."+string(filepath.Separator)) {
+		return nil, errors.New("service control requires a workspace-confined ResolvedPlan")
+	}
+	return &Controller{
+		workspace: filepath.Clean(absolute), planPath: planPath, runner: osRunner{}, signer: ownerSigner{}, now: time.Now,
+		verifyPlan: plan.VerifyCurrentResolution,
+	}, nil
+}
+
+func newController(workspace string, runner runner, signer signer, now func() time.Time, canonical []byte) *Controller {
+	expected := append([]byte(nil), canonical...)
+	return &Controller{workspace: workspace, planPath: filepath.Join(workspace, filepath.FromSlash(defaultPlanPath)), runner: runner, signer: signer, now: now, verifyPlan: func(candidate []byte) error {
+		if !bytes.Equal(candidate, expected) {
+			return errors.New("persisted plan differs from the verified plan")
+		}
+		return nil
+	}}
 }
 
 func (c *Controller) Mutate(ctx context.Context, action, serviceKey string, ownerApproved bool) (Result, error) {
 	result := Result{APIVersion: ResultAPIVersion, Action: strings.ToLower(strings.TrimSpace(action)), ServiceKey: normalizeServiceKey(serviceKey), Retryable: false}
-	if ctx == nil || c == nil || c.runner == nil || c.signer == nil || c.now == nil {
+	if ctx == nil || c == nil || c.runner == nil || c.signer == nil || c.now == nil || c.verifyPlan == nil {
 		return result, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "service runtime is not initialized"}
 	}
 	if !ownerApproved {
 		return result, &Error{ReasonCode: ReasonOwnerApproval, Message: "service mutation requires explicit owner approval"}
 	}
-	definition, ok := serviceDefinitions[result.ServiceKey]
-	if !ok {
-		return result, &Error{ReasonCode: ReasonUnknownService, Message: "unknown managed service " + result.ServiceKey}
-	}
 	if result.Action != ActionStart && result.Action != ActionStop && result.Action != ActionRestart {
 		return result, &Error{ReasonCode: "unknown_action", Message: "unsupported service action " + result.Action}
 	}
-	if result.Action == ActionStop && !definition.CanStop {
-		return result, &Error{ReasonCode: ReasonCriticalControlPlane, Message: "service stop denied: critical control-plane service"}
-	}
 	authority, err := c.authority()
+	if err != nil {
+		return result, err
+	}
+	definition, ok := authority.Services[result.ServiceKey]
+	if !ok {
+		return result, &Error{ReasonCode: ReasonUnknownService, Message: "unknown managed service " + result.ServiceKey}
+	}
+	if !slices.Contains(definition.AllowedActions, result.Action) {
+		if result.Action == ActionStop && definition.Critical {
+			return result, &Error{ReasonCode: ReasonCriticalControlPlane, Message: "service stop denied: critical control-plane service"}
+		}
+		return result, &Error{ReasonCode: "unknown_action", Message: "service action is not declared by the ResolvedPlan"}
+	}
+	target, err := c.runtimeTarget(definition)
 	if err != nil {
 		return result, err
 	}
@@ -209,15 +247,22 @@ func (c *Controller) Mutate(ctx context.Context, action, serviceKey string, owne
 		desired = DesiredRunning
 	}
 	result.DesiredState = desired
-	args := mutationArgs(result.Action, definition.Components)
-	if _, err := c.runner.Run(ctx, authority.ComposePath, args); err != nil {
+	args := mutationArgs(result.Action, definition.ComponentRefs)
+	actionOutput, err := c.runner.Run(ctx, runtimeCommand(target, args, definition.ComponentRefs))
+	if err != nil {
 		return result, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "service action failed: " + logging.RedactText(err.Error())}
 	}
-	observed, err := c.observe(ctx, authority.ComposePath, definition.Components)
-	if err != nil {
-		return result, err
+	observed := strings.TrimSpace(actionOutput.ObservedState)
+	if target.Adapter == "compose" {
+		observed, err = c.observe(ctx, target, definition.ComponentRefs)
+		if err != nil {
+			return result, err
+		}
+	} else if observed != DesiredRunning && observed != DesiredStopped {
+		return result, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "service adapter returned no bounded observed state"}
 	}
 	result.ObservedState = observed
+	result.OperationRef = strings.TrimSpace(actionOutput.OperationRef)
 	if result.Action == ActionStart || result.Action == ActionStop {
 		state.Revision++
 		state.Services[result.ServiceKey] = DesiredService{State: desired, ChangedAt: c.now().UTC()}
@@ -232,13 +277,13 @@ func (c *Controller) Mutate(ctx context.Context, action, serviceKey string, owne
 	if err != nil {
 		return result, err
 	}
-	if err := c.updateAccessManifest(result.ServiceKey, result.DesiredState, result.EvidenceRef); err != nil {
+	if err := c.updateAccessManifest(result.ServiceKey, definition.AllowedActions, result.DesiredState, result.EvidenceRef); err != nil {
 		return result, err
 	}
 	return result, nil
 }
 
-func (c *Controller) updateAccessManifest(serviceKey, desiredState, evidenceRef string) error {
+func (c *Controller) updateAccessManifest(serviceKey string, allowedActions []string, desiredState, evidenceRef string) error {
 	path := filepath.Join(c.workspace, ".stackkit", "access.json")
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -258,7 +303,7 @@ func (c *Controller) updateAccessManifest(serviceKey, desiredState, evidenceRef 
 			continue
 		}
 		service["desiredState"] = desiredState
-		service["allowedActions"] = AllowedActions(serviceKey)
+		service["allowedActions"] = append([]string(nil), allowedActions...)
 		service["evidenceRef"] = evidenceRef
 	}
 	updated, err := json.MarshalIndent(manifest, "", "  ")
@@ -271,10 +316,6 @@ func (c *Controller) updateAccessManifest(serviceKey, desiredState, evidenceRef 
 
 func (c *Controller) Logs(ctx context.Context, serviceKey string, tail int, cursor string) (LogsResult, error) {
 	result := LogsResult{APIVersion: LogsAPIVersion, ServiceKey: normalizeServiceKey(serviceKey), Entries: []LogEntry{}}
-	definition, ok := serviceDefinitions[result.ServiceKey]
-	if !ok {
-		return result, &Error{ReasonCode: ReasonUnknownService, Message: "unknown managed service " + result.ServiceKey}
-	}
 	if tail < 1 || tail > 200 {
 		return result, &Error{ReasonCode: "invalid_log_limit", Message: "service log tail must be between 1 and 200"}
 	}
@@ -285,11 +326,23 @@ func (c *Controller) Logs(ctx context.Context, serviceKey string, tail int, curs
 	if err != nil {
 		return result, err
 	}
-	raw, err := c.runner.Run(ctx, authority.ComposePath, logsArgs(tail, definition.Components))
+	definition, ok := authority.Services[result.ServiceKey]
+	if !ok {
+		return result, &Error{ReasonCode: ReasonUnknownService, Message: "unknown managed service " + result.ServiceKey}
+	}
+	if !slices.Contains(definition.AllowedActions, ActionLogs) {
+		return result, &Error{ReasonCode: "unknown_action", Message: "service logs are not declared by the ResolvedPlan"}
+	}
+	target, err := c.runtimeTarget(definition)
+	if err != nil {
+		return result, err
+	}
+	args := logsArgs(tail, definition.ComponentRefs)
+	output, err := c.runner.Run(ctx, runtimeCommand(target, args, definition.ComponentRefs))
 	if err != nil {
 		return result, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "service logs unavailable: " + logging.RedactText(err.Error())}
 	}
-	result.Entries, result.Truncated = parseLogs(raw, tail, c.now().UTC())
+	result.Entries, result.Truncated = parseLogs(output.Bytes, tail, c.now().UTC())
 	if len(result.Entries) > 0 {
 		payload, _ := json.Marshal(result.Entries[len(result.Entries)-1])
 		sum := sha256.Sum256(payload)
@@ -299,7 +352,7 @@ func (c *Controller) Logs(ctx context.Context, serviceKey string, tail int, curs
 	return result, err
 }
 
-// ReconcileAfterApply reapplies durable stopped intent after Compose Apply.
+// ReconcileAfterApply reapplies durable stopped intent through the declared adapter.
 // Any plan or service-contract change invalidates the state fail-closed.
 func (c *Controller) ReconcileAfterApply(ctx context.Context) error {
 	if _, err := os.Lstat(filepath.Join(c.workspace, filepath.FromSlash(stateRelativePath))); errors.Is(err, os.ErrNotExist) {
@@ -319,11 +372,16 @@ func (c *Controller) ReconcileAfterApply(ctx context.Context) error {
 		if desired.State != DesiredStopped {
 			continue
 		}
-		definition, ok := serviceDefinitions[serviceKey]
-		if !ok || !definition.CanStop {
+		definition, ok := authority.Services[serviceKey]
+		if !ok || definition.Critical || !slices.Contains(definition.AllowedActions, ActionStop) {
 			return &Error{ReasonCode: ReasonContractChanged, Message: "persisted desired state references a service that is no longer stoppable"}
 		}
-		if _, err := c.runner.Run(ctx, authority.ComposePath, mutationArgs(ActionStop, definition.Components)); err != nil {
+		target, err := c.runtimeTarget(definition)
+		if err != nil {
+			return err
+		}
+		args := mutationArgs(ActionStop, definition.ComponentRefs)
+		if _, err := c.runner.Run(ctx, runtimeCommand(target, args, definition.ComponentRefs)); err != nil {
 			return &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "reconcile desired service state: " + logging.RedactText(err.Error())}
 		}
 	}
@@ -331,28 +389,245 @@ func (c *Controller) ReconcileAfterApply(ctx context.Context) error {
 }
 
 type runtimeAuthority struct {
-	PlanHash    string
+	PlanHash            string
+	ServiceContractHash string
+	Services            map[string]serviceDefinition
+}
+
+type runtimeTarget struct {
+	Adapter     string
+	RuntimeRef  string
 	ComposePath string
+	ExternalID  string
+	HTTPConfig  platformdeploy.HTTPConfig
 }
 
 func (c *Controller) authority() (runtimeAuthority, error) {
-	planPath := filepath.Join(c.workspace, filepath.FromSlash(defaultPlanPath))
-	raw, err := os.ReadFile(planPath)
+	info, err := os.Lstat(c.planPath)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return runtimeAuthority{}, &Error{ReasonCode: "resolved_plan_unavailable", Message: "canonical ResolvedPlan is not a regular owner-custodied file"}
+	}
+	raw, err := os.ReadFile(c.planPath)
 	if err != nil {
 		return runtimeAuthority{}, &Error{ReasonCode: "resolved_plan_unavailable", Message: "read canonical ResolvedPlan: " + err.Error()}
 	}
+	if _, err := resolvedplan.DecodeCanonicalPlan(raw); err != nil {
+		return runtimeAuthority{}, &Error{ReasonCode: "resolved_plan_invalid", Message: "verify canonical ResolvedPlan: " + err.Error()}
+	}
+	if err := c.verifyPlan(raw); err != nil {
+		return runtimeAuthority{}, &Error{ReasonCode: ReasonPlanChanged, Message: "canonical ResolvedPlan differs from the CUE-verified execution authority"}
+	}
 	var plan struct {
 		PlanHash string `json:"planHash"`
+		Modules  []struct {
+			ServiceControls []serviceDefinition `json:"serviceControls"`
+		} `json:"modules"`
 	}
 	if json.Unmarshal(raw, &plan) != nil || !cursorPattern.MatchString(plan.PlanHash) {
 		return runtimeAuthority{}, &Error{ReasonCode: "resolved_plan_invalid", Message: "canonical ResolvedPlan has no valid planHash"}
 	}
-	composePath := filepath.Join(c.workspace, filepath.FromSlash(defaultCompose))
-	info, err := os.Lstat(composePath)
-	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-		return runtimeAuthority{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "Cloud core Compose runtime is unavailable"}
+	definitions := make([]serviceDefinition, 0)
+	services := map[string]serviceDefinition{}
+	serviceRefs := map[string]struct{}{}
+	componentRefs := map[string]struct{}{}
+	for _, module := range plan.Modules {
+		for _, candidate := range module.ServiceControls {
+			definition, err := normalizeServiceDefinition(candidate)
+			if err != nil {
+				return runtimeAuthority{}, &Error{ReasonCode: "resolved_plan_invalid", Message: err.Error()}
+			}
+			if _, duplicate := services[definition.Key]; duplicate {
+				return runtimeAuthority{}, &Error{ReasonCode: "resolved_plan_invalid", Message: "canonical ResolvedPlan controls a service more than once"}
+			}
+			if _, duplicate := serviceRefs[definition.ServiceRef]; duplicate {
+				return runtimeAuthority{}, &Error{ReasonCode: "resolved_plan_invalid", Message: "canonical ResolvedPlan controls a service endpoint more than once"}
+			}
+			for _, componentRef := range definition.ComponentRefs {
+				componentIdentity := definition.RuntimeRef + "\x00" + componentRef
+				if _, duplicate := componentRefs[componentIdentity]; duplicate {
+					return runtimeAuthority{}, &Error{ReasonCode: "resolved_plan_invalid", Message: "canonical ResolvedPlan assigns a runtime component more than once"}
+				}
+				componentRefs[componentIdentity] = struct{}{}
+			}
+			services[definition.Key] = definition
+			serviceRefs[definition.ServiceRef] = struct{}{}
+			definitions = append(definitions, definition)
+		}
 	}
-	return runtimeAuthority{PlanHash: plan.PlanHash, ComposePath: filepath.Clean(composePath)}, nil
+	sort.Slice(definitions, func(i, j int) bool { return definitions[i].Key < definitions[j].Key })
+	hash, err := serviceContractHash(definitions)
+	if err != nil {
+		return runtimeAuthority{}, &Error{ReasonCode: "resolved_plan_invalid", Message: "hash service controls: " + err.Error()}
+	}
+	return runtimeAuthority{PlanHash: plan.PlanHash, ServiceContractHash: hash, Services: services}, nil
+}
+
+func normalizeServiceDefinition(candidate serviceDefinition) (serviceDefinition, error) {
+	rawKey, rawServiceRef, rawAdapter, rawRuntimeRef := candidate.Key, candidate.ServiceRef, candidate.Adapter, candidate.RuntimeRef
+	candidate.Key = strings.TrimSpace(candidate.Key)
+	candidate.ServiceRef = strings.TrimSpace(candidate.ServiceRef)
+	candidate.Adapter = strings.TrimSpace(candidate.Adapter)
+	candidate.RuntimeRef = strings.TrimSpace(candidate.RuntimeRef)
+	if candidate.Key != rawKey || candidate.Key != normalizeServiceKey(candidate.Key) || candidate.ServiceRef != rawServiceRef ||
+		candidate.Adapter != rawAdapter || candidate.RuntimeRef != rawRuntimeRef {
+		return serviceDefinition{}, errors.New("canonical ResolvedPlan has a non-canonical service-control identity")
+	}
+	if !contractIDPattern.MatchString(candidate.Key) || !contractIDPattern.MatchString(candidate.ServiceRef) || !contractIDPattern.MatchString(candidate.RuntimeRef) {
+		return serviceDefinition{}, errors.New("canonical ResolvedPlan has an invalid service-control identity")
+	}
+	if candidate.Adapter != "compose" && candidate.Adapter != "komodo" {
+		return serviceDefinition{}, errors.New("canonical ResolvedPlan has an unsupported service-control adapter")
+	}
+	componentRefs, err := normalizedContractIDs(candidate.ComponentRefs)
+	if err != nil {
+		return serviceDefinition{}, fmt.Errorf("canonical ResolvedPlan service %s components: %w", candidate.Key, err)
+	}
+	actions, err := normalizedActions(candidate.AllowedActions)
+	if err != nil {
+		return serviceDefinition{}, fmt.Errorf("canonical ResolvedPlan service %s actions: %w", candidate.Key, err)
+	}
+	if candidate.Critical && slices.Contains(actions, ActionStop) {
+		return serviceDefinition{}, fmt.Errorf("canonical ResolvedPlan critical service %s allows stop", candidate.Key)
+	}
+	candidate.ComponentRefs, candidate.AllowedActions = componentRefs, actions
+	return candidate, nil
+}
+
+func normalizedContractIDs(values []string) ([]string, error) {
+	if len(values) == 0 {
+		return nil, errors.New("must not be empty")
+	}
+	result := append([]string(nil), values...)
+	for index := range result {
+		trimmed := strings.TrimSpace(result[index])
+		if trimmed != result[index] {
+			return nil, errors.New("contains a non-canonical component reference")
+		}
+		result[index] = trimmed
+		if !contractIDPattern.MatchString(result[index]) {
+			return nil, errors.New("contains an invalid component reference")
+		}
+	}
+	sort.Strings(result)
+	for index := 1; index < len(result); index++ {
+		if result[index] == result[index-1] {
+			return nil, errors.New("contains a duplicate component reference")
+		}
+	}
+	return result, nil
+}
+
+func normalizedActions(values []string) ([]string, error) {
+	if len(values) == 0 {
+		return nil, errors.New("must not be empty")
+	}
+	allowed := map[string]struct{}{ActionStart: {}, ActionStop: {}, ActionRestart: {}, ActionLogs: {}}
+	result := append([]string(nil), values...)
+	for index := range result {
+		trimmed := strings.TrimSpace(result[index])
+		if trimmed != result[index] {
+			return nil, errors.New("contains a non-canonical action")
+		}
+		result[index] = trimmed
+		if _, ok := allowed[result[index]]; !ok {
+			return nil, errors.New("contains an unsupported action")
+		}
+	}
+	sort.Strings(result)
+	for index := 1; index < len(result); index++ {
+		if result[index] == result[index-1] {
+			return nil, errors.New("contains a duplicate action")
+		}
+	}
+	return result, nil
+}
+
+func serviceContractHash(definitions []serviceDefinition) (string, error) {
+	payload, err := json.Marshal(struct {
+		APIVersion string              `json:"apiVersion"`
+		Services   []serviceDefinition `json:"services"`
+	}{APIVersion: "stackkit.service-control/v2", Services: definitions})
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(payload)
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+func (c *Controller) runtimeTarget(definition serviceDefinition) (runtimeTarget, error) {
+	if definition.Adapter == "compose" {
+		path := filepath.Join(c.workspace, ".stackkit", "runtime", definition.RuntimeRef, "compose.yaml")
+		info, err := os.Lstat(path)
+		if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+			return runtimeTarget{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "declared Compose runtime is unavailable"}
+		}
+		return runtimeTarget{Adapter: definition.Adapter, RuntimeRef: definition.RuntimeRef, ComposePath: filepath.Clean(path)}, nil
+	}
+	cfg, err := platformdeploy.LoadOwnerKomodoConfig(c.workspace)
+	if err != nil {
+		return runtimeTarget{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "owner-custodied Komodo configuration is unavailable: " + err.Error()}
+	}
+	ref, err := loadKomodoDeploymentRef(c.workspace, definition.RuntimeRef)
+	if err != nil {
+		return runtimeTarget{}, err
+	}
+	return runtimeTarget{Adapter: definition.Adapter, RuntimeRef: definition.RuntimeRef, ExternalID: ref.ExternalID, HTTPConfig: cfg}, nil
+}
+
+func loadKomodoDeploymentRef(workspace, runtimeRef string) (platformdeploy.DeploymentRef, error) {
+	payload, err := readOwnerFile(workspace, ".stackkit/state.yaml")
+	if err != nil {
+		return platformdeploy.DeploymentRef{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "owner-custodied deployment state is unavailable: " + err.Error()}
+	}
+	var state models.DeploymentState
+	if err := yaml.Unmarshal(payload, &state); err != nil {
+		return platformdeploy.DeploymentRef{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Message: "decode owner-custodied deployment state: " + err.Error()}
+	}
+	matches := make([]models.PlatformAppState, 0, 1)
+	apps := append(append([]models.PlatformAppState(nil), state.PlatformSystemApps...), state.PlatformApps...)
+	for _, app := range apps {
+		if app.Name == runtimeRef && app.Platform == "komodo" && app.Management == platformdeploy.AppManagementManaged && app.ExternalID != "" && app.ExternalID == strings.TrimSpace(app.ExternalID) {
+			matches = append(matches, app)
+		}
+	}
+	if len(matches) != 1 {
+		return platformdeploy.DeploymentRef{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "declared Komodo runtime has no unique managed deployment identity"}
+	}
+	return platformdeploy.DeploymentRef{Platform: "komodo", AppName: matches[0].Name, ExternalID: matches[0].ExternalID}, nil
+}
+
+func readOwnerFile(workspace, relative string) ([]byte, error) {
+	const maxOwnerFileBytes = 4 << 20
+	root, err := confinedfs.Open(workspace)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = root.Close() }()
+	view, err := root.View(".")
+	if err != nil {
+		return nil, err
+	}
+	file, err := view.Open(relative)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = file.Close() }()
+	info, err := file.Stat()
+	if err != nil || (runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0) {
+		return nil, errors.New("owner-custodied file is not private")
+	}
+	payload, err := io.ReadAll(io.LimitReader(file, maxOwnerFileBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(payload) > maxOwnerFileBytes {
+		return nil, errors.New("owner-custodied file exceeds size limit")
+	}
+	return payload, nil
+}
+
+func runtimeCommand(target runtimeTarget, args, componentRefs []string) runtimeCommandRequest {
+	return runtimeCommandRequest{Adapter: target.Adapter, RuntimeRef: target.RuntimeRef, ComposePath: target.ComposePath, ExternalID: target.ExternalID, HTTPConfig: target.HTTPConfig, Args: args, ComponentRefs: append([]string(nil), componentRefs...)}
 }
 
 func (c *Controller) loadState(authority runtimeAuthority) (DesiredState, error) {
@@ -367,7 +642,7 @@ func (c *Controller) loadState(authority runtimeAuthority) (DesiredState, error)
 	if err != nil {
 		return DesiredState{}, &Error{ReasonCode: "owner_custody_unavailable", Message: err.Error()}
 	}
-	return DesiredState{APIVersion: StateAPIVersion, OwnerRef: ownerRef, PlanHash: authority.PlanHash, ServiceContractHash: ServiceContractHash(), Services: map[string]DesiredService{}}, nil
+	return DesiredState{APIVersion: StateAPIVersion, OwnerRef: ownerRef, PlanHash: authority.PlanHash, ServiceContractHash: authority.ServiceContractHash, Services: map[string]DesiredService{}}, nil
 }
 
 func (c *Controller) loadStateIfExists(authority runtimeAuthority) (DesiredState, bool, error) {
@@ -392,7 +667,7 @@ func (c *Controller) loadStateIfExists(authority runtimeAuthority) (DesiredState
 	if state.PlanHash != authority.PlanHash {
 		return DesiredState{}, false, &Error{ReasonCode: ReasonPlanChanged, Message: "desired service state was invalidated by a plan change"}
 	}
-	if state.ServiceContractHash != ServiceContractHash() {
+	if state.ServiceContractHash != authority.ServiceContractHash {
 		return DesiredState{}, false, &Error{ReasonCode: ReasonContractChanged, Message: "desired service state was invalidated by a service-contract change"}
 	}
 	return state, true, nil
@@ -460,12 +735,13 @@ func writePrivateAtomic(workspace, relative string, payload []byte) error {
 	return root.VerifyPathIdentity()
 }
 
-func (c *Controller) observe(ctx context.Context, composePath string, components []string) (string, error) {
-	raw, err := c.runner.Run(ctx, composePath, append([]string{"ps", "--all", "--format", "json"}, components...))
+func (c *Controller) observe(ctx context.Context, target runtimeTarget, components []string) (string, error) {
+	args := append([]string{"ps", "--all", "--format", "json"}, components...)
+	output, err := c.runner.Run(ctx, runtimeCommand(target, args, components))
 	if err != nil {
 		return "unknown", &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "service observation failed: " + logging.RedactText(err.Error())}
 	}
-	lower := strings.ToLower(string(raw))
+	lower := strings.ToLower(string(output.Bytes))
 	if strings.Contains(lower, "running") || strings.Contains(lower, "up") {
 		return DesiredRunning, nil
 	}
@@ -537,53 +813,59 @@ func (ownerSigner) Verify(workspace string, payload []byte, signature localevide
 
 type osRunner struct{}
 
-func (osRunner) Run(ctx context.Context, composePath string, args []string) ([]byte, error) {
-	if ctx == nil || filepath.Base(composePath) != "compose.yaml" || len(args) == 0 || !allowedArgs(args) {
-		return nil, errors.New("service control rejected an unbounded command")
+func (osRunner) Run(ctx context.Context, request runtimeCommandRequest) (runtimeCommandOutput, error) {
+	if ctx == nil || !contractIDPattern.MatchString(request.RuntimeRef) || len(request.Args) == 0 || !allowedArgs(request.Args, request.ComponentRefs) {
+		return runtimeCommandOutput{}, errors.New("service control rejected an unbounded command")
 	}
-	prefix := []string{"compose", "--project-name", "stackkit-cloud-core", "-f", composePath}
-	command := exec.CommandContext(ctx, "docker", append(prefix, args...)...) //nolint:gosec // finite arguments validated above
-	command.Dir = filepath.Dir(composePath)
-	workspace := filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(composePath))))
+	if request.Adapter == "komodo" {
+		adapter := platformdeploy.NewKomodoAdapter(request.HTTPConfig)
+		ref := platformdeploy.DeploymentRef{Platform: "komodo", AppName: request.RuntimeRef, ExternalID: request.ExternalID}
+		if request.Args[0] == ActionLogs {
+			tail, _ := strconv.Atoi(request.Args[4])
+			output, err := adapter.ReadStackLogs(ctx, ref, request.ComponentRefs, tail)
+			return runtimeCommandOutput{Bytes: output}, err
+		}
+		result, err := adapter.ControlStack(ctx, ref, request.Args[0], request.ComponentRefs)
+		if err != nil {
+			return runtimeCommandOutput{}, err
+		}
+		return runtimeCommandOutput{ObservedState: result.ObservedState, OperationRef: result.UpdateID}, nil
+	}
+	if request.Adapter != "compose" || filepath.Base(request.ComposePath) != "compose.yaml" || filepath.Base(filepath.Dir(request.ComposePath)) != request.RuntimeRef {
+		return runtimeCommandOutput{}, errors.New("service control rejected an unbounded runtime adapter")
+	}
+	prefix := []string{"compose", "--project-name", "stackkit-" + request.RuntimeRef, "-f", request.ComposePath}
+	command := exec.CommandContext(ctx, "docker", append(prefix, request.Args...)...) //nolint:gosec // finite arguments validated above
+	command.Dir = filepath.Dir(request.ComposePath)
+	workspace := filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(request.ComposePath))))
 	command.Env = []string{"LANG=C", "LC_ALL=C", "STACKKIT_CUSTODY_DIR=" + filepath.Join(workspace, ".stackkit", "custody")}
 	output, err := command.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("docker compose: %s", logging.RedactText(string(output)))
+		return runtimeCommandOutput{}, fmt.Errorf("docker compose: %s", logging.RedactText(string(output)))
 	}
-	return output, nil
+	return runtimeCommandOutput{Bytes: output}, nil
 }
 
-func allowedArgs(args []string) bool {
+func allowedArgs(args, components []string) bool {
 	if slices.Equal(args[:1], []string{ActionStart}) {
-		return allowedComponents(args[1:])
+		return allowedComponents(args[1:], components)
 	}
 	if (args[0] == ActionStop || args[0] == ActionRestart) && len(args) >= 4 && slices.Equal(args[1:3], []string{"--timeout", "60"}) {
-		return allowedComponents(args[3:])
+		return allowedComponents(args[3:], components)
 	}
 	if args[0] == "ps" && len(args) >= 5 && slices.Equal(args[1:4], []string{"--all", "--format", "json"}) {
-		return allowedComponents(args[4:])
+		return allowedComponents(args[4:], components)
 	}
-	if args[0] == "logs" && len(args) >= 6 && slices.Equal(args[1:4], []string{"--no-color", "--timestamps", "--tail"}) {
+	if args[0] == ActionLogs && len(args) >= 6 && slices.Equal(args[1:4], []string{"--no-color", "--timestamps", "--tail"}) {
 		tail, err := strconv.Atoi(args[4])
-		return err == nil && tail >= 1 && tail <= 200 && allowedComponents(args[5:])
+		return err == nil && tail >= 1 && tail <= 200 && allowedComponents(args[5:], components)
 	}
 	return false
 }
 
-func allowedComponents(components []string) bool {
-	if len(components) == 0 {
+func allowedComponents(requested, declared []string) bool {
+	if len(requested) == 0 || len(declared) == 0 {
 		return false
 	}
-	allowed := map[string]bool{}
-	for _, definition := range serviceDefinitions {
-		for _, component := range definition.Components {
-			allowed[component] = true
-		}
-	}
-	for _, component := range components {
-		if !allowed[component] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(requested, declared)
 }

@@ -10,7 +10,6 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/servicecatalog"
-	"github.com/kombifyio/stackkits/internal/servicecontrol"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
@@ -121,19 +120,17 @@ func buildAccessSummaryFromInputs(spec *models.StackSpec, tfvars map[string]any,
 		routeSlug := routeSlugForEntry(entry, prefix)
 
 		svc := accessService{
-			Key:            entry.Key,
-			Name:           name,
-			DisplayName:    display,
-			ToolName:       entry.ToolName,
-			ModuleSlug:     entry.ModuleSlug,
-			RouteSlug:      routeSlug,
-			Section:        entry.Section,
-			Host:           host,
-			URL:            accessURLForEntry(entry, proto, host, tfvars),
-			Status:         string(models.ServiceStatusRunning),
-			LegacyAliases:  append([]string(nil), entry.LegacyAliases...),
-			DesiredState:   servicecontrol.DesiredRunning,
-			AllowedActions: servicecontrol.AllowedActions(entry.Key),
+			Key:           entry.Key,
+			Name:          name,
+			DisplayName:   display,
+			ToolName:      entry.ToolName,
+			ModuleSlug:    entry.ModuleSlug,
+			RouteSlug:     routeSlug,
+			Section:       entry.Section,
+			Host:          host,
+			URL:           accessURLForEntry(entry, proto, host, tfvars),
+			Status:        string(models.ServiceStatusRunning),
+			LegacyAliases: append([]string(nil), entry.LegacyAliases...),
 		}
 		summary.Services = append(summary.Services, svc)
 		if entry.Key == "base" {

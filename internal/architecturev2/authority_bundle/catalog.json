@@ -6385,6 +6385,7 @@
         "execution": "contract-handoff",
         "kind": "host"
       },
+      "serviceControls": [],
       "storageAllocationContract": {
         "allocationIdentity": "workload/component/volume",
         "apiVersion": "stackkit.storage-allocation/v1",
@@ -6481,6 +6482,7 @@
         "execution": "contract-handoff",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -6564,6 +6566,7 @@
         "execution": "contract-handoff",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -6632,6 +6635,7 @@
         "execution": "contract-handoff",
         "kind": "host"
       },
+      "serviceControls": [],
       "snapshotContract": {
         "apiVersion": "stackkit.snapshot/v1",
         "authority": "resolved-plan",
@@ -6750,6 +6754,7 @@
         "execution": "contract-handoff",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -6834,6 +6839,7 @@
         "execution": "contract-handoff",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -6974,6 +6980,7 @@
         "execution": "executable",
         "kind": "native"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -7093,6 +7100,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -7244,6 +7252,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -7389,6 +7398,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]
@@ -7537,6 +7547,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]
@@ -7682,6 +7693,7 @@
         "status": "unbound",
         "targetScope": "home-sites"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]
@@ -7826,6 +7838,7 @@
         "status": "unbound",
         "targetScope": "home-sites"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]
@@ -7956,6 +7969,7 @@
         "execution": "executable",
         "kind": "native"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]
@@ -8110,6 +8124,7 @@
         "execution": "executable",
         "kind": "native"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]
@@ -8267,6 +8282,7 @@
         "execution": "executable",
         "kind": "native"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]
@@ -8414,6 +8430,7 @@
         "execution": "executable",
         "kind": "native"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]
@@ -8559,6 +8576,7 @@
         "execution": "executable",
         "kind": "native"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]
@@ -8682,6 +8700,7 @@
         "execution": "contract-handoff",
         "kind": "native"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]
@@ -8892,6 +8911,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "cloud"
       ]
@@ -9040,6 +9060,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "cloud"
       ]
@@ -9185,6 +9206,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "cloud"
       ]
@@ -9330,6 +9352,7 @@
         "status": "unbound",
         "targetScope": "cloud-sites"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "cloud"
       ]
@@ -9471,6 +9494,7 @@
         "execution": "executable",
         "kind": "native"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "cloud"
       ]
@@ -9629,6 +9653,7 @@
         "execution": "executable",
         "kind": "native"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "cloud"
       ]
@@ -9816,6 +9841,7 @@
         "status": "unbound",
         "targetScope": "home-sites"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]
@@ -9994,6 +10020,7 @@
         },
         "kind": "container"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]
@@ -10587,6 +10614,74 @@
         },
         "kind": "container"
       },
+      "serviceControls": [
+        {
+          "adapter": "compose",
+          "allowedActions": [
+            "start",
+            "restart",
+            "logs"
+          ],
+          "componentRefs": [
+            "tinyauth"
+          ],
+          "critical": true,
+          "key": "auth",
+          "runtimeRef": "cloud-core",
+          "serviceRef": "auth"
+        },
+        {
+          "adapter": "compose",
+          "allowedActions": [
+            "start",
+            "stop",
+            "restart",
+            "logs"
+          ],
+          "componentRefs": [
+            "coolify",
+            "coolify-postgres",
+            "coolify-redis",
+            "coolify-realtime"
+          ],
+          "critical": false,
+          "key": "coolify",
+          "runtimeRef": "cloud-core",
+          "serviceRef": "coolify"
+        },
+        {
+          "adapter": "compose",
+          "allowedActions": [
+            "start",
+            "restart",
+            "logs"
+          ],
+          "componentRefs": [
+            "pocketid"
+          ],
+          "critical": true,
+          "key": "id",
+          "runtimeRef": "cloud-core",
+          "serviceRef": "id"
+        },
+        {
+          "adapter": "compose",
+          "allowedActions": [
+            "start",
+            "restart",
+            "logs"
+          ],
+          "componentRefs": [
+            "router",
+            "socket-proxy",
+            "hub"
+          ],
+          "critical": true,
+          "key": "base",
+          "runtimeRef": "cloud-core",
+          "serviceRef": "base"
+        }
+      ],
       "supportedSiteKinds": [
         "cloud"
       ]
@@ -11829,6 +11924,76 @@
         },
         "kind": "container"
       },
+      "serviceControls": [
+        {
+          "adapter": "compose",
+          "allowedActions": [
+            "start",
+            "restart",
+            "logs"
+          ],
+          "componentRefs": [
+            "tinyauth"
+          ],
+          "critical": true,
+          "key": "auth",
+          "runtimeRef": "cloud-core",
+          "serviceRef": "auth"
+        },
+        {
+          "adapter": "compose",
+          "allowedActions": [
+            "start",
+            "stop",
+            "restart",
+            "logs"
+          ],
+          "componentRefs": [
+            "coolify",
+            "coolify-postgres",
+            "coolify-redis",
+            "coolify-realtime"
+          ],
+          "critical": false,
+          "key": "coolify",
+          "runtimeRef": "cloud-core",
+          "serviceRef": "coolify"
+        },
+        {
+          "adapter": "compose",
+          "allowedActions": [
+            "start",
+            "restart",
+            "logs"
+          ],
+          "componentRefs": [
+            "pocketid"
+          ],
+          "critical": true,
+          "key": "id",
+          "runtimeRef": "cloud-core",
+          "serviceRef": "id"
+        },
+        {
+          "adapter": "compose",
+          "allowedActions": [
+            "start",
+            "restart",
+            "logs"
+          ],
+          "componentRefs": [
+            "router",
+            "socket-proxy",
+            "step-ca",
+            "kopia-agent",
+            "hub"
+          ],
+          "critical": true,
+          "key": "base",
+          "runtimeRef": "cloud-core",
+          "serviceRef": "basement-hub"
+        }
+      ],
       "supportedSiteKinds": [
         "home"
       ]
@@ -12289,6 +12454,7 @@
         },
         "kind": "container"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -12518,6 +12684,7 @@
         },
         "kind": "container"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -12760,6 +12927,7 @@
         },
         "kind": "container"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -12924,6 +13092,7 @@
           "container"
         ]
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -13088,6 +13257,7 @@
           "container"
         ]
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -13255,6 +13425,7 @@
           "container"
         ]
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -13422,6 +13593,7 @@
         "role": "node-agent",
         "targetScope": "control-authority-site-workers"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -13572,6 +13744,7 @@
         "execution": "executable",
         "kind": "native"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]
@@ -13720,6 +13893,7 @@
         "execution": "executable",
         "kind": "native"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "cloud"
       ]
@@ -13871,6 +14045,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -14021,6 +14196,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -14169,6 +14345,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -14317,6 +14494,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -14476,6 +14654,7 @@
         "execution": "executable",
         "kind": "native"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]
@@ -14633,6 +14812,7 @@
         "execution": "executable",
         "kind": "native"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "cloud"
       ]
@@ -14779,6 +14959,7 @@
         "execution": "executable",
         "kind": "native"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -14913,6 +15094,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]
@@ -15046,6 +15228,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home"
       ]
@@ -15179,6 +15362,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "cloud"
       ]
@@ -15312,6 +15496,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "cloud"
       ]
@@ -15445,6 +15630,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"
@@ -15579,6 +15765,7 @@
         "execution": "executable",
         "kind": "host"
       },
+      "serviceControls": [],
       "supportedSiteKinds": [
         "home",
         "cloud"

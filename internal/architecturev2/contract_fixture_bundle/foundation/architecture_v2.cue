@@ -210,6 +210,8 @@ import (
 	network:          #KitNetworkContract
 	availability:     #KitAvailabilityContractV2
 	authoring?:       #KitAuthoringContractV2
+	upgradePolicy:    #KitUpgradePolicy
+	redactionPolicy:  #KitRedactionPolicy
 
 	bridge: {
 		required: bool | *false
@@ -300,6 +302,44 @@ import (
 	_targetUnique:   list.UniqueItems(allowedTargets) & true
 	_defaultStrategyAllowed: [for strategy in allowedStrategies if strategy == defaultStrategy {strategy}] & list.MinItems(1)
 	_defaultTargetAllowed: [for target in allowedTargets if target == defaultTarget {target}] & list.MinItems(1)
+}
+
+// #KitUpgradePolicy declares only the lifecycle path that the current product
+// can actually govern. Preview means the bounded Owner-approved transaction,
+// snapshot, and rollback-anchor path exists, but no live-volume cutover is
+// claimed. Unsupported kits must not inherit Basement recovery semantics.
+#KitUpgradeSupport: "preview" | "unsupported"
+
+#KitUpgradePolicy: {
+	support:                    #KitUpgradeSupport
+	ownerApprovalRequired:      bool
+	snapshotRequired:           bool
+	rollbackAnchorRequired:     bool
+	liveVolumeCutoverAvailable: bool
+
+	if support == "preview" {
+		ownerApprovalRequired:      true
+		snapshotRequired:           true
+		rollbackAnchorRequired:     true
+		liveVolumeCutoverAvailable: false
+	}
+	if support == "unsupported" {
+		ownerApprovalRequired:      false
+		snapshotRequired:           false
+		rollbackAnchorRequired:     false
+		liveVolumeCutoverAvailable: false
+	}
+}
+
+// #KitRedactionPolicy is a declaration of the already-shared security
+// boundary, not a kit-specific redactor implementation. Opaque references stay
+// intact for resolution while values, logs, and exported evidence are safe.
+#KitRedactionPolicy: {
+	enforcement:      "required"
+	sensitiveValues:  "redacted"
+	opaqueReferences: "preserved"
+	logs:             "redacted-only"
+	exportedEvidence: "redacted-only"
 }
 
 #KitNetworkContract: {
@@ -1468,8 +1508,8 @@ import (
 	// identity; observation failures are repaired in place instead of duplicated.
 	runtimeAdapterFallbackRefs?: [...#ContractID]
 	_runtimeAdapterFallbackRefsUnique: list.UniqueItems(runtimeAdapterFallbackRefs) & true
-	placement: #WorkloadPlacementIntent | *{}
-	settings?: #PublicSettings
+	placement:                         #WorkloadPlacementIntent
+	settings?:                         #PublicSettings
 	secretRefs?: [string]: #SecretReference
 }
 
@@ -1575,7 +1615,7 @@ import (
 
 	enrolledDeviceRequired: bool | *false
 	ownerStepUpRequired:    bool | *false
-	lanStepDown?:           bool | *false
+	lanStepDown:            bool | *false
 	allowedSiteRefs?: [...#SiteID]
 	allowedMethods?: [...#HTTPMethod] & list.MinItems(1)
 	if allowedMethods != _|_ {
@@ -2879,6 +2919,27 @@ _servicePublicationShape: {
 	if health.kind == "command" {health: command: list.MinItems(1)}
 	if health.kind == "image" || health.kind == "completion" {
 		health: {path?: _|_, port?: _|_, command?: _|_}
+	}
+}
+
+#ServiceControlActionV1: "start" | "stop" | "restart" | "logs"
+
+// #ModuleServiceControlV1 groups one owner-visible service over exact runtime
+// components and one bounded adapter. It carries no provider, credential, or
+// host-lifecycle authority.
+#ModuleServiceControlV1: {
+	key:        #ContractID
+	serviceRef: #ContractID
+	adapter:    "compose" | "komodo"
+	runtimeRef: #ContractID
+	componentRefs: [...#ContractID] & list.MinItems(1)
+	allowedActions: [...#ServiceControlActionV1] & list.MinItems(1)
+	critical: bool | *false
+
+	_componentRefsUnique:  list.UniqueItems(componentRefs) & true
+	_allowedActionsUnique: list.UniqueItems(allowedActions) & true
+	if critical == true {
+		_stopDenied: [for action in allowedActions if action == "stop" {action}] & list.MaxItems(0)
 	}
 }
 
@@ -4864,6 +4925,7 @@ _servicePublicationShape: {
 	restoreContract?:           #RestoreModuleContractV1
 	recoveryContract?:          #RecoveryModuleContractV1
 	runtime:                    #ModuleRuntimeContractV2
+	serviceControls: [...#ModuleServiceControlV1] | *[]
 	// inputDefaults is resolved once per module and then fanned out unchanged to
 	// every render unit declaring the public input. Per-unit defaults are
 	// intentionally forbidden so one logical input cannot resolve differently
@@ -4916,6 +4978,35 @@ _servicePublicationShape: {
 	if recoveryContract != _|_ {planOnly: true}
 
 	_renderUnitIDsUnique: list.UniqueItems([for unit in renderUnits {unit.id}]) & true
+	_serviceControlKeysUnique: list.UniqueItems([for control in serviceControls {control.key}]) & true
+	_serviceControlRefsUnique: list.UniqueItems([for control in serviceControls {control.serviceRef}]) & true
+	_serviceControlComponentsUnique: list.UniqueItems([
+		for control in serviceControls
+		for componentRef in control.componentRefs {componentRef},
+	]) & true
+	_serviceControlServicesDeclared: [for control in serviceControls {
+		service: control.serviceRef
+		matches: [
+			for unit in renderUnits
+			for endpoint in unit.serviceEndpoints
+			if endpoint.serviceRef == control.serviceRef {endpoint.serviceRef},
+		] & list.MinItems(1)
+	}]
+	if len(serviceControls) > 0 {
+		runtime: {
+			execution: "executable"
+			components: [...#ModuleRuntimeComponentV2] & list.MinItems(1)
+		}
+		_serviceControlComponentsDeclared: [for control in serviceControls for componentRef in control.componentRefs {
+			service:   control.serviceRef
+			component: componentRef
+			matches: [for component in runtime.components if component.id == componentRef {component.id}] & list.MinItems(1) & list.MaxItems(1)
+		}]
+	}
+	_composeServiceControlsUseDocker: [for control in serviceControls if control.adapter == "compose" {
+		service: control.serviceRef
+		engine:  runtime.engine & "docker"
+	}]
 	_renderVariantIDsUnique: list.UniqueItems([for variant in renderVariants {variant.id}]) & true
 	_renderVariantTargetsUnique: list.UniqueItems([for variant in renderVariants {variant.target}]) & true
 	_renderVariantUnitsGoverned: [for variant in renderVariants for unitRef in variant.unitRefs {
@@ -6400,6 +6491,7 @@ _servicePublicationShape: {
 	restoreContract?:           #RestoreModuleContractV1
 	recoveryContract?:          #RecoveryModuleContractV1
 	runtime:                    #ModuleRuntimeContractV2
+	serviceControls: [...#ModuleServiceControlV1] | *[]
 	// renderTarget records the exact target used to select this module's
 	// render-unit and artifact projection.
 	renderTarget:   #GenerationTarget
@@ -6429,6 +6521,35 @@ _servicePublicationShape: {
 	if restoreContract != _|_ {planOnly: true}
 	if recoveryContract != _|_ {planOnly: true}
 	_providesUnique: list.UniqueItems(provides) & true
+	_serviceControlKeysUnique: list.UniqueItems([for control in serviceControls {control.key}]) & true
+	_serviceControlRefsUnique: list.UniqueItems([for control in serviceControls {control.serviceRef}]) & true
+	_serviceControlComponentsUnique: list.UniqueItems([
+		for control in serviceControls
+		for componentRef in control.componentRefs {componentRef},
+	]) & true
+	_serviceControlServicesDeclared: [for control in serviceControls {
+		service: control.serviceRef
+		matches: [
+			for unit in renderUnits
+			for endpoint in unit.serviceEndpoints
+			if endpoint.serviceRef == control.serviceRef {endpoint.serviceRef},
+		] & list.MinItems(1)
+	}]
+	if len(serviceControls) > 0 {
+		runtime: {
+			execution: "executable"
+			components: [...#ModuleRuntimeComponentV2] & list.MinItems(1)
+		}
+		_serviceControlComponentsDeclared: [for control in serviceControls for componentRef in control.componentRefs {
+			service:   control.serviceRef
+			component: componentRef
+			matches: [for component in runtime.components if component.id == componentRef {component.id}] & list.MinItems(1) & list.MaxItems(1)
+		}]
+	}
+	_composeServiceControlsUseDocker: [for control in serviceControls if control.adapter == "compose" {
+		service: control.serviceRef
+		engine:  runtime.engine & "docker"
+	}]
 	if len(provides) == 0 && role != "workload" {
 		realizationSupport: {
 			scope: "concrete"

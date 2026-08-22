@@ -176,36 +176,6 @@ func architectureV2CanonicalDomain(canonicalStackSpec []byte) (string, error) {
 	return domain, nil
 }
 
-func materializeArchitectureV2LocalSecrets(workspaceRoot string, canonicalStackSpec []byte) (int, error) {
-	var spec struct {
-		Workloads map[string]struct {
-			SecretRefs map[string]string `json:"secretRefs"`
-		} `json:"workloads"`
-	}
-	if err := json.Unmarshal(canonicalStackSpec, &spec); err != nil {
-		return 0, fmt.Errorf("decode canonical StackSpec secret authority: %w", err)
-	}
-	refs := map[string]struct{}{}
-	for _, workload := range spec.Workloads {
-		for _, ref := range workload.SecretRefs {
-			if strings.HasPrefix(strings.TrimSpace(ref), "secret://") {
-				refs[strings.TrimSpace(ref)] = struct{}{}
-			}
-		}
-	}
-	ordered := make([]string, 0, len(refs))
-	for ref := range refs {
-		ordered = append(ordered, ref)
-	}
-	sort.Strings(ordered)
-	for _, ref := range ordered {
-		if err := localevidence.MaterializeLocalSecret(workspaceRoot, ref); err != nil {
-			return 0, err
-		}
-	}
-	return len(ordered), nil
-}
-
 func validateArchitectureV2InitFlags(cmd *cobra.Command) error {
 	unsupported := make([]string, 0, 12)
 	add := func(flag string, used bool) {

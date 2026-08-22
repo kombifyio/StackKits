@@ -257,25 +257,21 @@ func buildPlan(input plannerInput) testPlan {
 		goSelection.Reverse = sortedUnique(goSelection.Reverse)
 	}
 	focusedTests := focusedGoTests(files, input.ChangedTests)
-	// The Architecture v2 CUE files are contracts that only become observable
-	// once the compiler turns them into a resolved plan. `cue vet` proves the
-	// CUE is internally consistent and says nothing about the plan it produces,
-	// so a change here must run the packages that compile and render it.
-	//
-	// This is not hypothetical: #486, #561, #562 and #570 each changed module
-	// placement, evidence, or execution kind in these files, and seven
-	// plan-shape assertions in internal/architecturev2 went red and stayed red
-	// because nothing selected that package. A narrower rule that named only
-	// architecture_v2_catalog.cue, and only one focused test inside it, was
-	// what let them through.
+	// Architecture v2 CUE changes must reach the compiler and renderer. When the
+	// same slice adds or changes an explicit public-boundary test, keep that
+	// focused boundary plus bundle-drift proof; running every historical package
+	// test instead exceeded the bounded pre-1.0 process guard. A CUE-only slice
+	// retains the existing full-package selection until it names its boundary.
 	if anyPathUnder(files, architectureAuthoritySources...) {
 		for _, pkg := range []string{"internal/architecturev2", "internal/architecturev2renderer"} {
 			pattern := "./" + pkg
 			goSelection.Changed = sortedUnique(append(goSelection.Changed, pattern))
 			goSelection.CompileOnly = withoutString(goSelection.CompileOnly, pattern)
 			goSelection.Reverse = withoutString(goSelection.Reverse, pattern)
-			// Editing a test in the same commit must not narrow the run back to
-			// that test: the CUE change's blast radius is the whole package.
+			if pkg == "internal/architecturev2" && len(focusedTests[pkg]) > 0 {
+				focusedTests[pkg] = sortedUnique(append(focusedTests[pkg], authorityBundleDriftTest))
+				continue
+			}
 			delete(focusedTests, pkg)
 		}
 	}
@@ -571,7 +567,7 @@ func affectedGoSelectionFor(files []string, packages []goPackage, maxReverse int
 		if _, seen := generatedOnlyPatterns[pattern]; !seen {
 			generatedOnlyPatterns[pattern] = true
 		}
-		if embeddedReleaseTrustPolicy || strings.HasSuffix(file, "_test.go") || !strings.HasSuffix(file, "_generated.go") {
+		if embeddedReleaseTrustPolicy || strings.HasSuffix(file, "_test.go") || !isGeneratedGoProjection(file) {
 			generatedOnlyPatterns[pattern] = false
 		}
 		if pkg, ok := dirToPackage[dir]; ok {
@@ -610,6 +606,10 @@ func affectedGoSelectionFor(files []string, packages []goPackage, maxReverse int
 		}
 	}
 	return affectedGoSelection{Changed: sortedKeys(changedPatterns), CompileOnly: sortedKeys(compileOnlyPatterns), Reverse: sortedKeys(reversePatterns)}
+}
+
+func isGeneratedGoProjection(file string) bool {
+	return strings.HasSuffix(file, "_gen.go") || strings.HasSuffix(file, "_generated.go")
 }
 
 func affectedGoPatterns(files []string, packages []goPackage, maxReverse int) []string {

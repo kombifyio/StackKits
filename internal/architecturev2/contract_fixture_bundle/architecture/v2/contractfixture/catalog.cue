@@ -70,6 +70,13 @@ ContractFixtureDefinition: foundation.#KitDefinition & {
 	}
 	partitionPolicy: basement.Definition.partitionPolicy
 	generation:      basement.Definition.generation
+	upgradePolicy: {
+		support:                    "unsupported"
+		ownerApprovalRequired:      false
+		snapshotRequired:           false
+		rollbackAnchorRequired:     false
+		liveVolumeCutoverAvailable: false
+	}
 	network: {
 		mode:           basement.Definition.network.mode
 		domainRequired: basement.Definition.network.domainRequired

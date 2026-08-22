@@ -1489,7 +1489,18 @@ execution process receives
 `stackkit.standard-workload-removal-result/v1`; success requires selected
 runtime-owner readback of `absent` bound to the exact requirement, instance,
 and applied artifact digest. The content-addressed request/result pair is local
-Owner evidence. Legacy `--purge`/`--force`, raw provider deletion, unselected
+Owner evidence. An opt-in `stackkit.workload-removal-evidence/v1` projection
+can cross a pinned execution channel without exporting applied artifact
+content; it is persisted content-addressed beside the local request/result pair,
+and its StackKits-owned parser checks the internal equality of workload, Site,
+node, channel, runtime owner, artifact, authorization window, and terminal
+result. Its digest provides canonical integrity, not independent authenticity
+or a new Owner identity: consumers must authenticate the pinned StackKits
+producer channel, compare expected custody identity, and may authenticate the
+original authorization bytes only against an Owner key already established by
+separate custody.
+
+Legacy `--purge`/`--force`, raw provider deletion, unselected
 targets, and generic command execution cannot enter this path.
 
 The native v0.8 backup path reuses that local authority rather than creating a

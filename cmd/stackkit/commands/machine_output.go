@@ -17,7 +17,7 @@ func commandRequestsMachineOutput(cmd *cobra.Command) bool {
 		return false
 	}
 	for current := cmd; current != nil; current = current.Parent() {
-		for _, name := range []string{"json", "jsonl"} {
+		for _, name := range []string{"json", "jsonl", "terminal-evidence-json"} {
 			flag := current.Flags().Lookup(name)
 			if flag == nil {
 				flag = current.PersistentFlags().Lookup(name)
@@ -31,7 +31,7 @@ func commandRequestsMachineOutput(cmd *cobra.Command) bool {
 }
 
 func humanOutputSuppressed() bool {
-	return machineOutputCommandActive || applyJSON || statusJSON || verifyJSON || logsJSON || logsJSONL
+	return machineOutputCommandActive || applyJSON || statusJSON || verifyJSON || logsJSON || logsJSONL || removeTerminalEvidenceJSON
 }
 
 func machineCommandFailureStatus(err error) string {

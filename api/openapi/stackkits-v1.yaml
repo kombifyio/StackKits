@@ -3076,6 +3076,7 @@ components:
         - runtime
         - renderTarget
         - renderUnits
+        - serviceControls
         - realizationSupport
       properties:
         id:
@@ -3133,6 +3134,13 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ArchitectureV2ResolvedModuleRenderUnit"
+        serviceControls:
+          type: array
+          uniqueItems: true
+          description: >-
+            Catalog-owned local service-control authority. Consumers may expose only these actions and must dispatch through the declared adapter and runtime identity.
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ModuleServiceControl"
         realizationSupport:
           $ref: "#/components/schemas/ArchitectureV2ModuleRealizationSupport"
         healthGateRefs:
@@ -5903,6 +5911,45 @@ components:
         denyNewCrossSiteSessions:
           type: boolean
           const: true
+    ArchitectureV2ModuleServiceControl:
+      type: object
+      additionalProperties: false
+      required: [key, serviceRef, adapter, runtimeRef, componentRefs, allowedActions, critical]
+      properties:
+        key:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        serviceRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        adapter:
+          type: string
+          enum: [compose, komodo]
+        runtimeRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+          description: Compose runtime directory key or exact managed Komodo deployment name in owner-custodied state.
+        componentRefs:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        allowedActions:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [start, stop, restart, logs]
+        critical:
+          type: boolean
+      allOf:
+        - if:
+            properties: {critical: {const: true}}
+            required: [critical]
+          then:
+            properties:
+              allowedActions:
+                not:
+                  contains: {const: stop}
     ArchitectureV2ModuleServiceEndpoint:
       type: object
       additionalProperties: false

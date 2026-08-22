@@ -24,6 +24,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorprocess"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/kombifyio/stackkits/internal/runtimeobservation"
+	"github.com/kombifyio/stackkits/internal/servicecontrol"
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/kombifyio/stackkits/internal/workloadremoval"
@@ -52,32 +53,34 @@ const (
 )
 
 type architectureV2ExecutionCLIOptions struct {
-	inventoryPath    string
-	planPath         string
-	manifestPath     string
-	stackSpecData    []byte
-	inventoryData    []byte
-	receiptPath      string
-	expectedPlanHash string
-	localSiteRef     string
-	localNodeRef     string
-	localChannelRef  string
-	outputRoot       string
-	fragments        bool
-	force            bool
-	context          context.Context
-	planOut          string
-	planDestroy      bool
-	inspectionSink   func(generationartifact.PlanInspection) error
-	verifiedPlanSink func(generationartifact.VerifiedPlan) error
-	applySink        func(architectureV2ApplyCommandResult) error
-	verifySink       func(architectureV2VerifyReport) error
-	verifyOffline    bool
-	driftObservation bool
-	legacyPlanFile   string
-	workloadRef      string
-	removalJSON      bool
-	removalSink      func(workloadremoval.Result) error
+	inventoryPath       string
+	planPath            string
+	manifestPath        string
+	stackSpecData       []byte
+	inventoryData       []byte
+	receiptPath         string
+	expectedPlanHash    string
+	localSiteRef        string
+	localNodeRef        string
+	localChannelRef     string
+	outputRoot          string
+	fragments           bool
+	force               bool
+	context             context.Context
+	planOut             string
+	planDestroy         bool
+	inspectionSink      func(generationartifact.PlanInspection) error
+	verifiedPlanSink    func(generationartifact.VerifiedPlan) error
+	applySink           func(architectureV2ApplyCommandResult) error
+	verifySink          func(architectureV2VerifyReport) error
+	verifyOffline       bool
+	driftObservation    bool
+	legacyPlanFile      string
+	workloadRef         string
+	removalJSON         bool
+	removalSink         func(workloadremoval.Result) error
+	removalEvidenceJSON bool
+	removalEvidenceSink func(workloadremoval.Evidence) error
 }
 
 type architectureV2ExecutionAuthority interface {
@@ -887,6 +890,21 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 			persistedResult.ResultPath, now().UTC(), err,
 		)
 	}
+	defaultServicePlanPath, _, _ := persisted.MetadataPaths(wd)
+	servicePlanPath := architectureV2MetadataPath(wd, options.planPath, defaultServicePlanPath)
+	serviceController, err := servicecontrol.NewOSController(wd, servicePlanPath, persisted)
+	if err != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(
+			wd, lifecycleRuns, "Product Apply completed but service desired-state authority was unavailable",
+			persistedResult.ResultPath, now().UTC(), err,
+		)
+	}
+	if err := serviceController.ReconcileAfterApply(executionContext); err != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(
+			wd, lifecycleRuns, "Product Apply completed but durable service desired state could not be reconciled",
+			persistedResult.ResultPath, now().UTC(), err,
+		)
+	}
 	ownerCustody, err := localevidence.LoadOwnerCustody(wd)
 	if err != nil {
 		return requireArchitectureV2ApplicationLifecycleRecovery(
@@ -1098,7 +1116,15 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 			wd, lifecycleRuns, "workload removal failed before owner evidence was persisted", now().UTC(), err,
 		)
 	}
-	requestPath, resultPath, err := persistArchitectureV2Removal(transaction, request, result)
+	evidence, err := workloadremoval.NewEvidence(request, result)
+	if err != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(
+			wd, lifecycleRuns,
+			"workload removal completed but its terminal evidence was invalid",
+			"urn:stackkit:removal-result:"+result.ResultDigest, now().UTC(), err,
+		)
+	}
+	requestPath, resultPath, evidencePath, err := persistArchitectureV2Removal(transaction, request, result, evidence)
 	if err != nil {
 		return requireArchitectureV2ApplicationLifecycleRecovery(
 			wd, lifecycleRuns,
@@ -1116,8 +1142,17 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 	); err != nil {
 		return err
 	}
-	if options.removalSink != nil {
+	if options.removalEvidenceSink != nil {
+		if err := options.removalEvidenceSink(evidence); err != nil {
+			return err
+		}
+	} else if options.removalSink != nil {
 		if err := options.removalSink(result); err != nil {
+			return err
+		}
+	} else if options.removalEvidenceJSON {
+		canonical, _ := evidence.Canonical()
+		if _, err := os.Stdout.Write(canonical); err != nil {
 			return err
 		}
 	} else if options.removalJSON {
@@ -1128,7 +1163,8 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 	}
 	rolloutEvent("architecture_v2.remove", "succeeded", "native Architecture v2 workload removal result persisted", map[string]string{
 		"workload_ref": workloadRef, "request_path": requestPath, "result_path": resultPath,
-		"result_hash": result.ResultDigest,
+		"evidence_path": evidencePath,
+		"result_hash":   result.ResultDigest,
 	})
 	return nil
 }
@@ -1151,29 +1187,35 @@ func persistArchitectureV2Removal(
 	transaction *confinedfs.Transaction,
 	request workloadremoval.Request,
 	result workloadremoval.Result,
-) (string, string, error) {
+	evidence workloadremoval.Evidence,
+) (string, string, string, error) {
 	requestCanonical, err := request.Canonical()
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	resultCanonical, err := result.Canonical()
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
+	}
+	evidenceCanonical, err := evidence.Canonical()
+	if err != nil {
+		return "", "", "", err
 	}
 	requestPath := filepath.Join(".stackkit", "evidence", "removal", "requests", strings.TrimPrefix(request.RequestDigest, "sha256:")+".json")
 	resultPath := filepath.Join(".stackkit", "evidence", "removal", "results", strings.TrimPrefix(result.ResultDigest, "sha256:")+".json")
-	for path, data := range map[string][]byte{requestPath: requestCanonical, resultPath: resultCanonical} {
+	evidencePath := filepath.Join(".stackkit", "evidence", "removal", "terminal", strings.TrimPrefix(evidence.EvidenceDigest, "sha256:")+".json")
+	for path, data := range map[string][]byte{requestPath: requestCanonical, resultPath: resultCanonical, evidencePath: evidenceCanonical} {
 		if err := transaction.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-			return "", "", fmt.Errorf("create workload-removal evidence directory: %w", err)
+			return "", "", "", fmt.Errorf("create workload-removal evidence directory: %w", err)
 		}
 		if err := transaction.WriteFileExclusive(path, data, 0o600); err != nil {
 			existing, info, readErr := transaction.ReadStable(path)
 			if readErr != nil || !info.Mode().IsRegular() || !bytes.Equal(existing, data) {
-				return "", "", fmt.Errorf("persist content-addressed workload-removal evidence: %w", err)
+				return "", "", "", fmt.Errorf("persist content-addressed workload-removal evidence: %w", err)
 			}
 		}
 	}
-	return filepath.ToSlash(requestPath), filepath.ToSlash(resultPath), nil
+	return filepath.ToSlash(requestPath), filepath.ToSlash(resultPath), filepath.ToSlash(evidencePath), nil
 }
 
 func executeArchitectureV2ProductApply(
