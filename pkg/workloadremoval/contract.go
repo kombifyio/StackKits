@@ -52,13 +52,14 @@ type AuthorizationPayload struct {
 // Apply. It cannot select a provider, host, artifact, or execution channel that
 // was absent from that applied authority.
 type Request struct {
-	APIVersion    string                           `json:"apiVersion"`
-	Applied       runtimeexecutor.ExecutionRequest `json:"applied"`
-	WorkloadRef   string                           `json:"workloadRef"`
-	RequestedAt   string                           `json:"requestedAt"`
-	ValidUntil    string                           `json:"validUntil"`
-	Authorization OwnerAuthorization               `json:"authorization"`
-	RequestDigest string                           `json:"requestDigest"`
+	APIVersion           string                           `json:"apiVersion"`
+	AppliedRequestDigest string                           `json:"appliedRequestDigest"`
+	Applied              runtimeexecutor.ExecutionRequest `json:"applied"`
+	WorkloadRef          string                           `json:"workloadRef"`
+	RequestedAt          string                           `json:"requestedAt"`
+	ValidUntil           string                           `json:"validUntil"`
+	Authorization        OwnerAuthorization               `json:"authorization"`
+	RequestDigest        string                           `json:"requestDigest"`
 }
 
 type Outcome struct {
@@ -237,7 +238,7 @@ func containsString(values []string, candidate string) bool {
 }
 
 func AuthorizationBytes(applied runtimeexecutor.ExecutionRequest, workloadRef string, requestedAt, validUntil time.Time) ([]byte, error) {
-	payload, err := authorizationPayload(applied, workloadRef, requestedAt, validUntil)
+	payload, err := authorizationPayload(applied, applied.RequestDigest, workloadRef, requestedAt, validUntil)
 	if err != nil {
 		return nil, err
 	}
@@ -245,12 +246,40 @@ func AuthorizationBytes(applied runtimeexecutor.ExecutionRequest, workloadRef st
 }
 
 func SealRequest(applied runtimeexecutor.ExecutionRequest, workloadRef string, requestedAt, validUntil time.Time, authorization OwnerAuthorization) (Request, error) {
-	payload, err := authorizationPayload(applied, workloadRef, requestedAt, validUntil)
+	return sealRequest(applied, applied.RequestDigest, workloadRef, requestedAt, validUntil, authorization)
+}
+
+// AuthorizationBytesForPlacement binds Owner approval to the original shared
+// Apply receipt while authorizing only one exact verified placement below it.
+func AuthorizationBytesForPlacement(applied runtimeexecutor.ExecutionRequest, placement AppliedPlacement, requestedAt, validUntil time.Time) ([]byte, error) {
+	selected, err := SelectAppliedWorkloadPlacement(applied, placement)
+	if err != nil {
+		return nil, err
+	}
+	payload, err := authorizationPayload(selected, applied.RequestDigest, placement.WorkloadRef, requestedAt, validUntil)
+	if err != nil {
+		return nil, err
+	}
+	return resolvedplan.CanonicalJSON(payload)
+}
+
+// SealRequestForPlacement preserves the original shared Apply digest as
+// lineage while sealing the exact narrowed child request used for removal.
+func SealRequestForPlacement(applied runtimeexecutor.ExecutionRequest, placement AppliedPlacement, requestedAt, validUntil time.Time, authorization OwnerAuthorization) (Request, error) {
+	selected, err := SelectAppliedWorkloadPlacement(applied, placement)
+	if err != nil {
+		return Request{}, err
+	}
+	return sealRequest(selected, applied.RequestDigest, placement.WorkloadRef, requestedAt, validUntil, authorization)
+}
+
+func sealRequest(applied runtimeexecutor.ExecutionRequest, appliedRequestDigest, workloadRef string, requestedAt, validUntil time.Time, authorization OwnerAuthorization) (Request, error) {
+	payload, err := authorizationPayload(applied, appliedRequestDigest, workloadRef, requestedAt, validUntil)
 	if err != nil {
 		return Request{}, err
 	}
 	request := Request{
-		APIVersion: APIVersion, Applied: runtimeexecutor.CloneExecutionRequest(applied),
+		APIVersion: APIVersion, AppliedRequestDigest: appliedRequestDigest, Applied: runtimeexecutor.CloneExecutionRequest(applied),
 		WorkloadRef: workloadRef, RequestedAt: payload.RequestedAt, ValidUntil: payload.ValidUntil,
 		Authorization: authorization,
 	}
@@ -266,7 +295,7 @@ func SealRequest(applied runtimeexecutor.ExecutionRequest, workloadRef string, r
 }
 
 func (request Request) ValidateAt(now time.Time) error {
-	if request.APIVersion != APIVersion || !validDigest(request.RequestDigest) {
+	if request.APIVersion != APIVersion || !validDigest(request.AppliedRequestDigest) || !validDigest(request.RequestDigest) {
 		return errors.New("workload removal request identity is invalid")
 	}
 	if err := request.Applied.Validate(); err != nil {
@@ -392,7 +421,7 @@ func NewEvidence(request Request, result Result) (Evidence, error) {
 	evidence := Evidence{
 		APIVersion: EvidenceAPIVersion,
 		Authority: EvidenceAuthority{
-			AppliedRequestDigest: request.Applied.RequestDigest, PlanHash: request.Applied.PlanHash,
+			AppliedRequestDigest: request.AppliedRequestDigest, PlanHash: request.Applied.PlanHash,
 			WorkloadRef: request.WorkloadRef, RequirementID: target.RequirementID,
 			InstanceRef: target.InstanceRef, RuntimeOwnerRef: runtimeOwnerRef(target),
 			ArtifactDigest: appliedArtifactDigest(request.Applied, target), SiteRef: target.SiteRefs[0],
@@ -524,11 +553,11 @@ func validateResult(result Result, authority EvidenceAuthority) error {
 	return nil
 }
 
-func authorizationPayload(applied runtimeexecutor.ExecutionRequest, workloadRef string, requestedAt, validUntil time.Time) (AuthorizationPayload, error) {
+func authorizationPayload(applied runtimeexecutor.ExecutionRequest, appliedRequestDigest, workloadRef string, requestedAt, validUntil time.Time) (AuthorizationPayload, error) {
 	if err := applied.Validate(); err != nil {
 		return AuthorizationPayload{}, fmt.Errorf("validate selected applied workload: %w", err)
 	}
-	if len(applied.RuntimeTargets) != 1 || applied.RuntimeTargets[0].WorkloadRef != workloadRef {
+	if !validDigest(appliedRequestDigest) || len(applied.RuntimeTargets) != 1 || applied.RuntimeTargets[0].WorkloadRef != workloadRef {
 		return AuthorizationPayload{}, errors.New("Owner authorization must bind exactly one selected workload")
 	}
 	if requestedAt.IsZero() || validUntil.IsZero() || requestedAt.Location() != time.UTC || validUntil.Location() != time.UTC ||
@@ -537,7 +566,7 @@ func authorizationPayload(applied runtimeexecutor.ExecutionRequest, workloadRef 
 	}
 	target := applied.RuntimeTargets[0]
 	return AuthorizationPayload{
-		APIVersion: APIVersion, AppliedRequestDigest: applied.RequestDigest, PlanHash: applied.PlanHash,
+		APIVersion: APIVersion, AppliedRequestDigest: appliedRequestDigest, PlanHash: applied.PlanHash,
 		WorkloadRef: workloadRef, RequirementID: target.RequirementID, InstanceRef: target.InstanceRef,
 		RequestedAt: requestedAt.Format(time.RFC3339Nano), ValidUntil: validUntil.Format(time.RFC3339Nano),
 	}, nil

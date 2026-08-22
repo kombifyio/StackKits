@@ -39,8 +39,16 @@ func AuthorizationBytes(applied runtimeexecutor.ExecutionRequest, workloadRef st
 	return public.AuthorizationBytes(applied, workloadRef, requestedAt, validUntil)
 }
 
+func AuthorizationBytesForPlacement(applied runtimeexecutor.ExecutionRequest, placement AppliedPlacement, requestedAt, validUntil time.Time) ([]byte, error) {
+	return public.AuthorizationBytesForPlacement(applied, placement, requestedAt, validUntil)
+}
+
 func SealRequest(applied runtimeexecutor.ExecutionRequest, workloadRef string, requestedAt, validUntil time.Time, authorization OwnerAuthorization) (Request, error) {
 	return public.SealRequest(applied, workloadRef, requestedAt, validUntil, authorization)
+}
+
+func SealRequestForPlacement(applied runtimeexecutor.ExecutionRequest, placement AppliedPlacement, requestedAt, validUntil time.Time, authorization OwnerAuthorization) (Request, error) {
+	return public.SealRequestForPlacement(applied, placement, requestedAt, validUntil, authorization)
 }
 
 func NewResult(request Request, removedAt time.Time, outcome Outcome) (Result, error) {

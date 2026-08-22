@@ -1084,7 +1084,7 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 	}
 	requestedAt := now().UTC()
 	validUntil := requestedAt.Add(5 * time.Minute)
-	authorizationBytes, err := workloadremoval.AuthorizationBytes(selected, workloadRef, requestedAt, validUntil)
+	authorizationBytes, err := workloadremoval.AuthorizationBytesForPlacement(rootRequest, placement, requestedAt, validUntil)
 	if err != nil {
 		return err
 	}
@@ -1095,8 +1095,8 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 	if err := localevidence.VerifyOwnerLifecycleMutation(wd, authorizationBytes, signature); err != nil {
 		return fmt.Errorf("verify workload-removal Owner authorization: %w", err)
 	}
-	request, err := workloadremoval.SealRequest(
-		selected, workloadRef, requestedAt, validUntil,
+	request, err := workloadremoval.SealRequestForPlacement(
+		rootRequest, placement, requestedAt, validUntil,
 		workloadremoval.OwnerAuthorization{
 			OwnerRef: signature.OwnerRef, KeyID: signature.KeyID, Value: signature.Value,
 		},

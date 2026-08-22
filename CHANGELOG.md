@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.21.13](https://github.com/kombifyio/stackKits/compare/v0.21.12...v0.21.13) (2026-08-22)
+
+### Fixed
+
+* **runtime:** preserve the original shared Apply-request digest when narrowing Owner-approved removal to one exact multi-server placement, so every node-local absence receipt remains correlated to the same verified Apply result.
+
 ## [0.21.12](https://github.com/kombifyio/stackKits/compare/v0.21.11...v0.21.12) (2026-08-22)
 
 ### Added
