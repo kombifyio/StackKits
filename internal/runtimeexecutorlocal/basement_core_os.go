@@ -410,6 +410,17 @@ type basementCoreComposePS struct {
 }
 
 func parseBasementCoreComposeStatus(raw []byte, expected []BasementCoreServiceExpectation) ([]BasementCoreServiceObservation, error) {
+	result, pending, err := inspectBasementCoreComposeStatus(raw, expected)
+	if err != nil {
+		return nil, err
+	}
+	if len(pending) != 0 {
+		return nil, errors.New("Docker Compose status does not prove every pinned Basement core service")
+	}
+	return result, nil
+}
+
+func inspectBasementCoreComposeStatus(raw []byte, expected []BasementCoreServiceExpectation) ([]BasementCoreServiceObservation, []string, error) {
 	var rows []basementCoreComposePS
 	if err := json.Unmarshal(raw, &rows); err != nil {
 		decoder := json.NewDecoder(bytes.NewReader(raw))
@@ -418,27 +429,31 @@ func parseBasementCoreComposeStatus(raw []byte, expected []BasementCoreServiceEx
 			if err := decoder.Decode(&row); errors.Is(err, io.EOF) {
 				break
 			} else if err != nil {
-				return nil, errors.New("Docker Compose status is not bounded JSON")
+				return nil, nil, errors.New("Docker Compose status is not bounded JSON")
 			}
 			rows = append(rows, row)
 		}
 	}
 	if len(rows) != len(expected) {
-		return nil, errors.New("Docker Compose status does not contain the exact Basement core service set")
+		return nil, nil, errors.New("Docker Compose status does not contain the exact Basement core service set")
 	}
 	expectedByRef := make(map[string]BasementCoreServiceExpectation, len(expected))
 	for _, service := range expected {
 		expectedByRef[service.Ref] = service
 	}
 	result := make([]BasementCoreServiceObservation, 0, len(rows))
+	pending := make([]string, 0, len(rows))
 	for _, row := range rows {
 		want, ok := expectedByRef[row.Service]
 		wantImage := want.ImageRef + "@" + want.ImageDigest
 		health := strings.ToLower(strings.TrimSpace(row.Health))
-		if !ok || row.Image != wantImage || strings.ToLower(row.State) != "running" ||
-			(want.HealthRequired && health != "healthy") ||
-			(!want.HealthRequired && health != "") {
-			return nil, errors.New("Docker Compose status does not prove every pinned Basement core service")
+		if !ok || row.Image != wantImage {
+			return nil, nil, errors.New("Docker Compose status differs from the pinned Basement core service set")
+		}
+		delete(expectedByRef, row.Service)
+		if strings.ToLower(row.State) != "running" || (want.HealthRequired && health != "healthy") || (!want.HealthRequired && health != "") {
+			pending = append(pending, "service:"+want.Ref)
+			continue
 		}
 		observedHealth := "not-configured"
 		if want.HealthRequired {
@@ -448,12 +463,11 @@ func parseBasementCoreComposeStatus(raw []byte, expected []BasementCoreServiceEx
 			Ref: want.Ref, ImageRef: want.ImageRef, ImageDigest: want.ImageDigest,
 			Status: "running", Health: observedHealth,
 		})
-		delete(expectedByRef, row.Service)
 	}
 	if len(expectedByRef) != 0 {
-		return nil, errors.New("Docker Compose status omitted a Basement core service")
+		return nil, nil, errors.New("Docker Compose status omitted a Basement core service")
 	}
-	return result, nil
+	return result, pending, nil
 }
 
 type osBasementCoreProber struct{}

@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
-## [0.21.15](https://github.com/kombifyio/stackKits/compare/v0.21.13...v0.21.15) (2026-08-24)
+## [0.21.16](https://github.com/kombifyio/stackKits/compare/v0.21.15...v0.21.16) (2026-08-24)
 
 ### Added
 
