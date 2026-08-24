@@ -102,6 +102,37 @@ type BasementCoreAuthority struct {
 	HealthContractHashes map[string]string
 }
 
+type closedLocalCoreExecutionProfile struct {
+	displayName             string
+	providerRef             string
+	moduleRef               string
+	unitRef                 string
+	workloadRef             string
+	outputRef               string
+	artifactPrefix          string
+	imageRef                string
+	imageDigest             string
+	maxArtifactBytes        int
+	healthSpecs             []basementCoreHealthSpec
+	rendererContract        func() architecturev2renderer.RendererContract
+	serviceContracts        func() []architecturev2renderer.BasementCoreServiceContract
+	validateComposeArtifact func([]byte) bool
+}
+
+func basementClosedLocalCoreExecutionProfile() closedLocalCoreExecutionProfile {
+	return closedLocalCoreExecutionProfile{
+		displayName: "Basement core", providerRef: basementCoreProviderRef,
+		moduleRef: basementCoreModuleRef, unitRef: basementCoreUnitRef,
+		workloadRef: basementCoreWorkloadRef, outputRef: basementCoreOutputRef,
+		artifactPrefix: basementCoreArtifactPrefix, imageRef: basementCoreImageRef,
+		imageDigest: basementCoreImageDigest, maxArtifactBytes: basementCoreMaxArtifactBytes,
+		healthSpecs:             basementCoreHealthSpecs,
+		rendererContract:        architecturev2renderer.BasementCoreComposeRendererContract,
+		serviceContracts:        architecturev2renderer.BasementCoreServiceContracts,
+		validateComposeArtifact: architecturev2renderer.ValidateBasementCoreComposeArtifact,
+	}
+}
+
 type BasementCoreExecutor struct {
 	identity   runtimeexecutor.ExecutorIdentity
 	binding    LocalTargetBinding
@@ -119,13 +150,14 @@ func (e *BasementCoreExecutor) Execute(ctx context.Context, request runtimeexecu
 	if ctx == nil {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Basement core executor requires a context")
 	}
+	profile := basementClosedLocalCoreExecutionProfile()
 	if e == nil || e.operations == nil || strings.TrimSpace(e.binding.SiteRef) == "" ||
 		strings.TrimSpace(e.binding.NodeRef) == "" || strings.TrimSpace(e.binding.ExecutionChannelRef) == "" ||
 		!validCoreHostBootstrapDigest(e.authority.ProviderContractHash) ||
-		!validCoreHostBootstrapDigest(e.authority.ModuleContractHash) || len(e.authority.HealthContractHashes) != 7 {
+		!validCoreHostBootstrapDigest(e.authority.ModuleContractHash) || len(e.authority.HealthContractHashes) != len(profile.healthSpecs) {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Basement core executor requires one explicit authenticated local authority")
 	}
-	target, health, project, err := validateBasementCoreRequest(request, e.binding, e.authority)
+	target, health, project, err := validateClosedLocalCoreRequest(request, e.binding, e.authority, profile)
 	if err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, err
 	}
@@ -202,22 +234,22 @@ func defensiveBasementCoreProject(project BasementCoreProject) BasementCoreProje
 	return project
 }
 
-func validateBasementCoreRequest(request runtimeexecutor.ExecutionRequest, binding LocalTargetBinding, authority BasementCoreAuthority) (runtimeexecutor.RuntimeTarget, []runtimeexecutor.HealthTarget, BasementCoreProject, error) {
-	if len(request.RuntimeTargets) != 1 || len(request.AccessBindings) != 0 || len(request.HealthTargets) != 7 {
-		return runtimeexecutor.RuntimeTarget{}, nil, BasementCoreProject{}, errors.New("Basement core requires exactly one runtime, seven health targets, and no access binding")
+func validateClosedLocalCoreRequest(request runtimeexecutor.ExecutionRequest, binding LocalTargetBinding, authority BasementCoreAuthority, profile closedLocalCoreExecutionProfile) (runtimeexecutor.RuntimeTarget, []runtimeexecutor.HealthTarget, BasementCoreProject, error) {
+	if len(request.RuntimeTargets) != 1 || len(request.AccessBindings) != 0 || len(request.HealthTargets) != len(profile.healthSpecs) {
+		return runtimeexecutor.RuntimeTarget{}, nil, BasementCoreProject{}, fmt.Errorf("%s requires exactly one runtime, %d health targets, and no access binding", profile.displayName, len(profile.healthSpecs))
 	}
 	target := request.RuntimeTargets[0]
-	contract := architecturev2renderer.BasementCoreComposeRendererContract()
-	instanceRef := basementCoreUnitRef + "-node-" + binding.NodeRef
-	artifactID := basementCoreArtifactPrefix + instanceRef
-	if target.OwnerKind != "module" || target.OwnerRef != basementCoreModuleRef || target.OwnerVersion != "" ||
-		target.ProviderRef != basementCoreProviderRef || target.ProviderContractHash != authority.ProviderContractHash ||
-		target.ModuleRef != basementCoreModuleRef || target.OwnerContractHash != authority.ModuleContractHash ||
-		target.ModuleContractHash != authority.ModuleContractHash || target.UnitRef != basementCoreUnitRef ||
+	contract := profile.rendererContract()
+	instanceRef := profile.unitRef + "-node-" + binding.NodeRef
+	artifactID := profile.artifactPrefix + instanceRef
+	if target.OwnerKind != "module" || target.OwnerRef != profile.moduleRef || target.OwnerVersion != "" ||
+		target.ProviderRef != profile.providerRef || target.ProviderContractHash != authority.ProviderContractHash ||
+		target.ModuleRef != profile.moduleRef || target.OwnerContractHash != authority.ModuleContractHash ||
+		target.ModuleContractHash != authority.ModuleContractHash || target.UnitRef != profile.unitRef ||
 		target.UnitContractHash != contract.ContractHash || target.RuntimeKind != "container" ||
 		target.RuntimeDelivery != "stackkit" || target.RuntimeEngine != "docker" ||
-		target.InstanceRef != instanceRef || target.WorkloadRef != basementCoreWorkloadRef ||
-		target.ImageRef != basementCoreImageRef || target.ImageDigest != basementCoreImageDigest ||
+		target.InstanceRef != instanceRef || target.WorkloadRef != profile.workloadRef ||
+		target.ImageRef != profile.imageRef || target.ImageDigest != profile.imageDigest ||
 		target.ExecutionChannelRef != binding.ExecutionChannelRef ||
 		!slices.Equal(target.SiteRefs, []string{binding.SiteRef}) ||
 		!slices.Equal(target.NodeRefs, []string{binding.NodeRef}) ||
@@ -225,17 +257,17 @@ func validateBasementCoreRequest(request runtimeexecutor.ExecutionRequest, bindi
 		len(target.AccessBindingRefs) != 0 || len(target.BackupTargetCapabilities) != 0 ||
 		len(target.BackupTargetBindingRefs) != 0 || target.RuntimeAdapter != nil ||
 		!slices.Equal(target.ArtifactRefs, []string{artifactID}) {
-		return runtimeexecutor.RuntimeTarget{}, nil, BasementCoreProject{}, errors.New("runtime target is not the exact locally bound Basement core Compose contract")
+		return runtimeexecutor.RuntimeTarget{}, nil, BasementCoreProject{}, fmt.Errorf("runtime target is not the exact locally bound %s Compose contract", profile.displayName)
 	}
-	artifact, err := exactBasementCoreArtifact(request.Artifacts, target, artifactID, contract.ContractHash)
+	artifact, err := exactClosedLocalCoreArtifact(request.Artifacts, target, artifactID, contract.ContractHash, profile)
 	if err != nil {
 		return runtimeexecutor.RuntimeTarget{}, nil, BasementCoreProject{}, err
 	}
-	health, expectations, err := exactBasementCoreHealth(request.HealthTargets, target, authority)
+	health, expectations, err := exactClosedLocalCoreHealth(request.HealthTargets, target, authority, profile)
 	if err != nil {
 		return runtimeexecutor.RuntimeTarget{}, nil, BasementCoreProject{}, err
 	}
-	services := architecturev2renderer.BasementCoreServiceContracts()
+	services := profile.serviceContracts()
 	serviceExpectations := make([]BasementCoreServiceExpectation, len(services))
 	for index, service := range services {
 		serviceExpectations[index] = BasementCoreServiceExpectation(service)
@@ -248,7 +280,7 @@ func validateBasementCoreRequest(request runtimeexecutor.ExecutionRequest, bindi
 	}, nil
 }
 
-func exactBasementCoreArtifact(artifacts []runtimeexecutor.Artifact, target runtimeexecutor.RuntimeTarget, artifactID, unitHash string) (runtimeexecutor.Artifact, error) {
+func exactClosedLocalCoreArtifact(artifacts []runtimeexecutor.Artifact, target runtimeexecutor.RuntimeTarget, artifactID, unitHash string, profile closedLocalCoreExecutionProfile) (runtimeexecutor.Artifact, error) {
 	var artifact runtimeexecutor.Artifact
 	found := 0
 	for _, candidate := range artifacts {
@@ -263,11 +295,11 @@ func exactBasementCoreArtifact(artifacts []runtimeexecutor.Artifact, target runt
 		artifact.ProviderContractHash != target.ProviderContractHash || artifact.ModuleRef != target.ModuleRef ||
 		artifact.ModuleContractHash != target.ModuleContractHash || artifact.UnitRef != target.UnitRef ||
 		artifact.UnitContractHash != unitHash || artifact.InstanceRef != target.InstanceRef ||
-		artifact.OutputRef != basementCoreOutputRef || !slices.Equal(artifact.SiteRefs, target.SiteRefs) ||
+		artifact.OutputRef != profile.outputRef || !slices.Equal(artifact.SiteRefs, target.SiteRefs) ||
 		!slices.Equal(artifact.NodeRefs, target.NodeRefs) || len(artifact.Content) == 0 ||
-		len(artifact.Content) > basementCoreMaxArtifactBytes ||
-		!architecturev2renderer.ValidateBasementCoreComposeArtifact(artifact.Content) {
-		return runtimeexecutor.Artifact{}, errors.New("artifact is not the exact CUE-owned Basement core Compose instance")
+		len(artifact.Content) > profile.maxArtifactBytes ||
+		!profile.validateComposeArtifact(artifact.Content) {
+		return runtimeexecutor.Artifact{}, fmt.Errorf("artifact is not the exact CUE-owned %s Compose instance", profile.displayName)
 	}
 	sum := sha256.Sum256(artifact.Content)
 	if artifact.Digest != "sha256:"+hex.EncodeToString(sum[:]) {
@@ -292,7 +324,7 @@ var basementCoreHealthSpecs = []basementCoreHealthSpec{
 	{source: "tinyauth-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/", port: 4000, timeout: 30, statuses: []int{200, 302}},
 }
 
-func exactBasementCoreHealth(input []runtimeexecutor.HealthTarget, target runtimeexecutor.RuntimeTarget, authority BasementCoreAuthority) ([]runtimeexecutor.HealthTarget, []BasementCoreHealthExpectation, error) {
+func exactClosedLocalCoreHealth(input []runtimeexecutor.HealthTarget, target runtimeexecutor.RuntimeTarget, authority BasementCoreAuthority, profile closedLocalCoreExecutionProfile) ([]runtimeexecutor.HealthTarget, []BasementCoreHealthExpectation, error) {
 	bySource := make(map[string]runtimeexecutor.HealthTarget, len(input))
 	for _, item := range input {
 		if _, duplicate := bySource[item.SourceRef]; duplicate {
@@ -300,9 +332,9 @@ func exactBasementCoreHealth(input []runtimeexecutor.HealthTarget, target runtim
 		}
 		bySource[item.SourceRef] = item
 	}
-	health := make([]runtimeexecutor.HealthTarget, 0, len(basementCoreHealthSpecs))
-	expectations := make([]BasementCoreHealthExpectation, 0, len(basementCoreHealthSpecs))
-	for _, spec := range basementCoreHealthSpecs {
+	health := make([]runtimeexecutor.HealthTarget, 0, len(profile.healthSpecs))
+	expectations := make([]BasementCoreHealthExpectation, 0, len(profile.healthSpecs))
+	for _, spec := range profile.healthSpecs {
 		item, ok := bySource[spec.source]
 		hash, trusted := authority.HealthContractHashes[spec.source]
 		if !ok || !trusted || !validCoreHostBootstrapDigest(hash) ||

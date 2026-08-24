@@ -29,8 +29,8 @@ const (
 	basementCoreVersion     = "1.0.0"
 )
 
-const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:15|resolved-network-domain:required|runtime-listeners:catalog-bound|services:router,socket-proxy,pocketid,tinyauth,step-ca,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
-const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:15|resolved-network-domain:required|runtime-listeners:catalog-bound|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
+const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:16|resolved-network-domain:required|runtime-listeners:catalog-bound|services:router,socket-proxy,pocketid,tinyauth,step-ca,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
+const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:16|resolved-network-domain:required|runtime-listeners:catalog-bound|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
 
 // basementCoreComponentsJSON is the closed component graph accepted by both
 // target-specific renderers. It mirrors the CUE catalog and intentionally
@@ -54,6 +54,12 @@ services:
   socket-proxy:
     image: ghcr.io/tecnativa/docker-socket-proxy:v0.4.2@sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -500
     environment:
       CONTAINERS: "1"
       EVENTS: "1"
@@ -67,6 +73,12 @@ services:
   router:
     image: ghcr.io/traefik/traefik:v3@sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -800
     depends_on: [socket-proxy]
     command:
       - --api.insecure=true
@@ -86,6 +98,12 @@ services:
   pocketid:
     image: ghcr.io/pocket-id/pocket-id:v2.7.0@sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -600
     env_file: ["${STACKKIT_CUSTODY_DIR:?}/basement-runtime/pocketid.env"]
     volumes: [pocketid-data:/app/data]
     ports: ["0.0.0.0:1411:1411"]
@@ -103,6 +121,12 @@ services:
   tinyauth:
     image: ghcr.io/steveiliop56/tinyauth:v5.0.7@sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -500
     depends_on: [pocketid]
     env_file:
       - path: "${STACKKIT_CUSTODY_DIR:?}/basement-runtime/tinyauth.env"
@@ -124,6 +148,12 @@ services:
   step-ca:
     image: smallstep/step-ca:0.30.2@sha256:a2b17872915c193259b75a5474c398326f41bd199f0842093e52cf4182bc8270
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -700
     user: "0:0"
     command: ["/usr/local/bin/step-ca", "--password-file", "/home/step/secrets/password", "/home/step/config/ca.json"]
     volumes:
@@ -140,6 +170,12 @@ services:
   coolify-postgres:
     image: docker.io/library/postgres:15-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -700
     env_file: ["${STACKKIT_CUSTODY_DIR:?}/basement-runtime/coolify.env"]
     volumes: [coolify-postgres-data:/var/lib/postgresql/data]
     healthcheck:
@@ -152,6 +188,12 @@ services:
   coolify-redis:
     image: docker.io/library/redis:7-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -400
     env_file: ["${STACKKIT_CUSTODY_DIR:?}/basement-runtime/coolify.env"]
     command: ["sh", "-c", "exec redis-server --save 20 1 --loglevel warning --requirepass \"$${REDIS_PASSWORD}\""]
     volumes: [coolify-redis-data:/data]
@@ -165,6 +207,12 @@ services:
   coolify-realtime:
     image: ghcr.io/coollabsio/coolify-realtime:1.0.16@sha256:b5bb9d1c95d9b4ca59773b82d1e1a2bf4ccac5fbed33be19b9b3906574db3629
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -100
     depends_on: [coolify-redis]
     env_file: ["${STACKKIT_CUSTODY_DIR:?}/basement-runtime/coolify.env"]
     healthcheck:
@@ -177,6 +225,12 @@ services:
   coolify:
     image: ghcr.io/coollabsio/coolify:4.1.2@sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -100
     depends_on:
       coolify-postgres: {condition: service_healthy}
       coolify-redis: {condition: service_healthy}
@@ -216,6 +270,12 @@ services:
     image: docker.io/kopia/kopia:0.18.2@sha256:b6cb1f09a5fa832a320ee06d7803e82cdd7f69ac6f61d76a0d55fbbf1495c043
     hostname: ` + localbackuppolicy.Hostname + `
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: 300
     entrypoint: ["/bin/sh", "-c"]
     command: ["trap : TERM INT; sleep infinity & wait"]
     volumes:
@@ -244,6 +304,12 @@ services:
   hub:
     image: docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -300
     depends_on: [tinyauth]
     command:
       - /bin/sh
@@ -297,6 +363,39 @@ type basementCoreRenderer struct {
 	unitID    string
 	outputRef string
 	render    func(RenderUnit) []byte
+}
+
+type closedLocalCoreEndpoint struct {
+	port      int
+	healthRef string
+}
+
+type closedLocalCoreProfile struct {
+	displayName      string
+	moduleID         string
+	runtimeEngine    string
+	imageRef         string
+	imageDigest      string
+	entryComponent   string
+	componentsJSON   string
+	serviceEndpoints map[string]closedLocalCoreEndpoint
+	renderCompose    func(string) []byte
+}
+
+func basementClosedLocalCoreProfile() closedLocalCoreProfile {
+	return closedLocalCoreProfile{
+		displayName: "Basement core", moduleID: basementCoreModuleID, runtimeEngine: "docker",
+		imageRef:       "ghcr.io/coollabsio/coolify:4.1.2",
+		imageDigest:    "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f",
+		entryComponent: "coolify", componentsJSON: basementCoreComponentsJSON,
+		serviceEndpoints: map[string]closedLocalCoreEndpoint{
+			"basement-hub": {port: 80, healthRef: "basement-hub-http"},
+			"id":           {port: 1411, healthRef: "pocketid-http"},
+			"auth":         {port: 3000, healthRef: "tinyauth-http"},
+			"coolify":      {port: 8080, healthRef: "coolify-http"},
+		},
+		renderCompose: func(domain string) []byte { return RenderBasementCoreComposeForDomain(domain) },
+	}
 }
 
 func BasementCoreComposeRendererContract() RendererContract {
@@ -411,30 +510,33 @@ func validateBasementCoreUnit(unit RenderUnit, contract RendererContract, unitID
 }
 
 func validateBasementCoreUnitOutputs(unit RenderUnit, contract RendererContract, unitID string, outputRefs []string) error {
-	path := "resolvedPlan.modules." + basementCoreModuleID + ".renderUnits." + unitID
+	return validateClosedLocalCoreUnitOutputs(unit, contract, unitID, outputRefs, basementClosedLocalCoreProfile())
+}
+
+func validateClosedLocalCoreUnitOutputs(unit RenderUnit, contract RendererContract, unitID string, outputRefs []string, profile closedLocalCoreProfile) error {
+	path := "resolvedPlan.modules." + profile.moduleID + ".renderUnits." + unitID
 	domain, hasDomain := unit.NetworkDomainBase()
 	if !hasDomain || !basementDomainPattern.MatchString(domain) {
-		return fail(ErrInvalidPlan, "resolvedPlan.network.configuration.domain.base", "Basement core requires a canonical resolved network domain")
+		return fail(ErrInvalidPlan, "resolvedPlan.network.configuration.domain.base", "%s requires a canonical resolved network domain", profile.displayName)
 	}
-	if unit.ModuleID() != basementCoreModuleID || unit.ID() != unitID {
-		return fail(ErrInvalidPlan, path, "renderer accepts only %s/%s", basementCoreModuleID, unitID)
+	if unit.ModuleID() != profile.moduleID || unit.ID() != unitID {
+		return fail(ErrInvalidPlan, path, "renderer accepts only %s/%s", profile.moduleID, unitID)
 	}
 	if unit.Kind() != contract.Kind || unit.RendererRef() != contract.RendererRef ||
 		unit.TemplateRef() != contract.TemplateRef || unit.Version() != contract.Version ||
 		unit.ContractHash() != contract.ContractHash {
-		return fail(ErrOutputChanged, path, "render-unit implementation identity differs from the registered Basement core contract")
+		return fail(ErrOutputChanged, path, "render-unit implementation identity differs from the registered %s contract", profile.displayName)
 	}
 	if unit.RuntimeKind() != "container" || unit.RuntimeDelivery() != "stackkit" {
-		return fail(ErrInvalidPlan, path+".runtime", "Basement core requires exact container/stackkit delivery")
+		return fail(ErrInvalidPlan, path+".runtime", "%s requires exact container/stackkit delivery", profile.displayName)
 	}
 	engine, hasEngine := unit.RuntimeEngine()
 	imageRef, hasImage := unit.ContainerImageRef()
 	imageDigest, hasDigest := unit.ContainerImageDigest()
 	entry, hasEntry := unit.RuntimeEntryComponentRef()
-	if !hasEngine || engine != "docker" || !hasImage || imageRef != "ghcr.io/coollabsio/coolify:4.1.2" ||
-		!hasDigest || imageDigest != "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f" ||
-		!hasEntry || entry != "coolify" {
-		return fail(ErrInvalidPlan, path+".runtime", "runtime identity differs from the governed Basement core graph")
+	if !hasEngine || engine != profile.runtimeEngine || !hasImage || imageRef != profile.imageRef ||
+		!hasDigest || imageDigest != profile.imageDigest || !hasEntry || entry != profile.entryComponent {
+		return fail(ErrInvalidPlan, path+".runtime", "runtime identity differs from the governed %s graph", profile.displayName)
 	}
 	siteRef, hasSite := unit.SiteRef()
 	nodeRef, hasNode := unit.NodeRef()
@@ -442,16 +544,16 @@ func validateBasementCoreUnitOutputs(unit RenderUnit, contract RendererContract,
 		unit.InstanceID() != unitID+"-node-"+nodeRef ||
 		!containsExact(unit.LogicalSiteRefs(), siteRef) ||
 		!containsExact(unit.LogicalNodeRefs(), nodeRef) {
-		return fail(ErrInvalidPlan, path+".instances", "Basement core requires one exact node-local target")
+		return fail(ErrInvalidPlan, path+".instances", "%s requires one exact node-local target", profile.displayName)
 	}
 	if len(unit.PublicInputRefs()) != 0 || len(unit.SecretInputRefs()) != 0 || len(unit.PlanInputRefs()) != 0 ||
 		!emptyJSONObject(unit.ValuesJSON()) || !emptyJSONObject(unit.SecretRefsJSON()) ||
 		!emptyJSONObject(unit.PlanInputsJSON()) || !emptyJSONArray(unit.InputBindingsJSON()) {
-		return fail(ErrInvalidPlan, path+".inputs", "Basement core consumes no caller or secret material; Apply supplies local custody out of band")
+		return fail(ErrInvalidPlan, path+".inputs", "%s consumes no caller or secret material; Apply supplies local custody out of band", profile.displayName)
 	}
 	if !emptyJSONArray(unit.ProvidedInterfacesJSON()) || !emptyJSONArray(unit.RequiredInterfacesJSON()) ||
 		!emptyJSONArray(unit.PrivilegedInterfaceApprovalsJSON()) || !emptyJSONArray(unit.RuntimeNetworkBindingsJSON()) {
-		return fail(ErrInvalidPlan, path+".interfaces", "Basement core renderer receives no provider or privileged host authority")
+		return fail(ErrInvalidPlan, path+".interfaces", "%s renderer receives no provider or privileged host authority", profile.displayName)
 	}
 	var placement struct {
 		Scope       string `json:"scope"`
@@ -464,21 +566,16 @@ func validateBasementCoreUnitOutputs(unit RenderUnit, contract RendererContract,
 	if outputs := unit.DeclaredOutputs(); !exactStringList(outputs, outputRefs) {
 		return fail(ErrInvalidPlan, path+".outputs", "requires exactly the governed outputs")
 	}
-	if err := validateBasementCoreComponents(unit.RuntimeComponentsJSON(), path+".runtime.components"); err != nil {
+	if err := validateClosedLocalCoreComponents(unit.RuntimeComponentsJSON(), profile.componentsJSON, path+".runtime.components", profile.displayName); err != nil {
 		return err
 	}
 	var endpoints []rawModuleServiceEndpoint
-	if err := decodeStrict(unit.ServiceEndpointsJSON(), &endpoints); err != nil || len(endpoints) != 4 {
-		return fail(ErrInvalidPlan, path+".serviceEndpoints", "requires the four exact Basement service endpoints")
+	if err := decodeStrict(unit.ServiceEndpointsJSON(), &endpoints); err != nil || len(endpoints) != len(profile.serviceEndpoints) {
+		return fail(ErrInvalidPlan, path+".serviceEndpoints", "requires the exact governed %s service endpoints", profile.displayName)
 	}
-	expectedEndpoints := map[string]struct {
-		port      int
-		healthRef string
-	}{
-		"basement-hub": {port: 80, healthRef: "basement-hub-http"},
-		"id":           {port: 1411, healthRef: "pocketid-http"},
-		"auth":         {port: 3000, healthRef: "tinyauth-http"},
-		"coolify":      {port: 8080, healthRef: "coolify-http"},
+	expectedEndpoints := make(map[string]closedLocalCoreEndpoint, len(profile.serviceEndpoints))
+	for ref, endpoint := range profile.serviceEndpoints {
+		expectedEndpoints[ref] = endpoint
 	}
 	for _, endpoint := range endpoints {
 		expected, ok := expectedEndpoints[endpoint.ServiceRef]
@@ -487,27 +584,27 @@ func validateBasementCoreUnitOutputs(unit RenderUnit, contract RendererContract,
 			endpoint.HealthRef != expected.healthRef ||
 			!exactStringList(endpoint.AllowedIngressProtocols, []string{"http", "https"}) ||
 			!exactStringList(endpoint.AllowedExposures, []string{"local", "remote-private"}) {
-			return fail(ErrInvalidPlan, path+".serviceEndpoints", "Basement service route differs from the closed local contract")
+			return fail(ErrInvalidPlan, path+".serviceEndpoints", "%s service route differs from the closed local contract", profile.displayName)
 		}
 		delete(expectedEndpoints, endpoint.ServiceRef)
 	}
 	if len(expectedEndpoints) != 0 {
-		return fail(ErrInvalidPlan, path+".serviceEndpoints", "Basement service endpoint set is incomplete")
+		return fail(ErrInvalidPlan, path+".serviceEndpoints", "%s service endpoint set is incomplete", profile.displayName)
 	}
-	if err := validateRuntimeListenerComposeParity(unit.RuntimeListenersJSON(), RenderBasementCoreComposeForDomain(domain), path+".runtimeListeners"); err != nil {
+	if err := validateRuntimeListenerComposeParity(unit.RuntimeListenersJSON(), profile.renderCompose(domain), path+".runtimeListeners"); err != nil {
 		return err
 	}
 	return nil
 }
 
-func validateBasementCoreComponents(data []byte, path string) error {
+func validateClosedLocalCoreComponents(data []byte, expectedJSON, path, displayName string) error {
 	var actual []map[string]any
 	var expected []map[string]any
 	if err := json.Unmarshal(data, &actual); err != nil {
 		return wrap(ErrInvalidPlan, path, "decode Basement core components", err)
 	}
-	if err := json.Unmarshal([]byte(basementCoreComponentsJSON), &expected); err != nil {
-		return wrap(ErrRendererFailure, path, "decode built-in Basement core contract", err)
+	if err := json.Unmarshal([]byte(expectedJSON), &expected); err != nil {
+		return wrap(ErrRendererFailure, path, "decode built-in "+displayName+" contract", err)
 	}
 	normalizeBasementCoreComponentSets(actual)
 	normalizeBasementCoreComponentSets(expected)
@@ -531,6 +628,10 @@ func validateBasementCoreComponents(data []byte, path string) error {
 		)
 	}
 	return nil
+}
+
+func validateBasementCoreComponents(data []byte, path string) error {
+	return validateClosedLocalCoreComponents(data, basementCoreComponentsJSON, path, "Basement core")
 }
 
 func normalizeBasementCoreComponentSets(components []map[string]any) {

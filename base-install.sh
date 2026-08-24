@@ -22,7 +22,7 @@
 #   2. Initialize basement-kit                          (native v2 init)
 #   3. Prepare the container runtime (Docker install + group activation)
 #   4. Build the local stackkit-server image            (registry fallback)
-#   5. Generate + deploy the full homelab stack         (two-phase apply)
+#   5. Generate + deploy the full homelab stack         (host preflight, apply)
 #
 # Environment variables (all optional; each pre-seeds one decision):
 #   STACKKIT_INSTALL_MODE  auto | guided | expert
@@ -546,6 +546,57 @@ persist_platform_config
 # --- Step 5: Generate + Deploy ------------------------------------------------
 
 info "Step 5/5 -- Deploying homelab stack"
+
+# Read-only host admission first: naming an unusable device here costs seconds,
+# while discovering it during Apply costs a half-mutated host.
+#
+# This script is served from the website and installs whichever CLI release is
+# current, which may predate the admission command. Ask before calling it, so an
+# older CLI simply skips the step instead of printing an unknown-command error.
+PREFLIGHT_STATUS=0
+set +e
+if run_stackkit host preflight --help >/dev/null 2>&1; then
+  run_stackkit host preflight
+  PREFLIGHT_STATUS=$?
+fi
+set -e
+
+# Undoable host fixes, unattended mode only.
+#
+# These are the fixes that carry no decision: bounded container logs, and swap
+# on a host that has none. Both are reversible, neither needs a reboot or a
+# credential, and each keeps a backup of what it replaced. Anything that does
+# need one of those stays advice the preflight output already printed.
+#
+# Set STACKKIT_REMEDIATE=0 to opt out. A failure here never stops the install:
+# the finding it targets was a warning, and refusing to install because an
+# optional improvement did not take is the failure this admission exists to
+# remove, not to cause.
+if [ "$INSTALL_MODE" = "auto" ] && [ "${STACKKIT_REMEDIATE:-1}" != "0" ]; then
+  set +e
+  if run_stackkit host remediate --help >/dev/null 2>&1; then
+    STACKKIT_BIN="$(command -v stackkit 2>/dev/null)"
+    if [ "$(id -u)" -eq 0 ]; then
+      stackkit host remediate --auto-reversible --yes
+    elif [ -n "$STACKKIT_BIN" ] && command -v sudo >/dev/null 2>&1; then
+      sudo -n "$STACKKIT_BIN" host remediate --auto-reversible --yes
+    fi
+    run_stackkit host preflight
+    PREFLIGHT_STATUS=$?
+  fi
+  set -e
+fi
+
+if [ "$PREFLIGHT_STATUS" -eq 3 ]; then
+  echo ""
+  err "This host cannot run the StackKit; nothing was applied."
+  echo ""
+  echo "  To attempt the rollout anyway (it may fail on the same condition):"
+  echo "    cd $HOMELAB_DIR && STACKKIT_PREFLIGHT=skip stackkit apply --auto-approve"
+  echo ""
+  exit 3
+fi
+
 run_stackkit generate
 
 if [ "$INSTALL_MODE" != "auto" ]; then
@@ -564,21 +615,47 @@ if [ "$INSTALL_MODE" != "auto" ]; then
   echo ""
 fi
 
-# Two-phase apply: core first, then platform applications (matches the
-# canonical proven chain; visible as two phases in expert mode).
-if [ "$INSTALL_MODE" = "expert" ]; then
-  info "Apply phase 1/2 -- core services"
+# One Apply. The canonical ResolvedPlan owns execution order across core
+# services and applications, so there is no separate platform-app stage to
+# sequence from here; the previous "phase 1/2 then 2/2" pair issued the same
+# full Apply twice, which only doubled the exposure to a transient failure.
+#
+# set -eu would abort this script mid-install on any non-zero exit, leaving the
+# operator without a summary or a next step. Capture the status instead and end
+# with something actionable.
+set +e
+run_stackkit apply --auto-approve
+APPLY_STATUS=$?
+set -e
+
+if [ "$APPLY_STATUS" -eq 3 ]; then
+  echo ""
+  err "This host cannot run the StackKit."
+  echo ""
+  echo "  The findings above are from host admission; nothing was applied."
+  echo "  Re-check them at any time:"
+  echo "    cd $HOMELAB_DIR && stackkit host preflight"
+  echo ""
+  echo "  To attempt the rollout anyway (it may fail on the same condition):"
+  echo "    cd $HOMELAB_DIR && STACKKIT_PREFLIGHT=skip stackkit apply --auto-approve"
+  echo ""
+  exit 3
 fi
-run_stackkit apply --auto-approve --skip-platform-apps
-if [ "$INSTALL_MODE" = "expert" ]; then
-  info "Apply phase 2/2 -- platform applications"
-  if ! prompt_yn "Continue with platform applications?" "y"; then
-    warn "Platform applications skipped; run 'stackkit apply' later to complete."
-  else
-    run_stackkit apply --auto-approve
-  fi
-else
-  run_stackkit apply --auto-approve
+
+if [ "$APPLY_STATUS" -ne 0 ]; then
+  echo ""
+  err "The rollout did not complete."
+  echo ""
+  echo "  What ran, and what failed:"
+  echo "    cd $HOMELAB_DIR && stackkit status"
+  echo "    cd $HOMELAB_DIR && stackkit logs latest --json"
+  echo ""
+  echo "  Applying again is safe: it converges the same plan and keeps what"
+  echo "  already succeeded."
+  echo "    cd $HOMELAB_DIR && stackkit apply --auto-approve"
+  echo ""
+  echo "  Project directory: $HOMELAB_DIR"
+  exit "$APPLY_STATUS"
 fi
 
 # --- Done: print access summary -----------------------------------------------

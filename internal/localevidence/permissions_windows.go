@@ -10,6 +10,7 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/kombifyio/stackkits/internal/windowstoken"
 	"golang.org/x/sys/windows"
 )
 
@@ -31,19 +32,22 @@ func restrictFileToCurrentUser(path string) error {
 }
 
 func requireFilePrivateToCurrentUser(path string) error {
-	tokenUser, err := windows.GetCurrentProcessToken().GetTokenUser()
-	if err != nil || tokenUser == nil || tokenUser.User.Sid == nil {
-		return errors.New("localevidence: resolve current Windows token user")
+	currentUser, err := windowstoken.CurrentUserSID()
+	if err != nil {
+		return fmt.Errorf("localevidence: %w", err)
 	}
-	currentUser := tokenUser.User.Sid
+	currentOwner, err := windowstoken.CurrentOwnerSID()
+	if err != nil {
+		return fmt.Errorf("localevidence: %w", err)
+	}
 	descriptor, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT,
 		windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
 	if err != nil || descriptor == nil {
 		return errors.New("localevidence: inspect Windows custody ACL")
 	}
 	owner, _, err := descriptor.Owner()
-	if err != nil || owner == nil || !owner.Equals(currentUser) {
-		return errors.New("localevidence: Windows custody owner is not the current user")
+	if err != nil || owner == nil || !owner.Equals(currentOwner) {
+		return errors.New("localevidence: Windows custody owner differs from the process token owner")
 	}
 	control, _, err := descriptor.Control()
 	if err != nil || control&windows.SE_DACL_PRESENT == 0 || control&windows.SE_DACL_PROTECTED == 0 {

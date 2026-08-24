@@ -11,19 +11,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/cuecontext"
-	"cuelang.org/go/cue/load"
 	"github.com/kombifyio/stackkits/internal/netenv"
 	"github.com/kombifyio/stackkits/internal/placement"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
-// TerraformBridge generates terraform.tfvars.json from CUE specifications
-type TerraformBridge struct {
-	ctx         *cue.Context
-	stackkitDir string
-}
+// TerraformBridge projects admitted StackSpecs into Terraform variables.
+type TerraformBridge struct{}
 
 // TFVars represents the complete structure of terraform.tfvars.json,
 // matching all variables declared in basement-kit/templates/simple/main.tf.
@@ -143,12 +137,9 @@ type TFVars struct {
 	DockerHost string `json:"docker_host,omitempty"`
 }
 
-// NewTerraformBridge creates a new Terraform bridge for CUE-based generation
-func NewTerraformBridge(stackkitDir string) *TerraformBridge {
-	return &TerraformBridge{
-		ctx:         cuecontext.New(),
-		stackkitDir: stackkitDir,
-	}
+// NewTerraformBridge creates the canonical StackSpec-to-Terraform bridge.
+func NewTerraformBridge() *TerraformBridge {
+	return &TerraformBridge{}
 }
 
 // GenerateTFVarsFromSpec generates terraform.tfvars.json from a StackSpec.
@@ -750,283 +741,6 @@ func newDefaultTFVars() *TFVars {
 	}
 }
 
-// GenerateTFVars reads CUE stackfile and generates terraform.tfvars.json.
-// This is the CUE-only path used when no StackSpec is available.
-func (b *TerraformBridge) GenerateTFVars(outputDir string) error {
-	cfg := cueLoadConfig(b.stackkitDir, b.stackkitDir)
-
-	instances := load.Instances([]string{"."}, cfg)
-	if len(instances) == 0 {
-		return fmt.Errorf("no CUE files found in %s", b.stackkitDir)
-	}
-
-	inst := instances[0]
-	if inst.Err != nil {
-		return fmt.Errorf("failed to load CUE instance: %w", inst.Err)
-	}
-
-	value := b.ctx.BuildInstance(inst)
-	if err := value.Err(); err != nil {
-		return fmt.Errorf("failed to build CUE value: %w", err)
-	}
-
-	tfvars, err := b.extractTFVars(value)
-	if err != nil {
-		return fmt.Errorf("failed to extract terraform vars: %w", err)
-	}
-
-	return b.writeTFVars(tfvars, outputDir)
-}
-
-// extractTFVars extracts terraform variables from CUE value.
-func (b *TerraformBridge) extractTFVars(value cue.Value) (*TFVars, error) {
-	tfvars := newDefaultTFVars()
-
-	b.extractFromStack(value, tfvars)
-
-	if stack := value.LookupPath(cue.ParsePath("stack")); stack.Exists() {
-		b.extractFromStack(stack, tfvars)
-	}
-
-	if testStack := value.LookupPath(cue.ParsePath("testStack")); testStack.Exists() {
-		b.extractFromStack(testStack, tfvars)
-	}
-
-	return tfvars, nil
-}
-
-// extractNetwork extracts domain and subnet from a CUE network value.
-func (b *TerraformBridge) extractNetwork(network cue.Value, tfvars *TFVars) {
-	if domain := network.LookupPath(cue.ParsePath("domain")); domain.Exists() {
-		if d, err := domain.String(); err == nil && d != "" {
-			tfvars.Domain = d
-		}
-	}
-	if subnet := network.LookupPath(cue.ParsePath("subnet")); subnet.Exists() {
-		if s, err := subnet.String(); err == nil && s != "" {
-			tfvars.NetworkSubnet = s
-		}
-	}
-}
-
-// extractFromStack extracts configuration from a stack definition.
-func (b *TerraformBridge) extractFromStack(stack cue.Value, tfvars *TFVars) {
-	b.extractInstallMode(stack, tfvars)
-	b.extractCompute(stack, tfvars)
-	b.extractPAAS(stack, tfvars)
-	b.extractBootstrap(stack, tfvars)
-	b.extractDemoData(stack, tfvars)
-	b.extractSystemStorage(stack, tfvars)
-	if network := stack.LookupPath(cue.ParsePath("network")); network.Exists() {
-		b.extractNetwork(network, tfvars)
-	}
-	b.extractPlacement(stack, tfvars)
-	b.extractServices(stack, tfvars)
-	if tfvars.InstallMode == models.InstallModeBare {
-		b.applyInstallModeDefaults(&models.StackSpec{Mode: models.InstallModeBare}, tfvars)
-	}
-}
-
-func (b *TerraformBridge) extractInstallMode(stack cue.Value, tfvars *TFVars) {
-	mode := cueStringAt(stack, "mode")
-	if mode == "" {
-		mode = cueStringAt(stack, "deploymentMode")
-	}
-	if mode == "" {
-		return
-	}
-	mode = models.NormalizeInstallMode(mode)
-	tfvars.InstallMode = mode
-	tfvars.BootstrapMode = mode
-}
-
-func (b *TerraformBridge) extractCompute(stack cue.Value, tfvars *TFVars) {
-	compute := cueFieldAt(stack, "compute")
-	if !compute.Exists() {
-		return
-	}
-	if tier := cueStringAt(compute, "tier"); tier != "" {
-		tfvars.ComputeTier = tier
-	}
-}
-
-func (b *TerraformBridge) extractPAAS(stack cue.Value, tfvars *TFVars) {
-	paas := cueStringAt(stack, "paas")
-	if paas == "" {
-		return
-	}
-	tfvars.Paas = paas
-	tfvars.ReverseProxyBackend = models.ResolveReverseProxyForPAAS(paas)
-	tfvars.EnableTraefik = tfvars.ReverseProxyBackend == models.ReverseProxyStandalone ||
-		tfvars.ReverseProxyBackend == models.ReverseProxyStackKit
-	applyPAASPlatformFlags(tfvars, paas)
-}
-
-func (b *TerraformBridge) extractBootstrap(stack cue.Value, tfvars *TFVars) {
-	bootstrap := cueFieldAt(stack, "bootstrap")
-	if !bootstrap.Exists() {
-		return
-	}
-	if policy := normalizeKnownSetupPolicy(cueStringAt(bootstrap, "platformPolicy")); policy != "" {
-		tfvars.SetupPolicyPlatform = policy
-	}
-	if policy := normalizeKnownSetupPolicy(cueStringAt(bootstrap, "applicationDefaultPolicy")); policy != "" {
-		tfvars.SetupPolicyApplicationDefault = policy
-	}
-}
-
-func normalizeKnownSetupPolicy(policy string) string {
-	policy = models.NormalizeSetupPolicy(policy)
-	if !models.IsKnownSetupPolicy(policy) || policy == "" {
-		return ""
-	}
-	return policy
-}
-
-func (b *TerraformBridge) extractDemoData(stack cue.Value, tfvars *TFVars) {
-	demoData := cueFieldAt(stack, "demoData")
-	if !demoData.Exists() {
-		return
-	}
-	if enabled, ok := cueBoolAt(demoData, "enabled"); ok {
-		tfvars.DemoDataEnabled = enabled
-	}
-}
-
-func (b *TerraformBridge) extractSystemStorage(stack cue.Value, tfvars *TFVars) {
-	system := cueFieldAt(stack, "system")
-	if system.Exists() {
-		if timezone := cueStringAt(system, "timezone"); timezone != "" {
-			tfvars.Timezone = timezone
-		}
-	}
-	storage := cueFieldAt(stack, "storage")
-	if storage.Exists() {
-		if mediaPath := cueStringAt(storage, "mediaPath"); mediaPath != "" {
-			tfvars.MediaPath = mediaPath
-		}
-	}
-}
-
-func (b *TerraformBridge) extractPlacement(stack cue.Value, tfvars *TFVars) {
-	placementValue := cueFieldAt(stack, "placementMode")
-	if !placementValue.Exists() {
-		return
-	}
-
-	spec := &models.StackSpec{}
-	if mode, err := placementValue.String(); err == nil && strings.TrimSpace(mode) != "" {
-		spec.Placement.Mode = mode
-	} else if mode := cueStringAt(placementValue, "mode"); mode != "" {
-		spec.Placement.Mode = mode
-	}
-	if exposure := cueStringAt(placementValue, "exposure"); exposure != "" {
-		spec.Placement.Exposure = exposure
-	}
-	if coupling := cueStringAt(placementValue, "coupling"); coupling != "" {
-		spec.Placement.Coupling = coupling
-	}
-	_ = applyPlacementFromSpec(spec, tfvars)
-}
-
-func (b *TerraformBridge) extractServices(stack cue.Value, tfvars *TFVars) {
-	services := cueFieldAt(stack, "services")
-	if !services.Exists() {
-		return
-	}
-	enables := map[string]*bool{
-		"traefik":           &tfvars.EnableTraefik,
-		"tinyauth":          &tfvars.EnableTinyauth,
-		"pocketid":          &tfvars.EnablePocketID,
-		"id":                &tfvars.EnablePocketID,
-		"dokploy":           &tfvars.EnableDokploy,
-		"dockge":            &tfvars.EnableDockge,
-		"coolify":           &tfvars.EnableCoolify,
-		"komodo":            &tfvars.EnableKomodo,
-		"dashboard":         &tfvars.EnableDashboard,
-		"base":              &tfvars.EnableDashboard,
-		"homepage":          &tfvars.EnableHomepage,
-		"home":              &tfvars.EnableHomepage,
-		"homelab-dashboard": &tfvars.EnableHomepage,
-		"uptime_kuma":       &tfvars.EnableUptimeKuma,
-		"uptime-kuma":       &tfvars.EnableUptimeKuma,
-		"whoami":            &tfvars.EnableWhoami,
-		"vaultwarden":       &tfvars.EnableVaultwarden,
-		"jellyfin":          &tfvars.EnableJellyfin,
-		"immich":            &tfvars.EnableImmich,
-		"files":             &tfvars.EnableFiles,
-		"cloudreve":         &tfvars.EnableCloudreve,
-		"nextcloud":         &tfvars.EnableNextcloud,
-		"home-assistant":    &tfvars.EnableHomeAssistant,
-	}
-	for name, ptr := range enables {
-		service := cueFieldAt(services, name)
-		if !service.Exists() {
-			continue
-		}
-		enabled, ok := cueBoolAt(service, "enabled")
-		if !ok {
-			continue
-		}
-		if (name == "pocketid" || name == "id") && !enabled {
-			continue
-		}
-		*ptr = enabled
-	}
-	b.extractFilesProvider(services, tfvars)
-}
-
-func (b *TerraformBridge) extractFilesProvider(services cue.Value, tfvars *TFVars) {
-	provider := ""
-	files := cueFieldAt(services, "files")
-	if files.Exists() {
-		for _, field := range []string{"provider", "tool", "defaultTool"} {
-			if value := cueStringAt(files, field); value != "" {
-				provider = value
-				break
-			}
-		}
-	}
-	for _, candidate := range []string{"cloudreve", "nextcloud"} {
-		service := cueFieldAt(services, candidate)
-		if !service.Exists() {
-			continue
-		}
-		if enabled, ok := cueBoolAt(service, "enabled"); ok && enabled {
-			provider = candidate
-		}
-	}
-	if provider == "" {
-		return
-	}
-	_ = setFilesProvider(tfvars, provider)
-}
-
-func cueFieldAt(value cue.Value, name string) cue.Value {
-	return value.LookupPath(cue.MakePath(cue.Str(name)))
-}
-
-func cueStringAt(value cue.Value, path string) string {
-	field := value.LookupPath(cue.ParsePath(path))
-	if !field.Exists() {
-		return ""
-	}
-	text, err := field.String()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(text)
-}
-
-func cueBoolAt(value cue.Value, path string) (bool, bool) {
-	field := value.LookupPath(cue.ParsePath(path))
-	if !field.Exists() {
-		return false, false
-	}
-	enabled, err := field.Bool()
-	return enabled, err == nil
-}
-
 // writeTFVars writes terraform.tfvars.json to the output directory
 func (b *TerraformBridge) writeTFVars(tfvars *TFVars, outputDir string) error {
 	if err := os.MkdirAll(outputDir, 0750); err != nil {
@@ -1045,41 +759,6 @@ func (b *TerraformBridge) writeTFVars(tfvars *TFVars, outputDir string) error {
 	}
 
 	return nil
-}
-
-// ValidateBeforeGeneration validates CUE values before Terraform generation
-func (b *TerraformBridge) ValidateBeforeGeneration() error {
-	validator := NewValidator(b.stackkitDir)
-	result, err := validator.ValidateStackKit(b.stackkitDir)
-	if err != nil {
-		return fmt.Errorf("validation error: %w", err)
-	}
-
-	if !result.Valid {
-		errMsgs := ""
-		for _, e := range result.Errors {
-			errMsgs += fmt.Sprintf("\n  - %s: %s", e.Path, e.Message)
-		}
-		return fmt.Errorf("CUE validation failed:%s", errMsgs)
-	}
-
-	return nil
-}
-
-// GenerateWithValidation validates CUE and then generates tfvars
-func (b *TerraformBridge) GenerateWithValidation(outputDir string) error {
-	if err := b.ValidateBeforeGeneration(); err != nil {
-		return err
-	}
-	return b.GenerateTFVars(outputDir)
-}
-
-// GenerateFromSpecWithValidation validates CUE schemas then generates tfvars from spec.
-func (b *TerraformBridge) GenerateFromSpecWithValidation(spec *models.StackSpec, outputDir string) error {
-	if err := b.ValidateBeforeGeneration(); err != nil {
-		return err
-	}
-	return b.GenerateTFVarsFromSpec(spec, outputDir)
 }
 
 func loadDockerCapabilities() *models.DockerCapabilities {

@@ -257,11 +257,24 @@ It does not infer a host, fetch tenant state, or fall back to legacy generation.
 
 Common flags:
 
-- `--auto-approve`
-- `--verify`
-- `--verify-http`
-- `--verify-strict`
+- `--preflight strict|warn|skip`
 - `--json`
+- `--expected-plan-hash <sha256>`
+
+Apply admits the host before it mutates anything: it measures the device and
+compares it against the floor the kit declares (`foundation.#KitHostRequirementsV1`).
+Under the default `warn` policy only a blocking condition stops Apply, and a
+degraded host installs with its findings reported. `strict` additionally refuses
+on warnings and on facts that could not be verified; `skip` performs no
+admission and says so. `STACKKIT_PREFLIGHT` supplies the default.
+
+Exit codes: `0` applied, `3` the host was refused and nothing was mutated, and
+any other non-zero value a rollout failure.
+
+`--auto-approve`, `--verify`, `--verify-http`, and `--verify-strict` remain
+accepted for released installers but have no effect on the native lifecycle:
+Apply never prompts, and it has no separate platform-app stage. Run
+`stackkit verify` after Apply instead.
 
 The public command applies only local StackSpec, ResolvedPlan, owner-custody,
 and generated artifacts. It has no tenant-deployment, Admin endpoint, Admin
@@ -624,6 +637,57 @@ Subcommands:
 - `cluster join-token`
 
 Cluster command coverage expands with the multi-node workstream.
+
+### `stackkit host preflight`
+
+Measures this host and compares it against the floor the selected kit declares,
+using only read-only probes: architecture, kernel, virtualization, CPU count and
+x86-64-v2 baseline, total/available/swap memory, cgroup version and memory
+controller, container namespace availability, clock synchronization, one
+`docker info` (server version, Compose plugin, storage driver, memory-limit
+support, rootless mode, root directory), free space where Apply writes, and the
+ports Apply publishes.
+
+Apply runs the same admission before mutating the host, so this command answers
+"will it install?" without installing anything.
+
+- `--policy strict|warn|skip` selects the admission policy (default `warn`,
+  overridable through `STACKKIT_PREFLIGHT`).
+- `--json` returns `stackkit.host-preflight/v1` inside
+  `stackkit.command-result/v1`.
+
+A fact that could not be observed is reported `unknown`, never `pass`. Exit `3`
+means the host was refused.
+
+### `stackkit host remediate`
+
+Lists the fixes that answer this host's preflight findings, or carries one out.
+Each fix names the check that justifies it, whether it can be undone, and
+whether it needs root.
+
+Without `--apply` nothing changes: the command measures the host and prints what
+each fix would do.
+
+- `--apply <id> --yes` carries out one named fix. Both flags are required: the
+  id alone is a question, `--yes` is the answer.
+- `--auto-reversible --yes` carries out every fix that may run unattended.
+- `--json` returns `stackkit.host-remediation/v1` inside
+  `stackkit.command-result/v1`.
+
+After a fix runs, the check that justified it is measured again, so the result
+states what actually changed rather than that something was attempted. A file a
+fix replaces is kept beside it as `<name>.stackkit-backup`.
+
+A fix qualifies for `--auto-reversible` only when it is undoable, needs no
+reboot, and needs no credential. Everything else — the Raspberry Pi cgroup
+memory controller, a registry mirror, `docker login`, a hypervisor CPU setting —
+stays advice, because carrying it out is a decision that is not ours to make.
+
+The installers run `--auto-reversible --yes` in unattended (`auto`) mode only.
+Set `STACKKIT_REMEDIATE=0` to opt out. A fix that fails there never stops the
+install: the finding it targets was a warning, and refusing to install because
+an optional improvement did not take is the failure this admission exists to
+remove.
 
 ### `stackkit compat`
 

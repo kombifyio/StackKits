@@ -1,9 +1,9 @@
 {
   "schemaVersion": "stackkits.referenceid-projection/v1",
   "source": "kombify-go-common/referenceid",
-  "sourceVersion": "v0.4.17",
-  "sourceCommit": "c71a29bc1d450912a48b3f84430c9a9aa419da35",
-  "sourceSum": "h1:So+2QcVU/hFnRVPvKQL58AOIg2HHKLBE4CPXCzqc6R0=",
+  "sourceVersion": "v0.4.30",
+  "sourceCommit": "523b9be4010e7cf24d850e32eb1a002d5a77b0c1",
+  "sourceSum": "h1:ZWSnsUJVbpACf4NUcG4sw8XTcB78vHkGcEqarDVjLhE=",
   "sourceFiles": [
     "execution_channel.go",
     "execution_channel_test.go"

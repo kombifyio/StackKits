@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/productkits"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 )
@@ -546,12 +547,7 @@ func validateInitialAuthoringContractVersion(authoring map[string]any, profile s
 }
 
 func isCanonicalProductKitProfile(profile stackspecmigration.KitProfile) bool {
-	switch profile {
-	case stackspecmigration.KitProfileBasement, stackspecmigration.KitProfileCloud, stackspecmigration.KitProfileModern:
-		return true
-	default:
-		return false
-	}
+	return productkits.IsActive(string(profile))
 }
 
 func validateDefinitionProfile(definition resolvedplan.KitDefinition, profile stackspecmigration.KitProfile) error {

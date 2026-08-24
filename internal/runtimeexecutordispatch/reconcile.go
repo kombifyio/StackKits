@@ -13,14 +13,29 @@ type ReconcileRequiredError struct {
 	operation runtimeapply.Operation
 	snapshot  runtimeapply.Snapshot
 	cause     error
+	critical  bool
 }
 
-func newReconcileRequiredError(operation runtimeapply.Operation, snapshot runtimeapply.Snapshot, cause error) error {
+func newReconcileRequiredError(
+	operation runtimeapply.Operation,
+	snapshot runtimeapply.Snapshot,
+	cause error,
+	critical bool,
+) error {
 	return &ReconcileRequiredError{
 		operation: cloneRuntimeApplyOperation(operation),
 		snapshot:  cloneRuntimeApplySnapshot(snapshot),
 		cause:     cause,
+		critical:  critical,
 	}
+}
+
+// Critical reports whether the failure stopped the rollout. A critical failure
+// abandons the remaining steps, so the durable snapshot shows work that was
+// never attempted; a non-critical one means every step was attempted and the
+// snapshot is the complete record of what this Apply achieved.
+func (e *ReconcileRequiredError) Critical() bool {
+	return e == nil || e.critical
 }
 
 func (e *ReconcileRequiredError) Error() string {

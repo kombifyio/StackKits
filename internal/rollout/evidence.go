@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/kombifyio/stackkits/internal/applyoutcome"
 )
 
 type Metadata struct {
@@ -166,7 +168,13 @@ func ClassifyFailure(input string) string {
 		return "verify_failed"
 	case strings.Contains(s, "platform app"):
 		return "platform_app_failed"
-	default:
-		return "unknown_failure"
 	}
+	// Local runtime execution reports host and container-runtime conditions
+	// that the lifecycle-phase classes above cannot express, such as an
+	// out-of-memory kill, a full container filesystem, or a rate-limited
+	// registry. Recognize those before falling back to an unknown failure.
+	if runtime := applyoutcome.Classify(input); runtime.Class != applyoutcome.ClassUnknown {
+		return string(runtime.Class)
+	}
+	return "unknown_failure"
 }

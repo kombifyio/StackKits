@@ -456,3 +456,21 @@ func sha256ContentHash(data []byte) string {
 	sum := sha256.Sum256(data)
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
+
+// EmbeddedKitDefinition returns the decoded KitDefinition one kit declares in
+// the embedded product authority.
+//
+// Host admission needs the kit-declared floor before a plan is executed, and
+// that floor must come from the same authority the plan is bound to rather
+// than from a second copy maintained in Go.
+func EmbeddedKitDefinition(slug string) (resolvedplan.KitDefinition, error) {
+	authority, err := loadEmbeddedAuthority()
+	if err != nil {
+		return nil, err
+	}
+	definition, known := authority.definitions[stackspecmigration.KitProfile(slug)]
+	if !known {
+		return nil, fmt.Errorf("embedded product authority has no kit definition for %q", slug)
+	}
+	return definition, nil
+}

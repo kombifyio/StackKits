@@ -22,6 +22,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/config"
 	cuepkg "github.com/kombifyio/stackkits/internal/cue"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
+	"github.com/kombifyio/stackkits/internal/productkits"
 	"github.com/kombifyio/stackkits/internal/stackaction"
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
@@ -368,13 +369,10 @@ func (s *Server) handleGetArchitectureV2AuthoringDefaults(w http.ResponseWriter,
 }
 
 func canonicalArchitectureV2KitProfile(name string) (stackspecmigration.KitProfile, bool) {
-	profile := stackspecmigration.KitProfile(name)
-	switch profile {
-	case stackspecmigration.KitProfileBasement, stackspecmigration.KitProfileCloud, stackspecmigration.KitProfileModern:
-		return profile, true
-	default:
+	if !productkits.IsActive(name) {
 		return "", false
 	}
+	return stackspecmigration.KitProfile(name), true
 }
 
 func (s *Server) architectureV2AuthoringResponse(profile stackspecmigration.KitProfile, overrides architecturev2.AuthoringOverrides, requireMaterialized bool) (architectureV2AuthoringResponse, error) {

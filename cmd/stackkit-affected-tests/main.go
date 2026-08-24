@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
+	"go/build/constraint"
 	"go/parser"
 	"go/token"
 	"io"
@@ -87,6 +88,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	packages := []goPackage{}
 	goListWarning := ""
 	changedTests := map[string][]string{}
+	changedTestTags := map[string][]string{}
 	testDiscoveryWarning := ""
 	if hasGoChanges(changed) {
 		if opts.maxReverse > 0 {
@@ -95,7 +97,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 				goListWarning = "Go package graph unavailable; testing changed package directories without reverse dependents: " + err.Error()
 			}
 		}
-		changedTests, testDiscoveryWarning = loadChangedTestNames(repo, opts.mergeBase, changed)
+		changedTests, changedTestTags, testDiscoveryWarning = loadChangedTestNames(repo, opts.mergeBase, changed)
 	}
 
 	plan := buildPlan(plannerInput{
@@ -107,6 +109,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		MaxReverse:           opts.maxReverse,
 		GoListWarning:        goListWarning,
 		ChangedTests:         changedTests,
+		ChangedTestTags:      changedTestTags,
 		TestDiscoveryWarning: testDiscoveryWarning,
 	})
 
@@ -199,16 +202,22 @@ type lineRange struct {
 
 var unifiedHunkHeader = regexp.MustCompile(`^@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)(?:,([0-9]+))? @@`)
 
-func loadChangedTestNames(repo, mergeBase string, files []string) (map[string][]string, string) {
+func loadChangedTestNames(repo, mergeBase string, files []string) (map[string][]string, map[string][]string, string) {
 	result := map[string][]string{}
+	tags := map[string][]string{}
 	warnings := []string{}
 	for _, file := range files {
 		if !strings.HasSuffix(file, "_test.go") {
 			continue
 		}
 		fullPath := filepath.Join(repo, filepath.FromSlash(file))
+		source, err := os.ReadFile(fullPath)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("cannot read changed tests in %s: %v", file, err))
+			continue
+		}
 		fileSet := token.NewFileSet()
-		parsed, err := parser.ParseFile(fileSet, fullPath, nil, 0)
+		parsed, err := parser.ParseFile(fileSet, fullPath, source, 0)
 		if err != nil {
 			warnings = append(warnings, fmt.Sprintf("cannot discover changed tests in %s; its package will use the full package slice: %v", file, err))
 			continue
@@ -219,6 +228,7 @@ func loadChangedTestNames(repo, mergeBase string, files []string) (map[string][]
 			continue
 		}
 		dir := filepath.ToSlash(filepath.Dir(file))
+		tags[dir] = append(tags[dir], publisherBuildTags(source)...)
 		for _, declaration := range parsed.Decls {
 			function, ok := declaration.(*ast.FuncDecl)
 			if !ok || function.Recv != nil || !isGoTestName(function.Name.Name) {
@@ -237,7 +247,49 @@ func loadChangedTestNames(repo, mergeBase string, files []string) (map[string][]
 	for dir, names := range result {
 		result[dir] = sortedUnique(names)
 	}
-	return result, strings.Join(warnings, "; ")
+	for dir, names := range tags {
+		tags[dir] = sortedUnique(names)
+	}
+	return result, tags, strings.Join(warnings, "; ")
+}
+
+func publisherBuildTags(source []byte) []string {
+	for _, line := range strings.Split(string(source), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "package ") {
+			break
+		}
+		if !strings.HasPrefix(line, "//go:build ") {
+			continue
+		}
+		expression, err := constraint.Parse(line)
+		if err != nil {
+			return nil
+		}
+		for _, tag := range positiveTags(expression, false) {
+			if tag == "publisher" {
+				return []string{tag}
+			}
+		}
+		return nil
+	}
+	return nil
+}
+
+func positiveTags(expression constraint.Expr, negated bool) []string {
+	switch value := expression.(type) {
+	case *constraint.TagExpr:
+		if !negated {
+			return []string{value.Tag}
+		}
+	case *constraint.NotExpr:
+		return positiveTags(value.X, !negated)
+	case *constraint.AndExpr:
+		return append(positiveTags(value.X, negated), positiveTags(value.Y, negated)...)
+	case *constraint.OrExpr:
+		return append(positiveTags(value.X, negated), positiveTags(value.Y, negated)...)
+	}
+	return nil
 }
 
 func changedLineRanges(repo, mergeBase, file string) ([]lineRange, bool, error) {
@@ -275,7 +327,8 @@ func parseUnifiedChangedLines(diff string) []lineRange {
 			}
 		}
 		if count <= 0 {
-			continue
+			count = 1
+			first = max(1, first)
 		}
 		ranges = append(ranges, lineRange{First: first, Last: first + count - 1})
 	}

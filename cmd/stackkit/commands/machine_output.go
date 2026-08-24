@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/actionableerror"
+	"github.com/kombifyio/stackkits/internal/applyoutcome"
 	"github.com/kombifyio/stackkits/internal/logging"
 	"github.com/spf13/cobra"
 )
@@ -66,8 +67,25 @@ func writeMachineCommandFailure(cmd *cobra.Command, err error, guidance ...strin
 			"Inspect `stackkit logs latest --json` for bounded local evidence when a run was created.",
 		}
 	}
+	// A recognized host or container-runtime condition carries its own reason
+	// code, retry semantics, and remediation. Reporting the generic command
+	// reason with retryable=false made a rate-limited registry and a blocked
+	// kernel indistinguishable to an agent or dashboard.
+	//
+	// Such a condition is also never an owner-authority denial, even when its
+	// text contains the word "denied" (a registry rejecting a pull, or a
+	// refused Docker socket). Classifying first keeps the envelope status
+	// honest for exactly those cases.
+	reason := machineCommandFailureReason(cmd, status)
+	retryable := false
+	if runtime := applyoutcome.Classify(err.Error()); runtime.Class != applyoutcome.ClassUnknown {
+		status = "failed"
+		reason = string(runtime.Class)
+		retryable = runtime.Retryable
+		guidance = append(append([]string(nil), runtime.Remediation...), guidance...)
+	}
 	detail := actionableerror.New(
-		"stackkit_command_failed", machineCommandFailureReason(cmd, status), logging.RedactText(err.Error()), guidance, false,
+		"stackkit_command_failed", reason, logging.RedactText(err.Error()), guidance, retryable,
 	)
 	if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), status, detail); writeErr != nil {
 		return errors.Join(err, fmt.Errorf("write machine-readable command failure: %w", writeErr))

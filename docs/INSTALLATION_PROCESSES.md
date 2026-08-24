@@ -408,8 +408,7 @@ verbs, whoever runs this entrypoint is carried to a running homelab):
    - guided: workspace (Enter keeps the default), own domain yes/no,
      admin email, owner account yes/no, one apply confirmation;
    - expert additionally: use cases (`photos,files,vault`), stack name,
-     platform adapter (`coolify|komodo`), image prepull, and visible
-     two-phase applies.
+     platform adapter (`coolify|komodo`), and image prepull.
 3. Refuses to install over a workspace that already carries deployment
    intent (one host runs one active local deployment; the deployment
    contract ID derives from the workspace directory name).
@@ -426,11 +425,20 @@ verbs, whoever runs this entrypoint is carried to a running homelab):
 7. Builds the local FROM-scratch `stackkit-server:local` image with the
    host CA bundle, falling back to the configured registry image when
    Docker or the binary is unavailable.
-8. `stackkit generate`, then the two-phase deployment:
-   `stackkit apply --auto-approve --skip-platform-apps` followed by
-   `stackkit apply --auto-approve`.
+8. `stackkit host preflight` admits the host read-only. In unattended
+   (`auto`) mode the installer then runs
+   `stackkit host remediate --auto-reversible --yes` for the undoable
+   fixes — bounded container logs, swap on a host with none — and
+   re-measures; `STACKKIT_REMEDIATE=0` opts out, and a fix that fails
+   never stops the install. Then `stackkit generate`, then one
+   `stackkit apply --auto-approve`. The
+   canonical ResolvedPlan owns execution order across core services and
+   applications, so there is no separate platform-app stage to sequence
+   from the installer.
 9. Prints the access summary: service URLs, initial admin credentials,
    the machine-readable access summary path, and the project directory.
+   A refused host exits 3 without mutating anything; a failed rollout
+   exits non-zero and names how to inspect and re-apply.
 
 Important environment variables (each pre-seeds one decision):
 
@@ -525,8 +533,9 @@ User journey:
 4. Ensure Docker access (apply installs Docker on demand; non-root users
    need docker group membership).
 5. Generate and review the plan.
-6. Apply after explicit approval (`--auto-approve` for automation;
-   `--skip-platform-apps` first for the two-phase order).
+6. Apply after explicit approval (`--auto-approve` for automation).
+   Host admission runs first and refuses before any mutation; select its
+   strictness with `--preflight strict|warn|skip`.
 7. Verify and collect evidence.
 
 Best fit:

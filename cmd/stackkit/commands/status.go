@@ -11,6 +11,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
+	"github.com/kombifyio/stackkits/internal/applyledger"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/docker"
@@ -67,7 +68,11 @@ type architectureV2StatusResult struct {
 	Apply                 *architecturev2.ApplyResultSummary  `json:"apply,omitempty"`
 	Runtime               *architectureV2RuntimeVerifySummary `json:"runtime,omitempty"`
 	Observations          []runtimeobservation.Observation    `json:"observations"`
-	ActionableError       *actionableerror.Contract           `json:"actionableError,omitempty"`
+	// Outcomes is the per-unit account of the last Apply. Without it a caller
+	// can only learn that an Apply happened, not which of its units are
+	// actually running.
+	Outcomes        *applyledger.Ledger       `json:"outcomes,omitempty"`
+	ActionableError *actionableerror.Contract `json:"actionableError,omitempty"`
 }
 
 func runStatus(cmd *cobra.Command, args []string) (retErr error) {
@@ -242,6 +247,10 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 		PlanHash: verified.Binding().PlanHash, ExecutionReadiness: plan["executionReadiness"],
 		Workloads: plan["workloads"], ApplicationLifecycles: lifecycles, FleetLifecycle: fleetProjection,
 		ApplyState: "unavailable", Observations: []runtimeobservation.Observation{},
+		// The last Apply recorded what each unit did. Report that account here,
+		// so status answers "which parts are running" and not only "an Apply
+		// happened".
+		Outcomes: latestApplyLedger(wd),
 	}
 	statusOptions := architectureV2ExecutionCLIOptions{inventoryPath: statusInventoryPath}
 	statusOptions.inventoryData, err = readArchitectureV2Inventory(wd, statusInventoryPath)

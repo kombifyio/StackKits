@@ -53,6 +53,37 @@ stackActionContract: {
 				{goConst: "StatusFailed", value: "failed"},
 			]
 		}
+		UnitOutcomeStatus: {
+			order:  100
+			goName: "UnitOutcomeStatus"
+			values: [
+				{goConst: "UnitOutcomeApplied", value: "applied"},
+				{goConst: "UnitOutcomeDegraded", value: "degraded"},
+				{goConst: "UnitOutcomeFailed", value: "failed"},
+				{goConst: "UnitOutcomeSkipped", value: "skipped"},
+				{goConst: "UnitOutcomeUnverified", value: "unverified"},
+			]
+		}
+		UnitCriticality: {
+			order:  110
+			goName: "UnitCriticality"
+			values: [
+				{goConst: "UnitCriticalityCore", value: "core"},
+				{goConst: "UnitCriticalityPlatform", value: "platform"},
+				{goConst: "UnitCriticalityWorkload", value: "workload"},
+				{goConst: "UnitCriticalityAddon", value: "addon"},
+			]
+		}
+		OverallOutcome: {
+			order:  120
+			goName: "OverallOutcome"
+			values: [
+				{goConst: "OverallOutcomeApplied", value: "applied"},
+				{goConst: "OverallOutcomeCompletedDegraded", value: "completed_degraded"},
+				{goConst: "OverallOutcomeFailed", value: "failed"},
+				{goConst: "OverallOutcomeBlocked", value: "blocked"},
+			]
+		}
 		CheckStatus: {
 			order:  40
 			goName: "CheckStatus"
@@ -257,6 +288,29 @@ stackActionContract: {
 				(#StackActionField & {json: "repo_size_bytes", goName: "RepoSizeBytes", goType: "int64", required: false, value: int & >=0, openapi: {kind: "integer", minimum: 0, format: "int64"}}), (#StackActionField & {json: "wiped", goName: "Wiped", goType: "bool", required: false, value: bool, openapi: {kind: "boolean"}}),
 			]
 		}
+		UnitOutcome: #StackActionType & {
+			order:       115, goName: "UnitOutcome", openapiName: "StackActionUnitOutcome"
+			description: "One rollout unit and what actually happened to it."
+			fields: [
+				(#StackActionField & {json: "ref", goName: "Ref", goType: "string", required: true, value: #NonEmptyString, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "kind", goName: "Kind", goType: "string", required: true, value: #NonEmptyString, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "outcome", goName: "Outcome", goType: "UnitOutcomeStatus", required: true, value: string, openapi: {kind: "enum", enum: "UnitOutcomeStatus"}}),
+				(#StackActionField & {json: "criticality", goName: "Criticality", goType: "UnitCriticality", required: true, value: string, openapi: {kind: "enum", enum: "UnitCriticality"}}),
+				(#StackActionField & {json: "workload_ref", goName: "WorkloadRef", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "requirement_id", goName: "RequirementID", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "instance_ref", goName: "InstanceRef", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "runtime_owner_ref", goName: "RuntimeOwnerRef", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "module_ref", goName: "ModuleRef", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "site_ref", goName: "SiteRef", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "node_ref", goName: "NodeRef", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "failure_class", goName: "FailureClass", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "failure_code", goName: "FailureCode", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "retryable", goName: "Retryable", goType: "bool", required: false, value: bool, openapi: {kind: "boolean"}}),
+				(#StackActionField & {json: "transient", goName: "Transient", goType: "bool", required: false, value: bool, openapi: {kind: "boolean"}}),
+				(#StackActionField & {json: "message", goName: "Message", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
+				(#StackActionField & {json: "remediation", goName: "Remediation", goType: "[]string", required: false, value: [...string], openapi: {kind: "array", itemsKind: "string"}}),
+			]
+		}
 		Check: #StackActionType & {
 			order:       120, goName: "Check", openapiName: "StackActionCheck"
 			description: "One named action check."
@@ -448,6 +502,8 @@ stackActionContract: {
 				(#StackActionField & {json: "platform_apps", goName: "PlatformApps", goType: "[]PlatformAppState", required: false, value: [...types.PlatformAppState.schema], openapi: {kind: "array", itemsKind: "ref", itemsRef: "StackActionPlatformAppState"}}),
 				(#StackActionField & {json: "backup", goName: "Backup", goType: "*BackupResult", required: false, value: types.BackupResult.schema, openapi: {kind: "ref", ref: "StackActionBackupResult"}}),
 				(#StackActionField & {json: "service", goName: "Service", goType: "*ServiceActionResult", required: false, value: types.ServiceActionResult.schema, openapi: {kind: "ref", ref: "StackActionServiceActionResult"}}),
+				(#StackActionField & {json: "units", goName: "Units", goType: "[]UnitOutcome", required: false, value: [...types.UnitOutcome.schema], openapi: {kind: "array", itemsKind: "ref", itemsRef: "StackActionUnitOutcome"}}),
+				(#StackActionField & {json: "overall_outcome", goName: "OverallOutcome", goType: "OverallOutcome", required: false, value: string, openapi: {kind: "enum", enum: "OverallOutcome"}}),
 			]
 		}
 	}

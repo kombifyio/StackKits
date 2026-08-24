@@ -259,20 +259,6 @@ func printVerbose(format string, args ...interface{}) {
 	}
 }
 
-func printHumanln(args ...interface{}) {
-	if !humanOutputSuppressed() {
-		fmt.Println(args...)
-	}
-}
-
-func printHumanf(format string, args ...interface{}) {
-	if !humanOutputSuppressed() {
-		fmt.Printf(format, args...)
-	}
-}
-
-// initDeployLogger creates the structured deploy logger.
-// Closes any previously open logger (for test safety).
 func initDeployLogger() {
 	if deployLog != nil {
 		deployLog.Close()

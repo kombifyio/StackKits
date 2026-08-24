@@ -70,6 +70,14 @@ ContractFixtureDefinition: foundation.#KitDefinition & {
 	}
 	partitionPolicy: basement.Definition.partitionPolicy
 	generation:      basement.Definition.generation
+	hostRequirements: {
+		minCpuCores:          2
+		minRamGB:             2
+		minStorageGB:         10
+		recommendedCpuCores:  4
+		recommendedRamGB:     4
+		recommendedStorageGB: 20
+	}
 	upgradePolicy: {
 		support:                    "unsupported"
 		ownerApprovalRequired:      false

@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.21.15](https://github.com/kombifyio/stackKits/compare/v0.21.13...v0.21.15) (2026-08-24)
+
+### Added
+
+- Extend the native access manifest to `stackkit.access-manifest/v3` with CUE-owned application grouping, display names, lifecycle and operational impact, exact runtime identity, and secret-free internal addresses for measured runtime services.
+
+### Changed
+
+- Synchronize the governed public-contract projection with the active `kombify-go-common` v0.4.30 pin so exact-source OSS export remains reproducible.
+
+- Restore the documented latest-commit and cumulative-branch affected-test commands as direct deterministic planner tasks.
+
+- Bind Use Case default and alternative tool selections to the package-local tool registry, including exact registry-key/module-slug identity.
+
+- Focus shared CUE authority changes on the embedded-bundle behavior, renderer compilation, and concrete CUE consumers instead of executing the historical architecture package suite.
+
 ## [0.21.13](https://github.com/kombifyio/stackKits/compare/v0.21.12...v0.21.13) (2026-08-22)
 
 ### Fixed

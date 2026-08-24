@@ -18,7 +18,7 @@ const (
 	cloudCoreComposeOutputRef = "platform/cloud-core/compose.yaml"
 	cloudCoreRendererRef      = "stackkit"
 	cloudCoreVersion          = "1.0.0"
-	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:4|resolved-network-domain:required|runtime-listeners:catalog-bound|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-tls-alpn|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
+	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:5|resolved-network-domain:required|runtime-listeners:catalog-bound|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-tls-alpn|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
 )
 
 const cloudCoreComponentsJSON = `[
@@ -38,12 +38,24 @@ services:
   socket-proxy:
     image: ghcr.io/tecnativa/docker-socket-proxy:v0.4.2@sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -500
     environment: {CONTAINERS: "1", EVENTS: "1", INFO: "1", NETWORKS: "1", PING: "1", VERSION: "1"}
     volumes: [/var/run/docker.sock:/var/run/docker.sock:ro]
     networks: [cloud-control]
   router:
     image: ghcr.io/traefik/traefik:v3@sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -800
     depends_on: [socket-proxy]
     command:
       - --api.insecure=true
@@ -61,6 +73,12 @@ services:
   pocketid:
     image: ghcr.io/pocket-id/pocket-id:v2.7.0@sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -600
     env_file: ["${STACKKIT_CUSTODY_DIR:?}/cloud-runtime/pocketid.env"]
     volumes: [pocketid-data:/app/data]
     ports: ["0.0.0.0:1411:1411"]
@@ -76,6 +94,12 @@ services:
   tinyauth:
     image: ghcr.io/steveiliop56/tinyauth:v5.0.7@sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -500
     depends_on: [pocketid]
     env_file: ["${STACKKIT_CUSTODY_DIR:?}/cloud-runtime/tinyauth.env"]
     volumes: [tinyauth-data:/data]
@@ -92,6 +116,12 @@ services:
   coolify-postgres:
     image: docker.io/library/postgres:15-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -700
     env_file: ["${STACKKIT_CUSTODY_DIR:?}/cloud-runtime/coolify.env"]
     volumes: [coolify-postgres-data:/var/lib/postgresql/data]
     healthcheck: {test: ["CMD-SHELL", "pg_isready -U $${DB_USERNAME} -d $${DB_DATABASE:-coolify}"], interval: 5s, timeout: 2s, retries: 12, start_period: 10s}
@@ -99,6 +129,12 @@ services:
   coolify-redis:
     image: docker.io/library/redis:7-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -400
     env_file: ["${STACKKIT_CUSTODY_DIR:?}/cloud-runtime/coolify.env"]
     command: ["sh", "-c", "exec redis-server --save 20 1 --loglevel warning --requirepass \"$${REDIS_PASSWORD}\""]
     volumes: [coolify-redis-data:/data]
@@ -107,6 +143,12 @@ services:
   coolify-realtime:
     image: ghcr.io/coollabsio/coolify-realtime:1.0.16@sha256:b5bb9d1c95d9b4ca59773b82d1e1a2bf4ccac5fbed33be19b9b3906574db3629
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -100
     depends_on: [coolify-redis]
     env_file: ["${STACKKIT_CUSTODY_DIR:?}/cloud-runtime/coolify.env"]
     healthcheck: {test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:6001/ready && wget -qO- http://127.0.0.1:6002/ready"], interval: 5s, timeout: 2s, retries: 12, start_period: 10s}
@@ -114,6 +156,12 @@ services:
   coolify:
     image: ghcr.io/coollabsio/coolify:4.1.2@sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -100
     depends_on:
       coolify-postgres: {condition: service_healthy}
       coolify-redis: {condition: service_healthy}
@@ -140,6 +188,12 @@ services:
   hub:
     image: docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -300
     depends_on: [tinyauth]
     command:
       - /bin/sh

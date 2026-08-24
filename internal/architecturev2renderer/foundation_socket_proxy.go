@@ -36,6 +36,12 @@ const socketProxyComposeTemplate = `services:
   socket-proxy:
     image: "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2@sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476"
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -500
     environment:
       ALLOW_PAUSE: "0"
       ALLOW_RESTARTS: "0"

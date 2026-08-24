@@ -11,6 +11,7 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/kombifyio/stackkits/internal/windowstoken"
 	"golang.org/x/sys/windows"
 )
 
@@ -34,9 +35,13 @@ func requirePrivateBasementRuntimeFile(path string, info os.FileInfo) error {
 	if info == nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
 		return errors.New("Basement runtime file is not a plain regular file")
 	}
-	currentUser, err := windows.GetCurrentProcessToken().GetTokenUser()
-	if err != nil || currentUser == nil || currentUser.User.Sid == nil {
-		return errors.New("resolve current Windows token user")
+	currentUser, err := windowstoken.CurrentUserSID()
+	if err != nil {
+		return err
+	}
+	currentOwner, err := windowstoken.CurrentOwnerSID()
+	if err != nil {
+		return err
 	}
 	descriptor, err := windows.GetNamedSecurityInfo(
 		path, windows.SE_FILE_OBJECT,
@@ -46,8 +51,8 @@ func requirePrivateBasementRuntimeFile(path string, info os.FileInfo) error {
 		return errors.New("inspect Windows Basement runtime ACL")
 	}
 	owner, _, err := descriptor.Owner()
-	if err != nil || owner == nil || !owner.Equals(currentUser.User.Sid) {
-		return errors.New("Windows Basement runtime owner is not the current user")
+	if err != nil || owner == nil || !owner.Equals(currentOwner) {
+		return errors.New("Windows Basement runtime owner differs from the process token owner")
 	}
 	control, _, err := descriptor.Control()
 	if err != nil || control&windows.SE_DACL_PRESENT == 0 || control&windows.SE_DACL_PROTECTED == 0 {
@@ -64,7 +69,7 @@ func requirePrivateBasementRuntimeFile(path string, info os.FileInfo) error {
 		return errors.New("Windows Basement runtime ACL is not an explicit owner-only grant")
 	}
 	aceUser := (*windows.SID)(unsafe.Pointer(&ace.SidStart))
-	if !currentUser.User.Sid.Equals(aceUser) {
+	if !currentUser.Equals(aceUser) {
 		return errors.New("Windows Basement runtime ACL grants another principal")
 	}
 	const fileAllAccess windows.ACCESS_MASK = windows.STANDARD_RIGHTS_REQUIRED | windows.SYNCHRONIZE | 0x1ff

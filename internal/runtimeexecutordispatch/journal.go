@@ -17,6 +17,25 @@ type preparedExecution struct {
 	executor     runtimeexecutor.Executor
 	request      runtimeexecutor.ExecutionRequest
 	compensation runtimeapply.CompensationMode
+	critical     bool
+}
+
+// criticalRuntimeTargets reports whether a prepared child carries core work.
+//
+// The steps of one operation are independent by construction. A workload that
+// fails takes only itself down, so the remaining workloads must still be
+// attempted -- that is the difference between a stack that is missing one app
+// and a stack that was never installed. Core work is the shared foundation the
+// workloads sit on, so a failure there makes the rest meaningless and stops the
+// rollout. A child without runtime targets is treated as core, because nothing
+// proves it is safe to skip past.
+func criticalRuntimeTargets(targets []runtimeexecutor.RuntimeTarget) bool {
+	for _, target := range targets {
+		if target.WorkloadRef == "" {
+			return true
+		}
+	}
+	return len(targets) == 0
 }
 
 func normalizeCompensationMode(mode runtimeapply.CompensationMode) (runtimeapply.CompensationMode, error) {
@@ -114,6 +133,8 @@ func executePrepared(
 	}
 
 	outcome := runtimeexecutor.ExecutionOutcome{}
+	failures := make([]error, 0, len(prepared))
+	settled := runtimeapply.Snapshot{}
 	for _, child := range prepared {
 		step, exists := stepByDigest[child.request.RequestDigest]
 		if !exists {
@@ -167,7 +188,14 @@ func executePrepared(
 			if validationErr := validateCommittedSnapshot(operation, failureSnapshot, states, failed); validationErr != nil {
 				return runtimeexecutor.ExecutionOutcome{}, errors.Join(invokeErr, fmt.Errorf("validate failed journal snapshot: %w", validationErr))
 			}
-			return runtimeexecutor.ExecutionOutcome{}, newReconcileRequiredError(operation, failureSnapshot, invokeErr)
+			operationState = failureSnapshot.State
+			states = indexStepSnapshots(failureSnapshot)
+			settled = failureSnapshot
+			failures = append(failures, fmt.Errorf("%s: %w", child.label, invokeErr))
+			if child.critical {
+				return runtimeexecutor.ExecutionOutcome{}, newReconcileRequiredError(operation, failureSnapshot, errors.Join(failures...), true)
+			}
+			continue
 		}
 
 		succeeded := runtimeapply.StepCommit{
@@ -188,7 +216,19 @@ func executePrepared(
 		}
 		operationState = snapshot.State
 		states = indexStepSnapshots(snapshot)
+		settled = snapshot
 		appendResult(&outcome, result)
+	}
+
+	if len(failures) > 0 {
+		// Every step has settled and at least one failed, so the journal has
+		// already placed the operation in its terminal partial state.
+		// Reconcile-required does not transition to itself, so there is
+		// nothing left to finalize.
+		if settled.State != runtimeapply.OperationReconcileRequired {
+			return runtimeexecutor.ExecutionOutcome{}, errors.New("runtime Apply journal did not settle a partial operation as reconcile-required")
+		}
+		return runtimeexecutor.ExecutionOutcome{}, newReconcileRequiredError(operation, settled, errors.Join(failures...), false)
 	}
 
 	finalization := runtimeapply.Finalization{
@@ -217,12 +257,20 @@ func executePrepared(
 
 func executePreparedDirect(ctx context.Context, prepared []preparedExecution) (runtimeexecutor.ExecutionOutcome, error) {
 	outcome := runtimeexecutor.ExecutionOutcome{}
+	failures := make([]error, 0, len(prepared))
 	for _, child := range prepared {
 		result, err := invokePrepared(ctx, child)
 		if err != nil {
-			return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("execute runtime owner for %q: %w", child.label, err)
+			failures = append(failures, fmt.Errorf("execute runtime owner for %q: %w", child.label, err))
+			if child.critical {
+				return runtimeexecutor.ExecutionOutcome{}, errors.Join(failures...)
+			}
+			continue
 		}
 		appendResult(&outcome, result)
+	}
+	if len(failures) > 0 {
+		return runtimeexecutor.ExecutionOutcome{}, errors.Join(failures...)
 	}
 	sortExecutionOutcome(&outcome)
 	return outcome, nil
@@ -298,11 +346,7 @@ func validateCommittedSnapshot(
 	if err := runtimeapply.ValidateSnapshot(operation, snapshot); err != nil {
 		return err
 	}
-	wantOperationState := runtimeapply.OperationRunning
-	if commit.State == runtimeapply.StepFailed {
-		wantOperationState = runtimeapply.OperationReconcileRequired
-	}
-	if snapshot.State != wantOperationState {
+	if snapshot.State != expectedOperationState(previous, commit) {
 		return errors.New("runtime Apply journal snapshot has an unexpected operation state after step commit")
 	}
 	for _, state := range snapshot.Steps {
@@ -322,6 +366,47 @@ func validateCommittedSnapshot(
 		return nil
 	}
 	return errors.New("runtime Apply journal snapshot omits the committed step")
+}
+
+// OperationStateForSteps derives the operation state a journal must report for
+// a step set. A failure is terminal only once nothing is left to attempt: while
+// other independent steps are still pending or running, the operation keeps
+// running so they can be tried. This mirrors the shared contract, which admits
+// a failed step in a running snapshot but requires a settled failure to be
+// reported as reconcile-required.
+//
+// Every journal implementation must derive the same state from the same steps,
+// so this is the one place the rule lives.
+func OperationStateForSteps(steps []runtimeapply.StepSnapshot) runtimeapply.OperationState {
+	failed, remaining := 0, 0
+	for _, step := range steps {
+		switch step.State {
+		case runtimeapply.StepPending, runtimeapply.StepRunning:
+			remaining++
+		case runtimeapply.StepFailed:
+			failed++
+		}
+	}
+	if failed > 0 && remaining == 0 {
+		return runtimeapply.OperationReconcileRequired
+	}
+	return runtimeapply.OperationRunning
+}
+
+// expectedOperationState projects one step commit onto the previously observed
+// states and derives the operation state the journal must report for it.
+func expectedOperationState(
+	previous map[string]runtimeapply.StepSnapshot,
+	commit runtimeapply.StepCommit,
+) runtimeapply.OperationState {
+	projected := make([]runtimeapply.StepSnapshot, 0, len(previous))
+	for digest, state := range previous {
+		if digest == commit.RequestDigest {
+			state.State = commit.State
+		}
+		projected = append(projected, state)
+	}
+	return OperationStateForSteps(projected)
 }
 
 func snapshotStepsMatch(expected map[string]runtimeapply.StepSnapshot, snapshot runtimeapply.Snapshot) bool {

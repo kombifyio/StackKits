@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/productkits"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
@@ -310,7 +311,7 @@ func normalizeTarget(raw KitProfile) (KitProfile, bool, *Blocker) {
 		return "", false, &Blocker{
 			Code:                 "target-kit.invalid",
 			Field:                "options.targetKitProfile",
-			Message:              fmt.Sprintf("target KitProfile %q is not one of the three canonical profiles", raw),
+			Message:              fmt.Sprintf("target KitProfile %q is not an active product profile", raw),
 			RequiredInputs:       []string{"targetKitProfile"},
 			SuggestedKitProfiles: canonicalKitProfiles(),
 		}
@@ -555,16 +556,16 @@ func siteKindForProfile(profile KitProfile) SiteKind {
 }
 
 func isCanonicalKitProfile(profile KitProfile) bool {
-	switch profile {
-	case KitProfileBasement, KitProfileCloud, KitProfileModern:
-		return true
-	default:
-		return false
-	}
+	return productkits.IsActive(string(profile))
 }
 
 func canonicalKitProfiles() []KitProfile {
-	return []KitProfile{KitProfileBasement, KitProfileCloud, KitProfileModern}
+	slugs := productkits.Slugs()
+	profiles := make([]KitProfile, len(slugs))
+	for index, slug := range slugs {
+		profiles[index] = KitProfile(slug)
+	}
+	return profiles
 }
 
 func blocked(report Report, blockers ...Blocker) (NormalizedArchitecture, Report, error) {

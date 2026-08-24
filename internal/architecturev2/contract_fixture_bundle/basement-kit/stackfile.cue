@@ -197,6 +197,14 @@ Definition: foundation.#ProductKitDefinition & {
 		allowedTargets: ["opentofu", "compose", "terramate"]
 		contractVersion: "1.0.0"
 	}
+	hostRequirements: {
+		minCpuCores:          2
+		minRamGB:             2
+		minStorageGB:         10
+		recommendedCpuCores:  4
+		recommendedRamGB:     4
+		recommendedStorageGB: 20
+	}
 	upgradePolicy: {
 		support:                    "preview"
 		ownerApprovalRequired:      true

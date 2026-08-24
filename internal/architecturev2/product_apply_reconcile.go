@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/applyoutcome"
 	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutordispatch"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
@@ -58,10 +59,40 @@ func (e *ProductApplyReconcileRequiredError) Error() string {
 		}
 		result += " (" + strings.Join(closed, ",") + ")"
 	}
-	if detail := boundedProductApplyCause(e.cause); detail != "" && detail != result {
+	detail := boundedProductApplyCause(e.cause)
+	// The closed failure code states that a step failed, never why. Name the
+	// recognized host or container-runtime condition so an operator, agent, or
+	// dashboard can act without reading the raw excerpt.
+	if runtime := applyoutcome.Classify(detail); runtime.Class != applyoutcome.ClassUnknown {
+		result += " [" + string(runtime.Class) + "]"
+	}
+	if detail != "" && detail != result {
 		result += ": " + detail
 	}
 	return result
+}
+
+// FailureClass reports the recognized host or container-runtime condition
+// behind this reconcile-required outcome, or an empty string when the cause
+// carries no closed signature.
+func (e *ProductApplyReconcileRequiredError) FailureClass() string {
+	if e == nil {
+		return ""
+	}
+	runtime := applyoutcome.Classify(boundedProductApplyCause(e.cause))
+	if runtime.Class == applyoutcome.ClassUnknown {
+		return ""
+	}
+	return string(runtime.Class)
+}
+
+// Retryable reports whether repeating Apply can succeed once the recognized
+// condition is addressed. An unrecognized cause is never claimed retryable.
+func (e *ProductApplyReconcileRequiredError) Retryable() bool {
+	if e == nil {
+		return false
+	}
+	return applyoutcome.Classify(boundedProductApplyCause(e.cause)).Retryable
 }
 
 func boundedProductApplyCause(err error) string {

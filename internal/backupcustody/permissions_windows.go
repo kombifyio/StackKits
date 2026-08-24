@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"unsafe"
 
+	"github.com/kombifyio/stackkits/internal/windowstoken"
 	"golang.org/x/sys/windows"
 )
 
@@ -55,6 +56,10 @@ func requirePrivatePath(path string, directory bool) error {
 	if err != nil {
 		return err
 	}
+	currentOwner, err := windowstoken.CurrentOwnerSID()
+	if err != nil {
+		return fmt.Errorf("backupcustody: %w", err)
+	}
 	descriptor, err := windows.GetNamedSecurityInfo(
 		path,
 		windows.SE_FILE_OBJECT,
@@ -67,8 +72,8 @@ func requirePrivatePath(path string, directory bool) error {
 		return errors.New("backupcustody: inspect Windows custody ACL: empty security descriptor")
 	}
 	owner, _, err := descriptor.Owner()
-	if err != nil || owner == nil || !owner.Equals(currentUser) {
-		return errors.New("backupcustody: Windows custody owner is not the current user")
+	if err != nil || owner == nil || !owner.Equals(currentOwner) {
+		return errors.New("backupcustody: Windows custody owner differs from the process token owner")
 	}
 	control, _, err := descriptor.Control()
 	if err != nil ||
@@ -135,9 +140,9 @@ func RequirePrivatePath(path string, directory bool) error {
 }
 
 func currentProcessUserSID() (*windows.SID, error) {
-	currentUser, err := windows.GetCurrentProcessToken().GetTokenUser()
-	if err != nil || currentUser == nil || currentUser.User.Sid == nil {
-		return nil, errors.New("backupcustody: resolve current Windows token user")
+	currentUser, err := windowstoken.CurrentUserSID()
+	if err != nil {
+		return nil, fmt.Errorf("backupcustody: %w", err)
 	}
-	return currentUser.User.Sid, nil
+	return currentUser, nil
 }

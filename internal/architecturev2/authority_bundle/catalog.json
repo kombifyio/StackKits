@@ -9920,7 +9920,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:3ea559c5ba0c528ad9ae99341bc2380ca781012a863a2c389a1565b4f183bd9d",
+          "contractHash": "sha256:7f7beb9fdefe9f6c4f4acfdae8d0f71a754356f9dd29112992927f884438a47c",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -10159,7 +10159,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:16c7f07e319e63001acca659fd3d245ae9e128749e7a85ac79481033a6341858",
+          "contractHash": "sha256:8b15d1616fa23847ba36d96989ff15fadbc46b00ba79061496cd963058c8e6f0",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -10333,7 +10333,7 @@
           "artifactRefs": [
             "cloud-core-compose"
           ],
-          "contractHash": "sha256:16c7f07e319e63001acca659fd3d245ae9e128749e7a85ac79481033a6341858",
+          "contractHash": "sha256:8b15d1616fa23847ba36d96989ff15fadbc46b00ba79061496cd963058c8e6f0",
           "id": "compose",
           "planInputRefs": [],
           "publicInputRefs": [],
@@ -10934,7 +10934,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:4a63f59c3c708412a3740767189f416b0020bfb6dfef114979682c3378c71acc",
+          "contractHash": "sha256:7e7ceb3bc5953b64b0b55bff8874887022be265384b4985e29ee0479057ea627",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -11107,7 +11107,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:53076b1f51ff3c408ba8a37ed4435d38764426e378d2396b4b714d9cbf2cb5d9",
+          "contractHash": "sha256:9db4928aee7dfd6b7e1b418e1764ae5ebca7802bbb169fc59e6eaa2b1b7b0d3e",
           "id": "opentofu",
           "inputBindings": [],
           "kind": "opentofu",
@@ -12311,6 +12311,10 @@
             "networkRefs": [
               "immich-internal"
             ],
+            "resources": {
+              "memoryLimit": "3g",
+              "memoryReservation": "512m"
+            },
             "role": "application",
             "secretEnvironment": {
               "DB_PASSWORD": "database-password"
@@ -12342,6 +12346,10 @@
             "networkRefs": [
               "immich-internal"
             ],
+            "resources": {
+              "memoryLimit": "3g",
+              "memoryReservation": "512m"
+            },
             "role": "machine-learning",
             "volumes": [
               {
@@ -12378,6 +12386,10 @@
             "networkRefs": [
               "immich-internal"
             ],
+            "resources": {
+              "memoryLimit": "2g",
+              "memoryReservation": "256m"
+            },
             "role": "database",
             "secretEnvironment": {
               "POSTGRES_PASSWORD": "database-password"
@@ -12415,6 +12427,9 @@
             "networkRefs": [
               "immich-internal"
             ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
             "role": "database-init",
             "secretEnvironment": {
               "PGPASSWORD": "database-password"
@@ -12441,6 +12456,10 @@
             "networkRefs": [
               "immich-internal"
             ],
+            "resources": {
+              "memoryLimit": "512m",
+              "memoryReservation": "64m"
+            },
             "role": "cache"
           }
         ],
@@ -12663,6 +12682,10 @@
             "networkRefs": [
               "cloudreve-internal"
             ],
+            "resources": {
+              "memoryLimit": "1g",
+              "memoryReservation": "128m"
+            },
             "role": "application",
             "volumes": [
               {
@@ -12903,6 +12926,10 @@
             "networkRefs": [
               "vaultwarden-internal"
             ],
+            "resources": {
+              "memoryLimit": "512m",
+              "memoryReservation": "64m"
+            },
             "role": "application",
             "secretEnvironment": {
               "ADMIN_TOKEN": "admin-token"

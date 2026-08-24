@@ -18,6 +18,8 @@ func main() {
 	commands.SetVersionInfo(Version, GitCommit, BuildDate)
 
 	if err := commands.Execute(); err != nil {
-		os.Exit(1)
+		// A host refused by preflight exits distinctly, so an installer or
+		// orchestrator can tell an unusable device from a broken rollout.
+		os.Exit(commands.ExitCode(err))
 	}
 }

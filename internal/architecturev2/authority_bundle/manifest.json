@@ -13,9 +13,9 @@
   "sourceHashes": {
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee",
     "foundation/application_lifecycle.cue": "sha256:2dd53768204f8abebe9c5417c036470e6465769042e359afb05987c421a6307d",
-    "foundation/architecture_v2.cue": "sha256:9eaa2919da8c5629379eb5e3041442f41de1608ece6a97de47ef86483ccfcf30",
+    "foundation/architecture_v2.cue": "sha256:20306ed1e734e6d9de3544a9aa3cc83b11a61c3c997f56a2e5e60ffdb29caf0f",
     "foundation/architecture_v2_backup.cue": "sha256:750b23662d20956156394cf61ad1466e651372a18aa06075883a2a70199c93e0",
-    "foundation/architecture_v2_catalog.cue": "sha256:db3fc50716ee80549c0865e2e6ce3a449a110d007e7e550d605686eee2d91a16",
+    "foundation/architecture_v2_catalog.cue": "sha256:75d033405149efcbabb18b25bd06f56a617f8d2b3f026527e58c614f60f32172",
     "foundation/architecture_v2_definition_binding.cue": "sha256:eb672ae095f461383f94d7212cc92a6a16a01f5abcd9722523015457bc3484a4",
     "foundation/architecture_v2_federation.cue": "sha256:6b8720e5ebd55f3d85661a43f16fb9781be983fb63f0e7e09a182ed414429e81",
     "foundation/architecture_v2_profiles.cue": "sha256:1b80546a4156f4aeba80f8149f5847fbd2315f2269ed8128fe3cb8b36e7128f3",

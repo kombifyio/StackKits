@@ -111,6 +111,7 @@ func (d *Dispatcher) Execute(ctx context.Context, request runtimeexecutor.Execut
 		}
 		prepared = append(prepared, preparedExecution{
 			label: channelRef, executor: child.executor, request: childRequest, compensation: child.compensation,
+			critical: criticalRuntimeTargets(group.runtime),
 		})
 	}
 	return executePrepared(ctx, request, prepared, d.journal)

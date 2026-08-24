@@ -45,7 +45,7 @@ func (o *osCloudCoreOperations) ApplyProject(ctx context.Context, project CloudC
 		return CloudCoreApplyObservation{}, err
 	}
 	if _, err := o.runner.Run(ctx, cloudCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), o.environment()); err != nil {
-		return CloudCoreApplyObservation{}, errors.New("Cloud Docker Compose Apply did not complete")
+		return CloudCoreApplyObservation{}, fmt.Errorf("Cloud Docker Compose Apply did not complete: %w", err)
 	}
 	return CloudCoreApplyObservation{ProjectRef: project.ProjectRef, ArtifactDigest: project.ArtifactDigest, Status: "applied"}, nil
 }

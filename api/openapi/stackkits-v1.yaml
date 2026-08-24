@@ -8109,6 +8109,63 @@ components:
           minimum: 0
         wiped:
           type: boolean
+    StackActionUnitOutcome:
+      type: object
+      description: "One rollout unit and what actually happened to it."
+      additionalProperties: false
+      required:
+        - ref
+        - kind
+        - outcome
+        - criticality
+      properties:
+        ref:
+          type: string
+        kind:
+          type: string
+        outcome:
+          type: string
+          enum:
+            - "applied"
+            - "degraded"
+            - "failed"
+            - "skipped"
+            - "unverified"
+        criticality:
+          type: string
+          enum:
+            - "core"
+            - "platform"
+            - "workload"
+            - "addon"
+        workload_ref:
+          type: string
+        requirement_id:
+          type: string
+        instance_ref:
+          type: string
+        runtime_owner_ref:
+          type: string
+        module_ref:
+          type: string
+        site_ref:
+          type: string
+        node_ref:
+          type: string
+        failure_class:
+          type: string
+        failure_code:
+          type: string
+        retryable:
+          type: boolean
+        transient:
+          type: boolean
+        message:
+          type: string
+        remediation:
+          type: array
+          items:
+            type: string
     StackActionCheck:
       type: object
       description: "One named action check."
@@ -8661,7 +8718,18 @@ components:
           $ref: "#/components/schemas/StackActionBackupResult"
         service:
           $ref: "#/components/schemas/StackActionServiceActionResult"
-          # END GENERATED: stackaction schemas
+        units:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionUnitOutcome"
+        overall_outcome:
+          type: string
+          enum:
+            - "applied"
+            - "completed_degraded"
+            - "failed"
+            - "blocked"
+            # END GENERATED: stackaction schemas
   responses:
     HealthResponse:
       description: Service is healthy

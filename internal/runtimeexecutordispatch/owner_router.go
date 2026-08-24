@@ -147,6 +147,7 @@ func (r *OwnerRouter) Execute(ctx context.Context, request runtimeexecutor.Execu
 		}
 		prepared = append(prepared, preparedExecution{
 			label: route.requirementID, executor: route.executor, request: childRequest, compensation: route.compensation,
+			critical: criticalRuntimeTargets(groups[targetHash].runtime),
 		})
 	}
 	return executePrepared(ctx, request, prepared, r.journal)

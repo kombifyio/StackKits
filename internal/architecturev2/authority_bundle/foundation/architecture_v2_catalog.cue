@@ -3127,7 +3127,7 @@ _architectureV2Modules: list.Concat([[
 			rendererRef:  "stackkit"
 			templateRef:  "builtin://foundation/socket-proxy/compose.yaml"
 			version:      "1.0.0"
-			contractHash: "sha256:3ea559c5ba0c528ad9ae99341bc2380ca781012a863a2c389a1565b4f183bd9d"
+			contractHash: "sha256:7f7beb9fdefe9f6c4f4acfdae8d0f71a754356f9dd29112992927f884438a47c"
 			publicInputRefs: []
 			secretInputRefs: []
 			outputs: ["foundation/socket-proxy/compose.yaml"]
@@ -3279,7 +3279,7 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "compose", kind:                                 "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core/compose/v1.yaml", version: "1.0.0"
-			contractHash: "sha256:16c7f07e319e63001acca659fd3d245ae9e128749e7a85ac79481033a6341858"
+			contractHash: "sha256:8b15d1616fa23847ba36d96989ff15fadbc46b00ba79061496cd963058c8e6f0"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/cloud-core/compose.yaml"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -3288,7 +3288,7 @@ _architectureV2Modules: list.Concat([[
 		}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
-			contractHash: "sha256:16c7f07e319e63001acca659fd3d245ae9e128749e7a85ac79481033a6341858"
+			contractHash: "sha256:8b15d1616fa23847ba36d96989ff15fadbc46b00ba79061496cd963058c8e6f0"
 			unitRefs: ["compose"], artifactRefs: ["cloud-core-compose"]
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 		}]
@@ -3474,7 +3474,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "compose", kind:                                    "compose", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash: "sha256:4a63f59c3c708412a3740767189f416b0020bfb6dfef114979682c3378c71acc"
+				contractHash: "sha256:7e7ceb3bc5953b64b0b55bff8874887022be265384b4985e29ee0479057ea627"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/compose.yaml"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -3484,7 +3484,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:53076b1f51ff3c408ba8a37ed4435d38764426e378d2396b4b714d9cbf2cb5d9"
+				contractHash: "sha256:9db4928aee7dfd6b7e1b418e1764ae5ebca7802bbb169fc59e6eaa2b1b7b0d3e"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -3688,6 +3688,7 @@ _architectureV2Modules: list.Concat([[
 						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
 					}]
 					health: {kind: "http", path: "/api/server/ping", port: 2283}
+					resources: {memoryLimit: "3g", memoryReservation: "512m"}
 				},
 				{
 					id: "immich-machine-learning", role: "machine-learning", lifecycle: "daemon"
@@ -3704,6 +3705,7 @@ _architectureV2Modules: list.Concat([[
 					// before it finishes loading. Running the same script as a
 					// declared command health gets the generous renderer timings.
 					health: {kind: "command", command: ["python3", "healthcheck.py"]}
+					resources: {memoryLimit: "3g", memoryReservation: "512m"}
 				},
 				{
 					id: "immich-postgres", role: "database", lifecycle: "daemon"
@@ -3718,6 +3720,7 @@ _architectureV2Modules: list.Concat([[
 						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
 					}]
 					health: {kind: "command", command: ["pg_isready", "-U", "immich", "-d", "postgres"]}
+					resources: {memoryLimit: "2g", memoryReservation: "256m"}
 				},
 				{
 					id: "immich-postgres-init", role: "database-init", lifecycle: "one-shot"
@@ -3730,6 +3733,7 @@ _architectureV2Modules: list.Concat([[
 					environment: {PGUSER: "immich"}
 					secretEnvironment: PGPASSWORD: "database-password"
 					health: {kind: "completion"}
+					resources: {memoryLimit: "256m"}
 				},
 				{
 					id: "immich-valkey", role: "cache", lifecycle: "daemon"
@@ -3740,6 +3744,7 @@ _architectureV2Modules: list.Concat([[
 					dependsOn: [], networkRefs: ["immich-internal"]
 					command: ["valkey-server"]
 					health: {kind: "command", command: ["redis-cli", "ping"]}
+					resources: {memoryLimit: "512m", memoryReservation: "64m"}
 				},
 			]
 		}
@@ -3852,6 +3857,7 @@ _architectureV2Modules: list.Concat([[
 					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
 				}]
 				health: {kind: "http", path: "/", port: 5212}
+				resources: {memoryLimit: "1g", memoryReservation: "128m"}
 			}]
 		}
 		renderUnits: [{
@@ -3951,6 +3957,7 @@ _architectureV2Modules: list.Concat([[
 					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
 				}]
 				health: {kind: "http", path: "/alive", port: 80}
+				resources: {memoryLimit: "512m", memoryReservation: "64m"}
 			}]
 		}
 		renderUnits: [{

@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/applyledger"
 	"github.com/kombifyio/stackkits/internal/auth"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
 	"github.com/kombifyio/stackkits/internal/platformdeploy"
@@ -352,7 +353,7 @@ func requiresManagedRuntimeTargetStackAction(action stackaction.Action, enrollme
 func (s *Server) dispatchStackAction(ctx context.Context, resp stackActionResponse, includeStackKitOutputs bool, req stackActionRequest) (stackActionResponse, int, *skerrors.StackKitError) {
 	switch req.Action {
 	case stackActionRollout:
-		return runOpenTofuRolloutStackAction(ctx, resp, includeStackKitOutputs, req.RuntimeTarget, req.PlatformNodes, s.stackActionReferenceResolver)
+		return runOpenTofuRolloutStackAction(ctx, resp, includeStackKitOutputs, req.RuntimeTarget, req.PlatformNodes, s.stackActionReferenceResolver, s.config.BaseDir)
 	case stackActionVerify:
 		return runOpenTofuVerifyStackAction(ctx, resp, includeStackKitOutputs, req.RuntimeTarget, s.stackActionReferenceResolver)
 	case stackActionRestore:
@@ -559,7 +560,7 @@ func stackActionOperationResultError(operation string, result *tofu.Result, err 
 	return nil
 }
 
-func runOpenTofuRolloutStackAction(ctx context.Context, resp stackActionResponse, includeStackKitOutputs bool, target *stackActionTarget, platformNodes []stackaction.PlatformNode, resolver StackActionReferenceResolver) (stackActionResponse, int, *skerrors.StackKitError) {
+func runOpenTofuRolloutStackAction(ctx context.Context, resp stackActionResponse, includeStackKitOutputs bool, target *stackActionTarget, platformNodes []stackaction.PlatformNode, resolver StackActionReferenceResolver, workspace string) (stackActionResponse, int, *skerrors.StackKitError) {
 	if err := requireLocalTofuDirStackAction(resp.TofuDir); err != nil {
 		return resp, http.StatusBadRequest, err
 	}
@@ -634,6 +635,18 @@ func runOpenTofuRolloutStackAction(ctx context.Context, resp stackActionResponse
 	}
 	if len(platformEvidence.Failures) > 0 {
 		updated.Status = stackaction.StatusCompletedDegraded
+	}
+	// The per-unit account is what keeps the response from collapsing a partly
+	// installed stack into one word. It only ever makes the aggregate worse:
+	// a ledger that reports something short of applied downgrades the status,
+	// and a ledger that reports success never overrides a failure observed
+	// here.
+	if units, overall := stackActionUnitOutcomes(applyledger.Latest(workspace)); len(units) > 0 {
+		updated.Units = units
+		updated.OverallOutcome = overall
+		if overall != stackaction.OverallOutcomeApplied && updated.Status == stackaction.StatusApplied {
+			updated.Status = stackaction.StatusCompletedDegraded
+		}
 	}
 	return updated, http.StatusOK, nil
 }

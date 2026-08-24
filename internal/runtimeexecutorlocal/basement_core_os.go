@@ -19,6 +19,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/localowner"
+	"github.com/kombifyio/stackkits/internal/rollout"
 )
 
 const basementCoreProcessOutputLimit = 256 << 10
@@ -42,7 +43,31 @@ func (err *BasementCoreObservationDriftError) Error() string {
 	if errors.As(err.cause, &processErr) {
 		return message + " (" + processErr.Error() + ")"
 	}
+	var bounded *basementCoreBoundedDiagnostic
+	if errors.As(err.cause, &bounded) && bounded.detail != "" {
+		return message + " (" + bounded.detail + ")"
+	}
 	return message
+}
+
+// basementCoreBoundedDiagnostic carries operator-facing detail that already
+// passed the bounded, redacted diagnostic helper. A drift message exposes only
+// this kind and closed-contract process output; every other cause stays
+// private, so an adapter cannot widen the diagnostic surface by accident.
+type basementCoreBoundedDiagnostic struct {
+	detail string
+	cause  error
+}
+
+func (err *basementCoreBoundedDiagnostic) Error() string { return err.detail }
+
+func (err *basementCoreBoundedDiagnostic) Unwrap() error { return err.cause }
+
+func newBasementCoreBoundedDiagnostic(cause error, detail string) *basementCoreBoundedDiagnostic {
+	return &basementCoreBoundedDiagnostic{
+		detail: boundedBasementCoreProcessDiagnostic([]byte(detail)),
+		cause:  cause,
+	}
 }
 
 func (err *BasementCoreObservationDriftError) Unwrap() error { return err.cause }
@@ -113,17 +138,17 @@ func (o *osBasementCoreOperations) ApplyProject(ctx context.Context, project Bas
 		return BasementCoreApplyObservation{}, err
 	}
 	if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), o.environment()); err != nil {
-		return BasementCoreApplyObservation{}, errors.New("local Docker Compose Apply did not complete")
+		return BasementCoreApplyObservation{}, fmt.Errorf("local Docker Compose Apply did not complete: %w", err)
 	}
 	binding, err := o.ownerIdentity.Realize(ctx)
 	if err != nil {
-		return BasementCoreApplyObservation{}, errors.New("local PocketID owner realization did not complete")
+		return BasementCoreApplyObservation{}, fmt.Errorf("local PocketID owner realization did not complete: %w", err)
 	}
 	// Owner realization creates the exact PocketID OIDC client and installs its
 	// one-time secret as a private optional env override. Reconcile Compose once
 	// more so TinyAuth runs with that bound credential before Apply can succeed.
 	if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), o.environment()); err != nil {
-		return BasementCoreApplyObservation{}, errors.New("local TinyAuth PocketID binding did not complete")
+		return BasementCoreApplyObservation{}, fmt.Errorf("local TinyAuth PocketID binding did not complete: %w", err)
 	}
 	return BasementCoreApplyObservation{
 		ProjectRef: project.ProjectRef, ArtifactDigest: project.ArtifactDigest,
@@ -165,6 +190,8 @@ func (o *osBasementCoreOperations) VerifyProject(ctx context.Context, project Ba
 		)
 	}
 	probes := make([]BasementCoreProbeObservation, 0, len(project.Health))
+	probeFailures := make([]error, 0)
+	failedRequirementIDs := make([]string, 0)
 	for _, expectation := range project.Health {
 		// Container health is proven by the exact pinned Compose service
 		// observation above; HTTP and TCP contracts require direct probes.
@@ -173,18 +200,27 @@ func (o *osBasementCoreOperations) VerifyProject(ctx context.Context, project Ba
 				if isBasementCoreContextTermination(err) {
 					return BasementCoreVerifyObservation{}, err
 				}
-				return BasementCoreVerifyObservation{}, basementCoreObservationDrift(
-					project.ProjectRef, "runtime-health-changed", err,
-				)
+				// Keep probing: one broken contract must not hide the state of
+				// the remaining ones, so the drift names every failing probe.
+				probeFailures = append(probeFailures, fmt.Errorf("%s: %w", expectation.RequirementID, err))
+				failedRequirementIDs = append(failedRequirementIDs, expectation.RequirementID)
+				continue
 			}
 		}
 		probes = append(probes, BasementCoreProbeObservation{
 			RequirementID: expectation.RequirementID, Status: "healthy",
 		})
 	}
+	if len(probeFailures) != 0 {
+		joined := errors.Join(probeFailures...)
+		return BasementCoreVerifyObservation{}, basementCoreObservationDrift(
+			project.ProjectRef, "runtime-health-changed",
+			newBasementCoreBoundedDiagnostic(joined, "unhealthy health contracts: "+strings.Join(failedRequirementIDs, ", ")),
+		)
+	}
 	binding, err := o.ownerIdentity.Verify(ctx)
 	if err != nil {
-		return BasementCoreVerifyObservation{}, errors.New("local PocketID owner verification did not complete")
+		return BasementCoreVerifyObservation{}, fmt.Errorf("local PocketID owner verification did not complete: %w", err)
 	}
 	return BasementCoreVerifyObservation{
 		ProjectRef: project.ProjectRef, ArtifactDigest: project.ArtifactDigest,
@@ -315,7 +351,7 @@ func boundedBasementCoreProcessDiagnostic(output []byte) string {
 		}
 		return '?'
 	}, string(output))
-	value = strings.TrimSpace(value)
+	value = rollout.Redact(strings.TrimSpace(value))
 	if len(value) > 512 {
 		value = value[:512] + "..."
 	}

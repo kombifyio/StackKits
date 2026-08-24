@@ -1,15 +1,7 @@
 package commands
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -17,7 +9,6 @@ import (
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
-const securityBaselineEvidencePath = ".stackkit/security-baseline.json"
 const securityBaselineSchemaVersion = securitybaseline.EvidenceSchemaVersion
 const securityBaselineMode = securitybaseline.EvidenceModePublicBeta
 const securityBaselineTimeout = 10 * time.Minute
@@ -37,67 +28,6 @@ type securityBaselineEvidence struct {
 	Controls      map[string]string `json:"controls,omitempty"`
 }
 
-func applyPublicBetaSecurityBaseline(ctx context.Context, wd string, spec *models.StackSpec) error {
-	if !securityBaselineApplies(spec) {
-		return nil
-	}
-	if disabledByEnv("STACKKIT_SECURITY_BASELINE") {
-		printWarning("Security baseline skipped because STACKKIT_SECURITY_BASELINE disables it")
-		return writeSecurityBaselineEvidence(wd, securityBaselineEvidence{
-			SchemaVersion: securityBaselineSchemaVersion,
-			Status:        "skipped",
-			Mode:          securityBaselineMode,
-			Reason:        "disabled-by-env",
-		})
-	}
-	if runtime.GOOS != "linux" {
-		printWarning("Security baseline skipped on non-Linux host %s", runtime.GOOS)
-		return writeSecurityBaselineEvidence(wd, securityBaselineEvidence{
-			SchemaVersion: securityBaselineSchemaVersion,
-			Status:        "skipped",
-			Mode:          securityBaselineMode,
-			Reason:        "non-linux-host",
-		})
-	}
-
-	cfg := securityBaselineConfigForSpec(spec)
-	script, err := securityBaselineScript(cfg)
-	if err != nil {
-		return fmt.Errorf("render security baseline: %w", err)
-	}
-	baselineCtx, cancel := context.WithTimeout(ctx, securityBaselineTimeout)
-	defer cancel()
-
-	printInfo("Applying BaseKit public-beta security baseline...")
-	rolloutEvent("security_baseline", "started", "applying host security baseline", nil)
-	cmd := exec.CommandContext(baselineCtx, "sh", "-c", script)
-	cmd.Dir = wd
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &out
-	if err := cmd.Run(); err != nil {
-		failure := err
-		if errors.Is(baselineCtx.Err(), context.DeadlineExceeded) {
-			failure = fmt.Errorf("timed out after %s: %w", securityBaselineTimeout, baselineCtx.Err())
-		}
-		rolloutFailure("security_baseline", failure)
-		return fmt.Errorf("security baseline failed: %w\n%s", failure, redactedSecurityBaselineOutput(out.String()))
-	}
-
-	evidence, err := readSecurityBaselineEvidence(wd)
-	if err != nil {
-		rolloutFailure("security_baseline", err)
-		return err
-	}
-	if err := validateSecurityBaselineEvidence(evidence); err != nil {
-		rolloutFailure("security_baseline", err)
-		return err
-	}
-	rolloutEvent("security_baseline", "succeeded", "host security baseline applied", evidence.Controls)
-	printSuccess("Security baseline applied")
-	return nil
-}
-
 func securityBaselineApplies(spec *models.StackSpec) bool {
 	// The host security baseline is a universal Foundation contract: every
 	// single-environment server deployment (any kit) gets it. The current legacy
@@ -105,15 +35,6 @@ func securityBaselineApplies(spec *models.StackSpec) bool {
 	// package managers; target eligibility is not inferred from compatibility
 	// documentation.
 	return spec != nil
-}
-
-func disabledByEnv(key string) bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
-	case "0", "false", "off", "skip", "disabled":
-		return true
-	default:
-		return false
-	}
 }
 
 func securityBaselineConfigForSpec(spec *models.StackSpec) securityBaselineConfig {
@@ -145,38 +66,6 @@ func securityBaselineScript(cfg securityBaselineConfig) (string, error) {
 		MaxAuthTries:                 cfg.MaxAuthTries,
 		PackageManagerLockWaitScript: packageManagerLockWaitScript(),
 	})
-}
-
-func writeSecurityBaselineEvidence(wd string, evidence securityBaselineEvidence) error {
-	if evidence.SchemaVersion == "" {
-		evidence.SchemaVersion = securityBaselineSchemaVersion
-	}
-	path := filepath.Join(wd, filepath.FromSlash(securityBaselineEvidencePath))
-	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
-		return fmt.Errorf("create security baseline evidence directory: %w", err)
-	}
-	data, err := json.MarshalIndent(evidence, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal security baseline evidence: %w", err)
-	}
-	data = append(data, '\n')
-	if err := os.WriteFile(path, data, 0600); err != nil {
-		return fmt.Errorf("write security baseline evidence: %w", err)
-	}
-	return nil
-}
-
-func readSecurityBaselineEvidence(wd string) (securityBaselineEvidence, error) {
-	path := filepath.Join(wd, filepath.FromSlash(securityBaselineEvidencePath))
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return securityBaselineEvidence{}, fmt.Errorf("read security baseline evidence: %w", err)
-	}
-	var evidence securityBaselineEvidence
-	if err := json.Unmarshal(data, &evidence); err != nil {
-		return securityBaselineEvidence{}, fmt.Errorf("parse security baseline evidence: %w", err)
-	}
-	return evidence, nil
 }
 
 func validateSecurityBaselineEvidence(evidence securityBaselineEvidence) error {
@@ -213,12 +102,4 @@ func validateSecurityBaselineEvidence(evidence securityBaselineEvidence) error {
 		return fmt.Errorf("security baseline evidence controls[sshRootLogin] = %q, want key-only or disabled", got)
 	}
 	return nil
-}
-
-func redactedSecurityBaselineOutput(output string) string {
-	const max = 6000
-	if len(output) <= max {
-		return output
-	}
-	return output[len(output)-max:]
 }

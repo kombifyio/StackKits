@@ -13,13 +13,16 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
+	"github.com/kombifyio/stackkits/internal/applyledger"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/hostpreflight"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorprocess"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
@@ -81,6 +84,7 @@ type architectureV2ExecutionCLIOptions struct {
 	removalSink         func(workloadremoval.Result) error
 	removalEvidenceJSON bool
 	removalEvidenceSink func(workloadremoval.Evidence) error
+	preflightPolicy     string
 }
 
 type architectureV2ExecutionAuthority interface {
@@ -466,6 +470,16 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 				return fmt.Errorf("decode verified canonical plan for external host freshness: %w", err)
 			}
 			if err := resolvedplan.ValidateHostConformanceReceiptsForApply(canonicalPlan, now().UTC()); err != nil {
+				return err
+			}
+			// Admit the host before anything is mutated. This runs inside the
+			// lifecycle and output locks but ahead of every executor, so a
+			// device that cannot run the kit is refused while the workspace is
+			// still untouched.
+			if err := admitApplyHost(
+				options, canonicalPlanKitSlug(canonicalPlan), wd,
+				persisted.ApplyRequirements(), persisted.Binding().PlanHash, now().UTC(),
+			); err != nil {
 				return err
 			}
 		}
@@ -865,6 +879,10 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		architecturev2.ResolveInput{StackSpec: options.stackSpecData, Inventory: options.inventoryData},
 	)
 	if err != nil {
+		// The durable journal knows which units ran, which failed, and which
+		// were never attempted. Report that instead of one opaque error, so an
+		// operator is not left guessing what is running on the host.
+		reportApplyLedgerForFailure(options, persisted, err, now().UTC())
 		return failArchitectureV2ApplicationLifecycles(
 			wd, lifecycleRuns, "Product Apply failed before owner evidence was persisted", now().UTC(), err,
 		)
@@ -978,12 +996,15 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	rolloutEvent("architecture_v2.apply", "succeeded", "native Architecture v2 Apply result persisted", map[string]string{
 		"result_hash": result.ResultHash(), "result_path": persistedResult.ResultPath,
 	})
+	ledger := applyledger.Applied(persisted.ApplyRequirements(), persisted.Binding().PlanHash, result.Summary().AppliedAt)
+	persistApplyLedger(ledger)
 	applyOutput := architectureV2ApplyCommandResult{
-		SchemaVersion: "stackkit.apply-result/v2", Status: "applied", Apply: result.Summary(), Observations: observations,
+		SchemaVersion: "stackkit.apply-result/v2", Status: string(ledger.Overall), Apply: result.Summary(), Observations: observations,
 		EvidenceLinks: []runtimeobservation.EvidenceLink{
 			{Kind: "apply-result", Ref: persistedResult.ResultPath, Digest: result.ResultHash()},
 			{Kind: "owner-apply-result-receipt", Ref: persistedResult.OwnerReceiptPath, Digest: persistedResult.OwnerReceiptDigest},
 		},
+		Outcomes: &ledger,
 	}
 	if options.applySink != nil {
 		return options.applySink(applyOutput)
@@ -1442,4 +1463,137 @@ func claimsNonLegacyAPIVersion(data []byte) bool {
 		}
 	}
 	return false
+}
+
+// canonicalPlanKitSlug reports the kit a verified plan is bound to.
+func canonicalPlanKitSlug(plan resolvedplan.ResolvedPlan) string {
+	kit, ok := map[string]any(plan)["kit"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	slug, _ := kit["slug"].(string)
+	return slug
+}
+
+// admitApplyHost measures the target against the floor its kit declares and
+// refuses before any executor runs. Under the default warn policy only a
+// blocking condition stops Apply; a degraded host installs and says so.
+func admitApplyHost(
+	options architectureV2ExecutionCLIOptions,
+	kitSlug, workspace string,
+	requirements generationartifact.ApplyRequirements,
+	planHash string,
+	observedAt time.Time,
+) error {
+	policy, err := resolveHostPreflightPolicy(options.preflightPolicy)
+	if err != nil {
+		return err
+	}
+	if policy == hostpreflight.PolicySkip {
+		printWarning("Host preflight skipped; this Apply may mutate a host that cannot run the kit")
+		return nil
+	}
+	executionContext := options.context
+	if executionContext == nil {
+		executionContext = context.Background()
+	}
+	report := evaluateHostPreflight(executionContext, workspace, kitSlug, policy)
+	printHostPreflightReport(report)
+	if !report.Admitted {
+		refusal := hostPreflightRefusal(report)
+		rolloutFailure("preflight", refusal)
+		reportApplyLedger(options, applyledger.Blocked(requirements, planHash, observedAt))
+		return refusal
+	}
+	rolloutEvent("preflight", "succeeded", "host admitted", map[string]string{
+		"policy": string(report.Policy), "status": string(report.Status),
+	})
+	return nil
+}
+
+// reportApplyLedger persists and emits one per-unit Apply account through the
+// same path whether the host was blocked or execution stopped part-way.
+func reportApplyLedger(options architectureV2ExecutionCLIOptions, ledger applyledger.Ledger) {
+	persistApplyLedger(ledger)
+	if options.applySink != nil {
+		_ = options.applySink(architectureV2ApplyCommandResult{
+			SchemaVersion: "stackkit.apply-result/v2", Status: string(ledger.Overall),
+			Observations: []runtimeobservation.Observation{}, EvidenceLinks: []runtimeobservation.EvidenceLink{},
+			Outcomes: &ledger,
+		})
+		return
+	}
+	printApplyLedger(ledger)
+}
+
+// reportApplyLedgerForFailure emits the per-unit account of a partial Apply
+// through the machine-readable sink, and prints it for a human otherwise.
+//
+// It never replaces the returned error: the command still fails. What changes
+// is that the caller learns which units are running on the host.
+func reportApplyLedgerForFailure(
+	options architectureV2ExecutionCLIOptions,
+	plan generationartifact.VerifiedPlan,
+	cause error,
+	observedAt time.Time,
+) {
+	var reconcile *architecturev2.ProductApplyReconcileRequiredError
+	if !errors.As(cause, &reconcile) {
+		return
+	}
+	steps := make([]applyledger.StepOutcome, 0)
+	operationID := ""
+	for _, operation := range reconcile.Operations() {
+		if operationID == "" {
+			operationID = operation.Operation.OperationID
+		}
+		states := make(map[string]runtimeapply.StepSnapshot, len(operation.Snapshot.Steps))
+		for _, state := range operation.Snapshot.Steps {
+			states[state.StepID] = state
+		}
+		for _, step := range operation.Operation.Steps {
+			if state, recorded := states[step.ID]; recorded {
+				steps = append(steps, applyledger.StepOutcome{Step: step, State: state})
+			}
+		}
+	}
+	ledger := applyledger.FromJournal(
+		plan.ApplyRequirements(), steps, plan.Binding().PlanHash, operationID, cause.Error(), observedAt,
+	)
+	reportApplyLedger(options, ledger)
+}
+
+// printApplyLedger renders the per-unit account for a human operator.
+func printApplyLedger(ledger applyledger.Ledger) {
+	if humanOutputSuppressed() {
+		return
+	}
+	printInfo("Apply outcome: %s (%d applied, %d failed, %d not attempted)",
+		ledger.Overall, ledger.Summary.Applied, ledger.Summary.Failed, ledger.Summary.Skipped+ledger.Summary.Unverified)
+	for _, unit := range ledger.Units {
+		label := unit.Subject.WorkloadRef
+		if label == "" {
+			label = unit.Subject.RequirementID
+		}
+		switch unit.Outcome {
+		case applyledger.OutcomeApplied:
+			printSuccess("  %s: applied", label)
+		case applyledger.OutcomeFailed:
+			detail := string(unit.Outcome)
+			if unit.Failure != nil {
+				detail = unit.Failure.Class
+			}
+			printError("  %s: failed (%s)", label, detail)
+			if unit.Failure != nil {
+				for _, guidance := range unit.Failure.Remediation {
+					printInfo("      %s", guidance)
+				}
+			}
+		default:
+			printWarning("  %s: %s", label, unit.Outcome)
+		}
+	}
+	if ledger.Next != nil && ledger.Next.Command != "" {
+		printInfo("  Continue with: %s", ledger.Next.Command)
+	}
 }

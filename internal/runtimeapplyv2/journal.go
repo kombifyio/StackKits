@@ -390,8 +390,22 @@ func ValidateSnapshot(operation Operation, snapshot Snapshot) error {
 	}
 	switch snapshot.State {
 	case OperationRunning:
-		if failed != 0 || compensated != 0 || pending+running+succeeded != len(snapshot.Steps) {
+		// A running operation may already carry a failed step. Independent
+		// steps do not depend on each other, so one that failed must not
+		// prevent the rest from being attempted; forbidding it here forced a
+		// caller to abandon every remaining step at the first failure, which
+		// is the opposite of what an independent step set is for.
+		//
+		// A running operation still may not carry compensated work, and once
+		// every step has settled a failure is terminal: that snapshot must be
+		// reconcile-required, not running. An all-succeeded settled snapshot
+		// stays valid, because it is the normal state between the last step
+		// commit and finalization.
+		if compensated != 0 || pending+running+succeeded+failed != len(snapshot.Steps) {
 			return errors.New("running runtime Apply snapshot has impossible step states")
+		}
+		if failed != 0 && pending+running == 0 {
+			return errors.New("running runtime Apply snapshot has settled failed work and must be reconcile-required")
 		}
 	case OperationReconcileRequired:
 		if failed == 0 || running != 0 {

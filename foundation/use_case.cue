@@ -5,6 +5,8 @@
 // atomic; packages compose those modules plus managed/control-plane handoffs.
 package foundation
 
+import "list"
+
 #UseCaseLayer: "application" | "platform" | "foundation"
 
 #UseCaseLifecycle: "stable" | "beta" | "pilot" | "experimental" | "draft"
@@ -14,6 +16,8 @@ package foundation
 #UseCaseRuntimeRealization: "oss" | "control-plane" | "hybrid" | "external"
 
 #UseCaseToolRole: "primary" | "supporting" | "connector" | "worker" | "database" | "bridge"
+
+#UseCaseModuleSlug: =~"^[a-z][a-z0-9-]+$"
 
 #UseCaseConnectorKind: "stackkit" | "home-assistant-native" | "product-api" | "external"
 
@@ -60,9 +64,24 @@ package foundation
 	}
 
 	defaultRuntimeProfile: =~"^[a-z][a-z0-9-]+$"
-	runtimeProfiles: [=~"^[a-z][a-z0-9-]+$"]: #UseCaseRuntimeProfile
+	runtimeProfiles: {
+		[=~"^[a-z][a-z0-9-]+$"]: #UseCaseRuntimeProfile
+		(defaultRuntimeProfile): #UseCaseRuntimeProfile
+	}
 
-	tools: [=~"^[a-z][a-z0-9-]+$"]: #UseCaseToolRef
+	tools: [ModuleSlug=#UseCaseModuleSlug]: #UseCaseToolRef & {
+		moduleSlug: ModuleSlug
+	}
+
+	_selectionIntegrity: {
+		if selection.defaultTool != _|_ {
+			defaultTool: [for moduleSlug, _ in tools if moduleSlug == selection.defaultTool.moduleSlug {moduleSlug}] & list.MinItems(1) & list.MaxItems(1)
+		}
+		alternatives: [for alternative in selection.alternatives {
+			moduleSlug: alternative.moduleSlug
+			matches: [for moduleSlug, _ in tools if moduleSlug == alternative.moduleSlug {moduleSlug}] & list.MinItems(1) & list.MaxItems(1)
+		}]
+	}
 
 	connectors?: [=~"^[a-z][a-z0-9-]+$"]: #UseCaseConnector
 
@@ -137,7 +156,7 @@ package foundation
 }
 
 #UseCaseToolRef: {
-	moduleSlug: =~"^[a-z][a-z0-9-]+$"
+	moduleSlug: #UseCaseModuleSlug
 	role:       #UseCaseToolRole
 	required:   bool | *false
 	rationale:  string

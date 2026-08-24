@@ -15,7 +15,7 @@ import (
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
-const architectureV2AccessSchemaVersion = "stackkit.access-manifest/v2"
+const architectureV2AccessSchemaVersion = "stackkit.access-manifest/v3"
 
 var architectureV2AccessDigestPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
 
@@ -45,21 +45,37 @@ type architectureV2AccessPlan struct {
 }
 
 type architectureV2AccessModule struct {
-	ID              string `json:"id"`
-	ServiceControls []struct {
-		Key            string   `json:"key"`
-		ServiceRef     string   `json:"serviceRef"`
-		Adapter        string   `json:"adapter"`
-		RuntimeRef     string   `json:"runtimeRef"`
-		ComponentRefs  []string `json:"componentRefs"`
-		AllowedActions []string `json:"allowedActions"`
-		Critical       bool     `json:"critical"`
-	} `json:"serviceControls"`
-	RenderUnits []struct {
+	ID      string `json:"id"`
+	Runtime struct {
+		Engine     string                                 `json:"engine"`
+		Components []architectureV2AccessRuntimeComponent `json:"components"`
+	} `json:"runtime"`
+	ServiceControls []architectureV2AccessServiceControl `json:"serviceControls"`
+	RenderUnits     []struct {
 		ServiceEndpoints []struct {
 			ServiceRef string `json:"serviceRef"`
 		} `json:"serviceEndpoints"`
 	} `json:"renderUnits"`
+}
+
+type architectureV2AccessRuntimeComponent struct {
+	ID        string `json:"id"`
+	Role      string `json:"role"`
+	Lifecycle string `json:"lifecycle"`
+	Health    struct {
+		Kind string `json:"kind"`
+		Port int    `json:"port"`
+	} `json:"health"`
+}
+
+type architectureV2AccessServiceControl struct {
+	Key            string   `json:"key"`
+	ServiceRef     string   `json:"serviceRef"`
+	Adapter        string   `json:"adapter"`
+	RuntimeRef     string   `json:"runtimeRef"`
+	ComponentRefs  []string `json:"componentRefs"`
+	AllowedActions []string `json:"allowedActions"`
+	Critical       bool     `json:"critical"`
 }
 
 type architectureV2AccessRoute struct {
@@ -188,7 +204,153 @@ func buildArchitectureV2AccessSummaryFromCanonical(canonical []byte, binding arc
 			break
 		}
 	}
+	runtimeServices, err := architectureV2AccessRuntimeServices(projection.Modules, summary.Services)
+	if err != nil {
+		return nil, err
+	}
+	summary.RuntimeServices = runtimeServices
 	return summary, nil
+}
+
+func architectureV2AccessRuntimeServices(modules []architectureV2AccessModule, services []accessService) ([]accessRuntimeService, error) {
+	displayNames := map[string]string{}
+	toolNames := map[string]string{}
+	for _, service := range services {
+		displayNames[service.Key] = service.DisplayName
+		toolNames[service.Key] = service.ToolName
+	}
+
+	result := []accessRuntimeService{}
+	seen := map[string]struct{}{}
+	for _, module := range modules {
+		components := map[string]architectureV2AccessRuntimeComponent{}
+		for _, component := range module.Runtime.Components {
+			components[component.ID] = component
+		}
+		unmanagedAdapter, unmanagedRuntimeRef := "observed", module.ID
+		if len(module.ServiceControls) > 0 {
+			unmanagedAdapter, unmanagedRuntimeRef = module.ServiceControls[0].Adapter, module.ServiceControls[0].RuntimeRef
+		}
+		controlled := map[string]struct{}{}
+		for _, control := range module.ServiceControls {
+			applicationKey := architectureV2AccessServiceKey(control.ServiceRef)
+			for _, componentRef := range control.ComponentRefs {
+				component, ok := components[componentRef]
+				if !ok {
+					return nil, fmt.Errorf("verified Architecture v2 plan controls unknown runtime component %q", componentRef)
+				}
+				identityKey := module.ID + "\x00" + component.ID
+				if _, duplicate := seen[identityKey]; duplicate {
+					return nil, fmt.Errorf("verified Architecture v2 plan controls runtime component %q more than once", component.ID)
+				}
+				seen[identityKey] = struct{}{}
+				controlled[component.ID] = struct{}{}
+
+				lifecycle := strings.ReplaceAll(strings.TrimSpace(component.Lifecycle), "-", "_")
+				impact := "supporting"
+				if lifecycle == "one_shot" {
+					impact = "none"
+				} else if control.Critical {
+					impact = "critical"
+				}
+				runtimeService := accessRuntimeService{
+					ServiceKey: component.ID, ApplicationKey: applicationKey,
+					DisplayName: architectureV2RuntimeDisplayName(displayNames[applicationKey], toolNames[applicationKey], applicationKey, component.ID),
+					Role:        component.Role, Lifecycle: lifecycle, OperationalImpact: impact,
+				}
+				runtimeService.RuntimeIdentity = architectureV2RuntimeIdentity(module.Runtime.Engine, control.Adapter, control.RuntimeRef, component.ID)
+				if component.Health.Kind == "http" && component.Health.Port > 0 {
+					runtimeService.InternalAddress = fmt.Sprintf("http://%s:%d", component.ID, component.Health.Port)
+				}
+				result = append(result, runtimeService)
+			}
+		}
+		for _, component := range module.Runtime.Components {
+			if _, ok := controlled[component.ID]; ok {
+				continue
+			}
+			identityKey := module.ID + "\x00" + component.ID
+			if _, duplicate := seen[identityKey]; duplicate {
+				continue
+			}
+			seen[identityKey] = struct{}{}
+			lifecycle := strings.ReplaceAll(strings.TrimSpace(component.Lifecycle), "-", "_")
+			runtimeService := accessRuntimeService{
+				ServiceKey: component.ID, ApplicationKey: "system",
+				DisplayName: architectureV2HumanizeRuntimeName(component.ID), Role: component.Role,
+				Lifecycle: lifecycle, OperationalImpact: "unknown",
+				RuntimeIdentity: architectureV2RuntimeIdentity(module.Runtime.Engine, unmanagedAdapter, unmanagedRuntimeRef, component.ID),
+			}
+			if lifecycle == "one_shot" {
+				runtimeService.OperationalImpact = "none"
+			}
+			if component.Health.Kind == "http" && component.Health.Port > 0 {
+				runtimeService.InternalAddress = fmt.Sprintf("http://%s:%d", component.ID, component.Health.Port)
+			}
+			result = append(result, runtimeService)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].ApplicationKey == result[j].ApplicationKey {
+			return result[i].ServiceKey < result[j].ServiceKey
+		}
+		return result[i].ApplicationKey < result[j].ApplicationKey
+	})
+	return result, nil
+}
+
+func architectureV2RuntimeIdentity(engine, adapter, runtimeRef, componentID string) accessRuntimeIdentity {
+	identity := accessRuntimeIdentity{Adapter: adapter, RuntimeRef: runtimeRef, Service: componentID}
+	switch adapter {
+	case "compose":
+		identity.Kind = "docker_compose_service"
+		identity.Project = "stackkit-" + runtimeRef
+		identity.File = ".stackkit/runtime/" + runtimeRef + "/compose.yaml"
+	case "komodo":
+		identity.Kind = "komodo_service"
+		identity.Deployment = runtimeRef
+	case "observed":
+		identity.Kind = engine + "_component"
+	}
+	if engine == "systemd" {
+		identity.Kind, identity.Service, identity.Unit = "systemd_unit", "", componentID
+	}
+	return identity
+}
+
+func architectureV2RuntimeDisplayName(applicationName, toolName, applicationKey, componentID string) string {
+	if applicationName == "" {
+		applicationName = architectureV2HumanizeRuntimeName(applicationKey)
+	}
+	normalizedTool := strings.ToLower(strings.ReplaceAll(toolName, "-", ""))
+	normalizedComponent := strings.ToLower(strings.ReplaceAll(componentID, "-", ""))
+	if componentID == applicationKey || normalizedComponent == normalizedTool || (applicationKey == "base" && componentID == "hub") {
+		return applicationName
+	}
+	suffix := strings.TrimPrefix(componentID, applicationKey+"-")
+	if suffix == componentID && toolName != "" {
+		suffix = strings.TrimPrefix(componentID, toolName+"-")
+	}
+	return strings.TrimSpace(applicationName + " " + architectureV2HumanizeRuntimeName(suffix))
+}
+
+func architectureV2HumanizeRuntimeName(value string) string {
+	parts := strings.Fields(strings.NewReplacer("-", " ", "_", " ").Replace(value))
+	for index, part := range parts {
+		switch strings.ToLower(part) {
+		case "id":
+			parts[index] = "ID"
+		case "postgres", "postgresql":
+			parts[index] = "PostgreSQL"
+		case "redis":
+			parts[index] = "Redis"
+		case "ca":
+			parts[index] = "CA"
+		default:
+			parts[index] = strings.ToUpper(part[:1]) + part[1:]
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 func architectureV2AccessServiceControls(modules []architectureV2AccessModule) (map[string][]string, error) {

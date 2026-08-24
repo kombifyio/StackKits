@@ -16,9 +16,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
+
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
-	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutordispatch"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -592,13 +594,13 @@ func newProductApplyFenceToken() (string, error) {
 	return "stackkits-runtime-apply-fence/" + hex.EncodeToString(random[:]), nil
 }
 
+// productApplyOperationStateForSteps derives the durable operation state from
+// the steps alone. A failed step makes the operation reconcile-required only
+// once nothing is left to attempt: while other independent steps are still
+// pending or running the operation keeps running, so a failing workload does
+// not abandon the workloads behind it.
 func productApplyOperationStateForSteps(steps []runtimeapply.StepSnapshot) runtimeapply.OperationState {
-	for _, step := range steps {
-		if step.State == runtimeapply.StepFailed {
-			return runtimeapply.OperationReconcileRequired
-		}
-	}
-	return runtimeapply.OperationRunning
+	return runtimeexecutordispatch.OperationStateForSteps(steps)
 }
 
 func cloneProductApplyFileReservation(reservation runtimeapply.Reservation) runtimeapply.Reservation {

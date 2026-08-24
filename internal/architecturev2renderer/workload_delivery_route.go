@@ -94,6 +94,24 @@ type ApplicationDeliveryComponentDescriptor struct {
 	HealthPath        string
 	HealthPort        int
 	HealthCommand     []string
+	Resources         *ApplicationDeliveryResourcesDescriptor
+}
+
+// ApplicationDeliveryResourcesDescriptor is the declared per-container ceiling
+// carried through to the adapter. Nil means the component declared none.
+type ApplicationDeliveryResourcesDescriptor struct {
+	MemoryLimit       string
+	MemoryReservation string
+	CPUs              float64
+}
+
+func resourcesDescriptor(limits *selectedPaaSRuntimeLimits) *ApplicationDeliveryResourcesDescriptor {
+	if limits == nil {
+		return nil
+	}
+	return &ApplicationDeliveryResourcesDescriptor{
+		MemoryLimit: limits.MemoryLimit, MemoryReservation: limits.MemoryReservation, CPUs: limits.CPUs,
+	}
 }
 
 type ApplicationDeliveryVolumeDescriptor struct {
@@ -181,6 +199,7 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 			Volumes:           volumes, HealthKind: component.Health.Kind,
 			HealthPath: component.Health.Path, HealthPort: component.Health.Port,
 			HealthCommand: append([]string(nil), component.Health.Command...),
+			Resources:     resourcesDescriptor(component.Resources),
 		}
 	}
 	if !entryFound || len(components) == 0 {

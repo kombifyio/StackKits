@@ -19,7 +19,7 @@ import (
 // GenerateTFVarsJSON generates terraform.tfvars.json matching the template
 // variables and overlays composition-owned identity credentials.
 func GenerateTFVarsJSON(spec *models.StackSpec, cr *CompositionResult) ([]byte, error) {
-	bridge := cueval.NewTerraformBridge(".")
+	bridge := cueval.NewTerraformBridge()
 	data, err := bridge.GenerateTFVarsBytesFromSpec(spec)
 	if err != nil {
 		return nil, err

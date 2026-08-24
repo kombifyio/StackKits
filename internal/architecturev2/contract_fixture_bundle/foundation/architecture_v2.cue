@@ -212,6 +212,7 @@ import (
 	authoring?:       #KitAuthoringContractV2
 	upgradePolicy:    #KitUpgradePolicy
 	redactionPolicy:  #KitRedactionPolicy
+	hostRequirements: #KitHostRequirementsV1
 
 	bridge: {
 		required: bool | *false
@@ -334,6 +335,26 @@ import (
 // #KitRedactionPolicy is a declaration of the already-shared security
 // boundary, not a kit-specific redactor implementation. Opaque references stay
 // intact for resolution while values, logs, and exported evidence are safe.
+// #KitHostRequirementsV1 is the observable host floor a kit needs before Apply
+// may mutate a target. It is an admission contract, not a sizing guide: below
+// the minimum Apply refuses to start, between minimum and recommended it warns.
+//
+// The values are deliberately declared here rather than inferred in Go, so a
+// kit cannot silently change what it demands of a device.
+#KitHostRequirementsV1: {
+	minCpuCores:  int & >=1
+	minRamGB:     int & >=1
+	minStorageGB: int & >=1
+
+	recommendedCpuCores:  int & >=minCpuCores
+	recommendedRamGB:     int & >=minRamGB
+	recommendedStorageGB: int & >=minStorageGB
+
+	// headroomFactor bounds the share of observed memory the declared workload
+	// set may claim before Apply warns that the host is over-committed.
+	headroomFactor: number & >0 & <=1 | *0.8
+}
+
 #KitRedactionPolicy: {
 	enforcement:      "required"
 	sensitiveValues:  "redacted"
@@ -2878,6 +2899,26 @@ _servicePublicationShape: {
 	}
 }
 
+// #RuntimeComponentResourcesV1 caps what one container may take from the
+// host. The cap belongs to the component, not the workload, because the
+// kernel enforces per container: without one, a single runaway container
+// takes the whole host down and every other workload with it.
+//
+// A limit is a ceiling, not a promise -- it converts "the host died" into
+// "one container was restarted", which the outcome ledger can then report.
+// Every field is optional and nothing is rendered when a component declares
+// none: inventing a ceiling for a footprint nobody measured would cause the
+// very failure this exists to prevent.
+#RuntimeComponentResourcesV1: {
+	memoryLimit?:       #MemoryQuantityV1
+	memoryReservation?: #MemoryQuantityV1
+	cpus?:              number & >0 & <=64
+}
+
+// #MemoryQuantityV1 is a whole number of mebibytes or gibibytes, matching the
+// units Compose accepts.
+#MemoryQuantityV1: string & =~"^[1-9][0-9]*(m|g)$"
+
 #ModuleRuntimeComponentV2: {
 	id:        #ContractID
 	role:      "application" | "machine-learning" | "database" | "cache" | "database-init"
@@ -2903,6 +2944,7 @@ _servicePublicationShape: {
 		port?: int & >=1 & <=65535
 		command?: [...string & =~"^[^[:cntrl:]]+$"] & list.MinItems(1)
 	}
+	resources?: #RuntimeComponentResourcesV1
 
 	_dependsOnUnique:   list.UniqueItems(dependsOn) & true
 	_networkRefsUnique: list.UniqueItems(networkRefs) & true

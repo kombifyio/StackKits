@@ -36,6 +36,21 @@ type standaloneComposeProcessRunner interface {
 	Run(context.Context, []string, string) ([]byte, error)
 }
 
+// standaloneComposeProcessError carries the bounded, sanitized output of a
+// failed closed-contract Compose process. The excerpt is what distinguishes a
+// full disk, a missing architecture build, and a rate-limited registry from
+// each other; discarding it made every failure read the same.
+type standaloneComposeProcessError struct {
+	output string
+	cause  error
+}
+
+func (err *standaloneComposeProcessError) Error() string {
+	return fmt.Sprintf("docker-compose-exit; output=%q", err.output)
+}
+
+func (err *standaloneComposeProcessError) Unwrap() error { return err.cause }
+
 type standaloneComposeHTTPProber interface {
 	Probe(context.Context, string) (int, error)
 }
@@ -84,7 +99,7 @@ func (o *osStandaloneComposeWorkloadOperations) ApplyWorkload(
 		return SelectedPaaSApplyReceipt{}, err
 	}
 	if _, err := o.runner.Run(ctx, standaloneComposeArgs(project, "up"), project.directory); err != nil {
-		return SelectedPaaSApplyReceipt{}, errors.New("standalone Docker Compose Apply did not complete")
+		return SelectedPaaSApplyReceipt{}, fmt.Errorf("standalone Docker Compose Apply did not complete: %w", err)
 	}
 	return SelectedPaaSApplyReceipt{
 		InstanceRef: deployment.InstanceRef, ArtifactDigest: deployment.ArtifactDigest, Status: "applied",
@@ -104,7 +119,7 @@ func (o *osStandaloneComposeWorkloadOperations) ObserveWorkload(
 	}
 	raw, err := o.runner.Run(ctx, standaloneComposeArgs(project, "ps"), project.directory)
 	if err != nil {
-		return SelectedPaaSWorkloadObservation{}, errors.New("standalone Docker Compose status observation failed")
+		return SelectedPaaSWorkloadObservation{}, fmt.Errorf("standalone Docker Compose status observation failed: %w", err)
 	}
 	statuses, err := parseStandaloneComposeStatuses(raw)
 	if err != nil {
@@ -122,7 +137,7 @@ func (o *osStandaloneComposeWorkloadOperations) ObserveWorkload(
 	}
 	portRaw, err := o.runner.Run(ctx, standaloneComposeArgs(project, "port"), project.directory)
 	if err != nil {
-		return SelectedPaaSWorkloadObservation{}, errors.New("standalone Docker Compose route port observation failed")
+		return SelectedPaaSWorkloadObservation{}, fmt.Errorf("standalone Docker Compose route port observation failed: %w", err)
 	}
 	address, err := standaloneComposeLoopbackAddress(portRaw)
 	if err != nil {
@@ -131,7 +146,7 @@ func (o *osStandaloneComposeWorkloadOperations) ObserveWorkload(
 	entry := project.entry
 	status, err := o.prober.Probe(ctx, "http://"+address+entry.HealthPath)
 	if err != nil {
-		return SelectedPaaSWorkloadObservation{}, errors.New("standalone workload route health probe failed")
+		return SelectedPaaSWorkloadObservation{}, fmt.Errorf("standalone workload route health probe failed: %w", err)
 	}
 	return SelectedPaaSWorkloadObservation{
 		WorkloadRef: deployment.WorkloadRef, Release: deployment.Release,
@@ -216,6 +231,9 @@ type standaloneComposeDocument struct {
 type standaloneComposeService struct {
 	Image       string                                 `yaml:"image"`
 	Restart     string                                 `yaml:"restart,omitempty"`
+	Logging     *standaloneComposeLogging              `yaml:"logging,omitempty"`
+	OOMScoreAdj *int                                   `yaml:"oom_score_adj,omitempty"`
+	Deploy      *standaloneComposeDeploy               `yaml:"deploy,omitempty"`
 	Command     []string                               `yaml:"command,omitempty"`
 	DependsOn   map[string]standaloneComposeDependency `yaml:"depends_on,omitempty"`
 	Environment map[string]string                      `yaml:"environment,omitempty"`
@@ -228,6 +246,87 @@ type standaloneComposeService struct {
 
 type standaloneComposeDependency struct {
 	Condition string `yaml:"condition"`
+}
+
+// standaloneComposeDeploy carries the declared per-container ceiling. Compose
+// applies deploy.resources outside Swarm, so this is the ordinary way to cap a
+// container on a single host.
+type standaloneComposeDeploy struct {
+	Resources standaloneComposeResources `yaml:"resources"`
+}
+
+type standaloneComposeResources struct {
+	Limits       *standaloneComposeResourceBounds `yaml:"limits,omitempty"`
+	Reservations *standaloneComposeResourceBounds `yaml:"reservations,omitempty"`
+}
+
+type standaloneComposeResourceBounds struct {
+	Memory string `yaml:"memory,omitempty"`
+	CPUs   string `yaml:"cpus,omitempty"`
+}
+
+// componentDeploy renders only what the component actually declared. A
+// component without declared resources gets no deploy block at all: a ceiling
+// invented for a footprint nobody measured would cause the very kill this
+// exists to prevent.
+func componentDeploy(declared *architecturev2renderer.ApplicationDeliveryResourcesDescriptor) *standaloneComposeDeploy {
+	if declared == nil {
+		return nil
+	}
+	deploy := &standaloneComposeDeploy{}
+	if declared.MemoryLimit != "" || declared.CPUs > 0 {
+		deploy.Resources.Limits = &standaloneComposeResourceBounds{Memory: declared.MemoryLimit}
+		if declared.CPUs > 0 {
+			deploy.Resources.Limits.CPUs = strconv.FormatFloat(declared.CPUs, 'f', -1, 64)
+		}
+	}
+	if declared.MemoryReservation != "" {
+		deploy.Resources.Reservations = &standaloneComposeResourceBounds{Memory: declared.MemoryReservation}
+	}
+	if deploy.Resources.Limits == nil && deploy.Resources.Reservations == nil {
+		return nil
+	}
+	return deploy
+}
+
+// standaloneComposeLogging bounds container logs. Without it the json-file
+// driver grows without limit, and a homelab that ran fine for weeks fills its
+// disk and takes the whole stack down with it.
+type standaloneComposeLogging struct {
+	Driver  string            `yaml:"driver"`
+	Options map[string]string `yaml:"options"`
+}
+
+// workloadLogging is the bounded log policy every workload container gets.
+func workloadLogging() *standaloneComposeLogging {
+	return &standaloneComposeLogging{
+		Driver:  "json-file",
+		Options: map[string]string{"max-size": "10m", "max-file": "3"},
+	}
+}
+
+// oomScoreAdjForRole biases which container the kernel kills first when the
+// host runs out of memory.
+//
+// The default OOM killer picks by memory footprint, which on a small device
+// means it takes the database a workload cannot survive losing. The declared
+// component role already says what each container is, so the bias follows it:
+// stateful components are protected, and a recomputable worker such as machine
+// learning is offered up first. This does not prevent an out-of-memory kill; it
+// decides which one hurts least.
+func oomScoreAdjForRole(role string) *int {
+	scores := map[string]int{
+		"database":         -500,
+		"database-init":    -500,
+		"cache":            -250,
+		"application":      -100,
+		"machine-learning": 500,
+	}
+	score, declared := scores[role]
+	if !declared {
+		return nil
+	}
+	return &score
 }
 
 type standaloneComposeNetwork struct {
@@ -268,8 +367,11 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 			DependsOn:   map[string]standaloneComposeDependency{},
 			Environment: map[string]string{}, Networks: append([]string(nil), component.NetworkRefs...),
 		}
+		service.Deploy = componentDeploy(component.Resources)
 		if component.Lifecycle == "daemon" {
 			service.Restart = "unless-stopped"
+			service.Logging = workloadLogging()
+			service.OOMScoreAdj = oomScoreAdjForRole(component.Role)
 		}
 		for _, dependency := range component.DependsOn {
 			condition := "service_started"
@@ -477,11 +579,13 @@ func (osStandaloneComposeProcessRunner) Run(
 		args[3] != "--env-file" || filepath.Dir(args[4]) != directory ||
 		filepath.Base(args[4]) != ".env" || args[5] != "-f" ||
 		filepath.Dir(args[6]) != directory || filepath.Base(args[6]) != "compose.yaml" {
-		return nil, errors.New("process is outside the closed standalone Docker Compose contract")
+		return nil, &standaloneComposeProcessError{
+			output: "closed-contract-rejected", cause: errors.New("invalid process contract"),
+		}
 	}
 	executable, err := exec.LookPath("docker")
 	if err != nil {
-		return nil, errors.New("required local Docker runtime is not installed")
+		return nil, &standaloneComposeProcessError{output: "docker-not-found", cause: err}
 	}
 	command := exec.CommandContext(ctx, executable, args...)
 	command.Dir = directory
@@ -489,10 +593,14 @@ func (osStandaloneComposeProcessRunner) Run(
 	output := &standaloneComposeBoundedBuffer{remaining: standaloneComposeOutputMax}
 	command.Stdout, command.Stderr = output, output
 	if err := command.Run(); err != nil {
-		return nil, errors.New("bounded standalone Docker Compose process failed")
+		return nil, &standaloneComposeProcessError{
+			output: boundedBasementCoreProcessDiagnostic(output.Bytes()), cause: err,
+		}
 	}
 	if output.exceeded {
-		return nil, errors.New("standalone Docker Compose process output exceeded the bound")
+		return nil, &standaloneComposeProcessError{
+			output: "output-exceeded", cause: errors.New("bounded process output exceeded"),
+		}
 	}
 	return append([]byte(nil), output.Bytes()...), nil
 }

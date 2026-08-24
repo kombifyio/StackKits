@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/applyledger"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
@@ -46,6 +47,10 @@ type architectureV2ApplyCommandResult struct {
 	Apply         architecturev2.ApplyResultSummary `json:"apply"`
 	Observations  []runtimeobservation.Observation  `json:"observations"`
 	EvidenceLinks []runtimeobservation.EvidenceLink `json:"evidenceLinks"`
+	// Outcomes is the per-unit account of the run. It is additive on
+	// stackkit.apply-result/v2: a consumer that only reads the summary keeps
+	// working, and one that wants to know which module came up can.
+	Outcomes *applyledger.Ledger `json:"outcomes,omitempty"`
 }
 
 type runtimeObservationPlanProjection struct {
@@ -424,7 +429,7 @@ func readArchitectureV2AccessSummary(workspaceRoot string, plan generationartifa
 	if err != nil {
 		return nil, err
 	}
-	if summary.SchemaVersion != expected.SchemaVersion || summary.StackID != expected.StackID || summary.PlanHash != expected.PlanHash ||
+	if (summary.SchemaVersion != "stackkit.access-manifest/v2" && summary.SchemaVersion != expected.SchemaVersion) || summary.StackID != expected.StackID || summary.PlanHash != expected.PlanHash ||
 		summary.ApplyResultHash != expected.ApplyResultHash || summary.StackKit != expected.StackKit ||
 		summary.StackKitVersion != expected.StackKitVersion || summary.Mode != expected.Mode || summary.Domain != expected.Domain ||
 		summary.SubdomainPrefix != expected.SubdomainPrefix || summary.HubURL != expected.HubURL ||
@@ -432,7 +437,34 @@ func readArchitectureV2AccessSummary(workspaceRoot string, plan generationartifa
 		!exactArchitectureV2AccessServices(summary.Services, expected.Services) {
 		return nil, errors.New("Architecture v2 access manifest differs from the verified plan or Apply result")
 	}
+	if summary.SchemaVersion == expected.SchemaVersion && !exactArchitectureV2RuntimeServices(summary.RuntimeServices, expected.RuntimeServices) {
+		return nil, errors.New("Architecture v2 access manifest runtime services differ from the verified plan")
+	}
 	return &summary, nil
+}
+
+func exactArchitectureV2RuntimeServices(actual, expected []accessRuntimeService) bool {
+	if len(actual) != len(expected) {
+		return false
+	}
+	byIdentity := make(map[string]accessRuntimeService, len(actual))
+	for _, service := range actual {
+		key := service.RuntimeIdentity.RuntimeRef + "\x00" + service.ServiceKey
+		if service.ServiceKey == "" || service.ApplicationKey == "" || service.DisplayName == "" || service.Role == "" || service.Lifecycle == "" || service.OperationalImpact == "" || service.RuntimeIdentity.Kind == "" || service.RuntimeIdentity.Adapter == "" || service.RuntimeIdentity.RuntimeRef == "" {
+			return false
+		}
+		if _, duplicate := byIdentity[key]; duplicate {
+			return false
+		}
+		byIdentity[key] = service
+	}
+	for _, want := range expected {
+		got, ok := byIdentity[want.RuntimeIdentity.RuntimeRef+"\x00"+want.ServiceKey]
+		if !ok || got != want {
+			return false
+		}
+	}
+	return true
 }
 
 func exactArchitectureV2AccessServices(actual, expected []accessService) bool {

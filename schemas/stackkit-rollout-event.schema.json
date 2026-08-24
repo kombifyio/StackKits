@@ -5,7 +5,11 @@
   "description": "Redacted JSONL event emitted by StackKit CLI rollout and prepare phases.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["time", "phase", "status"],
+  "required": [
+    "time",
+    "phase",
+    "status"
+  ],
   "properties": {
     "time": {
       "type": "string",
@@ -27,11 +31,22 @@
     },
     "status": {
       "type": "string",
-      "enum": ["started", "running", "succeeded", "failed", "skipped"]
+      "enum": [
+        "started",
+        "running",
+        "succeeded",
+        "failed",
+        "skipped"
+      ]
     },
     "severity": {
       "type": "string",
-      "enum": ["debug", "info", "warning", "error"]
+      "enum": [
+        "debug",
+        "info",
+        "warning",
+        "error"
+      ]
     },
     "message": {
       "type": "string"
@@ -42,11 +57,28 @@
         "apt_lock_timeout",
         "apt_process_timeout",
         "apt_wait_timeout",
+        "cancelled",
+        "clock_skew",
         "cloud_init_timeout",
+        "dependency_unhealthy",
+        "disk_full",
+        "docker_bridge_failed",
         "docker_daemon_failed",
         "docker_install_failed",
+        "docker_missing",
+        "docker_socket_denied",
+        "health_timeout",
+        "image_arch_mismatch",
+        "image_not_found",
+        "image_pull_denied",
+        "kernel_namespace_blocked",
+        "oom_killed",
         "opentofu_prepare_failed",
         "platform_app_failed",
+        "port_conflict",
+        "registry_rate_limited",
+        "registry_unreachable",
+        "secret_unavailable",
         "spec_fetch_failed",
         "target_inspect_failed",
         "terramate_prepare_failed",

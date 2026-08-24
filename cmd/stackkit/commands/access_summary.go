@@ -14,19 +14,42 @@ import (
 )
 
 type accessSummary struct {
-	SchemaVersion   string          `json:"schemaVersion,omitempty"`
-	StackID         string          `json:"stackId,omitempty"`
-	PlanHash        string          `json:"planHash,omitempty"`
-	ApplyResultHash string          `json:"applyResultHash,omitempty"`
-	StackKit        string          `json:"stackkit"`
-	StackKitVersion string          `json:"stackkitVersion,omitempty"`
-	Mode            string          `json:"mode"`
-	Domain          string          `json:"domain"`
-	SubdomainPrefix string          `json:"subdomainPrefix,omitempty"`
-	HubURL          string          `json:"hubUrl"`
-	Services        []accessService `json:"services"`
-	SetupActions    []string        `json:"setupActions,omitempty"`
-	GeneratedAt     time.Time       `json:"generatedAt"`
+	SchemaVersion   string                 `json:"schemaVersion,omitempty"`
+	StackID         string                 `json:"stackId,omitempty"`
+	PlanHash        string                 `json:"planHash,omitempty"`
+	ApplyResultHash string                 `json:"applyResultHash,omitempty"`
+	StackKit        string                 `json:"stackkit"`
+	StackKitVersion string                 `json:"stackkitVersion,omitempty"`
+	Mode            string                 `json:"mode"`
+	Domain          string                 `json:"domain"`
+	SubdomainPrefix string                 `json:"subdomainPrefix,omitempty"`
+	HubURL          string                 `json:"hubUrl"`
+	Services        []accessService        `json:"services"`
+	RuntimeServices []accessRuntimeService `json:"runtime_services,omitempty"`
+	SetupActions    []string               `json:"setupActions,omitempty"`
+	GeneratedAt     time.Time              `json:"generatedAt"`
+}
+
+type accessRuntimeService struct {
+	ServiceKey        string                `json:"service_key"`
+	ApplicationKey    string                `json:"application_key"`
+	DisplayName       string                `json:"display_name"`
+	Role              string                `json:"role"`
+	Lifecycle         string                `json:"lifecycle"`
+	OperationalImpact string                `json:"operational_impact"`
+	RuntimeIdentity   accessRuntimeIdentity `json:"runtime_identity"`
+	InternalAddress   string                `json:"internal_address,omitempty"`
+}
+
+type accessRuntimeIdentity struct {
+	Kind       string `json:"kind"`
+	Adapter    string `json:"adapter"`
+	RuntimeRef string `json:"runtime_ref"`
+	Project    string `json:"project,omitempty"`
+	File       string `json:"file,omitempty"`
+	Deployment string `json:"deployment,omitempty"`
+	Service    string `json:"service,omitempty"`
+	Unit       string `json:"unit,omitempty"`
 }
 
 type accessService struct {
@@ -289,22 +312,6 @@ func observedSetupActionsFromState(state *models.DeploymentState) []string {
 		actions = append(actions, drop)
 	}
 	return actions
-}
-
-func serviceStatesFromAccessSummary(summary *accessSummary) []models.ServiceState {
-	if summary == nil {
-		return nil
-	}
-	services := make([]models.ServiceState, 0, len(summary.Services))
-	for _, svc := range summary.Services {
-		services = append(services, models.ServiceState{
-			Name:   svc.Key,
-			URL:    svc.URL,
-			Status: models.ServiceStatusRunning,
-			Health: models.HealthStatusUnknown,
-		})
-	}
-	return services
 }
 
 func urlAliases(summary *accessSummary) map[string]string {
