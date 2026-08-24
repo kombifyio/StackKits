@@ -55,7 +55,7 @@ func Observe(ctx context.Context, request ObserveRequest) Facts {
 	facts.CPUBaseline = observeCPUBaseline(facts.Architecture)
 	facts.Docker = observeDocker(ctx)
 	facts.Disks = observeDisks(request.WorkspacePath, facts.Docker.RootDir)
-	facts.Ports = observePorts(request.RequiredPorts)
+	facts.Ports = observePorts(ctx, request.WorkspacePath, request.RequiredPorts)
 	return facts
 }
 
@@ -310,7 +310,7 @@ func observeDisks(workspace, dockerRoot string) []DiskFact {
 	return disks
 }
 
-func observePorts(ports []int) []PortFact {
+func observePorts(ctx context.Context, workspace string, ports []int) []PortFact {
 	facts := make([]PortFact, 0, len(ports))
 	for _, port := range ports {
 		fact := PortFact{Port: port}
@@ -318,6 +318,7 @@ func observePorts(ports []int) []PortFact {
 		if err != nil {
 			fact.InUse = true
 			fact.Detail = boundedDiagnostic(err.Error())
+			fact.OwnedByCurrentRuntime = currentCloudCoreOwnsPort(ctx, workspace, port)
 		} else {
 			_ = listener.Close()
 		}

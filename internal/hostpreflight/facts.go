@@ -110,9 +110,10 @@ type DiskFact struct {
 
 // PortFact records whether a port Apply must publish is already bound.
 type PortFact struct {
-	Port   int    `json:"port"`
-	InUse  bool   `json:"inUse"`
-	Detail string `json:"detail,omitempty"`
+	Port                  int    `json:"port"`
+	InUse                 bool   `json:"inUse"`
+	OwnedByCurrentRuntime bool   `json:"ownedByCurrentRuntime,omitempty"`
+	Detail                string `json:"detail,omitempty"`
 }
 
 // Facts is everything the probe measured about the host.

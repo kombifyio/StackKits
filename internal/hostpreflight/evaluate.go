@@ -314,8 +314,13 @@ func checkPorts(facts Facts) Check {
 		check.Summary = "No published ports were declared for this Apply"
 		return check
 	}
+	owned := false
 	for _, port := range facts.Ports {
 		if !port.InUse {
+			continue
+		}
+		if port.OwnedByCurrentRuntime {
+			owned = true
 			continue
 		}
 		check.Status = StatusBlocked
@@ -328,7 +333,11 @@ func checkPorts(facts Facts) Check {
 		return check
 	}
 	check.Status = StatusPass
-	check.Summary = "Every port this Apply publishes is free"
+	if owned {
+		check.Summary = "Published ports are free or owned by this workspace's current StackKits runtime"
+	} else {
+		check.Summary = "Every port this Apply publishes is free"
+	}
 	return check
 }
 
