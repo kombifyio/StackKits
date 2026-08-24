@@ -239,6 +239,9 @@ func (o *osCloudHostSecurityOperations) writeSSHHardening(ctx context.Context, p
 		"PubkeyAuthentication yes",
 		"", // trailing newline
 	}, "\n")
+	if err := os.Remove(cloudHostSecurityLegacySSHDropIn); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove the superseded Cloud host-security sshd drop-in: %w", err)
+	}
 	if err := writeCloudHostSecuritySystemFile(cloudHostSecuritySSHDropIn, content); err != nil {
 		return err
 	}

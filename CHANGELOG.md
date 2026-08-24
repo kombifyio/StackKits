@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.21.17](https://github.com/kombifyio/stackKits/compare/v0.21.16...v0.21.17) (2026-08-24)
+
+### Fixed
+
+- Make the Cloud host-security sshd policy the first drop-in evaluated and
+  remove its superseded late-order file during Apply, so provider or cloud-init
+  defaults cannot keep root key login enabled after hardening.
+
 ## [0.21.16](https://github.com/kombifyio/stackKits/compare/v0.21.15...v0.21.16) (2026-08-24)
 
 ### Added

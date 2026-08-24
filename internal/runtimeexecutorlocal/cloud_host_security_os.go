@@ -18,7 +18,10 @@ const (
 	cloudHostSecurityTable     = "stackkits_cloud_host_security"
 	cloudHostSecurityBaseChain = "stackkits_cloud_host_base"
 	cloudHostSecurityEdgeChain = "stackkits_cloud_public_edge"
-	cloudHostSecuritySSHDropIn = "/etc/ssh/sshd_config.d/60-stackkits-cloud-host-security.conf"
+	// OpenSSH keeps the first value obtained across included drop-ins, so the
+	// StackKits authority must sort before provider and cloud-init defaults.
+	cloudHostSecuritySSHDropIn       = "/etc/ssh/sshd_config.d/00-stackkits-cloud-host-security.conf"
+	cloudHostSecurityLegacySSHDropIn = "/etc/ssh/sshd_config.d/60-stackkits-cloud-host-security.conf"
 	// sshd refuses to parse any configuration without this directory.
 	cloudHostSecuritySSHDRuntimeDirectory = "/run/sshd"
 	cloudHostSecurityAPTDropIn            = "/etc/apt/apt.conf.d/60-stackkits-cloud-host-security"
