@@ -403,6 +403,11 @@ func ValidatePublicTLSExecutorArtifact(raw []byte, siteRef, nodeRef string) (Pub
 			ProfileRef: route.TLS.ProfileRef, IssuerRef: route.TLS.IssuerRef,
 		}
 	}
+	// CUE canonicalizes set-semantic route lists by serialized bytes. Runtime
+	// lifecycle evidence uses route identity, so expose a stable ID order here.
+	sort.Slice(result.Routes, func(left, right int) bool {
+		return result.Routes[left].ID < result.Routes[right].ID
+	})
 	return result, nil
 }
 
