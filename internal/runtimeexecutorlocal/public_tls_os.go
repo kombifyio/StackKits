@@ -63,7 +63,7 @@ func NewOSPublicTLSOperations(workspaceRoot string) (*osPublicTLSOperations, err
 	client := &http.Client{
 		Timeout: publicTLSProbeTimeout,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return errors.New("public TLS HTTPS verification must not follow redirects")
+			return http.ErrUseLastResponse
 		},
 	}
 	return &osPublicTLSOperations{
@@ -488,7 +488,7 @@ func (p *traefikPublicTLSProbe) verifyHTTPS(ctx context.Context, route architect
 	}
 	transport := &http.Transport{TLSClientConfig: &tls.Config{MinVersion: minimumVersion, ServerName: route.Host}}
 	client := &http.Client{Transport: transport, Timeout: publicTLSProbeTimeout, CheckRedirect: func(*http.Request, []*http.Request) error {
-		return errors.New("public TLS HTTPS verification must not follow redirects")
+		return http.ErrUseLastResponse
 	}}
 	address := net.JoinHostPort(route.Host, strconv.Itoa(route.Port))
 	requestURL := "https://" + address + route.Path

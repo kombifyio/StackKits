@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.21.24](https://github.com/kombifyio/stackKits/compare/v0.21.23...v0.21.24) (2026-08-25)
+
+### Fixed
+
+- Verify a valid managed-service TLS certificate without following or rejecting
+  an application's expected HTTPS login redirect.
+
 ## [0.21.23](https://github.com/kombifyio/stackKits/compare/v0.21.22...v0.21.23) (2026-08-25)
 
 ### Fixed
