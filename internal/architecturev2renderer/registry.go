@@ -159,6 +159,7 @@ type RenderUnit struct {
 	runtimeNetworkBindingsJSON []byte
 	declaredOutputRef          []string
 	networkDomainBase          string
+	networkSubdomainPrefix     string
 }
 
 func (u RenderUnit) ModuleID() string        { return u.moduleID }
@@ -250,6 +251,9 @@ func (u RenderUnit) RuntimeNetworkBindingsJSON() []byte {
 }
 func (u RenderUnit) DeclaredOutputs() []string         { return append([]string(nil), u.declaredOutputRef...) }
 func (u RenderUnit) NetworkDomainBase() (string, bool) { return optionalAccessor(u.networkDomainBase) }
+func (u RenderUnit) NetworkSubdomainPrefix() (string, bool) {
+	return optionalAccessor(u.networkSubdomainPrefix)
+}
 
 func optionalAccessor(value string) (string, bool) { return value, value != "" }
 
@@ -337,7 +341,7 @@ func renderProjection(ctx context.Context, projection renderPlan, canonical []by
 				return RenderResult{}, fail(ErrUnknownRenderer, "resolvedPlan.modules."+module.id+".renderUnits."+contract.id, "renderer contract %s/%s@%s (%s) is not registered exactly", contract.rendererRef, contract.templateRef, contract.version, contract.contractHash)
 			}
 			for _, instance := range contract.instances {
-				unit := newRenderUnit(module.id, contract, instance, projection.networkDomainBase)
+				unit := newRenderUnit(module.id, contract, instance, projection.networkDomainBase, projection.networkSubdomainPrefix)
 				outputs, err := renderUnit(ctx, renderer, unit)
 				if err != nil {
 					return RenderResult{}, err
@@ -390,10 +394,13 @@ func ValidateManagedOutput(plan generationartifact.VerifiedPlan, result RenderRe
 	return projection.outputRoot, nil
 }
 
-func newRenderUnit(moduleID string, contract renderUnitContract, instance renderUnitInstance, networkDomainBase ...string) RenderUnit {
-	domain := ""
-	if len(networkDomainBase) == 1 {
-		domain = networkDomainBase[0]
+func newRenderUnit(moduleID string, contract renderUnitContract, instance renderUnitInstance, networkDomain ...string) RenderUnit {
+	domain, prefix := "", ""
+	if len(networkDomain) > 0 {
+		domain = networkDomain[0]
+	}
+	if len(networkDomain) > 1 {
+		prefix = networkDomain[1]
 	}
 	return RenderUnit{
 		moduleID: moduleID, id: contract.id, instanceID: instance.id, instanceScope: instance.scope,
@@ -418,6 +425,7 @@ func newRenderUnit(moduleID string, contract renderUnitContract, instance render
 		runtimeNetworkBindingsJSON: append([]byte(nil), instance.networkCanonical...),
 		declaredOutputRef:          instanceLogicalOutputRefs(instance.outputs),
 		networkDomainBase:          domain,
+		networkSubdomainPrefix:     prefix,
 	}
 }
 

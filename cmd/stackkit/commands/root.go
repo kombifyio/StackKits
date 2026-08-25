@@ -212,6 +212,7 @@ func init() {
 	rootCmd.AddCommand(agentCmd)
 	rootCmd.AddCommand(hostCmd)
 	rootCmd.AddCommand(serviceCmd)
+	rootCmd.AddCommand(newAddressCommand())
 	rootCmd.AddCommand(outputTransactionCmd)
 }
 

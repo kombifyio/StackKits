@@ -3279,7 +3279,7 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "compose", kind:                                 "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core/compose/v1.yaml", version: "1.0.0"
-			contractHash: "sha256:8b15d1616fa23847ba36d96989ff15fadbc46b00ba79061496cd963058c8e6f0"
+			contractHash: "sha256:6fa604256025757828360c472a40670e82d63b9e46364f48ff5d53588e4717df"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/cloud-core/compose.yaml"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -3288,7 +3288,7 @@ _architectureV2Modules: list.Concat([[
 		}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
-			contractHash: "sha256:8b15d1616fa23847ba36d96989ff15fadbc46b00ba79061496cd963058c8e6f0"
+			contractHash: "sha256:6fa604256025757828360c472a40670e82d63b9e46364f48ff5d53588e4717df"
 			unitRefs: ["compose"], artifactRefs: ["cloud-core-compose"]
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 		}]

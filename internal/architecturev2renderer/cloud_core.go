@@ -18,7 +18,7 @@ const (
 	cloudCoreComposeOutputRef = "platform/cloud-core/compose.yaml"
 	cloudCoreRendererRef      = "stackkit"
 	cloudCoreVersion          = "1.0.0"
-	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:5|resolved-network-domain:required|runtime-listeners:catalog-bound|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-tls-alpn|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
+	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:6|resolved-network-domain:required|resolved-subdomain-prefix:optional|runtime-listeners:catalog-bound|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-tls-alpn|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned`
 )
 
 const cloudCoreComponentsJSON = `[
@@ -237,10 +237,22 @@ func CloudCoreComposeRendererContract() RendererContract {
 }
 
 func RenderCloudCoreComposeForDomain(domain string) []byte {
+	return RenderCloudCoreComposeForAddress(domain, "")
+}
+
+func RenderCloudCoreComposeForAddress(domain, prefix string) []byte {
 	if !basementDomainPattern.MatchString(domain) {
 		return nil
 	}
-	return []byte(strings.ReplaceAll(cloudCoreCompose, "{{STACKKIT_DOMAIN}}", domain))
+	serviceDomain := domain
+	if prefix != "" {
+		serviceDomain = prefix + "-{{STACKKIT_SERVICE}}." + domain
+	}
+	output := strings.ReplaceAll(cloudCoreCompose, "{{STACKKIT_DOMAIN}}", serviceDomain)
+	for _, service := range []string{"id", "auth", "coolify", "base"} {
+		output = strings.ReplaceAll(output, service+"."+prefix+"-{{STACKKIT_SERVICE}}", prefix+"-"+service)
+	}
+	return []byte(strings.ReplaceAll(output, "{{STACKKIT_SERVICE}}", ""))
 }
 
 // ExpectedCloudCoreComposeArtifact returns the immutable default-domain
@@ -250,8 +262,20 @@ func ExpectedCloudCoreComposeArtifact() []byte {
 }
 
 func ValidateCloudCoreComposeArtifact(content []byte) bool {
-	match := regexp.MustCompile("id\\.([a-z0-9.-]+)`").FindSubmatch(content)
-	return len(match) == 2 && bytes.Equal(content, RenderCloudCoreComposeForDomain(string(match[1])))
+	match := regexp.MustCompile("routers[.]pocketid[.]rule=Host\\(`([a-z0-9.-]+)`\\)").FindSubmatch(content)
+	if len(match) != 2 {
+		return false
+	}
+	host := string(match[1])
+	domain, prefix := strings.TrimPrefix(host, "id."), ""
+	if domain == host {
+		separator := strings.Index(host, "-id.")
+		if separator < 1 {
+			return false
+		}
+		prefix, domain = host[:separator], host[separator+4:]
+	}
+	return bytes.Equal(content, RenderCloudCoreComposeForAddress(domain, prefix))
 }
 
 func CloudCoreServiceContracts() []BasementCoreServiceContract {
@@ -341,7 +365,8 @@ func (r cloudCoreRenderer) RenderUnit(ctx context.Context, unit RenderUnit) ([]U
 	if len(expected) != 0 {
 		return nil, fail(ErrInvalidPlan, path+".serviceEndpoints", "Cloud service endpoint set is incomplete")
 	}
-	output := RenderCloudCoreComposeForDomain(domain)
+	prefix, _ := unit.NetworkSubdomainPrefix()
+	output := RenderCloudCoreComposeForAddress(domain, prefix)
 	if err := validateRuntimeListenerComposeParity(unit.RuntimeListenersJSON(), output, path+".runtimeListeners"); err != nil {
 		return nil, err
 	}

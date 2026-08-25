@@ -27,11 +27,12 @@ const dockerSocketPathSourceDaemonBinding = "daemon-binding"
 const maxDockerSocketPathBytes = 107
 
 type renderPlan struct {
-	outputRoot        string
-	networkDomainBase string
-	modules           []renderModule
-	artifacts         map[string]artifactContract
-	bindings          map[instanceOutputKey]outputBinding
+	outputRoot             string
+	networkDomainBase      string
+	networkSubdomainPrefix string
+	modules                []renderModule
+	artifacts              map[string]artifactContract
+	bindings               map[instanceOutputKey]outputBinding
 }
 
 type renderModule struct {
@@ -573,7 +574,7 @@ func parsePlanCanonical(canonical []byte) (renderPlan, error) {
 			return renderPlan{}, wrap(ErrInvalidPath, "resolvedPlan.generation.outputRoot", "invalid managed output root", err)
 		}
 	}
-	networkDomainBase, err := parseOptionalNetworkDomainBase(top)
+	networkDomainBase, networkSubdomainPrefix, err := parseOptionalNetworkDomain(top)
 	if err != nil {
 		return renderPlan{}, err
 	}
@@ -599,7 +600,7 @@ func parsePlanCanonical(canonical []byte) (renderPlan, error) {
 	}
 
 	result := renderPlan{
-		outputRoot: outputRoot, networkDomainBase: networkDomainBase,
+		outputRoot: outputRoot, networkDomainBase: networkDomainBase, networkSubdomainPrefix: networkSubdomainPrefix,
 		artifacts: artifacts,
 		bindings:  make(map[instanceOutputKey]outputBinding),
 	}
@@ -635,24 +636,34 @@ func parsePlanCanonical(canonical []byte) (renderPlan, error) {
 	return finalizeRenderPlan(top, result, artifacts, boundArtifacts, runtimeNetworks)
 }
 
-func parseOptionalNetworkDomainBase(top map[string]json.RawMessage) (string, error) {
+func parseOptionalNetworkDomain(top map[string]json.RawMessage) (string, string, error) {
 	raw, present := top["network"]
 	if !present {
-		return "", nil
+		return "", "", nil
 	}
 	network, err := decodeRawObject(raw, "resolvedPlan.network")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	configuration, err := requiredRawObject(network, "configuration", "resolvedPlan.network.configuration")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	domain, err := requiredRawObject(configuration, "domain", "resolvedPlan.network.configuration.domain")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return requiredRawString(domain, "base", "resolvedPlan.network.configuration.domain.base")
+	base, err := requiredRawString(domain, "base", "resolvedPlan.network.configuration.domain.base")
+	if err != nil {
+		return "", "", err
+	}
+	prefix := ""
+	if rawPrefix, present := domain["subdomainPrefix"]; present {
+		if err := json.Unmarshal(rawPrefix, &prefix); err != nil || !regexp.MustCompile(`^[a-z][a-z0-9-]*$`).MatchString(prefix) {
+			return "", "", fail(ErrInvalidPlan, "resolvedPlan.network.configuration.domain.subdomainPrefix", "invalid subdomain prefix")
+		}
+	}
+	return base, prefix, nil
 }
 
 func finalizeRenderPlan(top map[string]json.RawMessage, result renderPlan, artifacts map[string]artifactContract, boundArtifacts map[string]instanceOutputKey, runtimeNetworks []runtimeNetwork) (renderPlan, error) {
