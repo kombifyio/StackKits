@@ -321,7 +321,7 @@ func publicTLSOperationContext(ctx context.Context) error {
 func validatePublicTLSApplyPolicy(policy PublicTLSApplyPolicy) error {
 	if !validCoreHostBootstrapDigest(policy.PolicyDigest) || strings.TrimSpace(policy.StackID) == "" || strings.TrimSpace(policy.SiteRef) == "" ||
 		strings.TrimSpace(policy.NodeRef) == "" || strings.TrimSpace(policy.ExecutionChannelRef) == "" || policy.Profile.Mode != "terminate-at-edge" ||
-		policy.Profile.ID == "" || policy.Profile.TrustDomain != "web-pki" || policy.Issuer.ID == "" || policy.Issuer.Kind != "acme" || policy.Issuer.Challenge != "tls-alpn-01" ||
+		policy.Profile.ID == "" || policy.Profile.TrustDomain != "web-pki" || policy.Issuer.ID == "" || policy.Issuer.Kind != "acme" || policy.Issuer.Challenge != "http-01" ||
 		policy.Issuer.ValiditySeconds <= policy.Issuer.RenewBeforeSeconds || policy.Issuer.RenewBeforeSeconds <= 0 {
 		return errors.New("public TLS policy is outside the authenticated edge owner contract")
 	}

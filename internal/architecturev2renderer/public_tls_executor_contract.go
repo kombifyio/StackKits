@@ -271,7 +271,7 @@ func validatePublicTLSExecutorPlanInputs(raw []byte, path string) ([]string, err
 		return nil, fail(ErrInvalidPlan, path+".publicTLS.profile", "TLS profile is outside the exact WebPKI edge-termination contract")
 	}
 	issuer := tls.Issuer
-	if issuer.ID != publicTLSIssuerRef || issuer.CapabilityRef != publicTLSCapabilityRef || issuer.Kind != "acme" || issuer.Challenge != "tls-alpn-01" || !exactStringList(issuer.SupportedSiteKinds, []string{"cloud"}) || issuer.ValiditySeconds != 7776000 || len(issuer.RequiredInputSlotIDs) != 0 {
+	if issuer.ID != publicTLSIssuerRef || issuer.CapabilityRef != publicTLSCapabilityRef || issuer.Kind != "acme" || issuer.Challenge != "http-01" || !exactStringList(issuer.SupportedSiteKinds, []string{"cloud"}) || issuer.ValiditySeconds != 7776000 || len(issuer.RequiredInputSlotIDs) != 0 {
 		return nil, fail(ErrInvalidPlan, path+".publicTLS.issuer", "issuer is outside the exact catalog-owned ACME contract")
 	}
 	wantSlots := []publicTLSExecutorMaterialSlot{

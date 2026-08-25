@@ -10159,7 +10159,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:6fa604256025757828360c472a40670e82d63b9e46364f48ff5d53588e4717df",
+          "contractHash": "sha256:8bffaa6d8b4e05ce3db432338ecff2da1be887c7406438860a318b9a3da45715",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -10333,7 +10333,7 @@
           "artifactRefs": [
             "cloud-core-compose"
           ],
-          "contractHash": "sha256:6fa604256025757828360c472a40670e82d63b9e46364f48ff5d53588e4717df",
+          "contractHash": "sha256:8bffaa6d8b4e05ce3db432338ecff2da1be887c7406438860a318b9a3da45715",
           "id": "compose",
           "planInputRefs": [],
           "publicInputRefs": [],
@@ -17458,7 +17458,7 @@
       "certificateIssuers": [
         {
           "capabilityRef": "public-tls",
-          "challenge": "tls-alpn-01",
+          "challenge": "http-01",
           "id": "stackkits-public-acme",
           "kind": "acme",
           "materialSlots": [

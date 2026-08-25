@@ -1028,7 +1028,7 @@ _architectureV2Providers: list.Concat([[
 		health: [{id: "public-tls-renewal-contract", kind: "contract"}]
 		evidence: ["public-tls-contract"]
 		certificateIssuers: [{
-			id: "stackkits-public-acme", capabilityRef: "public-tls", kind: "acme", challenge: "tls-alpn-01"
+			id: "stackkits-public-acme", capabilityRef: "public-tls", kind: "acme", challenge: "http-01"
 			supportedSiteKinds: ["cloud"], validitySeconds: 7776000
 			owner: {providerRef: "stackkits-public-tls", moduleRef: "stackkits-public-tls-contract", materializationSupport: "contract-only"}
 			requiredInputSlotIDs: []
@@ -3279,7 +3279,7 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "compose", kind:                                 "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core/compose/v1.yaml", version: "1.0.0"
-			contractHash: "sha256:6fa604256025757828360c472a40670e82d63b9e46364f48ff5d53588e4717df"
+			contractHash: "sha256:8bffaa6d8b4e05ce3db432338ecff2da1be887c7406438860a318b9a3da45715"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/cloud-core/compose.yaml"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -3288,7 +3288,7 @@ _architectureV2Modules: list.Concat([[
 		}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
-			contractHash: "sha256:6fa604256025757828360c472a40670e82d63b9e46364f48ff5d53588e4717df"
+			contractHash: "sha256:8bffaa6d8b4e05ce3db432338ecff2da1be887c7406438860a318b9a3da45715"
 			unitRefs: ["compose"], artifactRefs: ["cloud-core-compose"]
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 		}]

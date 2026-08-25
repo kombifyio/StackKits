@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.21.23](https://github.com/kombifyio/stackKits/compare/v0.21.22...v0.21.23) (2026-08-25)
+
+### Fixed
+
+- Issue managed Cloud Kit certificates with ACME HTTP-01 so the Cloudflare
+  gateway can validate origin TLS while normal service traffic remains HTTPS.
+
 ## [0.21.22](https://github.com/kombifyio/stackKits/compare/v0.21.21...v0.21.22) (2026-08-25)
 
 ### Fixed
