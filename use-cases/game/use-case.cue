@@ -31,11 +31,25 @@ Package: foundation.#UseCasePackage & {
 		description: "A future use-case integration must select the game-server implementation, image and license policy, ports, persistence, secrets, resources, backup, and placement."
 		realization: "oss"
 		placementModes: []
-		contexts: []
 		managedServerlessEligible: false
 		requiresControlPlane:      false
 		requiresLocalBridge:       false
-		notes: ["Catalog-only placeholder: no default tool, placement, or context is selected for the 1.0 product contract."]
+		notes: ["Catalog-only placeholder: no default tool or placement is selected for the 1.0 product contract."]
+	}
+
+	computeTiers: {
+		low: {
+			included: false
+			reason: "Post-1.0. Game servers are on-demand session load, not a low-graph resident."
+		}
+		standard: {
+			included: false
+			reason: "Post-1.0. Intended load is on-demand: idle none, burst interactive while a session runs."
+		}
+		high: {
+			included: false
+			reason: "Post-1.0. Same as standard; dedicated always-on game hosts would be a later high-graph choice."
+		}
 	}
 
 	tools: {}

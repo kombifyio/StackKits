@@ -37,11 +37,25 @@ Package: foundation.#UseCasePackage & {
 		description: "SK-M5 will realize Apache Guacamole on an Owner-selected node through the module facts pipeline."
 		realization: "oss"
 		placementModes: ["local-only", "standard"]
-		contexts: ["local", "cloud"]
 		managedServerlessEligible: false
 		requiresControlPlane:      false
 		requiresLocalBridge:       false
 		notes: ["This draft profile is catalog intent; guacd, database, connection, authentication, recording, route, and secret contracts remain unselected SK-M5 implementation work."]
+	}
+
+	computeTiers: {
+		low: {
+			included: false
+			reason: "Guacamole is SK-M5 and not on the low graph."
+		}
+		standard: {
+			included: false
+			reason: "SK-M5: no executable module. Intended load is always-on idle gateway with interactive session bursts."
+		}
+		high: {
+			included: false
+			reason: "Same as standard until SK-M5."
+		}
 	}
 
 	tools: guacamole: {

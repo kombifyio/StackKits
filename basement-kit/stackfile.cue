@@ -199,11 +199,51 @@ Definition: foundation.#ProductKitDefinition & {
 	}
 	hostRequirements: {
 		minCpuCores:          2
-		minRamGB:             2
-		minStorageGB:         10
+		minRamGB:             4
+		minStorageGB:         20
 		recommendedCpuCores:  4
 		recommendedRamGB:     4
 		recommendedStorageGB: 20
+	}
+	computeTierGraphs: {
+		standard: {
+			platformManagement: "selected-provider"
+			hostRequirements: {
+				minCpuCores:          2
+				minRamGB:             4
+				minStorageGB:         20
+				recommendedCpuCores:  4
+				recommendedRamGB:     4
+				recommendedStorageGB: 20
+			}
+		}
+		low: {
+			platformManagement: "standalone"
+			hostRequirements: {
+				minCpuCores:          2
+				minRamGB:             2
+				minStorageGB:         10
+				recommendedCpuCores:  2
+				recommendedRamGB:     2
+				recommendedStorageGB: 10
+			}
+			moduleSubstitutions: {
+				"stackkits-basement-core-runtime": "stackkits-basement-core-lite-runtime"
+				"stackkits-immich-runtime":        "stackkits-immich-lite-runtime"
+			}
+		}
+		high: {
+			platformManagement: "selected-provider"
+			hostRequirements: {
+				minCpuCores:          2
+				minRamGB:             4
+				minStorageGB:         20
+				recommendedCpuCores:  4
+				recommendedRamGB:     4
+				recommendedStorageGB: 20
+			}
+			enableCapabilities: ["telemetry-collection"]
+		}
 	}
 	upgradePolicy: {
 		support:                    "preview"

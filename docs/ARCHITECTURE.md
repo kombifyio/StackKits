@@ -1465,8 +1465,9 @@ channel, installs a local Owner registry, uses workspace-bound file
 Journal/recovery custody, and collects evidence with the local private key.
 The explicit `--local-site`, `--local-node`, and
 `--local-execution-channel` flags are equality-checked overrides, not routing
-or authority injection. Caller-provided evidence and foreign channels are
-rejected.
+or authority injection. `stackkit generate` accepts `--local-site` and
+`--local-node` for the same inventory attest binding. Caller-provided evidence
+and foreign channels are rejected.
 
 That authority is deliberately host-local and provider-free. It can execute
 only the exact CUE-selected Basement owners with registered implementations;

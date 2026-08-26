@@ -409,9 +409,10 @@ verbs, whoever runs this entrypoint is carried to a running homelab):
      admin email, owner account yes/no, one apply confirmation;
    - expert additionally: use cases (`photos,files,vault`), stack name,
      platform adapter (`coolify|komodo`), and image prepull.
-3. Refuses to install over a workspace that already carries deployment
-   intent (one host runs one active local deployment; the deployment
-   contract ID derives from the workspace directory name).
+3. Re-running on a workspace that already carries deployment intent
+   skips init and resumes `stackkit apply` (journal). Pick another
+   `HOMELAB_DIR` for a second deployment; `stackkit remove` still
+   resets the current one.
 4. Downloads and runs the shared CLI installer from
    `https://install.stackkit.cc` (binaries, packaged OpenTofu, kit
    definitions — SUDO_USER-safe).

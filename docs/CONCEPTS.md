@@ -80,27 +80,30 @@ Canonical v2 separates facts that the legacy `context` enum combined:
 | External host custody | Opaque host binding, observed failure domain | TechStack/external executor; StackKits receives only provider-neutral binding and conformance evidence |
 | Exposure | local, remote-private, public | Per-service access/publication policy |
 
-The current CLI still accepts `--context local|cloud|pi` as a v1 compatibility
-surface. The v2 migration maps it into typed Sites/hardware and emits a warning;
-new contracts and consumers must not use it to choose a KitProfile.
+Native v2 init rejects `--context`. The v1 migration maps it into typed
+Sites and hardware; new contracts must not use it to choose a KitProfile,
+compute tier, or architecture.
 
-### 3. Compute Tier = Resource Gate
+### 3. Compute Tier = declared product graph
 
-Derived from CPU/RAM/disk during `stackkit prepare`. CONSTRAINS what can physically run.
+`install.computeTier` (`low` | `standard` | `high`) is explicit intent. Init
+(`--compute-tier`) and the Techstack Unifier write it. Apply executes the
+selected graph; it does not choose it. Inventory and `prepare` do not
+auto-detect or rewrite it.
 
-| Tier | Criteria | Effect |
-|------|----------|--------|
-| `high` | 8+ CPU, 16+ GB RAM | Everything viable. Full monitoring possible. |
-| `standard` | 4+ CPU, 4+ GB RAM | Most use cases viable. Default monitoring. |
-| `low` | <4 CPU or <4 GB RAM | Required platform remains Coolify unless explicitly overridden. Heavy use cases (Media, Photos, AI) unavailable. |
+| Tier | Meaning | Current status |
+|------|---------|----------------|
+| `standard` | Coolify PaaS + Immich with ML | Default; declared on every kit |
+| `low` | Standalone, no Coolify, Immich without ML | Declared on Basement; Cloud/Modern fail closed |
+| `high` | Standard plus `telemetry-collection` | Declared on Basement, Cloud, and Modern |
 
-The tier gates feasibility. It doesn't drive selection — the StackKit defaults + user overrides drive selection, then tier gates what's feasible.
+Compiler capacity (`runtimeRequirements` vs attested inventory) is a separate
+admission plane. It can refuse Apply of the selected graph; it cannot change
+which graph was selected.
 
-### 4. Deployment Mode + Resource Profile
+### 4. Three live axes (do not add a fourth)
 
-StackKits separate the deployment engine from the resource profile:
-
-**Deployment Engine:**
+**Deployment engine** (`install.mode`):
 - `bootstrapped` = current Basement Kit default with packaged Compose/OpenTofu, Hub, local PocketID/TinyAuth Owner binding, and setup automation
 - `bare` = infrastructure and selected tools without Base Hub or setup automation
 - `advanced` = bootstrapped surface plus Terramate lifecycle orchestration,
@@ -108,15 +111,48 @@ StackKits separate the deployment engine from the resource profile:
   drills. Techstack can present these through its optional Orchestrator UI only
   with a short-lived offline-verifiable capability.
 
-**Resource Profile** (user-specifiable intent, NOT just hardware detection):
+**Product graph** (`install.computeTier`): see section 3. `--mode` is never this.
 
-| Profile | Intent | Effect |
-|---------|--------|--------|
-| `pi` | "Lightweight, low requirements" | Forces low compute tier, disables heavy modules, uses minimal monitoring |
-| `standard` | Default, no special constraints | Auto-detected tier applies |
-| `full` | "Enable everything" | All default use cases + monitoring enabled |
+**Device class** (`nodes[].hardware.profile`):
+- `standard` = typical homelab/server node
+- `pi` = constrained homelab device (SBC, mini-PC, low-RAM NUC). Not
+  Raspberry-only and not an architecture. `hardware.arch` / inventory own
+  amd64 vs arm64. Does not imply `computeTier: low`.
+- `gpu` / `storage` = accelerator- or storage-class nodes
 
-Use `--compute-tier low` or `--context pi` for constrained hardware intent. `--mode` is reserved for the deployment engine (`bare`, `bootstrapped`, or `advanced`).
+### 4.1 Use case on a graph (functions + load, not hardware class)
+
+A use case is still *why* (Photos, Vault). `#UseCasePackage.computeTiers`
+declares what that use case **is** on each kit graph. It does not select the
+graph. Hardware floors stay on `computeTierGraphs` and module
+`runtimeRequirements`.
+
+| Question | Field | Not |
+|----------|--------|-----|
+| Which functions on this graph? | `functions` (capability tokens) | a second Photos product |
+| 24/7 vs only when used? | `load.residency`: `always-on` / `on-demand` / `scheduled` | CPU millicores on the package |
+| Base load while enabled? | `load.baseline`: `none` / `idle-resident` / `active-resident` | auto-detect from probe |
+| Spike when used? | `load.burst`: `none` / `interactive` / `ingest` / `batch` | a premium enum |
+
+Unifier can add `always-on` + `active-resident` as permanent load, and treat
+`on-demand` / `burst` as ad-hoc query or session performance. It reads the
+package fits through the use-case catalog and MCP `stackkit_use_case_compute_tiers`.
+It writes `install.computeTier`; it does not treat `hardware.profile: pi` or
+ARM as a graph. Photos `low` is library without ML (`idle-resident`, ingest
+burst). Photos `standard` keeps the ML worker resident (`active-resident`).
+Vault is `always-on` / `idle-resident` / `interactive` on every graph. Media
+is omitted on `low` until a v2 lite runtime exists.
+
+To add a use-case lite: Catalog alternative + `#WorkloadContractV2.computeTiers`
+`alternativeID` + kit `moduleSubstitutions` + matching package
+`computeTiers.low.functions` and `moduleSlug`. Init writes the catalog
+alternative; omitted fits fail closed. Package first, catalog/graph second,
+docs last.
+
+`runtimeProfiles.contexts` is gone. Placement modes remain.
+
+`context` (`local` | `cloud` | `pi`) is legacy migration input only.
+`context: pi` maps to `site.kind: home` plus `hardware.profile: pi`.
 
 ### 5. Tool Role = Per-StackKit Per-Tool Assignment
 
@@ -170,17 +206,15 @@ and maturity conclusions.
 StackKit selected (Basement Kit)
     |
     v
-Deployment mode and resource profile applied
+install.mode and install.computeTier declared (init / Unifier)
     |
     v
-Sites and target membership declared
+Sites, node membership, and hardware.profile declared
     |
     v
-Inventory facts detected independently:
-  reachability + provider + architecture + CPU/RAM/storage/devices
-    |
-    v
-Compute Tier derived (high / standard / low)
+Inventory facts measured independently:
+  reachability + architecture + CPU/RAM/storage/devices
+  (does not rewrite computeTier)
     |
     v
 KitDefinition + capability/provider/add-on contracts resolved
@@ -189,16 +223,13 @@ KitDefinition + capability/provider/add-on contracts resolved
 User overrides applied (--paas coolify, --enable photos, etc.)
     |
     v
-Compute/resource gates and access/data/failure policies validated
+Compiler admits the selected graph against inventory
     |
     v
 One canonical ResolvedPlan + planHash produced
     |
     v
-CUE unification + validation
-    |
-    v
-Generate + Apply
+Generate + Apply (Apply does not select the graph)
 ```
 
 ---
@@ -211,7 +242,9 @@ Variants were mutually exclusive service bundles (default/beszel/minimal/coolify
 Replaced by the per-tool role system:
 - `beszel` variant → `--monitoring beszel`
 - `coolify` variant → `--paas coolify`
-- `minimal` variant → `--compute-tier low` or an explicit constrained hardware/resource profile (`--context pi` remains a migration alias only)
+- `minimal` variant → `--compute-tier low` for the graph, optionally
+  `hardware.profile: pi` for a constrained device. `--context pi` remains a
+  migration alias to home + profile `pi` only.
 
 ---
 

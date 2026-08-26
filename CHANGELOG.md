@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Changed
+
+- Files and Vault catalog workloads declare `computeTiers` alternatives. The public use-case catalog and MCP `stackkit_use_case_compute_tiers` project package fits and load so the Techstack Unifier can omit Media on `low` and treat always-on active-resident as base load. Unifier no longer maps `context: pi` or ARM to `install.computeTier`.
+- Init writes catalog `#WorkloadContractV2.computeTiers` alternatives: Basement `--compute-tier low --use-case photos` authors `immich-lite` on `standalone-compose`. Omitted catalog fits fail closed at init and compile. `stackkit generate` accepts `--local-site`/`--local-node` for inventory attest.
+- Every use-case package declares `computeTiers.{low,standard,high}` (functions + load residency/baseline/burst on the kit graph). Runtime-profile `contexts` are removed. Photos `low` is Immich without ML; Vault fits all graphs as idle-resident; Media is omitted on `low` until a lite substitution exists. Draft packages (AI, Dev, Mail, Game, Remote) omit all three graphs with reasons.
+- Native v2 `install.computeTier` (`low` | `standard` | `high`, default `standard`) selects a kit-declared module graph. Basement publishes `standard` (Coolify PaaS + Immich ML), `low` (standalone, core-lite without Coolify, Immich without ML, floors 2/2/10), and `high` (`telemetry-collection`). Cloud and Modern publish `standard` and `high`, not `low`. Missing or undeclared graphs fail closed. `--hardware-profile` writes `nodes[0].hardware.profile`; `pi` is a constrained homelab device class, not Raspberry-only. Apply does not choose the graph. Host preflight uses the selected graph's host floors. Multi-node Apply without a bound local node fails closed instead of probing nothing. Memory-cgroup guidance is kernel-generic, not Raspberry-only.
+- Compiler admits runtime capacity before side effects. Missing inventory facts block Apply (`inventory-fact-unverified`); attested undersize blocks Apply (`runtime-capacity-unsatisfied`). Generation can still succeed.
+- Basement and Cloud core runtimes declare minimum attested CPU/RAM/disk; empty inventory no longer silently admits Product Apply.
+- Failed Product Apply (human and `--json`) ends with retry/`status`/`logs` guidance and the Run-ID when a local run exists.
+- `base-install.sh` and `cloud-install.sh` resume apply on an existing workspace instead of dying.
+
+## [0.22.0](https://github.com/kombifyio/stackKits/compare/v0.21.24...v0.22.0) (2026-08-26)
+
+
+### Added
+
+* **apply:** attest local CPU/RAM/disk inventory before resolve ([8e4dd83](https://github.com/kombifyio/stackKits/commit/8e4dd83cf390e982bc8f5feb19740678c4cab263))
+* **install:** compute-tier graphs and use-case fits ([#804](https://github.com/kombifyio/stackKits/issues/804)) ([ec34a4d](https://github.com/kombifyio/stackKits/commit/ec34a4d376b8da34bd043747b8ccc388ad152e4e))
+* **plan:** declare core runtime capacity floors ([a242fe1](https://github.com/kombifyio/stackKits/commit/a242fe13ce7c8ea998dde0e6b4c918ec7e0e0a95))
+* **plan:** fail-closed runtime capacity admission before Apply ([dd66527](https://github.com/kombifyio/stackKits/commit/dd66527d9831b54790aee4279e07f6e0e877f55e))
+
+
+### Fixed
+
+* **apply:** print run-id envelope and resume installer apply ([13fe9f6](https://github.com/kombifyio/stackKits/commit/13fe9f6f5aefe09a88d56b23f938217610d634cc))
+* **ci:** restore deployment standards gate ([#808](https://github.com/kombifyio/stackKits/issues/808)) ([497f1f9](https://github.com/kombifyio/stackKits/commit/497f1f932ca3e68d1a3249049e334d6d04bb0c6c))
+* **contracts:** restore StackAction check task ([#807](https://github.com/kombifyio/stackKits/issues/807)) ([4465395](https://github.com/kombifyio/stackKits/commit/44653952be765aa8566939daeb466fa398b97e8f))
+* **delivery:** repin shared rollout caller ([#803](https://github.com/kombifyio/stackKits/issues/803)) ([8cfb937](https://github.com/kombifyio/stackKits/commit/8cfb93787187d33f082b0e8a56f633a1c49b8bd6))
+
 ## [0.21.24](https://github.com/kombifyio/stackKits/compare/v0.21.23...v0.21.24) (2026-08-25)
 
 ### Fixed

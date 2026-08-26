@@ -200,7 +200,7 @@ func (r immichWorkloadBundleRenderer) RenderUnit(ctx context.Context, unit Rende
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	bundle, err := validateImmichWorkloadUnit(unit, r.contract)
+	bundle, err := validateImmichWorkloadUnit(unit, r.contract, immichWorkloadModuleID, false)
 	if err != nil {
 		return nil, err
 	}
@@ -213,10 +213,10 @@ func (r immichWorkloadBundleRenderer) RenderUnit(ctx context.Context, unit Rende
 }
 
 //nolint:gocyclo // Keep the complete workload authority check at one auditable boundary.
-func validateImmichWorkloadUnit(unit RenderUnit, contract RendererContract) (selectedPaaSWorkloadBundle, error) {
-	path := "resolvedPlan.modules." + immichWorkloadModuleID + ".renderUnits." + immichWorkloadUnitID
-	if unit.ModuleID() != immichWorkloadModuleID || unit.ID() != immichWorkloadUnitID {
-		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path, "renderer accepts only %s/%s", immichWorkloadModuleID, immichWorkloadUnitID)
+func validateImmichWorkloadUnit(unit RenderUnit, contract RendererContract, moduleID string, omitML bool) (selectedPaaSWorkloadBundle, error) {
+	path := "resolvedPlan.modules." + moduleID + ".renderUnits." + immichWorkloadUnitID
+	if unit.ModuleID() != moduleID || unit.ID() != immichWorkloadUnitID {
+		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path, "renderer accepts only %s/%s", moduleID, immichWorkloadUnitID)
 	}
 	if unit.Kind() != contract.Kind || unit.RendererRef() != contract.RendererRef || unit.TemplateRef() != contract.TemplateRef || unit.Version() != contract.Version || unit.ContractHash() != contract.ContractHash {
 		return selectedPaaSWorkloadBundle{}, fail(ErrOutputChanged, path, "render-unit implementation identity differs from the registered Immich workload contract")
@@ -246,7 +246,7 @@ func validateImmichWorkloadUnit(unit RenderUnit, contract RendererContract) (sel
 	if hasDaemonRef || hasDaemonInstance || hasDaemonEngine || hasDaemonSocket {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".instances", "selected-PaaS workloads do not receive daemon or socket authority")
 	}
-	deliveryRoute, err := validateApplicationDeliveryRouteInput(unit, immichWorkloadModuleID, "photos", 2283, path+".inputs")
+	deliveryRoute, err := validateApplicationDeliveryRouteInput(unit, moduleID, "photos", 2283, path+".inputs")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
@@ -267,12 +267,31 @@ func validateImmichWorkloadUnit(unit RenderUnit, contract RendererContract) (sel
 	if err := decodeStrict(unit.PlacementJSON(), &placement); err != nil || placement.Scope != "node-local" || placement.Cardinality != "one-per-node" {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".placement", "requires exact node-local/one-per-node placement")
 	}
-	if outputs := unit.DeclaredOutputs(); len(outputs) != 1 || outputs[0] != immichWorkloadOutputRef {
-		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".outputs", "requires exactly output %q", immichWorkloadOutputRef)
+	wantOutput := immichWorkloadOutputRef
+	if moduleID == immichLiteWorkloadModuleID {
+		wantOutput = immichLiteWorkloadOutputRef
+	}
+	if outputs := unit.DeclaredOutputs(); len(outputs) != 1 || outputs[0] != wantOutput {
+		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".outputs", "requires exactly output %q", wantOutput)
 	}
 	components, err := validateImmichRuntimeComponents(unit.RuntimeComponentsJSON(), path+".runtime.components")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
+	}
+	if omitML {
+		for _, component := range components {
+			if component.ID == "immich-machine-learning" || component.Role == "machine-learning" {
+				return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime.components", "lite Immich omits machine-learning")
+			}
+			if _, exists := component.Environment["IMMICH_MACHINE_LEARNING_URL"]; exists {
+				return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime.components", "lite Immich omits machine-learning URL")
+			}
+			for _, dep := range component.DependsOn {
+				if dep == "immich-machine-learning" {
+					return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime.components", "lite Immich omits machine-learning")
+				}
+			}
+		}
 	}
 	var endpoints []selectedPaaSServiceEndpoint
 	if err := decodeStrict(unit.ServiceEndpointsJSON(), &endpoints); err != nil || len(endpoints) != 1 {
@@ -285,7 +304,7 @@ func validateImmichWorkloadUnit(unit RenderUnit, contract RendererContract) (sel
 	bundle := selectedPaaSWorkloadBundle{APIVersion: "stackkit.workload-bundle/v2", Kind: "ImmichWorkloadBundle", SecretRefs: secretRefs, Components: components, Route: endpoint, DeliveryRoute: deliveryRoute}
 	bundle.Workload.Ref = "photos"
 	bundle.Workload.AlternativeRef = "immich"
-	bundle.Workload.ModuleRef = immichWorkloadModuleID
+	bundle.Workload.ModuleRef = moduleID
 	bundle.Workload.Release = "v2.7.0"
 	bundle.Workload.Delivery = "application-adapter"
 	bundle.Workload.EntryComponent = entryComponent

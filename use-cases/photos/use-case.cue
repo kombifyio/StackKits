@@ -16,7 +16,7 @@ Package: foundation.#UseCasePackage & {
 		name:        "photos"
 		useCaseRef:  "photos"
 		displayName: "Photos and Memories"
-		version:     "0.12.0"
+		version:     "0.14.0"
 		layer:       "application"
 		category:    "photos"
 		lifecycle:   "beta"
@@ -47,10 +47,9 @@ Package: foundation.#UseCasePackage & {
 	runtimeProfiles: {
 		"self-hosted-photos": {
 			displayName: "Self-hosted Photo Vault"
-			description: "StackKits deploys digest-pinned Immich server, machine learning, PostgreSQL, and Valkey components through the selected PaaS on the Owner-selected node."
+			description: "StackKits deploys digest-pinned Immich through the graph-selected runtime (PaaS on standard/high, standalone lite on low)."
 			realization: "oss"
 			placementModes: ["local-only", "standard"]
-			contexts: ["local", "pi", "cloud"]
 			managedServerlessEligible: false
 			requiresControlPlane:      false
 			requiresLocalBridge:       false
@@ -61,10 +60,33 @@ Package: foundation.#UseCasePackage & {
 			description: "An existing Immich (or API-compatible) instance the user already operates is connected as the package backend."
 			realization: "external"
 			placementModes: ["local-only", "standard"]
-			contexts: ["local", "pi", "cloud"]
 			managedServerlessEligible: false
 			requiresControlPlane:      false
 			requiresLocalBridge:       false
+		}
+	}
+
+	computeTiers: {
+		low: {
+			included: true
+			moduleSlug: "immich-lite"
+			functions: ["photos", "photo-management", "media-backup"]
+			load: {residency: "always-on", baseline: "idle-resident", burst: "ingest"}
+			notes: ["No ML search. Catalog alternative immich-lite on standalone-compose. Kit graph also substitutes stackkits-immich-lite-runtime. Mobile backup is the spike; the library otherwise waits."]
+		}
+		standard: {
+			included: true
+			moduleSlug: "immich"
+			functions: ["photos", "photo-management", "media-backup", "ai-search"]
+			load: {residency: "always-on", baseline: "active-resident", burst: "ingest"}
+			notes: ["ML worker is resident base load. Ingest and interactive search are bursts on top."]
+		}
+		high: {
+			included: true
+			moduleSlug: "immich"
+			functions: ["photos", "photo-management", "media-backup", "ai-search"]
+			load: {residency: "always-on", baseline: "active-resident", burst: "ingest"}
+			notes: ["Same photo functions as standard until a high-graph substitution exists. Extra headroom is kit high, not extra Immich features."]
 		}
 	}
 
@@ -75,6 +97,13 @@ Package: foundation.#UseCasePackage & {
 			required:   true
 			rationale:  "Default photo vault implementation: server, ML, pgvecto-rs PostgreSQL, and Redis companions."
 			capabilities: ["photos", "photo-management", "media-backup", "ai-search", "rest-api"]
+		}
+		"immich-lite": {
+			moduleSlug: "immich-lite"
+			role:       "primary"
+			required:   false
+			rationale:  "Low-graph Immich without ML, delivered through standalone Compose."
+			capabilities: ["photos", "photo-management", "media-backup"]
 		}
 		"ente-photos": {
 			moduleSlug: "ente-photos"

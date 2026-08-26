@@ -101,6 +101,24 @@ import "list"
 		required?: [...string] | *[]
 	}
 
+	// computeTiers declares what this use case is on each kit graph.
+	// It does not select the stack graph: install.computeTier does.
+	// Kit computeTierGraphs remain the execution substitutions.
+	// Hardware floors stay on the graph and module runtimeRequirements.
+	computeTiers: {
+		low:      #UseCaseComputeTierFitV2
+		standard: #UseCaseComputeTierFitV2
+		high:     #UseCaseComputeTierFitV2
+	}
+
+	_computeTierTools: [
+		for name, fit in computeTiers
+		if fit.included && fit.moduleSlug != _|_ {
+			tier: name
+			matches: [for slug, _ in tools if slug == fit.moduleSlug {slug}] & list.MinItems(1) & list.MaxItems(1)
+		},
+	]
+
 	// lifecycle is product intent only. The referenced operation IDs remain
 	// implemented by the standalone operation registry; use-case packages do
 	// not implement commands, MCP handlers, or State Console behavior.
@@ -146,13 +164,44 @@ import "list"
 	realization: #UseCaseRuntimeRealization
 
 	placementModes: [...#PlacementMode]
-	contexts: [...#NodeContext]
 
 	managedServerlessEligible: bool | *false
 	requiresControlPlane:      bool | *false
 	requiresLocalBridge:       bool | *false
 
 	notes?: [...string] | *[]
+}
+
+// #UseCaseLoadResidency is when the workload occupies the node.
+// always-on contributes to base load; on-demand is ad-hoc query/session
+// performance; scheduled is a bounded batch window.
+#UseCaseLoadResidency: "always-on" | "on-demand" | "scheduled"
+
+// #UseCaseLoadBaseline is the idle cost while the use case is enabled.
+// none: not resident. idle-resident: process up, mostly waiting.
+// active-resident: continuously working (indexers, ML, radio loops).
+#UseCaseLoadBaseline: "none" | "idle-resident" | "active-resident"
+
+// #UseCaseLoadBurst is the spike shape when someone actually uses it.
+#UseCaseLoadBurst: "none" | "interactive" | "ingest" | "batch"
+
+// #UseCaseComputeTierFitV2 is the declared product surface of this use case
+// on one install.computeTier graph. Unifier reads it. Apply does not.
+#UseCaseComputeTierFitV2: {
+	included: bool
+	if included {
+		functions: [...string] & list.MinItems(1)
+		load: {
+			residency: #UseCaseLoadResidency
+			baseline:  #UseCaseLoadBaseline
+			burst:     #UseCaseLoadBurst
+		}
+		moduleSlug?: #UseCaseModuleSlug
+		notes?: [...string] | *[]
+	}
+	if !included {
+		reason: string
+	}
 }
 
 #UseCaseToolRef: {

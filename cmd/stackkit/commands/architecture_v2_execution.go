@@ -391,9 +391,22 @@ func loadLegacyOperationalStackSpec(wd, requestedSpecPath string, mode architect
 }
 
 func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode architectureV2ExecutionMode, options architectureV2ExecutionCLIOptions) (returnErr error) {
-	inventory, err := readArchitectureV2Inventory(wd, options.inventoryPath)
+	inventory, inventoryPath, err := locateArchitectureV2Inventory(wd, options.inventoryPath)
 	if err != nil {
 		return err
+	}
+	ctx := options.context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	inventory, persistPath, err := attestLocalInventoryFacts(ctx, wd, rawSpec, inventory, inventoryPath, options, nil)
+	if err != nil {
+		return err
+	}
+	if persistPath != "" {
+		if err := persistInventoryDocument(persistPath, inventory); err != nil {
+			return err
+		}
 	}
 	options.inventoryData = append([]byte(nil), inventory...)
 	options.stackSpecData = append([]byte(nil), rawSpec...)
@@ -1408,43 +1421,6 @@ func architectureV2CanonicalMetadataPath(wd, explicit, derived, label string) (s
 		return "", fmt.Errorf("architecture v2 %s override must resolve to canonical governed path %s", label, canonical)
 	}
 	return canonical, nil
-}
-
-func readArchitectureV2Inventory(wd, explicit string) ([]byte, error) {
-	if strings.TrimSpace(explicit) != "" {
-		path := resolvePathFromWorkDir(wd, explicit)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("read architecture v2 Inventory %s: %w", path, err)
-		}
-		return data, nil
-	}
-
-	candidates := []string{
-		filepath.Join(wd, ".stackkit", "inventory.yaml"),
-		filepath.Join(wd, ".stackkit", "inventory.json"),
-		filepath.Join(wd, "inventory.yaml"),
-		filepath.Join(wd, "inventory.json"),
-	}
-	var selected []string
-	for _, candidate := range candidates {
-		if info, err := os.Stat(candidate); err == nil && info.Mode().IsRegular() {
-			selected = append(selected, candidate)
-		} else if err != nil && !os.IsNotExist(err) {
-			return nil, fmt.Errorf("inspect architecture v2 Inventory candidate %s: %w", candidate, err)
-		}
-	}
-	if len(selected) > 1 {
-		return nil, fmt.Errorf("architecture v2 Inventory is ambiguous; choose exactly one with --inventory: %s", strings.Join(selected, ", "))
-	}
-	if len(selected) == 0 {
-		return nil, nil
-	}
-	data, err := os.ReadFile(selected[0])
-	if err != nil {
-		return nil, fmt.Errorf("read architecture v2 Inventory %s: %w", selected[0], err)
-	}
-	return data, nil
 }
 
 func claimsNonLegacyAPIVersion(data []byte) bool {

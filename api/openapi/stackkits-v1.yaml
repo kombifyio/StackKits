@@ -1435,6 +1435,13 @@ components:
               type: string
         install:
           type: object
+          properties:
+            computeTier:
+              type: string
+              enum: [low, standard, high]
+              default: standard
+              description: >-
+                Declared kit module graph. Not install.mode, placement.mode, hardware.profile, or legacy context. Default standard is the current kit graph; low and high fail closed until the kit declares them. Init and Unifier write this; Apply does not select it; inventory does not rewrite it.
         generation:
           type: object
         system:
@@ -3124,6 +3131,8 @@ components:
           $ref: "#/components/schemas/ArchitectureV2ModuleNodeSelection"
         runtimeRequirements:
           $ref: "#/components/schemas/ArchitectureV2ModuleRuntimeRequirements"
+        runtimeAdmission:
+          $ref: "#/components/schemas/ArchitectureV2RuntimeAdmission"
         runtimeAdapter:
           $ref: "#/components/schemas/ArchitectureV2RuntimeAdapter"
         enforcementRequirement:
@@ -3598,6 +3607,14 @@ components:
           minProperties: 1
           additionalProperties:
             type: string
+    ArchitectureV2RuntimeAdmission:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ready, unverified, unsatisfied]
     ArchitectureV2ModuleRuntimeRequirements:
       type: object
       additionalProperties: false
@@ -6961,6 +6978,8 @@ components:
             - device-verifier-unbound
             - health-gate-not-executable
             - route-health-executor-unbound
+            - inventory-fact-unverified
+            - runtime-capacity-unsatisfied
         refs:
           type: array
           minItems: 1

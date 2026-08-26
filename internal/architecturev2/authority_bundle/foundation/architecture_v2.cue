@@ -213,6 +213,11 @@ import (
 	upgradePolicy:    #KitUpgradePolicy
 	redactionPolicy:  #KitRedactionPolicy
 	hostRequirements: #KitHostRequirementsV1
+	computeTierGraphs: {
+		standard: #KitComputeTierGraphV2
+		low?:     #KitComputeTierGraphV2
+		high?:    #KitComputeTierGraphV2
+	}
 
 	bridge: {
 		required: bool | *false
@@ -339,8 +344,10 @@ import (
 // may mutate a target. It is an admission contract, not a sizing guide: below
 // the minimum Apply refuses to start, between minimum and recommended it warns.
 //
-// The values are deliberately declared here rather than inferred in Go, so a
-// kit cannot silently change what it demands of a device.
+// min* must not undercut #ModuleRuntimeRequirementsV2 of the selected
+// install.computeTier graph. host preflight and compiler admission compare the
+// same floor; a kit that publishes a lower min than its selected modules is
+// wrong.
 #KitHostRequirementsV1: {
 	minCpuCores:  int & >=1
 	minRamGB:     int & >=1
@@ -703,10 +710,14 @@ import (
 	hardware: {
 		arch:            *"amd64" | "arm64"
 		virtualization?: #RuntimeVirtualizationV2
-		profile:         *"standard" | "pi" | "gpu" | "storage"
-		cpuCores?:       int & >=1
-		ramGB?:          int & >=1
-		storageGB?:      int & >=1
+		// Device class. Independent of arch, kit, locality, and computeTier.
+		// pi is a constrained homelab device (SBC, mini-PC, low-RAM NUC, and
+		// similar), not Raspberry-only. Architecture comes from hardware.arch
+		// or attested inventory, never from this profile.
+		profile:    #HardwareProfileV2 | *"standard"
+		cpuCores?:  int & >=1
+		ramGB?:     int & >=1
+		storageGB?: int & >=1
 	}
 
 	failureDomain: string & =~"^.+$"
@@ -983,9 +994,47 @@ import (
 	secretRefs?: [string]: #SecretReference
 }
 
+// Product axes. Do not add a fourth selector for stack weight.
+//
+// install.mode              deployment engine (bootstrapped | bare | advanced)
+// install.runtime           docker | native
+// install.computeTier       declared kit module graph (low | standard | high)
+// nodes[].hardware.profile  device class (#HardwareProfileV2)
+// context                   legacy migration input only; v2 init rejects --context
+//
+// Init and the Techstack Unifier write computeTier. Apply executes the
+// selected graph; it does not choose it. Inventory admits capacity; it does
+// not rewrite computeTier. Missing or undeclared graphs fail closed.
+#ComputeTierV2: "low" | "standard" | "high"
+
+// #KitComputeTierGraphV2 is the kit-declared module graph selected by
+// install.computeTier. standard is required. low and high exist only when
+// the kit publishes them. Apply never invents a graph.
+#KitComputeTierGraphV2: {
+	platformManagement: "selected-provider" | "standalone" | "native"
+	hostRequirements:   #KitHostRequirementsV1
+	moduleSubstitutions?: [#ContractID]: #ContractID
+	enableCapabilities?: [...#CapabilityID]
+
+	if moduleSubstitutions != _|_ {
+		_identityForbidden: [
+			for source, target in moduleSubstitutions
+			if source == target {source},
+		] & list.MaxItems(0)
+	}
+	if enableCapabilities != _|_ {
+		_enableUnique: list.UniqueItems(enableCapabilities) & true
+	}
+}
+
+// Device class on a node. Not a kit, locality, architecture, or product graph.
+// pi names a constrained homelab device, not Raspberry Pi exclusive.
+#HardwareProfileV2: "standard" | "pi" | "gpu" | "storage"
+
 #InstallIntentV2: {
-	mode:    *"bootstrapped" | "bare" | "advanced"
-	runtime: *"docker" | "native"
+	mode:        *"bootstrapped" | "bare" | "advanced"
+	runtime:     *"docker" | "native"
+	computeTier: #ComputeTierV2 | *"standard"
 	platform: {
 		management:      *"selected-provider" | "standalone" | "native"
 		providerRef?:    #ContractID
@@ -3047,9 +3096,8 @@ _servicePublicationShape: {
 #ModuleRuntimeInventoryFactV1: "arch" | "cpuCores" | "ramGB" | "storageGB" | "virtualization"
 
 // #ModuleRuntimeRequirementsV2 describes the minimum attested runtime facts a
-// selected node must satisfy. Every constrained fact is required in both the
-// desired node hardware declaration and InventoryFacts, and both values must
-// agree before the compiler may place the module.
+// selected node must satisfy before Apply. Topology placement still uses
+// nodeSelection; missing or undersized inventory facts become Apply blockers.
 #ModuleRuntimeRequirementsV2: {
 	allowedArchitectures?: [...("amd64" | "arm64")] & list.MinItems(1)
 	minCpuCores?:  int & >=1
@@ -3068,6 +3116,13 @@ _servicePublicationShape: {
 		_requiredInventoryFactsUnique: list.UniqueItems(requireInventoryFacts) & true
 	}
 } & struct.MinFields(1)
+
+// #RuntimeAdmissionV1 is the compiler-owned Apply decision for a module's
+// runtimeRequirements versus attested InventoryFacts. Missing facts are not a
+// pass. Generation may still be ready.
+#RuntimeAdmissionV1: {
+	status: "ready" | "unverified" | "unsatisfied"
+}
 
 // #PolicyEnforcementRequirementV1 names the runtime authority that consumes a
 // generated policy. A bound declaration is valid only for an apply-ready,
@@ -4041,7 +4096,7 @@ _servicePublicationShape: {
 	declaredHardware: {
 		arch:            "amd64" | "arm64"
 		virtualization?: #RuntimeVirtualizationV2
-		profile:         "standard" | "pi" | "gpu" | "storage"
+		profile:         #HardwareProfileV2
 		cpuCores?:       int & >=1
 		ramGB?:          int & >=1
 		storageGB?:      int & >=1
@@ -6513,8 +6568,12 @@ _servicePublicationShape: {
 	requires?: [...#ContractID] & list.MinItems(1)
 	nodeSelection?:           #ModuleNodeSelectionV2
 	runtimeRequirements?:     #ModuleRuntimeRequirementsV2
+	runtimeAdmission?:        #RuntimeAdmissionV1
 	enforcementRequirement?:  #PolicyEnforcementRequirementV1
 	runtimeOwnerRequirement?: #RuntimeOwnerRequirementV1
+	if runtimeRequirements != _|_ {
+		runtimeAdmission: #RuntimeAdmissionV1
+	}
 	runtimeAdapter?: {
 		id: #ContractID
 		supportedKinds: [...("container" | "native" | "host" | "external" | "control-plane")] & list.MinItems(1)
@@ -6909,6 +6968,18 @@ _servicePublicationShape: {
 	}]
 }
 
+// #WorkloadComputeTierFitV2 binds one catalog workload to install.computeTier.
+// included:false is fail-closed at init and compile. Apply does not solve it.
+#WorkloadComputeTierFitV2: {
+	included: bool
+	if included {
+		alternativeID: #ContractID
+	}
+	if !included {
+		reason: string & =~"^.+$"
+	}
+}
+
 #WorkloadContractV2: {
 	metadata: {
 		id:          #WorkloadID
@@ -6926,6 +6997,14 @@ _servicePublicationShape: {
 	dataClasses: [...#DataClass] | *[]
 	defaultAlternative?: #ContractID
 	alternatives: [...#WorkloadAlternativeV2] & list.MinItems(1)
+	// Optional per-graph alternative. Init writes it; compiler rejects
+	// included:false. Kit moduleSubstitutions remain the execute-time mapping
+	// when a selected alternative still names a substituted module.
+	computeTiers?: {
+		low:      #WorkloadComputeTierFitV2
+		standard: #WorkloadComputeTierFitV2
+		high:     #WorkloadComputeTierFitV2
+	}
 
 	_functionalCapabilitiesUnique: list.UniqueItems(functionalCapabilities) & true
 	_supportedSiteKindsUnique:     list.UniqueItems(supportedSiteKinds) & true
@@ -6933,6 +7012,15 @@ _servicePublicationShape: {
 	_alternativeIDsUnique: list.UniqueItems([for alternative in alternatives {alternative.id}]) & true
 	if defaultAlternative != _|_ {
 		_defaultAlternativeExact: [for alternative in alternatives if alternative.id == defaultAlternative {alternative.id}] & list.MinItems(1) & list.MaxItems(1)
+	}
+	if computeTiers != _|_ {
+		_computeTierAlternatives: [
+			for name, fit in computeTiers
+			if fit.included {
+				tier: name
+				matches: [for alternative in alternatives if alternative.id == fit.alternativeID {alternative.id}] & list.MinItems(1) & list.MaxItems(1)
+			},
+		]
 	}
 	_applicationInfrastructureBindings: [
 		for alternative in alternatives
@@ -7174,8 +7262,9 @@ _servicePublicationShape: {
 }
 
 #ResolvedInstallPlanV2: {
-	mode:    "bootstrapped" | "bare" | "advanced"
-	runtime: "docker" | "native"
+	mode:        "bootstrapped" | "bare" | "advanced"
+	runtime:     "docker" | "native"
+	computeTier: #ComputeTierV2 | *"standard"
 	platform: {
 		management:      "selected-provider" | "standalone" | "native"
 		providerRef?:    #ContractID
@@ -7455,7 +7544,9 @@ _servicePublicationShape: {
 	"partition-policy-enforcement-unverified" |
 	"device-verifier-unbound" |
 	"health-gate-not-executable" |
-	"route-health-executor-unbound"
+	"route-health-executor-unbound" |
+	"inventory-fact-unverified" |
+	"runtime-capacity-unsatisfied"
 
 // #ExecutionReadinessBlockerV1 uses stable machine-readable codes and refs.
 // Human prose deliberately stays outside the signed plan contract.

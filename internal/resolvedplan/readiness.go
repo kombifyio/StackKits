@@ -405,6 +405,7 @@ type readinessModule struct {
 	support                 map[string]any
 	enforcementRequirement  map[string]any
 	runtimeOwnerRequirement map[string]any
+	runtimeAdmission        map[string]any
 	units                   []readinessRenderUnit
 }
 
@@ -582,6 +583,10 @@ func readReadinessModule(raw any, index int) (readinessModule, error) {
 		return result, err
 	}
 	result.runtimeOwnerRequirement, _, err = optionalObjectField(module, "modules."+result.id, "runtimeOwnerRequirement")
+	if err != nil {
+		return result, err
+	}
+	result.runtimeAdmission, _, err = optionalObjectField(module, "modules."+result.id, "runtimeAdmission")
 	if err != nil {
 		return result, err
 	}
@@ -1056,6 +1061,13 @@ func moduleApplyBlockers(module readinessModule, evidenceRefs map[string]struct{
 		return nil, err
 	}
 	blockers = append(blockers, federationLinkBlockers...)
+	admissionBlocker, err := runtimeAdmissionBlocker(module)
+	if err != nil {
+		return nil, err
+	}
+	if admissionBlocker != nil {
+		blockers = append(blockers, *admissionBlocker)
+	}
 	return blockers, nil
 }
 
@@ -1282,6 +1294,26 @@ func unboundOwnerBlocker(module readinessModule, requirement map[string]any, fie
 			"evidence:" + evidenceRef,
 		},
 	}, nil
+}
+
+func runtimeAdmissionBlocker(module readinessModule) (*executionReadinessBlocker, error) {
+	if module.runtimeAdmission == nil {
+		return nil, nil
+	}
+	status, err := stringField(module.runtimeAdmission, "modules."+module.id+".runtimeAdmission", "status")
+	if err != nil {
+		return nil, err
+	}
+	switch status {
+	case "ready":
+		return nil, nil
+	case "unverified":
+		return &executionReadinessBlocker{code: "inventory-fact-unverified", refs: []string{module.ref}}, nil
+	case "unsatisfied":
+		return &executionReadinessBlocker{code: "runtime-capacity-unsatisfied", refs: []string{module.ref}}, nil
+	default:
+		return nil, fail(ErrContractConflict, "modules."+module.id+".runtimeAdmission.status", "unsupported runtime admission status %q", status)
+	}
 }
 
 func realizationApplyBlockers(level, ref string, support map[string]any, supportPath, missingSupportCode string, evidenceRefs map[string]struct{}) ([]executionReadinessBlocker, error) {

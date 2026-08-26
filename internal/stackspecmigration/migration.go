@@ -358,14 +358,14 @@ func normalizeContext(raw string, report *Report) (SiteKind, string, bool, *Bloc
 				Field:  "sites[0].kind",
 				From:   contextValue,
 				To:     string(SiteKindHome),
-				Reason: "Pi is hardware, never locality; its legacy locality maps to home",
+				Reason: "pi is a constrained device class, never locality; its legacy locality maps to home",
 			},
 			Decision{
 				Code:   "context.pi-to-hardware-profile",
 				Field:  "nodes[*].hardware.profile",
 				From:   contextValue,
 				To:     "pi",
-				Reason: "ADR-0029 decomposes Pi hardware from Site locality",
+				Reason: "ADR-0029 decomposes constrained-device hardware from Site locality; pi is not Raspberry-only",
 			},
 		)
 		return SiteKindHome, "pi", true, nil

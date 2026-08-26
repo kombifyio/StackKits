@@ -31,11 +31,29 @@ type Component struct {
 	Kind string `json:"kind"`
 }
 
+type UseCaseLoad struct {
+	Residency string `json:"residency"`
+	Baseline  string `json:"baseline"`
+	Burst     string `json:"burst"`
+}
+
+// UseCaseComputeTierFit is the Unifier-readable surface of one package on one
+// install.computeTier graph. Apply does not read it.
+type UseCaseComputeTierFit struct {
+	Included   bool         `json:"included"`
+	Functions  []string     `json:"functions,omitempty"`
+	Load       *UseCaseLoad `json:"load,omitempty"`
+	ModuleSlug string       `json:"moduleSlug,omitempty"`
+	Reason     string       `json:"reason,omitempty"`
+	Notes      []string     `json:"notes,omitempty"`
+}
+
 type UseCase struct {
-	ID          string      `json:"id"`
-	Title       string      `json:"title"`
-	Description string      `json:"description"`
-	Components  []Component `json:"components"`
+	ID           string                           `json:"id"`
+	Title        string                           `json:"title"`
+	Description  string                           `json:"description"`
+	Components   []Component                      `json:"components"`
+	ComputeTiers map[string]UseCaseComputeTierFit `json:"computeTiers,omitempty"`
 }
 
 type ReleaseIdentity struct {
@@ -148,6 +166,30 @@ type sourceCatalog struct {
 
 func Generate(repoRoot string, release ReleaseIdentity, generatorVersion string) (UseCaseManifest, CompatibilityManifest, []InternalUseCase, error) {
 	return generate(repoRoot, release, generatorVersion, nil, false)
+}
+
+// LoadUseCaseComputeTiers returns package compute-tier fits for Unifier/MCP.
+func LoadUseCaseComputeTiers(repoRoot string) ([]UseCase, error) {
+	source, err := loadSource(repoRoot, ReleaseIdentity{SourceSHA: strings.Repeat("0", 40)})
+	if err != nil {
+		return nil, err
+	}
+	return source.UseCases, nil
+}
+
+func DiscoverRepoRoot(start string) (string, error) {
+	dir := start
+	for i := 0; i < 8; i++ {
+		if fileExists(filepath.Join(dir, "foundation", "use_case.cue")) {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return "", fmt.Errorf("stackkits use-case contracts are not in %s", start)
 }
 
 func GenerateWithReceipt(repoRoot string, release ReleaseIdentity, generatorVersion string, receipt *TestReceipt) (UseCaseManifest, CompatibilityManifest, []InternalUseCase, error) {
@@ -386,6 +428,9 @@ func loadSource(root string, release ReleaseIdentity) (sourceCatalog, error) {
 			}
 			result.Packages[ref] = pkg
 		}
+	}
+	if err := attachPackageComputeTiers(&result); err != nil {
+		return sourceCatalog{}, err
 	}
 	modulesRoot := filepath.Join(root, "modules")
 	if directories, err := os.ReadDir(modulesRoot); err == nil {
@@ -712,6 +757,59 @@ func validateTestReceipt(receipt *TestReceipt, sourceSHA string, useCases []UseC
 	}
 	return nil
 }
+func attachPackageComputeTiers(source *sourceCatalog) error {
+	for index, useCase := range source.UseCases {
+		pkg := source.Packages[useCase.ID]
+		if pkg == nil {
+			continue
+		}
+		fits, err := decodePackageComputeTiers(pkg, useCase.ID)
+		if err != nil {
+			return err
+		}
+		source.UseCases[index].ComputeTiers = fits
+	}
+	return nil
+}
+
+func decodePackageComputeTiers(pkg map[string]any, useCaseID string) (map[string]UseCaseComputeTierFit, error) {
+	raw, _ := pkg["computeTiers"].(map[string]any)
+	if raw == nil {
+		return nil, fmt.Errorf("use case %s package omits computeTiers", useCaseID)
+	}
+	fits := map[string]UseCaseComputeTierFit{}
+	for _, tier := range []string{"low", "standard", "high"} {
+		entry, _ := raw[tier].(map[string]any)
+		if entry == nil {
+			return nil, fmt.Errorf("use case %s omits computeTiers.%s", useCaseID, tier)
+		}
+		fit := UseCaseComputeTierFit{Included: boolField(entry, "included"), ModuleSlug: stringField(entry, "moduleSlug"), Reason: stringField(entry, "reason")}
+		if functions, ok := entry["functions"].([]any); ok {
+			for _, value := range functions {
+				if token, ok := value.(string); ok && strings.TrimSpace(token) != "" {
+					fit.Functions = append(fit.Functions, token)
+				}
+			}
+		}
+		if notes, ok := entry["notes"].([]any); ok {
+			for _, value := range notes {
+				if note, ok := value.(string); ok && strings.TrimSpace(note) != "" {
+					fit.Notes = append(fit.Notes, note)
+				}
+			}
+		}
+		if load, ok := entry["load"].(map[string]any); ok {
+			fit.Load = &UseCaseLoad{
+				Residency: stringField(load, "residency"),
+				Baseline:  stringField(load, "baseline"),
+				Burst:     stringField(load, "burst"),
+			}
+		}
+		fits[tier] = fit
+	}
+	return fits, nil
+}
+
 func fileExists(path string) bool { info, err := os.Stat(path); return err == nil && !info.IsDir() }
 func metadataID(value map[string]any) string {
 	metadata, _ := value["metadata"].(map[string]any)

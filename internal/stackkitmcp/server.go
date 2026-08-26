@@ -201,6 +201,7 @@ func (a *App) addDocs(server *mcp.Server) {
 	mcp.AddTool(server, mcpTool("stackkit_api_endpoint", "Return OpenAPI details for one StackKits endpoint path.", true, false, true), a.apiEndpoint)
 	mcp.AddTool(server, mcpTool("stackkit_get_openapi_spec", "Return the StackKits OpenAPI YAML.", true, false, true), a.getOpenAPISpec)
 	mcp.AddTool(server, mcpTool("stackkit_application_delivery_compatibility", "Return the CUE-owned application compatibility matrix for Coolify, Komodo, and standalone Compose.", true, false, true), a.applicationDeliveryCompatibility)
+	mcp.AddTool(server, mcpTool("stackkit_use_case_compute_tiers", "Return Unifier-readable use-case compute-tier fits and load residency from the local StackKits checkout.", true, false, true), a.useCaseComputeTiers)
 	mcp.AddTool(server, mcpTool("stackkit_install_plan", "Return a safe BaseKit install plan for agents.", true, false, true), a.installPlan)
 	mcp.AddTool(server, mcpTool("stackkit_self_check_plan", "Return ordered StackKits agent self-check probes.", true, false, true), a.selfCheckPlan)
 	stateConsoleTool := mcpTool("stackkit_state_console", "Return StackKits State Console metadata.", true, false, true)

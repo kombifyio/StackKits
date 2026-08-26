@@ -47,6 +47,29 @@
         "kind": { "enum": ["application", "module", "service", "connector", "bridge"] }
       }
     },
+    "useCaseLoad": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["residency", "baseline", "burst"],
+      "properties": {
+        "residency": { "enum": ["always-on", "on-demand", "scheduled"] },
+        "baseline": { "enum": ["none", "idle-resident", "active-resident"] },
+        "burst": { "enum": ["none", "interactive", "ingest", "batch"] }
+      }
+    },
+    "useCaseComputeTierFit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["included"],
+      "properties": {
+        "included": { "type": "boolean" },
+        "functions": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "load": { "$ref": "#/$defs/useCaseLoad" },
+        "moduleSlug": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+        "reason": { "type": "string", "minLength": 1 },
+        "notes": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
     "useCase": {
       "type": "object",
       "additionalProperties": false,
@@ -55,7 +78,17 @@
         "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
         "title": { "type": "string", "minLength": 1 },
         "description": { "type": "string", "minLength": 1 },
-        "components": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/component" } }
+        "components": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/component" } },
+        "computeTiers": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["low", "standard", "high"],
+          "properties": {
+            "low": { "$ref": "#/$defs/useCaseComputeTierFit" },
+            "standard": { "$ref": "#/$defs/useCaseComputeTierFit" },
+            "high": { "$ref": "#/$defs/useCaseComputeTierFit" }
+          }
+        }
       }
     }
   }

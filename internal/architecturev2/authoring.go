@@ -14,6 +14,9 @@ const (
 	initialAuthoringContractVersion  = "1.0.0"
 	initialOverrideMetadataName      = "metadata.name"
 	initialOverrideNetworkDomainBase = "network.domain.base"
+	installComputeTierStandard       = "standard"
+	installComputeTierLow            = "low"
+	installComputeTierHigh           = "high"
 )
 
 // AuthoringOverrides is the deliberately narrow authoring surface for
@@ -34,8 +37,16 @@ type AuthoringOverrides struct {
 	EnableCapabilities []string
 	// UseCases selects optional kit workloads by ID (e.g. photos, files,
 	// vault). Each ID must be declared by the kit's workload policy; the
-	// governed catalog supplies the default alternative.
+	// catalog computeTiers entry for ComputeTier supplies the alternative.
 	UseCases []string
+	// ComputeTier selects a declared kit module graph (low|standard|high).
+	// Empty means the CUE default standard. Missing or undeclared graphs fail
+	// closed. This is not install.mode, hardware.profile, or legacy context.
+	ComputeTier string
+	// HardwareProfile writes nodes[0].hardware.profile (standard|pi|gpu|storage).
+	// pi is a constrained homelab device class, not Raspberry-only. Empty leaves
+	// the CUE default. This is never auto-detected from inventory.
+	HardwareProfile string
 }
 
 // InitialStackSpecAuthoring exposes only the workflow metadata a CLI or UI
@@ -78,7 +89,7 @@ func (s *Service) MaterializeInitialStackSpec(profile stackspecmigration.KitProf
 	if !exists {
 		return StackSpecValidation{}, resolveError(ErrAuthorityLoad, fmt.Sprintf("no governed Definition exists for %q", profile), nil)
 	}
-	workloadSelections, err := resolveUseCaseWorkloadSelections(profile, definition, s.authority.catalog, overrides.UseCases, overrides.Platform)
+	workloadSelections, err := resolveUseCaseWorkloadSelections(profile, definition, s.authority.catalog, overrides.UseCases, overrides.Platform, overrides.ComputeTier)
 	if err != nil {
 		return StackSpecValidation{}, err
 	}
@@ -86,16 +97,21 @@ func (s *Service) MaterializeInitialStackSpec(profile stackspecmigration.KitProf
 }
 
 // resolveUseCaseWorkloadSelections maps requested use-case IDs onto the kit's
-// declared workloads and the governed catalog's default alternative for each.
-// Unknown or undeclared IDs fail closed with the kit's declared choices.
+// declared workloads and the catalog alternative for the selected computeTier.
+// Omitted fits and unknown IDs fail closed.
 func resolveUseCaseWorkloadSelections(
 	profile stackspecmigration.KitProfile,
 	definition resolvedplan.KitDefinition,
 	catalog resolvedplan.Catalog,
 	useCases []string,
 	platform string,
+	computeTier string,
 ) (map[string]useCaseWorkloadSelection, error) {
 	platform = strings.TrimSpace(platform)
+	computeTier = strings.TrimSpace(computeTier)
+	if computeTier == "" {
+		computeTier = installComputeTierStandard
+	}
 	if len(useCases) == 0 {
 		if platform != "" {
 			return nil, resolveError(ErrInvalidStackSpec, "--platform selects the runtime adapter for chosen use cases; combine it with --use-case (e.g. --use-case photos --platform komodo)", nil)
@@ -143,10 +159,22 @@ func resolveUseCaseWorkloadSelections(
 		}
 		alternativeID := ""
 		if contract != nil {
-			alternativeID, _ = contract["defaultAlternative"].(string)
+			fit := resolvedplan.CatalogWorkloadComputeTierFit(contract, computeTier)
+			if fit.Declared && !fit.Included {
+				reason := fit.Reason
+				if reason == "" {
+					reason = "catalog omits this use case on the selected graph"
+				}
+				return nil, resolveError(ErrInvalidStackSpec, fmt.Sprintf("use case %q is not included on computeTier %q: %s", useCase, computeTier, reason), nil)
+			}
+			if fit.Declared && fit.Included && fit.AlternativeID != "" {
+				alternativeID = fit.AlternativeID
+			} else {
+				alternativeID, _ = contract["defaultAlternative"].(string)
+			}
 		}
 		if strings.TrimSpace(alternativeID) == "" {
-			return nil, resolveError(ErrAuthorityLoad, fmt.Sprintf("workload %q has no governed catalog default alternative", useCase), nil)
+			return nil, resolveError(ErrAuthorityLoad, fmt.Sprintf("workload %q has no governed catalog alternative for computeTier %q", useCase, computeTier), nil)
 		}
 		if platform != "" {
 			allowed := workloadAlternativeAllowedAdapterRefs(contract, alternativeID)
@@ -377,6 +405,12 @@ func materializeInitialStackSpec(
 		return StackSpecValidation{}, resolveError(ErrAuthorityLoad, fmt.Sprintf("%s Definition authoring.initialSpec kit.slug is %q", profile, initialProfile), err)
 	}
 
+	if err := applyInstallComputeTier(spec, definition, overrides.ComputeTier); err != nil {
+		return StackSpecValidation{}, err
+	}
+	if err := applyHardwareProfile(spec, overrides.HardwareProfile); err != nil {
+		return StackSpecValidation{}, err
+	}
 	if strings.TrimSpace(overrides.Name) != "" {
 		if err := setNestedString(spec, overrides.Name, "metadata", "name"); err != nil {
 			return StackSpecValidation{}, resolveError(ErrAuthorityLoad, "apply metadata.name override: "+err.Error(), err)
@@ -598,6 +632,127 @@ func decodeRequiredInitialOverrides(authoring map[string]any, profile stackspecm
 		seen[path] = struct{}{}
 	}
 	return values, nil
+}
+
+func applyInstallComputeTier(spec map[string]any, definition resolvedplan.KitDefinition, computeTier string) error {
+	computeTier = strings.TrimSpace(computeTier)
+	if computeTier == "" {
+		return nil
+	}
+	switch computeTier {
+	case installComputeTierStandard, installComputeTierLow, installComputeTierHigh:
+	default:
+		return resolveError(ErrInvalidStackSpec, fmt.Sprintf("install.computeTier %q is not a declared product graph", computeTier), nil)
+	}
+	graph, declared := kitComputeTierGraph(definition, computeTier)
+	if !declared {
+		if computeTier == installComputeTierStandard {
+			if err := setNestedString(spec, computeTier, "install", "computeTier"); err != nil {
+				return resolveError(ErrAuthorityLoad, "apply install.computeTier override: "+err.Error(), err)
+			}
+			return nil
+		}
+		return resolveError(ErrInvalidStackSpec, fmt.Sprintf("install.computeTier %q has no declared kit graph", computeTier), nil)
+	}
+	if err := setNestedString(spec, computeTier, "install", "computeTier"); err != nil {
+		return resolveError(ErrAuthorityLoad, "apply install.computeTier override: "+err.Error(), err)
+	}
+	if graph.platformManagement == "standalone" {
+		if err := setNestedString(spec, "standalone", "install", "platform", "management"); err != nil {
+			return resolveError(ErrAuthorityLoad, "apply install.platform.management override: "+err.Error(), err)
+		}
+		if err := setNestedBool(spec, true, "install", "platform", "fallbackAllowed"); err != nil {
+			return resolveError(ErrAuthorityLoad, "apply install.platform.fallbackAllowed override: "+err.Error(), err)
+		}
+	}
+	if len(graph.enableCapabilities) > 0 {
+		if err := appendNestedStringList(spec, graph.enableCapabilities, "capabilities", "enable"); err != nil {
+			return resolveError(ErrAuthorityLoad, "apply computeTier enableCapabilities: "+err.Error(), err)
+		}
+	}
+	return nil
+}
+
+type authoringComputeTierGraph struct {
+	platformManagement string
+	enableCapabilities []string
+}
+
+func kitComputeTierGraph(definition resolvedplan.KitDefinition, tier string) (authoringComputeTierGraph, bool) {
+	graphs, _ := definition["computeTierGraphs"].(map[string]any)
+	if graphs == nil {
+		return authoringComputeTierGraph{}, false
+	}
+	raw, _ := graphs[tier].(map[string]any)
+	if raw == nil {
+		return authoringComputeTierGraph{}, false
+	}
+	graph := authoringComputeTierGraph{platformManagement: strings.TrimSpace(fmt.Sprint(raw["platformManagement"]))}
+	switch enable := raw["enableCapabilities"].(type) {
+	case []any:
+		for _, value := range enable {
+			if id, ok := value.(string); ok && strings.TrimSpace(id) != "" {
+				graph.enableCapabilities = append(graph.enableCapabilities, strings.TrimSpace(id))
+			}
+		}
+	case []string:
+		for _, id := range enable {
+			if strings.TrimSpace(id) != "" {
+				graph.enableCapabilities = append(graph.enableCapabilities, strings.TrimSpace(id))
+			}
+		}
+	}
+	return graph, graph.platformManagement != ""
+}
+
+func applyHardwareProfile(spec map[string]any, profile string) error {
+	profile = strings.TrimSpace(profile)
+	if profile == "" {
+		return nil
+	}
+	switch profile {
+	case "standard", "pi", "gpu", "storage":
+	default:
+		return resolveError(ErrInvalidStackSpec, fmt.Sprintf("nodes[0].hardware.profile %q is not a declared device class", profile), nil)
+	}
+	nodes, ok := spec["nodes"].([]any)
+	if !ok || len(nodes) == 0 {
+		return resolveError(ErrAuthorityLoad, "Definition authoring.initialSpec has no nodes to receive hardware.profile", nil)
+	}
+	node, ok := nodes[0].(map[string]any)
+	if !ok || node == nil {
+		return resolveError(ErrAuthorityLoad, "Definition authoring.initialSpec nodes[0] is not an object", nil)
+	}
+	hardware, _ := node["hardware"].(map[string]any)
+	if hardware == nil {
+		hardware = map[string]any{}
+		node["hardware"] = hardware
+	}
+	hardware["profile"] = profile
+	return nil
+}
+
+func setNestedBool(document map[string]any, value bool, path ...string) error {
+	if len(path) == 0 {
+		return fmt.Errorf("path is empty")
+	}
+	current := document
+	for index, segment := range path[:len(path)-1] {
+		nextValue, exists := current[segment]
+		if !exists {
+			next := make(map[string]any)
+			current[segment] = next
+			current = next
+			continue
+		}
+		next, ok := nextValue.(map[string]any)
+		if !ok || next == nil {
+			return fmt.Errorf("%s is not an object", strings.Join(path[:index+1], "."))
+		}
+		current = next
+	}
+	current[path[len(path)-1]] = value
+	return nil
 }
 
 func enforceRequiredInitialOverrides(required []string, overrides AuthoringOverrides) error {

@@ -37,11 +37,25 @@ Package: foundation.#UseCasePackage & {
 		description: "A future use-case integration must select the module, protocols, DNS and reputation controls, storage, identity, backup, and runtime placement."
 		realization: "oss"
 		placementModes: []
-		contexts: []
 		managedServerlessEligible: false
 		requiresControlPlane:      false
 		requiresLocalBridge:       false
-		notes: ["Catalog-only placeholder: empty placement and context sets prevent this package from claiming a selectable 1.0 runtime."]
+		notes: ["Catalog-only placeholder: empty placement prevents this package from claiming a selectable 1.0 runtime."]
+	}
+
+	computeTiers: {
+		low: {
+			included: false
+			reason: "Mail is post-1.0. A mail stack is always-on active-resident (SMTP/IMAP) and does not fit low until a lite contract exists."
+		}
+		standard: {
+			included: false
+			reason: "Post-1.0. Intended load is 24/7 inbound/outbound with interactive bursts when reading mail."
+		}
+		high: {
+			included: false
+			reason: "Post-1.0. Same functions as standard; reputation/filter extras would be high-graph substitutions."
+		}
 	}
 
 	tools: stalwart: {

@@ -294,6 +294,25 @@ _architectureV2WorkloadContracts: [
 				settings: {allowedRefs: [], requiredRefs: []}
 				secretInputs: {allowedRefs: [], requiredRefs: []}
 			}
+		}, {
+			id:          "standalone-lite"
+			providerRef: "stackkits-basement-core"
+			moduleRef:   "stackkits-basement-core-lite-runtime"
+			route: {serviceRef: "basement-hub", healthRef: "basement-hub-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["stackkit"]
+				allowedAdapterRefs: []
+			}
+			setup: {
+				mode:  "manual"
+				owner: "operator"
+				actionRefs: []
+			}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
 		}]
 	},
 	#WorkloadContractV2 & {
@@ -337,7 +356,7 @@ _architectureV2WorkloadContracts: [
 	#WorkloadContractV2 & {
 		metadata: {
 			id:          "photos"
-			version:     "1.1.0"
+			version:     "1.2.0"
 			description: "Self-hosted photo management selected independently from kit architecture capabilities."
 		}
 		kind:       "application"
@@ -346,6 +365,11 @@ _architectureV2WorkloadContracts: [
 		supportedSiteKinds: ["home", "cloud"]
 		dataClasses: ["personal"]
 		defaultAlternative: "immich"
+		computeTiers: {
+			low: {included: true, alternativeID: "immich-lite"}
+			standard: {included: true, alternativeID: "immich"}
+			high: {included: true, alternativeID: "immich"}
+		}
 		alternatives: [{
 			id:          "immich"
 			providerRef: "stackkits-immich"
@@ -376,12 +400,40 @@ _architectureV2WorkloadContracts: [
 				}
 			}
 			infrastructure: _architectureV2PhotosInfrastructure
+		}, {
+			id:          "immich-lite"
+			providerRef: "stackkits-immich-lite"
+			moduleRef:   "stackkits-immich-lite-runtime"
+			route: {serviceRef: "photos", healthRef: "immich-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {
+				mode:  "manual"
+				owner: "operator"
+				actionRefs: []
+			}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["database-password"]
+					requiredRefs: ["database-password"]
+				}
+			}
+			infrastructure: _architectureV2PhotosLiteInfrastructure
 		}]
 	},
 	#WorkloadContractV2 & {
 		metadata: {
 			id:          "files"
-			version:     "1.1.0"
+			version:     "1.2.0"
 			description: "Self-hosted file management and sharing selected independently from kit architecture capabilities."
 		}
 		kind:       "application"
@@ -390,6 +442,11 @@ _architectureV2WorkloadContracts: [
 		supportedSiteKinds: ["home", "cloud"]
 		dataClasses: ["personal"]
 		defaultAlternative: "cloudreve"
+		computeTiers: {
+			low: {included: true, alternativeID: "cloudreve"}
+			standard: {included: true, alternativeID: "cloudreve"}
+			high: {included: true, alternativeID: "cloudreve"}
+		}
 		alternatives: [{
 			id:          "cloudreve"
 			providerRef: "stackkits-cloudreve"
@@ -418,7 +475,7 @@ _architectureV2WorkloadContracts: [
 	#WorkloadContractV2 & {
 		metadata: {
 			id:          "vault"
-			version:     "1.0.0"
+			version:     "1.1.0"
 			description: "Self-hosted password vault selected independently from kit architecture capabilities."
 		}
 		kind:       "application"
@@ -427,6 +484,11 @@ _architectureV2WorkloadContracts: [
 		supportedSiteKinds: ["home", "cloud"]
 		dataClasses: ["secret"]
 		defaultAlternative: "vaultwarden"
+		computeTiers: {
+			low: {included: true, alternativeID: "vaultwarden"}
+			standard: {included: true, alternativeID: "vaultwarden"}
+			high: {included: true, alternativeID: "vaultwarden"}
+		}
 		alternatives: [{
 			id:          "vaultwarden"
 			providerRef: "stackkits-vaultwarden"
@@ -1070,8 +1132,8 @@ _architectureV2Providers: list.Concat([[
 		realization: {
 			kind: "modules"
 			moduleRefs: {
-				required: ["stackkits-basement-core-runtime"]
-				optional: []
+				required: []
+				optional: ["stackkits-basement-core-runtime", "stackkits-basement-core-lite-runtime"]
 			}
 		}
 		health: [{id: "basement-core-provider-contract", kind: "contract"}]
@@ -1114,6 +1176,25 @@ _architectureV2Providers: list.Concat([[
 			moduleRefs: {
 				required: []
 				optional: ["stackkits-immich-runtime"]
+			}
+		}
+		evidence: ["SK-S1", "SK-S2", "SK-S4"]
+	},
+	{
+		metadata: {id: "stackkits-immich-lite", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["photos"]
+		requires: [
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-immich-lite-runtime"]
 			}
 		}
 		evidence: ["SK-S1", "SK-S2", "SK-S4"]
@@ -1853,6 +1934,36 @@ _architectureV2ImmichSupport: #ModuleRealizationSupportV2 & {
 	evidence: requiredRefs: ["immich-selected-paas-runtime-contract"]
 }
 
+_architectureV2ImmichLiteSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {
+		contractComplete: true
+		requiredRefs: ["database-password"]
+	}
+	artifacts: {
+		requiredRefs: ["immich-lite-workload-bundle"]
+		outputBindings: [{
+			artifactRef: "immich-lite-workload-bundle"
+			unitRef:     "immich-server"
+			outputRef:   "workloads/immich-lite/bundle.json"
+		}]
+		contracts: [{
+			id:       "immich-lite-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "immich-server"
+			outputRef: "workloads/immich-lite/bundle.json"
+		}]
+	}
+	evidence: requiredRefs: ["immich-selected-paas-runtime-contract"]
+}
+
 // Cloudreve is the second Application Kit vertical on the reusable lifecycle.
 // Its artifact carries a complete pinned single-container runtime while the
 // selected PaaS retains endpoint, credential, and provider lifecycle custody.
@@ -2026,6 +2137,43 @@ _architectureV2KomodoPeripheryAgentSupport: #ModuleRealizationSupportV2 & {
 		}]
 	}
 	evidence: requiredRefs: []
+}
+
+_basementCoreLiteServiceEndpoints: [
+	for endpoint in _basementCoreServiceEndpoints
+	if endpoint.serviceRef != "coolify" {endpoint},
+]
+_basementCoreLiteRuntimeListeners: [
+	for listener in _basementCoreRuntimeListeners
+	if listener.componentRef != "coolify" {listener},
+]
+_basementCoreLiteServiceControls: [
+	for control in _basementCoreServiceControls
+	if control.serviceRef != "coolify" {control},
+]
+_architectureV2PhotosLiteInfrastructure: #WorkloadInfrastructureV1 & {
+	storageAllocation: {
+		moduleRef: "stackkits-storage-allocation"
+		allocations: [
+			for allocation in _architectureV2PhotosInfrastructure.storageAllocation.allocations
+			if allocation.componentRef != "immich-machine-learning" {allocation},
+		]
+	}
+	dataBinding: _architectureV2PhotosInfrastructure.dataBinding
+	backupSource: {
+		moduleRef: "stackkits-backup-source"
+		allocations: [
+			for allocation in storageAllocation.allocations
+			if allocation.backup {
+				componentRef: allocation.componentRef
+				volumeRef:    allocation.volumeRef
+				dataClasses:  allocation.dataClasses
+			},
+		]
+	}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
 }
 
 _basementCoreServiceEndpoints: [
@@ -3197,6 +3345,11 @@ _architectureV2Modules: list.Concat([[
 			controlPlaneMembers: "only"
 			requiredRoles: ["controller", "worker"]
 		}
+		runtimeRequirements: {
+			minCpuCores:  2
+			minRamGB:     4
+			minStorageGB: 20
+		}
 		runtime: {
 			kind:     "container"
 			delivery: "stackkit"
@@ -3212,12 +3365,14 @@ _architectureV2Modules: list.Concat([[
 					image: {ref: "ghcr.io/traefik/traefik:v3", digest: "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8"}
 					dependsOn: ["socket-proxy"], networkRefs: ["cloud-core", "cloud-control"]
 					health: {kind: "http", path: "/ping", port: 8080}
+					resources: {memoryLimit: "256m"}
 				},
 				{
 					id: "socket-proxy", role: "application", lifecycle: "daemon"
 					image: {ref: "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2", digest: "sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476"}
 					dependsOn: [], networkRefs: ["cloud-control"]
 					health: {kind: "image"}
+					resources: {memoryLimit: "128m"}
 				},
 				{
 					id: "pocketid", role: "application", lifecycle: "daemon"
@@ -3225,6 +3380,7 @@ _architectureV2Modules: list.Concat([[
 					dependsOn: [], networkRefs: ["cloud-core"]
 					volumes: [{id: "pocketid-data", target: "/app/data", class: "persistent", backup: true}]
 					health: {kind: "http", path: "/health", port: 1411}
+					resources: {memoryLimit: "512m"}
 				},
 				{
 					id: "tinyauth", role: "application", lifecycle: "daemon"
@@ -3232,6 +3388,7 @@ _architectureV2Modules: list.Concat([[
 					dependsOn: ["pocketid"], networkRefs: ["cloud-core"]
 					volumes: [{id: "tinyauth-data", target: "/data", class: "persistent", backup: true}]
 					health: {kind: "command", command: ["tinyauth", "healthcheck"]}
+					resources: {memoryLimit: "256m"}
 				},
 				{
 					id: "coolify", role: "application", lifecycle: "daemon"
@@ -3246,6 +3403,7 @@ _architectureV2Modules: list.Concat([[
 						{id: "coolify-backups", target: "/var/www/html/storage/app/backups", class: "persistent", backup: true},
 					]
 					health: {kind: "http", path: "/api/health", port: 8080}
+					resources: {memoryLimit: "1g"}
 				},
 				{
 					id: "coolify-postgres", role: "database", lifecycle: "daemon"
@@ -3253,6 +3411,7 @@ _architectureV2Modules: list.Concat([[
 					dependsOn: [], networkRefs: ["cloud-control"]
 					volumes: [{id: "coolify-postgres-data", target: "/var/lib/postgresql/data", class: "persistent", backup: true}]
 					health: {kind: "command", command: ["pg_isready", "-U", "coolify"]}
+					resources: {memoryLimit: "512m"}
 				},
 				{
 					id: "coolify-redis", role: "cache", lifecycle: "daemon"
@@ -3260,6 +3419,7 @@ _architectureV2Modules: list.Concat([[
 					dependsOn: [], networkRefs: ["cloud-control"]
 					volumes: [{id: "coolify-redis-data", target: "/data", class: "persistent", backup: true}]
 					health: {kind: "command", command: ["redis-cli", "ping"]}
+					resources: {memoryLimit: "256m"}
 				},
 				{
 					id: "coolify-realtime", role: "application", lifecycle: "daemon"
@@ -3272,6 +3432,7 @@ _architectureV2Modules: list.Concat([[
 					image: {ref: "docker.io/library/nginx:alpine", digest: "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"}
 					dependsOn: ["tinyauth"], networkRefs: ["cloud-core"]
 					health: {kind: "http", path: "/healthz", port: 80}
+					resources: {memoryLimit: "256m"}
 				},
 			]
 		}
@@ -3279,7 +3440,7 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "compose", kind:                                 "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core/compose/v1.yaml", version: "1.0.0"
-			contractHash: "sha256:8bffaa6d8b4e05ce3db432338ecff2da1be887c7406438860a318b9a3da45715"
+			contractHash: "sha256:2362c3e483760093eeebc6f1f75162cef5cd4e4292e257536651560a7c028609"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/cloud-core/compose.yaml"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -3288,7 +3449,7 @@ _architectureV2Modules: list.Concat([[
 		}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
-			contractHash: "sha256:8bffaa6d8b4e05ce3db432338ecff2da1be887c7406438860a318b9a3da45715"
+			contractHash: "sha256:2362c3e483760093eeebc6f1f75162cef5cd4e4292e257536651560a7c028609"
 			unitRefs: ["compose"], artifactRefs: ["cloud-core-compose"]
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 		}]
@@ -3332,6 +3493,11 @@ _architectureV2Modules: list.Concat([[
 			controlPlaneMembers: "only"
 			requiredRoles: ["controller", "worker"]
 		}
+		runtimeRequirements: {
+			minCpuCores:  2
+			minRamGB:     4
+			minStorageGB: 20
+		}
 		runtime: {
 			kind:     "container"
 			delivery: "stackkit"
@@ -3350,6 +3516,7 @@ _architectureV2Modules: list.Concat([[
 					}
 					dependsOn: ["socket-proxy"], networkRefs: ["basement-core", "basement-control"]
 					health: {kind: "http", path: "/ping", port: 8080}
+					resources: {memoryLimit: "256m"}
 				},
 				{
 					id: "socket-proxy", role: "application", lifecycle: "daemon"
@@ -3359,6 +3526,7 @@ _architectureV2Modules: list.Concat([[
 					}
 					dependsOn: [], networkRefs: ["basement-control"]
 					health: {kind: "image"}
+					resources: {memoryLimit: "128m"}
 				},
 				{
 					id: "pocketid", role: "application", lifecycle: "daemon"
@@ -3369,6 +3537,7 @@ _architectureV2Modules: list.Concat([[
 					dependsOn: [], networkRefs: ["basement-core"]
 					volumes: [{id: "pocketid-data", target: "/app/data", class: "persistent", backup: true}]
 					health: {kind: "http", path: "/health", port: 1411}
+					resources: {memoryLimit: "512m"}
 				},
 				{
 					id: "tinyauth", role: "application", lifecycle: "daemon"
@@ -3379,6 +3548,7 @@ _architectureV2Modules: list.Concat([[
 					dependsOn: ["pocketid"], networkRefs: ["basement-core"]
 					volumes: [{id: "tinyauth-data", target: "/data", class: "persistent", backup: true}]
 					health: {kind: "command", command: ["tinyauth", "healthcheck"]}
+					resources: {memoryLimit: "256m"}
 				},
 				{
 					id: "step-ca", role: "application", lifecycle: "daemon"
@@ -3389,6 +3559,7 @@ _architectureV2Modules: list.Concat([[
 					dependsOn: [], networkRefs: ["basement-core"]
 					volumes: [{id: "step-ca-db", target: "/home/step/db", class: "persistent", backup: true}]
 					health: {kind: "http", path: "/health", port: 9000}
+					resources: {memoryLimit: "256m"}
 				},
 				{
 					id: "coolify", role: "application", lifecycle: "daemon"
@@ -3413,6 +3584,7 @@ _architectureV2Modules: list.Concat([[
 						{id: "coolify-backups", target: "/var/www/html/storage/app/backups", class: "persistent", backup: true},
 					]
 					health: {kind: "http", path: "/api/health", port: 8080}
+					resources: {memoryLimit: "1g"}
 				},
 				{
 					id: "coolify-postgres", role: "database", lifecycle: "daemon"
@@ -3423,6 +3595,7 @@ _architectureV2Modules: list.Concat([[
 					dependsOn: [], networkRefs: ["basement-control"]
 					volumes: [{id: "coolify-postgres-data", target: "/var/lib/postgresql/data", class: "persistent", backup: true}]
 					health: {kind: "command", command: ["pg_isready", "-U", "coolify"]}
+					resources: {memoryLimit: "512m"}
 				},
 				{
 					id: "coolify-redis", role: "cache", lifecycle: "daemon"
@@ -3433,6 +3606,7 @@ _architectureV2Modules: list.Concat([[
 					dependsOn: [], networkRefs: ["basement-control"]
 					volumes: [{id: "coolify-redis-data", target: "/data", class: "persistent", backup: true}]
 					health: {kind: "command", command: ["redis-cli", "ping"]}
+					resources: {memoryLimit: "256m"}
 				},
 				{
 					id: "coolify-realtime", role: "application", lifecycle: "daemon"
@@ -3457,6 +3631,7 @@ _architectureV2Modules: list.Concat([[
 						{id: "kopia-restore-staging", target: "/restore-staging", class: "persistent", backup: false},
 					]
 					health: {kind: "command", command: ["kopia", "--version"]}
+					resources: {memoryLimit: "256m"}
 				},
 				{
 					id: "hub", role: "application", lifecycle: "daemon"
@@ -3466,6 +3641,7 @@ _architectureV2Modules: list.Concat([[
 					}
 					dependsOn: ["tinyauth"], networkRefs: ["basement-core"]
 					health: {kind: "http", path: "/healthz", port: 80}
+					resources: {memoryLimit: "256m"}
 				},
 			]
 		}
@@ -3474,7 +3650,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "compose", kind:                                    "compose", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash: "sha256:7e7ceb3bc5953b64b0b55bff8874887022be265384b4985e29ee0479057ea627"
+				contractHash: "sha256:519e5585e2d04245781c8967733819428917e11588e2391687fe5b886e71aae4"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/compose.yaml"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -3484,7 +3660,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:9db4928aee7dfd6b7e1b418e1764ae5ebca7802bbb169fc59e6eaa2b1b7b0d3e"
+				contractHash: "sha256:60547d2c38a46af404cf1372e28aa8230613f2884b338b6b7793308f0f71d1a3"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -3642,6 +3818,257 @@ _architectureV2Modules: list.Concat([[
 			{id: "tinyauth-http", kind: "http", path: "/", port: 4000, expectedStatuses: [200, 302]},
 			{id: "step-ca-tcp", kind: "tcp", port: 9000},
 			{id: "coolify-http", kind: "http", path: "/", port: 8000, expectedStatuses: [200, 302]},
+			{id: "local-kopia-runtime-container", kind: "container", scope: "each-node"},
+			{id: "basement-hub-http", kind: "http", path: "/healthz", port: 80, expectedStatuses: [200]},
+		]
+		evidence: ["basement-core-runtime-evidence"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-basement-core-lite-runtime"
+			version:     "1.0.0"
+			description: "Basement core runtime without Coolify PaaS: routing, identity, internal PKI, and the operator hub."
+		}
+		role:        "workload"
+		providerRef: "stackkits-basement-core"
+		provides:    _architectureV2BasementCoreCapabilities
+		requires: ["stackkits-home-backup-target"]
+		supportedSiteKinds: ["home"]
+		nodeSelection: {
+			authority:           "control-authority-site"
+			controlPlaneMembers: "only"
+			requiredRoles: ["controller", "worker"]
+		}
+		runtimeRequirements: {
+			minCpuCores:  2
+			minRamGB:     2
+			minStorageGB: 10
+		}
+		runtime: {
+			kind:     "container"
+			delivery: "stackkit"
+			engine:   "docker"
+			image: {
+				ref:    "docker.io/library/nginx:alpine"
+				digest: "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"
+			}
+			entryComponentRef: "hub"
+			components: [
+				{
+					id: "router", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/traefik/traefik:v3"
+						digest: "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8"
+					}
+					dependsOn: ["socket-proxy"], networkRefs: ["basement-core", "basement-control"]
+					health: {kind: "http", path: "/ping", port: 8080}
+					resources: {memoryLimit: "256m"}
+				},
+				{
+					id: "socket-proxy", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2"
+						digest: "sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476"
+					}
+					dependsOn: [], networkRefs: ["basement-control"]
+					health: {kind: "image"}
+					resources: {memoryLimit: "128m"}
+				},
+				{
+					id: "pocketid", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/pocket-id/pocket-id:v2.7.0"
+						digest: "sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e"
+					}
+					dependsOn: [], networkRefs: ["basement-core"]
+					volumes: [{id: "pocketid-data", target: "/app/data", class: "persistent", backup: true}]
+					health: {kind: "http", path: "/health", port: 1411}
+					resources: {memoryLimit: "512m"}
+				},
+				{
+					id: "tinyauth", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/steveiliop56/tinyauth:v5.0.7"
+						digest: "sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6"
+					}
+					dependsOn: ["pocketid"], networkRefs: ["basement-core"]
+					volumes: [{id: "tinyauth-data", target: "/data", class: "persistent", backup: true}]
+					health: {kind: "command", command: ["tinyauth", "healthcheck"]}
+					resources: {memoryLimit: "256m"}
+				},
+				{
+					id: "step-ca", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "smallstep/step-ca:0.30.2"
+						digest: "sha256:a2b17872915c193259b75a5474c398326f41bd199f0842093e52cf4182bc8270"
+					}
+					dependsOn: [], networkRefs: ["basement-core"]
+					volumes: [{id: "step-ca-db", target: "/home/step/db", class: "persistent", backup: true}]
+					health: {kind: "http", path: "/health", port: 9000}
+					resources: {memoryLimit: "256m"}
+				},
+				{
+					id: "kopia-agent", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/kopia/kopia:0.18.2"
+						digest: "sha256:b6cb1f09a5fa832a320ee06d7803e82cdd7f69ac6f61d76a0d55fbbf1495c043"
+					}
+					dependsOn: [], networkRefs: ["basement-backup"]
+					volumes: [
+						{id: "kopia-repository", target: "/app/repository", class: "persistent", backup: false},
+						{id: "kopia-config", target: "/app/config", class: "persistent", backup: false},
+						{id: "kopia-cache", target: "/app/cache", class: "cache", backup: false},
+						{id: "kopia-restore-staging", target: "/restore-staging", class: "persistent", backup: false},
+					]
+					health: {kind: "command", command: ["kopia", "--version"]}
+					resources: {memoryLimit: "256m"}
+				},
+				{
+					id: "hub", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/library/nginx:alpine"
+						digest: "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"
+					}
+					dependsOn: ["tinyauth"], networkRefs: ["basement-core"]
+					health: {kind: "http", path: "/healthz", port: 80}
+					resources: {memoryLimit: "256m"}
+				},
+			]
+		}
+		serviceControls: _basementCoreLiteServiceControls
+		renderUnits: [
+			{
+				id:           "compose", kind:                                         "compose", rendererRef: "stackkit"
+				templateRef:  "builtin://basement/core-lite/compose/v1.yaml", version: "1.0.0"
+				contractHash: "sha256:ad87a08fc59a84686db9160045e2e6a158b4107ff17bc9cb769e89afc00c356e"
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				outputs: ["platform/basement-core-lite/compose.yaml"]
+				placement: {scope: "node-local", cardinality: "one-per-node"}
+				serviceEndpoints: _basementCoreLiteServiceEndpoints
+				runtimeListeners: _basementCoreLiteRuntimeListeners
+			},
+			{
+				id:           "opentofu", kind:                                       "opentofu", rendererRef: "stackkit"
+				templateRef:  "builtin://basement/core-lite/opentofu/v1.tf", version: "1.0.0"
+				contractHash: "sha256:b7e11c232677a50c30569345a4ded35ea52cc3cdf60c9874f0fc513ed31b6d36"
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				outputs: ["platform/basement-core-lite/main.tf"]
+				placement: {scope: "node-local", cardinality: "one-per-node"}
+				serviceEndpoints: _basementCoreLiteServiceEndpoints
+				runtimeListeners: _basementCoreLiteRuntimeListeners
+			},
+			{
+				id:           "terramate", kind:                                    "terramate", rendererRef: "stackkit"
+				templateRef:  "builtin://basement/core-lite/terramate/v1", version: "1.0.0"
+				contractHash: "sha256:6282b30a8232c76a74c562d6d7eae310e131226f8c74c846c138f3c48a2f3fc2"
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				outputs: [
+					"platform/basement-core-lite/main.tf",
+					"platform/basement-core-lite/terramate.tm.hcl",
+					"platform/basement-core-lite/stack.tm.hcl",
+				]
+				placement: {scope: "node-local", cardinality: "one-per-node"}
+				serviceEndpoints: _basementCoreLiteServiceEndpoints
+				runtimeListeners: _basementCoreLiteRuntimeListeners
+			},
+		]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:ad87a08fc59a84686db9160045e2e6a158b4107ff17bc9cb769e89afc00c356e"
+				unitRefs: ["compose"], artifactRefs: ["basement-core-lite-compose"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b7e11c232677a50c30569345a4ded35ea52cc3cdf60c9874f0fc513ed31b6d36"
+				unitRefs: ["opentofu"], artifactRefs: ["basement-core-lite-opentofu"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: "sha256:6282b30a8232c76a74c562d6d7eae310e131226f8c74c846c138f3c48a2f3fc2"
+				unitRefs: ["terramate"]
+				artifactRefs: [
+					"basement-core-lite-terramate-opentofu",
+					"basement-core-lite-terramate-root",
+					"basement-core-lite-terramate-stack",
+				]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: {
+			contractVersion: "1.0.0"
+			scope:           "concrete"
+			level:           "apply-ready"
+			compatibleRendererRefs: ["stackkit"]
+			inputs: {contractComplete: true, requiredRefs: []}
+			planInputs: {contractComplete: true, requiredRefs: []}
+			artifacts: {
+				requiredRefs: [
+					"basement-core-lite-compose",
+					"basement-core-lite-opentofu",
+					"basement-core-lite-terramate-opentofu",
+					"basement-core-lite-terramate-root",
+					"basement-core-lite-terramate-stack",
+				]
+				outputBindings: [
+					{
+						artifactRef: "basement-core-lite-compose", unitRef: "compose"
+						outputRef:   "platform/basement-core-lite/compose.yaml"
+					},
+					{
+						artifactRef: "basement-core-lite-opentofu", unitRef: "opentofu"
+						outputRef:   "platform/basement-core-lite/main.tf"
+					},
+					{
+						artifactRef: "basement-core-lite-terramate-opentofu", unitRef: "terramate"
+						outputRef:   "platform/basement-core-lite/main.tf"
+					},
+					{
+						artifactRef: "basement-core-lite-terramate-root", unitRef: "terramate"
+						outputRef:   "platform/basement-core-lite/terramate.tm.hcl"
+					},
+					{
+						artifactRef: "basement-core-lite-terramate-stack", unitRef: "terramate"
+						outputRef:   "platform/basement-core-lite/stack.tm.hcl"
+					},
+				]
+				contracts: [
+					{
+						id: "basement-core-lite-compose", kind: "compose", format: "yaml", mode: "0640", required: true
+						compatibleTargets: ["compose"], unitRef: "compose"
+						outputRef:                               "platform/basement-core-lite/compose.yaml"
+					},
+					{
+						id: "basement-core-lite-opentofu", kind: "opentofu", format: "hcl", mode: "0640", required: true
+						compatibleTargets: ["opentofu"], unitRef: "opentofu"
+						outputRef:                                "platform/basement-core-lite/main.tf"
+					},
+					{
+						id: "basement-core-lite-terramate-opentofu", kind: "terramate", format: "hcl", mode: "0640", required: true
+						compatibleTargets: ["terramate"], unitRef: "terramate"
+						outputRef:                                 "platform/basement-core-lite/main.tf"
+					},
+					{
+						id: "basement-core-lite-terramate-root", kind: "terramate", format: "hcl", mode: "0640", required: true
+						compatibleTargets: ["terramate"], unitRef: "terramate"
+						outputRef:                                 "platform/basement-core-lite/terramate.tm.hcl"
+					},
+					{
+						id: "basement-core-lite-terramate-stack", kind: "terramate", format: "hcl", mode: "0640", required: true
+						compatibleTargets: ["terramate"], unitRef: "terramate"
+						outputRef:                                 "platform/basement-core-lite/stack.tm.hcl"
+					},
+				]
+			}
+			evidence: requiredRefs: ["basement-core-runtime-evidence"]
+		}
+		health: [
+			{id: "basement-router-http", kind: "http", path: "/ping", port: 8080, expectedStatuses: [200]},
+			{id: "pocketid-http", kind: "http", path: "/", port: 1411, expectedStatuses: [200, 302]},
+			{id: "tinyauth-http", kind: "http", path: "/", port: 4000, expectedStatuses: [200, 302]},
+			{id: "step-ca-tcp", kind: "tcp", port: 9000},
 			{id: "local-kopia-runtime-container", kind: "container", scope: "each-node"},
 			{id: "basement-hub-http", kind: "http", path: "/healthz", port: 80, expectedStatuses: [200]},
 		]
@@ -3821,6 +4248,150 @@ _architectureV2Modules: list.Concat([[
 			verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["readback"]}
 			recovery: {kind: "none", requiredOnFailure: false}
 		}]
+	},
+	{
+		metadata: {
+			id:          "stackkits-immich-lite-runtime"
+			version:     "1.0.0"
+			description: "Immich photo service without machine-learning, bound to the control-authority site and its personal-data primary."
+		}
+		role:        "workload"
+		providerRef: "stackkits-immich-lite"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: {
+				ref:    "ghcr.io/immich-app/immich-server:v2.7.0"
+				digest: "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"
+			}
+			entryComponentRef: "immich-server"
+			components: [
+				{
+					id: "immich-server", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/immich-app/immich-server:v2.7.0"
+						digest: "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"
+					}
+					dependsOn: ["immich-postgres-init", "immich-valkey"]
+					networkRefs: ["immich-internal"]
+					environment: {
+						DB_HOSTNAME:    "immich-postgres", DB_PORT:  "5432", DB_USERNAME: "immich", DB_DATABASE_NAME: "immich"
+						REDIS_HOSTNAME: "immich-valkey", REDIS_PORT: "6379"
+					}
+					secretEnvironment: DB_PASSWORD: "database-password"
+					volumes: [for allocation in _architectureV2PhotosLiteInfrastructure.storageAllocation.allocations if allocation.componentRef == "immich-server" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "http", path: "/api/server/ping", port: 2283}
+					resources: {memoryLimit: "3g", memoryReservation: "512m"}
+				},
+				{
+					id: "immich-postgres", role: "database", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
+						digest: "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"
+					}
+					dependsOn: [], networkRefs: ["immich-internal"]
+					environment: {POSTGRES_USER: "immich", POSTGRES_DB: "immich", POSTGRES_INITDB_ARGS: "--data-checksums"}
+					secretEnvironment: POSTGRES_PASSWORD: "database-password"
+					volumes: [for allocation in _architectureV2PhotosLiteInfrastructure.storageAllocation.allocations if allocation.componentRef == "immich-postgres" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "command", command: ["pg_isready", "-U", "immich", "-d", "postgres"]}
+					resources: {memoryLimit: "2g", memoryReservation: "256m"}
+				},
+				{
+					id: "immich-postgres-init", role: "database-init", lifecycle: "one-shot"
+					image: {
+						ref:    "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
+						digest: "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"
+					}
+					dependsOn: ["immich-postgres"], networkRefs: ["immich-internal"]
+					command: ["sh", "-c", "until pg_isready -h immich-postgres -U immich -d postgres; do sleep 1; done; psql -h immich-postgres -U immich -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname = 'immich'\" | grep -q 1 || createdb -h immich-postgres -U immich immich"]
+					environment: {PGUSER: "immich"}
+					secretEnvironment: PGPASSWORD: "database-password"
+					health: {kind: "completion"}
+					resources: {memoryLimit: "256m"}
+				},
+				{
+					id: "immich-valkey", role: "cache", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/valkey/valkey:9"
+						digest: "sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9"
+					}
+					dependsOn: [], networkRefs: ["immich-internal"]
+					command: ["valkey-server"]
+					health: {kind: "command", command: ["redis-cli", "ping"]}
+					resources: {memoryLimit: "512m", memoryReservation: "64m"}
+				},
+			]
+		}
+		renderUnits: [{
+			id:          "immich-server"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/immich-lite/bundle/v2.json"
+			version:      "3.0.0"
+			contractHash: "sha256:9e63b69bfdbcc6df895134afe9261b21300faf20776458a84a75222fb5d88df6"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["database-password"]
+			outputs: ["workloads/immich-lite/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "photos"
+				upstreamProtocol: "http"
+				targetPort:       2283
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "immich-http"
+				data: {
+					bindingRef:      _architectureV2PhotosLiteInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2PhotosLiteInfrastructure.dataBinding.classes
+					locality:        _architectureV2PhotosLiteInfrastructure.dataBinding.locality
+				}
+			}]
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:9e63b69bfdbcc6df895134afe9261b21300faf20776458a84a75222fb5d88df6"
+				unitRefs: ["immich-server"], artifactRefs: ["immich-lite-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:9e63b69bfdbcc6df895134afe9261b21300faf20776458a84a75222fb5d88df6"
+				unitRefs: ["immich-server"], artifactRefs: ["immich-lite-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2ImmichLiteSupport
+		health: [{
+			id:             "immich-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/api/server/ping"
+			port:           2283
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["SK-S1", "SK-S2", "SK-S4", "immich-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {

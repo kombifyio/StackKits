@@ -218,12 +218,14 @@ if [ -n "${STACKKIT_SERVICE_PROFILE:-}" ]; then
   warn "STACKKIT_SERVICE_PROFILE is a retired v0.6 knob; select use cases instead (ignored)."
 fi
 
-# --- Existing-deployment guard ----------------------------------------------------
-# One host runs one active local deployment: apply binds ports 80/443 and
-# container identities to this node. Refuse to install over an existing one.
+# --- Existing-deployment resume ---------------------------------------------------
+# One host runs one active local deployment. Re-running the installer on the
+# same workspace resumes apply (journal) instead of re-init.
 
-if [ -f "$HOMELAB_DIR/.stackkit/resolved-plan.json" ] || [ -f "$HOMELAB_DIR/stack-spec.yaml" ]; then
-  die "Workspace $HOMELAB_DIR already carries a StackKits deployment intent. Reset it first (cd $HOMELAB_DIR && stackkit remove), pick another HOMELAB_DIR, or continue with the CLI in that directory instead of reinstalling."
+RESUME_EXISTING=0
+if [ -f "$HOMELAB_DIR/stack-spec.yaml" ] || [ -f "$HOMELAB_DIR/.stackkit/resolved-plan.json" ] || [ -f "$HOMELAB_DIR/deploy/.stackkit/resolved-plan.json" ]; then
+  RESUME_EXISTING=1
+  warn "Workspace $HOMELAB_DIR already has StackKits intent; skipping init and resuming apply."
 fi
 
 # --- External platform override helpers (unchanged advanced path) -----------------
@@ -428,27 +430,32 @@ info "Step 2/5 -- Initializing basement-kit"
 mkdir -p "$HOMELAB_DIR"
 cd "$HOMELAB_DIR"
 
-set -- init basement-kit --non-interactive --owner-source=local
-if [ -n "$DOMAIN_VALUE" ]; then
-  set -- "$@" --domain "$DOMAIN_VALUE"
-fi
-if [ -n "$STACK_NAME" ]; then
-  set -- "$@" --name "$STACK_NAME"
-fi
-if [ "$BOOTSTRAP_OWNER" = "true" ]; then
-  set -- "$@" --owner-email "$ADMIN_EMAIL" --owner-username "$OWNER_USERNAME"
-elif [ -n "$ADMIN_EMAIL" ]; then
-  set -- "$@" --owner-email "$ADMIN_EMAIL"
-fi
-if [ -n "$USE_CASES" ]; then
-  set -- "$@" --use-case "$USE_CASES"
-  if [ -n "$PLATFORM_SELECTION" ]; then
-    set -- "$@" --platform "$PLATFORM_SELECTION"
+if [ "$RESUME_EXISTING" = "1" ]; then
+  stackkit validate
+  ok "  existing workspace validated in $HOMELAB_DIR"
+else
+  set -- init basement-kit --non-interactive --owner-source=local
+  if [ -n "$DOMAIN_VALUE" ]; then
+    set -- "$@" --domain "$DOMAIN_VALUE"
   fi
+  if [ -n "$STACK_NAME" ]; then
+    set -- "$@" --name "$STACK_NAME"
+  fi
+  if [ "$BOOTSTRAP_OWNER" = "true" ]; then
+    set -- "$@" --owner-email "$ADMIN_EMAIL" --owner-username "$OWNER_USERNAME"
+  elif [ -n "$ADMIN_EMAIL" ]; then
+    set -- "$@" --owner-email "$ADMIN_EMAIL"
+  fi
+  if [ -n "$USE_CASES" ]; then
+    set -- "$@" --use-case "$USE_CASES"
+    if [ -n "$PLATFORM_SELECTION" ]; then
+      set -- "$@" --platform "$PLATFORM_SELECTION"
+    fi
+  fi
+  stackkit "$@"
+  stackkit validate
+  ok "  basement-kit initialized and validated in $HOMELAB_DIR"
 fi
-stackkit "$@"
-stackkit validate
-ok "  basement-kit initialized and validated in $HOMELAB_DIR"
 
 
 # --- Step 3: Container runtime (Docker) -----------------------------------------
@@ -464,6 +471,18 @@ run_stackkit() {
   else
     stackkit "$@"
   fi
+}
+
+report_stackkit_failure() {
+  err "stackkit $* failed."
+  echo "  Retry in $HOMELAB_DIR: stackkit apply"
+  echo "  Inspect: stackkit status --json"
+  echo "  Logs:    stackkit logs latest --json"
+  exit 1
+}
+
+run_stackkit_step() {
+  run_stackkit "$@" || report_stackkit_failure "$@"
 }
 
 ensure_docker() {
@@ -597,7 +616,11 @@ if [ "$PREFLIGHT_STATUS" -eq 3 ]; then
   exit 3
 fi
 
-run_stackkit generate
+if [ -f "$HOMELAB_DIR/.stackkit/resolved-plan.json" ] || [ -f "$HOMELAB_DIR/deploy/.stackkit/resolved-plan.json" ]; then
+  info "Canonical plan already present; skipping generate"
+else
+  run_stackkit_step generate
+fi
 
 if [ "$INSTALL_MODE" != "auto" ]; then
   echo ""

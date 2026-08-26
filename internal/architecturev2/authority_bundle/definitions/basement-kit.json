@@ -59,6 +59,7 @@
         "target": "compose"
       },
       "install": {
+        "computeTier": "standard",
         "mode": "bootstrapped",
         "platform": {
           "fallbackAllowed": false,
@@ -294,6 +295,51 @@
       "local-backup-runtime"
     ]
   },
+  "computeTierGraphs": {
+    "high": {
+      "enableCapabilities": [
+        "telemetry-collection"
+      ],
+      "hostRequirements": {
+        "headroomFactor": 0.8,
+        "minCpuCores": 2,
+        "minRamGB": 4,
+        "minStorageGB": 20,
+        "recommendedCpuCores": 4,
+        "recommendedRamGB": 4,
+        "recommendedStorageGB": 20
+      },
+      "platformManagement": "selected-provider"
+    },
+    "low": {
+      "hostRequirements": {
+        "headroomFactor": 0.8,
+        "minCpuCores": 2,
+        "minRamGB": 2,
+        "minStorageGB": 10,
+        "recommendedCpuCores": 2,
+        "recommendedRamGB": 2,
+        "recommendedStorageGB": 10
+      },
+      "moduleSubstitutions": {
+        "stackkits-basement-core-runtime": "stackkits-basement-core-lite-runtime",
+        "stackkits-immich-runtime": "stackkits-immich-lite-runtime"
+      },
+      "platformManagement": "standalone"
+    },
+    "standard": {
+      "hostRequirements": {
+        "headroomFactor": 0.8,
+        "minCpuCores": 2,
+        "minRamGB": 4,
+        "minStorageGB": 20,
+        "recommendedCpuCores": 4,
+        "recommendedRamGB": 4,
+        "recommendedStorageGB": 20
+      },
+      "platformManagement": "selected-provider"
+    }
+  },
   "dataDefaults": {
     "authority": "home",
     "cloudCopyRequiresPolicy": true
@@ -325,8 +371,8 @@
   "hostRequirements": {
     "headroomFactor": 0.8,
     "minCpuCores": 2,
-    "minRamGB": 2,
-    "minStorageGB": 10,
+    "minRamGB": 4,
+    "minStorageGB": 20,
     "recommendedCpuCores": 4,
     "recommendedRamGB": 4,
     "recommendedStorageGB": 20

@@ -26,6 +26,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/stackspecintent"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/kombifyio/stackkits/internal/standaloneoperations"
+	"github.com/kombifyio/stackkits/internal/usecasecatalog"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"gopkg.in/yaml.v3"
 )
@@ -172,6 +173,22 @@ func (a *App) apiEndpoint(ctx context.Context, req *mcp.CallToolRequest, in endp
 
 func (a *App) getOpenAPISpec(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 	return TextResult(openAPISpec()), nil, nil
+}
+
+func (a *App) useCaseComputeTiers(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return TextResult(err.Error()), nil, nil
+	}
+	root, err := usecasecatalog.DiscoverRepoRoot(wd)
+	if err != nil {
+		return TextResult(err.Error()), nil, nil
+	}
+	useCases, err := usecasecatalog.LoadUseCaseComputeTiers(root)
+	if err != nil {
+		return TextResult(err.Error()), nil, nil
+	}
+	return JSONResult(useCases), useCases, nil
 }
 
 func (a *App) applicationDeliveryCompatibility(

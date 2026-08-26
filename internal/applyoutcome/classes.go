@@ -208,8 +208,8 @@ var classProfiles = map[Class]classProfile{
 	},
 	ClassCgroupMemoryMissing: {
 		remediation: []string{
-			"The kernel cgroup memory controller is disabled, so container memory limits are silently ignored.",
-			"On Raspberry Pi OS add cgroup_enable=memory cgroup_memory=1 to the kernel command line and reboot.",
+			"The kernel cgroup memory controller is disabled, so container memory limits are ignored.",
+			"Enable the controller on this kernel (cmdline cgroup_enable=memory cgroup_memory=1 on Debian/Raspberry Pi OS; equivalent sysfs/cmdline on other distros) and reboot.",
 		},
 	},
 }

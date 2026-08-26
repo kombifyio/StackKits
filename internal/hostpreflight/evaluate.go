@@ -3,6 +3,7 @@ package hostpreflight
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/kombifyio/stackkits/internal/applyoutcome"
 )
@@ -12,10 +13,31 @@ import (
 // Requirements, and the resource checks then report unknown instead of
 // inventing a threshold.
 func RequirementsFromDefinition(definition map[string]any) Requirements {
+	return RequirementsFromDefinitionForTier(definition, "")
+}
+
+// RequirementsFromDefinitionForTier uses computeTierGraphs[tier].hostRequirements
+// when the kit declared that graph, otherwise the kit-level hostRequirements.
+func RequirementsFromDefinitionForTier(definition map[string]any, tier string) Requirements {
+	tier = strings.TrimSpace(tier)
+	if tier == "" {
+		tier = "standard"
+	}
+	if graphs, ok := definition["computeTierGraphs"].(map[string]any); ok {
+		if graph, ok := graphs[tier].(map[string]any); ok {
+			if block, ok := graph["hostRequirements"].(map[string]any); ok {
+				return requirementsFromBlock(block)
+			}
+		}
+	}
 	block, ok := definition["hostRequirements"].(map[string]any)
 	if !ok {
 		return Requirements{}
 	}
+	return requirementsFromBlock(block)
+}
+
+func requirementsFromBlock(block map[string]any) Requirements {
 	return Requirements{
 		MinCPUCores:          intField(block, "minCpuCores"),
 		MinRAMGB:             intField(block, "minRamGB"),

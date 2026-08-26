@@ -36,11 +36,25 @@ Package: foundation.#UseCasePackage & {
 		description: "SK-M5 will realize Gitea and a selected CI implementation on an Owner-selected node through the module facts pipeline."
 		realization: "oss"
 		placementModes: ["local-only", "standard"]
-		contexts: ["local", "cloud"]
 		managedServerlessEligible: false
 		requiresControlPlane:      false
 		requiresLocalBridge:       false
 		notes: ["This draft profile is catalog intent; the removed legacy Woodpecker definitions were never executable module or runtime authority, and CI selection remains SK-M5 work."]
+	}
+
+	computeTiers: {
+		low: {
+			included: false
+			reason: "Gitea+CI is not on the Basement low graph."
+		}
+		standard: {
+			included: false
+			reason: "SK-M5: Gitea module is not executable. Intended load is always-on idle git host with interactive and batch CI bursts."
+		}
+		high: {
+			included: false
+			reason: "Same as standard until SK-M5. CI batch bursts belong on high headroom, not on low."
+		}
 	}
 
 	tools: gitea: {

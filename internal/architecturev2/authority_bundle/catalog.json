@@ -2461,6 +2461,13 @@
         "module": "stackkits-basement-core-runtime"
       },
       {
+        "capability": "local-backup-runtime",
+        "matches": [
+          "local-backup-runtime"
+        ],
+        "module": "stackkits-basement-core-lite-runtime"
+      },
+      {
         "capability": "service-publication",
         "matches": [
           "service-publication"
@@ -2873,6 +2880,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-basement-core-lite-runtime"
+        ],
+        "matches": [
+          "stackkits-basement-core"
+        ],
+        "module": "stackkits-basement-core-lite-runtime",
+        "provider": "stackkits-basement-core"
+      },
+      {
+        "governanceMatches": [
           "stackkits-immich-runtime"
         ],
         "matches": [
@@ -2880,6 +2897,16 @@
         ],
         "module": "stackkits-immich-runtime",
         "provider": "stackkits-immich"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-immich-lite-runtime"
+        ],
+        "matches": [
+          "stackkits-immich-lite"
+        ],
+        "module": "stackkits-immich-lite-runtime",
+        "provider": "stackkits-immich-lite"
       },
       {
         "governanceMatches": [
@@ -3270,6 +3297,13 @@
       },
       {
         "matches": [
+          "stackkits-home-backup-target"
+        ],
+        "module": "stackkits-basement-core-lite-runtime",
+        "requires": "stackkits-home-backup-target"
+      },
+      {
+        "matches": [
           "stackkits-komodo-core-runtime"
         ],
         "module": "stackkits-komodo-periphery-runtime",
@@ -3613,6 +3647,12 @@
             "photos"
           ],
           "providerID": "stackkits-immich"
+        },
+        {
+          "contracts": [
+            "photos"
+          ],
+          "providerID": "stackkits-immich-lite"
         },
         {
           "contracts": [
@@ -4407,6 +4447,13 @@
       },
       {
         "matches": [
+          "stackkits-basement-core-lite-runtime"
+        ],
+        "module": "stackkits-basement-core-lite-runtime",
+        "provider": "stackkits-basement-core"
+      },
+      {
+        "matches": [
           "stackkits-cloud-core-runtime"
         ],
         "module": "stackkits-cloud-core-runtime",
@@ -4418,6 +4465,13 @@
         ],
         "module": "stackkits-immich-runtime",
         "provider": "stackkits-immich"
+      },
+      {
+        "matches": [
+          "stackkits-immich-lite-runtime"
+        ],
+        "module": "stackkits-immich-lite-runtime",
+        "provider": "stackkits-immich-lite"
       },
       {
         "matches": [
@@ -5078,6 +5132,27 @@
           "backup-core"
         ],
         "provider": "stackkits-immich"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-immich-lite"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-immich-lite"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-immich-lite"
       },
       {
         "capability": "runtime-paas",
@@ -5770,6 +5845,12 @@
           "capabilityBindings": [],
           "issuerBindings": [],
           "issuerIDsUnique": true,
+          "provider": "stackkits-immich-lite"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
           "provider": "stackkits-cloudreve"
         },
         {
@@ -5988,6 +6069,71 @@
           "workloadID": "basement-core"
         },
         {
+          "alternativeID": "standalone-lite",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [
+                {
+                  "capability": "local-backup-runtime",
+                  "matches": [
+                    "local-backup-runtime"
+                  ]
+                }
+              ],
+              "moduleID": "stackkits-basement-core-lite-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "stackkit"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [],
+              "serviceMatches": [
+                {
+                  "unitID": "compose"
+                },
+                {
+                  "unitID": "opentofu"
+                },
+                {
+                  "unitID": "terramate"
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-basement-core",
+              "workloadOwnership": [
+                "basement-core"
+              ]
+            }
+          ],
+          "workloadID": "basement-core"
+        },
+        {
           "alternativeID": "standalone",
           "moduleMatches": [
             {
@@ -6133,6 +6279,100 @@
             {
               "capabilityAliasForbidden": [],
               "providerID": "stackkits-immich",
+              "workloadOwnership": [
+                "photos"
+              ]
+            }
+          ],
+          "workloadID": "photos"
+        },
+        {
+          "alternativeID": "immich-lite",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-immich-lite-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "immich-server"
+                  ],
+                  "ref": "database-password"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "photos",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "immich-server",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-immich-lite",
               "workloadOwnership": [
                 "photos"
               ]
@@ -10159,7 +10399,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:8bffaa6d8b4e05ce3db432338ecff2da1be887c7406438860a318b9a3da45715",
+          "contractHash": "sha256:2362c3e483760093eeebc6f1f75162cef5cd4e4292e257536651560a7c028609",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -10333,7 +10573,7 @@
           "artifactRefs": [
             "cloud-core-compose"
           ],
-          "contractHash": "sha256:8bffaa6d8b4e05ce3db432338ecff2da1be887c7406438860a318b9a3da45715",
+          "contractHash": "sha256:2362c3e483760093eeebc6f1f75162cef5cd4e4292e257536651560a7c028609",
           "id": "compose",
           "planInputRefs": [],
           "publicInputRefs": [],
@@ -10371,6 +10611,9 @@
               "cloud-core",
               "cloud-control"
             ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
             "role": "application"
           },
           {
@@ -10387,6 +10630,9 @@
             "networkRefs": [
               "cloud-control"
             ],
+            "resources": {
+              "memoryLimit": "128m"
+            },
             "role": "application"
           },
           {
@@ -10405,6 +10651,9 @@
             "networkRefs": [
               "cloud-core"
             ],
+            "resources": {
+              "memoryLimit": "512m"
+            },
             "role": "application",
             "volumes": [
               {
@@ -10435,6 +10684,9 @@
             "networkRefs": [
               "cloud-core"
             ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
             "role": "application",
             "volumes": [
               {
@@ -10466,6 +10718,9 @@
               "cloud-core",
               "cloud-control"
             ],
+            "resources": {
+              "memoryLimit": "1g"
+            },
             "role": "application",
             "volumes": [
               {
@@ -10525,6 +10780,9 @@
             "networkRefs": [
               "cloud-control"
             ],
+            "resources": {
+              "memoryLimit": "512m"
+            },
             "role": "database",
             "volumes": [
               {
@@ -10553,6 +10811,9 @@
             "networkRefs": [
               "cloud-control"
             ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
             "role": "cache",
             "volumes": [
               {
@@ -10601,6 +10862,9 @@
             "networkRefs": [
               "cloud-core"
             ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
             "role": "application"
           }
         ],
@@ -10613,6 +10877,11 @@
           "ref": "ghcr.io/coollabsio/coolify:4.1.2"
         },
         "kind": "container"
+      },
+      "runtimeRequirements": {
+        "minCpuCores": 2,
+        "minRamGB": 4,
+        "minStorageGB": 20
       },
       "serviceControls": [
         {
@@ -10934,7 +11203,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:7e7ceb3bc5953b64b0b55bff8874887022be265384b4985e29ee0479057ea627",
+          "contractHash": "sha256:519e5585e2d04245781c8967733819428917e11588e2391687fe5b886e71aae4",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -11107,7 +11376,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:9db4928aee7dfd6b7e1b418e1764ae5ebca7802bbb169fc59e6eaa2b1b7b0d3e",
+          "contractHash": "sha256:60547d2c38a46af404cf1372e28aa8230613f2884b338b6b7793308f0f71d1a3",
           "id": "opentofu",
           "inputBindings": [],
           "kind": "opentofu",
@@ -11602,6 +11871,9 @@
               "basement-core",
               "basement-control"
             ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
             "role": "application"
           },
           {
@@ -11618,6 +11890,9 @@
             "networkRefs": [
               "basement-control"
             ],
+            "resources": {
+              "memoryLimit": "128m"
+            },
             "role": "application"
           },
           {
@@ -11636,6 +11911,9 @@
             "networkRefs": [
               "basement-core"
             ],
+            "resources": {
+              "memoryLimit": "512m"
+            },
             "role": "application",
             "volumes": [
               {
@@ -11666,6 +11944,9 @@
             "networkRefs": [
               "basement-core"
             ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
             "role": "application",
             "volumes": [
               {
@@ -11692,6 +11973,9 @@
             "networkRefs": [
               "basement-core"
             ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
             "role": "application",
             "volumes": [
               {
@@ -11730,6 +12014,9 @@
               "basement-core",
               "basement-control"
             ],
+            "resources": {
+              "memoryLimit": "1g"
+            },
             "role": "application",
             "volumes": [
               {
@@ -11789,6 +12076,9 @@
             "networkRefs": [
               "basement-control"
             ],
+            "resources": {
+              "memoryLimit": "512m"
+            },
             "role": "database",
             "volumes": [
               {
@@ -11817,6 +12107,9 @@
             "networkRefs": [
               "basement-control"
             ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
             "role": "cache",
             "volumes": [
               {
@@ -11865,6 +12158,9 @@
             "networkRefs": [
               "basement-backup"
             ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
             "role": "application",
             "volumes": [
               {
@@ -11911,6 +12207,9 @@
             "networkRefs": [
               "basement-core"
             ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
             "role": "application"
           }
         ],
@@ -11923,6 +12222,11 @@
           "ref": "ghcr.io/coollabsio/coolify:4.1.2"
         },
         "kind": "container"
+      },
+      "runtimeRequirements": {
+        "minCpuCores": 2,
+        "minRamGB": 4,
+        "minStorageGB": 20
       },
       "serviceControls": [
         {
@@ -11958,6 +12262,983 @@
           "key": "coolify",
           "runtimeRef": "cloud-core",
           "serviceRef": "coolify"
+        },
+        {
+          "adapter": "compose",
+          "allowedActions": [
+            "start",
+            "restart",
+            "logs"
+          ],
+          "componentRefs": [
+            "pocketid"
+          ],
+          "critical": true,
+          "key": "id",
+          "runtimeRef": "cloud-core",
+          "serviceRef": "id"
+        },
+        {
+          "adapter": "compose",
+          "allowedActions": [
+            "start",
+            "restart",
+            "logs"
+          ],
+          "componentRefs": [
+            "router",
+            "socket-proxy",
+            "step-ca",
+            "kopia-agent",
+            "hub"
+          ],
+          "critical": true,
+          "key": "base",
+          "runtimeRef": "cloud-core",
+          "serviceRef": "basement-hub"
+        }
+      ],
+      "supportedSiteKinds": [
+        "home"
+      ]
+    },
+    {
+      "evidence": [
+        "basement-core-runtime-evidence"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "basement-router-http",
+          "kind": "http",
+          "path": "/ping",
+          "phase": "post-apply",
+          "port": 8080,
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200,
+            302
+          ],
+          "id": "pocketid-http",
+          "kind": "http",
+          "path": "/",
+          "phase": "post-apply",
+          "port": 1411,
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200,
+            302
+          ],
+          "id": "tinyauth-http",
+          "kind": "http",
+          "path": "/",
+          "phase": "post-apply",
+          "port": 4000,
+          "timeoutSeconds": 30
+        },
+        {
+          "id": "step-ca-tcp",
+          "kind": "tcp",
+          "phase": "post-apply",
+          "port": 9000,
+          "timeoutSeconds": 30
+        },
+        {
+          "id": "local-kopia-runtime-container",
+          "kind": "container",
+          "phase": "post-apply",
+          "scope": "each-node",
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "basement-hub-http",
+          "kind": "http",
+          "path": "/healthz",
+          "phase": "post-apply",
+          "port": 80,
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Basement core runtime without Coolify PaaS: routing, identity, internal PKI, and the operator hub.",
+        "id": "stackkits-basement-core-lite-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "only",
+        "requiredRoles": [
+          "controller",
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-basement-core",
+      "provides": [
+        "local-backup-runtime"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose"
+              ],
+              "format": "yaml",
+              "id": "basement-core-lite-compose",
+              "kind": "compose",
+              "mode": "0640",
+              "outputRef": "platform/basement-core-lite/compose.yaml",
+              "required": true,
+              "unitRef": "compose"
+            },
+            {
+              "compatibleTargets": [
+                "opentofu"
+              ],
+              "format": "hcl",
+              "id": "basement-core-lite-opentofu",
+              "kind": "opentofu",
+              "mode": "0640",
+              "outputRef": "platform/basement-core-lite/main.tf",
+              "required": true,
+              "unitRef": "opentofu"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "basement-core-lite-terramate-opentofu",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/basement-core-lite/main.tf",
+              "required": true,
+              "unitRef": "terramate"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "basement-core-lite-terramate-root",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/basement-core-lite/terramate.tm.hcl",
+              "required": true,
+              "unitRef": "terramate"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "basement-core-lite-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/basement-core-lite/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "basement-core-lite-compose",
+              "outputRef": "platform/basement-core-lite/compose.yaml",
+              "unitRef": "compose"
+            },
+            {
+              "artifactRef": "basement-core-lite-opentofu",
+              "outputRef": "platform/basement-core-lite/main.tf",
+              "unitRef": "opentofu"
+            },
+            {
+              "artifactRef": "basement-core-lite-terramate-opentofu",
+              "outputRef": "platform/basement-core-lite/main.tf",
+              "unitRef": "terramate"
+            },
+            {
+              "artifactRef": "basement-core-lite-terramate-root",
+              "outputRef": "platform/basement-core-lite/terramate.tm.hcl",
+              "unitRef": "terramate"
+            },
+            {
+              "artifactRef": "basement-core-lite-terramate-stack",
+              "outputRef": "platform/basement-core-lite/stack.tm.hcl",
+              "unitRef": "terramate"
+            }
+          ],
+          "requiredRefs": [
+            "basement-core-lite-compose",
+            "basement-core-lite-opentofu",
+            "basement-core-lite-terramate-opentofu",
+            "basement-core-lite-terramate-root",
+            "basement-core-lite-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "basement-core-runtime-evidence"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose"
+          ],
+          "contractHash": "sha256:ad87a08fc59a84686db9160045e2e6a158b4107ff17bc9cb769e89afc00c356e",
+          "id": "compose",
+          "inputBindings": [],
+          "kind": "compose",
+          "outputs": [
+            "platform/basement-core-lite/compose.yaml"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "router",
+              "exposure": "public",
+              "id": "web-http",
+              "listenerGroupRef": "public-web",
+              "port": 80,
+              "sharing": "virtual-host",
+              "sourceServiceRefs": [],
+              "targetPort": 80,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "router",
+              "exposure": "public",
+              "id": "web-https",
+              "listenerGroupRef": "public-web",
+              "port": 443,
+              "sharing": "virtual-host",
+              "sourceServiceRefs": [],
+              "targetPort": 443,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "router",
+              "exposure": "remote-private",
+              "id": "router-admin",
+              "port": 8080,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8080,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "pocketid",
+              "exposure": "remote-private",
+              "id": "pocketid-direct",
+              "port": 1411,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 1411,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "tinyauth",
+              "exposure": "remote-private",
+              "id": "tinyauth-direct",
+              "port": 4000,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 3000,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "step-ca",
+              "exposure": "remote-private",
+              "id": "step-ca-direct",
+              "port": 9000,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 9000,
+              "transport": "tcp"
+            }
+          ],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "basement-hub-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "basement-hub",
+              "targetPort": 80,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "pocketid-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "id",
+              "targetPort": 1411,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "tinyauth-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "auth",
+              "targetPort": 3000,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://basement/core-lite/compose/v1.yaml",
+          "version": "1.0.0"
+        },
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "opentofu"
+          ],
+          "contractHash": "sha256:b7e11c232677a50c30569345a4ded35ea52cc3cdf60c9874f0fc513ed31b6d36",
+          "id": "opentofu",
+          "inputBindings": [],
+          "kind": "opentofu",
+          "outputs": [
+            "platform/basement-core-lite/main.tf"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "router",
+              "exposure": "public",
+              "id": "web-http",
+              "listenerGroupRef": "public-web",
+              "port": 80,
+              "sharing": "virtual-host",
+              "sourceServiceRefs": [],
+              "targetPort": 80,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "router",
+              "exposure": "public",
+              "id": "web-https",
+              "listenerGroupRef": "public-web",
+              "port": 443,
+              "sharing": "virtual-host",
+              "sourceServiceRefs": [],
+              "targetPort": 443,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "router",
+              "exposure": "remote-private",
+              "id": "router-admin",
+              "port": 8080,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8080,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "pocketid",
+              "exposure": "remote-private",
+              "id": "pocketid-direct",
+              "port": 1411,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 1411,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "tinyauth",
+              "exposure": "remote-private",
+              "id": "tinyauth-direct",
+              "port": 4000,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 3000,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "step-ca",
+              "exposure": "remote-private",
+              "id": "step-ca-direct",
+              "port": 9000,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 9000,
+              "transport": "tcp"
+            }
+          ],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "basement-hub-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "basement-hub",
+              "targetPort": 80,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "pocketid-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "id",
+              "targetPort": 1411,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "tinyauth-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "auth",
+              "targetPort": 3000,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://basement/core-lite/opentofu/v1.tf",
+          "version": "1.0.0"
+        },
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:6282b30a8232c76a74c562d6d7eae310e131226f8c74c846c138f3c48a2f3fc2",
+          "id": "terramate",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/basement-core-lite/main.tf",
+            "platform/basement-core-lite/terramate.tm.hcl",
+            "platform/basement-core-lite/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "router",
+              "exposure": "public",
+              "id": "web-http",
+              "listenerGroupRef": "public-web",
+              "port": 80,
+              "sharing": "virtual-host",
+              "sourceServiceRefs": [],
+              "targetPort": 80,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "router",
+              "exposure": "public",
+              "id": "web-https",
+              "listenerGroupRef": "public-web",
+              "port": 443,
+              "sharing": "virtual-host",
+              "sourceServiceRefs": [],
+              "targetPort": 443,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "router",
+              "exposure": "remote-private",
+              "id": "router-admin",
+              "port": 8080,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8080,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "pocketid",
+              "exposure": "remote-private",
+              "id": "pocketid-direct",
+              "port": 1411,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 1411,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "tinyauth",
+              "exposure": "remote-private",
+              "id": "tinyauth-direct",
+              "port": 4000,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 3000,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "step-ca",
+              "exposure": "remote-private",
+              "id": "step-ca-direct",
+              "port": 9000,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 9000,
+              "transport": "tcp"
+            }
+          ],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "basement-hub-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "basement-hub",
+              "targetPort": 80,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "pocketid-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "id",
+              "targetPort": 1411,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "tinyauth-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "auth",
+              "targetPort": 3000,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://basement/core-lite/terramate/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "basement-core-lite-compose"
+          ],
+          "contractHash": "sha256:ad87a08fc59a84686db9160045e2e6a158b4107ff17bc9cb769e89afc00c356e",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "compose"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "basement-core-lite-opentofu"
+          ],
+          "contractHash": "sha256:b7e11c232677a50c30569345a4ded35ea52cc3cdf60c9874f0fc513ed31b6d36",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "opentofu"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "basement-core-lite-terramate-opentofu",
+            "basement-core-lite-terramate-root",
+            "basement-core-lite-terramate-stack"
+          ],
+          "contractHash": "sha256:6282b30a8232c76a74c562d6d7eae310e131226f8c74c846c138f3c48a2f3fc2",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "terramate",
+          "unitRefs": [
+            "terramate"
+          ]
+        }
+      ],
+      "requires": [
+        "stackkits-home-backup-target"
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [
+              "socket-proxy"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/ping",
+              "port": 8080
+            },
+            "id": "router",
+            "image": {
+              "digest": "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8",
+              "ref": "ghcr.io/traefik/traefik:v3"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core",
+              "basement-control"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "application"
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "image"
+            },
+            "id": "socket-proxy",
+            "image": {
+              "digest": "sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476",
+              "ref": "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-control"
+            ],
+            "resources": {
+              "memoryLimit": "128m"
+            },
+            "role": "application"
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "http",
+              "path": "/health",
+              "port": 1411
+            },
+            "id": "pocketid",
+            "image": {
+              "digest": "sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e",
+              "ref": "ghcr.io/pocket-id/pocket-id:v2.7.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "resources": {
+              "memoryLimit": "512m"
+            },
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "pocketid-data",
+                "target": "/app/data"
+              }
+            ]
+          },
+          {
+            "dependsOn": [
+              "pocketid"
+            ],
+            "health": {
+              "command": [
+                "tinyauth",
+                "healthcheck"
+              ],
+              "kind": "command"
+            },
+            "id": "tinyauth",
+            "image": {
+              "digest": "sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6",
+              "ref": "ghcr.io/steveiliop56/tinyauth:v5.0.7"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "tinyauth-data",
+                "target": "/data"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "http",
+              "path": "/health",
+              "port": 9000
+            },
+            "id": "step-ca",
+            "image": {
+              "digest": "sha256:a2b17872915c193259b75a5474c398326f41bd199f0842093e52cf4182bc8270",
+              "ref": "smallstep/step-ca:0.30.2"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "step-ca-db",
+                "target": "/home/step/db"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "command": [
+                "kopia",
+                "--version"
+              ],
+              "kind": "command"
+            },
+            "id": "kopia-agent",
+            "image": {
+              "digest": "sha256:b6cb1f09a5fa832a320ee06d7803e82cdd7f69ac6f61d76a0d55fbbf1495c043",
+              "ref": "docker.io/kopia/kopia:0.18.2"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-backup"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "application",
+            "volumes": [
+              {
+                "backup": false,
+                "class": "persistent",
+                "id": "kopia-repository",
+                "target": "/app/repository"
+              },
+              {
+                "backup": false,
+                "class": "persistent",
+                "id": "kopia-config",
+                "target": "/app/config"
+              },
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "kopia-cache",
+                "target": "/app/cache"
+              },
+              {
+                "backup": false,
+                "class": "persistent",
+                "id": "kopia-restore-staging",
+                "target": "/restore-staging"
+              }
+            ]
+          },
+          {
+            "dependsOn": [
+              "tinyauth"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/healthz",
+              "port": 80
+            },
+            "id": "hub",
+            "image": {
+              "digest": "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752",
+              "ref": "docker.io/library/nginx:alpine"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "application"
+          }
+        ],
+        "delivery": "stackkit",
+        "engine": "docker",
+        "entryComponentRef": "hub",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752",
+          "ref": "docker.io/library/nginx:alpine"
+        },
+        "kind": "container"
+      },
+      "runtimeRequirements": {
+        "minCpuCores": 2,
+        "minRamGB": 2,
+        "minStorageGB": 10
+      },
+      "serviceControls": [
+        {
+          "adapter": "compose",
+          "allowedActions": [
+            "start",
+            "restart",
+            "logs"
+          ],
+          "componentRefs": [
+            "tinyauth"
+          ],
+          "critical": true,
+          "key": "auth",
+          "runtimeRef": "cloud-core",
+          "serviceRef": "auth"
         },
         {
           "adapter": "compose",
@@ -12357,6 +13638,366 @@
                 "class": "cache",
                 "id": "model-cache",
                 "target": "/cache"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "environment": {
+              "POSTGRES_DB": "immich",
+              "POSTGRES_INITDB_ARGS": "--data-checksums",
+              "POSTGRES_USER": "immich"
+            },
+            "health": {
+              "command": [
+                "pg_isready",
+                "-U",
+                "immich",
+                "-d",
+                "postgres"
+              ],
+              "kind": "command"
+            },
+            "id": "immich-postgres",
+            "image": {
+              "digest": "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23",
+              "ref": "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "immich-internal"
+            ],
+            "resources": {
+              "memoryLimit": "2g",
+              "memoryReservation": "256m"
+            },
+            "role": "database",
+            "secretEnvironment": {
+              "POSTGRES_PASSWORD": "database-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "database",
+                "target": "/var/lib/postgresql/data"
+              }
+            ]
+          },
+          {
+            "command": [
+              "sh",
+              "-c",
+              "until pg_isready -h immich-postgres -U immich -d postgres; do sleep 1; done; psql -h immich-postgres -U immich -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname = 'immich'\" | grep -q 1 || createdb -h immich-postgres -U immich immich"
+            ],
+            "dependsOn": [
+              "immich-postgres"
+            ],
+            "environment": {
+              "PGUSER": "immich"
+            },
+            "health": {
+              "kind": "completion"
+            },
+            "id": "immich-postgres-init",
+            "image": {
+              "digest": "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23",
+              "ref": "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
+            },
+            "lifecycle": "one-shot",
+            "networkRefs": [
+              "immich-internal"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "database-init",
+            "secretEnvironment": {
+              "PGPASSWORD": "database-password"
+            }
+          },
+          {
+            "command": [
+              "valkey-server"
+            ],
+            "dependsOn": [],
+            "health": {
+              "command": [
+                "redis-cli",
+                "ping"
+              ],
+              "kind": "command"
+            },
+            "id": "immich-valkey",
+            "image": {
+              "digest": "sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9",
+              "ref": "docker.io/valkey/valkey:9"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "immich-internal"
+            ],
+            "resources": {
+              "memoryLimit": "512m",
+              "memoryReservation": "64m"
+            },
+            "role": "cache"
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "immich-server",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1",
+          "ref": "ghcr.io/immich-app/immich-server:v2.7.0"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "SK-S1",
+        "SK-S2",
+        "SK-S4",
+        "immich-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "immich-http",
+          "kind": "http",
+          "path": "/api/server/ping",
+          "phase": "continuous",
+          "port": 2283,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Immich photo service without machine-learning, bound to the control-authority site and its personal-data primary.",
+        "id": "stackkits-immich-lite-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-immich-lite",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "immich-lite-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/immich-lite/bundle.json",
+              "required": true,
+              "unitRef": "immich-server"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "immich-lite-workload-bundle",
+              "outputRef": "workloads/immich-lite/bundle.json",
+              "unitRef": "immich-server"
+            }
+          ],
+          "requiredRefs": [
+            "immich-lite-workload-bundle"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "immich-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "database-password"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:9e63b69bfdbcc6df895134afe9261b21300faf20776458a84a75222fb5d88df6",
+          "id": "immich-server",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/immich-lite/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "database-password"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "data": {
+                "bindingRef": "photos",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "immich-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "photos",
+              "targetPort": 2283,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/immich-lite/bundle/v2.json",
+          "version": "3.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "immich-lite-workload-bundle"
+          ],
+          "contractHash": "sha256:9e63b69bfdbcc6df895134afe9261b21300faf20776458a84a75222fb5d88df6",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "immich-server"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "immich-lite-workload-bundle"
+          ],
+          "contractHash": "sha256:9e63b69bfdbcc6df895134afe9261b21300faf20776458a84a75222fb5d88df6",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "immich-server"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [
+              "immich-postgres-init",
+              "immich-valkey"
+            ],
+            "environment": {
+              "DB_DATABASE_NAME": "immich",
+              "DB_HOSTNAME": "immich-postgres",
+              "DB_PORT": "5432",
+              "DB_USERNAME": "immich",
+              "REDIS_HOSTNAME": "immich-valkey",
+              "REDIS_PORT": "6379"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/api/server/ping",
+              "port": 2283
+            },
+            "id": "immich-server",
+            "image": {
+              "digest": "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1",
+              "ref": "ghcr.io/immich-app/immich-server:v2.7.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "immich-internal"
+            ],
+            "resources": {
+              "memoryLimit": "3g",
+              "memoryReservation": "512m"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "DB_PASSWORD": "database-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "library",
+                "target": "/data"
               }
             ]
           },
@@ -17618,10 +19259,11 @@
       "realization": {
         "kind": "modules",
         "moduleRefs": {
-          "optional": [],
-          "required": [
-            "stackkits-basement-core-runtime"
-          ]
+          "optional": [
+            "stackkits-basement-core-runtime",
+            "stackkits-basement-core-lite-runtime"
+          ],
+          "required": []
         }
       },
       "remoteActionContracts": [],
@@ -17740,6 +19382,52 @@
           "id": "runtime-paas",
           "optional": false
         },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "photos"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "SK-S1",
+        "SK-S2",
+        "SK-S4"
+      ],
+      "metadata": {
+        "id": "stackkits-immich-lite",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-immich-lite-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
         {
           "id": "service-catalog",
           "optional": false
@@ -19624,6 +21312,40 @@
             "mode": "manual",
             "owner": "operator"
           }
+        },
+        {
+          "id": "standalone-lite",
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-basement-core-lite-runtime",
+          "providerRef": "stackkits-basement-core",
+          "route": {
+            "healthRef": "basement-hub-http",
+            "serviceRef": "basement-hub"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [],
+            "allowedDeliveries": [
+              "stackkit"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
         }
       ],
       "dataClasses": [],
@@ -19853,8 +21575,140 @@
             "mode": "manual",
             "owner": "operator"
           }
+        },
+        {
+          "id": "immich-lite",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "immich-server",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "library"
+                },
+                {
+                  "componentRef": "immich-postgres",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "database"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "photos",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "immich-server",
+                  "dataBindingRef": "photos",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/data",
+                  "volumeRef": "library"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "immich-postgres",
+                  "dataBindingRef": "photos",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/var/lib/postgresql/data",
+                  "volumeRef": "database"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "database-password"
+              ],
+              "requiredRefs": [
+                "database-password"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-immich-lite-runtime",
+          "providerRef": "stackkits-immich-lite",
+          "route": {
+            "healthRef": "immich-http",
+            "serviceRef": "photos"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "supported"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
         }
       ],
+      "computeTiers": {
+        "high": {
+          "alternativeID": "immich",
+          "included": true
+        },
+        "low": {
+          "alternativeID": "immich-lite",
+          "included": true
+        },
+        "standard": {
+          "alternativeID": "immich",
+          "included": true
+        }
+      },
       "dataClasses": [
         "personal"
       ],
@@ -19867,7 +21721,7 @@
       "metadata": {
         "description": "Self-hosted photo management selected independently from kit architecture capabilities.",
         "id": "photos",
-        "version": "1.1.0"
+        "version": "1.2.0"
       },
       "supportedSiteKinds": [
         "home",
@@ -19998,6 +21852,20 @@
           }
         }
       ],
+      "computeTiers": {
+        "high": {
+          "alternativeID": "cloudreve",
+          "included": true
+        },
+        "low": {
+          "alternativeID": "cloudreve",
+          "included": true
+        },
+        "standard": {
+          "alternativeID": "cloudreve",
+          "included": true
+        }
+      },
       "dataClasses": [
         "personal"
       ],
@@ -20010,7 +21878,7 @@
       "metadata": {
         "description": "Self-hosted file management and sharing selected independently from kit architecture capabilities.",
         "id": "files",
-        "version": "1.1.0"
+        "version": "1.2.0"
       },
       "supportedSiteKinds": [
         "home",
@@ -20145,6 +22013,20 @@
           }
         }
       ],
+      "computeTiers": {
+        "high": {
+          "alternativeID": "vaultwarden",
+          "included": true
+        },
+        "low": {
+          "alternativeID": "vaultwarden",
+          "included": true
+        },
+        "standard": {
+          "alternativeID": "vaultwarden",
+          "included": true
+        }
+      },
       "dataClasses": [
         "secret"
       ],
@@ -20157,7 +22039,7 @@
       "metadata": {
         "description": "Self-hosted password vault selected independently from kit architecture capabilities.",
         "id": "vault",
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
       "supportedSiteKinds": [
         "home",

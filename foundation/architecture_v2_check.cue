@@ -91,6 +91,62 @@ _assertPhotosWorkloadContract: [
 	setup: {mode: "manual", owner: "operator", actionRefs: []}
 	settings: {allowedRefs: [], requiredRefs: []}
 	secretInputs: {allowedRefs: ["database-password"], requiredRefs: ["database-password"]}
+}, {
+	id:   "photos"
+	kind: "application"
+	functionalCapabilities: ["photo-library", "mobile-photo-backup"]
+	siteKinds: ["home", "cloud"]
+	dataClasses: ["personal"]
+	defaultAlternative: "immich"
+	alternativeID:      "immich-lite"
+	providerRef:        "stackkits-immich-lite"
+	moduleRef:          "stackkits-immich-lite-runtime"
+	serviceRef:         "photos"
+	healthRef:          "immich-http"
+	runtimeKinds: ["container"]
+	runtimeDeliveries: ["application-adapter"]
+	setup: {mode: "manual", owner: "operator", actionRefs: []}
+	settings: {allowedRefs: [], requiredRefs: []}
+	secretInputs: {allowedRefs: ["database-password"], requiredRefs: ["database-password"]}
+}]
+
+_assertPhotosComputeTierAlternatives: [
+	for workload in ArchitectureV2Catalog.workloads
+	if workload.metadata.id == "photos" {
+		low:      workload.computeTiers.low.alternativeID
+		standard: workload.computeTiers.standard.alternativeID
+		high:     workload.computeTiers.high.alternativeID
+	},
+] & [{
+	low:      "immich-lite"
+	standard: "immich"
+	high:     "immich"
+}]
+
+_assertFilesComputeTierAlternatives: [
+	for workload in ArchitectureV2Catalog.workloads
+	if workload.metadata.id == "files" {
+		low:      workload.computeTiers.low.alternativeID
+		standard: workload.computeTiers.standard.alternativeID
+		high:     workload.computeTiers.high.alternativeID
+	},
+] & [{
+	low:      "cloudreve"
+	standard: "cloudreve"
+	high:     "cloudreve"
+}]
+
+_assertVaultComputeTierAlternatives: [
+	for workload in ArchitectureV2Catalog.workloads
+	if workload.metadata.id == "vault" {
+		low:      workload.computeTiers.low.alternativeID
+		standard: workload.computeTiers.standard.alternativeID
+		high:     workload.computeTiers.high.alternativeID
+	},
+] & [{
+	low:      "vaultwarden"
+	standard: "vaultwarden"
+	high:     "vaultwarden"
 }]
 
 _assertImmichProviderContract: [

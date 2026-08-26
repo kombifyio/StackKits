@@ -219,7 +219,9 @@ unless an explicit output is requested. Generation never falls through to the
 retired v1 generator.
 
 `--output`/`-o` remains a valid native override only when it resolves to the
-exact plan-owned `outputRoot`. The following deprecated flags remain parseable
+exact plan-owned `outputRoot`. `--local-site` and `--local-node` name the
+local inventory node the same way Apply does; multi-node generate without a
+binding still fails closed. The following deprecated flags remain parseable
 only to return a structured denial; they never select a compatibility generator:
 
 - `--force`, `-f`
@@ -679,8 +681,8 @@ states what actually changed rather than that something was attempted. A file a
 fix replaces is kept beside it as `<name>.stackkit-backup`.
 
 A fix qualifies for `--auto-reversible` only when it is undoable, needs no
-reboot, and needs no credential. Everything else — the Raspberry Pi cgroup
-memory controller, a registry mirror, `docker login`, a hypervisor CPU setting —
+reboot, and needs no credential. Everything else — a disabled kernel memory
+cgroup controller, a registry mirror, `docker login`, a hypervisor CPU setting —
 stays advice, because carrying it out is a decision that is not ours to make.
 
 The installers run `--auto-reversible --yes` in unattended (`auto`) mode only.

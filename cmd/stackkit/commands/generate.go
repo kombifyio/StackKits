@@ -27,7 +27,8 @@ Legacy --force and --fragments switches are rejected by the native v2 path.
 
 Examples:
   stackkit generate
-  stackkit generate --output ./deploy`,
+  stackkit generate --output ./deploy
+  stackkit generate --local-node main --local-site home`,
 	RunE: runGenerate,
 }
 
@@ -37,6 +38,8 @@ func init() {
 	generateCmd.Flags().BoolVar(&genFragments, "fragments", false, "Retired legacy fragment switch; rejected for StackSpec v2")
 	generateCmd.Flags().StringVar(&generateV2ExecutionOptions.inventoryPath, "inventory", "", "Architecture v2 observed Inventory (otherwise one conventional inventory file is selected)")
 	generateCmd.Flags().StringVar(&generateV2ExecutionOptions.planPath, "resolved-plan", "", "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)")
+	generateCmd.Flags().StringVar(&generateV2ExecutionOptions.localSiteRef, "local-site", "", "Architecture v2 Site explicitly owned by this local generate process")
+	generateCmd.Flags().StringVar(&generateV2ExecutionOptions.localNodeRef, "local-node", "", "Architecture v2 node explicitly owned by this local generate process")
 }
 
 func runGenerate(cmd *cobra.Command, args []string) (retErr error) {

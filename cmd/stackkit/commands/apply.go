@@ -76,10 +76,9 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	defer func() {
 		if retErr != nil {
 			if applyJSON && !machineResultWritten {
-				retErr = writeMachineCommandFailure(cmd, retErr,
-					"Correct the reported Apply authority or input condition, then retry `stackkit apply --json`.",
-					"Inspect `stackkit logs latest --json` only when the failure created a local rollout run.",
-				)
+				retErr = writeMachineCommandFailure(cmd, retErr, applyFailureGuidance()...)
+			} else {
+				printApplyFailureEnvelope()
 			}
 			rolloutFailure("apply", retErr)
 			closeRolloutRecorder(rollout.Summary{

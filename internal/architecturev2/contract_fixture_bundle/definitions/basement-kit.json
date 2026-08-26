@@ -143,6 +143,20 @@
       "local-backup-runtime"
     ]
   },
+  "computeTierGraphs": {
+    "standard": {
+      "hostRequirements": {
+        "headroomFactor": 0.8,
+        "minCpuCores": 2,
+        "minRamGB": 4,
+        "minStorageGB": 20,
+        "recommendedCpuCores": 4,
+        "recommendedRamGB": 4,
+        "recommendedStorageGB": 20
+      },
+      "platformManagement": "selected-provider"
+    }
+  },
   "dataDefaults": {
     "authority": "home",
     "cloudCopyRequiresPolicy": true
@@ -174,8 +188,8 @@
   "hostRequirements": {
     "headroomFactor": 0.8,
     "minCpuCores": 2,
-    "minRamGB": 2,
-    "minStorageGB": 10,
+    "minRamGB": 4,
+    "minStorageGB": 20,
     "recommendedCpuCores": 4,
     "recommendedRamGB": 4,
     "recommendedStorageGB": 20

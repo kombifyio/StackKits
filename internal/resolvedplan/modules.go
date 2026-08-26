@@ -31,6 +31,17 @@ func (c *Compiler) buildModules(spec *specView, resolved *resolution, providerSi
 	if err := c.selectWorkloadModules(resolved, selected); err != nil {
 		return nil, nil, nil, nil, err
 	}
+	tier, err := computeTierFromInstall(spec.install)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	graph, err := loadKitComputeTierGraph(spec.originalDefinition, tier)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	if err := applyComputeTierModuleSubstitutions(selected, resolved, c.catalog, graph.moduleSubstitutions); err != nil {
+		return nil, nil, nil, nil, err
+	}
 	if err := c.validateExplicitModuleIntent(spec, selected); err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -623,41 +634,15 @@ func moduleNodeMatchesContract(moduleID string, contract map[string]any, node no
 	if err != nil || !hasRequirements {
 		return !hasRequirements, err
 	}
-	return moduleNodeSatisfiesRuntimeRequirements(moduleID, requirements, node, context.attestInventory)
+	return moduleNodeSatisfiesRuntimeRequirements(moduleID, requirements, node)
 }
 
-//nolint:gocyclo // Runtime eligibility must validate each attested inventory dimension without accepting partial matches.
-func moduleNodeSatisfiesRuntimeRequirements(moduleID string, requirements map[string]any, node nodeView, attestInventory bool) (bool, error) {
+func moduleNodeSatisfiesRuntimeRequirements(moduleID string, requirements map[string]any, node nodeView) (bool, error) {
 	path := "catalog.modules." + moduleID + ".runtimeRequirements"
 	hardware, err := objectField(node.object, "spec.nodes."+node.id, "hardware")
 	if err != nil {
 		return false, err
 	}
-	requiredFacts, err := moduleRuntimeRequiredFacts(requirements, path)
-	if err != nil {
-		return false, err
-	}
-	for _, fact := range requiredFacts {
-		desired, declared := hardware[fact]
-		if !declared {
-			return false, fail(ErrProfileMismatch, "spec.nodes."+node.id+".hardware."+fact, "module %q requires the desired runtime fact to be declared", moduleID)
-		}
-		if !attestInventory {
-			continue
-		}
-		observed, attested := node.inventoryFacts[fact]
-		if !attested {
-			return false, fail(ErrProfileMismatch, "inventory.nodes."+node.id+"."+fact, "module %q requires an attested runtime fact", moduleID)
-		}
-		equal, err := canonicalEqual(desired, observed)
-		if err != nil {
-			return false, err
-		}
-		if !equal {
-			return false, fail(ErrProfileMismatch, "inventory.nodes."+node.id+"."+fact, "attested fact does not match spec.nodes.%s.hardware.%s", node.id, fact)
-		}
-	}
-
 	if allowed, err := stringListField(requirements, path, "allowedArchitectures", false); err != nil {
 		return false, err
 	} else if len(allowed) > 0 {
@@ -680,50 +665,80 @@ func moduleNodeSatisfiesRuntimeRequirements(moduleID string, requirements map[st
 			return false, nil
 		}
 	}
+	return true, nil
+}
+
+func evaluateRuntimeAdmission(requirements map[string]any, nodeRefs []string, nodes []nodeView) (map[string]any, error) {
+	status := "ready"
+	for _, nodeID := range nodeRefs {
+		var node nodeView
+		found := false
+		for _, candidate := range nodes {
+			if candidate.id == nodeID {
+				node = candidate
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fail(ErrInvalidInput, "inventory.nodes."+nodeID, "placed module node is absent from the spec")
+		}
+		nodeStatus, err := nodeRuntimeAdmission(requirements, node)
+		if err != nil {
+			return nil, err
+		}
+		status = mergeRuntimeAdmissionStatus(status, nodeStatus)
+	}
+	return map[string]any{"status": status}, nil
+}
+
+func nodeRuntimeAdmission(requirements map[string]any, node nodeView) (string, error) {
+	status := "ready"
 	for _, minimum := range []struct {
 		requirement string
 		fact        string
 	}{{"minCpuCores", "cpuCores"}, {"minRamGB", "ramGB"}, {"minStorageGB", "storageGB"}} {
-		wanted, exists := requirements[minimum.requirement]
-		if !exists {
+		if _, exists := requirements[minimum.requirement]; !exists {
 			continue
 		}
-		minimumValue, err := intField(map[string]any{minimum.requirement: wanted}, path, minimum.requirement)
+		wanted, err := intField(requirements, "runtimeRequirements", minimum.requirement)
 		if err != nil {
-			return false, err
+			return "", err
 		}
-		actualValue, err := intField(hardware, "spec.nodes."+node.id+".hardware", minimum.fact)
+		observed, attested, err := inventoryIntFact(node.inventoryFacts, minimum.fact)
 		if err != nil {
-			return false, err
+			return "", err
 		}
-		if actualValue < minimumValue {
-			return false, nil
+		if !attested {
+			status = mergeRuntimeAdmissionStatus(status, "unverified")
+			continue
+		}
+		if observed < wanted {
+			status = mergeRuntimeAdmissionStatus(status, "unsatisfied")
 		}
 	}
-	return true, nil
+	return status, nil
 }
 
-func moduleRuntimeRequiredFacts(requirements map[string]any, path string) ([]string, error) {
-	facts, err := stringListField(requirements, path, "requireInventoryFacts", false)
-	if err != nil {
-		return nil, err
+func mergeRuntimeAdmissionStatus(current, next string) string {
+	if current == "unsatisfied" || next == "unsatisfied" {
+		return "unsatisfied"
 	}
-	if _, exists := requirements["allowedArchitectures"]; exists {
-		facts = append(facts, "arch")
+	if current == "unverified" || next == "unverified" {
+		return "unverified"
 	}
-	if _, exists := requirements["minCpuCores"]; exists {
-		facts = append(facts, "cpuCores")
+	return "ready"
+}
+
+func inventoryIntFact(facts map[string]any, name string) (int, bool, error) {
+	if facts == nil {
+		return 0, false, nil
 	}
-	if _, exists := requirements["minRamGB"]; exists {
-		facts = append(facts, "ramGB")
+	if _, exists := facts[name]; !exists {
+		return 0, false, nil
 	}
-	if _, exists := requirements["minStorageGB"]; exists {
-		facts = append(facts, "storageGB")
-	}
-	if _, exists := requirements["allowedVirtualization"]; exists {
-		facts = append(facts, "virtualization")
-	}
-	return sortStringsUnique(facts), nil
+	value, err := intField(facts, "inventory", name)
+	return value, true, err
 }
 
 func moduleTargetStringSet(values []string) map[string]struct{} {
@@ -874,6 +889,13 @@ func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, 
 			return nil, err
 		}
 		module[field] = resolvedValue
+	}
+	if requirements, exists := module["runtimeRequirements"].(map[string]any); exists {
+		admission, err := evaluateRuntimeAdmission(requirements, nodeRefs, nodes)
+		if err != nil {
+			return nil, err
+		}
+		module["runtimeAdmission"] = admission
 	}
 	return module, nil
 }

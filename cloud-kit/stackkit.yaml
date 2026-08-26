@@ -427,30 +427,27 @@ features:
   gpuSupport: false
   highAvailability: false
 
-# Compute tier adjustments
+# Architecture v2 host floors. Graph selection is install.computeTier plus
+# catalog substitutions; yaml serviceOverrides are not a graph.
+# low is kept for kitio roundtrip; it does not claim extra services.
 computeTiers:
   high:
     requirements:
-      cpu: 8
-      memory: 16
-      disk: 20
-    additionalServices:
-      - prometheus
-      - grafana
-  standard:
-    requirements:
       cpu: 4
       memory: 8
-      disk: 10
-    additionalServices: []
-  low:
+      disk: 20
+    additionalServices:
+      - telemetry-collection
+  standard:
     requirements:
       cpu: 2
       memory: 4
-      disk: 5
-    serviceOverrides:
-      komodo: disabled
-      dokploy: disabled
+      disk: 20
+  low:
+    requirements:
+      cpu: 2
+      memory: 2
+      disk: 10
 
 # =============================================================================
 # SERVICE OUTPUTS (URLs and Credentials)

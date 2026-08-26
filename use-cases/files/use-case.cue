@@ -12,7 +12,7 @@ Package: foundation.#UseCasePackage & {
 		name:        "files"
 		useCaseRef:  "files"
 		displayName: "File Storage and Documents"
-		version:     "0.12.0"
+		version:     "0.13.0"
 		layer:       "application"
 		category:    "files"
 		lifecycle:   "beta"
@@ -46,7 +46,6 @@ Package: foundation.#UseCasePackage & {
 			description: "StackKit deploys Cloudreve as the default file storage and sharing app on the user's node."
 			realization: "oss"
 			placementModes: ["local-only", "standard"]
-			contexts: ["local", "pi", "cloud"]
 			managedServerlessEligible: false
 			requiresControlPlane:      false
 			requiresLocalBridge:       false
@@ -56,18 +55,16 @@ Package: foundation.#UseCasePackage & {
 			description: "StackKit deploys Nextcloud as the files provider for collaboration and WebDAV-heavy use."
 			realization: "oss"
 			placementModes: ["local-only", "standard"]
-			contexts: ["local", "cloud"]
 			managedServerlessEligible: false
 			requiresControlPlane:      false
 			requiresLocalBridge:       false
-			notes: ["Requires standard or high compute tier in BaseKit."]
+			notes: ["Authoring alternative, not the default kit graph. Omit on low."]
 		}
 		"kombify-managed-files": {
 			displayName: "Kombify Managed Files"
 			description: "Kombify operates storage, route, auth handoff, backup, sharing policy, and API wiring for the Files use case."
 			realization: "control-plane"
 			placementModes: ["managed-serverless"]
-			contexts: ["cloud"]
 			managedServerlessEligible: true
 			requiresControlPlane:      true
 			requiresLocalBridge:       false
@@ -77,7 +74,6 @@ Package: foundation.#UseCasePackage & {
 			description: "Kombify operates document ingestion, OCR/indexing, retention policy, search, sharing, backup, and RIL evidence for document-management workflows."
 			realization: "control-plane"
 			placementModes: ["managed-serverless"]
-			contexts: ["cloud"]
 			managedServerlessEligible: true
 			requiresControlPlane:      true
 			requiresLocalBridge:       false
@@ -88,10 +84,33 @@ Package: foundation.#UseCasePackage & {
 			description: "An existing Nextcloud, WebDAV, S3-compatible bucket, or file service is connected as the package backend."
 			realization: "external"
 			placementModes: ["local-only", "standard", "managed-serverless"]
-			contexts: ["local", "pi", "cloud"]
 			managedServerlessEligible: true
 			requiresControlPlane:      false
 			requiresLocalBridge:       false
+		}
+	}
+
+	computeTiers: {
+		low: {
+			included: true
+			moduleSlug: "cloudreve"
+			functions: ["files", "document-storage", "file-sharing"]
+			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
+			notes: ["Lightweight sharing. Nextcloud is not on low."]
+		}
+		standard: {
+			included: true
+			moduleSlug: "cloudreve"
+			functions: ["files", "document-storage", "file-sharing"]
+			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
+			notes: ["Nextcloud remains an authoring alternative, not the default standard graph."]
+		}
+		high: {
+			included: true
+			moduleSlug: "cloudreve"
+			functions: ["files", "document-storage", "file-sharing"]
+			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
+			notes: ["Collaboration/DMS extras need an explicit high-graph substitution before they become default."]
 		}
 	}
 

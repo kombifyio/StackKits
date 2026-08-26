@@ -12,6 +12,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/hostpreflight"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 // ExitCodeHostBlocked is returned when host admission refused to mutate the
@@ -73,7 +74,7 @@ func evaluateHostPreflight(ctx context.Context, workspace, kitSlug string, polic
 	requirements := hostpreflight.Requirements{}
 	if strings.TrimSpace(kitSlug) != "" {
 		if definition, err := architecturev2.EmbeddedKitDefinition(kitSlug); err == nil {
-			requirements = hostpreflight.RequirementsFromDefinition(definition)
+			requirements = hostpreflight.RequirementsFromDefinitionForTier(definition, hostPreflightComputeTier(workspace))
 		}
 	}
 	facts := hostpreflight.Observe(ctx, hostpreflight.ObserveRequest{
@@ -81,6 +82,27 @@ func evaluateHostPreflight(ctx context.Context, workspace, kitSlug string, polic
 		RequiredPorts: applyPublishedPorts,
 	})
 	return hostpreflight.Evaluate(facts, requirements, kitSlug, policy)
+}
+
+func hostPreflightComputeTier(workspace string) string {
+	loader := config.NewLoader(workspace)
+	loaded, err := loader.ReadStackSpecDocument(specFile)
+	if err != nil {
+		return "standard"
+	}
+	var view struct {
+		Install struct {
+			ComputeTier string `yaml:"computeTier"`
+		} `yaml:"install"`
+	}
+	if err := yaml.Unmarshal(loaded.Document.Raw, &view); err != nil {
+		return "standard"
+	}
+	tier := strings.TrimSpace(view.Install.ComputeTier)
+	if tier == "" {
+		return "standard"
+	}
+	return tier
 }
 
 // hostPreflightRefusal turns a refused report into the operator-facing error,

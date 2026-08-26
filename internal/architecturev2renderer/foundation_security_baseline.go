@@ -117,6 +117,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(immichWorkload.contract, immichWorkload); err != nil {
 		return nil, err
 	}
+	immichLiteWorkload := newImmichLiteWorkloadBundleRenderer()
+	if err := registry.Register(immichLiteWorkload.contract, immichLiteWorkload); err != nil {
+		return nil, err
+	}
 	cloudreveWorkload := newCloudreveWorkloadBundleRenderer()
 	if err := registry.Register(cloudreveWorkload.contract, cloudreveWorkload); err != nil {
 		return nil, err
@@ -135,6 +139,18 @@ func NewProductRegistry() (*Registry, error) {
 	}
 	basementCoreTerramate := newBasementCoreTerramateRenderer()
 	if err := registry.Register(basementCoreTerramate.contract, basementCoreTerramate); err != nil {
+		return nil, err
+	}
+	basementCoreLiteCompose := newBasementCoreLiteComposeBoundRenderer()
+	if err := registry.Register(basementCoreLiteCompose.inner.contract, basementCoreLiteCompose); err != nil {
+		return nil, err
+	}
+	basementCoreLiteOpenTofu := newBasementCoreLiteOpenTofuBoundRenderer()
+	if err := registry.Register(basementCoreLiteOpenTofu.inner.contract, basementCoreLiteOpenTofu); err != nil {
+		return nil, err
+	}
+	basementCoreLiteTerramate := newBasementCoreLiteTerramateRenderer()
+	if err := registry.Register(basementCoreLiteTerramate.contract, basementCoreLiteTerramate); err != nil {
 		return nil, err
 	}
 	cloudCoreCompose := newCloudCoreComposeRenderer()

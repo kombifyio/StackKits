@@ -36,11 +36,31 @@ Package: foundation.#UseCasePackage & {
 		description: "StackKits records Jellyfin for selected-PaaS delivery on the Owner-selected node; an Architecture v2 workload and application lifecycle remain pending."
 		realization: "oss"
 		placementModes: ["local-only", "standard"]
-		contexts: ["local", "pi", "cloud"]
 		managedServerlessEligible: false
 		requiresControlPlane:      false
 		requiresLocalBridge:       false
 		notes: ["Media storage is Owner-custodied; this package does not claim the removed add-on's Sonarr, Radarr, Prowlarr, or Bazarr services."]
+	}
+
+	computeTiers: {
+		low: {
+			included: false
+			reason: "Jellyfin library + transcode is not on the Basement low graph. Needs a lite substitution before it can be included."
+		}
+		standard: {
+			included: true
+			moduleSlug: "jellyfin"
+			functions: ["media-server", "video-stream"]
+			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
+			notes: ["Library waits; playback and transcode are the spike. Architecture v2 workload still pending."]
+		}
+		high: {
+			included: true
+			moduleSlug: "jellyfin"
+			functions: ["media-server", "video-stream"]
+			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
+			notes: ["Same functions as standard until a high-graph media substitution exists."]
+		}
 	}
 
 	tools: jellyfin: {

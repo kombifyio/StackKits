@@ -35,6 +35,14 @@ func (c *Compiler) buildInstall(spec *specView, resolved *resolution) (map[strin
 			platform["providerRef"] = provider
 		}
 	}
+	computeTier, err := computeTierFromInstall(install)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := loadKitComputeTierGraph(spec.originalDefinition, computeTier); err != nil {
+		return nil, err
+	}
+	install["computeTier"] = computeTier
 	return install, nil
 }
 

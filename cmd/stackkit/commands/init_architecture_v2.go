@@ -73,6 +73,8 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		Platform:           platform,
 		EnableCapabilities: initEnableCapabilities,
 		UseCases:           initUseCases,
+		ComputeTier:        initComputeTier,
+		HardwareProfile:    initHardwareProfile,
 	})
 	if err != nil {
 		return fmt.Errorf("materialize %s initial StackSpec from CUE authority: %w", stackkitName, err)
@@ -184,7 +186,6 @@ func validateArchitectureV2InitFlags(cmd *cobra.Command) error {
 		}
 	}
 	add("context", strings.TrimSpace(contextFlag) != "")
-	add("compute-tier", strings.TrimSpace(initComputeTier) != "")
 	add("mode", strings.TrimSpace(initMode) != "")
 	add("admin-email", strings.TrimSpace(initAdminEmail) != "")
 	add("service-profile", strings.TrimSpace(initServiceProfile) != "")

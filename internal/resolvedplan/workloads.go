@@ -47,6 +47,10 @@ func resolveWorkloadSelections(profile *profileView, spec *specView, catalog *in
 		rawSelections[id] = map[string]any{"alternative": alternativeID, "placement": map[string]any{}}
 	}
 
+	tier, err := computeTierFromInstall(spec.install)
+	if err != nil {
+		return nil, err
+	}
 	resolved := make(map[string]*resolvedWorkloadSelection, len(rawSelections))
 	moduleOwners := make(map[string]string)
 	for _, id := range sortedStringMapKeys(rawSelections) {
@@ -60,6 +64,9 @@ func resolveWorkloadSelections(profile *profileView, spec *specView, catalog *in
 		contract, exists := catalog.workloads[id]
 		if !exists {
 			return nil, fail(ErrUnknownWorkload, path, "no governed workload contract exists")
+		}
+		if fit := CatalogWorkloadComputeTierFit(contract, tier); fit.Declared && !fit.Included {
+			return nil, fail(ErrForbiddenWorkload, path, "workload is not included on computeTier %q", tier)
 		}
 		selection, err := asObject(rawSelections[id], path)
 		if err != nil {

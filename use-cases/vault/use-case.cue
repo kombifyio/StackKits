@@ -12,7 +12,7 @@ Package: foundation.#UseCasePackage & {
 		name:        "vault"
 		useCaseRef:  "vault"
 		displayName: "Password Vault"
-		version:     "0.13.0"
+		version:     "0.14.0"
 		layer:       "application"
 		category:    "vault"
 		lifecycle:   "beta"
@@ -38,10 +38,32 @@ Package: foundation.#UseCasePackage & {
 			description: "StackKits deploys digest-pinned Vaultwarden through the selected application adapter on the Owner-selected node."
 			realization: "oss"
 			placementModes: ["local-only", "standard"]
-			contexts: ["local", "pi", "cloud"]
 			managedServerlessEligible: false
 			requiresControlPlane:      false
 			requiresLocalBridge:       false
+		}
+	}
+
+	computeTiers: {
+		low: {
+			included: true
+			moduleSlug: "vaultwarden"
+			functions: ["password-manager", "secure-notes", "totp"]
+			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
+			notes: ["Always resident for unlock/sync; almost no idle CPU. Fits the low graph."]
+		}
+		standard: {
+			included: true
+			moduleSlug: "vaultwarden"
+			functions: ["password-manager", "secure-notes", "totp"]
+			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
+		}
+		high: {
+			included: true
+			moduleSlug: "vaultwarden"
+			functions: ["password-manager", "secure-notes", "totp"]
+			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
+			notes: ["No extra vault functions on high until a graph substitution exists."]
 		}
 	}
 

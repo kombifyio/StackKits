@@ -38,7 +38,6 @@ Package: foundation.#UseCasePackage & {
 			description: "Kombify operates the Home Assistant runtime, state, routing, auth handoff, backup, and MCP/API wiring without requiring user-owned HA OS hardware."
 			realization: "control-plane"
 			placementModes: ["managed-serverless"]
-			contexts: ["cloud"]
 			managedServerlessEligible: true
 			requiresControlPlane:      true
 			requiresLocalBridge:       false
@@ -49,7 +48,6 @@ Package: foundation.#UseCasePackage & {
 			description: "Kombify manages Home Assistant while an optional local bridge supplies LAN discovery and radio/device adjacency."
 			realization: "hybrid"
 			placementModes: ["managed-serverless", "standard"]
-			contexts: ["cloud", "local", "pi"]
 			managedServerlessEligible: true
 			requiresControlPlane:      true
 			requiresLocalBridge:       true
@@ -60,7 +58,6 @@ Package: foundation.#UseCasePackage & {
 			description: "StackKit deploys Home Assistant as a selected-PaaS application on the user's own node."
 			realization: "oss"
 			placementModes: ["local-only", "standard"]
-			contexts: ["local", "pi", "cloud"]
 			managedServerlessEligible: false
 			requiresControlPlane:      false
 			requiresLocalBridge:       false
@@ -71,7 +68,6 @@ Package: foundation.#UseCasePackage & {
 			description: "The user brings a Home Assistant OS device or VM; StackKits records and connects to it."
 			realization: "external"
 			placementModes: ["local-only", "standard"]
-			contexts: ["local", "pi"]
 			managedServerlessEligible: false
 			requiresControlPlane:      false
 			requiresLocalBridge:       false
@@ -81,10 +77,32 @@ Package: foundation.#UseCasePackage & {
 			description: "An existing Home Assistant instance is connected through its native MCP/API surfaces."
 			realization: "external"
 			placementModes: ["local-only", "standard", "managed-serverless"]
-			contexts: ["local", "pi", "cloud"]
 			managedServerlessEligible: true
 			requiresControlPlane:      false
 			requiresLocalBridge:       false
+		}
+	}
+
+	computeTiers: {
+		low: {
+			included: true
+			moduleSlug: "home-assistant"
+			functions: ["smart-home-hub", "automation"]
+			load: {residency: "always-on", baseline: "active-resident", burst: "interactive"}
+			notes: ["24/7 radio/state loop is the base load. Classic constrained-device resident. Native MCP and extra bridges stay optional."]
+		}
+		standard: {
+			included: true
+			moduleSlug: "home-assistant"
+			functions: ["smart-home-hub", "native-product-mcp", "assist-api", "automation"]
+			load: {residency: "always-on", baseline: "active-resident", burst: "interactive"}
+		}
+		high: {
+			included: true
+			moduleSlug: "home-assistant"
+			functions: ["smart-home-hub", "native-product-mcp", "assist-api", "automation"]
+			load: {residency: "always-on", baseline: "active-resident", burst: "interactive"}
+			notes: ["Same OSS functions as standard. Managed/hybrid profiles are realization, not a kit graph."]
 		}
 	}
 

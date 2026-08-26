@@ -1,18 +1,18 @@
-// Context definitions for StackKit deployments.
+// Legacy NodeContext vocabulary.
 //
-// A NodeContext describes the runtime environment of a deployment target.
-// It is auto-detected (not user-chosen) based on hardware capabilities
-// and provider metadata, though it can be overridden via CLI --context flag.
+// Architecture v2 does not select a kit, product graph, or architecture from
+// this enum. Native v2 init rejects --context. Migration maps:
+//   local -> site.kind home
+//   cloud -> site.kind cloud
+//   pi    -> site.kind home + nodes[].hardware.profile pi
 //
-// The Context × StackKit matrix produces curated default configurations:
-//   - PAAS selection (Coolify by default; Komodo as production alternative)
-//   - TLS strategy (self-signed via Step-CA vs Let's Encrypt)
-//   - Resource limits (full vs constrained)
-//   - Image architecture (amd64 vs arm64)
-//   - Storage driver selection
+// hardware.profile pi is a constrained homelab device class (SBC, mini-PC,
+// low-RAM NUC, and similar), not Raspberry-only. Architecture is
+// nodes[].hardware.arch or attested inventory. The product graph is
+// install.computeTier. These #ContextDefaults values are not a v2 selector.
 package foundation
 
-// #NodeContext enumerates the supported deployment contexts.
+// #NodeContext is legacy migration input: "local" | "cloud" | "pi".
 #NodeContext: "local" | "cloud" | "pi"
 
 // #ContextConfig defines the resolved configuration for a given context.
@@ -118,7 +118,7 @@ package foundation
 		storageDriver: "overlay2"
 	}
 
-	// --- pi context ---
+	// --- pi context (constrained homelab device; not Raspberry-only) ---
 	if _context == "pi" {
 		tls: {
 			mode:          "self-signed"
@@ -126,11 +126,13 @@ package foundation
 		}
 		paas: preferred: "coolify"
 		resources: {
-			defaultTier:  "low"
+			// Typical constrained device, not a v2 computeTier rewrite.
+			defaultTier:  "standard"
 			memoryFactor: 0.5
 			cpuShares:    512
 		}
-		arch:          "arm64"
+		// Architecture is node/inventory-owned. Do not assume arm64.
+		arch:          "amd64"
 		accessMode:    "ports"
 		publicIP:      false
 		storageDriver: "overlay2"

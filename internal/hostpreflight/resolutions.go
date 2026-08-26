@@ -134,9 +134,9 @@ func Resolutions() []Resolution {
 		{
 			ID: "pi-cgroup-memory", Title: "Enable the kernel memory controller",
 			AppliesTo: "cgroup-memory-controller", Mode: ModeHint,
-			Summary: "Raspberry Pi OS ships without the memory cgroup controller, so declared container memory limits are silently ignored.",
+			Summary: "The memory cgroup controller is disabled, so container memory limits are ignored.",
 			Guidance: []string{
-				"Append cgroup_enable=memory and cgroup_memory=1 to the single line in /boot/firmware/cmdline.txt.",
+				"Enable the controller on this kernel: add cgroup_enable=memory cgroup_memory=1 to the kernel command line on Debian/Raspberry Pi OS, or the equivalent sysfs/cmdline on other distros.",
 				"The change takes effect only after a reboot, which is why StackKits will not make it for you.",
 				"Until then the rollout still succeeds; the limits it renders just do not bind.",
 			},
