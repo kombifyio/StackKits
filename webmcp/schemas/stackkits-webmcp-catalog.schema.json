@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkit.cc/schemas/stackkits-webmcp-catalog-v1.schema.json",
+  "title": "StackKits WebMCP generated catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "source_sha", "authority_bundle_sha256", "catalog_sha256", "kits", "operations"],
+  "properties": {
+    "schema_version": {
+      "const": "stackkits-webmcp/v1"
+    },
+    "source_sha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "authority_bundle_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "catalog_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "kits": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/kit"
+      }
+    },
+    "operations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/operation"
+      }
+    }
+  },
+  "$defs": {
+    "requirementValue": {
+      "type": "number",
+      "minimum": 0
+    },
+    "hostRequirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min_cpu_cores", "min_ram_gb", "min_storage_gb"],
+      "properties": {
+        "min_cpu_cores": { "$ref": "#/$defs/requirementValue" },
+        "min_ram_gb": { "$ref": "#/$defs/requirementValue" },
+        "min_storage_gb": { "$ref": "#/$defs/requirementValue" },
+        "recommended_cpu_cores": { "$ref": "#/$defs/requirementValue" },
+        "recommended_ram_gb": { "$ref": "#/$defs/requirementValue" },
+        "recommended_storage_gb": { "$ref": "#/$defs/requirementValue" },
+        "architectures": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "maxLength": 64 }
+        },
+        "virtualization": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "maxLength": 64 }
+        }
+      }
+    },
+    "runtimeRequirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "min_cpu_cores": { "$ref": "#/$defs/requirementValue" },
+        "min_ram_gb": { "$ref": "#/$defs/requirementValue" },
+        "min_storage_gb": { "$ref": "#/$defs/requirementValue" },
+        "recommended_cpu_cores": { "$ref": "#/$defs/requirementValue" },
+        "recommended_ram_gb": { "$ref": "#/$defs/requirementValue" },
+        "recommended_storage_gb": { "$ref": "#/$defs/requirementValue" }
+      }
+    },
+    "moduleRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["module_id", "declaration"],
+      "properties": {
+        "module_id": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$" },
+        "declaration": { "type": "string", "enum": ["declared", "not_declared"] },
+        "runtime_requirements": {
+          "oneOf": [{ "$ref": "#/$defs/runtimeRequirements" }, { "type": "null" }]
+        }
+      }
+    },
+    "useCaseLoad": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["residency", "baseline", "burst"],
+      "properties": {
+        "residency": { "type": "string", "enum": ["always-on", "on-demand", "scheduled"] },
+        "baseline": { "type": "string", "enum": ["none", "idle-resident", "active-resident"] },
+        "burst": { "type": "string", "enum": ["none", "interactive", "ingest", "batch"] }
+      }
+    },
+    "useCaseFit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["use_case_id", "included"],
+      "properties": {
+        "use_case_id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$" },
+        "title": { "type": "string", "maxLength": 160 },
+        "included": { "type": "boolean" },
+        "functions": { "type": "array", "items": { "type": "string", "maxLength": 80 } },
+        "load": { "oneOf": [{ "$ref": "#/$defs/useCaseLoad" }, { "type": "null" }] },
+        "module_slug": { "type": "string", "maxLength": 128 },
+        "alternative_id": { "type": "string", "maxLength": 128 },
+        "reason": { "type": "string", "maxLength": 500 },
+        "notes": { "type": "array", "items": { "type": "string", "maxLength": 300 } }
+      }
+    },
+    "tier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["compute_tier", "host_requirements", "platform_management", "enable_capabilities", "module_substitutions", "module_runtime_requirements", "use_case_fits"],
+      "properties": {
+        "compute_tier": { "type": "string", "enum": ["low", "standard", "high"] },
+        "host_requirements": { "$ref": "#/$defs/hostRequirements" },
+        "platform_management": { "type": "string", "maxLength": 80 },
+        "enable_capabilities": { "type": "array", "items": { "type": "string", "maxLength": 128 } },
+        "module_substitutions": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "maxLength": 128 }
+        },
+        "module_runtime_requirements": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/moduleRequirement" }
+        },
+        "use_case_fits": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/useCaseFit" }
+        }
+      }
+    },
+    "kit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stackkit_id", "display_name", "version", "description", "status", "planner_link", "compute_tiers", "tiers", "required_authoring_inputs"],
+      "properties": {
+        "stackkit_id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$" },
+        "display_name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "version": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "maxLength": 80 },
+        "planner_link": { "type": "string", "pattern": "^/planner(?:\\?[a-z_]+=[a-z0-9-]+)?$" },
+        "compute_tiers": { "type": "array", "items": { "type": "string", "enum": ["low", "standard", "high"] } },
+        "tiers": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/tier" }
+        },
+        "required_authoring_inputs": { "type": "array", "items": { "type": "string", "maxLength": 160 } }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "tool_name", "title", "description", "command", "mutation", "destructive", "idempotent", "owner_approval"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^stackkit\\.[a-z0-9.-]+$" },
+        "tool_name": { "type": "string", "pattern": "^stackkit_[a-z0-9_]+$" },
+        "title": { "type": "string", "maxLength": 160 },
+        "description": { "type": "string", "maxLength": 500 },
+        "command": { "type": "array", "minItems": 1, "items": { "type": "string", "maxLength": 160 } },
+        "mutation": { "type": "boolean" },
+        "destructive": { "type": "boolean" },
+        "idempotent": { "type": "boolean" },
+        "owner_approval": { "type": "boolean" }
+      }
+    }
+  }
+}

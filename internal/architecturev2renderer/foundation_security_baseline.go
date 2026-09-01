@@ -129,6 +129,14 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(vaultwardenWorkload.contract, vaultwardenWorkload); err != nil {
 		return nil, err
 	}
+	jellyfinWorkload := newJellyfinWorkloadBundleRenderer()
+	if err := registry.Register(jellyfinWorkload.contract, jellyfinWorkload); err != nil {
+		return nil, err
+	}
+	homeAssistantWorkload := newHomeAssistantWorkloadBundleRenderer()
+	if err := registry.Register(homeAssistantWorkload.contract, homeAssistantWorkload); err != nil {
+		return nil, err
+	}
 	basementCoreCompose := newBasementCoreComposeRenderer()
 	if err := registry.Register(basementCoreCompose.contract, basementCoreCompose); err != nil {
 		return nil, err

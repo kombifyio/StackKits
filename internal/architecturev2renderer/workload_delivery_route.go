@@ -133,7 +133,13 @@ type ApplicationDeliveryBundleDescriptor struct {
 	InstanceRef    string
 	SecretRefs     map[string]string
 	Components     []ApplicationDeliveryComponentDescriptor
+	ConfigFiles    []ApplicationDeliveryConfigFileDescriptor
 	Route          ApplicationDeliveryRouteDescriptor
+}
+
+type ApplicationDeliveryConfigFileDescriptor struct {
+	Path string
+	Body string
 }
 
 // ParseApplicationDeliveryWorkloadBundle validates the common v2 envelope and
@@ -213,11 +219,15 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		}
 	}
 	sort.Slice(components, func(i, j int) bool { return components[i].ID < components[j].ID })
+	configFiles, err := validateApplicationDeliveryConfigFiles(bundle.ConfigFiles, path+".configFiles")
+	if err != nil {
+		return ApplicationDeliveryBundleDescriptor{}, err
+	}
 	descriptor := ApplicationDeliveryBundleDescriptor{
 		WorkloadRef: bundle.Workload.Ref, ModuleRef: bundle.Workload.ModuleRef,
 		Release: bundle.Workload.Release, EntryComponent: bundle.Workload.EntryComponent,
 		SiteRef: bundle.Target.SiteRef, NodeRef: bundle.Target.NodeRef, InstanceRef: bundle.Target.InstanceRef,
-		SecretRefs: secretRefs, Components: components,
+		SecretRefs: secretRefs, Components: components, ConfigFiles: configFiles,
 	}
 	if bundle.DeliveryRoute != nil {
 		descriptor.Route = bundle.DeliveryRoute.descriptor()
@@ -231,6 +241,22 @@ func cloneStringMap(input map[string]string) map[string]string {
 		result[key] = value
 	}
 	return result
+}
+
+func validateApplicationDeliveryConfigFiles(files []selectedPaaSConfigFile, path string) ([]ApplicationDeliveryConfigFileDescriptor, error) {
+	out := make([]ApplicationDeliveryConfigFileDescriptor, 0, len(files))
+	seen := make(map[string]struct{}, len(files))
+	for _, file := range files {
+		if !strings.HasPrefix(file.Path, "/") || strings.Contains(file.Path, "\\") || strings.Contains(file.Path, "..") || strings.TrimSpace(file.Body) == "" {
+			return nil, fail(ErrInvalidPlan, path, "config file path or body is invalid")
+		}
+		if _, dup := seen[file.Path]; dup {
+			return nil, fail(ErrInvalidPlan, path, "config file path is duplicated")
+		}
+		seen[file.Path] = struct{}{}
+		out = append(out, ApplicationDeliveryConfigFileDescriptor{Path: file.Path, Body: file.Body})
+	}
+	return out, nil
 }
 
 func (route applicationDeliveryRoute) descriptor() ApplicationDeliveryRouteDescriptor {

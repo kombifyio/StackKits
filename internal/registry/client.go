@@ -26,7 +26,7 @@ var ErrNotFound = fmt.Errorf("registry: not found")
 const retiredHAKitRegistrySlug = stackspecmigration.LegacyHAKitSlug
 
 // activeProductSnapshot removes legacy migration-only rows at the client
-// boundary. The Admin DB may retain such a row during its controlled cleanup
+// boundary. Legacy snapshots may retain such a row during controlled cleanup
 // window, but CLI discovery and generated product views must never expose it.
 func activeProductSnapshot(snap Snapshot) Snapshot {
 	active := make([]StackKit, 0, len(snap.StackKits))

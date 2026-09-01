@@ -21,9 +21,7 @@ func ExportYAML(def KitDefinition) ([]byte, error) {
 	// reconstructed YAML.
 	clean := def
 	clean.CueSourcePath = ""
-	clean.ImportedBy = ""
 	clean.ContractHash = ""
-	clean.DryRun = false
 
 	// Default header fields if missing
 	if clean.APIVersion == "" {
@@ -44,21 +42,4 @@ func ExportYAML(def KitDefinition) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
-}
-
-// ExportYAMLFromDBShape takes the JSON-decoded body returned by GET
-// /api/v1/sk/registry/stackkits/{slug}/kit-export and produces stackkit.yaml.
-//
-// The endpoint returns a body whose shape is exactly KitDefinition (same as
-// kit-import accepts). This is just a convenience wrapper.
-func ExportYAMLFromDBShape(dbShape map[string]interface{}) ([]byte, error) {
-	raw, err := yaml.Marshal(dbShape)
-	if err != nil {
-		return nil, fmt.Errorf("yaml.Marshal dbShape: %w", err)
-	}
-	def, err := Import(raw)
-	if err != nil {
-		return nil, fmt.Errorf("re-import dbShape: %w", err)
-	}
-	return ExportYAML(def)
 }

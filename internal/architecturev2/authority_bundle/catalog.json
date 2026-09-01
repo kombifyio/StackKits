@@ -603,6 +603,388 @@
       "packageRef": "vault",
       "useCaseRef": "vault",
       "workloadRef": "vault"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Reusable owner-controlled lifecycle for the Media Application Kit.",
+        "id": "media",
+        "version": "1.0.0"
+      },
+      "packageRef": "media",
+      "useCaseRef": "media",
+      "workloadRef": "media"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Reusable owner-controlled lifecycle for the Smart Home Application Kit.",
+        "id": "smart-home",
+        "version": "1.0.0"
+      },
+      "packageRef": "smart-home",
+      "useCaseRef": "smart-home",
+      "workloadRef": "smart-home"
     }
   ],
   "capabilities": [
@@ -2930,6 +3312,26 @@
       },
       {
         "governanceMatches": [
+          "stackkits-jellyfin-runtime"
+        ],
+        "matches": [
+          "stackkits-jellyfin"
+        ],
+        "module": "stackkits-jellyfin-runtime",
+        "provider": "stackkits-jellyfin"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-home-assistant-runtime"
+        ],
+        "matches": [
+          "stackkits-home-assistant"
+        ],
+        "module": "stackkits-home-assistant-runtime",
+        "provider": "stackkits-home-assistant"
+      },
+      {
+        "governanceMatches": [
           "stackkits-coolify-runtime"
         ],
         "matches": [
@@ -3665,6 +4067,18 @@
             "vault"
           ],
           "providerID": "stackkits-vaultwarden"
+        },
+        {
+          "contracts": [
+            "media"
+          ],
+          "providerID": "stackkits-jellyfin"
+        },
+        {
+          "contracts": [
+            "smart-home"
+          ],
+          "providerID": "stackkits-home-assistant"
         },
         {
           "contracts": [
@@ -4489,6 +4903,20 @@
       },
       {
         "matches": [
+          "stackkits-jellyfin-runtime"
+        ],
+        "module": "stackkits-jellyfin-runtime",
+        "provider": "stackkits-jellyfin"
+      },
+      {
+        "matches": [
+          "stackkits-home-assistant-runtime"
+        ],
+        "module": "stackkits-home-assistant-runtime",
+        "provider": "stackkits-home-assistant"
+      },
+      {
+        "matches": [
           "stackkits-coolify-runtime"
         ],
         "module": "stackkits-coolify-runtime",
@@ -5215,6 +5643,62 @@
         "matches": [
           "runtime-paas"
         ],
+        "provider": "stackkits-jellyfin"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-jellyfin"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-jellyfin"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-jellyfin"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-home-assistant"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-home-assistant"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-home-assistant"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-home-assistant"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
         "provider": "stackkits-coolify"
       },
       {
@@ -5858,6 +6342,18 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-vaultwarden"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-jellyfin"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-home-assistant"
         },
         {
           "capabilityBindings": [],
@@ -6560,6 +7056,180 @@
             }
           ],
           "workloadID": "vault"
+        },
+        {
+          "alternativeID": "jellyfin",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-jellyfin-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "media",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "jellyfin",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-jellyfin",
+              "workloadOwnership": [
+                "media"
+              ]
+            }
+          ],
+          "workloadID": "media"
+        },
+        {
+          "alternativeID": "home-assistant",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-home-assistant-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "smart-home",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "home-assistant",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-home-assistant",
+              "workloadOwnership": [
+                "smart-home"
+              ]
+            }
+          ],
+          "workloadID": "smart-home"
         }
       ]
     }
@@ -14603,6 +15273,484 @@
     },
     {
       "evidence": [
+        "jellyfin-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "jellyfin-http",
+          "kind": "http",
+          "path": "/health",
+          "phase": "continuous",
+          "port": 8096,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Jellyfin media-library contract bound to one selected site; the media library volume is owner-custodied and not a StackKits backup source.",
+        "id": "stackkits-jellyfin-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-jellyfin",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "jellyfin-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/jellyfin/bundle.json",
+              "required": true,
+              "unitRef": "jellyfin"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "jellyfin-workload-bundle",
+              "outputRef": "workloads/jellyfin/bundle.json",
+              "unitRef": "jellyfin"
+            }
+          ],
+          "requiredRefs": [
+            "jellyfin-workload-bundle"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "jellyfin-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:8e48d778e46c4d9ffa0b5bec4921c4775438b74e7119d2dc530a3c27f572905f",
+          "id": "jellyfin",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/jellyfin/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "data": {
+                "bindingRef": "media",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "jellyfin-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "media",
+              "targetPort": 8096,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/jellyfin/bundle/v2.json",
+          "version": "2.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "jellyfin-workload-bundle"
+          ],
+          "contractHash": "sha256:f4cc3429148975e7741e8a55171d5a9d0138d67ec7b4ef42732ede51d7b53af8",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "jellyfin"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "jellyfin-workload-bundle"
+          ],
+          "contractHash": "sha256:47ffd0559451c9da935a2e115b3a7a139aef279e271c8389c8fc276674e6c9b9",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "jellyfin"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "http",
+              "path": "/health",
+              "port": 8096
+            },
+            "id": "jellyfin",
+            "image": {
+              "digest": "sha256:7ae36aab93ef9b6aaff02b37f8bb23df84bb2d7a3f6054ec8fc466072a648ce2",
+              "ref": "docker.io/jellyfin/jellyfin:10.10.7"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "jellyfin-internal"
+            ],
+            "resources": {
+              "memoryLimit": "2g",
+              "memoryReservation": "512m"
+            },
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "config",
+                "target": "/config"
+              },
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "cache",
+                "target": "/cache"
+              },
+              {
+                "backup": false,
+                "class": "persistent",
+                "id": "library",
+                "target": "/media"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "jellyfin",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:7ae36aab93ef9b6aaff02b37f8bb23df84bb2d7a3f6054ec8fc466072a648ce2",
+          "ref": "docker.io/jellyfin/jellyfin:10.10.7"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "home-assistant-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "home-assistant-http",
+          "kind": "http",
+          "path": "/",
+          "phase": "continuous",
+          "port": 8123,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Home Assistant self-hosted container contract bound to one selected site; config is a StackKits backup source. Native product MCP remains /api/mcp on the same listener.",
+        "id": "stackkits-home-assistant-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-home-assistant",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "home-assistant-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/home-assistant/bundle.json",
+              "required": true,
+              "unitRef": "home-assistant"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "home-assistant-workload-bundle",
+              "outputRef": "workloads/home-assistant/bundle.json",
+              "unitRef": "home-assistant"
+            }
+          ],
+          "requiredRefs": [
+            "home-assistant-workload-bundle"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "home-assistant-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:8ace48ca66779adec03b5362b1f0cf33eb576e00cb7cd0b036d6c2e7512cbd7f",
+          "id": "home-assistant",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/home-assistant/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "data": {
+                "bindingRef": "smart-home",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "home-assistant-http",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "smart-home",
+              "targetPort": 8123,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/home-assistant/bundle/v2.json",
+          "version": "2.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "home-assistant-workload-bundle"
+          ],
+          "contractHash": "sha256:158d52e1794a9dddf5a1b6ca134c51f115a6d721b1afea22f8b89add28108695",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "home-assistant"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "home-assistant-workload-bundle"
+          ],
+          "contractHash": "sha256:d15f978c9b540c10de3c1cd311a97aed52f5bf4eef99c75ecda2c5cc0e718fb5",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "home-assistant"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "http",
+              "path": "/",
+              "port": 8123
+            },
+            "id": "home-assistant",
+            "image": {
+              "digest": "sha256:1476924357b46e80735c13e94232ba5c853cac052e9df4bb28d50fa56348097b",
+              "ref": "ghcr.io/home-assistant/home-assistant:2026.7.2"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "home-assistant-internal"
+            ],
+            "resources": {
+              "memoryLimit": "2g",
+              "memoryReservation": "512m"
+            },
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "config",
+                "target": "/config"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "home-assistant",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:1476924357b46e80735c13e94232ba5c853cac052e9df4bb28d50fa56348097b",
+          "ref": "ghcr.io/home-assistant/home-assistant:2026.7.2"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
         "coolify-adapter-contract"
       ],
       "health": [
@@ -19549,6 +20697,102 @@
     {
       "certificateIssuers": [],
       "evidence": [
+        "jellyfin-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-jellyfin",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-jellyfin-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "media"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "home-assistant-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-home-assistant",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-home-assistant-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "smart-home"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
         "coolify-adapter-contract"
       ],
       "health": [
@@ -22046,6 +23290,341 @@
         "cloud"
       ],
       "useCaseRef": "vault"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "jellyfin",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "jellyfin",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "config"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "media",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "jellyfin",
+                  "dataBindingRef": "media",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/config",
+                  "volumeRef": "config"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "jellyfin",
+                  "dataClasses": [],
+                  "target": "/cache",
+                  "volumeRef": "cache"
+                },
+                {
+                  "backup": false,
+                  "class": "persistent",
+                  "componentRef": "jellyfin",
+                  "dataBindingRef": "media",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/media",
+                  "volumeRef": "library"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-jellyfin-runtime",
+          "providerRef": "stackkits-jellyfin",
+          "route": {
+            "healthRef": "jellyfin-http",
+            "serviceRef": "media"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "coolify",
+              "komodo",
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "coolify",
+                "capabilities": {
+                  "backupRestore": false,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "supported"
+              },
+              {
+                "adapterRef": "komodo",
+                "capabilities": {
+                  "backupRestore": false,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              },
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "supported"
+              }
+            ],
+            "defaultAdapterRef": "coolify",
+            "defaultFallbackAdapterRefs": [
+              "standalone-compose"
+            ]
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "alternativeID": "jellyfin",
+          "included": true
+        },
+        "low": {
+          "included": false,
+          "reason": "Jellyfin library and transcode are not on the Basement low graph."
+        },
+        "standard": {
+          "alternativeID": "jellyfin",
+          "included": true
+        }
+      },
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "jellyfin",
+      "functionalCapabilities": [
+        "media-server",
+        "video-stream"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Self-hosted media library selected independently from kit architecture capabilities.",
+        "id": "media",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "media"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "home-assistant",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "home-assistant",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "config"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "smart-home",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "home-assistant",
+                  "dataBindingRef": "smart-home",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/config",
+                  "volumeRef": "config"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-home-assistant-runtime",
+          "providerRef": "stackkits-home-assistant",
+          "route": {
+            "healthRef": "home-assistant-http",
+            "serviceRef": "smart-home"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "coolify",
+              "komodo",
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "coolify",
+                "capabilities": {
+                  "backupRestore": false,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "supported"
+              },
+              {
+                "adapterRef": "komodo",
+                "capabilities": {
+                  "backupRestore": false,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              },
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "supported"
+              }
+            ],
+            "defaultAdapterRef": "coolify",
+            "defaultFallbackAdapterRefs": [
+              "standalone-compose"
+            ]
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "alternativeID": "home-assistant",
+          "included": true
+        },
+        "low": {
+          "alternativeID": "home-assistant",
+          "included": true
+        },
+        "standard": {
+          "alternativeID": "home-assistant",
+          "included": true
+        }
+      },
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "home-assistant",
+      "functionalCapabilities": [
+        "smart-home-hub",
+        "native-product-mcp",
+        "assist-api",
+        "automation"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Self-hosted Home Assistant container selected independently from kit architecture capabilities.",
+        "id": "smart-home",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "smart-home"
     }
   ]
 }

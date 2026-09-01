@@ -25,7 +25,9 @@ import (
 
 const (
 	goPackageGraphTimeout = 30 * time.Second
-	commandTimeout        = 2 * time.Minute
+	// commandTimeout is the hang guard around one planned subprocess.
+	// Rule 8's 2-minute figure is the local-gate target, not this kill.
+	commandTimeout = 5 * time.Minute
 )
 
 type options struct {

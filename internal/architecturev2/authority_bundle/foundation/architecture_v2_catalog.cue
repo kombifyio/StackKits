@@ -147,6 +147,76 @@ _architectureV2VaultInfrastructure: #WorkloadInfrastructureV1 & {
 	recovery: moduleRef: "stackkits-recovery"
 }
 
+_architectureV2MediaInfrastructure: #WorkloadInfrastructureV1 & {
+	storageAllocation: {
+		moduleRef: "stackkits-storage-allocation"
+		allocations: [
+			{
+				componentRef: "jellyfin", volumeRef: "config", target:                                 "/config"
+				class:        "persistent", backup:   true, dataClasses: ["personal"], dataBindingRef: "media"
+			},
+			{
+				componentRef: "jellyfin", volumeRef: "cache", target: "/cache"
+				class:        "cache", backup:         false, dataClasses: []
+			},
+			{
+				componentRef: "jellyfin", volumeRef: "library", target:                                "/media"
+				class:        "persistent", backup:    false, dataClasses: ["personal"], dataBindingRef: "media"
+			},
+		]
+	}
+	dataBinding: {
+		moduleRef:  "stackkits-workload-data-binding"
+		bindingRef: "media"
+		classes: ["personal"]
+		locality: "primary-site"
+	}
+	backupSource: {
+		moduleRef: "stackkits-backup-source"
+		allocations: [
+			for allocation in storageAllocation.allocations
+			if allocation.backup {
+				componentRef: allocation.componentRef
+				volumeRef:    allocation.volumeRef
+				dataClasses:  allocation.dataClasses
+			},
+		]
+	}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2SmartHomeInfrastructure: #WorkloadInfrastructureV1 & {
+	storageAllocation: {
+		moduleRef: "stackkits-storage-allocation"
+		allocations: [{
+			componentRef: "home-assistant", volumeRef: "config", target:                          "/config"
+			class:        "persistent", backup:         true, dataClasses: ["personal"], dataBindingRef: "smart-home"
+		}]
+	}
+	dataBinding: {
+		moduleRef:  "stackkits-workload-data-binding"
+		bindingRef: "smart-home"
+		classes: ["personal"]
+		locality: "primary-site"
+	}
+	backupSource: {
+		moduleRef: "stackkits-backup-source"
+		allocations: [
+			for allocation in storageAllocation.allocations
+			if allocation.backup {
+				componentRef: allocation.componentRef
+				volumeRef:    allocation.volumeRef
+				dataClasses:  allocation.dataClasses
+			},
+		]
+	}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
 _architectureV2HostAdmissionCapabilities: [
 	"external-host-admission",
 	"host-conformance",
@@ -517,6 +587,90 @@ _architectureV2WorkloadContracts: [
 			infrastructure: _architectureV2VaultInfrastructure
 		}]
 	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "media"
+			version:     "1.0.0"
+			description: "Self-hosted media library selected independently from kit architecture capabilities."
+		}
+		kind:       "application"
+		useCaseRef: "media"
+		functionalCapabilities: ["media-server", "video-stream"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "jellyfin"
+		computeTiers: {
+			low: {included: false, reason: "Jellyfin library and transcode are not on the Basement low graph."}
+			standard: {included: true, alternativeID: "jellyfin"}
+			high: {included: true, alternativeID: "jellyfin"}
+		}
+		alternatives: [{
+			id:          "jellyfin"
+			providerRef: "stackkits-jellyfin"
+			moduleRef:   "stackkits-jellyfin-runtime"
+			route: {serviceRef: "media", healthRef: "jellyfin-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["coolify", "komodo", "standalone-compose"]
+				defaultAdapterRef: "coolify"
+				defaultFallbackAdapterRefs: ["standalone-compose"]
+				compatibility: [
+					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+			infrastructure: _architectureV2MediaInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "smart-home"
+			version:     "1.0.0"
+			description: "Self-hosted Home Assistant container selected independently from kit architecture capabilities."
+		}
+		kind:       "application"
+		useCaseRef: "smart-home"
+		functionalCapabilities: ["smart-home-hub", "native-product-mcp", "assist-api", "automation"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "home-assistant"
+		computeTiers: {
+			low: {included: true, alternativeID: "home-assistant"}
+			standard: {included: true, alternativeID: "home-assistant"}
+			high: {included: true, alternativeID: "home-assistant"}
+		}
+		alternatives: [{
+			id:          "home-assistant"
+			providerRef: "stackkits-home-assistant"
+			moduleRef:   "stackkits-home-assistant-runtime"
+			route: {serviceRef: "smart-home", healthRef: "home-assistant-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["coolify", "komodo", "standalone-compose"]
+				defaultAdapterRef: "coolify"
+				defaultFallbackAdapterRefs: ["standalone-compose"]
+				compatibility: [
+					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+			infrastructure: _architectureV2SmartHomeInfrastructure
+		}]
+	},
 ]
 
 _architectureV2ApplicationLifecycleContracts: [
@@ -553,6 +707,28 @@ _architectureV2ApplicationLifecycleContracts: [
 		workloadRef: "vault"
 		useCaseRef:  "vault"
 		packageRef:  "vault"
+		lifecycle:   #StandardUseCaseLifecycle
+	},
+	#ApplicationLifecycleContractV1 & {
+		metadata: {
+			id:          "media"
+			version:     "1.0.0"
+			description: "Reusable owner-controlled lifecycle for the Media Application Kit."
+		}
+		workloadRef: "media"
+		useCaseRef:  "media"
+		packageRef:  "media"
+		lifecycle:   #StandardUseCaseLifecycle
+	},
+	#ApplicationLifecycleContractV1 & {
+		metadata: {
+			id:          "smart-home"
+			version:     "1.0.0"
+			description: "Reusable owner-controlled lifecycle for the Smart Home Application Kit."
+		}
+		workloadRef: "smart-home"
+		useCaseRef:  "smart-home"
+		packageRef:  "smart-home"
 		lifecycle:   #StandardUseCaseLifecycle
 	},
 ]
@@ -1238,6 +1414,46 @@ _architectureV2Providers: list.Concat([[
 			}
 		}
 		evidence: ["vaultwarden-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-jellyfin", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["media"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-jellyfin-runtime"]
+			}
+		}
+		evidence: ["jellyfin-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-home-assistant", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["smart-home"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-home-assistant-runtime"]
+			}
+		}
+		evidence: ["home-assistant-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {id: "stackkits-coolify", version: "1.0.0"}
@@ -2022,6 +2238,62 @@ _architectureV2VaultwardenSupport: #ModuleRealizationSupportV2 & {
 		}]
 	}
 	evidence: requiredRefs: ["vaultwarden-selected-paas-runtime-contract"]
+}
+
+// Jellyfin is the Media Library vertical. Config is a StackKits backup source;
+// the library volume is owner-custodied and excluded from backup.
+_architectureV2JellyfinSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["jellyfin-workload-bundle"]
+		outputBindings: [{
+			artifactRef: "jellyfin-workload-bundle"
+			unitRef:     "jellyfin"
+			outputRef:   "workloads/jellyfin/bundle.json"
+		}]
+		contracts: [{
+			id:       "jellyfin-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "jellyfin"
+			outputRef: "workloads/jellyfin/bundle.json"
+		}]
+	}
+	evidence: requiredRefs: ["jellyfin-selected-paas-runtime-contract"]
+}
+
+_architectureV2HomeAssistantSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["home-assistant-workload-bundle"]
+		outputBindings: [{
+			artifactRef: "home-assistant-workload-bundle"
+			unitRef:     "home-assistant"
+			outputRef:   "workloads/home-assistant/bundle.json"
+		}]
+		contracts: [{
+			id:       "home-assistant-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "home-assistant"
+			outputRef: "workloads/home-assistant/bundle.json"
+		}]
+	}
+	evidence: requiredRefs: ["home-assistant-selected-paas-runtime-contract"]
 }
 
 // Coolify owns a deterministic provider-free adapter handoff. Generation does
@@ -4591,6 +4863,202 @@ _architectureV2Modules: list.Concat([[
 			expectedStatuses: [200]
 		}]
 		evidence: ["vaultwarden-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-jellyfin-runtime"
+			version:     "1.0.0"
+			description: "Jellyfin media-library contract bound to one selected site; the media library volume is owner-custodied and not a StackKits backup source."
+		}
+		role:        "workload"
+		providerRef: "stackkits-jellyfin"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: {
+				ref:    "docker.io/jellyfin/jellyfin:10.10.7"
+				digest: "sha256:7ae36aab93ef9b6aaff02b37f8bb23df84bb2d7a3f6054ec8fc466072a648ce2"
+			}
+			entryComponentRef: "jellyfin"
+			components: [{
+				id: "jellyfin", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "docker.io/jellyfin/jellyfin:10.10.7"
+					digest: "sha256:7ae36aab93ef9b6aaff02b37f8bb23df84bb2d7a3f6054ec8fc466072a648ce2"
+				}
+				dependsOn: []
+				networkRefs: ["jellyfin-internal"]
+				volumes: [for allocation in _architectureV2MediaInfrastructure.storageAllocation.allocations if allocation.componentRef == "jellyfin" {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+				}]
+				health: {kind: "http", path: "/health", port: 8096}
+				resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "jellyfin"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/jellyfin/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:8e48d778e46c4d9ffa0b5bec4921c4775438b74e7119d2dc530a3c27f572905f"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: []
+			outputs: ["workloads/jellyfin/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "media"
+				upstreamProtocol: "http"
+				targetPort:       8096
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "jellyfin-http"
+				data: {
+					bindingRef:      _architectureV2MediaInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2MediaInfrastructure.dataBinding.classes
+					locality:        _architectureV2MediaInfrastructure.dataBinding.locality
+				}
+			}]
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:f4cc3429148975e7741e8a55171d5a9d0138d67ec7b4ef42732ede51d7b53af8"
+				unitRefs: ["jellyfin"], artifactRefs: ["jellyfin-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:47ffd0559451c9da935a2e115b3a7a139aef279e271c8389c8fc276674e6c9b9"
+				unitRefs: ["jellyfin"], artifactRefs: ["jellyfin-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2JellyfinSupport
+		health: [{
+			id:             "jellyfin-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/health"
+			port:           8096
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["jellyfin-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-home-assistant-runtime"
+			version:     "1.0.0"
+			description: "Home Assistant self-hosted container contract bound to one selected site; config is a StackKits backup source. Native product MCP remains /api/mcp on the same listener."
+		}
+		role:        "workload"
+		providerRef: "stackkits-home-assistant"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: {
+				ref:    "ghcr.io/home-assistant/home-assistant:2026.7.2"
+				digest: "sha256:1476924357b46e80735c13e94232ba5c853cac052e9df4bb28d50fa56348097b"
+			}
+			entryComponentRef: "home-assistant"
+			components: [{
+				id: "home-assistant", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "ghcr.io/home-assistant/home-assistant:2026.7.2"
+					digest: "sha256:1476924357b46e80735c13e94232ba5c853cac052e9df4bb28d50fa56348097b"
+				}
+				dependsOn: []
+				networkRefs: ["home-assistant-internal"]
+				volumes: [for allocation in _architectureV2SmartHomeInfrastructure.storageAllocation.allocations if allocation.componentRef == "home-assistant" {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+				}]
+				health: {kind: "http", path: "/", port: 8123}
+				resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "home-assistant"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/home-assistant/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:8ace48ca66779adec03b5362b1f0cf33eb576e00cb7cd0b036d6c2e7512cbd7f"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: []
+			outputs: ["workloads/home-assistant/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "smart-home"
+				upstreamProtocol: "http"
+				targetPort:       8123
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "home-assistant-http"
+				data: {
+					bindingRef:      _architectureV2SmartHomeInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2SmartHomeInfrastructure.dataBinding.classes
+					locality:        _architectureV2SmartHomeInfrastructure.dataBinding.locality
+				}
+			}]
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:158d52e1794a9dddf5a1b6ca134c51f115a6d721b1afea22f8b89add28108695"
+				unitRefs: ["home-assistant"], artifactRefs: ["home-assistant-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:d15f978c9b540c10de3c1cd311a97aed52f5bf4eef99c75ecda2c5cc0e718fb5"
+				unitRefs: ["home-assistant"], artifactRefs: ["home-assistant-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2HomeAssistantSupport
+		health: [{
+			id:             "home-assistant-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/"
+			port:           8123
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["home-assistant-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {

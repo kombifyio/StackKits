@@ -67,12 +67,13 @@ type sourceProfile struct {
 }
 
 type manifest struct {
-	SchemaVersion string            `json:"schemaVersion"`
-	Module        string            `json:"module"`
-	ProfileScope  string            `json:"profileScope,omitempty"`
-	SourceHashes  map[string]string `json:"sourceHashes"`
-	Documents     map[string]string `json:"documents"`
-	Profiles      map[string]string `json:"profiles"`
+	SchemaVersion  string            `json:"schemaVersion"`
+	Module         string            `json:"module"`
+	ProfileScope   string            `json:"profileScope,omitempty"`
+	SourceHashes   map[string]string `json:"sourceHashes"`
+	Documents      map[string]string `json:"documents"`
+	DocumentHashes map[string]string `json:"documentHashes,omitempty"`
+	Profiles       map[string]string `json:"profiles"`
 }
 
 func main() {
@@ -273,11 +274,12 @@ func generateBundleProjection(repoRoot, staging string, source sourceManifest, p
 	}()
 
 	result := manifest{
-		SchemaVersion: bundleSchemaVersion,
-		Module:        "github.com/kombifyio/stackkits",
-		SourceHashes:  make(map[string]string),
-		Documents:     map[string]string{"catalog": "catalog.json"},
-		Profiles:      make(map[string]string, len(profiles)),
+		SchemaVersion:  bundleSchemaVersion,
+		Module:         "github.com/kombifyio/stackkits",
+		SourceHashes:   make(map[string]string),
+		Documents:      map[string]string{"catalog": "catalog.json"},
+		DocumentHashes: make(map[string]string),
+		Profiles:       make(map[string]string, len(profiles)),
 	}
 	result.ProfileScope, err = productProfileScope(source.Profiles, profiles)
 	if err != nil {
@@ -317,6 +319,11 @@ func generateBundleProjection(repoRoot, staging string, source sourceManifest, p
 	if err := writeCanonicalJSON(stagingRoot, catalogPath, catalog); err != nil {
 		return err
 	}
+	catalogBytes, err := canonicalJSONBytes(catalog)
+	if err != nil {
+		return fmt.Errorf("encode generated catalog for manifest: %w", err)
+	}
+	result.DocumentHashes[catalogPath] = contentHash(catalogBytes)
 	if _, err := decodeResolvedPlanCatalog(catalog); err != nil {
 		return err
 	}
@@ -332,15 +339,45 @@ func generateBundleProjection(repoRoot, staging string, source sourceManifest, p
 		if err := writeCanonicalJSON(stagingRoot, relativePath, document); err != nil {
 			return err
 		}
+		definitionBytes, err := canonicalJSONBytes(document)
+		if err != nil {
+			return fmt.Errorf("encode generated %s for manifest: %w", relativePath, err)
+		}
+		result.DocumentHashes[relativePath] = contentHash(definitionBytes)
 		result.Profiles[profile.Slug] = relativePath
 		if _, err := resolvedplan.DecodeDocument[resolvedplan.KitDefinition](document); err != nil {
 			return err
 		}
 	}
+	webMCPDocuments, err := generateWebMCPProjectionDocuments(repoRoot)
+	if err != nil {
+		return err
+	}
+	for _, document := range webMCPDocuments {
+		if err := validateProductBundlePath(document.Path); err != nil {
+			return err
+		}
+		if err := writeGenerated(stagingRoot, document.Path, document.Data); err != nil {
+			return err
+		}
+		result.Documents[webMCPDocumentKey(document.Path)] = document.Path
+		result.DocumentHashes[document.Path] = contentHash(document.Data)
+	}
 	if err := writeGeneratedJSON(stagingRoot, "manifest.json", result); err != nil {
 		return err
 	}
 	return nil
+}
+
+func webMCPDocumentKey(path string) string {
+	switch path {
+	case computeTierFitsDocumentPath:
+		return "computeTierFits"
+	case operationsDocumentPath:
+		return "operations"
+	default:
+		return path
+	}
 }
 
 func generateContractFixtureBundle(repoRoot, staging string, source sourceManifest) (returnErr error) {

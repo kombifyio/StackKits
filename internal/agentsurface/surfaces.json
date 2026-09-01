@@ -1,0 +1,194 @@
+{
+  "schemaVersion": "stackkit.agent-surface/v1",
+  "surfaces": {
+    "files": {
+      "ref": "files",
+      "equipPolicy": "on-generate",
+      "lifecycleMcp": {
+        "ref": "stackkit",
+        "owner": "stackkit",
+        "endpoint": "/mcp",
+        "transport": "streamable-http",
+        "auth": "stackkit-mcp-token",
+        "generateClientConfig": true
+      },
+      "productMcps": [],
+      "apis": [
+        {
+          "id": "cloudreve",
+          "protocol": "rest",
+          "purpose": "Owner bootstrap, health, file metadata, upload/download, and sharing. Cloudreve has no native product MCP.",
+          "auth": "cloudreve-auth"
+        }
+      ],
+      "skills": [],
+      "cliHelpers": [
+        {
+          "command": "stackkit agent mcp-config",
+          "purpose": "Print the stackkit lifecycle MCP client connection."
+        }
+      ],
+      "configBaseline": {
+        "status": "omitted",
+        "reason": "Files runtime is the digest-pinned selected-PaaS bundle. StackKits does not author a separate Cloudreve configuration file."
+      }
+    },
+    "media": {
+      "ref": "media",
+      "equipPolicy": "on-generate",
+      "lifecycleMcp": {
+        "ref": "stackkit",
+        "owner": "stackkit",
+        "endpoint": "/mcp",
+        "transport": "streamable-http",
+        "auth": "stackkit-mcp-token",
+        "generateClientConfig": true
+      },
+      "productMcps": [],
+      "apis": [
+        {
+          "id": "jellyfin",
+          "protocol": "rest",
+          "purpose": "HTTP health and library access. Jellyfin has no native product MCP.",
+          "auth": "jellyfin-auth"
+        }
+      ],
+      "skills": [],
+      "cliHelpers": [
+        {
+          "command": "stackkit agent mcp-config",
+          "purpose": "Print the stackkit lifecycle MCP client connection."
+        }
+      ],
+      "configBaseline": {
+        "status": "omitted",
+        "reason": "Jellyfin runtime is the digest-pinned selected-PaaS bundle. Library volume is owner-custodied. StackKits does not author a separate Jellyfin configuration file."
+      }
+    },
+    "photos": {
+      "ref": "photos",
+      "equipPolicy": "on-generate",
+      "lifecycleMcp": {
+        "ref": "stackkit",
+        "owner": "stackkit",
+        "endpoint": "/mcp",
+        "transport": "streamable-http",
+        "auth": "stackkit-mcp-token",
+        "generateClientConfig": true
+      },
+      "productMcps": [],
+      "apis": [
+        {
+          "id": "immich",
+          "protocol": "rest",
+          "purpose": "Owner bootstrap, health, albums, shares, assets, and jobs. Immich has no native product MCP.",
+          "auth": "immich-auth"
+        }
+      ],
+      "skills": [
+        {
+          "id": "family-vault",
+          "audience": "product-user",
+          "source": "stackkits",
+          "path": "use-cases/photos/agent/family-vault/SKILL.md"
+        }
+      ],
+      "cliHelpers": [
+        {
+          "command": "stackkit agent mcp-config",
+          "purpose": "Print the stackkit lifecycle MCP client connection."
+        }
+      ],
+      "configBaseline": {
+        "status": "omitted",
+        "reason": "Immich runtime is the digest-pinned selected-PaaS bundle. StackKits does not author a separate Immich configuration file."
+      }
+    },
+    "smart-home": {
+      "ref": "smart-home",
+      "equipPolicy": "on-generate",
+      "lifecycleMcp": {
+        "ref": "stackkit",
+        "owner": "stackkit",
+        "endpoint": "/mcp",
+        "transport": "streamable-http",
+        "auth": "stackkit-mcp-token",
+        "generateClientConfig": true
+      },
+      "productMcps": [
+        {
+          "id": "home-assistant",
+          "owner": "product",
+          "endpoint": "/api/mcp",
+          "transport": "streamable-http",
+          "auth": "home-assistant-auth",
+          "generateClientConfig": true
+        }
+      ],
+      "apis": [
+        {
+          "id": "rest",
+          "protocol": "rest",
+          "purpose": "Health, state snapshots, service calls, and setup verification.",
+          "auth": "home-assistant-auth"
+        },
+        {
+          "id": "websocket",
+          "protocol": "websocket",
+          "purpose": "Live events, state changes, and device/entity/area context.",
+          "auth": "home-assistant-auth"
+        }
+      ],
+      "skills": [
+        {
+          "id": "homelab-mcp",
+          "audience": "product-user",
+          "source": "stackkits",
+          "path": "use-cases/smart-home/agent/homelab-mcp/SKILL.md"
+        }
+      ],
+      "cliHelpers": [
+        {
+          "command": "stackkit agent mcp-config",
+          "purpose": "Print the stackkit lifecycle MCP client connection. Product MCP remains Home Assistant /api/mcp."
+        }
+      ],
+      "configBaseline": {
+        "status": "declared",
+        "moduleInputRef": "stackkits-home-assistant-runtime"
+      }
+    },
+    "vault": {
+      "ref": "vault",
+      "equipPolicy": "on-generate",
+      "lifecycleMcp": {
+        "ref": "stackkit",
+        "owner": "stackkit",
+        "endpoint": "/mcp",
+        "transport": "streamable-http",
+        "auth": "stackkit-mcp-token",
+        "generateClientConfig": true
+      },
+      "productMcps": [],
+      "apis": [
+        {
+          "id": "vaultwarden",
+          "protocol": "rest",
+          "purpose": "Owner bootstrap and bounded health/readback. Vaultwarden has no native product MCP.",
+          "auth": "vaultwarden-owner-auth"
+        }
+      ],
+      "skills": [],
+      "cliHelpers": [
+        {
+          "command": "stackkit agent mcp-config",
+          "purpose": "Print the stackkit lifecycle MCP client connection."
+        }
+      ],
+      "configBaseline": {
+        "status": "omitted",
+        "reason": "Vault runtime is the digest-pinned selected-PaaS bundle. StackKits does not author a separate Vaultwarden configuration file."
+      }
+    }
+  }
+}

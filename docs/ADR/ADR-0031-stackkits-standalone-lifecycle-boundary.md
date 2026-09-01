@@ -1,7 +1,7 @@
 # ADR-0031 — StackKits Standalone Lifecycle Boundary
 
 **Status:** Accepted (2026-07-26)
-**Amended:** 2026-07-28
+**Amended:** 2026-08-28
 **Owner:** StackKits
 **Related:** ADR-0016, ADR-0018, ADR-0029
 **Supersedes:** ADR-0018 server-side compatibility resolver, mandatory Admin
@@ -62,9 +62,11 @@ required.
 
 The public `stackkit` executable contains only end-user authoring, generation,
 apply, verification, backup, restore, upgrade, and drift operations.
-Publishing, DB ingest/export, Admin registry maintenance, and managed reporting
-belong to a separate private publisher executable and may not be reachable from
-the public command tree or dependency graph.
+Git/CUE publication validation and artifact materialization belong to a
+separate private publisher executable and may not be reachable from the public
+command tree or dependency graph. The publisher has no Administration registry
+client, DB ingest/export, hosted parity check, or metadata callback; GitHub and
+the embedded CUE-derived snapshot retain the publication evidence.
 
 ### 4. Lifecycle modes
 

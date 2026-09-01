@@ -61,9 +61,6 @@ UseCaseCatalog: #UseCaseCatalog & {
 			owner:       "stackkits"
 			components: {
 				"home-assistant": {id: "home-assistant", name: "Home Assistant", role: "primary", kind: "application"}
-				"kombify-home-bridge": {id: "kombify-home-bridge", name: "Kombify Home Bridge", role: "bridge", kind: "bridge"}
-				mosquitto: {id: "mosquitto", name: "Mosquitto", role: "supporting", kind: "service"}
-				zigbee2mqtt: {id: "zigbee2mqtt", name: "Zigbee2MQTT", role: "supporting", kind: "service"}
 			}
 		}
 		photos: {
@@ -73,7 +70,6 @@ UseCaseCatalog: #UseCaseCatalog & {
 			owner:       "stackkits"
 			components: {
 				immich: {id: "immich", name: "Immich", role: "primary", kind: "application"}
-				"ente-photos": {id: "ente-photos", name: "Ente Photos", role: "alternative", kind: "application"}
 			}
 		}
 		media: {

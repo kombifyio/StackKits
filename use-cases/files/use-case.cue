@@ -229,4 +229,24 @@ Package: foundation.#UseCasePackage & {
 	}
 
 	lifecycle: foundation.#StandardUseCaseLifecycle
+
+	agentSurface: {
+		equipPolicy:  "on-generate"
+		lifecycleMcp: {}
+		productMcps: []
+		apis: [{
+			id:       "cloudreve"
+			protocol: "rest"
+			purpose:  "Owner bootstrap, health, file metadata, upload/download, and sharing. Cloudreve has no native product MCP."
+			auth:     "cloudreve-auth"
+		}]
+		cliHelpers: [{
+			command: "stackkit agent mcp-config"
+			purpose: "Print the stackkit lifecycle MCP client connection."
+		}]
+		configBaseline: {
+			status: "omitted"
+			reason: "Files runtime is the digest-pinned selected-PaaS bundle. StackKits does not author a separate Cloudreve configuration file."
+		}
+	}
 }

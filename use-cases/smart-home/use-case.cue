@@ -31,7 +31,7 @@ Package: foundation.#UseCasePackage & {
 		alternatives: []
 	}
 
-	defaultRuntimeProfile: "kombify-managed-hybrid"
+	defaultRuntimeProfile: "self-hosted-container"
 	runtimeProfiles: {
 		"kombify-managed": {
 			displayName: "Kombify Managed Home Assistant"
@@ -212,20 +212,55 @@ Package: foundation.#UseCasePackage & {
 		defaultPolicy: "on_demand"
 		drops: [
 			{
-				name:        "home-assistant-native-mcp"
+				name:        "home-assistant-owner-bootstrap"
 				policy:      "on_demand"
-				description: "Verify Home Assistant auth, expose the native /api/mcp endpoint through the protected route, and record MCP/API evidence."
-			},
-			{
-				name:        "home-bridge-pairing"
-				policy:      "on_demand"
-				description: "Pair the optional local Home Bridge for LAN/radio/device adjacency."
+				description: "Create the Homelab owner through Home Assistant onboarding (/api/onboarding/users) using StackKit admin credentials. Password never appears in generate artifacts."
 			},
 		]
 	}
 
 	evidence: {
 		healthChecks: ["home-assistant-route", "home-assistant-api", "home-assistant-native-mcp"]
-		required: ["route", "auth", "backup", "native-product-mcp"]
+		required: ["route", "auth", "backup", "owner-bootstrap", "native-product-mcp"]
 	}
+
+	agentSurface: {
+		equipPolicy:  "on-generate"
+		lifecycleMcp: {}
+		productMcps: [{
+			id:                   "home-assistant"
+			owner:                "product"
+			endpoint:             "/api/mcp"
+			transport:            "streamable-http"
+			auth:                 "home-assistant-auth"
+			generateClientConfig: true
+		}]
+		apis: [{
+			id:       "rest"
+			protocol: "rest"
+			purpose:  "Health, state snapshots, service calls, and setup verification."
+			auth:     "home-assistant-auth"
+		}, {
+			id:       "websocket"
+			protocol: "websocket"
+			purpose:  "Live events, state changes, and device/entity/area context."
+			auth:     "home-assistant-auth"
+		}]
+		skills: [{
+			id:       "homelab-mcp"
+			audience: "product-user"
+			source:   "stackkits"
+			path:     "use-cases/smart-home/agent/homelab-mcp/SKILL.md"
+		}]
+		cliHelpers: [{
+			command: "stackkit agent mcp-config"
+			purpose: "Print the stackkit lifecycle MCP client connection. Product MCP remains Home Assistant /api/mcp."
+		}]
+		configBaseline: {
+			status:         "declared"
+			moduleInputRef: "stackkits-home-assistant-runtime"
+		}
+	}
+
+	lifecycle: foundation.#StandardUseCaseLifecycle
 }

@@ -1,6 +1,6 @@
 # StackKit Options and Authoring Matrix
 
-> Last verified: 2026-05-17
+> Last verified: 2026-08-27
 
 This page is the compact contract for adding or promoting StackKit options. CUE
 is the technical source of truth; the kombify database mirrors catalog,
@@ -18,17 +18,24 @@ version, rollout, and lifecycle state.
 
 | Concern | Release value |
 | --- | --- |
-| Default PaaS | `coolify` |
+| Default PaaS (`standard` / `high`) | `coolify` |
 | Production PaaS alternative | `komodo` |
 | Draft PaaS adapter | `dokploy` |
 | Invalid normal PaaS values | `dockge`, `none` |
 | Dockge status | Experimental/constrained Compose manager service only; not a normal Basement Kit PaaS. |
-| Low compute tier | Keeps the Coolify platform contract and gates heavier apps; it does not switch to Dockge. |
+| Low compute tier | Basement `install.computeTier: low` is standalone Compose, no Coolify, Immich without ML (`immich-lite`). CUE `computeTierGraphs.low` is authority. It is not a Coolify-gated subset of `standard` and not a Dockge switch. Cloud and Modern do not publish `low`. |
+| Media | Optional Architecture v2 Jellyfin on Basement/Cloud/Modern `standard` and `high` (`docker.io/jellyfin/jellyfin:10.10.7`, digest-pinned). Library volume is owner-custodied and not a StackKits backup source. Basement `low` omits Media until a lite substitution exists. No `*arr` services. |
+| Smart Home | Optional Architecture v2 Home Assistant container (`ghcr.io/home-assistant/home-assistant:2026.7.2`, digest-pinned) on Basement/Cloud/Modern. Native product MCP is `/api/mcp` on `https://smart-home.<domain>`. Generate writes the reverse-proxy baseline and Homelab owner intent (`homelab`). No HA OS/Supervisor parity, no Zigbee/MQTT runtime in this slice. |
 
-When the PaaS contract changes, update all of these together:
+When the PaaS contract for `standard`/`high` changes, update all of these together:
 `basement-kit/stackkit.yaml`, `cloud-kit/stackkit.yaml`, `base/defaults.cue`, the Go resolver/validator,
 `docs/stack-spec-reference.md`, `docs/CONCEPTS.md`, website installer copy, and
 release archive smoke expectations.
+
+When the compute-tier graph changes, edit CUE first (`basement-kit/stackfile.cue`
+`computeTierGraphs` and catalog `#WorkloadContractV2.computeTiers`), then derive
+YAML floors, this page, `docs/CONCEPTS.md` §3, and `docs/stack-spec-reference.md`.
+Cloud YAML `low` is kitio roundtrip only and has no graph.
 
 ## Authoring Flow
 

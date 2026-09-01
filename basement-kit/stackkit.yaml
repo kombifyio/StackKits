@@ -123,7 +123,7 @@ application:
     role: default
     package: photos
     defaultTool: immich
-    alternatives: [ente-photos]
+    alternatives: []
     description: "Photo gallery and memories"
     defaultRuntimeProfile: self-hosted-photos
     runtimeProfiles:
@@ -131,13 +131,11 @@ application:
         displayName: "Self-hosted Photo Vault"
         realization: oss
         placementModes: [local-only, standard]
-        contexts: [local, pi]
-        description: "StackKit deploys Immich (server, ML, pgvecto-rs, Redis) through the selected PaaS on the user's node — including managed-VPS leases, which remain standard placement."
+        description: "Digest-pinned Immich through the graph-selected runtime: PaaS on standard/high, standalone lite on low."
       bring-your-own-photos:
         displayName: "Bring Your Own Photo Service"
         realization: external
         placementModes: [local-only, standard]
-        contexts: [local, pi]
         description: "An existing Immich (or API-compatible) instance is connected as the package backend."
   media:
     role: optional            # Opt-in until Jellyfin first-run UX matches the default live smoke path.
@@ -427,13 +425,15 @@ features:
   gpuSupport: false
   highAvailability: false
 
-# Architecture v2 host floors. Graph selection is install.computeTier plus
-# catalog substitutions; yaml serviceOverrides are not a graph.
+# Architecture v2 host floors. CUE computeTierGraphs[tier].hostRequirements is
+# authority. YAML is kitio roundtrip, not a second graph. High min matches the
+# CUE graph (2C/4GB/20GB plus telemetry-collection); recommended 4C/4GB stays
+# in CUE only. serviceOverrides are not a graph.
 computeTiers:
   high:
     requirements:
-      cpu: 4
-      memory: 8
+      cpu: 2
+      memory: 4
       disk: 20
     additionalServices:
       - telemetry-collection

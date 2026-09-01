@@ -35,12 +35,13 @@ const (
 var embeddedBundleFS embed.FS
 
 type authorityBundleManifest struct {
-	SchemaVersion string            `json:"schemaVersion"`
-	Module        string            `json:"module"`
-	ProfileScope  string            `json:"profileScope,omitempty"`
-	SourceHashes  map[string]string `json:"sourceHashes"`
-	Documents     map[string]string `json:"documents"`
-	Profiles      map[string]string `json:"profiles"`
+	SchemaVersion  string            `json:"schemaVersion"`
+	Module         string            `json:"module"`
+	ProfileScope   string            `json:"profileScope,omitempty"`
+	SourceHashes   map[string]string `json:"sourceHashes"`
+	Documents      map[string]string `json:"documents"`
+	DocumentHashes map[string]string `json:"documentHashes,omitempty"`
+	Profiles       map[string]string `json:"profiles"`
 }
 
 type embeddedAuthorityRole struct {
@@ -92,6 +93,9 @@ func loadEmbeddedAuthorityForRole(role embeddedAuthorityRole) (*cueAuthority, er
 		return nil, err
 	}
 	if err := verifyEmbeddedSourceHashesForRoot(role.root, manifest); err != nil {
+		return nil, err
+	}
+	if err := verifyEmbeddedDocumentHashesForRoot(role.root, manifest); err != nil {
 		return nil, err
 	}
 	digest, err := embeddedBundleDigestForRoot(role.root)
@@ -180,7 +184,10 @@ func readEmbeddedManifestForRole(role embeddedAuthorityRole) (authorityBundleMan
 			return authorityBundleManifest{}, fmt.Errorf("embedded %s authority manifest has no hash for %s", role.name, required)
 		}
 	}
-	if len(manifest.Documents) != 1 || manifest.Documents[role.document] == "" {
+	if manifest.Documents[role.document] == "" {
+		return authorityBundleManifest{}, fmt.Errorf("embedded %s authority manifest has no %s document", role.name, role.document)
+	}
+	if role.fixture && len(manifest.Documents) != 1 {
 		return authorityBundleManifest{}, fmt.Errorf("embedded %s authority manifest must contain exactly the %s document", role.name, role.document)
 	}
 	if role.fixture {
@@ -269,7 +276,55 @@ func validateAuthorityRoleManifest(role embeddedAuthorityRole, manifest authorit
 			return fmt.Errorf("embedded product authority references contract-fixture path %s", clean)
 		}
 	}
+	for relativePath := range manifest.DocumentHashes {
+		clean, err := cleanBundleRelativePath(relativePath)
+		if err != nil {
+			return err
+		}
+		if _, ok := manifest.SourceHashes[clean]; ok {
+			return fmt.Errorf("embedded product authority hashes a source as a generated document %s", clean)
+		}
+		known := false
+		for _, documentPath := range manifest.Documents {
+			if clean == documentPath {
+				known = true
+				break
+			}
+		}
+		if !known {
+			for _, profilePath := range manifest.Profiles {
+				if clean == profilePath {
+					known = true
+					break
+				}
+			}
+		}
+		if !known {
+			return fmt.Errorf("embedded product authority hashes an unknown generated document %s", clean)
+		}
+	}
+	for _, relativePath := range append(documentPaths(manifest), profilePaths(manifest)...) {
+		if manifest.DocumentHashes[relativePath] == "" {
+			return fmt.Errorf("embedded product authority manifest has no hash for generated document %s", relativePath)
+		}
+	}
 	return nil
+}
+
+func documentPaths(manifest authorityBundleManifest) []string {
+	paths := make([]string, 0, len(manifest.Documents))
+	for _, relativePath := range manifest.Documents {
+		paths = append(paths, filepath.ToSlash(filepath.Clean(relativePath)))
+	}
+	return paths
+}
+
+func profilePaths(manifest authorityBundleManifest) []string {
+	paths := make([]string, 0, len(manifest.Profiles))
+	for _, relativePath := range manifest.Profiles {
+		paths = append(paths, filepath.ToSlash(filepath.Clean(relativePath)))
+	}
+	return paths
 }
 
 func isContractFixtureBundlePath(relativePath string) bool {
@@ -447,6 +502,23 @@ func verifyEmbeddedSourceHashesForRoot(root string, manifest authorityBundleMani
 		}
 		if gotHash := sha256ContentHash(data); gotHash != wantHash {
 			return fmt.Errorf("embedded source %s/%s hash is %s, manifest requires %s", root, relativePath, gotHash, wantHash)
+		}
+	}
+	return nil
+}
+
+func verifyEmbeddedDocumentHashesForRoot(root string, manifest authorityBundleManifest) error {
+	for relativePath, wantHash := range manifest.DocumentHashes {
+		clean, err := cleanBundleRelativePath(relativePath)
+		if err != nil {
+			return err
+		}
+		data, err := embeddedBundleFS.ReadFile(root + "/" + clean)
+		if err != nil {
+			return fmt.Errorf("read embedded generated document %s/%s: %w", root, clean, err)
+		}
+		if gotHash := sha256ContentHash(data); gotHash != wantHash {
+			return fmt.Errorf("embedded generated document %s/%s hash is %s, manifest requires %s", root, clean, gotHash, wantHash)
 		}
 	}
 	return nil

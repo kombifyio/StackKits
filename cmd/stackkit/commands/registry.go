@@ -25,6 +25,8 @@ import (
 	"time"
 
 	skcue "github.com/kombifyio/stackkits/internal/cue"
+	"github.com/kombifyio/stackkits/internal/kitio"
+	"github.com/kombifyio/stackkits/internal/productkits"
 	"github.com/kombifyio/stackkits/internal/registry"
 	"github.com/kombifyio/stackkits/internal/servicecatalog"
 	"github.com/spf13/cobra"
@@ -48,8 +50,9 @@ the embedded data or reproduce it deterministically from the local CUE tree.`,
 
 var registryBakeCmd = &cobra.Command{
 	Use:   "bake-from-cue",
-	Short: "Produce a registry snapshot from the local CUE module tree",
-	Long: `Walk modules/<slug>/module.cue, compute each module's contract_hash, and
+	Short: "Produce a registry snapshot from the local Git/CUE tree",
+	Long: `Walk modules/<slug>/module.cue plus the canonical product definitions,
+compute their contract hashes, and
 write the resulting Snapshot to internal/registry/data/registry_snapshot.json
 (or --output).
 
@@ -114,16 +117,28 @@ func runRegistryBakeFromCUE(_ *cobra.Command, _ []string) error {
 		})
 	}
 
+	embeddedCatalog, err := registry.EmbeddedSnapshot()
+	if err != nil {
+		return fmt.Errorf("read embedded Git catalog facts: %w", err)
+	}
+	stackKits, err := registryStackKitsFromGit(embeddedCatalog.StackKits)
+	if err != nil {
+		return err
+	}
+
 	snap := registry.Snapshot{
 		SchemaVersion: registry.SnapshotVersion,
 		Source:        "cue",
 		GeneratedAt:   reproducibleNow(),
 		Modules:       modules,
 		Services:      registryServicesFromCatalog(servicecatalog.FromCUE(serviceCatalogEntriesFromContracts(contracts))),
-		// Tools and StackKits are authoritative only in the DB; OSS
-		// bakes are module-centric. Admin API baking fills the rest.
-		Tools:     []registry.Tool{},
-		StackKits: []registry.StackKit{},
+		// Tool and service-group facts do not yet have a CUE model. Their
+		// checked-in embedded projection remains the Git authority; the bake
+		// carries it forward without consulting a hosted mirror.
+		Tools:              embeddedCatalog.Tools,
+		ServiceGroups:      embeddedCatalog.ServiceGroups,
+		ToolDefaultConfigs: embeddedCatalog.ToolDefaultConfigs,
+		StackKits:          stackKits,
 	}
 	sortSnapshot(&snap)
 
@@ -132,8 +147,64 @@ func runRegistryBakeFromCUE(_ *cobra.Command, _ []string) error {
 	}
 
 	printSuccess("Wrote registry snapshot to %s", registryBakeOutput)
-	printInfo("source=cue services=%d modules=%d (tools/stackkits empty in CUE-only bake)", len(snap.Services), len(snap.Modules))
+	printInfo("source=cue services=%d modules=%d stackkits=%d", len(snap.Services), len(snap.Modules), len(snap.StackKits))
 	return nil
+}
+
+func registryStackKitsFromGit(embedded []registry.StackKit) ([]registry.StackKit, error) {
+	embeddedBySlug := make(map[string]registry.StackKit, len(embedded))
+	for _, stackKit := range embedded {
+		embeddedBySlug[stackKit.Slug] = stackKit
+	}
+	stackKits := make([]registry.StackKit, 0, len(productkits.Slugs()))
+	for _, slug := range productkits.Slugs() {
+		path := filepath.Join(slug, "stackkit.yaml")
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("read product definition %s: %w", path, err)
+		}
+		definition, err := kitio.Import(raw)
+		if err != nil {
+			return nil, fmt.Errorf("import product definition %s: %w", path, err)
+		}
+		if definition.Metadata.Name != slug {
+			return nil, fmt.Errorf("product definition %s declares metadata.name %q", path, definition.Metadata.Name)
+		}
+		hash, err := kitio.CanonicalHash(definition)
+		if err != nil {
+			return nil, fmt.Errorf("hash product definition %s: %w", path, err)
+		}
+		stackKit, exists := embeddedBySlug[slug]
+		if !exists {
+			stackKit.Modules = []registry.StackKitModule{}
+		}
+		stackKit.Slug = slug
+		stackKit.DisplayName = definition.Metadata.DisplayName
+		stackKit.Description = definition.Metadata.Description
+		stackKit.Version = definition.Metadata.Version
+		profiles := append([]registry.StackKitSpecProfile(nil), stackKit.SpecProfiles...)
+		defaultProfileFound := false
+		for index := range profiles {
+			if profiles[index].Slug == "default" {
+				profiles[index].Kind = "default"
+				profiles[index].IsDefault = true
+				profiles[index].KitDefinitionHash = hash
+				defaultProfileFound = true
+				break
+			}
+		}
+		if !defaultProfileFound {
+			profiles = append(profiles, registry.StackKitSpecProfile{
+				Slug:              "default",
+				Kind:              "default",
+				IsDefault:         true,
+				KitDefinitionHash: hash,
+			})
+		}
+		stackKit.SpecProfiles = profiles
+		stackKits = append(stackKits, stackKit)
+	}
+	return stackKits, nil
 }
 
 // reproducibleNow returns a deterministic timestamp when SOURCE_DATE_EPOCH is
@@ -169,9 +240,6 @@ func runRegistryInfo(_ *cobra.Command, _ []string) error {
 	fmt.Printf("  schema_version : %d\n", snap.SchemaVersion)
 	fmt.Printf("  source         : %s\n", snap.Source)
 	fmt.Printf("  generated_at   : %s\n", snap.GeneratedAt.Format(time.RFC3339))
-	if snap.AdminEndpoint != "" {
-		fmt.Printf("  admin_endpoint : %s\n", snap.AdminEndpoint)
-	}
 	if snap.ContentHash != "" {
 		fmt.Printf("  content_hash   : %s\n", snap.ContentHash)
 	}

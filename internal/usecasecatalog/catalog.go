@@ -560,9 +560,17 @@ func loadOS(path string, release ReleaseIdentity, target *[]OSCompatibility) err
 	return nil
 }
 
+type deliveryRowClaim struct {
+	status         string
+	deployment     bool
+	routeTLS       bool
+	statusEvidence bool
+	backupRestore  bool
+}
+
 func deliveryRows(source sourceCatalog) ([]ApplicationDelivery, error) {
 	var rows []ApplicationDelivery
-	seen := map[string]bool{}
+	seen := map[string]deliveryRowClaim{}
 	for useCaseRef, workload := range source.Workloads {
 		workloadRef := metadataID(workload)
 		alternatives, _ := workload["alternatives"].([]any)
@@ -580,13 +588,23 @@ func deliveryRows(source sourceCatalog) ([]ApplicationDelivery, error) {
 				if status != "supported" && status != "beta" && status != "preview" && status != "unsupported" {
 					return nil, fmt.Errorf("invalid delivery status %q", status)
 				}
-				key := useCaseRef + "/" + workloadRef + "/" + adapter
-				if seen[key] {
-					return nil, fmt.Errorf("duplicate application delivery row %s", key)
-				}
-				seen[key] = true
 				capMap, _ := row["capabilities"].(map[string]any)
-				rows = append(rows, ApplicationDelivery{UseCaseRef: useCaseRef, WorkloadRef: workloadRef, AdapterRef: adapter, AdapterName: adapterName(adapter), Status: status, Capabilities: DeliveryCapabilities{Deployment: boolField(capMap, "deployment"), RouteTLS: boolField(capMap, "routeTLS"), StatusEvidence: boolField(capMap, "statusEvidence"), BackupRestore: boolField(capMap, "backupRestore")}})
+				claim := deliveryRowClaim{
+					status:         status,
+					deployment:     boolField(capMap, "deployment"),
+					routeTLS:       boolField(capMap, "routeTLS"),
+					statusEvidence: boolField(capMap, "statusEvidence"),
+					backupRestore:  boolField(capMap, "backupRestore"),
+				}
+				key := useCaseRef + "/" + workloadRef + "/" + adapter
+				if previous, ok := seen[key]; ok {
+					if previous != claim {
+						return nil, fmt.Errorf("conflicting application delivery row %s", key)
+					}
+					continue
+				}
+				seen[key] = claim
+				rows = append(rows, ApplicationDelivery{UseCaseRef: useCaseRef, WorkloadRef: workloadRef, AdapterRef: adapter, AdapterName: adapterName(adapter), Status: status, Capabilities: DeliveryCapabilities{Deployment: claim.deployment, RouteTLS: claim.routeTLS, StatusEvidence: claim.statusEvidence, BackupRestore: claim.backupRestore}})
 			}
 		}
 	}

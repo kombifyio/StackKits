@@ -173,6 +173,7 @@ type standaloneComposeProject struct {
 	directory   string
 	compose     []byte
 	environment []byte
+	configFiles map[string][]byte
 	bundle      architecturev2renderer.ApplicationDeliveryBundleDescriptor
 	entry       architecturev2renderer.ApplicationDeliveryComponentDescriptor
 }
@@ -209,7 +210,7 @@ func (o *osStandaloneComposeWorkloadOperations) prepare(
 		(bundle.Route.ID != "" && entry.HealthPort != bundle.Route.TargetPort) {
 		return standaloneComposeProject{}, errors.New("standalone workload entry component has no exact HTTP health contract")
 	}
-	compose, environment, err := o.render(bundle)
+	compose, environment, configFiles, err := o.render(bundle)
 	if err != nil {
 		return standaloneComposeProject{}, err
 	}
@@ -217,7 +218,7 @@ func (o *osStandaloneComposeWorkloadOperations) prepare(
 	directory := filepath.Join(o.workspaceRoot, ".stackkit", "runtime", "applications", name)
 	return standaloneComposeProject{
 		name: name, directory: directory, compose: compose, environment: environment,
-		bundle: bundle, entry: entry,
+		configFiles: configFiles, bundle: bundle, entry: entry,
 	}, nil
 }
 
@@ -345,7 +346,7 @@ type standaloneComposeHealthcheck struct {
 
 func (o *osStandaloneComposeWorkloadOperations) render(
 	bundle architecturev2renderer.ApplicationDeliveryBundleDescriptor,
-) ([]byte, []byte, error) {
+) ([]byte, []byte, map[string][]byte, error) {
 	document := standaloneComposeDocument{
 		Name:     "stackkit-" + bundle.WorkloadRef + "-" + bundle.NodeRef,
 		Services: map[string]standaloneComposeService{},
@@ -360,6 +361,8 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 		}
 	}
 	secretValues := map[string]string{}
+	configFiles := map[string][]byte{}
+	assignedConfig := map[string]struct{}{}
 	for _, component := range bundle.Components {
 		service := standaloneComposeService{
 			Image:       component.ImageRef + "@" + component.ImageDigest,
@@ -386,11 +389,11 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 		for environmentName, slot := range component.SecretEnvironment {
 			secretRef, exists := bundle.SecretRefs[slot]
 			if !exists {
-				return nil, nil, errors.New("standalone component references an absent secret slot")
+				return nil, nil, nil, errors.New("standalone component references an absent secret slot")
 			}
 			material, err := localevidence.ResolveLocalSecretMaterial(o.workspaceRoot, secretRef)
 			if err != nil {
-				return nil, nil, fmt.Errorf("resolve owner-only material for secret slot %q: %w", slot, err)
+				return nil, nil, nil, fmt.Errorf("resolve owner-only material for secret slot %q: %w", slot, err)
 			}
 			variable := standaloneComposeSecretVariable(component.ID, environmentName)
 			secretValues[variable] = string(material)
@@ -400,6 +403,15 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 			ref := component.ID + "-" + volume.ID
 			document.Volumes[ref] = map[string]any{}
 			service.Volumes = append(service.Volumes, ref+":"+volume.Target)
+		}
+		for _, file := range bundle.ConfigFiles {
+			if !standaloneComposeVolumeOwnsPath(component.Volumes, file.Path) {
+				continue
+			}
+			rel := standaloneComposeConfigRelPath(file.Path)
+			service.Volumes = append(service.Volumes, "./"+rel+":"+file.Path+":ro")
+			configFiles[rel] = []byte(file.Body)
+			assignedConfig[file.Path] = struct{}{}
 		}
 		if len(component.HealthCommand) > 0 {
 			service.Healthcheck = &standaloneComposeHealthcheck{
@@ -427,9 +439,12 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 		sort.Strings(service.Volumes)
 		document.Services[component.ID] = service
 	}
+	if len(assignedConfig) != len(bundle.ConfigFiles) {
+		return nil, nil, nil, errors.New("standalone config file is not bound to a workload volume")
+	}
 	compose, err := yaml.Marshal(document)
 	if err != nil {
-		return nil, nil, fmt.Errorf("marshal standalone Compose definition: %w", err)
+		return nil, nil, nil, fmt.Errorf("marshal standalone Compose definition: %w", err)
 	}
 	variables := make([]string, 0, len(secretValues))
 	for variable := range secretValues {
@@ -443,7 +458,21 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 		environment.WriteString(secretValues[variable])
 		environment.WriteByte('\n')
 	}
-	return compose, []byte(environment.String()), nil
+	return compose, []byte(environment.String()), configFiles, nil
+}
+
+func standaloneComposeVolumeOwnsPath(volumes []architecturev2renderer.ApplicationDeliveryVolumeDescriptor, path string) bool {
+	for _, volume := range volumes {
+		prefix := strings.TrimSuffix(volume.Target, "/")
+		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func standaloneComposeConfigRelPath(containerPath string) string {
+	return "files/" + strings.ReplaceAll(strings.TrimPrefix(containerPath, "/"), "/", "_")
 }
 
 func standaloneComposeRouteLabels(route architecturev2renderer.ApplicationDeliveryRouteDescriptor) map[string]string {
@@ -516,7 +545,16 @@ func (o *osStandaloneComposeWorkloadOperations) persist(project standaloneCompos
 	if err != nil {
 		return err
 	}
-	for name, content := range map[string][]byte{"compose.yaml": project.compose, ".env": project.environment} {
+	files := map[string][]byte{"compose.yaml": project.compose, ".env": project.environment}
+	for name, content := range project.configFiles {
+		files[name] = content
+	}
+	if len(project.configFiles) > 0 {
+		if err := os.MkdirAll(filepath.Join(project.directory, "files"), 0o700); err != nil {
+			return fmt.Errorf("create standalone Compose config directory: %w", err)
+		}
+	}
+	for name, content := range files {
 		result, err := view.WriteAtomic0600(name, content)
 		if err != nil {
 			return fmt.Errorf("persist private standalone Compose %s: %w", name, err)
@@ -539,7 +577,11 @@ func (o *osStandaloneComposeWorkloadOperations) verifyPersisted(project standalo
 		return err
 	}
 	defer func() { _ = transaction.Close() }()
-	for name, expected := range map[string][]byte{"compose.yaml": project.compose, ".env": project.environment} {
+	files := map[string][]byte{"compose.yaml": project.compose, ".env": project.environment}
+	for name, content := range project.configFiles {
+		files[name] = content
+	}
+	for name, expected := range files {
 		actual, info, err := transaction.ReadStable(name)
 		if err != nil || info == nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
 			return errors.New("standalone Compose runtime custody is unavailable")

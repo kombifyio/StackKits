@@ -5,7 +5,7 @@
       "path": "internal/registry/data/registry_snapshot.json",
       "kind": "snapshot",
       "state": "generated",
-      "generator": "stackkit registry snapshot"
+      "generator": "stackkit registry bake-from-cue"
     },
     {
       "path": "foundation/generated/tool_catalog.cue",

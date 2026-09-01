@@ -87,6 +87,19 @@ import "list"
 
 	productApis?: [=~"^[a-z][a-z0-9-]+$"]: #UseCaseProductAPI
 
+	// agentSurface is the closed handoff generate writes to
+	// `.stackkit/agent-surface.json`. It does not install workloads, invent a
+	// product MCP, or replace Architecture v2 delivery.
+	agentSurface?: #UseCaseAgentSurfaceV1
+
+	if agentSurface != _|_ && connectors != _|_ {
+		_nativeConnectorsHaveProductMcps: [
+			for _, connector in connectors if connector.nativeProduct {
+				matches: [for mcp in agentSurface.productMcps if mcp.id == connector.name {mcp.id}] & list.MinItems(1) & list.MaxItems(1)
+			},
+		]
+	}
+
 	ril?: {
 		capabilities: [=~"^[a-z][a-z0-9-]+$"]: #UseCaseCapability
 	}
@@ -242,4 +255,77 @@ import "list"
 	name:        =~"^[a-z][a-z0-9-]+$"
 	policy:      "manual" | "on_demand" | "automatic"
 	description: string
+}
+
+// #UseCaseAgentSurfaceV1 is what StackKits may generate after a use case is
+// selected: lifecycle MCP, product MCP only when the product owns one, APIs,
+// skills, client fragments, CLI helpers, and whether a config baseline exists.
+// Secrets never appear here. Techstack Unifier reads it; Apply does not.
+#UseCaseAgentSurfaceV1: {
+	equipPolicy: "on-generate" | "on-apply" | "manual"
+	lifecycleMcp: #UseCaseLifecycleMCP
+	productMcps: [...#UseCaseProductMCP] | *[]
+	apis: [...#UseCaseAgentAPI] | *[]
+	skills: [...#UseCaseAgentSkill] | *[]
+	clientPlugins: [...#UseCaseClientPlugin] | *[]
+	cliHelpers: [...#UseCaseCLIHelper] | *[]
+	configBaseline: #UseCaseConfigBaseline
+}
+
+#UseCaseLifecycleMCP: {
+	ref:                  "stackkit"
+	owner:                "stackkit"
+	endpoint:             "/mcp"
+	transport:            "streamable-http"
+	auth:                 "stackkit-mcp-token"
+	generateClientConfig: bool | *true
+}
+
+#UseCaseProductMCP: {
+	id:                    =~"^[a-z][a-z0-9-]+$"
+	owner:                 "product"
+	endpoint:              string
+	transport:             "streamable-http" | "stdio"
+	auth:                  string
+	generateClientConfig:  bool
+	if generateClientConfig {
+		reason?: string
+	}
+	if !generateClientConfig {
+		reason: string
+	}
+}
+
+#UseCaseAgentAPI: {
+	id:       =~"^[a-z][a-z0-9-]+$"
+	protocol: "rest" | "websocket" | "webdav" | "s3-compatible"
+	purpose:  string
+	auth:     string
+}
+
+#UseCaseAgentSkill: {
+	id:       =~"^[a-z][a-z0-9-]+$"
+	audience: "stack-operator" | "product-user"
+	source:   "stackkits" | "product"
+	path:     string
+}
+
+#UseCaseClientPlugin: {
+	client: "claude" | "codex" | "cursor" | "generic"
+	kind:   "mcp-fragment" | "skill-directory"
+}
+
+#UseCaseCLIHelper: {
+	command: string
+	purpose: string
+}
+
+#UseCaseConfigBaseline: {
+	status: "declared" | "omitted"
+	if status == "declared" {
+		moduleInputRef: string
+	}
+	if status == "omitted" {
+		reason: string
+	}
 }

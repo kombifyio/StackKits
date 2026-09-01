@@ -1,0 +1,63 @@
+{
+  "name": "@kombifyio/stackkits-webmcp",
+  "version": "0.1.0",
+  "description": "StackKits WebMCP v1 planner, contracts, and public reference host",
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "files": [
+    "dist",
+    "schemas",
+    "src",
+    "scripts",
+    "reference-host",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./planner": {
+      "types": "./src/planner.ts",
+      "import": "./src/planner.ts",
+      "default": "./src/planner.ts"
+    },
+    "./webmcp": {
+      "types": "./src/webmcp.ts",
+      "import": "./src/webmcp.ts",
+      "default": "./src/webmcp.ts"
+    },
+    "./StackKitsPlanner.svelte": "./src/StackKitsPlanner.svelte",
+    "./StackKitsPlannerHost.svelte": "./src/StackKitsPlannerHost.svelte",
+    "./schemas/*": "./schemas/*",
+    "./data/*": "./data/*",
+    "./generator": {
+      "types": "./src/generator.ts",
+      "import": "./dist/generator.js",
+      "default": "./dist/generator.js"
+    }
+  },
+  "scripts": {
+    "generate:types": "node scripts/generate-types.mjs",
+    "build": "npm run generate:types && tsc -p tsconfig.json",
+    "generate:catalog": "npm run build && node scripts/generate-catalog.mjs",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "check": "npm run build"
+  },
+  "dependencies": {
+    "webmcp-types": "0.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "json-schema-to-typescript": "15.0.4",
+    "typescript": "^6.0.0"
+  },
+  "peerDependencies": {
+    "svelte": ">=5.0.0"
+  }
+}

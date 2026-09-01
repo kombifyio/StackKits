@@ -1,7 +1,8 @@
 // Package media defines the Media Library use case package.
 //
-// The package binds existing Jellyfin intent without claiming the retired
-// add-on's unimplemented *arr services or an Architecture v2 lifecycle.
+// Architecture v2 ships digest-pinned Jellyfin on standard and high. Basement
+// low still omits Media. This package does not claim the retired add-on's
+// unimplemented *arr services.
 package media
 
 import "github.com/kombifyio/stackkits/foundation"
@@ -33,7 +34,7 @@ Package: foundation.#UseCasePackage & {
 	defaultRuntimeProfile: "self-hosted-media"
 	runtimeProfiles: "self-hosted-media": {
 		displayName: "Self-hosted Media Library"
-		description: "StackKits records Jellyfin for selected-PaaS delivery on the Owner-selected node; an Architecture v2 workload and application lifecycle remain pending."
+		description: "StackKits deploys digest-pinned Jellyfin through the graph-selected runtime on standard and high. Basement low omits Media until a lite substitution exists."
 		realization: "oss"
 		placementModes: ["local-only", "standard"]
 		managedServerlessEligible: false
@@ -52,7 +53,7 @@ Package: foundation.#UseCasePackage & {
 			moduleSlug: "jellyfin"
 			functions: ["media-server", "video-stream"]
 			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
-			notes: ["Library waits; playback and transcode are the spike. Architecture v2 workload still pending."]
+			notes: ["Library waits; playback and transcode are the spike. Catalog alternative jellyfin on standard/high."]
 		}
 		high: {
 			included: true
@@ -69,5 +70,41 @@ Package: foundation.#UseCasePackage & {
 		required:   true
 		rationale:  "The existing opt-in Jellyfin module is the sole shipped implementation for this package."
 		capabilities: ["media-server", "video-stream"]
+	}
+
+	setup: {
+		defaultPolicy: "on_demand"
+		drops: [{
+			name:        "media-owner-bootstrap"
+			policy:      "on_demand"
+			description: "Complete Jellyfin first-run in the UI and create the owner account. Catalog setup is manual/operator; StackKits does not ship an automated bootstrap for this workload."
+		}]
+	}
+
+	evidence: {
+		healthChecks: ["jellyfin-http"]
+		required: ["route", "backup", "runtime-owner", "removal"]
+	}
+
+	lifecycle: foundation.#StandardUseCaseLifecycle
+
+	agentSurface: {
+		equipPolicy:  "on-generate"
+		lifecycleMcp: {}
+		productMcps: []
+		apis: [{
+			id:       "jellyfin"
+			protocol: "rest"
+			purpose:  "HTTP health and library access. Jellyfin has no native product MCP."
+			auth:     "jellyfin-auth"
+		}]
+		cliHelpers: [{
+			command: "stackkit agent mcp-config"
+			purpose: "Print the stackkit lifecycle MCP client connection."
+		}]
+		configBaseline: {
+			status: "omitted"
+			reason: "Jellyfin runtime is the digest-pinned selected-PaaS bundle. Library volume is owner-custodied. StackKits does not author a separate Jellyfin configuration file."
+		}
 	}
 }

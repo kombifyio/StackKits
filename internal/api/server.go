@@ -40,6 +40,7 @@ type ServerConfig struct {
 	SetupAdminEmail                   string
 	SetupAdminPassword                string
 	SetupImmichURL                    string
+	SetupHomeAssistantURL             string
 	SetupPocketIDURL                  string
 	SetupVaultwardenURL               string
 	SetupCloudreveURL                 string

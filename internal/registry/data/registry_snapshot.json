@@ -1,8 +1,318 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-08-26T06:15:01Z",
-  "tools": [],
+  "generated_at": "2026-09-01T10:33:32Z",
+  "tools": [
+    {
+      "slug": "adguard-home",
+      "display_name": "AdGuard Home",
+      "category": "dns",
+      "status": "ga"
+    },
+    {
+      "slug": "beszel",
+      "display_name": "Beszel",
+      "category": "observability",
+      "status": "beta",
+      "homepage": "https://github.com/henrygd/beszel",
+      "description": "Lightweight server metrics collector with historical data and web dashboard.",
+      "tags": [
+        "metrics",
+        "server-monitoring",
+        "lightweight"
+      ]
+    },
+    {
+      "slug": "cloudreve",
+      "display_name": "Cloudreve",
+      "category": "storage",
+      "status": "beta",
+      "homepage": "https://cloudreve.org/",
+      "description": "Self-hosted file sharing with WebDAV and multi-storage support.",
+      "tags": [
+        "files",
+        "webdav",
+        "file-sharing"
+      ]
+    },
+    {
+      "slug": "coolify",
+      "display_name": "Coolify",
+      "category": "dev-platform",
+      "status": "ga",
+      "homepage": "https://coolify.io/",
+      "description": "Self-hosted PaaS with git deployments, multi-server support, and app marketplace.",
+      "tags": [
+        "paas",
+        "git-deploy",
+        "multi-server"
+      ]
+    },
+    {
+      "slug": "crowdsec",
+      "display_name": "CrowdSec",
+      "category": "automation",
+      "status": "ga"
+    },
+    {
+      "slug": "dockge",
+      "display_name": "Dockge",
+      "category": "dev-platform",
+      "status": "ga",
+      "homepage": "https://dockge.kuma.pet/",
+      "description": "Visual Docker Compose stack manager. Simple, interactive UI.",
+      "tags": [
+        "docker-compose",
+        "management",
+        "ui"
+      ]
+    },
+    {
+      "slug": "dokploy",
+      "display_name": "Dokploy",
+      "category": "dev-platform",
+      "layer": "platform",
+      "status": "ga",
+      "homepage": "https://dokploy.com/",
+      "description": "Self-hosted PaaS with Docker Compose support. Simple setup, no domain required.",
+      "tags": [
+        "paas",
+        "docker",
+        "deployment"
+      ]
+    },
+    {
+      "slug": "dozzle",
+      "display_name": "Dozzle",
+      "category": "observability",
+      "status": "ga",
+      "homepage": "https://dozzle.dev/",
+      "description": "Real-time Docker container log viewer with web UI. Lightweight, no storage required.",
+      "tags": [
+        "docker",
+        "logs",
+        "real-time",
+        "lightweight"
+      ]
+    },
+    {
+      "slug": "homepage",
+      "display_name": "Homepage",
+      "category": "webserver",
+      "status": "ga"
+    },
+    {
+      "slug": "immich",
+      "display_name": "Immich",
+      "category": "media",
+      "layer": "application",
+      "status": "ga",
+      "homepage": "https://immich.app/",
+      "description": "Self-hosted photo and video management. Google Photos alternative with ML features.",
+      "tags": [
+        "photos",
+        "backup",
+        "ml",
+        "google-photos"
+      ]
+    },
+    {
+      "slug": "jellyfin",
+      "display_name": "Jellyfin",
+      "category": "media",
+      "layer": "application",
+      "status": "ga",
+      "homepage": "https://jellyfin.org/",
+      "description": "Free media streaming server. Movies, TV, music, photos with GPU transcoding.",
+      "tags": [
+        "media",
+        "streaming",
+        "movies",
+        "music"
+      ]
+    },
+    {
+      "slug": "komodo",
+      "display_name": "Komodo",
+      "category": "dev-platform",
+      "status": "beta"
+    },
+    {
+      "slug": "lldap",
+      "display_name": "LLDAP",
+      "category": "auth",
+      "layer": "foundation",
+      "status": "ga",
+      "homepage": "https://github.com/lldap/lldap",
+      "description": "Lightweight LDAP server for self-hosted environments. Minimal resource usage with web UI.",
+      "tags": [
+        "ldap",
+        "directory",
+        "lightweight"
+      ]
+    },
+    {
+      "slug": "netdata",
+      "display_name": "Netdata",
+      "category": "observability",
+      "status": "ga",
+      "homepage": "https://www.netdata.cloud/",
+      "description": "Real-time system monitoring with auto-detection and rich visualization.",
+      "tags": [
+        "monitoring",
+        "real-time",
+        "metrics",
+        "auto-detect"
+      ]
+    },
+    {
+      "slug": "nextcloud",
+      "display_name": "Nextcloud",
+      "category": "storage",
+      "status": "ga",
+      "homepage": "https://nextcloud.com/",
+      "description": "Self-hosted productivity platform with file sync, office suite, and apps.",
+      "tags": [
+        "files",
+        "collaboration",
+        "office",
+        "sync"
+      ]
+    },
+    {
+      "slug": "pocketid",
+      "display_name": "PocketID",
+      "category": "auth",
+      "layer": "platform",
+      "status": "ga",
+      "homepage": "https://github.com/pocket-id/pocket-id",
+      "description": "Self-hosted OIDC provider for SSO across self-hosted services.",
+      "tags": [
+        "oidc",
+        "sso",
+        "identity-provider"
+      ]
+    },
+    {
+      "slug": "portainer",
+      "display_name": "Portainer",
+      "category": "dev-platform",
+      "status": "ga",
+      "homepage": "https://www.portainer.io/",
+      "description": "Container management UI for Docker and Kubernetes.",
+      "tags": [
+        "docker",
+        "management",
+        "ui",
+        "kubernetes"
+      ]
+    },
+    {
+      "slug": "postgresql",
+      "display_name": "PostgreSQL",
+      "category": "database",
+      "status": "ga"
+    },
+    {
+      "slug": "step-ca",
+      "display_name": "Step-CA",
+      "category": "secrets",
+      "layer": "foundation",
+      "status": "ga",
+      "homepage": "https://smallstep.com/certificates/",
+      "description": "Private certificate authority and ACME server by Smallstep. Provides internal PKI with mTLS support.",
+      "tags": [
+        "pki",
+        "ca",
+        "mtls",
+        "acme",
+        "certificates"
+      ]
+    },
+    {
+      "slug": "tinyauth",
+      "display_name": "TinyAuth",
+      "category": "auth",
+      "layer": "foundation",
+      "status": "ga",
+      "homepage": "https://github.com/steveiliop56/tinyauth",
+      "description": "Lightweight forward authentication proxy with passkey and OAuth support for Traefik.",
+      "tags": [
+        "auth-proxy",
+        "passkeys",
+        "oauth",
+        "traefik"
+      ]
+    },
+    {
+      "slug": "traefik",
+      "display_name": "Traefik",
+      "category": "ingress",
+      "layer": "platform",
+      "status": "ga",
+      "homepage": "https://traefik.io/",
+      "description": "Cloud-native reverse proxy and ingress controller. Auto HTTPS via Let's Encrypt, Docker service discovery.",
+      "tags": [
+        "reverse-proxy",
+        "ingress",
+        "auto-https",
+        "docker"
+      ]
+    },
+    {
+      "slug": "unbound",
+      "display_name": "Unbound",
+      "category": "dns",
+      "status": "ga"
+    },
+    {
+      "slug": "uptime-kuma",
+      "display_name": "Uptime Kuma",
+      "category": "observability",
+      "status": "ga",
+      "homepage": "https://uptime.kuma.pet/",
+      "description": "Self-hosted uptime monitoring with status pages, notifications, and multi-protocol support.",
+      "tags": [
+        "uptime",
+        "monitoring",
+        "status-page"
+      ]
+    },
+    {
+      "slug": "valkey",
+      "display_name": "Valkey",
+      "category": "database",
+      "status": "ga",
+      "homepage": "https://valkey.io/",
+      "description": "Redis-compatible in-memory cache and data store. BSD-licensed Redis fork.",
+      "tags": [
+        "cache",
+        "redis",
+        "in-memory",
+        "ha"
+      ]
+    },
+    {
+      "slug": "vaultwarden",
+      "display_name": "Vaultwarden",
+      "category": "secrets",
+      "layer": "application",
+      "status": "ga",
+      "homepage": "https://github.com/dani-garcia/vaultwarden",
+      "description": "Bitwarden-compatible password manager server written in Rust. Lightweight.",
+      "tags": [
+        "passwords",
+        "vault",
+        "bitwarden"
+      ]
+    },
+    {
+      "slug": "whoami",
+      "display_name": "whoami",
+      "category": "webserver",
+      "status": "ga"
+    }
+  ],
   "services": [
     {
       "key": "auth",
@@ -802,5 +1112,439 @@
       "core": true
     }
   ],
-  "stackkits": []
+  "stackkits": [
+    {
+      "slug": "basement-kit",
+      "display_name": "Basement Kit",
+      "description": "Local-first StackKit for one or more nodes on private home sites",
+      "modules": [
+        {
+          "slug": "admin-bootstrap",
+          "version": "0.1.0",
+          "role": "optional"
+        },
+        {
+          "slug": "dashboard",
+          "version": "1.0.0",
+          "role": "default"
+        },
+        {
+          "slug": "immich",
+          "version": "1.0.0",
+          "role": "default"
+        },
+        {
+          "slug": "jellyfin",
+          "version": "1.0.0",
+          "role": "optional"
+        },
+        {
+          "slug": "login-gateway",
+          "version": "0.1.0",
+          "role": "default"
+        },
+        {
+          "slug": "pocketid",
+          "version": "1.0.0",
+          "role": "default"
+        },
+        {
+          "slug": "security-baseline",
+          "version": "0.1.0",
+          "role": "default"
+        },
+        {
+          "slug": "traefik",
+          "version": "2.1.0",
+          "role": "default"
+        },
+        {
+          "slug": "uptime-kuma",
+          "version": "1.0.0",
+          "role": "default"
+        },
+        {
+          "slug": "vaultwarden",
+          "version": "1.0.0",
+          "role": "default"
+        }
+      ],
+      "version": "5.1.0",
+      "release_channel": "edge",
+      "service_selections": [
+        {
+          "service_group_slug": "admin-bootstrap",
+          "role": "optional",
+          "selected_module_slug": "admin-bootstrap"
+        },
+        {
+          "service_group_slug": "ai-workloads",
+          "role": "optional",
+          "selected_module_slug": "ollama"
+        },
+        {
+          "service_group_slug": "dashboard",
+          "role": "default",
+          "selected_module_slug": "dashboard"
+        },
+        {
+          "service_group_slug": "dev-platform",
+          "role": "optional",
+          "selected_module_slug": "gitea"
+        },
+        {
+          "service_group_slug": "file-sharing",
+          "role": "default",
+          "selected_module_slug": "cloudreve",
+          "alternative_module_slugs": [
+            "nextcloud"
+          ]
+        },
+        {
+          "service_group_slug": "forward-auth",
+          "role": "default",
+          "selected_module_slug": "login-gateway"
+        },
+        {
+          "service_group_slug": "game-server",
+          "role": "optional"
+        },
+        {
+          "service_group_slug": "mail-server",
+          "role": "optional",
+          "selected_module_slug": "stalwart"
+        },
+        {
+          "service_group_slug": "media-streaming",
+          "role": "optional",
+          "selected_module_slug": "jellyfin"
+        },
+        {
+          "service_group_slug": "oidc-provider",
+          "role": "default",
+          "selected_module_slug": "pocketid"
+        },
+        {
+          "service_group_slug": "paas",
+          "role": "default",
+          "selected_module_slug": "coolify",
+          "alternative_module_slugs": [
+            "komodo"
+          ]
+        },
+        {
+          "service_group_slug": "password-vault",
+          "role": "default",
+          "selected_module_slug": "vaultwarden"
+        },
+        {
+          "service_group_slug": "photo-management",
+          "role": "default",
+          "selected_module_slug": "immich",
+          "alternative_module_slugs": [
+            "ente-photos"
+          ]
+        },
+        {
+          "service_group_slug": "remote-desktop",
+          "role": "optional",
+          "selected_module_slug": "guacamole"
+        },
+        {
+          "service_group_slug": "reverse-proxy",
+          "role": "default",
+          "selected_module_slug": "traefik"
+        },
+        {
+          "service_group_slug": "security-baseline",
+          "role": "default",
+          "selected_module_slug": "security-baseline"
+        },
+        {
+          "service_group_slug": "smart-home",
+          "role": "optional",
+          "selected_module_slug": "home-assistant"
+        },
+        {
+          "service_group_slug": "uptime-monitoring",
+          "role": "default",
+          "selected_module_slug": "uptime-kuma",
+          "alternative_module_slugs": [
+            "beszel"
+          ]
+        }
+      ],
+      "spec_profiles": [
+        {
+          "slug": "default",
+          "kind": "default",
+          "is_default": true,
+          "spec_hash": "23424987f6fd7dc188d7f5e8e834b4ffe3c8d05751b72b8fecd4ee2cce1a79c6",
+          "kit_definition_hash": "b8755e22aa3e498a69e53c983eb4ca3e92efa413fb0e4d7aee8edd01e278dce9",
+          "module_contract_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ]
+    },
+    {
+      "slug": "cloud-kit",
+      "display_name": "Cloud Kit",
+      "description": "Cloud-only StackKit for one or more externally supplied cloud hosts",
+      "modules": null,
+      "version": "5.1.0",
+      "release_channel": "edge",
+      "spec_profiles": [
+        {
+          "slug": "default",
+          "kind": "default",
+          "is_default": true,
+          "kit_definition_hash": "02df211ee876de241b5caed39cddb7042fde812ffd757558bd82c2f69f795086"
+        }
+      ]
+    },
+    {
+      "slug": "modern-homelab",
+      "display_name": "Modern Homelab",
+      "description": "Federated local and cloud StackKit with a policy-constrained bridge",
+      "modules": null,
+      "version": "1.1.0-alpha",
+      "release_channel": "edge",
+      "spec_profiles": [
+        {
+          "slug": "default",
+          "kind": "default",
+          "is_default": true,
+          "kit_definition_hash": "fa5cfe28a29eaaff0b45e5f757613b28a8aa7194106556d0d808cee57d716c31"
+        }
+      ]
+    }
+  ],
+  "service_groups": [
+    {
+      "slug": "admin-bootstrap",
+      "display_name": "Admin Bootstrap",
+      "layer_slug": "foundation",
+      "selection_type": "single",
+      "default_module_slug": "admin-bootstrap",
+      "yaml_section": "foundation",
+      "yaml_key": "admin-bootstrap"
+    },
+    {
+      "slug": "ai-workloads",
+      "display_name": "AI Workloads",
+      "layer_slug": "application",
+      "selection_type": "single",
+      "yaml_section": "application",
+      "yaml_key": "ai"
+    },
+    {
+      "slug": "certificate-authority",
+      "display_name": "Certificate Authority",
+      "layer_slug": "foundation",
+      "selection_type": "single",
+      "default_module_slug": "step-ca"
+    },
+    {
+      "slug": "container-logs",
+      "display_name": "Container Logs",
+      "layer_slug": "observability",
+      "selection_type": "single",
+      "default_module_slug": "dozzle",
+      "yaml_section": "platform",
+      "yaml_key": "dozzle"
+    },
+    {
+      "slug": "dashboard",
+      "display_name": "Dashboard",
+      "layer_slug": "platform",
+      "selection_type": "single",
+      "default_module_slug": "dashboard",
+      "yaml_section": "platform",
+      "yaml_key": "dashboard"
+    },
+    {
+      "slug": "dev-platform",
+      "display_name": "Dev Platform",
+      "layer_slug": "application",
+      "selection_type": "single",
+      "yaml_section": "application",
+      "yaml_key": "dev"
+    },
+    {
+      "slug": "directory-service",
+      "display_name": "Directory Service",
+      "layer_slug": "foundation",
+      "selection_type": "single",
+      "default_module_slug": "lldap"
+    },
+    {
+      "slug": "dns-filter",
+      "display_name": "DNS Filter",
+      "layer_slug": "platform",
+      "selection_type": "single",
+      "default_module_slug": "adguard-home",
+      "yaml_section": "platform",
+      "yaml_key": "adguard-home"
+    },
+    {
+      "slug": "dns-resolver",
+      "display_name": "DNS Resolver",
+      "layer_slug": "platform",
+      "selection_type": "single",
+      "default_module_slug": "unbound",
+      "yaml_section": "platform",
+      "yaml_key": "unbound"
+    },
+    {
+      "slug": "docker-socket-proxy",
+      "display_name": "Docker Socket Proxy",
+      "layer_slug": "platform",
+      "selection_type": "single",
+      "default_module_slug": "socket-proxy",
+      "yaml_section": "platform",
+      "yaml_key": "socket-proxy"
+    },
+    {
+      "slug": "echo-test",
+      "display_name": "Echo Test",
+      "layer_slug": "application",
+      "selection_type": "single",
+      "default_module_slug": "whoami"
+    },
+    {
+      "slug": "file-sharing",
+      "display_name": "File Sharing",
+      "layer_slug": "application",
+      "selection_type": "single",
+      "yaml_section": "application",
+      "yaml_key": "files"
+    },
+    {
+      "slug": "forward-auth",
+      "display_name": "Forward Auth",
+      "layer_slug": "foundation",
+      "selection_type": "single",
+      "default_module_slug": "tinyauth",
+      "yaml_section": "platform",
+      "yaml_key": "login-gateway"
+    },
+    {
+      "slug": "game-server",
+      "display_name": "Game Server",
+      "layer_slug": "application",
+      "selection_type": "single",
+      "yaml_section": "application",
+      "yaml_key": "game"
+    },
+    {
+      "slug": "intrusion-detection",
+      "display_name": "Intrusion Detection",
+      "layer_slug": "hardening",
+      "selection_type": "single",
+      "default_module_slug": "crowdsec",
+      "yaml_section": "platform",
+      "yaml_key": "crowdsec"
+    },
+    {
+      "slug": "mail-server",
+      "display_name": "Mail Server",
+      "layer_slug": "application",
+      "selection_type": "single",
+      "yaml_section": "application",
+      "yaml_key": "mail"
+    },
+    {
+      "slug": "media-streaming",
+      "display_name": "Media Streaming",
+      "layer_slug": "application",
+      "selection_type": "single",
+      "default_module_slug": "jellyfin",
+      "yaml_section": "application",
+      "yaml_key": "media"
+    },
+    {
+      "slug": "metrics-monitoring",
+      "display_name": "Metrics Monitoring",
+      "layer_slug": "observability",
+      "selection_type": "single"
+    },
+    {
+      "slug": "oidc-provider",
+      "display_name": "OIDC Provider",
+      "layer_slug": "platform",
+      "selection_type": "single",
+      "default_module_slug": "pocketid",
+      "yaml_section": "platform",
+      "yaml_key": "pocketid"
+    },
+    {
+      "slug": "paas",
+      "display_name": "PaaS",
+      "layer_slug": "platform",
+      "selection_type": "single",
+      "default_module_slug": "dokploy",
+      "yaml_section": "platform",
+      "yaml_key": "paas"
+    },
+    {
+      "slug": "password-vault",
+      "display_name": "Password Vault",
+      "layer_slug": "application",
+      "selection_type": "single",
+      "default_module_slug": "vaultwarden",
+      "yaml_section": "application",
+      "yaml_key": "vault"
+    },
+    {
+      "slug": "photo-management",
+      "display_name": "Photo Management",
+      "layer_slug": "application",
+      "selection_type": "single",
+      "default_module_slug": "immich",
+      "yaml_section": "application",
+      "yaml_key": "photos"
+    },
+    {
+      "slug": "remote-desktop",
+      "display_name": "Remote Desktop",
+      "layer_slug": "application",
+      "selection_type": "single",
+      "yaml_section": "application",
+      "yaml_key": "remote"
+    },
+    {
+      "slug": "reverse-proxy",
+      "display_name": "Reverse Proxy",
+      "layer_slug": "platform",
+      "selection_type": "required-single",
+      "default_module_slug": "traefik",
+      "yaml_section": "platform",
+      "yaml_key": "traefik"
+    },
+    {
+      "slug": "security-baseline",
+      "display_name": "Security Baseline",
+      "layer_slug": "foundation",
+      "selection_type": "required-single",
+      "default_module_slug": "security-baseline",
+      "yaml_section": "foundation",
+      "yaml_key": "security-baseline"
+    },
+    {
+      "slug": "smart-home",
+      "display_name": "Smart Home",
+      "layer_slug": "application",
+      "selection_type": "single",
+      "yaml_section": "application",
+      "yaml_key": "smart-home"
+    },
+    {
+      "slug": "uptime-monitoring",
+      "display_name": "Uptime Monitoring",
+      "layer_slug": "observability",
+      "selection_type": "single",
+      "default_module_slug": "uptime-kuma",
+      "yaml_section": "platform",
+      "yaml_key": "monitoring"
+    }
+  ]
 }

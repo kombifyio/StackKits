@@ -1,24 +1,11 @@
 // Package registry exposes the StackKits catalog (tools, module versions,
 // curated stackkits) to the CLI in an OSS-safe way.
 //
-// The registry has two producers:
-//
-//  1. kombify-Administration (private, DB-first — ADR-0010). It is the
-//     authoritative source for tool evaluations, module-version lineage,
-//     and curated stackkit compositions. Internal callers reach it via
-//     STACKKIT_ADMIN_ENDPOINT.
-//
-//  2. This package's embedded snapshot at internal/registry/data/
-//     registry_snapshot.json. The snapshot is a frozen, DB-independent
-//     projection used by OSS builds of the CLI. It is refreshed at release
-//     time either from the Admin API (for the private build, baked into
-//     goreleaser) or from the local CUE tree (for pure-OSS builds).
-//
-// At runtime the AutoClient selects between the two producers so the CLI
-// behaves identically with or without an Admin endpoint configured.
-// OSS users never need Postgres; internal users never work with stale
-// data. Neither mode writes — release and verify operations stay on the
-// existing Admin API clients in cmd/stackkit/commands/module.go.
+// The registry has one publication authority: the Git checkout. CUE owns the
+// facts it models; the checked-in embedded snapshot owns remaining catalog
+// facts and the baked projection consumed by the CLI. No account, database, or
+// hosted service participates in publication. Manual snapshots remain a
+// migration-only compatibility shape.
 package registry
 
 import (
@@ -31,11 +18,10 @@ import (
 //
 // v3 (2026-06-10, WS-0 truth-consolidation): adds ContentHash, ServiceGroups,
 // ToolDefaultConfigs and the StackKit sub-resources (service selections,
-// spec-profile hashes, tool configs) so the Admin snapshot carries the full
-// kombify-DB catalog truth needed by emit-cue (WS-1) and the generate
-// defaults + hash-parity gates (WS-2).
+// spec-profile hashes, and tool configs. Those fields now remain versioned in
+// the Git-owned embedded artifact used by emit-cue and the hash-parity gates.
 //
-// v4 (2026-06-13, CP-2 discovery-to-docs pipeline): extends Tool with vendor,
+// v4 (2026-06-13, CP-2 discovery-to-docs pipeline): extended Tool with vendor,
 // license, documentation_url, repo_url, use_cases and a Content block carrying
 // the published sk_tool_content sections. Powers emit-mintlify (CP-3).
 const SnapshotVersion = 4
@@ -46,11 +32,10 @@ const SnapshotVersion = 4
 // two snapshots with identical content produce byte-identical JSON --
 // this keeps diffs readable and `goimports`-style re-bakes idempotent.
 // Source values for Snapshot.Source. Constants instead of bare strings so
-// callers (RemoteClient, CUE bootstrap, manual fallback) agree on spelling.
+// callers agree on spelling.
 const (
-	SourceAdminAPI = "admin-api"
-	SourceCUE      = "cue"
-	SourceManual   = "manual"
+	SourceCUE    = "cue"
+	SourceManual = "manual"
 )
 
 type Snapshot struct {
@@ -59,20 +44,15 @@ type Snapshot struct {
 	SchemaVersion int `json:"schema_version"`
 
 	// Source identifies where the snapshot was produced.
-	// One of: "admin-api" (private build), "cue" (OSS bootstrap),
-	// "manual" (checked-in fallback).
+	// One of: "cue" (Git/CUE bake) or "manual" (migration fallback).
 	Source string `json:"source"`
 
 	// GeneratedAt is the UTC time the snapshot was baked.
 	GeneratedAt time.Time `json:"generated_at"`
 
-	// AdminEndpoint records which API instance produced the snapshot
-	// (when Source == "admin-api"). Empty for CUE-baked snapshots.
-	AdminEndpoint string `json:"admin_endpoint,omitempty"`
-
-	// ContentHash is the server-computed SHA-256 (hex) over the canonical
+	// ContentHash is the SHA-256 (hex) over the canonical
 	// catalog payload, excluding volatile envelope fields (generated_at,
-	// admin_endpoint, content_hash itself). Two snapshots with identical
+	// content_hash itself). Two snapshots with identical
 	// catalog content carry the same hash regardless of when or where they
 	// were fetched. Empty for CUE-baked snapshots.
 	ContentHash string `json:"content_hash,omitempty"`
@@ -105,8 +85,8 @@ type Snapshot struct {
 
 // Tool mirrors the subset of sk_tool that the CLI needs: identity +
 // evaluation status + vendor/license metadata + published content.
-// Vulnerability and changelog fields are omitted intentionally -- OSS
-// users have no use for them, and privates stay behind the Admin API.
+// Vulnerability and changelog fields are omitted intentionally because they
+// are not part of the embedded StackKits contract.
 type Tool struct {
 	Slug        string   `json:"slug"`
 	DisplayName string   `json:"display_name"`
@@ -142,8 +122,7 @@ type ToolContent struct {
 }
 
 // ToolContentSections maps the structured documentation sections of a
-// tool_doc content entry. Mirrors the section schema validated by
-// kombify-Administration tool-content.ts.
+// tool_doc content entry retained in the versioned snapshot wire shape.
 type ToolContentSections struct {
 	Overview        string            `json:"overview,omitempty"`
 	VendorInfo      string            `json:"vendor_info,omitempty"`
@@ -230,7 +209,7 @@ type StackKit struct {
 
 	// SpecProfiles mirrors sk_stackkit_spec_profile (default/saved kinds
 	// only): the drift-detection hashes generate/verify compare against.
-	// The full spec JSON stays behind the Admin API spec endpoints.
+	// The full definition stays in the Git-owned Kit CUE/YAML source.
 	SpecProfiles []StackKitSpecProfile `json:"spec_profiles,omitempty"`
 
 	// ToolConfigs mirrors sk_stackkit_tool_config: the kit-specific,
@@ -255,9 +234,8 @@ type StackKitServiceSelection struct {
 }
 
 // StackKitSpecProfile mirrors the hash-relevant subset of
-// sk_stackkit_spec_profile. specJson is intentionally omitted -- consumers
-// fetch the materialized spec via the Admin spec endpoints; the snapshot
-// only carries the parity anchors.
+// Legacy spec-profile projection. The materialized definition remains in the
+// Git-owned Kit CUE/YAML source; this snapshot carries only parity anchors.
 type StackKitSpecProfile struct {
 	Slug               string `json:"slug"`
 	Kind               string `json:"kind,omitempty"` // "default" | "saved"

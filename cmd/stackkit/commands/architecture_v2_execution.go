@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/agentsurface"
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/applyledger"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
@@ -651,7 +652,20 @@ func (g architectureV2ExecutionGate) generateV2(wd string, renderContext context
 		WorkspaceRoot: workspaceRoot,
 		GeneratedAt:   now().UTC().Format(time.RFC3339Nano),
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	specPath := specFile
+	if specPath == "" {
+		specPath = "stack-spec.yaml"
+	}
+	if !filepath.IsAbs(specPath) {
+		specPath = filepath.Join(workspaceRoot, specPath)
+	}
+	if err := agentsurface.WriteWorkspaceFromSpec(workspaceRoot, specPath); err != nil {
+		return fmt.Errorf("write agent-surface handoff: %w", err)
+	}
+	return nil
 }
 
 func validateArchitectureV2GenerateOptions(wd string, options architectureV2ExecutionCLIOptions, governedOutputRoot string) error {

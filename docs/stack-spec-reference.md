@@ -197,7 +197,7 @@ domain: home.localhost
 ```
 
 - **Service URLs:** `service.home.localhost` (e.g. `auth.home.localhost`, `whoami.home.localhost`)
-- **Default PAAS:** `coolify` for local-only/no-domain local and pi StackKits. Low-resource mode still reduces heavy apps, but does not switch to Dockge by default.
+- **Default PAAS:** `coolify` for v1 local-only/no-domain local and pi StackKits. Native v2 Basement `install.computeTier: low` is standalone Compose and does not keep Coolify.
 - **TLS:** HTTP in local-only mode. Use a public/custom domain for real certificates.
 - **DNS:** Browser/OS `.localhost` handling resolves names to loopback.
 
@@ -234,11 +234,21 @@ DNS-01 is auto-selected when `tls.provider` is set. Supported providers:
 
 ## Compute Tiers
 
-| Tier | Criteria | Effect |
-|------|----------|--------|
-| `high` | 8+ CPU, 16+ GB RAM | Full stack, all use cases |
-| `standard` | 4+ CPU, 8+ GB RAM | Default Coolify platform |
-| `low` | <4 CPU or <4 GB RAM | Required platform remains Coolify unless explicitly overridden. Heavy services are gated out |
+Native v2 `install.computeTier` is a declared kit graph (ADR-0036), not a RAM
+sizer and not Apply admission. Init `--compute-tier` and the Unifier write it.
+CUE `computeTierGraphs` is authority; YAML `computeTiers` in `stackkit.yaml` is
+kitio roundtrip derived from those floors.
+
+| Tier | Meaning | Current status |
+|------|---------|----------------|
+| `standard` | Coolify PaaS + Immich with ML | Default; declared on every kit |
+| `low` | Standalone, no Coolify, Immich without ML | Declared on Basement; Cloud/Modern fail closed |
+| `high` | Standard plus `telemetry-collection` | Declared on Basement, Cloud, and Modern |
+
+Basement host floors (CUE min): `low` 2C/2GB/10GB; `standard` and `high`
+2C/4GB/20GB. High adds `telemetry-collection`. Cloud YAML `low` is kitio
+roundtrip only and has no graph. Legacy v1 `compute.tier` remains a StackSpec v1
+sizer; native v2 init does not write it.
 
 ## PAAS Platforms
 

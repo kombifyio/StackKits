@@ -1,7 +1,8 @@
 // Package photos defines the Photos / Family Photo Vault use case package.
 //
 // Photos is a default kit use case (Basement and Cloud). The release path stays
-// self-hosted and OSS-realized through Immich; there is intentionally no
+// self-hosted and OSS-realized through Immich. ente-photos is post-1.0 and is
+// not a catalog component until modules/ente-photos exists. There is intentionally no
 // control-plane runtime profile: per PLACEMENT-MODE-STANDARD heavy stateful
 // media apps such as Immich are local-only/standard and never
 // managed-serverless. Managed value for this use case is realized as lease,
@@ -32,15 +33,6 @@ Package: foundation.#UseCasePackage & {
 			rationale:  "Immich is the Google-Photos-class default with mobile backup, ML search, and multi-user family sharing."
 			capabilities: ["photos", "photo-management", "media-backup", "ai-search"]
 		}
-		alternatives: [
-			{
-				moduleSlug: "ente-photos"
-				role:       "primary"
-				required:   false
-				rationale:  "Ente Photos is the planned end-to-end-encrypted alternative. The module contract is pending; swaps follow the immich replacementContract (stableRouteKey photos)."
-				capabilities: ["photos", "photo-management", "media-backup", "e2e-encryption"]
-			},
-		]
 	}
 
 	defaultRuntimeProfile: "self-hosted-photos"
@@ -104,13 +96,6 @@ Package: foundation.#UseCasePackage & {
 			required:   false
 			rationale:  "Low-graph Immich without ML, delivered through standalone Compose."
 			capabilities: ["photos", "photo-management", "media-backup"]
-		}
-		"ente-photos": {
-			moduleSlug: "ente-photos"
-			role:       "primary"
-			required:   false
-			rationale:  "Planned E2EE alternative; module contract pending, swap governed by the immich replacementContract."
-			capabilities: ["photos", "photo-management", "media-backup", "e2e-encryption"]
 		}
 	}
 
@@ -201,5 +186,31 @@ Package: foundation.#UseCasePackage & {
 
 	lifecycle: foundation.#StandardUseCaseLifecycle & {
 		referenceVertical: true
+	}
+
+	agentSurface: {
+		equipPolicy:  "on-generate"
+		lifecycleMcp: {}
+		productMcps: []
+		apis: [{
+			id:       "immich"
+			protocol: "rest"
+			purpose:  "Owner bootstrap, health, albums, shares, assets, and jobs. Immich has no native product MCP."
+			auth:     "immich-auth"
+		}]
+		skills: [{
+			id:       "family-vault"
+			audience: "product-user"
+			source:   "stackkits"
+			path:     "use-cases/photos/agent/family-vault/SKILL.md"
+		}]
+		cliHelpers: [{
+			command: "stackkit agent mcp-config"
+			purpose: "Print the stackkit lifecycle MCP client connection."
+		}]
+		configBaseline: {
+			status: "omitted"
+			reason: "Immich runtime is the digest-pinned selected-PaaS bundle. StackKits does not author a separate Immich configuration file."
+		}
 	}
 }

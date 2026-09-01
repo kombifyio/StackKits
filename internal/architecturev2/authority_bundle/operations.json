@@ -1,0 +1,201 @@
+{
+  "contentDigest": "sha256:845ca9c6df7b6fa1149a15d4faebbd146cec37f21162c6f2b6fb425e78f05d5f",
+  "operations": [
+    {
+      "command": [
+        "apply",
+        "--json"
+      ],
+      "description": "Apply the exact persisted plan after explicit local Owner approval.",
+      "destructive": true,
+      "id": "stackkit.apply",
+      "idempotent": false,
+      "mutation": true,
+      "ownerApproval": true,
+      "title": "Apply",
+      "toolName": "stackkit_apply"
+    },
+    {
+      "command": [
+        "backup",
+        "run",
+        "--json"
+      ],
+      "description": "Create a local owner-custodied backup snapshot.",
+      "destructive": false,
+      "id": "stackkit.backup",
+      "idempotent": true,
+      "mutation": true,
+      "ownerApproval": true,
+      "title": "Backup",
+      "toolName": "stackkit_backup"
+    },
+    {
+      "command": [
+        "drift",
+        "detect",
+        "--json"
+      ],
+      "description": "Observe desired-versus-applied standalone state drift.",
+      "destructive": false,
+      "id": "stackkit.drift",
+      "idempotent": true,
+      "mutation": false,
+      "ownerApproval": false,
+      "title": "Drift",
+      "toolName": "stackkit_drift"
+    },
+    {
+      "command": [
+        "generate"
+      ],
+      "description": "Generate rollout artifacts from the exact persisted ResolvedPlan.",
+      "destructive": false,
+      "id": "stackkit.generate",
+      "idempotent": true,
+      "mutation": true,
+      "ownerApproval": true,
+      "title": "Generate",
+      "toolName": "stackkit_generate"
+    },
+    {
+      "command": [
+        "init"
+      ],
+      "description": "Materialize a native StackSpec from the embedded CUE authoring contract.",
+      "destructive": false,
+      "id": "stackkit.init",
+      "idempotent": false,
+      "mutation": true,
+      "ownerApproval": true,
+      "title": "Init",
+      "toolName": "stackkit_init"
+    },
+    {
+      "command": [
+        "logs",
+        "list",
+        "--json"
+      ],
+      "description": "List local structured rollout logs.",
+      "destructive": false,
+      "id": "stackkit.logs",
+      "idempotent": true,
+      "mutation": false,
+      "ownerApproval": false,
+      "title": "Logs",
+      "toolName": "stackkit_logs"
+    },
+    {
+      "command": [
+        "plan",
+        "--json"
+      ],
+      "description": "Inspect the persisted ResolvedPlan and generated artifact closure.",
+      "destructive": false,
+      "id": "stackkit.plan",
+      "idempotent": true,
+      "mutation": false,
+      "ownerApproval": false,
+      "title": "Plan",
+      "toolName": "stackkit_plan"
+    },
+    {
+      "command": [
+        "remove",
+        "--json"
+      ],
+      "description": "Remove one governed workload from its exact applied ResolvedPlan after local Owner approval.",
+      "destructive": true,
+      "id": "stackkit.remove",
+      "idempotent": true,
+      "mutation": true,
+      "ownerApproval": true,
+      "title": "Remove",
+      "toolName": "stackkit_remove"
+    },
+    {
+      "command": [
+        "resolve"
+      ],
+      "description": "Resolve StackSpec and observed Inventory into the canonical ResolvedPlan.",
+      "destructive": false,
+      "id": "stackkit.resolve",
+      "idempotent": true,
+      "mutation": true,
+      "ownerApproval": true,
+      "title": "Resolve",
+      "toolName": "stackkit_resolve"
+    },
+    {
+      "command": [
+        "backup",
+        "restore"
+      ],
+      "description": "Verify and restore one signed snapshot into isolated staging.",
+      "destructive": true,
+      "id": "stackkit.restore",
+      "idempotent": true,
+      "mutation": true,
+      "ownerApproval": true,
+      "title": "Restore",
+      "toolName": "stackkit_restore"
+    },
+    {
+      "command": [
+        "status",
+        "--json"
+      ],
+      "description": "Read the current standalone StackKits lifecycle status.",
+      "destructive": false,
+      "id": "stackkit.status",
+      "idempotent": true,
+      "mutation": false,
+      "ownerApproval": false,
+      "title": "Status",
+      "toolName": "stackkit_status"
+    },
+    {
+      "command": [
+        "upgrade",
+        "--json"
+      ],
+      "description": "Resolve, verify, checkpoint, install, apply, and verify a StackKits release.",
+      "destructive": true,
+      "id": "stackkit.upgrade",
+      "idempotent": false,
+      "mutation": true,
+      "ownerApproval": true,
+      "title": "Upgrade",
+      "toolName": "stackkit_upgrade"
+    },
+    {
+      "command": [
+        "validate"
+      ],
+      "description": "Validate desired StackSpec intent without mutating lifecycle state.",
+      "destructive": false,
+      "id": "stackkit.validate",
+      "idempotent": true,
+      "mutation": false,
+      "ownerApproval": false,
+      "title": "Validate",
+      "toolName": "stackkit_validate"
+    },
+    {
+      "command": [
+        "verify",
+        "--json"
+      ],
+      "description": "Verify desired, planned, applied, and observed local state.",
+      "destructive": false,
+      "id": "stackkit.verify",
+      "idempotent": true,
+      "mutation": false,
+      "ownerApproval": false,
+      "title": "Verify",
+      "toolName": "stackkit_verify"
+    }
+  ],
+  "schemaVersion": "stackkits-webmcp-operations/v1"
+}

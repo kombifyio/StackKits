@@ -1,17 +1,5 @@
-// Package kitio provides DB-shape <-> stackkit.yaml conversions plus
-// reverse-generation of CUE / Terraform / Docker-Compose artifacts.
-//
-// This is the Go counterpart to the TS kit-import endpoint
-// (kombify-Administration/.../kit-import/+server.ts). The endpoint accepts
-// a request body whose JSON shape is preserved here as KitDefinition.
-//
-// One library, two consumers:
-//   - cmd/stackkit kit import / export / roundtrip CLI
-//   - tests in cmd/stackkit/commands/kit_*_test.go (golden + live)
-//
-// Kept DB-free: the library never opens a connection. The Admin API
-// client (client.go) is used for live roundtrip tests against
-// /api/v1/sk/registry/stackkits/{slug}/kit-export.
+// Package kitio imports Git-owned stackkit.yaml definitions and generates
+// reviewable CUE, Terraform, Docker Compose, and YAML artifacts.
 package kitio
 
 import (
@@ -26,9 +14,7 @@ import (
 func jsonMarshal(v interface{}) ([]byte, error)   { return json.Marshal(v) }
 func jsonUnmarshal(b []byte, v interface{}) error { return json.Unmarshal(b, v) }
 
-// KitDefinition is the canonical DB-shape that round-trips through both
-// kit-import (yaml -> POST body) and kit-export (GET response -> yaml).
-// JSON tags match the TS endpoint's body shape verbatim.
+// KitDefinition is the canonical in-process shape for a Git-owned Kit source.
 type KitDefinition struct {
 	APIVersion   string                    `yaml:"apiVersion,omitempty" json:"apiVersion,omitempty"`
 	Kind         string                    `yaml:"kind,omitempty" json:"kind,omitempty"`
@@ -63,11 +49,9 @@ type KitDefinition struct {
 	TunnelOptions   []string `yaml:"tunnelOptions,omitempty" json:"tunnelOptions,omitempty"`
 	SecretsProvider string   `yaml:"-" json:"secretsProvider,omitempty"`
 
-	// Meta fields injected by kit-import CLI (not in YAML)
+	// Publication fields materialized by the private Git/CUE publisher.
 	CueSourcePath string `yaml:"-" json:"cueSourcePath,omitempty"`
-	ImportedBy    string `yaml:"-" json:"importedBy,omitempty"`
 	ContractHash  string `yaml:"-" json:"contractHash,omitempty"`
-	DryRun        bool   `yaml:"-" json:"dryRun,omitempty"`
 }
 
 // PlatformField is a polymorphic yaml `platform:` value.

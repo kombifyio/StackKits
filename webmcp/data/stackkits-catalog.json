@@ -1,0 +1,1438 @@
+{
+  "schema_version": "stackkits-webmcp/v1",
+  "source_sha": "5add761aa9c16fee6933365ac2fa08bbb7528e7b",
+  "authority_bundle_sha256": "7ecd451a92aaee23a8c48ec3e4e6031abfb1a6dda1119a07a87bccc61e3286bc",
+  "kits": [
+    {
+      "stackkit_id": "basement-kit",
+      "display_name": "Basement Kit",
+      "version": "5.1.0",
+      "description": "Local-first StackKit for one or more nodes on private home sites",
+      "status": "supported",
+      "planner_link": "/planner?stackkit_id=basement-kit",
+      "compute_tiers": [
+        "low",
+        "standard",
+        "high"
+      ],
+      "tiers": {
+        "low": {
+          "compute_tier": "low",
+          "host_requirements": {
+            "min_cpu_cores": 2,
+            "min_ram_gb": 2,
+            "min_storage_gb": 10,
+            "recommended_cpu_cores": 2,
+            "recommended_ram_gb": 2,
+            "recommended_storage_gb": 10
+          },
+          "platform_management": "standalone",
+          "enable_capabilities": [],
+          "module_substitutions": {
+            "stackkits-basement-core-runtime": "stackkits-basement-core-lite-runtime",
+            "stackkits-immich-runtime": "stackkits-immich-lite-runtime"
+          },
+          "module_runtime_requirements": [
+            {
+              "module_id": "stackkits-basement-core-lite-runtime",
+              "declaration": "declared",
+              "runtime_requirements": {
+                "min_cpu_cores": 2,
+                "min_ram_gb": 2,
+                "min_storage_gb": 10
+              }
+            },
+            {
+              "module_id": "stackkits-cloudreve-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-home-assistant-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-immich-lite-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-vaultwarden-runtime",
+              "declaration": "not_declared"
+            }
+          ],
+          "use_case_fits": [
+            {
+              "use_case_id": "ai",
+              "title": "Private AI",
+              "included": false,
+              "reason": "Local inference is GPU/RAM heavy and has no lite graph substitution yet."
+            },
+            {
+              "use_case_id": "dev",
+              "title": "Developer Platform",
+              "included": false,
+              "reason": "Gitea+CI is not on the Basement low graph."
+            },
+            {
+              "use_case_id": "files",
+              "title": "File Storage and Documents",
+              "included": true,
+              "functions": [
+                "document-storage",
+                "file-sharing",
+                "files"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "cloudreve",
+              "notes": [
+                "Lightweight sharing. Nextcloud is not on low."
+              ]
+            },
+            {
+              "use_case_id": "game",
+              "title": "Game Server",
+              "included": false,
+              "reason": "Post-1.0. Game servers are on-demand session load, not a low-graph resident."
+            },
+            {
+              "use_case_id": "mail",
+              "title": "Private Mail",
+              "included": false,
+              "reason": "Mail is post-1.0. A mail stack is always-on active-resident (SMTP/IMAP) and does not fit low until a lite contract exists."
+            },
+            {
+              "use_case_id": "media",
+              "title": "Media Library",
+              "included": false,
+              "reason": "Jellyfin library + transcode is not on the Basement low graph. Needs a lite substitution before it can be included."
+            },
+            {
+              "use_case_id": "photos",
+              "title": "Photos and Memories",
+              "included": true,
+              "functions": [
+                "media-backup",
+                "photo-management",
+                "photos"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "ingest"
+              },
+              "module_slug": "immich-lite",
+              "notes": [
+                "No ML search. Catalog alternative immich-lite on standalone-compose. Kit graph also substitutes stackkits-immich-lite-runtime. Mobile backup is the spike; the library otherwise waits."
+              ]
+            },
+            {
+              "use_case_id": "remote",
+              "title": "Remote Desktop",
+              "included": false,
+              "reason": "Guacamole is SK-M5 and not on the low graph."
+            },
+            {
+              "use_case_id": "smart-home",
+              "title": "Smart Home",
+              "included": true,
+              "functions": [
+                "automation",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "home-assistant",
+              "notes": [
+                "24/7 radio/state loop is the base load. Classic constrained-device resident. Native MCP and extra bridges stay optional."
+              ]
+            },
+            {
+              "use_case_id": "vault",
+              "title": "Password Vault",
+              "included": true,
+              "functions": [
+                "password-manager",
+                "secure-notes",
+                "totp"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "vaultwarden",
+              "notes": [
+                "Always resident for unlock/sync; almost no idle CPU. Fits the low graph."
+              ]
+            }
+          ]
+        },
+        "standard": {
+          "compute_tier": "standard",
+          "host_requirements": {
+            "min_cpu_cores": 2,
+            "min_ram_gb": 4,
+            "min_storage_gb": 20,
+            "recommended_cpu_cores": 4,
+            "recommended_ram_gb": 4,
+            "recommended_storage_gb": 20
+          },
+          "platform_management": "selected-provider",
+          "enable_capabilities": [],
+          "module_substitutions": {},
+          "module_runtime_requirements": [
+            {
+              "module_id": "stackkits-basement-core-runtime",
+              "declaration": "declared",
+              "runtime_requirements": {
+                "min_cpu_cores": 2,
+                "min_ram_gb": 4,
+                "min_storage_gb": 20
+              }
+            },
+            {
+              "module_id": "stackkits-cloudreve-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-home-assistant-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-immich-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-jellyfin-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-vaultwarden-runtime",
+              "declaration": "not_declared"
+            }
+          ],
+          "use_case_fits": [
+            {
+              "use_case_id": "ai",
+              "title": "Private AI",
+              "included": false,
+              "reason": "SK-M5: Ollama/Open WebUI modules and runtime are not executable. When they are, residency is on-demand burst inference, not 24/7 training."
+            },
+            {
+              "use_case_id": "dev",
+              "title": "Developer Platform",
+              "included": false,
+              "reason": "SK-M5: Gitea module is not executable. Intended load is always-on idle git host with interactive and batch CI bursts."
+            },
+            {
+              "use_case_id": "files",
+              "title": "File Storage and Documents",
+              "included": true,
+              "functions": [
+                "document-storage",
+                "file-sharing",
+                "files"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "cloudreve",
+              "notes": [
+                "Nextcloud remains an authoring alternative, not the default standard graph."
+              ]
+            },
+            {
+              "use_case_id": "game",
+              "title": "Game Server",
+              "included": false,
+              "reason": "Post-1.0. Intended load is on-demand: idle none, burst interactive while a session runs."
+            },
+            {
+              "use_case_id": "mail",
+              "title": "Private Mail",
+              "included": false,
+              "reason": "Post-1.0. Intended load is 24/7 inbound/outbound with interactive bursts when reading mail."
+            },
+            {
+              "use_case_id": "media",
+              "title": "Media Library",
+              "included": true,
+              "functions": [
+                "media-server",
+                "video-stream"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "jellyfin",
+              "notes": [
+                "Library waits; playback and transcode are the spike. Catalog alternative jellyfin on standard/high."
+              ]
+            },
+            {
+              "use_case_id": "photos",
+              "title": "Photos and Memories",
+              "included": true,
+              "functions": [
+                "ai-search",
+                "media-backup",
+                "photo-management",
+                "photos"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "ingest"
+              },
+              "module_slug": "immich",
+              "notes": [
+                "ML worker is resident base load. Ingest and interactive search are bursts on top."
+              ]
+            },
+            {
+              "use_case_id": "remote",
+              "title": "Remote Desktop",
+              "included": false,
+              "reason": "SK-M5: no executable module. Intended load is always-on idle gateway with interactive session bursts."
+            },
+            {
+              "use_case_id": "smart-home",
+              "title": "Smart Home",
+              "included": true,
+              "functions": [
+                "assist-api",
+                "automation",
+                "native-product-mcp",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "home-assistant"
+            },
+            {
+              "use_case_id": "vault",
+              "title": "Password Vault",
+              "included": true,
+              "functions": [
+                "password-manager",
+                "secure-notes",
+                "totp"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "vaultwarden"
+            }
+          ]
+        },
+        "high": {
+          "compute_tier": "high",
+          "host_requirements": {
+            "min_cpu_cores": 2,
+            "min_ram_gb": 4,
+            "min_storage_gb": 20,
+            "recommended_cpu_cores": 4,
+            "recommended_ram_gb": 4,
+            "recommended_storage_gb": 20
+          },
+          "platform_management": "selected-provider",
+          "enable_capabilities": [
+            "telemetry-collection"
+          ],
+          "module_substitutions": {},
+          "module_runtime_requirements": [
+            {
+              "module_id": "stackkits-basement-core-runtime",
+              "declaration": "declared",
+              "runtime_requirements": {
+                "min_cpu_cores": 2,
+                "min_ram_gb": 4,
+                "min_storage_gb": 20
+              }
+            },
+            {
+              "module_id": "stackkits-cloudreve-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-home-assistant-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-immich-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-jellyfin-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-vaultwarden-runtime",
+              "declaration": "not_declared"
+            }
+          ],
+          "use_case_fits": [
+            {
+              "use_case_id": "ai",
+              "title": "Private AI",
+              "included": false,
+              "reason": "Same as standard until SK-M5 ships. High is the intended graph (GPU node + burst interactive inference)."
+            },
+            {
+              "use_case_id": "dev",
+              "title": "Developer Platform",
+              "included": false,
+              "reason": "Same as standard until SK-M5. CI batch bursts belong on high headroom, not on low."
+            },
+            {
+              "use_case_id": "files",
+              "title": "File Storage and Documents",
+              "included": true,
+              "functions": [
+                "document-storage",
+                "file-sharing",
+                "files"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "cloudreve",
+              "notes": [
+                "Collaboration/DMS extras need an explicit high-graph substitution before they become default."
+              ]
+            },
+            {
+              "use_case_id": "game",
+              "title": "Game Server",
+              "included": false,
+              "reason": "Post-1.0. Same as standard; dedicated always-on game hosts would be a later high-graph choice."
+            },
+            {
+              "use_case_id": "mail",
+              "title": "Private Mail",
+              "included": false,
+              "reason": "Post-1.0. Same functions as standard; reputation/filter extras would be high-graph substitutions."
+            },
+            {
+              "use_case_id": "media",
+              "title": "Media Library",
+              "included": true,
+              "functions": [
+                "media-server",
+                "video-stream"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "jellyfin",
+              "notes": [
+                "Same functions as standard until a high-graph media substitution exists."
+              ]
+            },
+            {
+              "use_case_id": "photos",
+              "title": "Photos and Memories",
+              "included": true,
+              "functions": [
+                "ai-search",
+                "media-backup",
+                "photo-management",
+                "photos"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "ingest"
+              },
+              "module_slug": "immich",
+              "notes": [
+                "Same photo functions as standard until a high-graph substitution exists. Extra headroom is kit high, not extra Immich features."
+              ]
+            },
+            {
+              "use_case_id": "remote",
+              "title": "Remote Desktop",
+              "included": false,
+              "reason": "Same as standard until SK-M5."
+            },
+            {
+              "use_case_id": "smart-home",
+              "title": "Smart Home",
+              "included": true,
+              "functions": [
+                "assist-api",
+                "automation",
+                "native-product-mcp",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "home-assistant",
+              "notes": [
+                "Same OSS functions as standard. Managed/hybrid profiles are realization, not a kit graph."
+              ]
+            },
+            {
+              "use_case_id": "vault",
+              "title": "Password Vault",
+              "included": true,
+              "functions": [
+                "password-manager",
+                "secure-notes",
+                "totp"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "vaultwarden",
+              "notes": [
+                "No extra vault functions on high until a graph substitution exists."
+              ]
+            }
+          ]
+        }
+      },
+      "required_authoring_inputs": []
+    },
+    {
+      "stackkit_id": "cloud-kit",
+      "display_name": "Cloud Kit",
+      "version": "5.1.0",
+      "description": "Cloud-only StackKit for one or more externally supplied cloud hosts",
+      "status": "supported",
+      "planner_link": "/planner?stackkit_id=cloud-kit",
+      "compute_tiers": [
+        "standard",
+        "high"
+      ],
+      "tiers": {
+        "standard": {
+          "compute_tier": "standard",
+          "host_requirements": {
+            "min_cpu_cores": 2,
+            "min_ram_gb": 4,
+            "min_storage_gb": 20,
+            "recommended_cpu_cores": 4,
+            "recommended_ram_gb": 4,
+            "recommended_storage_gb": 20
+          },
+          "platform_management": "selected-provider",
+          "enable_capabilities": [],
+          "module_substitutions": {},
+          "module_runtime_requirements": [
+            {
+              "module_id": "stackkits-cloud-core-runtime",
+              "declaration": "declared",
+              "runtime_requirements": {
+                "min_cpu_cores": 2,
+                "min_ram_gb": 4,
+                "min_storage_gb": 20
+              }
+            },
+            {
+              "module_id": "stackkits-cloudreve-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-home-assistant-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-immich-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-jellyfin-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-vaultwarden-runtime",
+              "declaration": "not_declared"
+            }
+          ],
+          "use_case_fits": [
+            {
+              "use_case_id": "ai",
+              "title": "Private AI",
+              "included": false,
+              "reason": "SK-M5: Ollama/Open WebUI modules and runtime are not executable. When they are, residency is on-demand burst inference, not 24/7 training."
+            },
+            {
+              "use_case_id": "dev",
+              "title": "Developer Platform",
+              "included": false,
+              "reason": "SK-M5: Gitea module is not executable. Intended load is always-on idle git host with interactive and batch CI bursts."
+            },
+            {
+              "use_case_id": "files",
+              "title": "File Storage and Documents",
+              "included": true,
+              "functions": [
+                "document-storage",
+                "file-sharing",
+                "files"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "cloudreve",
+              "notes": [
+                "Nextcloud remains an authoring alternative, not the default standard graph."
+              ]
+            },
+            {
+              "use_case_id": "game",
+              "title": "Game Server",
+              "included": false,
+              "reason": "Post-1.0. Intended load is on-demand: idle none, burst interactive while a session runs."
+            },
+            {
+              "use_case_id": "mail",
+              "title": "Private Mail",
+              "included": false,
+              "reason": "Post-1.0. Intended load is 24/7 inbound/outbound with interactive bursts when reading mail."
+            },
+            {
+              "use_case_id": "media",
+              "title": "Media Library",
+              "included": true,
+              "functions": [
+                "media-server",
+                "video-stream"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "jellyfin",
+              "notes": [
+                "Library waits; playback and transcode are the spike. Catalog alternative jellyfin on standard/high."
+              ]
+            },
+            {
+              "use_case_id": "photos",
+              "title": "Photos and Memories",
+              "included": true,
+              "functions": [
+                "ai-search",
+                "media-backup",
+                "photo-management",
+                "photos"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "ingest"
+              },
+              "module_slug": "immich",
+              "notes": [
+                "ML worker is resident base load. Ingest and interactive search are bursts on top."
+              ]
+            },
+            {
+              "use_case_id": "remote",
+              "title": "Remote Desktop",
+              "included": false,
+              "reason": "SK-M5: no executable module. Intended load is always-on idle gateway with interactive session bursts."
+            },
+            {
+              "use_case_id": "smart-home",
+              "title": "Smart Home",
+              "included": true,
+              "functions": [
+                "assist-api",
+                "automation",
+                "native-product-mcp",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "home-assistant"
+            },
+            {
+              "use_case_id": "vault",
+              "title": "Password Vault",
+              "included": true,
+              "functions": [
+                "password-manager",
+                "secure-notes",
+                "totp"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "vaultwarden"
+            }
+          ]
+        },
+        "high": {
+          "compute_tier": "high",
+          "host_requirements": {
+            "min_cpu_cores": 2,
+            "min_ram_gb": 4,
+            "min_storage_gb": 20,
+            "recommended_cpu_cores": 4,
+            "recommended_ram_gb": 4,
+            "recommended_storage_gb": 20
+          },
+          "platform_management": "selected-provider",
+          "enable_capabilities": [
+            "telemetry-collection"
+          ],
+          "module_substitutions": {},
+          "module_runtime_requirements": [
+            {
+              "module_id": "stackkits-cloud-core-runtime",
+              "declaration": "declared",
+              "runtime_requirements": {
+                "min_cpu_cores": 2,
+                "min_ram_gb": 4,
+                "min_storage_gb": 20
+              }
+            },
+            {
+              "module_id": "stackkits-cloudreve-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-home-assistant-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-immich-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-jellyfin-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-vaultwarden-runtime",
+              "declaration": "not_declared"
+            }
+          ],
+          "use_case_fits": [
+            {
+              "use_case_id": "ai",
+              "title": "Private AI",
+              "included": false,
+              "reason": "Same as standard until SK-M5 ships. High is the intended graph (GPU node + burst interactive inference)."
+            },
+            {
+              "use_case_id": "dev",
+              "title": "Developer Platform",
+              "included": false,
+              "reason": "Same as standard until SK-M5. CI batch bursts belong on high headroom, not on low."
+            },
+            {
+              "use_case_id": "files",
+              "title": "File Storage and Documents",
+              "included": true,
+              "functions": [
+                "document-storage",
+                "file-sharing",
+                "files"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "cloudreve",
+              "notes": [
+                "Collaboration/DMS extras need an explicit high-graph substitution before they become default."
+              ]
+            },
+            {
+              "use_case_id": "game",
+              "title": "Game Server",
+              "included": false,
+              "reason": "Post-1.0. Same as standard; dedicated always-on game hosts would be a later high-graph choice."
+            },
+            {
+              "use_case_id": "mail",
+              "title": "Private Mail",
+              "included": false,
+              "reason": "Post-1.0. Same functions as standard; reputation/filter extras would be high-graph substitutions."
+            },
+            {
+              "use_case_id": "media",
+              "title": "Media Library",
+              "included": true,
+              "functions": [
+                "media-server",
+                "video-stream"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "jellyfin",
+              "notes": [
+                "Same functions as standard until a high-graph media substitution exists."
+              ]
+            },
+            {
+              "use_case_id": "photos",
+              "title": "Photos and Memories",
+              "included": true,
+              "functions": [
+                "ai-search",
+                "media-backup",
+                "photo-management",
+                "photos"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "ingest"
+              },
+              "module_slug": "immich",
+              "notes": [
+                "Same photo functions as standard until a high-graph substitution exists. Extra headroom is kit high, not extra Immich features."
+              ]
+            },
+            {
+              "use_case_id": "remote",
+              "title": "Remote Desktop",
+              "included": false,
+              "reason": "Same as standard until SK-M5."
+            },
+            {
+              "use_case_id": "smart-home",
+              "title": "Smart Home",
+              "included": true,
+              "functions": [
+                "assist-api",
+                "automation",
+                "native-product-mcp",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "home-assistant",
+              "notes": [
+                "Same OSS functions as standard. Managed/hybrid profiles are realization, not a kit graph."
+              ]
+            },
+            {
+              "use_case_id": "vault",
+              "title": "Password Vault",
+              "included": true,
+              "functions": [
+                "password-manager",
+                "secure-notes",
+                "totp"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "vaultwarden",
+              "notes": [
+                "No extra vault functions on high until a graph substitution exists."
+              ]
+            }
+          ]
+        }
+      },
+      "required_authoring_inputs": [
+        "network.domain.base"
+      ]
+    },
+    {
+      "stackkit_id": "modern-homelab",
+      "display_name": "Modern Homelab",
+      "version": "1.1.0-alpha",
+      "description": "Federated local and cloud StackKit with a policy-constrained bridge",
+      "status": "preview",
+      "planner_link": "/planner?stackkit_id=modern-homelab",
+      "compute_tiers": [
+        "standard",
+        "high"
+      ],
+      "tiers": {
+        "standard": {
+          "compute_tier": "standard",
+          "host_requirements": {
+            "min_cpu_cores": 2,
+            "min_ram_gb": 4,
+            "min_storage_gb": 20,
+            "recommended_cpu_cores": 4,
+            "recommended_ram_gb": 4,
+            "recommended_storage_gb": 20
+          },
+          "platform_management": "selected-provider",
+          "enable_capabilities": [],
+          "module_substitutions": {},
+          "module_runtime_requirements": [
+            {
+              "module_id": "stackkits-basement-core-runtime",
+              "declaration": "declared",
+              "runtime_requirements": {
+                "min_cpu_cores": 2,
+                "min_ram_gb": 4,
+                "min_storage_gb": 20
+              }
+            },
+            {
+              "module_id": "stackkits-cloudreve-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-home-assistant-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-immich-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-jellyfin-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-vaultwarden-runtime",
+              "declaration": "not_declared"
+            }
+          ],
+          "use_case_fits": [
+            {
+              "use_case_id": "ai",
+              "title": "Private AI",
+              "included": false,
+              "reason": "SK-M5: Ollama/Open WebUI modules and runtime are not executable. When they are, residency is on-demand burst inference, not 24/7 training."
+            },
+            {
+              "use_case_id": "dev",
+              "title": "Developer Platform",
+              "included": false,
+              "reason": "SK-M5: Gitea module is not executable. Intended load is always-on idle git host with interactive and batch CI bursts."
+            },
+            {
+              "use_case_id": "files",
+              "title": "File Storage and Documents",
+              "included": true,
+              "functions": [
+                "document-storage",
+                "file-sharing",
+                "files"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "cloudreve",
+              "notes": [
+                "Nextcloud remains an authoring alternative, not the default standard graph."
+              ]
+            },
+            {
+              "use_case_id": "game",
+              "title": "Game Server",
+              "included": false,
+              "reason": "Post-1.0. Intended load is on-demand: idle none, burst interactive while a session runs."
+            },
+            {
+              "use_case_id": "mail",
+              "title": "Private Mail",
+              "included": false,
+              "reason": "Post-1.0. Intended load is 24/7 inbound/outbound with interactive bursts when reading mail."
+            },
+            {
+              "use_case_id": "media",
+              "title": "Media Library",
+              "included": true,
+              "functions": [
+                "media-server",
+                "video-stream"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "jellyfin",
+              "notes": [
+                "Library waits; playback and transcode are the spike. Catalog alternative jellyfin on standard/high."
+              ]
+            },
+            {
+              "use_case_id": "photos",
+              "title": "Photos and Memories",
+              "included": true,
+              "functions": [
+                "ai-search",
+                "media-backup",
+                "photo-management",
+                "photos"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "ingest"
+              },
+              "module_slug": "immich",
+              "notes": [
+                "ML worker is resident base load. Ingest and interactive search are bursts on top."
+              ]
+            },
+            {
+              "use_case_id": "remote",
+              "title": "Remote Desktop",
+              "included": false,
+              "reason": "SK-M5: no executable module. Intended load is always-on idle gateway with interactive session bursts."
+            },
+            {
+              "use_case_id": "smart-home",
+              "title": "Smart Home",
+              "included": true,
+              "functions": [
+                "assist-api",
+                "automation",
+                "native-product-mcp",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "home-assistant"
+            },
+            {
+              "use_case_id": "vault",
+              "title": "Password Vault",
+              "included": true,
+              "functions": [
+                "password-manager",
+                "secure-notes",
+                "totp"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "vaultwarden"
+            }
+          ]
+        },
+        "high": {
+          "compute_tier": "high",
+          "host_requirements": {
+            "min_cpu_cores": 2,
+            "min_ram_gb": 4,
+            "min_storage_gb": 20,
+            "recommended_cpu_cores": 4,
+            "recommended_ram_gb": 4,
+            "recommended_storage_gb": 20
+          },
+          "platform_management": "selected-provider",
+          "enable_capabilities": [
+            "telemetry-collection"
+          ],
+          "module_substitutions": {},
+          "module_runtime_requirements": [
+            {
+              "module_id": "stackkits-basement-core-runtime",
+              "declaration": "declared",
+              "runtime_requirements": {
+                "min_cpu_cores": 2,
+                "min_ram_gb": 4,
+                "min_storage_gb": 20
+              }
+            },
+            {
+              "module_id": "stackkits-cloudreve-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-home-assistant-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-immich-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-jellyfin-runtime",
+              "declaration": "not_declared"
+            },
+            {
+              "module_id": "stackkits-vaultwarden-runtime",
+              "declaration": "not_declared"
+            }
+          ],
+          "use_case_fits": [
+            {
+              "use_case_id": "ai",
+              "title": "Private AI",
+              "included": false,
+              "reason": "Same as standard until SK-M5 ships. High is the intended graph (GPU node + burst interactive inference)."
+            },
+            {
+              "use_case_id": "dev",
+              "title": "Developer Platform",
+              "included": false,
+              "reason": "Same as standard until SK-M5. CI batch bursts belong on high headroom, not on low."
+            },
+            {
+              "use_case_id": "files",
+              "title": "File Storage and Documents",
+              "included": true,
+              "functions": [
+                "document-storage",
+                "file-sharing",
+                "files"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "cloudreve",
+              "notes": [
+                "Collaboration/DMS extras need an explicit high-graph substitution before they become default."
+              ]
+            },
+            {
+              "use_case_id": "game",
+              "title": "Game Server",
+              "included": false,
+              "reason": "Post-1.0. Same as standard; dedicated always-on game hosts would be a later high-graph choice."
+            },
+            {
+              "use_case_id": "mail",
+              "title": "Private Mail",
+              "included": false,
+              "reason": "Post-1.0. Same functions as standard; reputation/filter extras would be high-graph substitutions."
+            },
+            {
+              "use_case_id": "media",
+              "title": "Media Library",
+              "included": true,
+              "functions": [
+                "media-server",
+                "video-stream"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "jellyfin",
+              "notes": [
+                "Same functions as standard until a high-graph media substitution exists."
+              ]
+            },
+            {
+              "use_case_id": "photos",
+              "title": "Photos and Memories",
+              "included": true,
+              "functions": [
+                "ai-search",
+                "media-backup",
+                "photo-management",
+                "photos"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "ingest"
+              },
+              "module_slug": "immich",
+              "notes": [
+                "Same photo functions as standard until a high-graph substitution exists. Extra headroom is kit high, not extra Immich features."
+              ]
+            },
+            {
+              "use_case_id": "remote",
+              "title": "Remote Desktop",
+              "included": false,
+              "reason": "Same as standard until SK-M5."
+            },
+            {
+              "use_case_id": "smart-home",
+              "title": "Smart Home",
+              "included": true,
+              "functions": [
+                "assist-api",
+                "automation",
+                "native-product-mcp",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "home-assistant",
+              "notes": [
+                "Same OSS functions as standard. Managed/hybrid profiles are realization, not a kit graph."
+              ]
+            },
+            {
+              "use_case_id": "vault",
+              "title": "Password Vault",
+              "included": true,
+              "functions": [
+                "password-manager",
+                "secure-notes",
+                "totp"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "vaultwarden",
+              "notes": [
+                "No extra vault functions on high until a graph substitution exists."
+              ]
+            }
+          ]
+        }
+      },
+      "required_authoring_inputs": [
+        "network.domain.base"
+      ]
+    }
+  ],
+  "operations": [
+    {
+      "id": "stackkit.apply",
+      "tool_name": "stackkit_apply",
+      "title": "Apply",
+      "description": "Apply the exact persisted plan after explicit local Owner approval.",
+      "command": [
+        "apply",
+        "--json"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.backup",
+      "tool_name": "stackkit_backup",
+      "title": "Backup",
+      "description": "Create a local owner-custodied backup snapshot.",
+      "command": [
+        "backup",
+        "run",
+        "--json"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.drift",
+      "tool_name": "stackkit_drift",
+      "title": "Drift",
+      "description": "Observe desired-versus-applied standalone state drift.",
+      "command": [
+        "drift",
+        "detect",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.generate",
+      "tool_name": "stackkit_generate",
+      "title": "Generate",
+      "description": "Generate rollout artifacts from the exact persisted ResolvedPlan.",
+      "command": [
+        "generate"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.init",
+      "tool_name": "stackkit_init",
+      "title": "Init",
+      "description": "Materialize a native StackSpec from the embedded CUE authoring contract.",
+      "command": [
+        "init"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.logs",
+      "tool_name": "stackkit_logs",
+      "title": "Logs",
+      "description": "List local structured rollout logs.",
+      "command": [
+        "logs",
+        "list",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.plan",
+      "tool_name": "stackkit_plan",
+      "title": "Plan",
+      "description": "Inspect the persisted ResolvedPlan and generated artifact closure.",
+      "command": [
+        "plan",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.remove",
+      "tool_name": "stackkit_remove",
+      "title": "Remove",
+      "description": "Remove one governed workload from its exact applied ResolvedPlan after local Owner approval.",
+      "command": [
+        "remove",
+        "--json"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.resolve",
+      "tool_name": "stackkit_resolve",
+      "title": "Resolve",
+      "description": "Resolve StackSpec and observed Inventory into the canonical ResolvedPlan.",
+      "command": [
+        "resolve"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.restore",
+      "tool_name": "stackkit_restore",
+      "title": "Restore",
+      "description": "Verify and restore one signed snapshot into isolated staging.",
+      "command": [
+        "backup",
+        "restore"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.status",
+      "tool_name": "stackkit_status",
+      "title": "Status",
+      "description": "Read the current standalone StackKits lifecycle status.",
+      "command": [
+        "status",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.upgrade",
+      "tool_name": "stackkit_upgrade",
+      "title": "Upgrade",
+      "description": "Resolve, verify, checkpoint, install, apply, and verify a StackKits release.",
+      "command": [
+        "upgrade",
+        "--json"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.validate",
+      "tool_name": "stackkit_validate",
+      "title": "Validate",
+      "description": "Validate desired StackSpec intent without mutating lifecycle state.",
+      "command": [
+        "validate"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.verify",
+      "tool_name": "stackkit_verify",
+      "title": "Verify",
+      "description": "Verify desired, planned, applied, and observed local state.",
+      "command": [
+        "verify",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    }
+  ],
+  "catalog_sha256": "a021c88dddc1d834a6eeb0546c0903cc7ba39790f19312e8f8affc3352b09425"
+}

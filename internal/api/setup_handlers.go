@@ -1083,6 +1083,8 @@ func (s *Server) runSetupDrop(ctx context.Context, service servicecatalog.Servic
 		return s.runCloudreveOwnerBootstrap(ctx)
 	case "immich-owner-bootstrap":
 		return s.runImmichOwnerBootstrap(ctx)
+	case "home-assistant-owner-bootstrap":
+		return s.runHomeAssistantOwnerBootstrap(ctx)
 	case "vaultwarden-admin-handoff":
 		return s.runVaultwardenAdminHandoff(ctx, app)
 	default:

@@ -10,6 +10,8 @@ _assertRemoteRouteRole:       "access" & Definition.reachability.routes["remote-
 _assertPublicRouteCapability: "public-publish-egress" & Definition.reachability.routes.public.requiredRealizations[0].capabilityRef
 _assertPublicRouteRole:       "egress" & Definition.reachability.routes.public.requiredRealizations[0].role
 _assertPhotosOptional: [for workload in Definition.workloads.optional if workload == "photos" {workload}] & ["photos"]
+_assertMediaOptional: [for workload in Definition.workloads.optional if workload == "media" {workload}] & ["media"]
+_assertSmartHomeOptional: [for workload in Definition.workloads.optional if workload == "smart-home" {workload}] & ["smart-home"]
 _assertReachabilityMatrix: Definition.reachability & {
 	accessPolicies: {allowedExposures: ["private", "lan", "public"], lanStepDownAllowed: true}
 	routes: {

@@ -107,6 +107,12 @@ type selectedPaaSWorkloadBundle struct {
 	Components    []selectedPaaSRuntimeComponent `json:"components"`
 	Route         selectedPaaSServiceEndpoint    `json:"route"`
 	DeliveryRoute *applicationDeliveryRoute      `json:"deliveryRoute,omitempty"`
+	ConfigFiles   []selectedPaaSConfigFile       `json:"configFiles,omitempty"`
+}
+
+type selectedPaaSConfigFile struct {
+	Path string `json:"path"`
+	Body string `json:"body"`
 }
 
 // SelectedPaaSWorkloadComponentDescriptor is the immutable component identity

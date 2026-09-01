@@ -12,17 +12,19 @@ import (
 const planSchema = "kombify.stackkits/affected-test-plan/v1"
 
 // focusedTestBatchSize bounds CUE-heavy changed-test execution without
-// widening the existing 90-second process deadline. Each batch is also
-// package-local so one package cannot retain compiler state while another
-// package's focused tests run.
+// letting one package retain compiler state while another package's
+// focused tests run.
 const focusedTestBatchSize = 8
+
+// goTestTimeoutArg is the hang guard for one `go test` process. Full
+// Architecture v2 catalog evaluation in ./internal/cue is past 90s after
+// the Media workload; cmd/stackkit/commands compile plus a generate proof
+// also exceeds 90s of test-binary time on a cold Windows cache.
+const goTestTimeoutArg = "-timeout=180s"
 
 const perKitTemplateParityTest = "TestPerKitTemplatesMatchCanonical"
 
-const (
-	kitInventoryParityTest   = "TestProductKitsMatchesCUEDerivedAuthorityProfiles"
-	authorityBundleDriftTest = "TestEmbeddedAuthorityBundleHasNoSourceOrProjectionDrift"
-)
+const kitInventoryParityTest = "TestProductKitsMatchesCUEDerivedAuthorityProfiles"
 
 // kitRoots are the directories whose contents define an active product kit.
 var kitRoots = activeKitPaths("", "/")
@@ -208,6 +210,7 @@ type classification struct {
 	CUEKits           []string `json:"cueKits,omitempty"`
 	CUEShared         bool     `json:"cueShared,omitempty"`
 	Website           bool     `json:"website,omitempty"`
+	WebMCP            bool     `json:"webMcp,omitempty"`
 	OpenAPIProjection bool     `json:"openAPIProjection,omitempty"`
 	ReleaseE2E        bool     `json:"releaseE2E,omitempty"`
 	ReleaseGeneral    bool     `json:"releaseGeneral,omitempty"`
@@ -264,21 +267,22 @@ func buildPlan(input plannerInput) testPlan {
 		goSelection.Reverse = sortedUnique(goSelection.Reverse)
 	}
 	focusedTests := focusedGoTests(files, input.ChangedTests)
-	// Architecture v2 CUE changes must reach the embedded authority boundary and
-	// keep the renderer buildable. A CUE-only slice therefore runs the named
-	// bundle-drift behavior and compile-checks the renderer instead of executing
-	// unrelated historical package tests. Direct Go changes retain their normal
+	// Architecture v2 CUE changes must keep the embedded authority and renderer
+	// buildable. Bundle drift is `mise run generate:architecture-v2`. A CUE-only
+	// slice therefore compile-checks those packages instead of executing
+	// unrelated historical tests. Direct Go changes retain their normal
 	// changed-package or focused-test selection.
 	if anyPathUnder(files, architectureAuthoritySources...) {
 		const authorityPackage = "internal/architecturev2"
 		const authorityPattern = "./" + authorityPackage
 		if !anyGoPathUnder(files, authorityPackage+"/") {
-			goSelection.Changed = sortedUnique(append(goSelection.Changed, authorityPattern))
-			goSelection.CompileOnly = withoutString(goSelection.CompileOnly, authorityPattern)
+			// Bundle drift is `mise run generate:architecture-v2`. Compile the
+			// embed so a missing generated file still fails closed. Do not
+			// select a Go test that does not exist.
+			goSelection.Changed = withoutString(goSelection.Changed, authorityPattern)
 			goSelection.Reverse = withoutString(goSelection.Reverse, authorityPattern)
-			focusedTests[authorityPackage] = []string{authorityBundleDriftTest}
-		} else if len(focusedTests[authorityPackage]) > 0 {
-			focusedTests[authorityPackage] = sortedUnique(append(focusedTests[authorityPackage], authorityBundleDriftTest))
+			goSelection.CompileOnly = sortedUnique(append(goSelection.CompileOnly, authorityPattern))
+			delete(focusedTests, authorityPackage)
 		}
 
 		const rendererPackage = "internal/architecturev2renderer"
@@ -296,12 +300,10 @@ func buildPlan(input plannerInput) testPlan {
 	// and hygiene alone for the YAML — which is how cloud-kit once shipped a
 	// byte copy of basement-kit's manifest.
 	//
-	// internal/cue is cheap and holds all of the kit metadata, mode-matrix and
-	// document-identity parity tests, so it runs in full. internal/architecturev2
-	// is the expensive package, so only the two assertions a kit change can
-	// actually break are selected: the CUE-derived kit inventory parity and the
-	// embedded authority bundle drift check, whose own mise task runs in no
-	// workflow.
+	// internal/cue holds kit metadata, mode-matrix and document-identity parity
+	// tests, so it runs in full. internal/architecturev2 is the expensive
+	// package, so a kit change selects only CUE-derived kit inventory parity.
+	// Bundle drift stays on `mise run generate:architecture-v2`.
 	if anyPathUnder(files, kitRoots...) {
 		const cuePattern = "./internal/cue"
 		goSelection.Changed = sortedUnique(append(goSelection.Changed, cuePattern))
@@ -309,15 +311,16 @@ func buildPlan(input plannerInput) testPlan {
 		goSelection.Reverse = withoutString(goSelection.Reverse, cuePattern)
 		delete(focusedTests, "internal/cue")
 
-		if !slicesContain(goSelection.Changed, "./internal/architecturev2") {
-			goSelection.Changed = sortedUnique(append(goSelection.Changed, "./internal/architecturev2"))
-			goSelection.CompileOnly = withoutString(goSelection.CompileOnly, "./internal/architecturev2")
-			goSelection.Reverse = withoutString(goSelection.Reverse, "./internal/architecturev2")
-			focusedTests["internal/architecturev2"] = sortedUnique(append(
-				focusedTests["internal/architecturev2"],
-				kitInventoryParityTest, authorityBundleDriftTest,
-			))
+		const authorityPattern = "./internal/architecturev2"
+		goSelection.CompileOnly = withoutString(goSelection.CompileOnly, authorityPattern)
+		goSelection.Reverse = withoutString(goSelection.Reverse, authorityPattern)
+		if !slicesContain(goSelection.Changed, authorityPattern) {
+			goSelection.Changed = sortedUnique(append(goSelection.Changed, authorityPattern))
 		}
+		focusedTests["internal/architecturev2"] = sortedUnique(append(
+			focusedTests["internal/architecturev2"],
+			kitInventoryParityTest,
+		))
 	}
 	// Per-kit templates are generated copies of foundation/templates. Editing either
 	// side is the only way they can diverge, and nothing else in the plan would
@@ -382,6 +385,40 @@ func buildPlan(input plannerInput) testPlan {
 				Scope:  "public-boundary",
 				Argv:   []string{"node", "scripts/release/check-website.mjs", "source"},
 				Reason: "validate the private/public website source boundary",
+			},
+		)
+	}
+	if classes.WebMCP {
+		commands = append(commands,
+			testCommand{
+				Kind:   "website",
+				Scope:  "webmcp-dependencies",
+				Argv:   []string{"npm", "--prefix", "webmcp", "ci"},
+				Reason: "install the locked public WebMCP contract toolchain on a clean runner",
+			},
+			testCommand{
+				Kind:   "website",
+				Scope:  "webmcp-contract",
+				Argv:   []string{"npm", "--prefix", "webmcp", "test"},
+				Reason: "verify the generated schemas, authority projection, planner behavior, and browser-tool contract",
+			},
+			testCommand{
+				Kind:   "website",
+				Scope:  "webmcp-reference-dependencies",
+				Argv:   []string{"npm", "--prefix", "webmcp/reference-host", "ci"},
+				Reason: "install the locked public reference-host toolchain on a clean runner",
+			},
+			testCommand{
+				Kind:   "website",
+				Scope:  "webmcp-reference-check",
+				Argv:   []string{"npm", "--prefix", "webmcp/reference-host", "run", "check"},
+				Reason: "type-check the public reference host against the shared planner component",
+			},
+			testCommand{
+				Kind:   "website",
+				Scope:  "webmcp-reference-build",
+				Argv:   []string{"npm", "--prefix", "webmcp/reference-host", "run", "build"},
+				Reason: "build the independently reproducible public reference host",
 			},
 		)
 	}
@@ -516,6 +553,9 @@ func classifyFiles(files []string) classification {
 			known = true
 		} else if top == "website" {
 			result.Website = true
+			known = true
+		} else if top == "webmcp" {
+			result.WebMCP = true
 			known = true
 		}
 		if top == "docs" || file == "README.md" || file == "CONTRIBUTING.md" || file == "CHANGELOG.md" || file == "ROADMAP.md" || file == "STATUS.md" {
@@ -695,7 +735,7 @@ func affectedGoCommands(selection affectedGoSelection, changedTests, changedTest
 		for start := 0; start < len(focused.tests); start += focusedTestBatchSize {
 			end := min(start+focusedTestBatchSize, len(focused.tests))
 			batch := focused.tests[start:end]
-			args := []string{"go", "test", "-count=1", "-timeout=90s"}
+			args := []string{"go", "test", "-count=1", goTestTimeoutArg}
 			if len(focused.tags) > 0 {
 				args = append(args, "-tags", strings.Join(focused.tags, ","))
 			}
@@ -708,14 +748,14 @@ func affectedGoCommands(selection affectedGoSelection, changedTests, changedTest
 		}
 	}
 	if len(fullPatterns) > 0 {
-		args := []string{"go", "test", "-count=1", "-timeout=90s"}
+		args := []string{"go", "test", "-count=1", goTestTimeoutArg}
 		commands = append(commands, testCommand{
 			Kind: "go", Scope: "changed-packages", Argv: append(args, fullPatterns...),
 			Reason: "run changed packages that have no changed test-function boundary",
 		})
 	}
 	if len(compileOnlyPatterns) > 0 {
-		args := []string{"go", "test", "-count=1", "-timeout=90s", "-run", "^$"}
+		args := []string{"go", "test", "-count=1", goTestTimeoutArg, "-run", "^$"}
 		args = append(args, sortedUnique(compileOnlyPatterns)...)
 		commands = append(commands, testCommand{
 			Kind: "go", Scope: "changed-compile", Argv: args,
@@ -728,7 +768,7 @@ func affectedGoCommands(selection affectedGoSelection, changedTests, changedTest
 	}
 	sort.Strings(tagSets)
 	for _, tags := range tagSets {
-		args := []string{"go", "test", "-count=1", "-timeout=90s", "-tags", tags, "-run", "^$"}
+		args := []string{"go", "test", "-count=1", goTestTimeoutArg, "-tags", tags, "-run", "^$"}
 		args = append(args, sortedUnique(taggedCompilePatterns[tags])...)
 		commands = append(commands, testCommand{
 			Kind: "go", Scope: "changed-compile", Argv: args,
@@ -736,7 +776,7 @@ func affectedGoCommands(selection affectedGoSelection, changedTests, changedTest
 		})
 	}
 	if len(selection.Reverse) > 0 {
-		args := []string{"go", "test", "-count=1", "-timeout=90s", "-run", "^$"}
+		args := []string{"go", "test", "-count=1", goTestTimeoutArg, "-run", "^$"}
 		args = append(args, selection.Reverse...)
 		commands = append(commands, testCommand{
 			Kind: "go", Scope: "reverse-dependent-compile", Argv: args,

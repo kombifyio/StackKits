@@ -107,4 +107,24 @@ Package: foundation.#UseCasePackage & {
 	}
 
 	lifecycle: foundation.#StandardUseCaseLifecycle
+
+	agentSurface: {
+		equipPolicy:  "on-generate"
+		lifecycleMcp: {}
+		productMcps: []
+		apis: [{
+			id:       "vaultwarden"
+			protocol: "rest"
+			purpose:  "Owner bootstrap and bounded health/readback. Vaultwarden has no native product MCP."
+			auth:     "vaultwarden-owner-auth"
+		}]
+		cliHelpers: [{
+			command: "stackkit agent mcp-config"
+			purpose: "Print the stackkit lifecycle MCP client connection."
+		}]
+		configBaseline: {
+			status: "omitted"
+			reason: "Vault runtime is the digest-pinned selected-PaaS bundle. StackKits does not author a separate Vaultwarden configuration file."
+		}
+	}
 }

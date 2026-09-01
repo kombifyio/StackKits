@@ -149,6 +149,32 @@ _assertVaultComputeTierAlternatives: [
 	high:     "vaultwarden"
 }]
 
+_assertMediaComputeTierAlternatives: [
+	for workload in ArchitectureV2Catalog.workloads
+	if workload.metadata.id == "media" {
+		lowIncluded:      workload.computeTiers.low.included
+		standard:         workload.computeTiers.standard.alternativeID
+		high:             workload.computeTiers.high.alternativeID
+	},
+] & [{
+	lowIncluded: false
+	standard:    "jellyfin"
+	high:        "jellyfin"
+}]
+
+_assertSmartHomeComputeTierAlternatives: [
+	for workload in ArchitectureV2Catalog.workloads
+	if workload.metadata.id == "smart-home" {
+		low:      workload.computeTiers.low.alternativeID
+		standard: workload.computeTiers.standard.alternativeID
+		high:     workload.computeTiers.high.alternativeID
+	},
+] & [{
+	low:      "home-assistant"
+	standard: "home-assistant"
+	high:     "home-assistant"
+}]
+
 _assertImmichProviderContract: [
 	for provider in ArchitectureV2Catalog.providers
 	if provider.metadata.id == "stackkits-immich" {

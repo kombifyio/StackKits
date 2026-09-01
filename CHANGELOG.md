@@ -6,8 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Added
+
+- StackKits WebMCP v1 and `https://stackkit.cc/planner`: four read-only,
+  schema-first compute-tier/catalog/capacity/handoff tools share one visible
+  Planner state and CUE-derived public catalog. The handoff projects
+  `init → validate → resolve → generate → plan`; Apply remains an explicit,
+  non-executable follow-up. The complete core, component, reference host,
+  schemas, generated data, and affected tests are part of the OSS export.
+- Architecture v2 Smart Home workload: catalog `home-assistant` on Basement/Cloud/Modern, pinned `home-assistant/home-assistant:2026.7.2`. Self-hosted container only. Generate writes the reverse-proxy `configuration.yaml` baseline (Homelab name, `trusted_proxies`, `external_url` when the delivery host is known), `.stackkit/agent/home-assistant.mcp.json` for native `/api/mcp` on `https://smart-home.<domain>`, and Homelab owner intent (`username: homelab`). Setup creates that owner through `/api/onboarding/users`. Config volume is a StackKits backup source. No HA OS, Supervisor, Zigbee, or MQTT runtime in this slice.
+- Use-case agent surface (`#UseCaseAgentSurfaceV1`, ADR-0038). Generate writes workspace `.stackkit/agent-surface.json` for selected workloads. Photos is the reference: Immich REST, family-vault skill, no product MCP. Smart Home emits the Home Assistant `/api/mcp` client fragment plus the `homelab-mcp` skill. Coolify delivery is unchanged.
+- Architecture v2 Media workload: catalog `jellyfin` on Basement/Cloud/Modern `standard` and `high`, pinned `jellyfin/jellyfin:10.10.7`. Library volume is owner-custodied and not a StackKits backup source. Basement `low` still omits Media.
+
 ### Changed
 
+- Affected-test hang guards follow the 5-minute phase cap: one planned `go test` may run 180s, and the wrapper kill is 5 minutes. The previous 90s/2-minute pair aborted legitimate Architecture v2 catalog evaluation and `cmd/stackkit/commands` generate proofs. CUE authority changes compile the embed instead of selecting a Go test name that does not exist.
+
+- Photos no longer lists `ente-photos` as a catalog component, package tool, or kit YAML alternative. `component-closure` follows Immich only. Ente stays post-1.0 until a module exists. The public compatibility projection collapses identical use-case/adapter rows from multiple alternatives and fail-closes when those rows disagree.
+- Basement `stackkit generate` after `--use-case photos,files,vault` on `standard` emits `basement-core`, `immich`, `cloudreve`, and `vaultwarden` (not the low-graph lite substitutes).
+- Basement `stackkit generate` after `--compute-tier low --use-case photos,files,vault` emits `basement-core-lite` and `immich-lite` (standalone Compose, no Coolify). Media fails closed at init. Authoring docs and Basement YAML `computeTiers.high` floors follow the CUE graph (2C/4GB min, not 4C/8GB). Cloud YAML `low` remains kitio roundtrip with no graph.
 - Files and Vault catalog workloads declare `computeTiers` alternatives. The public use-case catalog and MCP `stackkit_use_case_compute_tiers` project package fits and load so the Techstack Unifier can omit Media on `low` and treat always-on active-resident as base load. Unifier no longer maps `context: pi` or ARM to `install.computeTier`.
 - Init writes catalog `#WorkloadContractV2.computeTiers` alternatives: Basement `--compute-tier low --use-case photos` authors `immich-lite` on `standalone-compose`. Omitted catalog fits fail closed at init and compile. `stackkit generate` accepts `--local-site`/`--local-node` for inventory attest.
 - Every use-case package declares `computeTiers.{low,standard,high}` (functions + load residency/baseline/burst on the kit graph). Runtime-profile `contexts` are removed. Photos `low` is Immich without ML; Vault fits all graphs as idle-resident; Media is omitted on `low` until a lite substitution exists. Draft packages (AI, Dev, Mail, Game, Remote) omit all three graphs with reasons.

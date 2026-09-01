@@ -7,8 +7,8 @@ import (
 )
 
 // embeddedSnapshotJSON holds the baked-in registry snapshot. The file is
-// refreshed at release time (see `stackkit registry snapshot`) or when the
-// CUE tree changes (see `stackkit registry bake-from-cue`). The file MUST
+// refreshed from the Git/CUE tree with `stackkit registry bake-from-cue`.
+// The file MUST
 // exist for the package to compile -- a minimal placeholder is checked in.
 //
 //go:embed data/registry_snapshot.json
@@ -23,7 +23,7 @@ func EmbeddedSnapshot() (Snapshot, error) {
 	}
 	if snap.SchemaVersion != SnapshotVersion {
 		return Snapshot{}, fmt.Errorf(
-			"embedded registry snapshot schema version mismatch: got %d, expected %d -- rebuild with `stackkit registry snapshot` or `stackkit registry bake-from-cue`",
+			"embedded registry snapshot schema version mismatch: got %d, expected %d -- rebuild with `stackkit registry bake-from-cue`",
 			snap.SchemaVersion, SnapshotVersion,
 		)
 	}

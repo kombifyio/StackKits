@@ -784,7 +784,9 @@
     "optional": [
       "files",
       "photos",
-      "vault"
+      "vault",
+      "media",
+      "smart-home"
     ],
     "required": [
       "cloud-core"

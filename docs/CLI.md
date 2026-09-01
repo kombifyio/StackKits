@@ -110,16 +110,17 @@ post-install evidence; `status` and HTTP `verify` remain follow-up runtime gaps.
 | `cluster` | Manage multi-node cluster membership. |
 | `compat` | Show published OS support evidence and run non-destructive host prerequisite diagnostics. |
 | `agent` | Emit agent-native install plans, prompts, self-checks, and MCP config. |
-| `kit` | Public release list, verify, and deprecated upgrade alias; import/export and registry maintenance exist only in `stackkit-publisher`. |
+| `kit` | Public release list, verify, and deprecated upgrade alias; Git/CUE import/export exists only in `stackkit-publisher`. |
 | `logs` | List and read structured deploy logs. |
-| `registry` | Inspect the embedded CUE-derived registry snapshot. |
+| `registry` | Inspect or reproduce the embedded Git/CUE registry snapshot. |
 | `secrets` | Establish owner-bound local custody for secret references in canonical StackSpec intent. |
 | `completion` | Generate shell completions. |
 | `version` | Print version, commit, build date, Go version, and OS/arch. |
 
-Publisher-only `module`, registry-maintenance, DB, and Admin
-operations are not part of this public command tree. They compile only into the
-private `stackkit-publisher` executable.
+Publisher-only Git/CUE `module`, Kit artifact, and strict parity operations are
+not part of this public command tree. They compile only into the private
+`stackkit-publisher` executable. Separately scoped managed-tenant lifecycle
+operations remain private and are not registry publication authority.
 
 ## Command Details
 
@@ -735,8 +736,9 @@ Subcommands:
 - `kit verify` (deprecated alias for top-level `stackkit verify`)
 
 The public commands resolve and verify signed GitHub release indexes without an
-account. Import, export, history, roundtrip, unlock, and Admin resolver
-operations are Publisher-only.
+account. Import, export, and roundtrip are Publisher-only Git/CUE artifact
+operations. The former Administration-backed history and unlock operations are
+retired.
 
 `stackkit upgrade` is the canonical public command. Upgrading a single
 tool/module (not the whole Kit) stays outside the public v0.8 lifecycle.
@@ -746,28 +748,27 @@ tool/module (not the whole Kit) stays outside the public v0.8 lifecycle.
 Subcommands:
 
 - `module release`
-- `module verify-db`
 - `module verify-version-bumps`
 
 These commands exist only in `stackkit-publisher`. Use them for module contract
-hash release, DB parity checks, and the offline
-merge-base guard that requires a strictly higher SemVer whenever a canonical
-module contract changes. `verify-version-bumps` accepts exactly one of
+artifact materialization and the offline merge-base guard that requires a
+strictly higher SemVer whenever a canonical module contract changes.
+`verify-version-bumps` accepts exactly one of
 `--baseline-ref` or `--baseline-tree`; new modules are allowed, but every
 declared module version must be valid SemVer.
-Publisher Admin API auth follows the publisher kit commands:
-`SERVICE_AUTH_SECRET` mints the
-preferred `X-Kombify-Service-Auth` token, with `STACKKIT_ADMIN_TOKEN` or
-`KOMBIFY_ADMIN_API_KEY` only as legacy Bearer fallbacks.
+Neither command needs an Administration endpoint or credential.
 
 ### `stackkit registry`
 
 Subcommands:
 
 - `registry info`
+- `registry bake-from-cue`
 
-The public command reads the embedded CUE-derived snapshot. `snapshot` and
-`bake-from-cue` exist only in `stackkit-publisher`.
+The public commands read or deterministically reproduce the embedded
+CUE-derived snapshot. Publisher-only `registry verify-parity` compares its
+Kit-definition hashes with the Git-owned product definitions. The former
+hosted `snapshot` and metadata-callback operations are retired.
 
 ### `stackkit logs`
 
