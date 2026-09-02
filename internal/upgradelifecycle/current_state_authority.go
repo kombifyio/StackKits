@@ -323,6 +323,10 @@ func NewVerifiedExecutorStateCapture(input CurrentStateAuthorityInput) (Verified
 	if err := appendStandaloneComposeRuntimeCustody(&input); err != nil {
 		return VerifiedExecutorStateCapture{}, err
 	}
+	runtimeGraph, err := currentStateRuntimeRecoveryGraph(input)
+	if err != nil {
+		return VerifiedExecutorStateCapture{}, err
+	}
 	input.Capture.CoreModuleRef = profile.ModuleRef
 	input.Capture.CoreComposeArtifactID = profile.ComposeArtifactID
 	input.Capture.CorePolicyArtifactID = profile.PolicyArtifactID
@@ -342,7 +346,7 @@ func NewVerifiedExecutorStateCapture(input CurrentStateAuthorityInput) (Verified
 	if err != nil {
 		return VerifiedExecutorStateCapture{}, err
 	}
-	if err := appendCurrentStateControlBlobs(&input, runtimeBindingBytes, verifiedApply.runtimeCustody); err != nil {
+	if err := appendCurrentStateControlBlobs(&input, runtimeBindingBytes, verifiedApply.runtimeCustody, runtimeGraph); err != nil {
 		return VerifiedExecutorStateCapture{}, err
 	}
 	input.Capture.Release = releaseindex.VerifiedInstallation{}
@@ -523,6 +527,7 @@ func appendCurrentStateControlBlobs(
 	input *CurrentStateAuthorityInput,
 	runtimeBindingBytes []byte,
 	runtimeCustody ExecutorStateBlobInput,
+	runtimeGraph ExecutorStateBlobInput,
 ) error {
 	if runtimeCustody.ID != "applied-runtime-custody" || runtimeCustody.Mode != "0600" || len(runtimeCustody.Data) == 0 {
 		return errors.New("current state authority: verified applied runtime custody is required")
@@ -543,6 +548,7 @@ func appendCurrentStateControlBlobs(
 		{ID: "apply-result-receipt", Path: ".stackkit/evidence/apply/receipts/" + strings.TrimPrefix(executorStateDigest(input.ApplyResult), "sha256:") + ".json", Mode: "0600", Data: append([]byte(nil), input.ApplyReceipt...)},
 		{ID: "owner-runtime-binding", Path: ".stackkit/evidence/owner-runtime-binding.json", Mode: "0600", Data: runtimeBindingBytes},
 		{ID: runtimeCustody.ID, Path: runtimeCustody.Path, Mode: runtimeCustody.Mode, Data: append([]byte(nil), runtimeCustody.Data...)},
+		runtimeGraph,
 	}
 	for _, control := range controls {
 		for _, artifact := range input.Capture.Artifacts {

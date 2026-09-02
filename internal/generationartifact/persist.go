@@ -47,16 +47,23 @@ func ReadManifest(filePath string) (ArtifactManifest, error) {
 	if err != nil {
 		return ArtifactManifest{}, err
 	}
+	return ParseManifest(data)
+}
+
+// ParseManifest strictly decodes and canonicalizes one persisted artifact
+// manifest. Keeping this boundary independent of filesystem access lets
+// historical owner-signed custody reuse the exact manifest contract.
+func ParseManifest(data []byte) (ArtifactManifest, error) {
 	var manifest ArtifactManifest
 	if err := decodeStrictJSON(data, &manifest); err != nil {
-		return ArtifactManifest{}, wrap(ErrInvalidContract, filePath, "decode artifact manifest", err)
+		return ArtifactManifest{}, wrap(ErrInvalidContract, "manifest", "decode artifact manifest", err)
 	}
 	canonical, err := manifest.MarshalCanonical()
 	if err != nil {
 		return ArtifactManifest{}, err
 	}
 	if !bytes.Equal(data, canonical) {
-		return ArtifactManifest{}, fail(ErrNonCanonical, filePath, "artifact manifest is not byte-for-byte canonical JSON")
+		return ArtifactManifest{}, fail(ErrNonCanonical, "manifest", "artifact manifest is not byte-for-byte canonical JSON")
 	}
 	return manifest, nil
 }

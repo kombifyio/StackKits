@@ -220,11 +220,11 @@ func PersistReceiptHeld(plan VerifiedPlan, workspace *confinedfs.Transaction, pr
 // reopening the workspace pathname.
 func ReadManifestHeld(plan VerifiedPlan, workspace *confinedfs.Transaction, prefix string) (ArtifactManifest, error) {
 	manifestPath, _ := heldControlPaths(plan, prefix)
-	var manifest ArtifactManifest
-	if err := readHeldCanonicalControl(workspace, manifestPath, "artifact manifest", &manifest); err != nil {
+	data, err := readHeldControl0600(workspace, manifestPath, "artifact manifest")
+	if err != nil {
 		return ArtifactManifest{}, err
 	}
-	return manifest, nil
+	return ParseManifest(data)
 }
 
 // ReadReceiptHeld reads and canonicalizes the control receipt without

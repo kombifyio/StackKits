@@ -28,6 +28,8 @@ const (
 	ExecutorStateSnapshotAPIVersion            = "stackkit.executor-state-snapshot/v1"
 	executorStateOperationAPIVersion           = "stackkit.executor-state-operation/v1"
 	executorStateRoot                          = ".stackkit/upgrades/executor-state"
+	executorStateMaxSnapshotBytes              = 1 << 20
+	executorStateMaxBlobBytes                  = 512 << 20
 	basementCoreComposeArtifactPath            = "platform/basement-core/compose.yaml"
 	basementCoreRuntimeComposePath             = ".stackkit/runtime/basement-core/compose.yaml"
 	executorStateStandaloneComposeIDPrefix     = "standalone-compose-"
@@ -36,10 +38,11 @@ const (
 )
 
 var (
-	executorStateOperationPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
-	executorStateIDPattern        = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
-	executorStateModePattern      = regexp.MustCompile(`^0[0-7]{3}$`)
-	executorStateVersionPattern   = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$`)
+	errExecutorStateSnapshotMetadataLimit = errors.New("executor state: snapshot metadata exceeds its bounded read contract")
+	executorStateOperationPattern         = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+	executorStateIDPattern                = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+	executorStateModePattern              = regexp.MustCompile(`^0[0-7]{3}$`)
+	executorStateVersionPattern           = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$`)
 )
 
 type ExecutorStateRelease struct {
@@ -307,8 +310,8 @@ func (store ExecutorStateStore) loadWithTransaction(
 	if err != nil {
 		return ExecutorStateSnapshot{}, err
 	}
-	raw, info, err := transaction.ReadStable(snapshotPath)
-	if err != nil || !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > 1<<20 {
+	raw, info, err := transaction.ReadStableBounded(snapshotPath, executorStateMaxSnapshotBytes)
+	if err != nil || !info.Mode().IsRegular() || info.Size() <= 0 {
 		return ExecutorStateSnapshot{}, fmt.Errorf("executor state: read bounded snapshot: %w", err)
 	}
 	var snapshot ExecutorStateSnapshot
@@ -497,7 +500,7 @@ func prepareExecutorStateBlob(input ExecutorStateBlobInput) (executorStatePayloa
 	if !executorStateModePattern.MatchString(input.Mode) {
 		return executorStatePayload{}, errors.New("executor state: blob mode must be a four-digit portable mode")
 	}
-	if (len(input.Data) == 0 && !executorStateStandaloneEnvironmentBlob(input.ID, canonicalPath, input.Mode)) || len(input.Data) > 512<<20 {
+	if (len(input.Data) == 0 && !executorStateStandaloneEnvironmentBlob(input.ID, canonicalPath, input.Mode)) || len(input.Data) > executorStateMaxBlobBytes {
 		return executorStatePayload{}, errors.New("executor state: blob bytes must be non-empty and bounded")
 	}
 	sum := sha256.Sum256(input.Data)
@@ -522,6 +525,17 @@ func (store ExecutorStateStore) verifySnapshot(
 	snapshot ExecutorStateSnapshot,
 	verifyBlobs bool,
 ) error {
+	canonical, err := resolvedplan.CanonicalJSON(snapshot)
+	if err != nil {
+		return err
+	}
+	if len(canonical) > executorStateMaxSnapshotBytes {
+		return errExecutorStateSnapshotMetadataLimit
+	}
+	blobs := executorStateBlobs(snapshot)
+	if len(blobs) > defaultMaxFiles {
+		return errors.New("executor state: recovery closure contains too many blobs")
+	}
 	if snapshot.APIVersion != ExecutorStateSnapshotAPIVersion ||
 		!executorStateOperationPattern.MatchString(snapshot.OperationID) ||
 		snapshot.GenerationTarget != "compose" ||
@@ -579,7 +593,7 @@ func (store ExecutorStateStore) verifySnapshot(
 	policyMatches := 0
 	seenIDs := make(map[string]struct{})
 	seenPaths := make(map[string]struct{})
-	for _, blob := range executorStateBlobs(snapshot) {
+	for _, blob := range blobs {
 		if _, duplicate := seenIDs[blob.ID]; duplicate {
 			return errors.New("executor state: duplicate blob ID")
 		}
@@ -613,10 +627,18 @@ func (store ExecutorStateStore) verifySnapshot(
 	if !verifyBlobs {
 		return nil
 	}
-	for _, blob := range executorStateBlobs(snapshot) {
-		if err := verifyExecutorStateBlob(transaction, blob); err != nil {
+	remaining := defaultMaxExtractBytes
+	for _, blob := range blobs {
+		// A zero remaining budget may still contain an empty environment file.
+		// Read at most one byte in that case and reject any non-empty result.
+		size, err := verifyExecutorStateBlob(transaction, blob, min(executorStateMaxBlobBytes, max(remaining, 1)))
+		if err != nil {
 			return err
 		}
+		if size > remaining {
+			return errors.New("executor state: recovery closure exceeds the bounded byte budget")
+		}
+		remaining -= size
 	}
 	return nil
 }
@@ -654,7 +676,7 @@ func verifyExecutorStateReleaseProof(
 	proof releaseindex.VerifiedInstallation,
 	executableBytes []byte,
 ) (ExecutorStateRelease, error) {
-	if len(executableBytes) == 0 || len(executableBytes) > 512<<20 {
+	if len(executableBytes) == 0 || len(executableBytes) > executorStateMaxBlobBytes {
 		return ExecutorStateRelease{}, errors.New("executor state: exact recovery executable bytes are required")
 	}
 	release, archiveExecutable, err := inspectExecutorStateReleaseProof(proof)
@@ -981,28 +1003,27 @@ func syncExecutorStateHierarchy(transaction *confinedfs.Transaction, directory s
 	}
 }
 
-func verifyExecutorStateBlob(transaction *confinedfs.Transaction, blob ExecutorStateBlob) error {
+func verifyExecutorStateBlob(transaction *confinedfs.Transaction, blob ExecutorStateBlob, maxBytes int64) (int64, error) {
 	if !executorStateIDPattern.MatchString(blob.ID) ||
 		!executorStateModePattern.MatchString(blob.Mode) {
-		return errors.New("executor state: blob identity is invalid")
+		return 0, errors.New("executor state: blob identity is invalid")
 	}
 	if _, err := confinedfs.ValidatePortablePath(blob.Path); err != nil {
-		return fmt.Errorf("executor state: blob path: %w", err)
+		return 0, fmt.Errorf("executor state: blob path: %w", err)
 	}
 	blobPath, err := executorStateBlobPath(blob.SHA256)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	raw, info, err := transaction.ReadStable(blobPath)
+	raw, info, err := transaction.ReadStableBounded(blobPath, maxBytes)
 	if err != nil || !info.Mode().IsRegular() ||
-		(info.Size() == 0 && !executorStateStandaloneEnvironmentBlob(blob.ID, blob.Path, blob.Mode)) ||
-		info.Size() > 512<<20 {
-		return fmt.Errorf("executor state: read bounded blob: %w", err)
+		(info.Size() == 0 && !executorStateStandaloneEnvironmentBlob(blob.ID, blob.Path, blob.Mode)) {
+		return 0, fmt.Errorf("executor state: read bounded blob: %w", err)
 	}
 	if executorStateDigest(raw) != blob.SHA256 {
-		return errors.New("executor state: blob digest does not verify")
+		return 0, errors.New("executor state: blob digest does not verify")
 	}
-	return nil
+	return int64(len(raw)), nil
 }
 
 func readExecutorStateOperation(

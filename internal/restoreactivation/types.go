@@ -7,6 +7,13 @@ import (
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 )
 
+const (
+	// RuntimeRecoveryGraphAPIVersion identifies the canonical derived runtime
+	// graph that can later be placed in an owner-signed recovery snapshot.
+	RuntimeRecoveryGraphAPIVersion = "stackkit.restoreactivation-runtime-recovery-graph/v1"
+	RuntimeRecoveryGraphKind       = "RuntimeRecoveryGraph"
+)
+
 // Authority is the immutable, plan-derived boundary for one restore
 // activation. Volumes is the canonical sorted LiveName set used by the shared
 // lifecycle journal; VolumeDetails carries the corresponding cutover paths.
@@ -28,6 +35,35 @@ type Authority struct {
 	StagingPath          string           `json:"stagingPath"`
 	Volumes              []string         `json:"volumes"`
 	VolumeDetails        []Volume         `json:"volumeDetails"`
+}
+
+// RuntimeRecoveryGraph is canonical derived runtime custody data from a
+// verified plan, its generation manifest, and one operation identity. Its
+// future signed snapshot or opaque materialization handle supplies immutable
+// authority; this caller-mutable value is never a VerifiedPlan or mutation
+// authorization by itself. Staging paths are deliberately absent from
+// VolumeDetails until a real, verified RestoreResult is bound.
+type RuntimeRecoveryGraph struct {
+	APIVersion           string                         `json:"apiVersion"`
+	Kind                 string                         `json:"kind"`
+	OperationID          string                         `json:"operationId"`
+	PlanBinding          generationartifact.PlanBinding `json:"planBinding"`
+	PlanHash             string                         `json:"planHash"`
+	ManifestHash         string                         `json:"manifestHash"`
+	ManagedVolumeSetHash string                         `json:"managedVolumeSetHash"`
+	StackID              string                         `json:"stackId"`
+	ComposeProject       string                         `json:"composeProject"`
+	ComposePath          string                         `json:"composePath"`
+	ComposeDigest        string                         `json:"composeDigest"`
+	ComposeRuntimes      []ComposeRuntime               `json:"composeRuntimes"`
+	CorePolicyArtifactID string                         `json:"corePolicyArtifactId"`
+	CorePolicyPath       string                         `json:"corePolicyPath"`
+	CorePolicyDigest     string                         `json:"corePolicyDigest"`
+	KopiaHelperImage     string                         `json:"kopiaHelperImage"`
+	StagingVolume        string                         `json:"stagingVolume"`
+	StagingRoot          string                         `json:"stagingRoot"`
+	Volumes              []string                       `json:"volumes"`
+	VolumeDetails        []Volume                       `json:"volumeDetails"`
 }
 
 // ComposeRuntime binds one local Compose project to the exact owner-custody
@@ -85,6 +121,22 @@ func DeriveAuthority(
 	operationID string,
 ) (Authority, error) {
 	return deriveAuthority(workspaceRoot, plan, manifest, restoreResult, operationID)
+}
+
+// DeriveRuntimeRecoveryGraph derives the current CUE-owned runtime graph
+// without manufacturing a restore result. The returned graph is suitable for
+// later owner-signed custody, while parsed graph data remains non-authorizing.
+func DeriveRuntimeRecoveryGraph(
+	workspaceRoot string,
+	plan generationartifact.VerifiedPlan,
+	manifest generationartifact.ArtifactManifest,
+	operationID string,
+) (RuntimeRecoveryGraph, error) {
+	derived, err := deriveRuntimeRecoveryGraph(workspaceRoot, plan, manifest, operationID)
+	if err != nil {
+		return RuntimeRecoveryGraph{}, err
+	}
+	return cloneRuntimeRecoveryGraph(derived.graph), nil
 }
 
 // DeriveStandaloneComposeRuntimeCustody reads and verifies the exact

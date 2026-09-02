@@ -17,7 +17,6 @@ import (
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
-	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"gopkg.in/yaml.v3"
 )
 
@@ -62,77 +61,38 @@ func deriveAuthority(
 	restoreResult backuplifecycle.RestoreResult,
 	operationID string,
 ) (Authority, error) {
-	if !activationOperationPattern.MatchString(operationID) {
-		return Authority{}, errors.New("restoreactivation: operation ID must match [A-Za-z0-9][A-Za-z0-9._-]{0,127}")
-	}
-	if manifest.Binding != plan.Binding() {
-		return Authority{}, errors.New("restoreactivation: generation manifest does not bind the verified plan")
-	}
-	manifestHash, err := manifest.Hash()
-	if err != nil {
-		return Authority{}, fmt.Errorf("restoreactivation: hash generation manifest: %w", err)
-	}
-	var planDocument map[string]any
-	if err := json.Unmarshal(plan.Canonical(), &planDocument); err != nil {
-		return Authority{}, fmt.Errorf("restoreactivation: decode verified plan for Application restore authority: %w", err)
-	}
-	applicationRuntimes, applicationVolumes, err := deriveStandaloneComposeApplications(
-		workspaceRoot, planDocument, operationID,
-	)
+	derived, err := deriveRuntimeRecoveryGraph(workspaceRoot, plan, manifest, operationID)
 	if err != nil {
 		return Authority{}, err
 	}
-	derived, err := derivePlanAuthority(plan.Canonical(), manifest, operationID, applicationVolumes)
-	if err != nil {
+	if err := bindRestoreResult(derived.graph.PlanBinding, derived.graph.ManifestHash, derived.plan, restoreResult); err != nil {
 		return Authority{}, err
 	}
-	if err := bindRestoreResult(plan.Binding(), manifestHash, derived, restoreResult); err != nil {
-		return Authority{}, err
-	}
-	volumeDetails := append([]Volume(nil), derived.volumes...)
-	volumeDetails = append(volumeDetails, applicationVolumes...)
-	sort.Slice(volumeDetails, func(i, j int) bool { return volumeDetails[i].LiveName < volumeDetails[j].LiveName })
-	liveNames := make([]string, len(volumeDetails))
-	seenVolumes := make(map[string]struct{}, len(volumeDetails))
+	volumeDetails := append([]Volume(nil), derived.graph.VolumeDetails...)
 	for index := range volumeDetails {
-		if _, duplicate := seenVolumes[volumeDetails[index].LiveName]; duplicate {
-			return Authority{}, errors.New("restoreactivation: duplicate managed volume across local Compose runtimes")
-		}
-		seenVolumes[volumeDetails[index].LiveName] = struct{}{}
-		liveNames[index] = volumeDetails[index].LiveName
 		volumeDetails[index].StagingPath = path.Join(
 			restoreResult.Request.StagingPath,
 			volumeDetails[index].LiveName,
 			"_data",
 		)
 	}
-	volumeSetHash, err := resolvedplan.CanonicalSHA256(liveNames)
-	if err != nil {
-		return Authority{}, fmt.Errorf("restoreactivation: hash managed volume set: %w", err)
-	}
-	composeRuntimes := []ComposeRuntime{{
-		Project: derived.composeProject, Path: derived.composeArtifact.Path,
-		Digest: derived.composeArtifact.SHA256,
-	}}
-	composeRuntimes = append(composeRuntimes, applicationRuntimes...)
-	sort.Slice(composeRuntimes, func(i, j int) bool { return composeRuntimes[i].Project < composeRuntimes[j].Project })
 	return Authority{
 		OperationID:          operationID,
 		OwnerRef:             restoreResult.OwnerRef,
 		RestoreResultID:      restoreResult.ID,
-		PlanHash:             plan.Binding().PlanHash,
-		ManifestHash:         manifestHash,
+		PlanHash:             derived.graph.PlanHash,
+		ManifestHash:         derived.graph.ManifestHash,
 		ApplyResultHash:      restoreResult.AuthorizationLineage.ApplyResultHash,
-		ManagedVolumeSetHash: volumeSetHash,
-		StackID:              derived.stackID,
-		ComposeProject:       derived.composeProject,
-		ComposePath:          derived.composeArtifact.Path,
-		ComposeDigest:        derived.composeArtifact.SHA256,
-		ComposeRuntimes:      composeRuntimes,
-		KopiaHelperImage:     derived.kopiaImage,
-		StagingVolume:        derived.stagingVolume,
+		ManagedVolumeSetHash: derived.graph.ManagedVolumeSetHash,
+		StackID:              derived.graph.StackID,
+		ComposeProject:       derived.graph.ComposeProject,
+		ComposePath:          derived.graph.ComposePath,
+		ComposeDigest:        derived.graph.ComposeDigest,
+		ComposeRuntimes:      append([]ComposeRuntime(nil), derived.graph.ComposeRuntimes...),
+		KopiaHelperImage:     derived.graph.KopiaHelperImage,
+		StagingVolume:        derived.graph.StagingVolume,
 		StagingPath:          restoreResult.Request.StagingPath,
-		Volumes:              liveNames,
+		Volumes:              append([]string(nil), derived.graph.Volumes...),
 		VolumeDetails:        volumeDetails,
 	}, nil
 }

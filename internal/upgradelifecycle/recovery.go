@@ -224,7 +224,7 @@ func readExecutorStateRecoveryBlob(
 	if err != nil {
 		return nil, err
 	}
-	data, info, err := transaction.ReadStable(blobPath)
+	data, info, err := transaction.ReadStableBounded(blobPath, executorStateMaxBlobBytes)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"executor state: read recovery blob %s: %w", blob.ID, err,
