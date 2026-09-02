@@ -18,7 +18,14 @@ type SourceVersion string
 const (
 	SourceVersionV1       SourceVersion = "v1"
 	SourceVersionV2Alpha1 SourceVersion = "v2alpha1"
+	SourceVersionV2Alpha2 SourceVersion = "v2alpha2"
 )
+
+// IsV2 identifies the CUE-owned architecture family without collapsing the
+// explicit v2alpha1 compatibility adapter into native v2alpha2 intent.
+func (v SourceVersion) IsV2() bool {
+	return v == SourceVersionV2Alpha1 || v == SourceVersionV2Alpha2
+}
 
 // Document preserves the original bytes so dual-read cannot silently discard
 // fields. Legacy is populated only for v1. V2 contains only dispatch identity;
@@ -106,11 +113,11 @@ func Read(data []byte) (Document, error) {
 			UnknownV1Fields: unknownV1Fields(fields),
 		}, nil
 
-	case APIVersionV2Alpha1:
+	case APIVersionV2Alpha1, APIVersionV2Alpha2:
 		if kind != KindStackSpec {
 			return Document{}, &ReadError{
 				Code:    "document.invalid-kind",
-				Message: fmt.Sprintf("apiVersion %q requires kind %q", APIVersionV2Alpha1, KindStackSpec),
+				Message: fmt.Sprintf("apiVersion %q requires kind %q", apiVersion, KindStackSpec),
 			}
 		}
 		if _, exists := fields["context"]; exists {
@@ -139,8 +146,12 @@ func Read(data []byte) (Document, error) {
 			}
 		}
 
+		version := SourceVersionV2Alpha1
+		if apiVersion == APIVersionV2Alpha2 {
+			version = SourceVersionV2Alpha2
+		}
 		return Document{
-			Version: SourceVersionV2Alpha1,
+			Version: version,
 			Raw:     rawCopy,
 			V2: &V2Identity{
 				APIVersion: apiVersion,

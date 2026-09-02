@@ -35,14 +35,20 @@ func (c *Compiler) buildInstall(spec *specView, resolved *resolution) (map[strin
 			platform["providerRef"] = provider
 		}
 	}
-	computeTier, err := computeTierFromInstall(install)
-	if err != nil {
-		return nil, err
+	if spec.legacyComputeTier {
+		computeTier, err := computeTierFromInstall(install)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := loadKitComputeTierGraph(spec.originalDefinition, computeTier); err != nil {
+			return nil, err
+		}
+		// This is the compatibility adapter's sole materialization point. A
+		// native v2alpha2 plan has no global computeTier field.
+		install["computeTier"] = computeTier
+	} else {
+		delete(install, "computeTier")
 	}
-	if _, err := loadKitComputeTierGraph(spec.originalDefinition, computeTier); err != nil {
-		return nil, err
-	}
-	install["computeTier"] = computeTier
 	return install, nil
 }
 
@@ -75,15 +81,25 @@ func (c *Compiler) buildGeneration(profile *profileView, spec *specView, definit
 	}, artifacts, nil
 }
 
-func (c *Compiler) buildCompatibility() map[string]any {
-	return map[string]any{
+func (c *Compiler) buildCompatibility(specAPIVersion string) map[string]any {
+	result := map[string]any{
 		"minCLI": c.options.MinimumCLIVersion, "minRuntime": c.options.MinimumRuntimeVersion,
 		"minGenerator":   c.options.MinimumGeneratorVersion,
-		"specAPIVersion": "stackkit/v2alpha1", "planAPIVersion": "stackkit.resolved-plan/v1",
+		"specAPIVersion": specAPIVersion, "planAPIVersion": "stackkit.resolved-plan/v1",
 	}
+	if specAPIVersion == architectureAPIVersionV2Alpha1 {
+		result["legacyComputeTierAdapter"] = map[string]any{
+			"id": "stackkits-legacy-compute-tier-v1", "source": "install.computeTier", "target": "modules.computeProfile",
+		}
+	}
+	return result
 }
 
 func buildSource(spec *specView, sourceIntentHash, specHash, inventoryHash, definitionHash string) (map[string]any, error) {
+	inventoryDocument, err := canonicalInventoryDocument(spec.originalInventory)
+	if err != nil {
+		return nil, err
+	}
 	source, err := cloneObject(spec.source, true)
 	if err != nil {
 		return nil, err
@@ -94,9 +110,9 @@ func buildSource(spec *specView, sourceIntentHash, specHash, inventoryHash, defi
 	}
 	resolved := map[string]any{
 		"kind":              kind,
-		"intent":            map[string]any{"apiVersion": "stackkit/v2alpha1", "hash": sourceIntentHash},
-		"normalizedSpec":    map[string]any{"apiVersion": "stackkit/v2alpha1", "hash": specHash},
-		"inventory":         map[string]any{"apiVersion": "stackkit.inventory/v1", "hash": inventoryHash},
+		"intent":            map[string]any{"apiVersion": spec.apiVersion, "hash": sourceIntentHash},
+		"normalizedSpec":    map[string]any{"apiVersion": spec.apiVersion, "hash": specHash},
+		"inventory":         map[string]any{"apiVersion": "stackkit.inventory/v1", "hash": inventoryHash, "document": inventoryDocument},
 		"kitDefinitionHash": definitionHash,
 	}
 	if ref, exists, err := optionalStringField(source, "spec.source", "ref"); err != nil {

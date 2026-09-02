@@ -79,6 +79,8 @@ type runtimeDaemonFact struct {
 }
 
 type specView struct {
+	apiVersion          string
+	legacyComputeTier   bool
 	stackID             string
 	fleetRef            string
 	kitVersion          string
@@ -134,11 +136,19 @@ func validateInputs(input Input) (*profileView, *specView, error) {
 		}
 	}
 
-	if err := requireDiscriminator(definition, "definition", "stackkit/v2alpha1", "KitDefinition"); err != nil {
+	definitionAPI, err := requireArchitectureDiscriminator(definition, "definition", "KitDefinition")
+	if err != nil {
 		return nil, nil, err
 	}
-	if err := requireDiscriminator(spec, "spec", "stackkit/v2alpha1", "StackSpec"); err != nil {
+	_, err = requireArchitectureDiscriminator(spec, "spec", "StackSpec")
+	if err != nil {
 		return nil, nil, err
+	}
+	// A v2alpha1 Definition remains a valid legacy authority for a v2alpha2
+	// forward spec. The spec version alone selects the native/compatibility
+	// boundary; unknown or mixed future versions fail closed here.
+	if definitionAPI != architectureAPIVersionV2Alpha1 && definitionAPI != architectureAPIVersionV2Alpha2 {
+		return nil, nil, fail(ErrInvalidInput, "definition.apiVersion", "unsupported architecture API version %q", definitionAPI)
 	}
 	schemaVersion, err := stringField(inventory, "inventory", "schemaVersion")
 	if err != nil {
@@ -157,6 +167,29 @@ func validateInputs(input Input) (*profileView, *specView, error) {
 		return nil, nil, err
 	}
 	return profile, view, nil
+}
+
+const (
+	architectureAPIVersionV2Alpha1 = "stackkit/v2alpha1"
+	architectureAPIVersionV2Alpha2 = "stackkit/v2alpha2"
+)
+
+func requireArchitectureDiscriminator(object map[string]any, path, kind string) (string, error) {
+	apiVersion, err := stringField(object, path, "apiVersion")
+	if err != nil {
+		return "", err
+	}
+	actualKind, err := stringField(object, path, "kind")
+	if err != nil {
+		return "", err
+	}
+	if apiVersion != architectureAPIVersionV2Alpha1 && apiVersion != architectureAPIVersionV2Alpha2 {
+		return "", fail(ErrInvalidInput, path+".apiVersion", "unsupported architecture API version %q", apiVersion)
+	}
+	if actualKind != kind {
+		return "", fail(ErrInvalidInput, path+".kind", "expected kind %q, got %q", kind, actualKind)
+	}
+	return apiVersion, nil
 }
 
 func requireDiscriminator(object map[string]any, path, apiVersion, kind string) error {
@@ -453,6 +486,10 @@ func equalStrings(left, right []string) bool {
 }
 
 func parseSpec(profile *profileView, definition, spec, inventory map[string]any) (*specView, error) {
+	apiVersion, err := stringField(spec, "spec", "apiVersion")
+	if err != nil {
+		return nil, err
+	}
 	identity, err := parseSpecIdentity(profile, spec)
 	if err != nil {
 		return nil, err
@@ -465,6 +502,7 @@ func parseSpec(profile *profileView, definition, spec, inventory map[string]any)
 		return nil, fail(ErrProfileMismatch, "spec.sites", "profile requires %d..%d sites, got %d", profile.minSites, profile.maxSites, len(siteObjects))
 	}
 	view := &specView{
+		apiVersion: apiVersion, legacyComputeTier: apiVersion == architectureAPIVersionV2Alpha1,
 		stackID: identity.stackID, fleetRef: identity.fleetRef, kitVersion: identity.kitVersion,
 		siteByID: make(map[string]siteView, len(siteObjects)),
 		nodeByID: make(map[string]nodeView), siteKinds: make(map[string]struct{}),

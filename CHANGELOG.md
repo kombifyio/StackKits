@@ -8,8 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- StackKits WebMCP v1 and `https://stackkit.cc/planner`: four read-only,
-  schema-first compute-tier/catalog/capacity/handoff tools share one visible
+- StackKits WebMCP v2alpha1 and `https://stackkit.cc/planner`: four read-only,
+  schema-first module-profile/catalog/capacity/handoff tools share one visible
   Planner state and CUE-derived public catalog. The handoff projects
   `init → validate → resolve → generate → plan`; Apply remains an explicit,
   non-executable follow-up. The complete core, component, reference host,
@@ -19,6 +19,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Architecture v2 Media workload: catalog `jellyfin` on Basement/Cloud/Modern `standard` and `high`, pinned `jellyfin/jellyfin:10.10.7`. Library volume is owner-custodied and not a StackKits backup source. Basement `low` still omits Media.
 
 ### Changed
+
+- Native `stackkit/v2alpha2` uses explicit module-local compute, storage and
+  accelerator profiles plus workload alternatives. The earlier kit-global tier
+  contracts below are retained only through the explicit `v2alpha1` adapter.
+  CPU/RAM/storage sliders preserve undeclared values, and incomplete CUE capacity
+  facts cannot produce a ready handoff. Required host facts must be observed in
+  inventory before Apply, not inferred from declared hardware intent.
+- Remove the obsolete `modules` dispatch input from the catalog Delivery
+  adapter; module contract verification owns its catalog selection.
 
 - Affected-test hang guards follow the 5-minute phase cap: one planned `go test` may run 180s, and the wrapper kill is 5 minutes. The previous 90s/2-minute pair aborted legitimate Architecture v2 catalog evaluation and `cmd/stackkit/commands` generate proofs. CUE authority changes compile the embed instead of selecting a Go test name that does not exist.
 
@@ -33,6 +42,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Basement and Cloud core runtimes declare minimum attested CPU/RAM/disk; empty inventory no longer silently admits Product Apply.
 - Failed Product Apply (human and `--json`) ends with retry/`status`/`logs` guidance and the Run-ID when a local run exists.
 - `base-install.sh` and `cloud-install.sh` resume apply on an existing workspace instead of dying.
+
+## [0.23.0](https://github.com/kombifyio/stackKits/compare/v0.22.0...v0.23.0) (2026-09-02)
+
+
+### Added
+
+* **install:** basement low generate, photos closure, catalog honesty ([#811](https://github.com/kombifyio/stackKits/issues/811)) ([5e8dd03](https://github.com/kombifyio/stackKits/commit/5e8dd037ad19321f044aba10bbcfc6dc23c40604))
+* **media:** architecture v2 jellyfin workload on standard and high ([#813](https://github.com/kombifyio/stackKits/issues/813)) ([8692dca](https://github.com/kombifyio/stackKits/commit/8692dcaa90ec3dfc610f368a2b37154202b9cb00))
+* **planner:** module-local compute profiles and WebMCP ([#827](https://github.com/kombifyio/stackKits/issues/827)) ([88c11f1](https://github.com/kombifyio/stackKits/commit/88c11f16eace96c3c3f6fdcd209783e94ad8eb35))
+* **smart-home:** architecture v2 home assistant container workload ([#815](https://github.com/kombifyio/stackKits/issues/815)) ([334b293](https://github.com/kombifyio/stackKits/commit/334b2933bac989eadcd2f57e53d2bdd8615b9b56))
+* **smart-home:** native MCP client, reverse-proxy baseline, Homelab owner ([#816](https://github.com/kombifyio/stackKits/issues/816)) ([6a1ed48](https://github.com/kombifyio/stackKits/commit/6a1ed4866e5cb38acc8c3ff603d329b0e4667afa))
+* **use-case:** agent surface contract and generate handoff ([#814](https://github.com/kombifyio/stackKits/issues/814)) ([8e37497](https://github.com/kombifyio/stackKits/commit/8e3749722e4e3839635316b79b3f92bdbb26e228))
+* **webmcp:** add compute-tier planner and CLI handoff ([#825](https://github.com/kombifyio/stackKits/issues/825)) ([6a4db37](https://github.com/kombifyio/stackKits/commit/6a4db3772decc2fee2fee08725716ac080bca33d))
+
+
+### Fixed
+
+* **delivery:** align catalog dispatch with module verification ([#830](https://github.com/kombifyio/stackKits/issues/830)) ([652c321](https://github.com/kombifyio/stackKits/commit/652c3219a699c64306596ab9649e21077782e76e))
+* **delivery:** drop hosted snapshot secrets ([#822](https://github.com/kombifyio/stackKits/issues/822)) ([25934c5](https://github.com/kombifyio/stackKits/commit/25934c5c5ff2dcf0145edb09b3d738cac1a74ec4))
+* **release:** authenticate public projection source ([#826](https://github.com/kombifyio/stackKits/issues/826)) ([5add761](https://github.com/kombifyio/stackKits/commit/5add761aa9c16fee6933365ac2fa08bbb7528e7b))
 
 ## [0.22.0](https://github.com/kombifyio/stackKits/compare/v0.21.24...v0.22.0) (2026-08-26)
 

@@ -19,6 +19,7 @@ import (
 const (
 	APIVersionV1                  = "stackkit/v1"
 	APIVersionV2Alpha1            = "stackkit/v2alpha1"
+	APIVersionV2Alpha2            = "stackkit/v2alpha2"
 	APIVersionMigrationProjection = "stackkit.migration/v1"
 	KindStackSpec                 = "StackSpec"
 	KindMigrationProjection       = "StackSpecMigrationProjection"

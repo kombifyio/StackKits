@@ -1,6 +1,6 @@
 # StackKit Options and Authoring Matrix
 
-> Last verified: 2026-08-27
+> Last verified: 2026-09-01
 
 This page is the compact contract for adding or promoting StackKit options. CUE
 is the technical source of truth; the kombify database mirrors catalog,
@@ -18,13 +18,14 @@ version, rollout, and lifecycle state.
 
 | Concern | Release value |
 | --- | --- |
-| Default PaaS (`standard` / `high`) | `coolify` |
+| Selected-provider core realization | `coolify` is the existing default provider; the native core module profile and explicit platform intent must agree. |
 | Production PaaS alternative | `komodo` |
 | Draft PaaS adapter | `dokploy` |
 | Invalid normal PaaS values | `dockge`, `none` |
 | Dockge status | Experimental/constrained Compose manager service only; not a normal Basement Kit PaaS. |
-| Low compute tier | Basement `install.computeTier: low` is standalone Compose, no Coolify, Immich without ML (`immich-lite`). CUE `computeTierGraphs.low` is authority. It is not a Coolify-gated subset of `standard` and not a Dockge switch. Cloud and Modern do not publish `low`. |
-| Media | Optional Architecture v2 Jellyfin on Basement/Cloud/Modern `standard` and `high` (`docker.io/jellyfin/jellyfin:10.10.7`, digest-pinned). Library volume is owner-custodied and not a StackKits backup source. Basement `low` omits Media until a lite substitution exists. No `*arr` services. |
+| Native module profiles | `stackkit/v2alpha2` selects each module's `computeProfile` explicitly. Core Lite `low` means standalone Compose without Coolify, but does not force Photos or Media to the same profile. Immich Lite is a separate workload alternative, not an implicit consequence of selecting Core Lite. See ADR-0039. |
+| Legacy low compute tier | Explicit `stackkit/v2alpha1` retains `install.computeTier: low` and CUE `computeTierGraphs.low` for compatibility. Cloud and Modern do not publish that legacy graph. It is not a native module-profile default. |
+| Media | Optional Architecture v2 Jellyfin with declared module-local `standard` and `high` profiles (`docker.io/jellyfin/jellyfin:10.10.7`, digest-pinned). Native Core Lite does not globally exclude Media. The old v2alpha1 `low` graph still excludes it. Library volume is owner-custodied and not a StackKits backup source. No `*arr` services. |
 | Smart Home | Optional Architecture v2 Home Assistant container (`ghcr.io/home-assistant/home-assistant:2026.7.2`, digest-pinned) on Basement/Cloud/Modern. Native product MCP is `/api/mcp` on `https://smart-home.<domain>`. Generate writes the reverse-proxy baseline and Homelab owner intent (`homelab`). No HA OS/Supervisor parity, no Zigbee/MQTT runtime in this slice. |
 
 When the PaaS contract for `standard`/`high` changes, update all of these together:
@@ -32,10 +33,16 @@ When the PaaS contract for `standard`/`high` changes, update all of these togeth
 `docs/stack-spec-reference.md`, `docs/CONCEPTS.md`, website installer copy, and
 release archive smoke expectations.
 
-When the compute-tier graph changes, edit CUE first (`basement-kit/stackfile.cue`
-`computeTierGraphs` and catalog `#WorkloadContractV2.computeTiers`), then derive
-YAML floors, this page, `docs/CONCEPTS.md` §3, and `docs/stack-spec-reference.md`.
-Cloud YAML `low` is kitio roundtrip only and has no graph.
+Native profile changes start in the CUE module catalog and its
+`computeProfiles`, `storageProfiles`, or `acceleratorProfiles`. The compiler
+validates the explicit choices and aggregates declared per-node resource facts;
+inventory never chooses a profile. Regenerate the authority bundle and public
+module-profile catalog. Missing resource facts stay unverified, not invented.
+
+Changes to the retained v2alpha1 graph instead start in
+`basement-kit/stackfile.cue` `computeTierGraphs` and
+`#WorkloadContractV2.computeTiers`. Label derived legacy YAML and documentation
+accordingly. Cloud YAML `low` is kitio roundtrip only and has no legacy graph.
 
 ## Authoring Flow
 
@@ -46,8 +53,8 @@ Cloud YAML `low` is kitio roundtrip only and has no graph.
 3. Add resolver or generator code only when CUE cannot express the behavior
    yet; keep Go defaults aligned with the CUE contract.
 4. Update docs and website copy only after the source contract is decided.
-5. Add the narrowest tests that prove the changed layer, then broaden for
-   release surfaces.
+5. Run the affected behavioral gate. Packaging, activation, and stable promotion
+   use their separately declared evidence paths.
 
 ## Promotion Gates
 
@@ -76,14 +83,10 @@ provider, or credential. Those are separate runtime and evidence contracts.
 
 ## Required Release Checks
 
-For any option, installer, or kit-default change:
+For pre-1.0 changes, run the affected gate (target two minutes, hard limit five):
 
 ```bash
-go test ./...
-cue vet -c=false ./foundation/...
-cue vet ./basement-kit/... ./cloud-kit/...
-mise run test:cue-binding
-mise run test:website
+mise run check
 ```
 
 For release packaging:

@@ -1,14 +1,17 @@
 export {
   CATALOG_PATH,
+  COMPUTE_PROFILE_ORDER,
+  LEGACY_CATALOG_PATH,
   REQUIRED_OPERATION_IDS,
-  TIER_ORDER,
   canonicalJson,
   catalogDigestPayload,
   loadCatalog,
+  profileDigestPayload,
   sha256Hex,
-  validateCatalog,
   validateAndVerifyCatalog,
+  validateCatalog,
   verifyCatalogDigest,
+  verifyProfileDigest,
   CatalogValidationError,
 } from "./catalog.js";
 export { createPlanner, overallCapacityStatus, PlannerService } from "./planner.js";
@@ -22,25 +25,27 @@ export {
 export {
   createToolDefinitions,
   stackkitsAssessCapacity,
-  stackkitsGetTierProfile,
+  stackkitsGetModuleProfiles,
   stackkitsListCatalog,
   stackkitsPrepareHandoff,
   TOOL_NAMES,
 } from "./tools.js";
 export { hasWebMcp, registerStackKitsWebMcp } from "./webmcp.js";
 export { SCHEMA_VERSION } from "./types.js";
+export { TOOL_DATA_SCHEMAS_PUBLIC, TOOL_INPUT_SCHEMAS_PUBLIC } from "./schema.js";
+
 export type {
   ModelContextLike,
   ModelContextTool,
   WebMcpRegistration,
   WebMcpRegistrationOptions,
 } from "./webmcp.js";
-export type { PlannerOptions, PlannerInvocationOptions, PlannerResult } from "./planner.js";
+export type { PlannerInvocationOptions, PlannerOptions, PlannerResult } from "./planner.js";
 export type { PlannerState, PlannerStateListener } from "./session.js";
 export type { WebMcpToolDefinition, WebMcpToolExecutionContext } from "./tools.js";
-export { TOOL_DATA_SCHEMAS_PUBLIC, TOOL_INPUT_SCHEMAS_PUBLIC } from "./schema.js";
 export type {
   AssessCapacityInput,
+  Authoring,
   AuthoringInput,
   CapacityAxis,
   CapacityCheck,
@@ -48,32 +53,36 @@ export type {
   CapacityReasonCode,
   CapacityStatus,
   CatalogKit,
-  ComputeTier,
+  CatalogModule,
+  CatalogUseCase,
+  CatalogUseCaseAlternative,
   DeclaredCapacity,
   Effects,
-  GetTierProfileInput,
+  GetModuleProfilesInput,
   HandoffData,
   HandoffFollowUp,
   HandoffStep,
-  HostRequirements,
   ListCatalogData,
   ListCatalogInput,
-  ModuleRuntimeRequirement,
+  ModuleAxisProfile,
+  ModuleComputeProfile,
+  ModuleProfileSelection,
+  ModuleProfilesData,
   Notice,
   NoticeSeverity,
   OperationMetadata,
   Outcome,
+  PartialDeclaredCapacity,
   PrepareHandoffInput,
   Provenance,
+  ResourceVector,
   Selection,
-  TierProfile,
-  TierProfileData,
   ToolDataMap,
   ToolInputMap,
   ToolName,
   ToolResultMap,
-  UseCaseFit,
   UseCaseLoad,
+  UseCaseSelection,
   WebMcpCatalog,
   WebMcpResult,
 } from "./types.js";

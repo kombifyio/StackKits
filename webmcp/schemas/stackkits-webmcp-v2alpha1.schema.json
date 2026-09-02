@@ -1,0 +1,438 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkit.cc/schemas/stackkits-webmcp-v2alpha1.schema.json",
+  "title": "StackKits WebMCP v2alpha1",
+  "description": "Closed, read-only module-profile planning tools. Compute, storage, and accelerator choices are module-local.",
+  "$defs": {
+    "schemaVersion": { "const": "stackkits-webmcp/v2alpha1" },
+    "sha40": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "sha64": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "stackkitId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,62}$",
+      "description": "Explicit public StackKit identifier."
+    },
+    "contractId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,127}$",
+      "description": "CUE-owned public contract identifier."
+    },
+    "profileId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,62}$",
+      "description": "Explicit module-local profile identifier."
+    },
+    "useCaseId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,62}$",
+      "description": "CUE-owned use-case identifier."
+    },
+    "toolName": {
+      "type": "string",
+      "enum": [
+        "stackkits_list_catalog",
+        "stackkits_get_module_profiles",
+        "stackkits_assess_capacity",
+        "stackkits_prepare_handoff"
+      ]
+    },
+    "outcome": { "type": "string", "enum": ["success", "invalid_input", "blocked"] },
+    "capacityStatus": { "type": "string", "enum": ["fail", "warning", "pass", "unverified"] },
+    "capacityReasonCode": {
+      "type": "string",
+      "enum": [
+        "DECLARED_CAPACITY_BELOW_MINIMUM",
+        "DECLARED_CAPACITY_BELOW_RECOMMENDATION",
+        "DECLARED_CAPACITY_INCOMPLETE",
+        "MODULE_PROFILE_CAPACITY_UNDECLARED",
+        "DECLARED_CAPACITY_PASS"
+      ]
+    },
+    "partialDeclaredCapacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cpu_cores": { "type": "integer", "minimum": 1, "maximum": 1024, "description": "User-declared available CPU cores." },
+        "ram_gb": { "type": "number", "exclusiveMinimum": 0, "maximum": 16384, "description": "User-declared available RAM in GiB." },
+        "storage_gb": { "type": "number", "exclusiveMinimum": 0, "maximum": 1048576, "description": "User-declared free storage in GiB." }
+      }
+    },
+    "declaredCapacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cpu_cores", "ram_gb", "storage_gb"],
+      "properties": {
+        "cpu_cores": { "type": "integer", "minimum": 1, "maximum": 1024, "description": "User-declared available CPU cores." },
+        "ram_gb": { "type": "number", "exclusiveMinimum": 0, "maximum": 16384, "description": "User-declared available RAM in GiB." },
+        "storage_gb": { "type": "number", "exclusiveMinimum": 0, "maximum": 1048576, "description": "User-declared free storage in GiB." }
+      }
+    },
+    "moduleProfileSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["module_id", "compute_profile"],
+      "properties": {
+        "module_id": { "$ref": "#/$defs/contractId" },
+        "compute_profile": { "$ref": "#/$defs/profileId" },
+        "storage_profile": { "$ref": "#/$defs/profileId" },
+        "accelerator_profile": { "$ref": "#/$defs/profileId" }
+      }
+    },
+    "useCaseSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["use_case_id", "alternative_id"],
+      "properties": {
+        "use_case_id": { "$ref": "#/$defs/useCaseId" },
+        "alternative_id": { "$ref": "#/$defs/contractId" }
+      }
+    },
+    "authoringInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "value"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z][a-z0-9]*)+$",
+          "description": "Required authoring-contract path."
+        },
+        "value": { "type": "string", "minLength": 1, "maxLength": 255, "description": "Explicit contract value." }
+      }
+    },
+    "authoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain_base": {
+          "type": "string",
+          "pattern": "^(?=.{1,253}$)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(?:\\.(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?))+$",
+          "description": "Explicit network.domain.base DNS name."
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$",
+          "description": "Explicit StackSpec metadata name."
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "stackkit_id": { "$ref": "#/$defs/stackkitId" },
+        "module_profiles": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "$ref": "#/$defs/moduleProfileSelection" }
+        },
+        "use_cases": {
+          "type": "array",
+          "maxItems": 32,
+          "items": { "$ref": "#/$defs/useCaseSelection" }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority", "source_sha", "authority_bundle_sha256", "catalog_sha256"],
+      "properties": {
+        "authority": { "const": "cue" },
+        "source_sha": { "$ref": "#/$defs/sha40" },
+        "authority_bundle_sha256": { "$ref": "#/$defs/sha64" },
+        "catalog_sha256": { "$ref": "#/$defs/sha64" }
+      }
+    },
+    "notice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "severity", "message"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,63}$" },
+        "severity": { "type": "string", "enum": ["info", "warning", "error"] },
+        "field": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "message": { "type": "string", "maxLength": 500 }
+      }
+    },
+    "effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["executed", "target_mutation", "provider_action"],
+      "properties": {
+        "executed": { "const": false },
+        "target_mutation": { "const": false },
+        "provider_action": { "const": false }
+      }
+    },
+    "listCatalogItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stackkit_id", "display_name", "version", "status", "planner_link", "module_count", "use_case_ids"],
+      "properties": {
+        "stackkit_id": { "$ref": "#/$defs/stackkitId" },
+        "display_name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "version": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "status": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "planner_link": { "type": "string", "pattern": "^/planner\\?stackkit_id=[a-z][a-z0-9-]{0,62}$" },
+        "module_count": { "type": "integer", "minimum": 0 },
+        "use_case_ids": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/useCaseId" } }
+      }
+    },
+    "listCatalogData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kits", "module_selection_required"],
+      "properties": {
+        "kits": { "type": "array", "items": { "$ref": "#/$defs/listCatalogItem" } },
+        "module_selection_required": { "const": true }
+      }
+    },
+    "optionalCapacityTuple": {
+      "type": "array",
+      "prefixItems": [
+        { "type": ["number", "null"] },
+        { "type": ["number", "null"] },
+        { "type": ["number", "null"] }
+      ],
+      "items": false,
+      "description": "CPU cores, RAM GiB, storage GiB; null is undeclared."
+    },
+    "compactProfile": {
+      "type": "array",
+      "prefixItems": [
+        { "$ref": "#/$defs/profileId" },
+        { "type": "string", "enum": ["declared", "partial", "not_declared"] },
+        { "$ref": "#/$defs/optionalCapacityTuple" },
+        { "$ref": "#/$defs/optionalCapacityTuple" },
+        { "$ref": "#/$defs/optionalCapacityTuple" },
+        { "type": "string", "maxLength": 80 },
+        { "type": "boolean" },
+        { "$ref": "#/$defs/sha64" }
+      ],
+      "items": false,
+      "description": "Profile, declaration, floor, reservation, recommendation, realization, executable, hash."
+    },
+    "compactAxisProfile": {
+      "type": "array",
+      "prefixItems": [
+        { "$ref": "#/$defs/profileId" },
+        { "type": "string", "enum": ["declared", "partial", "not_declared"] },
+        { "$ref": "#/$defs/optionalCapacityTuple" },
+        { "type": "string", "maxLength": 80 },
+        { "$ref": "#/$defs/sha64" }
+      ],
+      "items": false,
+      "description": "Axis profile, declaration, reservation, realization, hash."
+    },
+    "compactModuleProfiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["module_id", "required", "profiles", "storage_profiles", "accelerator_profiles"],
+      "properties": {
+        "module_id": { "$ref": "#/$defs/contractId" },
+        "required": { "type": "boolean" },
+        "profiles": { "type": "array", "items": { "$ref": "#/$defs/compactProfile" } },
+        "storage_profiles": { "type": "array", "items": { "$ref": "#/$defs/compactAxisProfile" } },
+        "accelerator_profiles": { "type": "array", "items": { "$ref": "#/$defs/compactAxisProfile" } }
+      }
+    },
+    "compactUseCaseAlternative": {
+      "type": "array",
+      "prefixItems": [
+        { "$ref": "#/$defs/useCaseId" },
+        { "$ref": "#/$defs/contractId" },
+        { "$ref": "#/$defs/contractId" }
+      ],
+      "items": false,
+      "description": "Use case, alternative, module."
+    },
+    "moduleProfilesData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["modules", "use_case_alternatives", "legacy_global_tiers"],
+      "properties": {
+        "modules": { "type": "array", "items": { "$ref": "#/$defs/compactModuleProfiles" } },
+        "use_case_alternatives": { "type": "array", "items": { "$ref": "#/$defs/compactUseCaseAlternative" } },
+        "legacy_global_tiers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "enum": ["low", "standard", "high"] }
+        },
+        "next_cursor": { "type": "integer", "minimum": 1, "description": "Next module offset; absent when this filtered catalog is complete." }
+      }
+    },
+    "capacityCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["axis", "status", "reason_code"],
+      "properties": {
+        "axis": { "type": "string", "enum": ["cpu_cores", "ram_gb", "storage_gb"] },
+        "observed": { "type": "number" },
+        "minimum": { "type": "number" },
+        "recommended": { "type": "number" },
+        "status": { "$ref": "#/$defs/capacityStatus" },
+        "reason_code": { "$ref": "#/$defs/capacityReasonCode" }
+      }
+    },
+    "capacityData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["declared_capacity", "checks", "overall", "origin", "unverified_modules"],
+      "properties": {
+        "declared_capacity": { "$ref": "#/$defs/partialDeclaredCapacity" },
+        "checks": { "type": "array", "items": { "$ref": "#/$defs/capacityCheck" } },
+        "overall": { "$ref": "#/$defs/capacityStatus" },
+        "origin": { "const": "user_declared" },
+        "unverified_modules": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/contractId" } }
+      }
+    },
+    "handoffStep": {
+      "type": "array",
+      "minItems": 5,
+      "prefixItems": [
+        { "type": "string", "pattern": "^stackkit\\.(?:init|validate|resolve|generate|plan)$" },
+        { "type": "array", "minItems": 2, "items": { "type": "string", "maxLength": 255 } },
+        { "type": "boolean" },
+        { "type": "boolean" },
+        { "type": "boolean" }
+      ],
+      "items": false,
+      "description": "Operation ID, validated argv, mutation, idempotent, owner approval."
+    },
+    "handoffFollowUp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "mutation", "idempotent", "owner_approval", "executable"],
+      "properties": {
+        "id": { "const": "stackkit.apply" },
+        "mutation": { "const": true },
+        "idempotent": { "type": "boolean" },
+        "owner_approval": { "const": true },
+        "executable": { "const": false }
+      }
+    },
+    "handoffData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ready", "capacity_status", "steps", "apply_follow_up"],
+      "properties": {
+        "ready": { "type": "boolean" },
+        "capacity_status": { "$ref": "#/$defs/capacityStatus" },
+        "steps": { "type": "array", "maxItems": 5, "items": { "$ref": "#/$defs/handoffStep" } },
+        "apply_follow_up": { "$ref": "#/$defs/handoffFollowUp" },
+        "blocked_reasons": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,63}$" } }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "tool", "outcome", "provenance", "data", "notices", "effects"],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schemaVersion" },
+        "tool": { "$ref": "#/$defs/toolName" },
+        "outcome": { "$ref": "#/$defs/outcome" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "selection": { "$ref": "#/$defs/selection" },
+        "data": {},
+        "notices": { "type": "array", "items": { "$ref": "#/$defs/notice" } },
+        "effects": { "$ref": "#/$defs/effects" }
+      }
+    }
+  },
+  "tools": {
+    "stackkits_list_catalog": {
+      "title": "List StackKits",
+      "description": "List public StackKits and module-profile availability. It never recommends a configuration.",
+      "input": { "type": "object", "additionalProperties": false, "properties": {} },
+      "result": { "$ref": "#/$defs/result" },
+      "data": { "$ref": "#/$defs/listCatalogData" }
+    },
+    "stackkits_get_module_profiles": {
+      "title": "Get module profiles",
+      "description": "Read one module and its use-case alternatives per page. Follow next_cursor with the same filters, or select module_id. No profile is selected.",
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stackkit_id"],
+        "properties": {
+          "stackkit_id": { "$ref": "#/$defs/stackkitId" },
+          "module_id": { "$ref": "#/$defs/contractId", "description": "Optional exact module to inspect; otherwise follow next_cursor." },
+          "cursor": { "type": "integer", "minimum": 0, "description": "Module offset from next_cursor; omit for the first page." },
+          "use_case_ids": {
+            "type": "array",
+            "uniqueItems": true,
+            "maxItems": 16,
+            "items": { "$ref": "#/$defs/useCaseId" },
+            "description": "Optional use-case filter; only modules implementing these alternatives are included."
+          }
+        }
+      },
+      "result": { "$ref": "#/$defs/result" },
+      "data": { "$ref": "#/$defs/moduleProfilesData" }
+    },
+    "stackkits_assess_capacity": {
+      "title": "Assess declared capacity",
+      "description": "Compare declared CPU, RAM, and storage with an explicit set of module-local profiles.",
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stackkit_id", "module_profiles", "declared_capacity"],
+        "properties": {
+          "stackkit_id": { "$ref": "#/$defs/stackkitId" },
+          "module_profiles": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 64,
+            "items": { "$ref": "#/$defs/moduleProfileSelection" },
+            "description": "Explicit profile selection for every active module."
+          },
+          "use_cases": {
+            "type": "array",
+            "maxItems": 32,
+            "items": { "$ref": "#/$defs/useCaseSelection" },
+            "description": "Explicit use-case alternatives."
+          },
+          "declared_capacity": { "$ref": "#/$defs/partialDeclaredCapacity" }
+        }
+      },
+      "result": { "$ref": "#/$defs/result" },
+      "data": { "$ref": "#/$defs/capacityData" }
+    },
+    "stackkits_prepare_handoff": {
+      "title": "Prepare StackKit handoff",
+      "description": "Prepare a non-executing CLI handoff. Steps are [operation_id, argv, mutation, idempotent, owner_approval]. Apply is a non-executable follow-up. Requires explicit module profiles, use-case alternatives, capacity, and authoring input.",
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stackkit_id", "module_profiles", "declared_capacity"],
+        "properties": {
+          "stackkit_id": { "$ref": "#/$defs/stackkitId" },
+          "module_profiles": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 64,
+            "items": { "$ref": "#/$defs/moduleProfileSelection" },
+            "description": "Explicit profile selection for every active module."
+          },
+          "use_cases": {
+            "type": "array",
+            "maxItems": 32,
+            "items": { "$ref": "#/$defs/useCaseSelection" },
+            "description": "Explicit use-case alternatives."
+          },
+          "declared_capacity": { "$ref": "#/$defs/partialDeclaredCapacity" },
+          "authoring": { "$ref": "#/$defs/authoring" },
+          "authoring_inputs": {
+            "type": "array",
+            "maxItems": 16,
+            "items": { "$ref": "#/$defs/authoringInput" },
+            "description": "Additional required contract-path values."
+          }
+        }
+      },
+      "result": { "$ref": "#/$defs/result" },
+      "data": { "$ref": "#/$defs/handoffData" }
+    }
+  }
+}

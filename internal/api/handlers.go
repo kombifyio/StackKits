@@ -348,10 +348,14 @@ type architectureV2AuthoringResponse struct {
 }
 
 type architectureV2AuthoringRequest struct {
-	APIVersion string                        `json:"apiVersion"`
-	Kind       string                        `json:"kind"`
-	KitProfile stackspecmigration.KitProfile `json:"kitProfile"`
-	Overrides  map[string]string             `json:"overrides,omitempty"`
+	APIVersion          string                                          `json:"apiVersion"`
+	Kind                string                                          `json:"kind"`
+	KitProfile          stackspecmigration.KitProfile                   `json:"kitProfile"`
+	Overrides           map[string]string                               `json:"overrides,omitempty"`
+	UseCases            []string                                        `json:"useCases,omitempty"`
+	UseCaseAlternatives map[string]string                               `json:"useCaseAlternatives,omitempty"`
+	ModuleProfiles      map[string]architecturev2.ModuleProfileOverride `json:"moduleProfiles,omitempty"`
+	Platform            string                                          `json:"platform,omitempty"`
 }
 
 func (s *Server) handleGetArchitectureV2AuthoringDefaults(w http.ResponseWriter, r *http.Request, name string) {
@@ -391,6 +395,9 @@ func (s *Server) architectureV2AuthoringResponse(profile stackspecmigration.KitP
 		AuthoringStatus:          contract.Status,
 		RequiredOverrides:        append(make([]string, 0, len(contract.RequiredOverrides)), contract.RequiredOverrides...),
 	}
+	if overrides.APIVersion == stackspecmigration.APIVersionV2Alpha2 {
+		response.SourceVersion = stackspecmigration.SourceVersionV2Alpha2
+	}
 	if !requireMaterialized && len(contract.RequiredOverrides) != 0 {
 		return response, nil
 	}
@@ -428,7 +435,7 @@ func (s *Server) handleValidateSpec(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if document.Version == stackspecmigration.SourceVersionV2Alpha1 {
+	if document.Version.IsV2() {
 		service, serviceErr := s.architectureV2ResolveService()
 		if serviceErr != nil {
 			writeMappedArchitectureV2ResolveError(w, serviceErr)
@@ -555,10 +562,10 @@ func (s *Server) handleValidateArchitectureV2Authoring(w http.ResponseWriter, r 
 		})
 		return
 	}
-	if request.APIVersion != architectureV2AuthoringAPIVersion || request.Kind != architectureV2AuthoringKind {
+	if (request.APIVersion != architectureV2AuthoringAPIVersion && request.APIVersion != stackspecmigration.APIVersionV2Alpha2) || request.Kind != architectureV2AuthoringKind {
 		writeMappedArchitectureV2ResolveError(w, &architecturev2.ResolveError{
 			Code:    architecturev2.ErrInvalidStackSpec,
-			Message: fmt.Sprintf("native v0.7 authoring requires apiVersion %q and kind %q", architectureV2AuthoringAPIVersion, architectureV2AuthoringKind),
+			Message: fmt.Sprintf("Architecture v2 authoring requires a supported apiVersion and kind %q", architectureV2AuthoringKind),
 		})
 		return
 	}
@@ -574,6 +581,11 @@ func (s *Server) handleValidateArchitectureV2Authoring(w http.ResponseWriter, r 
 		writeMappedArchitectureV2ResolveError(w, err)
 		return
 	}
+	overrides.APIVersion = request.APIVersion
+	overrides.UseCases = request.UseCases
+	overrides.UseCaseAlternatives = request.UseCaseAlternatives
+	overrides.ModuleProfiles = request.ModuleProfiles
+	overrides.Platform = request.Platform
 	response, err := s.architectureV2AuthoringResponse(profile, overrides, true)
 	if err != nil {
 		writeMappedArchitectureV2ResolveError(w, err)
@@ -808,7 +820,7 @@ func (s *Server) admitLegacyGenerationSpec(raw json.RawMessage) (*models.StackSp
 	if err != nil {
 		return nil, &architecturev2.ResolveError{Code: architecturev2.ErrInvalidStackSpec, Message: err.Error(), Cause: err}
 	}
-	if document.Version == stackspecmigration.SourceVersionV2Alpha1 {
+	if document.Version.IsV2() {
 		return nil, &architecturev2.ResolveError{
 			Code:    architecturev2.ErrInvalidStackSpec,
 			Message: "canonical StackSpec v2 must use the governed /api/v2/resolve and generation path; the legacy /api/v1 generator cannot decode it",

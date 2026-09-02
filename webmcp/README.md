@@ -1,11 +1,11 @@
-# StackKits WebMCP v1
+# StackKits WebMCP v2alpha1
 
 This directory is the public, framework-independent StackKits WebMCP package.
 It contains the versioned JSON Schemas, generated TypeScript types, the pure
-compute-tier planner, four read-only browser tools, a deterministic authority
+module-profile planner, four read-only browser tools, a deterministic authority
 projection generator, and a small reference host.
 
-The package never selects a StackKit or compute tier implicitly. It does not
+The package never selects a StackKit, use-case alternative, or module profile implicitly. It does not
 connect to a provider, inspect a host, execute a CLI command, or mutate a
 target. Host facts are user declarations and remain separate from the full
 StackKits host preflight.
@@ -18,7 +18,9 @@ Use Node 24 or newer:
 npm ci
 npm run build
 npm test
-npm run generate:catalog -- --authority-bundle /path/to/authority_bundle --out data/stackkits-catalog.json --source-sha <40-char-sha>
+npm run generate:catalog -- --authority-bundle /path/to/authority_bundle --schema v2alpha1 --out data/stackkits-webmcp/v2alpha1/catalog.json --source-sha <40-char-sha>
+# Generate the v1 compatibility projection when a legacy consumer needs it.
+npm run generate:catalog -- --authority-bundle /path/to/authority_bundle --schema v1 --out data/stackkits-catalog.json --source-sha <40-char-sha>
 ```
 
 The generator accepts only an OSS StackKits authority bundle. It requires the
@@ -42,11 +44,12 @@ npm run check
 npm run build
 ```
 
-The build copies the exported `../data/stackkits-catalog.json` to its
-same-origin public path and injects that catalog's exact `source_sha`. In a
-full private checkout it can materialize a missing local catalog from the OSS
-authority bundle first. It does not fetch private website source or depend on
-kombify Sites/Cubi.
+The build copies the exported `../data/stackkits-webmcp/v2alpha1/catalog.json`
+to its same-origin public path and injects that catalog's exact `source_sha`. In a
+full private checkout it can materialize a missing local v2 catalog from the OSS
+authority bundle first. The exported v1 compatibility source is
+`../data/stackkits-catalog.json` and is copied to the original v1 endpoint as
+well. It does not fetch private website source or depend on kombify Sites/Cubi.
 
 ## Browser integration
 
@@ -58,10 +61,25 @@ browser without WebMCP continues to work; the adapter simply reports
 `available: false`.
 
 The four public tools are `stackkits_list_catalog`,
-`stackkits_get_tier_profile`, `stackkits_assess_capacity`, and
-`stackkits_prepare_handoff`. Every result uses `stackkits-webmcp/v1`, carries
+`stackkits_get_module_profiles`, `stackkits_assess_capacity`, and
+`stackkits_prepare_handoff`. Every result uses `stackkits-webmcp/v2alpha1`, carries
 CUE/build/catalog provenance, and declares zero executed, target, or provider
 effects. `apply` is only described as a non-executable follow-up.
+
+Profile discovery returns one module per page. Repeat the same kit and filters
+with `cursor: data.next_cursor` until `next_cursor` is absent, or provide an exact
+`module_id`. `use_case_ids` filters both modules and their alternatives. Paging
+never selects a profile; the visible planner reads the same complete catalog.
+
+To keep agent responses compact without dropping approval metadata, each handoff
+step is a schema-defined tuple:
+`[operation_id, argv, mutation, idempotent, owner_approval]`.
+All five operations are returned together. The validated `init` argv carries the
+complete selection, so a successful handoff does not echo those IDs again in the
+envelope. Capacity results likewise do not repeat the supplied profile IDs.
+The shared session preserves the full validated selection in the visible planner.
+The current representative catalog, profile pages, capacity checks, and handoffs
+are checked against the 1,500-character JSON output budget.
 
 The stateful Svelte component is available at
 `@kombifyio/stackkits-webmcp/StackKitsPlanner.svelte`. Pass it the same
@@ -70,6 +88,13 @@ update one planner state. Browser hosts normally use
 `@kombifyio/stackkits-webmcp/StackKitsPlannerHost.svelte`; it loads the
 same-origin catalog without blocking the surrounding page, creates the shared
 session, and registers the same four tools fail-closed.
+
+The shared capacity control uses logarithmic pointer travel so small hosts stay
+usable across the supported input range, while number fields retain exact
+values. Keyboard arrows adjust capacity units, not the internal track position.
+Blank fields remain undeclared. Every edit invalidates prior assessments and
+handoffs, including invalid numeric input; aborting an older agent invocation
+cannot restore stale capacity over a newer human edit.
 
 ## Public exports
 

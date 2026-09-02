@@ -1,14 +1,27 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
+import { execFile } from 'node:child_process'
 import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 import test from 'node:test'
-import { projectAuthorityBundle } from '../scripts/generate-catalog.mjs'
+import { projectAuthorityBundle, projectAuthorityBundleV2 } from '../scripts/generate-catalog.mjs'
 
 const authorityRoot = new URL('../../internal/architecturev2/authority_bundle/', import.meta.url)
 const sourceSha = '1111111111111111111111111111111111111111'
+
+test('catalog CLI defaults to the native contract, with v1 only by explicit selection', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'stackkits-webmcp-cli-'))
+  context.after(() => rm(root, { recursive: true, force: true }))
+  const output = join(root, 'catalog.json')
+  await promisify(execFile)(process.execPath, [
+    fileURLToPath(new URL('../scripts/generate-catalog.mjs', import.meta.url)),
+    '--authority-bundle', fileURLToPath(authorityRoot), '--source-sha', sourceSha, '--out', output,
+  ])
+  assert.equal(JSON.parse(await readFile(output, 'utf8')).schema_version, 'stackkits-webmcp/v2alpha1')
+})
 
 test('authority projection is deterministic and source-bound', async () => {
   const first = await projectAuthorityBundle(fileURLToPath(authorityRoot), sourceSha)
@@ -17,6 +30,32 @@ test('authority projection is deterministic and source-bound', async () => {
   assert.equal(first.source_sha, sourceSha)
   assert.match(first.catalog_sha256, /^[a-f0-9]{64}$/)
   assert.deepEqual(first.kits.map(({ stackkit_id }) => stackkit_id), [...first.kits.map(({ stackkit_id }) => stackkit_id)].sort())
+})
+
+test('native v2 projection exposes explicit alternatives and local profiles', async () => {
+  const first = await projectAuthorityBundleV2(fileURLToPath(authorityRoot), sourceSha)
+  const second = await projectAuthorityBundleV2(fileURLToPath(authorityRoot), sourceSha)
+  assert.deepEqual(first, second)
+  assert.equal(first.schema_version, 'stackkits-webmcp/v2alpha1')
+  assert.match(first.catalog_sha256, /^[a-f0-9]{64}$/)
+
+  const basement = first.kits.find(({ stackkit_id }) => stackkit_id === 'basement-kit')
+  assert.ok(basement)
+  const core = basement.use_cases.find(({ use_case_id }) => use_case_id === 'basement-core')
+  assert.deepEqual(core.alternatives.map(({ alternative_id }) => alternative_id), ['standalone', 'standalone-lite'])
+
+  const coreModules = basement.modules.filter(({ module_id }) => module_id.includes('basement-core'))
+  assert.ok(coreModules.some(({ module_id, compute_profiles }) => module_id.endsWith('lite-runtime') && compute_profiles.some(({ id }) => id === 'low')))
+  assert.ok(coreModules.some(({ module_id, compute_profiles }) => module_id.endsWith('runtime') && !module_id.endsWith('lite-runtime') && compute_profiles.some(({ id }) => id === 'standard')))
+  assert.ok(basement.modules.some(({ compute_profiles }) => compute_profiles.length === 0))
+  assert.equal(Object.hasOwn(basement, 'compute_tiers'), false)
+
+  const modern = first.kits.find(({ stackkit_id }) => stackkit_id === 'modern-homelab')
+  assert.ok(modern)
+  const initialWorkload = modern.use_cases.find(({ use_case_id }) => use_case_id === 'photos')
+  assert.ok(initialWorkload)
+  assert.equal(initialWorkload.required, true)
+  assert.ok(initialWorkload.alternatives.some(({ alternative_id }) => alternative_id === 'immich'))
 })
 
 test('unknown authority versions and sensitive public strings fail closed', async (context) => {

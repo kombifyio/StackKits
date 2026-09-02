@@ -31,16 +31,18 @@ func (c *Compiler) buildModules(spec *specView, resolved *resolution, providerSi
 	if err := c.selectWorkloadModules(resolved, selected); err != nil {
 		return nil, nil, nil, nil, err
 	}
-	tier, err := computeTierFromInstall(spec.install)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	graph, err := loadKitComputeTierGraph(spec.originalDefinition, tier)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	if err := applyComputeTierModuleSubstitutions(selected, resolved, c.catalog, graph.moduleSubstitutions); err != nil {
-		return nil, nil, nil, nil, err
+	if spec.legacyComputeTier {
+		tier, err := computeTierFromInstall(spec.install)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		graph, err := loadKitComputeTierGraph(spec.originalDefinition, tier)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		if err := applyComputeTierModuleSubstitutions(selected, resolved, c.catalog, graph.moduleSubstitutions); err != nil {
+			return nil, nil, nil, nil, err
+		}
 	}
 	if err := c.validateExplicitModuleIntent(spec, selected); err != nil {
 		return nil, nil, nil, nil, err
@@ -48,10 +50,14 @@ func (c *Compiler) buildModules(spec *specView, resolved *resolution, providerSi
 	if err := c.closeModuleDependencies(selected); err != nil {
 		return nil, nil, nil, nil, err
 	}
+	moduleProfiles, err := c.resolveModuleProfiles(spec, selected.selected)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
 	if err := detectModuleCycles(selected.selected, c.catalog); err != nil {
 		return nil, nil, nil, nil, err
 	}
-	modules, moduleSites, moduleNodes, err := c.resolveSelectedModules(spec, resolved, selected.selected, providerSites, providerNodes)
+	modules, moduleSites, moduleNodes, err := c.resolveSelectedModules(spec, resolved, selected.selected, moduleProfiles, providerSites, providerNodes)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -216,8 +222,13 @@ func (c *Compiler) validateExplicitModuleIntent(spec *specView, selection *provi
 		if err != nil {
 			return err
 		}
-		if role == "workload" {
+		if role == "workload" && spec.apiVersion != architectureAPIVersionV2Alpha2 {
 			return fail(ErrUnrealizedModule, "spec.modules."+moduleID, "workload modules are selected only through spec.workloads")
+		}
+		if role == "workload" {
+			if _, selected := selection.selected[moduleID]; !selected {
+				return fail(ErrUnrealizedModule, "spec.modules."+moduleID, "module profiles may only refine an already selected workload alternative")
+			}
 		}
 		providerID, governed := selection.governed[moduleID]
 		if !governed {
@@ -227,6 +238,13 @@ func (c *Compiler) validateExplicitModuleIntent(spec *specView, selection *provi
 		if err != nil {
 			return err
 		}
+		if role == "workload" {
+			for _, field := range []string{"settings", "secretRefs", "runtimeProfile"} {
+				if _, present := intent[field]; present {
+					return fail(ErrInvalidInput, "spec.modules."+moduleID+"."+field, "workload settings and secrets remain owned by spec.workloads")
+				}
+			}
+		}
 		enabled, err := boolFieldDefault(intent, "spec.modules."+moduleID, "enabled", true)
 		if err != nil {
 			return err
@@ -234,6 +252,9 @@ func (c *Compiler) validateExplicitModuleIntent(spec *specView, selection *provi
 		_, required := selection.required[moduleID]
 		if !enabled && required {
 			return fail(ErrUnrealizedModule, "spec.modules."+moduleID, "a provider-required module cannot be disabled")
+		}
+		if !enabled && role == "workload" {
+			return fail(ErrUnrealizedModule, "spec.modules."+moduleID, "a selected workload module cannot be disabled by its profile intent")
 		}
 		if enabled {
 			selection.selected[moduleID] = providerID
@@ -278,12 +299,12 @@ func (c *Compiler) closeModuleDependencies(selection *providerModuleSelection) e
 	return nil
 }
 
-func (c *Compiler) resolveSelectedModules(spec *specView, resolved *resolution, selected map[string]string, providerSites, providerNodes map[string][]string) ([]any, map[string][]string, map[string][]string, error) {
+func (c *Compiler) resolveSelectedModules(spec *specView, resolved *resolution, selected map[string]string, moduleProfiles map[string]moduleProfileSelection, providerSites, providerNodes map[string][]string) ([]any, map[string][]string, map[string][]string, error) {
 	moduleSites := make(map[string][]string, len(selected))
 	moduleNodes := make(map[string][]string, len(selected))
 	result := make([]any, 0, len(selected))
 	for _, moduleID := range sortedStringMapKeys(selected) {
-		module, siteRefs, nodeRefs, err := c.resolveSelectedModule(spec, resolved, moduleID, selected[moduleID], providerSites, providerNodes)
+		module, siteRefs, nodeRefs, err := c.resolveSelectedModule(spec, resolved, moduleID, selected[moduleID], moduleProfiles[moduleID], providerSites, providerNodes)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -343,13 +364,14 @@ func (c *Compiler) validateModuleCoverage(resolved *resolution, modules []any) e
 	return nil
 }
 
-func (c *Compiler) resolveSelectedModule(spec *specView, resolved *resolution, moduleID, selectedProvider string, _ map[string][]string, providerNodes map[string][]string) (map[string]any, []string, []string, error) {
+func (c *Compiler) resolveSelectedModule(spec *specView, resolved *resolution, moduleID, selectedProvider string, profile moduleProfileSelection, _ map[string][]string, providerNodes map[string][]string) (map[string]any, []string, []string, error) {
 	contract := c.catalog.modules[moduleID]
 	providerID, err := resolveModuleProvider(moduleID, selectedProvider, contract)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	siteRefs, nodeRefs, err := resolveModuleTargets(moduleID, providerID, contract, spec, providerNodes)
+	targetContract := moduleContractWithRuntimeRequirements(contract, profile.runtimeRequirements)
+	siteRefs, nodeRefs, err := resolveModuleTargets(moduleID, providerID, targetContract, spec, providerNodes)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -382,6 +404,23 @@ func (c *Compiler) resolveSelectedModule(spec *specView, resolved *resolution, m
 			"settings":   workload.settings,
 			"secretRefs": workload.secretRefs,
 		}
+		// Native v2alpha2 keeps module-local profile selectors in spec.modules
+		// even when the workload implementation itself is selected via
+		// spec.workloads. Preserve only those typed selectors in the render
+		// intent; workload settings remain authoritative for the renderer.
+		if declared, exists, err := optionalObjectField(spec.modules, "spec.modules", moduleID); err != nil {
+			return nil, nil, nil, err
+		} else if exists {
+			for _, field := range []string{"computeProfile", "storageProfile", "acceleratorProfile"} {
+				if value, present := declared[field]; present {
+					intent, ok := rawIntent.(map[string]any)
+					if !ok {
+						return nil, nil, nil, fail(ErrInvalidInput, "spec.modules."+moduleID, "module render intent is not an object")
+					}
+					intent[field] = value
+				}
+			}
+		}
 		workload.siteRefs, workload.nodeRefs = siteRefs, nodeRefs
 	}
 	provides, err := resolveModuleProvides(moduleID, providerID, contract, resolved)
@@ -396,7 +435,7 @@ func (c *Compiler) resolveSelectedModule(spec *specView, resolved *resolution, m
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	module, err := c.resolveModuleContract(moduleID, providerID, provides, siteRefs, nodeRefs, contract, rawIntent, capabilitySecretRefs, spec.nodes, generationTarget)
+	module, err := c.resolveModuleContract(moduleID, providerID, provides, siteRefs, nodeRefs, contract, rawIntent, capabilitySecretRefs, spec.nodes, generationTarget, profile)
 	return module, siteRefs, nodeRefs, err
 }
 
@@ -694,6 +733,16 @@ func evaluateRuntimeAdmission(requirements map[string]any, nodeRefs []string, no
 
 func nodeRuntimeAdmission(requirements map[string]any, node nodeView) (string, error) {
 	status := "ready"
+	requiredFacts, err := stringListField(requirements, "runtimeRequirements", "requireInventoryFacts", false)
+	if err != nil {
+		return "", err
+	}
+	for _, fact := range requiredFacts {
+		// Spec declarations are intent, not observed inventory evidence.
+		if value, exists := node.inventoryFacts[fact]; !exists || value == nil {
+			status = mergeRuntimeAdmissionStatus(status, "unverified")
+		}
+	}
 	for _, minimum := range []struct {
 		requirement string
 		fact        string
@@ -827,7 +876,7 @@ func moduleProvidesTypedImplementation(moduleID string, contract map[string]any)
 	return false, nil
 }
 
-func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, siteRefs, nodeRefs []string, contract map[string]any, rawIntent any, capabilitySecretRefs map[string]any, nodes []nodeView, generationTarget string) (map[string]any, error) {
+func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, siteRefs, nodeRefs []string, contract map[string]any, rawIntent any, capabilitySecretRefs map[string]any, nodes []nodeView, generationTarget string, profile moduleProfileSelection) (map[string]any, error) {
 	version, err := metadataVersion(contract, "catalog.modules."+moduleID)
 	if err != nil {
 		return nil, err
@@ -872,8 +921,24 @@ func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, 
 	if requires = sortStringsUnique(requires); len(requires) > 0 {
 		module["requires"] = stringSliceAny(requires)
 	}
+	if profile.profile != nil {
+		module["computeProfile"] = profile.tier
+		module["computeProfileHash"] = profile.hash
+		module["computeProfileBinding"] = profile.profile
+		module["computeProfileSource"] = profile.source
+	}
+	if profile.storageProfile != "" {
+		module["storageProfile"] = profile.storageProfile
+		module["storageProfileHash"] = profile.storageProfileHash
+		module["storageProfileBinding"] = profile.storageBinding
+	}
+	if profile.acceleratorProfile != "" {
+		module["acceleratorProfile"] = profile.acceleratorProfile
+		module["acceleratorProfileHash"] = profile.acceleratorProfileHash
+		module["acceleratorProfileBinding"] = profile.acceleratorBinding
+	}
 	for _, field := range []string{
-		"nodeSelection", "runtimeRequirements", "enforcementRequirement", "runtimeOwnerRequirement",
+		"nodeSelection", "enforcementRequirement", "runtimeOwnerRequirement",
 		"runtimeAdapter", "runtimeAdapterAgent", "storageAllocationContract", "dataBindingContract",
 		"backupSourceContract", "snapshotContract", "restoreContract", "recoveryContract",
 	} {
@@ -889,6 +954,17 @@ func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, 
 			return nil, err
 		}
 		module[field] = resolvedValue
+	}
+	if profile.runtimeRequirements != nil {
+		module["runtimeRequirements"] = profile.runtimeRequirements
+	} else if requirements, exists, err := optionalObjectField(contract, "catalog.modules."+moduleID, "runtimeRequirements"); err != nil {
+		return nil, err
+	} else if exists {
+		cloned, err := cloneObject(requirements, true)
+		if err != nil {
+			return nil, err
+		}
+		module["runtimeRequirements"] = cloned
 	}
 	if requirements, exists := module["runtimeRequirements"].(map[string]any); exists {
 		admission, err := evaluateRuntimeAdmission(requirements, nodeRefs, nodes)

@@ -18,6 +18,7 @@ const (
 	ErrUnsupportedAddOn           ErrorCode = "unsupported_addon"
 	ErrUnknownModule              ErrorCode = "unknown_module"
 	ErrUnrealizedModule           ErrorCode = "unrealized_module"
+	ErrUndeclaredComputeProfile   ErrorCode = "undeclared_compute_profile"
 	ErrUnknownWorkload            ErrorCode = "unknown_workload"
 	ErrForbiddenWorkload          ErrorCode = "forbidden_workload"
 	ErrUnknownWorkloadAlternative ErrorCode = "unknown_workload_alternative"

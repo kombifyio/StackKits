@@ -813,6 +813,25 @@ requirement. The exact selector and requirement bodies are persisted in the
 resolved module and reconstructed from the service-owned catalog during plan
 validation.
 
+Native `stackkit/v2alpha2` sizing is module-local. Each selected
+resource-bearing module explicitly chooses one declared `computeProfile`; a
+module that declares a storage or accelerator dimension explicitly chooses
+those profiles too. Profile names such as `low`, `standard`, and `high` are
+module-scoped identifiers, not a kit-wide quality promise. They refine an
+already selected module and cannot enable another workload, choose a device
+class, or be inferred from inventory. The kit-wide `install.computeTier`
+graphs remain only in the explicit `stackkit/v2alpha1` compatibility adapter.
+
+The compiler retains the module's architecture, virtualization, and inventory
+requirements while applying any stricter profile constraints through this same
+placement path. It aggregates only declared CPU, RAM, and storage facts per
+target node: host floors use the maximum, reservations add, and recommendation
+adds declared recommendation/reservation plus declared headroom. Missing axes
+stay unknown and are never manufactured as zero or `standard`. ResolvedPlan
+binds the selected profile bodies and hashes plus the aggregate demand so plan
+validation detects catalog or plan drift. A declared-capacity browser result is
+still not host compatibility; Apply requires the normal attested preflight.
+
 This boundary is the foundation for the provider- and device-neutral OS
 compatibility matrix: a matrix result names the same normalized OS facts used for
 host admission, while architecture, kernel, runtime, virtualization, and hardware

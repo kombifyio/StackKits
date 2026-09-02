@@ -238,7 +238,7 @@ func admitCommandBeforeDeployObservability(cmd *cobra.Command) error {
 	if sourceVersion == stackspecmigration.SourceVersionV1 {
 		return newArchitectureV2ExecutionGate().rejectV1Execution(rawSpec, mode)
 	}
-	if sourceVersion != stackspecmigration.SourceVersionV2Alpha1 {
+	if !sourceVersion.IsV2() {
 		return fmt.Errorf("%s: required local StackSpec has unsupported version %q", mode, sourceVersion)
 	}
 	if mode == architectureV2Prepare {
@@ -303,7 +303,7 @@ func admitApplyBeforeDeployObservability(wd, requestedSpecPath string) error {
 	if sourceVersion == stackspecmigration.SourceVersionV1 {
 		return newArchitectureV2ExecutionGate().rejectV1Execution(rawSpec, architectureV2Apply)
 	}
-	if sourceVersion != stackspecmigration.SourceVersionV2Alpha1 {
+	if !sourceVersion.IsV2() {
 		return fmt.Errorf("apply: required local StackSpec has unsupported version %q", sourceVersion)
 	}
 	return nil
@@ -330,7 +330,7 @@ func classifyArchitectureV2ExecutionSpec(wd, requestedSpecPath string) ([]byte, 
 	if document.Version == stackspecmigration.SourceVersionV1 {
 		return rawSpec, document.Version, true, nil
 	}
-	if document.Version != stackspecmigration.SourceVersionV2Alpha1 || document.V2 == nil {
+	if !document.Version.IsV2() || document.V2 == nil {
 		return nil, "", true, fmt.Errorf("architecture v2 execution classification returned no canonical v2 identity")
 	}
 	return rawSpec, document.Version, true, nil
@@ -380,7 +380,7 @@ func loadLegacyOperationalStackSpec(wd, requestedSpecPath string, mode architect
 			return nil, gate.rejectV1Execution(loaded.Document.Raw, mode)
 		}
 		return loader.LoadLegacyStackSpec(requestedSpecPath)
-	case stackspecmigration.SourceVersionV2Alpha1:
+	case stackspecmigration.SourceVersionV2Alpha1, stackspecmigration.SourceVersionV2Alpha2:
 		return nil, fmt.Errorf(
 			"%s: canonical StackSpec v2 cannot use the legacy %s implementation; a governed ResolvedPlan-based path is required",
 			mode,

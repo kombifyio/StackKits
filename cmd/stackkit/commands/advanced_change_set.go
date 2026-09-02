@@ -21,7 +21,6 @@ import (
 	"github.com/kombifyio/stackkits/internal/backupcustody"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localevidence"
-	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/spf13/cobra"
 )
 
@@ -70,7 +69,7 @@ func admitAdvancedChangeSetOperation(
 	if err != nil {
 		return advancedChangeSetAdmission{}, err
 	}
-	if !handled || sourceVersion != stackspecmigration.SourceVersionV2Alpha1 {
+	if !handled || !sourceVersion.IsV2() {
 		return advancedChangeSetAdmission{}, errors.New("advanced lifecycle operation requires a canonical Architecture v2 baseline StackSpec")
 	}
 	inventory, err := readArchitectureV2Inventory(workspace, "")

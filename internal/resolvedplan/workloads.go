@@ -33,6 +33,9 @@ func resolveWorkloadSelections(profile *profileView, spec *specView, catalog *in
 		if _, exists := rawSelections[id]; exists {
 			continue
 		}
+		if !spec.legacyComputeTier {
+			return nil, fail(ErrUnknownWorkloadAlternative, "spec.workloads."+id+".alternative", "native v2alpha2 requires an explicit alternative for kit-mandated workload %q", id)
+		}
 		contract, exists := catalog.workloads[id]
 		if !exists {
 			return nil, fail(ErrUnknownWorkload, "definition.workloads", "workload %q has no governed catalog contract", id)
@@ -47,9 +50,16 @@ func resolveWorkloadSelections(profile *profileView, spec *specView, catalog *in
 		rawSelections[id] = map[string]any{"alternative": alternativeID, "placement": map[string]any{}}
 	}
 
-	tier, err := computeTierFromInstall(spec.install)
-	if err != nil {
-		return nil, err
+	// Native v2alpha2 selects workload alternatives explicitly and does not
+	// reuse the legacy global compute-tier fit table. Legacy v2alpha1 keeps the
+	// existing table behind the single compatibility adapter.
+	tier := ""
+	if spec.legacyComputeTier {
+		var err error
+		tier, err = computeTierFromInstall(spec.install)
+		if err != nil {
+			return nil, err
+		}
 	}
 	resolved := make(map[string]*resolvedWorkloadSelection, len(rawSelections))
 	moduleOwners := make(map[string]string)
@@ -65,8 +75,10 @@ func resolveWorkloadSelections(profile *profileView, spec *specView, catalog *in
 		if !exists {
 			return nil, fail(ErrUnknownWorkload, path, "no governed workload contract exists")
 		}
-		if fit := CatalogWorkloadComputeTierFit(contract, tier); fit.Declared && !fit.Included {
-			return nil, fail(ErrForbiddenWorkload, path, "workload is not included on computeTier %q", tier)
+		if spec.legacyComputeTier {
+			if fit := CatalogWorkloadComputeTierFit(contract, tier); fit.Declared && !fit.Included {
+				return nil, fail(ErrForbiddenWorkload, path, "workload is not included on computeTier %q", tier)
+			}
 		}
 		selection, err := asObject(rawSelections[id], path)
 		if err != nil {

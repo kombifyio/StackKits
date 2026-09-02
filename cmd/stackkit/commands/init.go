@@ -18,15 +18,20 @@ import (
 )
 
 var (
-	initComputeTier      string
-	initHardwareProfile  string
-	initName             string
-	initDomain           string
-	initMode             string
-	initOutputDir        string
-	initForce            bool
-	initExpectedSpecHash string
-	initNonInteractive   bool
+	initAPIVersion                string
+	initComputeTier               string
+	initModuleComputeProfiles     []string
+	initModuleStorageProfiles     []string
+	initModuleAcceleratorProfiles []string
+	initUseCaseAlternatives       []string
+	initHardwareProfile           string
+	initName                      string
+	initDomain                    string
+	initMode                      string
+	initOutputDir                 string
+	initForce                     bool
+	initExpectedSpecHash          string
+	initNonInteractive            bool
 	// Native v2 authoring overrides (validated by the CUE authority).
 	initPlatform           string
 	initEnableCapabilities []string
@@ -72,15 +77,16 @@ Native Architecture v2 init is CUE-owned. Without a Kit argument it selects
 basement-kit. --owner-source=local establishes local owner custody plus the
 CUE-owned PocketID/step-ca and Site/node/execution-channel projection.
 
-Native v2 --compute-tier writes install.computeTier (the declared product
-graph). Mode, local-path, local-DNS, service, cluster, cloud-owner, and
+Native v2alpha2 selects each module's compute profile independently. Required
+and optional workloads use explicit --use-case-alternative selections. The
+--compute-tier flag is available only with --api-version stackkit/v2alpha1,
+the explicitly marked legacy graph adapter. Mode, local-path, local-DNS, service, cluster, cloud-owner, and
 output switches remain available only to an explicitly versioned v0.6
 compatibility binary and are rejected by development and v0.7+ builds.
 
 Examples:
-  stackkit init --owner-source=local    Initialize standalone basement-kit
-  stackkit init basement-kit            Initialize with basement-kit
-  stackkit init cloud-kit --domain cloud.example.com
+  stackkit init basement-kit --use-case-alternative basement-core=standalone-lite --module-compute-profile stackkits-basement-core-lite-runtime=low
+  stackkit init basement-kit --api-version stackkit/v2alpha1 --compute-tier standard
   stackkit init ./basement-kit          v0.6 compatibility only: local definition path
   stackkit init --non-interactive       Initialize basement-kit with CUE defaults`,
 	Args: cobra.MaximumNArgs(1),
@@ -89,7 +95,12 @@ Examples:
 
 func init() {
 	initCmd.Flags().StringVar(&initName, "name", "", "Deployment contract ID (defaults to a normalized working-directory name)")
-	initCmd.Flags().StringVar(&initComputeTier, "compute-tier", "", "Declared product graph (low, standard, high). Native v2 default standard; missing or undeclared graphs fail closed")
+	initCmd.Flags().StringVar(&initAPIVersion, "api-version", stackspecmigration.APIVersionV2Alpha2, "StackSpec contract (stackkit/v2alpha2; explicit legacy adapter: stackkit/v2alpha1)")
+	initCmd.Flags().StringVar(&initComputeTier, "compute-tier", "", "Legacy v2alpha1 only: declared kit graph (low, standard, high)")
+	initCmd.Flags().StringArrayVar(&initModuleComputeProfiles, "module-compute-profile", nil, "Native v2alpha2: module-id=profile; repeat for every selected workload module")
+	initCmd.Flags().StringArrayVar(&initModuleStorageProfiles, "module-storage-profile", nil, "Native v2alpha2: module-id=storage-profile for a declared storage dimension")
+	initCmd.Flags().StringArrayVar(&initModuleAcceleratorProfiles, "module-accelerator-profile", nil, "Native v2alpha2: module-id=accelerator-profile for a declared accelerator dimension")
+	initCmd.Flags().StringArrayVar(&initUseCaseAlternatives, "use-case-alternative", nil, "Native v2alpha2: use-case-id=alternative; include required core workloads")
 	initCmd.Flags().StringVar(&initHardwareProfile, "hardware-profile", "", "Device class for nodes[0].hardware.profile (standard, pi, gpu, storage). pi is a constrained homelab device, not Raspberry-only. Not auto-detected from inventory")
 	initCmd.Flags().StringVar(&initDomain, "domain", "", "Domain override for the generated stack spec")
 	initCmd.Flags().BoolVar(&initLocalDNS, "local-dns", false, "v0.6 compatibility only: use Kombify Point local DNS names")
@@ -99,7 +110,7 @@ func init() {
 	initCmd.Flags().BoolVarP(&initForce, "force", "f", false, "v0.6 compatibility only: overwrite existing files")
 	initCmd.Flags().StringVar(&initExpectedSpecHash, "expected-spec-hash", "", "Native v2 only: exact current CUE-normalized spec hash required for replacement")
 	initCmd.Flags().StringVar(&initPlatform, "platform", "", "Native v2 only: selected-provider platform adapter (install.platform.providerRef, e.g. coolify or komodo)")
-	initCmd.Flags().StringSliceVar(&initUseCases, "use-case", nil, "Native v2 only: optional kit workloads to enable; catalog computeTiers selects the alternative for --compute-tier (e.g. photos,files,vault)")
+	initCmd.Flags().StringSliceVar(&initUseCases, "use-case", nil, "Optional kit workloads to enable (e.g. photos,files,vault); v2alpha2 requires explicit alternatives")
 	initCmd.Flags().StringSliceVar(&initEnableCapabilities, "enable", nil, "Native v2 only: optional kit capabilities to enable (capabilities.enable, e.g. lan-dns,internal-pki)")
 	initCmd.Flags().BoolVar(&initNonInteractive, "non-interactive", false, "Run in non-interactive mode (fail if input is required)")
 	initCmd.Flags().StringVar(&initAdminEmail, "admin-email", "", "v0.6 compatibility only: admin email for login accounts")
@@ -505,6 +516,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 	if strings.TrimSpace(initExpectedSpecHash) != "" {
 		return fmt.Errorf("--expected-spec-hash is a native Architecture v2 authoring contract and is unavailable on the exact-v0.6 compatibility line")
+	}
+	if commandFlagChanged(cmd, "api-version") || len(initModuleComputeProfiles)+len(initModuleStorageProfiles)+len(initModuleAcceleratorProfiles)+len(initUseCaseAlternatives) > 0 {
+		return fmt.Errorf("module profile authoring is unavailable on the exact-v0.6 compatibility line")
 	}
 	if err := validateInitLocalDNSFlags(); err != nil {
 		return err

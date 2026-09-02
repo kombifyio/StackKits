@@ -28,7 +28,7 @@ The implementation PR after that baseline adds:
 
 - two deterministic OSS authority documents for compute-tier fits and
   standalone operation metadata;
-- the `stackkits-webmcp/v1` JSON Schemas, schema-generated TypeScript types,
+- the `stackkits-webmcp/v2alpha1` JSON Schemas, schema-generated TypeScript types,
   fail-closed catalog projection, and four read-only page tools;
 - the shared visible Planner session and Svelte component;
 - the thin `stackkit.cc/planner` host and independently buildable OSS
@@ -41,11 +41,11 @@ provider, writes files, or applies a plan. The CLI handoff is reviewable data.
 
 ## Demo video outline (under three minutes)
 
-1. Open `/planner` in a browser without WebMCP and complete an explicit
-   Basement `low` capacity assessment.
-2. Show the excluded Media explanation and the Core/Photo-Lite substitutions.
+1. Open `/planner` in a browser without WebMCP and complete explicit
+   Basement core and workload alternative selections plus a capacity assessment.
+2. Show module-local profile facts and any partial/unverified capacity axes.
 3. In a WebMCP-capable browser, discover all four tools and run
-   list → profile → assess → handoff.
+   list → module profiles → assess → handoff.
 4. Show the same selection and result appearing immediately in the visible
    Planner.
 5. Inspect the `argv` arrays and the separate, non-executable

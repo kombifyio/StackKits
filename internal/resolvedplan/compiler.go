@@ -25,6 +25,9 @@ func NewCompiler(catalog Catalog, options Options) (*Compiler, error) {
 	if err != nil {
 		return nil, fail(ErrContractValidation, "catalog", "CUE #ArchitectureV2CatalogContract rejected catalog: %v", err)
 	}
+	if err := validateCatalogModuleProfileComponents(normalizedCatalog); err != nil {
+		return nil, err
+	}
 	if err := options.ContractValidator.bindExpectedCatalogBodies(normalizedCatalog); err != nil {
 		return nil, fail(ErrContractValidation, "catalog.authority", "bind compiler to governed catalog bodies: %v", err)
 	}
@@ -144,6 +147,24 @@ func (c *Compiler) Compile(input Input) (ResolvedPlan, error) {
 	sourceIntentHash, err := canonicalHash(input.Spec, true)
 	if err != nil {
 		return nil, fmt.Errorf("source intent hash: %w", err)
+	}
+	// Inspect the caller's discriminator before CUE normalization so a native
+	// v2alpha2 document cannot be mistaken for a legacy document after defaults
+	// are materialized. The forward contract has no global compute selector.
+	rawSpecAPI, err := stringField(map[string]any(input.Spec), "spec", "apiVersion")
+	if err != nil {
+		return nil, err
+	}
+	if rawSpecAPI == architectureAPIVersionV2Alpha2 {
+		rawInstall, exists, err := optionalObjectField(map[string]any(input.Spec), "spec", "install")
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			if _, declared := rawInstall["computeTier"]; declared {
+				return nil, fail(ErrInvalidInput, "spec.install.computeTier", "global computeTier is legacy-only; select computeProfile on every module")
+			}
+		}
 	}
 	for _, document := range []struct {
 		path  string
@@ -432,7 +453,7 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		"specHash":                         hashes.spec,
 		"inventoryHash":                    hashes.inventory,
 		"install":                          deployment.install,
-		"compatibility":                    c.buildCompatibility(),
+		"compatibility":                    c.buildCompatibility(spec.apiVersion),
 		"generation":                       deployment.generation,
 		"source":                           deployment.source,
 		"sites":                            topology.sites,
@@ -453,6 +474,7 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		"workloads":                        contracts.workloads,
 		"applicationLifecycles":            contracts.applicationLifecycles,
 		"modules":                          contracts.modules,
+		"resourceDemand":                   contracts.resourceDemand,
 		"runtimeNetworks":                  contracts.runtimeNetworks,
 		"privilegedInterfaceApprovals":     privilegedInterfaceApprovals,
 		"placement":                        deployment.placement,
@@ -573,6 +595,7 @@ type planContracts struct {
 	providerNodes         map[string][]string
 	moduleSites           map[string][]string
 	moduleNodes           map[string][]string
+	resourceDemand        []any
 }
 
 func (c *Compiler) buildPlanContracts(spec *specView, resolved *resolution) (planContracts, error) {
@@ -588,6 +611,14 @@ func (c *Compiler) buildPlanContracts(spec *specView, resolved *resolution) (pla
 	contracts.evidence = append(contracts.evidence, providerEvidence...)
 	if contracts.modules, contracts.runtimeNetworks, contracts.moduleSites, contracts.moduleNodes, err = c.buildModules(spec, resolved, contracts.providerSites, contracts.providerNodes); err != nil {
 		return contracts, err
+	}
+	if contracts.resourceDemand, err = aggregateModuleResourceDemand(contracts.modules); err != nil {
+		return contracts, err
+	}
+	if !spec.legacyComputeTier {
+		if err := applyModuleResourceAdmission(contracts.modules, contracts.resourceDemand, spec.nodes); err != nil {
+			return contracts, err
+		}
 	}
 	if contracts.workloads, err = c.buildWorkloads(resolved, contracts.modules); err != nil {
 		return contracts, err

@@ -15,6 +15,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const SCHEMA_VERSION = "stackkits-webmcp/v1";
+const SCHEMA_VERSION_V2 = "stackkits-webmcp/v2alpha1";
 const AUTHORITY_SCHEMA_VERSION = "stackkit.architecture-authority-bundle/v2";
 const FIT_SCHEMA_VERSIONS = new Set([
   "stackkits-use-case-catalog/v1",
@@ -65,12 +66,367 @@ if (isMain) await main();
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const authorityRoot = resolve(args["authority-bundle"] ?? join(scriptRoot, "..", "..", "internal", "architecturev2", "authority_bundle"));
-  const outputPath = resolve(args.out ?? join(scriptRoot, "..", "data", "stackkits-webmcp", "catalog.json"));
+  const schema = args.schema ?? "v2alpha1";
+  if (schema !== "v1" && schema !== "v2alpha1") fail(`unknown catalog schema: ${schema}`);
+  const outputPath = resolve(args.out ?? (schema === "v1"
+    ? join(scriptRoot, "..", "data", "stackkits-catalog.json")
+    : join(scriptRoot, "..", "data", "stackkits-webmcp", "v2alpha1", "catalog.json")));
   const sourceSha = await resolveSourceSha(args["source-sha"]);
-  const catalog = await projectAuthorityBundle(authorityRoot, sourceSha, args["planner-path"] ?? "/planner");
+  const catalog = schema === "v1"
+    ? await projectAuthorityBundle(authorityRoot, sourceSha, args["planner-path"] ?? "/planner")
+    : await projectAuthorityBundleV2(authorityRoot, sourceSha, args["planner-path"] ?? "/planner");
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(catalog, null, 2)}\n`, "utf8");
   process.stdout.write(`${outputPath}\n`);
+}
+
+/**
+ * Project the native module-local profile contract. The v1 function above is
+ * intentionally retained as a compatibility adapter for existing consumers;
+ * v2 never reads a kit-wide host requirement as a module profile.
+ */
+export async function projectAuthorityBundleV2(authorityRootPath, exactSourceSha, plannerPath = "/planner") {
+  const root = resolve(authorityRootPath);
+  if (!SOURCE_SHA.test(exactSourceSha ?? "")) fail("source SHA must be a full lowercase 40-character commit SHA");
+  if (!/^\/planner$/.test(plannerPath)) fail("planner path must be /planner");
+  const files = await requiredAuthorityFiles(root);
+  const manifest = await readJson(files.manifest);
+  await validateManifest(manifest, files, root);
+  const catalogSource = await readJson(files.catalog);
+  const fitsSource = await readJson(files.computeTierFits);
+  const operationsSource = await readJson(files.operations);
+  validateDocument(fitsSource, FIT_SCHEMA_VERSIONS, "compute-tier-fits.json");
+  validateDocument(operationsSource, OPERATIONS_SCHEMA_VERSIONS, "operations.json");
+  verifyContentDigest(fitsSource, "compute-tier-fits.json");
+  verifyContentDigest(operationsSource, "operations.json");
+
+  const authorityBundleSha = await authorityBundleDigest(root);
+  const modules = indexById(arrayValue(catalogSource.modules), "metadata.id");
+  const workloads = indexById(arrayValue(catalogSource.workloads), "metadata.id");
+  const useCases = parseNativeUseCases(fitsSource, workloads);
+  const operations = parseOperations(operationsSource);
+  const kits = [];
+  for (const [profileId, profilePath] of Object.entries(manifest.profiles ?? {}).sort(([left], [right]) => left.localeCompare(right))) {
+    if (!ID.test(profileId) || typeof profilePath !== "string") fail(`invalid profile identity: ${profileId}`);
+    const definition = await readJson(safeBundlePath(root, profilePath));
+    kits.push(await projectNativeKit(profileId, definition, useCases, modules, workloads, plannerPath));
+  }
+  kits.sort((left, right) => left.stackkit_id.localeCompare(right.stackkit_id));
+  const payload = {
+    schema_version: SCHEMA_VERSION_V2,
+    source_sha: exactSourceSha,
+    authority_bundle_sha256: authorityBundleSha,
+    kits,
+    operations: operations.sort((left, right) => left.id.localeCompare(right.id)),
+  };
+  return { ...payload, catalog_sha256: sha256Hex(Buffer.from(canonicalJson(payload), "utf8")) };
+}
+
+async function projectNativeKit(profileId, definition, useCases, modules, workloads, plannerPath) {
+  if (definition.kind !== "KitDefinition") fail(`profile is not a KitDefinition: ${profileId}`);
+  const metadata = objectValue(definition.metadata, `definition metadata for ${profileId}`);
+  const stackkitId = stringValue(metadata.slug, `${profileId}.metadata.slug`);
+  if (stackkitId !== profileId || !ID.test(stackkitId)) fail(`profile identity mismatch: ${profileId}`);
+  const authoring = objectValue(definition.authoring, `${profileId}.authoring`);
+  const graphTiers = objectValue(definition.computeTierGraphs, `${profileId}.computeTierGraphs`);
+  const moduleIds = nativeModuleClosure(definition, workloads, modules);
+  const kitUseCases = nativeUseCasesForKit(definition, useCases, workloads, moduleIds);
+  const projectedModules = [];
+  for (const moduleId of [...moduleIds].sort()) {
+    const module = modules.get(moduleId);
+    if (!module) fail(`${profileId} references unknown module ${moduleId}`);
+    projectedModules.push(await projectNativeModule(module, moduleId, kitUseCases));
+  }
+  const legacyTiers = ["low", "standard", "high"].filter((tier) => Object.prototype.hasOwnProperty.call(graphTiers, tier));
+  return {
+    stackkit_id: stackkitId,
+    display_name: publicString(metadata.displayName, `${profileId}.metadata.displayName`),
+    version: publicString(metadata.version, `${profileId}.metadata.version`),
+    description: publicString(metadata.description, `${profileId}.metadata.description`),
+    status: publicString(authoring.initialSpecStatus ?? metadata.status, `${profileId}.status`),
+    planner_link: `${plannerPath}?stackkit_id=${stackkitId}`,
+    modules: projectedModules,
+    use_cases: kitUseCases,
+    legacy_compute_tier_mappings: legacyTiers.map((compute_tier) => ({
+      compute_tier,
+      status: "migration_only",
+      reason_code: "LEGACY_GLOBAL_COMPUTE_TIER",
+    })),
+    required_authoring_inputs: stringArray(authoring.requiredOverrides ?? [], `${profileId}.authoring.requiredOverrides`, false).sort(),
+  };
+}
+
+async function projectNativeModule(module, moduleId, useCases) {
+  const role = module.role;
+  if (!["foundation", "platform", "workload", "operations"].includes(role)) fail(`module ${moduleId} has an unsupported role`);
+  const computeProfiles = await projectNativeProfileMap(module.computeProfiles ?? module.compute_profiles, `${moduleId}.computeProfiles`, true);
+  const storageProfiles = await projectNativeProfileMap(module.storageProfiles ?? module.storage_profiles, `${moduleId}.storageProfiles`, false);
+  const acceleratorProfiles = await projectNativeProfileMap(module.acceleratorProfiles ?? module.accelerator_profiles, `${moduleId}.acceleratorProfiles`, false);
+  const capabilities = stringArray(module.provides ?? module.capabilities ?? [], `${moduleId}.provides`, false);
+  const useCaseIds = useCases
+    .filter((useCase) => useCase.alternatives.some((alternative) => alternative.module_id === moduleId))
+    .map((useCase) => useCase.use_case_id)
+    .sort();
+  return {
+    module_id: publicId(moduleId, `${moduleId}.id`),
+    role,
+    required: false,
+    use_case_ids: useCaseIds,
+    capabilities,
+    compute_profiles: computeProfiles,
+    storage_profiles: storageProfiles,
+    accelerator_profiles: acceleratorProfiles,
+  };
+}
+
+async function projectNativeProfileMap(raw, path, compute) {
+  if (raw === undefined) return [];
+  if (!isObject(raw)) fail(`${path} must be an object`);
+  const result = [];
+  for (const [id, value] of Object.entries(raw).sort(([left], [right]) => profileOrder(left, right))) {
+    publicId(id, `${path}.${id}`);
+    if (!isObject(value)) fail(`${path}.${id} must be an object`);
+    result.push(compute ? await projectNativeComputeProfile(id, value, path) : await projectNativeAxisProfile(id, value, path));
+  }
+  return result;
+}
+
+function profileOrder(left, right) {
+  const order = new Map([["low", 0], ["standard", 1], ["high", 2]]);
+  const leftIndex = order.has(left) ? order.get(left) : 3;
+  const rightIndex = order.has(right) ? order.get(right) : 3;
+  return leftIndex - rightIndex || left.localeCompare(right);
+}
+
+async function projectNativeComputeProfile(id, source, path) {
+  rejectUnknownKeys(source, `${path}.${id}`, new Set([
+    "profileHash", "profile_sha256", "capacityDeclaration", "capacity_declaration", "maturity", "executable", "realization",
+    "platformManagement", "platform_management", "hostFloor", "reservation", "recommended", "headroom", "architectures", "virtualization", "components", "capabilities", "degradations",
+  ]));
+  const hostFloor = isObject(source.hostFloor) ? source.hostFloor : undefined;
+  const projected = {
+    id: publicId(id, `${path}.${id}`),
+    capacity_declaration: capacityDeclaration(source, true),
+    maturity: profileMaturity(source, `${path}.${id}`),
+    executable: requiredBoolean(source.executable, undefined, `${path}.${id}.executable`),
+    realization: profileRealization(source, `${path}.${id}`),
+    ...optionalResource("hostFloor", "host_floor", source, `${path}.${id}`),
+    ...optionalResource("reservation", "reservation", source, `${path}.${id}`),
+    ...optionalResource("headroom", "headroom", source, `${path}.${id}`),
+    ...optionalResource("recommended", "recommended", source, `${path}.${id}`),
+    architectures: publicStringArray(source.architectures ?? hostFloor?.allowedArchitectures ?? [], `${path}.${id}.architectures`, ["amd64", "arm64"]),
+    virtualization: publicStringArray(source.virtualization ?? hostFloor?.allowedVirtualization ?? [], `${path}.${id}.virtualization`),
+    components: publicIdArray(source.components ?? [], `${path}.${id}.components`),
+    capabilities: publicIdArray(source.capabilities ?? [], `${path}.${id}.capabilities`),
+    degradations: publicIdArray(source.degradations ?? [], `${path}.${id}.degradations`),
+  };
+  return { ...projected, profile_sha256: profileHash(source, projected) };
+}
+
+async function projectNativeAxisProfile(id, source, path) {
+  rejectUnknownKeys(source, `${path}.${id}`, new Set([
+    "profileHash", "profile_sha256", "capacityDeclaration", "capacity_declaration", "maturity", "realization", "reservation", "components", "capabilities",
+  ]));
+  const projected = {
+    id: publicId(id, `${path}.${id}`),
+    capacity_declaration: capacityDeclaration(source, false),
+    maturity: profileMaturity(source, `${path}.${id}`),
+    realization: profileRealization(source, `${path}.${id}`),
+    ...optionalResource("reservation", "reservation", source, `${path}.${id}`),
+    components: publicIdArray(source.components ?? [], `${path}.${id}.components`),
+    capabilities: publicIdArray(source.capabilities ?? [], `${path}.${id}.capabilities`),
+  };
+  return { ...projected, profile_sha256: profileHash(source, projected) };
+}
+
+function profileHash(source, projected) {
+  const declared = source.profileHash ?? source.profile_sha256;
+  if (declared !== undefined) {
+    if (typeof declared !== "string" || !/^sha256:[a-f0-9]{64}$/.test(declared)) fail("module profile hash must be sha256:<64 lowercase hex characters>");
+    return declared.slice("sha256:".length);
+  }
+  return sha256Hex(Buffer.from(canonicalJson(projected), "utf8"));
+}
+
+function capacityDeclaration(source, compute) {
+  const explicit = source.capacityDeclaration ?? source.capacity_declaration;
+  if (explicit !== undefined) {
+    if (!["declared", "partial", "not_declared"].includes(explicit)) fail(`unsupported capacity declaration: ${explicit}`);
+    return explicit;
+  }
+  const axes = new Set();
+  for (const key of ["hostFloor", "reservation"]) {
+    const vector = source[key];
+    if (!isObject(vector)) continue;
+    const axisKeys = key === "hostFloor"
+      ? [["minCpuCores", "cpuCores", "cpu_cores"], ["minRamGB", "ramGB", "ram_gb"], ["minStorageGB", "storageGB", "storage_gb"]]
+      : [["cpuCores", "cpu_cores"], ["ramGB", "ram_gb"], ["storageGB", "storage_gb"]];
+    for (const aliases of axisKeys) if (aliases.some((axis) => vector[axis] !== undefined)) axes.add(aliases[0]);
+  }
+  if (!compute && isObject(source.reservation)) return axes.size > 0 ? "declared" : "not_declared";
+  return axes.size === 0 ? "not_declared" : axes.size === 3 ? "declared" : "partial";
+}
+
+function profileMaturity(source, path) {
+  if (!["experimental", "beta", "supported", "deprecated"].includes(source.maturity)) fail(`${path}.maturity must be an explicit profile maturity`);
+  return source.maturity;
+}
+
+function profileRealization(source, path) {
+  if (!["contract-only", "generation-ready", "apply-ready"].includes(source.realization)) fail(`${path}.realization must be an explicit profile realization`);
+  return source.realization;
+}
+
+function optionalResource(sourceKey, outputKey, source, path) {
+  if (source[sourceKey] === undefined) return {};
+  const value = source[sourceKey];
+  if (!isObject(value)) fail(`${path}.${sourceKey} must be an object`);
+  const result = {};
+  const aliases = sourceKey === "hostFloor"
+    ? [["minCpuCores", "cpu_cores"], ["minRamGB", "ram_gb"], ["minStorageGB", "storage_gb"]]
+    : [["cpuCores", "cpu_cores"], ["ramGB", "ram_gb"], ["storageGB", "storage_gb"]];
+  const allowedKeys = new Set(aliases.map(([key]) => key).concat([
+    "cpu_cores", "ram_gb", "storage_gb",
+    ...(sourceKey === "hostFloor" ? ["allowedArchitectures", "allowedVirtualization", "requireInventoryFacts"] : []),
+  ]));
+  rejectUnknownKeys(value, `${path}.${sourceKey}`, allowedKeys);
+  for (const [input, output] of aliases) {
+    const valueForAxis = value[input] ?? value[output];
+    if (valueForAxis !== undefined) {
+      if (typeof valueForAxis !== "number" || !Number.isFinite(valueForAxis) || valueForAxis <= 0) fail(`${path}.${sourceKey}.${input} must be positive`);
+      result[output] = valueForAxis;
+    }
+  }
+  if (Object.keys(result).length === 0) {
+    if (sourceKey === "hostFloor") return {};
+    fail(`${path}.${sourceKey} must declare at least one resource axis`);
+  }
+  return { [outputKey]: result };
+}
+
+function publicStringArray(value, path, allowed) {
+  const values = stringArray(value, path, false);
+  if (allowed && values.some((entry) => !allowed.includes(entry))) fail(`${path} contains an unsupported value`);
+  return values;
+}
+
+function publicIdArray(value, path) {
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) fail(`${path} must be a string array`);
+  return [...new Set(value.map((entry) => publicId(entry, path)))].sort();
+}
+
+function nativeModuleClosure(definition, workloads, modules) {
+  const ids = new Set();
+  const workloadIds = nativeWorkloadIds(definition, true);
+  for (const workloadId of workloadIds) {
+    const workload = workloads.get(workloadId);
+    if (!workload) continue;
+    for (const alternative of arrayValue(workload.alternatives)) {
+      if (typeof alternative.moduleRef === "string" && SAFE_ID.test(alternative.moduleRef)) ids.add(alternative.moduleRef);
+    }
+  }
+  for (const graph of Object.values(definition.computeTierGraphs ?? {})) {
+    if (!isObject(graph)) continue;
+    for (const value of Object.values(graph.moduleSubstitutions ?? {})) if (typeof value === "string" && SAFE_ID.test(value)) ids.add(value);
+    for (const key of Object.keys(graph.moduleSubstitutions ?? {})) if (SAFE_ID.test(key)) ids.add(key);
+  }
+  // Include typed module dependencies, including plan-only contracts without a
+  // resource profile. Those remain visible facts and are never auto-selected.
+  const pending = [...ids];
+  while (pending.length > 0) {
+    const id = pending.pop();
+    const module = modules.get(id);
+    for (const dependency of module?.requires ?? []) {
+      if (typeof dependency === "string" && SAFE_ID.test(dependency) && !ids.has(dependency)) {
+        ids.add(dependency);
+        pending.push(dependency);
+      }
+    }
+  }
+  return ids;
+}
+
+function parseNativeUseCases(fitsSource, workloads) {
+  const fits = parseUseCases(fitsSource);
+  const result = new Map(fits.map((fit) => [fit.id, fit]));
+  for (const [id, workload] of workloads) {
+    if (!result.has(id)) result.set(id, { id, title: workload.metadata?.displayName ?? workload.metadata?.id ?? id, description: workload.metadata?.description, tiers: {} });
+  }
+  return result;
+}
+
+function nativeUseCasesForKit(definition, useCases, workloads, moduleIds) {
+  const ids = nativeWorkloadIds(definition, true);
+  const requiredIds = nativeWorkloadIds(definition, false);
+  const rows = [];
+  for (const id of [...ids].sort()) {
+    const workload = workloads.get(id);
+    const fit = useCases.get(id);
+    if (!workload && !fit) continue;
+    const alternatives = [];
+    for (const alternative of arrayValue(workload?.alternatives)) {
+      if (typeof alternative.moduleRef !== "string" || !moduleIds.has(alternative.moduleRef)) continue;
+      const fitForAlternative = matchingFit(fit, alternative.id);
+      const functions = fitForAlternative?.functions ?? workload.functionalCapabilities ?? [];
+      const load = fitForAlternative?.load ?? { residency: "always-on", baseline: "idle-resident", burst: "interactive" };
+      alternatives.push({ alternative_id: publicId(alternative.id, `${id}.alternative`), module_id: publicId(alternative.moduleRef, `${id}.moduleRef`), functions: stringArray(functions, `${id}.${alternative.id}.functions`), load });
+    }
+    // Native v2 alternatives are selected explicitly and are not gated by the
+    // legacy kit-wide compute-tier fit table. The fit document remains useful
+    // for functions/load metadata, but a required/default workload such as
+    // basement-core has no tier fit and must still expose its CUE alternatives.
+    const included = alternatives.length > 0;
+    const blockedReason = !included
+      ? (fit ? Object.values(fit.tiers).find((entry) => entry.reason)?.reason : undefined)
+      : undefined;
+    rows.push({
+      use_case_id: publicId(id, `${id}.id`),
+      title: publicString(fit?.title ?? workload?.metadata?.displayName ?? id, `${id}.title`),
+      required: requiredIds.has(id),
+      availability: included && alternatives.length > 0 ? "available" : "blocked",
+      ...(included && alternatives.length > 0 ? {} : { reason_code: reasonCode(blockedReason) }),
+      alternatives,
+    });
+  }
+  return rows;
+}
+
+/**
+ * Native v2 treats required workloads, policy defaults, and workloads already
+ * present in authoring.initialSpec as selected workload intent. Optional policy
+ * entries remain discoverable, but are not silently selected by this public
+ * projection.
+ */
+function nativeWorkloadIds(definition, includeOptional) {
+  const ids = new Set([
+    ...stringArray(definition.workloads?.required ?? [], "definition.workloads.required", false),
+    ...stringArray(definition.workloads?.defaults ?? [], "definition.workloads.defaults", false),
+    ...nativeInitialWorkloadIds(definition),
+  ]);
+  if (includeOptional) {
+    for (const id of stringArray(definition.workloads?.optional ?? [], "definition.workloads.optional", false)) ids.add(id);
+  }
+  return ids;
+}
+
+function nativeInitialWorkloadIds(definition) {
+  const workloads = definition.authoring?.initialSpec?.workloads;
+  if (workloads === undefined) return [];
+  if (!isObject(workloads)) fail("definition.authoring.initialSpec.workloads must be an object");
+  return Object.keys(workloads).map((id) => publicId(id, `definition.authoring.initialSpec.workloads.${id}`));
+}
+
+function matchingFit(fit, alternativeId) {
+  if (!fit) return undefined;
+  for (const tier of Object.values(fit.tiers)) {
+    if (tier.included && (tier.alternative_id === alternativeId || tier.module_slug === alternativeId)) return tier;
+  }
+  return Object.values(fit.tiers).find((tier) => tier.included);
+}
+
+function reasonCode(reason) {
+  const words = String(reason ?? "USE_CASE_NOT_AVAILABLE").toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
+  return /^[A-Z][A-Z0-9_]{1,63}$/.test(words) ? words : "USE_CASE_NOT_AVAILABLE";
 }
 
 export async function projectAuthorityBundle(authorityRootPath, exactSourceSha, plannerPath = "/planner") {

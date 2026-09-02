@@ -79,11 +79,16 @@ func (in architectureV2CommandInput) commandInput() stackkitCommandInput {
 
 type architectureV2InitInput struct {
 	architectureV2CommandInput
-	KitProfile            string `json:"kit_profile" jsonschema:"canonical StackKit profile"`
-	Name                  string `json:"name,omitempty" jsonschema:"deployment contract ID"`
-	DomainBase            string `json:"domain_base,omitempty" jsonschema:"CUE-governed network.domain.base override when required"`
-	OperationConfirmation string `json:"operation_confirmation" jsonschema:"exact registered operation ID stackkit.init"`
-	OwnerApproved         bool   `json:"owner_approved" jsonschema:"explicit local Owner approval"`
+	APIVersion            string                                          `json:"api_version" jsonschema:"stackkit/v2alpha2 for module-local intent; stackkit/v2alpha1 for explicit legacy compatibility"`
+	KitProfile            string                                          `json:"kit_profile" jsonschema:"canonical StackKit profile"`
+	Name                  string                                          `json:"name,omitempty" jsonschema:"deployment contract ID"`
+	DomainBase            string                                          `json:"domain_base,omitempty" jsonschema:"CUE-governed network.domain.base override when required"`
+	OperationConfirmation string                                          `json:"operation_confirmation" jsonschema:"exact registered operation ID stackkit.init"`
+	OwnerApproved         bool                                            `json:"owner_approved" jsonschema:"explicit local Owner approval"`
+	ModuleProfiles        map[string]architecturev2.ModuleProfileOverride `json:"module_profiles,omitempty" jsonschema:"explicit profiles keyed by selected module ID"`
+	UseCases              []string                                        `json:"use_cases,omitempty" jsonschema:"selected optional use-case IDs"`
+	UseCaseAlternatives   map[string]string                               `json:"use_case_alternatives,omitempty" jsonschema:"explicit alternative for every selected and required use case"`
+	Platform              string                                          `json:"platform,omitempty" jsonschema:"declared workload runtime adapter"`
 }
 
 type architectureV2ResolveInput struct {
@@ -191,6 +196,18 @@ func (a *App) useCaseComputeTiers(ctx context.Context, req *mcp.CallToolRequest,
 	return JSONResult(useCases), useCases, nil
 }
 
+func (a *App) moduleProfiles(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+	service, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(a.opts.Version))
+	if err != nil {
+		return TextResult(err.Error()), nil, nil
+	}
+	entries, err := service.ListModuleProfileContracts()
+	if err != nil {
+		return TextResult(err.Error()), nil, nil
+	}
+	return JSONResult(entries), entries, nil
+}
+
 func (a *App) applicationDeliveryCompatibility(
 	ctx context.Context,
 	req *mcp.CallToolRequest,
@@ -209,8 +226,8 @@ func (a *App) applicationDeliveryCompatibility(
 
 func (a *App) installPlan(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 	steps := []map[string]any{
-		{"command": "stackkit version", "purpose": "require the exact native v0.8 candidate bundle and its packaged definitions", "mutation": false},
-		{"command": "stackkit init basement-kit --non-interactive --owner-source=local", "purpose": "materialize canonical StackSpec v2 and local owner custody from the embedded CUE authoring contract", "mutation": true},
+		{"command": "stackkit version", "purpose": "require the exact candidate bundle and its packaged definitions", "mutation": false},
+		{"command": "stackkit init basement-kit --api-version stackkit/v2alpha2 --use-case-alternative basement-core=standalone --module-compute-profile stackkits-basement-core-runtime=standard --non-interactive --owner-source=local", "purpose": "materialize explicit module-local intent and local owner custody from embedded CUE authority", "mutation": true},
 		{"command": "stackkit validate", "purpose": "validate desired StackSpec v2 intent only", "mutation": false},
 		{"command": "stackkit generate", "purpose": "resolve, persist, and render the exact authorized ResolvedPlan", "mutation": true},
 		{"command": "stackkit plan", "purpose": "preview the exact persisted plan", "mutation": false},
@@ -218,14 +235,16 @@ func (a *App) installPlan(ctx context.Context, req *mcp.CallToolRequest, _ struc
 		{"command": "stackkit verify --json", "purpose": "verify the exact v2 intent, plan, manifest, receipt, owner binding, and outputs", "mutation": false},
 	}
 	out := map[string]any{
-		"scenario": "architecture-v2-basement-rollout", "kit": "basement-kit", "source_version": stackspecmigration.SourceVersionV2Alpha1,
+		"scenario": "architecture-v2-basement-rollout", "kit": "basement-kit", "source_version": stackspecmigration.SourceVersionV2Alpha2,
 		"steps": steps,
 		"reference_vertical": map[string]any{
 			"id": "family-photo-vault", "kit": "modern-homelab",
-			"init_command": "stackkit init modern-homelab --domain <domain-base> --non-interactive --owner-source=local",
-			"operations":   standaloneoperations.All(),
+			"source_version": stackspecmigration.SourceVersionV2Alpha1,
+			"init_command":   "stackkit init modern-homelab --api-version stackkit/v2alpha1 --domain <domain-base> --non-interactive --owner-source=local",
+			"operations":     standaloneoperations.All(),
 		},
 		"notes": []string{
+			"Native v2alpha2 selects every module profile and workload alternative explicitly. The older Family Photo Vault example is labeled v2alpha1 compatibility; use https://stackkit.cc/planner for native authoring.",
 			"StackSpec never contains provider lifecycle, credentials, management addresses, or observed host facts.",
 			"Spec validation is not generation or apply readiness; the Inventory-bound ResolvedPlan is authoritative.",
 			"Do not hand-edit generated rollout artifacts.",
@@ -264,7 +283,7 @@ func (a *App) validateSpec(ctx context.Context, req *mcp.CallToolRequest, in spe
 		out := map[string]any{"valid": false, "error": err.Error()}
 		return JSONResult(out), out, nil
 	}
-	if loaded.Document.Version == stackspecmigration.SourceVersionV2Alpha1 {
+	if loaded.Document.Version.IsV2() {
 		service, serviceErr := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(a.opts.Version))
 		if serviceErr != nil {
 			out := map[string]any{"valid": false, "error": serviceErr.Error()}
@@ -320,7 +339,7 @@ func (a *App) generatePreview(ctx context.Context, req *mcp.CallToolRequest, in 
 		out["error"] = err.Error()
 		return JSONResult(out), out, nil
 	}
-	if loaded.Document.Version == stackspecmigration.SourceVersionV2Alpha1 {
+	if loaded.Document.Version.IsV2() {
 		service, serviceErr := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(a.opts.Version))
 		if serviceErr != nil {
 			out["ready"], out["error"] = false, serviceErr.Error()
@@ -449,6 +468,9 @@ func (a *App) stateConsole(ctx context.Context, req *mcp.CallToolRequest, _ stru
 			})
 		}
 		out["source_version"] = stackspecmigration.SourceVersionV2Alpha1
+		out["native_source_version"] = stackspecmigration.SourceVersionV2Alpha2
+		out["module_profile_catalog_tool"] = "stackkit_module_profiles"
+		out["planner_url"] = "https://stackkit.cc/planner"
 		out["authoring_mode"] = "cue-initial-spec"
 		out["steps"] = []string{
 			"workspace-and-kit-profile",
@@ -512,7 +534,7 @@ func (a *App) configGet(ctx context.Context, req *mcp.CallToolRequest, in specPa
 	}
 	var parsed any
 	specHash := ""
-	if document.Version == stackspecmigration.SourceVersionV2Alpha1 {
+	if document.Version.IsV2() {
 		validation, canonical, validationErr := validateCanonicalStackSpecV2(string(raw), a.opts.Version)
 		if validationErr != nil {
 			out := errorOutput("stackkit_config_get", validationErr)
@@ -618,7 +640,7 @@ func validateCanonicalStackSpecV2(raw, buildVersion string) (map[string]any, []b
 	if err != nil {
 		return map[string]any{"valid": false}, nil, fmt.Errorf("classify StackSpec: %w", err)
 	}
-	if document.Version != stackspecmigration.SourceVersionV2Alpha1 || document.V2 == nil {
+	if !document.Version.IsV2() || document.V2 == nil {
 		return map[string]any{
 			"valid":          false,
 			"source_version": document.Version,
@@ -642,15 +664,48 @@ func validateCanonicalStackSpecV2(raw, buildVersion string) (map[string]any, []b
 }
 
 func (a *App) stackkitInitV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2InitInput) (*mcp.CallToolResult, any, error) {
+	if in.APIVersion != stackspecmigration.APIVersionV2Alpha1 && in.APIVersion != stackspecmigration.APIVersionV2Alpha2 {
+		out := errorOutput("stackkit_init", fmt.Errorf("an explicit supported api_version is required"))
+		return errorJSONResult(out), out, nil
+	}
 	kit := strings.TrimSpace(in.KitProfile)
 	if kit == "" {
 		out := errorOutput("stackkit_init", fmt.Errorf("kit_profile is required for native Architecture v2 authoring"))
 		return errorJSONResult(out), out, nil
 	}
-	args := []string{"init", kit, "--non-interactive", "--owner-source=local"}
+	args := []string{"init", kit, "--api-version", in.APIVersion, "--non-interactive", "--owner-source=local"}
 	args = appendOptionalFlag(args, "--name", in.Name)
 	args = appendOptionalFlag(args, "--domain", in.DomainBase)
+	args = appendOptionalFlag(args, "--platform", in.Platform)
+	for _, id := range in.UseCases {
+		args = append(args, "--use-case", id)
+	}
+	for _, id := range sortedProfileKeys(in.UseCaseAlternatives) {
+		args = append(args, "--use-case-alternative", id+"="+in.UseCaseAlternatives[id])
+	}
+	for _, id := range sortedProfileKeys(in.ModuleProfiles) {
+		profile := in.ModuleProfiles[id]
+		args = appendOptionalFlag(args, "--module-compute-profile", profileFlagValue(id, profile.ComputeProfile))
+		args = appendOptionalFlag(args, "--module-storage-profile", profileFlagValue(id, profile.StorageProfile))
+		args = appendOptionalFlag(args, "--module-accelerator-profile", profileFlagValue(id, profile.AcceleratorProfile))
+	}
 	return a.runApprovedStackkitTool(ctx, standaloneoperations.Init, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), args, nil)
+}
+
+func sortedProfileKeys[V any](values map[string]V) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func profileFlagValue(moduleID, profile string) string {
+	if strings.TrimSpace(profile) == "" {
+		return ""
+	}
+	return moduleID + "=" + profile
 }
 
 func (a *App) stackkitGenerateV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2MutationInput) (*mcp.CallToolResult, any, error) {

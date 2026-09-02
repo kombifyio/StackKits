@@ -550,7 +550,26 @@ func (v *CUEContractValidator) validateBoundAuthority(plan ResolvedPlan) error {
 	if err != nil {
 		return err
 	}
-	if equal, err := canonicalEqual(compatibility, expected.compatibility); err != nil {
+	specAPIVersion, err := validateResolvedPlanSourceCompatibility(plan, compatibility)
+	if err != nil {
+		return err
+	}
+	expectedCompatibility, err := cloneObject(expected.compatibility, true)
+	if err != nil {
+		return err
+	}
+	expectedCompatibility["specAPIVersion"] = specAPIVersion
+	switch specAPIVersion {
+	case architectureAPIVersionV2Alpha1:
+		expectedCompatibility["legacyComputeTierAdapter"] = map[string]any{
+			"id": "stackkits-legacy-compute-tier-v1", "source": "install.computeTier", "target": "modules.computeProfile",
+		}
+	case architectureAPIVersionV2Alpha2:
+		delete(expectedCompatibility, "legacyComputeTierAdapter")
+	default:
+		return fmt.Errorf("resolvedPlan.compatibility names unsupported spec API version %q", specAPIVersion)
+	}
+	if equal, err := canonicalEqual(compatibility, expectedCompatibility); err != nil {
 		return err
 	} else if !equal {
 		return fmt.Errorf("resolvedPlan.compatibility does not match the authority compiler compatibility contract")
@@ -685,6 +704,52 @@ func (v *CUEContractValidator) validateBoundAuthority(plan ResolvedPlan) error {
 		}
 	}
 	return nil
+}
+
+// validateResolvedPlanSourceCompatibility keeps the normalized source API as
+// the versioned boundary for the legacy adapter. The persisted compatibility
+// label is not authoritative by itself: native v2alpha2 plans must omit the
+// global compute tier, while v2alpha1 plans retain the explicit adapter field.
+// source.intent.apiVersion is deliberately not compared here because the
+// source contract allows it to retain the pre-normalization migration API.
+func validateResolvedPlanSourceCompatibility(plan ResolvedPlan, compatibility map[string]any) (string, error) {
+	source, err := objectField(map[string]any(plan), "resolvedPlan", "source")
+	if err != nil {
+		return "", err
+	}
+	normalizedSpec, err := objectField(source, "resolvedPlan.source", "normalizedSpec")
+	if err != nil {
+		return "", err
+	}
+	normalizedAPIVersion, err := stringField(normalizedSpec, "resolvedPlan.source.normalizedSpec", "apiVersion")
+	if err != nil {
+		return "", err
+	}
+	compatibilityAPIVersion, err := stringField(compatibility, "resolvedPlan.compatibility", "specAPIVersion")
+	if err != nil {
+		return "", err
+	}
+	if normalizedAPIVersion != compatibilityAPIVersion {
+		return "", fmt.Errorf("resolvedPlan.source.normalizedSpec.apiVersion %q does not match compatibility.specAPIVersion %q", normalizedAPIVersion, compatibilityAPIVersion)
+	}
+	install, err := objectField(map[string]any(plan), "resolvedPlan", "install")
+	if err != nil {
+		return "", err
+	}
+	_, hasComputeTier := install["computeTier"]
+	switch normalizedAPIVersion {
+	case architectureAPIVersionV2Alpha1:
+		if !hasComputeTier {
+			return "", fmt.Errorf("legacy v2alpha1 compatibility requires install.computeTier")
+		}
+	case architectureAPIVersionV2Alpha2:
+		if hasComputeTier {
+			return "", fmt.Errorf("native v2alpha2 compatibility forbids install.computeTier")
+		}
+	default:
+		return "", fmt.Errorf("resolvedPlan.source.normalizedSpec names unsupported spec API version %q", normalizedAPIVersion)
+	}
+	return normalizedAPIVersion, nil
 }
 
 func validateResolvedWorkloadPolicy(selected []string, definition KitDefinition) error {

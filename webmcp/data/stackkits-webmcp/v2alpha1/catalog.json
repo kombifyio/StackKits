@@ -1,0 +1,2251 @@
+{
+  "schema_version": "stackkits-webmcp/v2alpha1",
+  "source_sha": "ee9039687fd373b0a275b6bf1ff6d399ea3db032",
+  "authority_bundle_sha256": "6a0f1e4fac50ab4825431909a0ee39c9f3cc7e97ffb4d6cff7140d2ba6ac902e",
+  "kits": [
+    {
+      "stackkit_id": "basement-kit",
+      "display_name": "Basement Kit",
+      "version": "5.1.0",
+      "description": "Local-first StackKit for one or more nodes on private home sites",
+      "status": "supported",
+      "planner_link": "/planner?stackkit_id=basement-kit",
+      "modules": [
+        {
+          "module_id": "stackkits-basement-core-lite-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "basement-core"
+          ],
+          "capabilities": [
+            "local-backup-runtime"
+          ],
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "declared",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 2,
+                "storage_gb": 10
+              },
+              "recommended": {
+                "cpu_cores": 2,
+                "ram_gb": 2,
+                "storage_gb": 10
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "hub",
+                "kopia-agent",
+                "pocketid",
+                "router",
+                "socket-proxy",
+                "step-ca",
+                "tinyauth"
+              ],
+              "capabilities": [],
+              "degradations": [
+                "paas-management-omitted"
+              ],
+              "profile_sha256": "9e35e9c2e78e63d725ba9f36cec4f856e3bb88c4ec25f100f4aef239e76ec852"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-basement-core-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "basement-core"
+          ],
+          "capabilities": [
+            "local-backup-runtime"
+          ],
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "recommended": {
+                "cpu_cores": 4,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "coolify",
+                "coolify-postgres",
+                "coolify-realtime",
+                "coolify-redis",
+                "hub",
+                "kopia-agent",
+                "pocketid",
+                "router",
+                "socket-proxy",
+                "step-ca",
+                "tinyauth"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "f7fcdb7f3c81c5fe67dc233ea1c33e26dc12b222bc13979ff5710e8ec8c029cc"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "recommended": {
+                "cpu_cores": 4,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "coolify",
+                "coolify-postgres",
+                "coolify-realtime",
+                "coolify-redis",
+                "hub",
+                "kopia-agent",
+                "pocketid",
+                "router",
+                "socket-proxy",
+                "step-ca",
+                "tinyauth"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d33ce07e2622d8757ccfa3b051e1584a6f3682681604a72ca6fda0ed757d206c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-cloudreve-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "files"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "cloudreve"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "fcc6731d1b75ead500a271837deb6051bf50392a98e85318b1a90a6c78565998"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "cloudreve"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "8e28318262eb5ea1ec16fc75db8713e34964f93336a86b7d2fe6d133196164c2"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "cloudreve"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d4f586dd3b3181658f7477ef2a47bd2532bb90278a583da10ab94e895ab17195"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-core-host-bootstrap",
+          "role": "foundation",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "host-bootstrap"
+          ],
+          "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-home-assistant-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "home-assistant"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "2f1ecf175196fe930c9f3bb274f7cabf65eb746f4217090d989403e061778e98"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "home-assistant"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "89a363e1bf4fb2271a51e8f89a114a4ce526499447ad9a2708595f59fc30c416"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "home-assistant"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "0e8e018065cae6c19d0892e4fbe25c18f4099738da33035ab4acf3e675688462"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-home-backup-target",
+          "role": "foundation",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "local-backup-target"
+          ],
+          "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-immich-lite-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.8125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-postgres",
+                "immich-postgres-init",
+                "immich-server",
+                "immich-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [
+                "machine-learning-disabled"
+              ],
+              "profile_sha256": "58b0d656c2a8d632c5f7cfbcba42052760c732457075283e5a447481d6a976de"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-immich-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 1.3125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-machine-learning",
+                "immich-postgres",
+                "immich-postgres-init",
+                "immich-server",
+                "immich-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "4040aa5e98677802fc0a921cab24d37c0ef65e5139837f17ebc04df3cd658494"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 1.3125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-machine-learning",
+                "immich-postgres",
+                "immich-postgres-init",
+                "immich-server",
+                "immich-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "89e611eb4a5317d5aaf0168eb74ffe53569b72dcca9a04b0305c30567240ce5d"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-jellyfin-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "media"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "jellyfin"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "7cf5addab4436a8da3574e5e09c19f6f245bcb47a0c290ab95cb454e17d17f8b"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "jellyfin"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "1deed7357d933ac9a0cc4a6c6aa2f484d1aad76f05a94fb4b23a6830af9aef0c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-vaultwarden-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "vault"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "vaultwarden"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "27bc07d051631019a43964fb568ced0006e514af03ab2c6a6cb17eb5f74e041e"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "vaultwarden"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "ddcf9de6f9e70fcdcced666c37a11d3cf1061901ce93eb1e7924df58a06ba75e"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "vaultwarden"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "4f6f531d3174e452bf8be7483ab0de2abb7ebd4e16e6df5e9042d0f0389b5884"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        }
+      ],
+      "use_cases": [
+        {
+          "use_case_id": "basement-core",
+          "title": "basement-core",
+          "required": true,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "standalone",
+              "module_id": "stackkits-basement-core-runtime",
+              "functions": [
+                "container-platform",
+                "forward-auth",
+                "internal-ca",
+                "local-routing",
+                "operator-hub",
+                "owner-identity"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "standalone-lite",
+              "module_id": "stackkits-basement-core-lite-runtime",
+              "functions": [
+                "container-platform",
+                "forward-auth",
+                "internal-ca",
+                "local-routing",
+                "operator-hub",
+                "owner-identity"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "files",
+          "title": "File Storage and Documents",
+          "required": false,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "cloudreve",
+              "module_id": "stackkits-cloudreve-runtime",
+              "functions": [
+                "document-storage",
+                "file-sharing",
+                "files"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "media",
+          "title": "Media Library",
+          "required": false,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "jellyfin",
+              "module_id": "stackkits-jellyfin-runtime",
+              "functions": [
+                "media-server",
+                "video-stream"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "photos",
+          "title": "Photos and Memories",
+          "required": false,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "immich",
+              "module_id": "stackkits-immich-runtime",
+              "functions": [
+                "ai-search",
+                "media-backup",
+                "photo-management",
+                "photos"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "ingest"
+              }
+            },
+            {
+              "alternative_id": "immich-lite",
+              "module_id": "stackkits-immich-lite-runtime",
+              "functions": [
+                "media-backup",
+                "photo-management",
+                "photos"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "ingest"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "smart-home",
+          "title": "Smart Home",
+          "required": false,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "home-assistant",
+              "module_id": "stackkits-home-assistant-runtime",
+              "functions": [
+                "automation",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "vault",
+          "title": "Password Vault",
+          "required": false,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "vaultwarden",
+              "module_id": "stackkits-vaultwarden-runtime",
+              "functions": [
+                "password-manager",
+                "secure-notes",
+                "totp"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        }
+      ],
+      "legacy_compute_tier_mappings": [
+        {
+          "compute_tier": "low",
+          "status": "migration_only",
+          "reason_code": "LEGACY_GLOBAL_COMPUTE_TIER"
+        },
+        {
+          "compute_tier": "standard",
+          "status": "migration_only",
+          "reason_code": "LEGACY_GLOBAL_COMPUTE_TIER"
+        },
+        {
+          "compute_tier": "high",
+          "status": "migration_only",
+          "reason_code": "LEGACY_GLOBAL_COMPUTE_TIER"
+        }
+      ],
+      "required_authoring_inputs": []
+    },
+    {
+      "stackkit_id": "cloud-kit",
+      "display_name": "Cloud Kit",
+      "version": "5.1.0",
+      "description": "Cloud-only StackKit for one or more externally supplied cloud hosts",
+      "status": "supported",
+      "planner_link": "/planner?stackkit_id=cloud-kit",
+      "modules": [
+        {
+          "module_id": "security-baseline",
+          "role": "platform",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "security-baseline"
+          ],
+          "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-cloud-core-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "cloud-core"
+          ],
+          "capabilities": [
+            "cloud-core-runtime"
+          ],
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "recommended": {
+                "cpu_cores": 4,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "coolify",
+                "coolify-postgres",
+                "coolify-realtime",
+                "coolify-redis",
+                "hub",
+                "pocketid",
+                "router",
+                "socket-proxy",
+                "tinyauth"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d2c1533044f9ad369ba574b6a329a78e67ab51a042ace2610f0150c58c9de8ab"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "recommended": {
+                "cpu_cores": 4,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "coolify",
+                "coolify-postgres",
+                "coolify-realtime",
+                "coolify-redis",
+                "hub",
+                "pocketid",
+                "router",
+                "socket-proxy",
+                "tinyauth"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "39eb0a9799824d1db7c78558c557275f2d0799fa6d8e16475ba7b785e2b97e62"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-cloud-host-security-runtime",
+          "role": "platform",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "host-local-internet-firewall",
+            "internet-host-hardening"
+          ],
+          "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-cloud-public-edge-runtime",
+          "role": "platform",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "public-edge"
+          ],
+          "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-cloudreve-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "files"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "cloudreve"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "fcc6731d1b75ead500a271837deb6051bf50392a98e85318b1a90a6c78565998"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "cloudreve"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "8e28318262eb5ea1ec16fc75db8713e34964f93336a86b7d2fe6d133196164c2"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "cloudreve"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d4f586dd3b3181658f7477ef2a47bd2532bb90278a583da10ab94e895ab17195"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-core-host-bootstrap",
+          "role": "foundation",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "host-bootstrap"
+          ],
+          "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-home-assistant-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "home-assistant"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "2f1ecf175196fe930c9f3bb274f7cabf65eb746f4217090d989403e061778e98"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "home-assistant"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "89a363e1bf4fb2271a51e8f89a114a4ce526499447ad9a2708595f59fc30c416"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "home-assistant"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "0e8e018065cae6c19d0892e4fbe25c18f4099738da33035ab4acf3e675688462"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-immich-lite-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.8125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-postgres",
+                "immich-postgres-init",
+                "immich-server",
+                "immich-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [
+                "machine-learning-disabled"
+              ],
+              "profile_sha256": "58b0d656c2a8d632c5f7cfbcba42052760c732457075283e5a447481d6a976de"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-immich-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 1.3125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-machine-learning",
+                "immich-postgres",
+                "immich-postgres-init",
+                "immich-server",
+                "immich-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "4040aa5e98677802fc0a921cab24d37c0ef65e5139837f17ebc04df3cd658494"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 1.3125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-machine-learning",
+                "immich-postgres",
+                "immich-postgres-init",
+                "immich-server",
+                "immich-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "89e611eb4a5317d5aaf0168eb74ffe53569b72dcca9a04b0305c30567240ce5d"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-jellyfin-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "media"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "jellyfin"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "7cf5addab4436a8da3574e5e09c19f6f245bcb47a0c290ab95cb454e17d17f8b"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "jellyfin"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "1deed7357d933ac9a0cc4a6c6aa2f484d1aad76f05a94fb4b23a6830af9aef0c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-public-tls-contract",
+          "role": "platform",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "public-tls"
+          ],
+          "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-vaultwarden-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "vault"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "vaultwarden"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "27bc07d051631019a43964fb568ced0006e514af03ab2c6a6cb17eb5f74e041e"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "vaultwarden"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "ddcf9de6f9e70fcdcced666c37a11d3cf1061901ce93eb1e7924df58a06ba75e"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "vaultwarden"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "4f6f531d3174e452bf8be7483ab0de2abb7ebd4e16e6df5e9042d0f0389b5884"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        }
+      ],
+      "use_cases": [
+        {
+          "use_case_id": "cloud-core",
+          "title": "cloud-core",
+          "required": true,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "standalone",
+              "module_id": "stackkits-cloud-core-runtime",
+              "functions": [
+                "container-platform",
+                "forward-auth",
+                "operator-hub",
+                "owner-identity",
+                "public-routing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "files",
+          "title": "File Storage and Documents",
+          "required": false,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "cloudreve",
+              "module_id": "stackkits-cloudreve-runtime",
+              "functions": [
+                "document-storage",
+                "file-sharing",
+                "files"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "media",
+          "title": "Media Library",
+          "required": false,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "jellyfin",
+              "module_id": "stackkits-jellyfin-runtime",
+              "functions": [
+                "media-server",
+                "video-stream"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "photos",
+          "title": "Photos and Memories",
+          "required": false,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "immich",
+              "module_id": "stackkits-immich-runtime",
+              "functions": [
+                "ai-search",
+                "media-backup",
+                "photo-management",
+                "photos"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "ingest"
+              }
+            },
+            {
+              "alternative_id": "immich-lite",
+              "module_id": "stackkits-immich-lite-runtime",
+              "functions": [
+                "media-backup",
+                "photo-management",
+                "photos"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "ingest"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "smart-home",
+          "title": "Smart Home",
+          "required": false,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "home-assistant",
+              "module_id": "stackkits-home-assistant-runtime",
+              "functions": [
+                "automation",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "vault",
+          "title": "Password Vault",
+          "required": false,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "vaultwarden",
+              "module_id": "stackkits-vaultwarden-runtime",
+              "functions": [
+                "password-manager",
+                "secure-notes",
+                "totp"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        }
+      ],
+      "legacy_compute_tier_mappings": [
+        {
+          "compute_tier": "standard",
+          "status": "migration_only",
+          "reason_code": "LEGACY_GLOBAL_COMPUTE_TIER"
+        },
+        {
+          "compute_tier": "high",
+          "status": "migration_only",
+          "reason_code": "LEGACY_GLOBAL_COMPUTE_TIER"
+        }
+      ],
+      "required_authoring_inputs": [
+        "network.domain.base"
+      ]
+    },
+    {
+      "stackkit_id": "modern-homelab",
+      "display_name": "Modern Homelab",
+      "version": "1.1.0-alpha",
+      "description": "Federated local and cloud StackKit with a policy-constrained bridge",
+      "status": "preview",
+      "planner_link": "/planner?stackkit_id=modern-homelab",
+      "modules": [
+        {
+          "module_id": "stackkits-basement-core-lite-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "basement-core"
+          ],
+          "capabilities": [
+            "local-backup-runtime"
+          ],
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "declared",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 2,
+                "storage_gb": 10
+              },
+              "recommended": {
+                "cpu_cores": 2,
+                "ram_gb": 2,
+                "storage_gb": 10
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "hub",
+                "kopia-agent",
+                "pocketid",
+                "router",
+                "socket-proxy",
+                "step-ca",
+                "tinyauth"
+              ],
+              "capabilities": [],
+              "degradations": [
+                "paas-management-omitted"
+              ],
+              "profile_sha256": "9e35e9c2e78e63d725ba9f36cec4f856e3bb88c4ec25f100f4aef239e76ec852"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-basement-core-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "basement-core"
+          ],
+          "capabilities": [
+            "local-backup-runtime"
+          ],
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "recommended": {
+                "cpu_cores": 4,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "coolify",
+                "coolify-postgres",
+                "coolify-realtime",
+                "coolify-redis",
+                "hub",
+                "kopia-agent",
+                "pocketid",
+                "router",
+                "socket-proxy",
+                "step-ca",
+                "tinyauth"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "f7fcdb7f3c81c5fe67dc233ea1c33e26dc12b222bc13979ff5710e8ec8c029cc"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "recommended": {
+                "cpu_cores": 4,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "coolify",
+                "coolify-postgres",
+                "coolify-realtime",
+                "coolify-redis",
+                "hub",
+                "kopia-agent",
+                "pocketid",
+                "router",
+                "socket-proxy",
+                "step-ca",
+                "tinyauth"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d33ce07e2622d8757ccfa3b051e1584a6f3682681604a72ca6fda0ed757d206c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-cloudreve-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "files"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "cloudreve"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "fcc6731d1b75ead500a271837deb6051bf50392a98e85318b1a90a6c78565998"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "cloudreve"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "8e28318262eb5ea1ec16fc75db8713e34964f93336a86b7d2fe6d133196164c2"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "cloudreve"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d4f586dd3b3181658f7477ef2a47bd2532bb90278a583da10ab94e895ab17195"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-core-host-bootstrap",
+          "role": "foundation",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "host-bootstrap"
+          ],
+          "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-home-assistant-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "home-assistant"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "2f1ecf175196fe930c9f3bb274f7cabf65eb746f4217090d989403e061778e98"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "home-assistant"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "89a363e1bf4fb2271a51e8f89a114a4ce526499447ad9a2708595f59fc30c416"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "home-assistant"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "0e8e018065cae6c19d0892e4fbe25c18f4099738da33035ab4acf3e675688462"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-home-backup-target",
+          "role": "foundation",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "local-backup-target"
+          ],
+          "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-immich-lite-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.8125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-postgres",
+                "immich-postgres-init",
+                "immich-server",
+                "immich-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [
+                "machine-learning-disabled"
+              ],
+              "profile_sha256": "58b0d656c2a8d632c5f7cfbcba42052760c732457075283e5a447481d6a976de"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-immich-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 1.3125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-machine-learning",
+                "immich-postgres",
+                "immich-postgres-init",
+                "immich-server",
+                "immich-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "4040aa5e98677802fc0a921cab24d37c0ef65e5139837f17ebc04df3cd658494"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 1.3125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-machine-learning",
+                "immich-postgres",
+                "immich-postgres-init",
+                "immich-server",
+                "immich-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "89e611eb4a5317d5aaf0168eb74ffe53569b72dcca9a04b0305c30567240ce5d"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-jellyfin-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "media"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "jellyfin"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "7cf5addab4436a8da3574e5e09c19f6f245bcb47a0c290ab95cb454e17d17f8b"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "jellyfin"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "1deed7357d933ac9a0cc4a6c6aa2f484d1aad76f05a94fb4b23a6830af9aef0c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-vaultwarden-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "vault"
+          ],
+          "capabilities": [],
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "vaultwarden"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "27bc07d051631019a43964fb568ced0006e514af03ab2c6a6cb17eb5f74e041e"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "vaultwarden"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "ddcf9de6f9e70fcdcced666c37a11d3cf1061901ce93eb1e7924df58a06ba75e"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "partial",
+              "maturity": "supported",
+              "executable": true,
+              "realization": "apply-ready",
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "vaultwarden"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "4f6f531d3174e452bf8be7483ab0de2abb7ebd4e16e6df5e9042d0f0389b5884"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        }
+      ],
+      "use_cases": [
+        {
+          "use_case_id": "basement-core",
+          "title": "basement-core",
+          "required": true,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "standalone",
+              "module_id": "stackkits-basement-core-runtime",
+              "functions": [
+                "container-platform",
+                "forward-auth",
+                "internal-ca",
+                "local-routing",
+                "operator-hub",
+                "owner-identity"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "standalone-lite",
+              "module_id": "stackkits-basement-core-lite-runtime",
+              "functions": [
+                "container-platform",
+                "forward-auth",
+                "internal-ca",
+                "local-routing",
+                "operator-hub",
+                "owner-identity"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "files",
+          "title": "File Storage and Documents",
+          "required": false,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "cloudreve",
+              "module_id": "stackkits-cloudreve-runtime",
+              "functions": [
+                "document-storage",
+                "file-sharing",
+                "files"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "media",
+          "title": "Media Library",
+          "required": false,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "jellyfin",
+              "module_id": "stackkits-jellyfin-runtime",
+              "functions": [
+                "media-server",
+                "video-stream"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "photos",
+          "title": "Photos and Memories",
+          "required": true,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "immich",
+              "module_id": "stackkits-immich-runtime",
+              "functions": [
+                "ai-search",
+                "media-backup",
+                "photo-management",
+                "photos"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "ingest"
+              }
+            },
+            {
+              "alternative_id": "immich-lite",
+              "module_id": "stackkits-immich-lite-runtime",
+              "functions": [
+                "media-backup",
+                "photo-management",
+                "photos"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "ingest"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "smart-home",
+          "title": "Smart Home",
+          "required": false,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "home-assistant",
+              "module_id": "stackkits-home-assistant-runtime",
+              "functions": [
+                "automation",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "vault",
+          "title": "Password Vault",
+          "required": false,
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "vaultwarden",
+              "module_id": "stackkits-vaultwarden-runtime",
+              "functions": [
+                "password-manager",
+                "secure-notes",
+                "totp"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        }
+      ],
+      "legacy_compute_tier_mappings": [
+        {
+          "compute_tier": "standard",
+          "status": "migration_only",
+          "reason_code": "LEGACY_GLOBAL_COMPUTE_TIER"
+        },
+        {
+          "compute_tier": "high",
+          "status": "migration_only",
+          "reason_code": "LEGACY_GLOBAL_COMPUTE_TIER"
+        }
+      ],
+      "required_authoring_inputs": [
+        "network.domain.base"
+      ]
+    }
+  ],
+  "operations": [
+    {
+      "id": "stackkit.apply",
+      "tool_name": "stackkit_apply",
+      "title": "Apply",
+      "description": "Apply the exact persisted plan after explicit local Owner approval.",
+      "command": [
+        "apply",
+        "--json"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.backup",
+      "tool_name": "stackkit_backup",
+      "title": "Backup",
+      "description": "Create a local owner-custodied backup snapshot.",
+      "command": [
+        "backup",
+        "run",
+        "--json"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.drift",
+      "tool_name": "stackkit_drift",
+      "title": "Drift",
+      "description": "Observe desired-versus-applied standalone state drift.",
+      "command": [
+        "drift",
+        "detect",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.generate",
+      "tool_name": "stackkit_generate",
+      "title": "Generate",
+      "description": "Generate rollout artifacts from the exact persisted ResolvedPlan.",
+      "command": [
+        "generate"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.init",
+      "tool_name": "stackkit_init",
+      "title": "Init",
+      "description": "Materialize a native StackSpec from the embedded CUE authoring contract.",
+      "command": [
+        "init"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.logs",
+      "tool_name": "stackkit_logs",
+      "title": "Logs",
+      "description": "List local structured rollout logs.",
+      "command": [
+        "logs",
+        "list",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.plan",
+      "tool_name": "stackkit_plan",
+      "title": "Plan",
+      "description": "Inspect the persisted ResolvedPlan and generated artifact closure.",
+      "command": [
+        "plan",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.remove",
+      "tool_name": "stackkit_remove",
+      "title": "Remove",
+      "description": "Remove one governed workload from its exact applied ResolvedPlan after local Owner approval.",
+      "command": [
+        "remove",
+        "--json"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.resolve",
+      "tool_name": "stackkit_resolve",
+      "title": "Resolve",
+      "description": "Resolve StackSpec and observed Inventory into the canonical ResolvedPlan.",
+      "command": [
+        "resolve"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.restore",
+      "tool_name": "stackkit_restore",
+      "title": "Restore",
+      "description": "Verify and restore one signed snapshot into isolated staging.",
+      "command": [
+        "backup",
+        "restore"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.status",
+      "tool_name": "stackkit_status",
+      "title": "Status",
+      "description": "Read the current standalone StackKits lifecycle status.",
+      "command": [
+        "status",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.upgrade",
+      "tool_name": "stackkit_upgrade",
+      "title": "Upgrade",
+      "description": "Resolve, verify, checkpoint, install, apply, and verify a StackKits release.",
+      "command": [
+        "upgrade",
+        "--json"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.validate",
+      "tool_name": "stackkit_validate",
+      "title": "Validate",
+      "description": "Validate desired StackSpec intent without mutating lifecycle state.",
+      "command": [
+        "validate"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.verify",
+      "tool_name": "stackkit_verify",
+      "title": "Verify",
+      "description": "Verify desired, planned, applied, and observed local state.",
+      "command": [
+        "verify",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    }
+  ],
+  "catalog_sha256": "f2d99a48c21cded9bdc644b8675b601ea50d3476878095598302fd887b45ad63"
+}

@@ -13,7 +13,6 @@ import (
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/docker"
 	"github.com/kombifyio/stackkits/internal/iac"
-	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/kombifyio/stackkits/internal/workloadremoval"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
@@ -131,7 +130,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	if classifyErr != nil {
 		return classifyErr
 	}
-	if classified && sourceVersion == stackspecmigration.SourceVersionV2Alpha1 && (removePurge || removeForce) {
+	if classified && sourceVersion.IsV2() && (removePurge || removeForce) {
 		return errors.New("canonical Architecture v2 workload removal does not accept legacy --purge or --force authority")
 	}
 	if handled, err := newArchitectureV2ExecutionGate().preflight(

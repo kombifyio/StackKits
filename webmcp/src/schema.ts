@@ -47,14 +47,20 @@ export function validateToolResult<T extends ToolName>(tool: T, result: WebMcpRe
   return { valid: issues.length === 0, issues };
 }
 
-export function validateSchema(schema: Schema, value: unknown, path = "$", seen = new Set<string>()): SchemaValidation {
+export function validateSchema(
+  schema: Schema,
+  value: unknown,
+  path = "$",
+  seen = new Set<string>(),
+  definitions: Record<string, Schema> = DEFINITIONS,
+): SchemaValidation {
   if (typeof schema.$ref === "string") {
     const prefix = "#/$defs/";
     if (!schema.$ref.startsWith(prefix)) {
       return { valid: false, issues: [{ path, keyword: "unsupported_ref" }] };
     }
     const name = schema.$ref.slice(prefix.length);
-    const definition = DEFINITIONS[name];
+    const definition = definitions[name];
     if (!definition) {
       return { valid: false, issues: [{ path, keyword: "unknown_ref" }] };
     }
@@ -63,7 +69,7 @@ export function validateSchema(schema: Schema, value: unknown, path = "$", seen 
     }
     const nextSeen = new Set(seen);
     nextSeen.add(name);
-    return validateSchema(definition, value, path, nextSeen);
+    return validateSchema(definition, value, path, nextSeen, definitions);
   }
 
   const issues: SchemaIssue[] = [];
@@ -98,6 +104,7 @@ export function validateSchema(schema: Schema, value: unknown, path = "$", seen 
   if (typeof value === "number") {
     if (!Number.isFinite(value)) issues.push({ path, keyword: "finite" });
     if (typeof schema.minimum === "number" && value < schema.minimum) issues.push({ path, keyword: "minimum" });
+    if (typeof schema.maximum === "number" && value > schema.maximum) issues.push({ path, keyword: "maximum" });
     if (typeof schema.exclusiveMinimum === "number" && value <= schema.exclusiveMinimum) issues.push({ path, keyword: "exclusiveMinimum" });
     if (schema.exclusiveMinimum === true && value <= 0) issues.push({ path, keyword: "exclusiveMinimum" });
     if (schema.type === "integer" && !Number.isInteger(value)) issues.push({ path, keyword: "integer" });
@@ -116,12 +123,12 @@ export function validateSchema(schema: Schema, value: unknown, path = "$", seen 
     if (Array.isArray(schema.prefixItems)) {
       for (let index = 0; index < Math.min(value.length, schema.prefixItems.length); index += 1) {
         const prefixSchema = schema.prefixItems[index];
-        if (isRecord(prefixSchema)) issues.push(...validateSchema(prefixSchema, value[index], `${path}[${index}]`, seen).issues);
+        if (isRecord(prefixSchema)) issues.push(...validateSchema(prefixSchema, value[index], `${path}[${index}]`, seen, definitions).issues);
       }
       if (schema.items === false && value.length !== schema.prefixItems.length) issues.push({ path, keyword: "items" });
     } else if (schema.items && typeof schema.items === "object") {
       for (let index = 0; index < value.length; index += 1) {
-        const itemResult = validateSchema(schema.items as Schema, value[index], `${path}[${index}]`, seen);
+      const itemResult = validateSchema(schema.items as Schema, value[index], `${path}[${index}]`, seen, definitions);
         issues.push(...itemResult.issues);
       }
     }
@@ -129,6 +136,7 @@ export function validateSchema(schema: Schema, value: unknown, path = "$", seen 
   if (isRecord(value)) {
     const properties = isRecord(schema.properties) ? schema.properties : {};
     const required = Array.isArray(schema.required) ? schema.required.filter((entry): entry is string => typeof entry === "string") : [];
+    if (typeof schema.minProperties === "number" && Object.keys(value).length < schema.minProperties) issues.push({ path, keyword: "minProperties" });
     if (typeof schema.maxProperties === "number" && Object.keys(value).length > schema.maxProperties) issues.push({ path, keyword: "maxProperties" });
     for (const key of required) {
       if (!(key in value)) issues.push({ path: `${path}.${key}`, keyword: "required" });
@@ -140,21 +148,21 @@ export function validateSchema(schema: Schema, value: unknown, path = "$", seen 
     }
     for (const [key, childSchema] of Object.entries(properties)) {
       if (key in value && isRecord(childSchema)) {
-        const childResult = validateSchema(childSchema, value[key], `${path}.${key}`, seen);
+        const childResult = validateSchema(childSchema, value[key], `${path}.${key}`, seen, definitions);
         issues.push(...childResult.issues);
       }
     }
     if (isRecord(schema.additionalProperties)) {
       for (const [key, childValue] of Object.entries(value)) {
         if (!(key in properties)) {
-          const childResult = validateSchema(schema.additionalProperties, childValue, `${path}.${key}`, seen);
+          const childResult = validateSchema(schema.additionalProperties, childValue, `${path}.${key}`, seen, definitions);
           issues.push(...childResult.issues);
         }
       }
     }
   }
   if (Array.isArray(schema.oneOf)) {
-    const alternatives = schema.oneOf.filter(isRecord).map((candidate) => validateSchema(candidate, value, path, seen));
+    const alternatives = schema.oneOf.filter(isRecord).map((candidate) => validateSchema(candidate, value, path, seen, definitions));
     if (!alternatives.some((candidate) => candidate.valid)) issues.push({ path, keyword: "oneOf" });
   }
   return { valid: issues.length === 0, issues };

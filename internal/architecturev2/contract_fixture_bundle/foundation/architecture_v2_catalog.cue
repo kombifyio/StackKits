@@ -3622,6 +3622,7 @@ _architectureV2Modules: list.Concat([[
 			minRamGB:     4
 			minStorageGB: 20
 		}
+		computeProfiles: _architectureV2CloudCoreComputeProfiles
 		runtime: {
 			kind:     "container"
 			delivery: "stackkit"
@@ -3770,6 +3771,7 @@ _architectureV2Modules: list.Concat([[
 			minRamGB:     4
 			minStorageGB: 20
 		}
+		computeProfiles: _architectureV2BasementCoreComputeProfiles
 		runtime: {
 			kind:     "container"
 			delivery: "stackkit"
@@ -4116,6 +4118,7 @@ _architectureV2Modules: list.Concat([[
 			minRamGB:     2
 			minStorageGB: 10
 		}
+		computeProfiles: _architectureV2BasementCoreLiteComputeProfiles
 		runtime: {
 			kind:     "container"
 			delivery: "stackkit"
@@ -4360,6 +4363,7 @@ _architectureV2Modules: list.Concat([[
 			authority: "control-authority-site"
 			requiredRoles: ["worker"]
 		}
+		computeProfiles: _architectureV2ImmichComputeProfiles
 		runtime: {
 			kind:     "container"
 			delivery: "application-adapter"
@@ -4535,6 +4539,7 @@ _architectureV2Modules: list.Concat([[
 			authority: "control-authority-site"
 			requiredRoles: ["worker"]
 		}
+		computeProfiles: _architectureV2ImmichLiteComputeProfiles
 		runtime: {
 			kind:     "container"
 			delivery: "application-adapter"
@@ -4679,6 +4684,7 @@ _architectureV2Modules: list.Concat([[
 			authority: "control-authority-site"
 			requiredRoles: ["worker"]
 		}
+		computeProfiles: _architectureV2CloudreveComputeProfiles
 		runtime: {
 			kind:     "container"
 			delivery: "application-adapter"
@@ -4777,6 +4783,7 @@ _architectureV2Modules: list.Concat([[
 			authority: "control-authority-site"
 			requiredRoles: ["worker"]
 		}
+		computeProfiles: _architectureV2VaultwardenComputeProfiles
 		runtime: {
 			kind:     "container"
 			delivery: "application-adapter"
@@ -4878,6 +4885,7 @@ _architectureV2Modules: list.Concat([[
 			authority: "control-authority-site"
 			requiredRoles: ["worker"]
 		}
+		computeProfiles: _architectureV2JellyfinComputeProfiles
 		runtime: {
 			kind:     "container"
 			delivery: "application-adapter"
@@ -4976,6 +4984,7 @@ _architectureV2Modules: list.Concat([[
 			authority: "control-authority-site"
 			requiredRoles: ["worker"]
 		}
+		computeProfiles: _architectureV2HomeAssistantComputeProfiles
 		runtime: {
 			kind:     "container"
 			delivery: "application-adapter"

@@ -1,6 +1,6 @@
 {
   "documentHashes": {
-    "catalog.json": "sha256:05a1e0e764cf1f6f182f1c1e6e19f6ef62d8158b0d98b3f85f86839ba333fca9",
+    "catalog.json": "sha256:2a3c447172d20ae12c94df3e0f34a8dc0f9619f77c7bb1ff944b0c81c12e7c62",
     "compute-tier-fits.json": "sha256:9fadc4977499bab3ae85553046473142b1cbe40e0f3d6d18cc65024811d96e75",
     "definitions/basement-kit.json": "sha256:a2623b37231590d9772b693902d989004f0e603f61d49b3bd4c010157ecf27b6",
     "definitions/cloud-kit.json": "sha256:9a2e11b2209dc1ff0f90cc6784d3946577e6f681918ec0961a6df135e1035137",
@@ -23,11 +23,12 @@
   "sourceHashes": {
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee",
     "foundation/application_lifecycle.cue": "sha256:2dd53768204f8abebe9c5417c036470e6465769042e359afb05987c421a6307d",
-    "foundation/architecture_v2.cue": "sha256:2d11de0072f567369f5353a51e233a9d26e9c3945ff82c4a7cb80cbac271a865",
+    "foundation/architecture_v2.cue": "sha256:806bc4b2b12c7c262c0a7cf629267089556c946c978bf43e988e2d0d57c36108",
     "foundation/architecture_v2_backup.cue": "sha256:750b23662d20956156394cf61ad1466e651372a18aa06075883a2a70199c93e0",
-    "foundation/architecture_v2_catalog.cue": "sha256:723dd01272d8de0062179a97ec8911d0334a17aef898cb95f61603b7b53ef596",
+    "foundation/architecture_v2_catalog.cue": "sha256:69c2db7d382bdf7dc28afded8baef47b864a066e3bec1b2d8274a42bbefa4462",
     "foundation/architecture_v2_definition_binding.cue": "sha256:eb672ae095f461383f94d7212cc92a6a16a01f5abcd9722523015457bc3484a4",
     "foundation/architecture_v2_federation.cue": "sha256:6b8720e5ebd55f3d85661a43f16fb9781be983fb63f0e7e09a182ed414429e81",
+    "foundation/architecture_v2_module_profiles.cue": "sha256:922a7289671e0a31b1f93fe089d6904a7f86dce795dfe213b9150da9fc6c6faa",
     "foundation/architecture_v2_profiles.cue": "sha256:1b80546a4156f4aeba80f8149f5847fbd2315f2269ed8128fe3cb8b36e7128f3",
     "foundation/architecture_v2_storage.cue": "sha256:299057ef61b0f600cb5eff5e3d9d0423613daffb295fd4f0ecd39ff3d9b53adf",
     "foundation/use_case_identity.cue": "sha256:69434bf7d383b41ae037fad46003b1196e219025895d81c603fd398cfc461b87"

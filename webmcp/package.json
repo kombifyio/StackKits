@@ -1,7 +1,7 @@
 {
   "name": "@kombifyio/stackkits-webmcp",
   "version": "0.1.0",
-  "description": "StackKits WebMCP v1 planner, contracts, and public reference host",
+  "description": "StackKits WebMCP v2alpha1 planner, contracts, and public reference host with v1 compatibility",
   "type": "module",
   "license": "Apache-2.0",
   "engines": {

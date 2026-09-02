@@ -50,23 +50,33 @@ var (
 // is separately covered by bindingHash; including it here would make the
 // inventory digest cyclic and impossible to issue.
 func canonicalInventoryHash(inventory map[string]any) (string, error) {
+	document, err := canonicalInventoryDocument(inventory)
+	if err != nil {
+		return "", err
+	}
+	return canonicalHash(document, true)
+}
+
+// canonicalInventoryDocument retains exactly the facts covered by the inventory
+// hash. The plan carries this body so persisted admission can be recomputed.
+func canonicalInventoryDocument(inventory map[string]any) (map[string]any, error) {
 	clone, err := cloneObject(inventory, true)
 	if err != nil {
-		return "", fmt.Errorf("clone inventory for hash: %w", err)
+		return nil, fmt.Errorf("clone inventory for hash: %w", err)
 	}
 	nodes, err := objectField(clone, "inventory", "nodes")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	for _, nodeRef := range sortedStringMapKeys(nodes) {
 		node, err := asObject(nodes[nodeRef], "inventory.nodes."+nodeRef)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		delete(node, "externalHostBinding")
 		delete(node, "hostConformanceReceipt")
 	}
-	return canonicalHash(clone, true)
+	return clone, nil
 }
 
 // ComputeExternalHostInventoryHash returns the canonical provider-free digest

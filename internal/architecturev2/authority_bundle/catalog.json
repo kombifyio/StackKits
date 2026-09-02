@@ -10936,6 +10936,62 @@
       ]
     },
     {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "router",
+            "socket-proxy",
+            "pocketid",
+            "tinyauth",
+            "coolify",
+            "coolify-postgres",
+            "coolify-redis",
+            "coolify-realtime",
+            "hub"
+          ],
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "supported",
+          "platformManagement": "selected-provider",
+          "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 4,
+            "ramGB": 4,
+            "storageGB": 20
+          }
+        },
+        "standard": {
+          "components": [
+            "router",
+            "socket-proxy",
+            "pocketid",
+            "tinyauth",
+            "coolify",
+            "coolify-postgres",
+            "coolify-redis",
+            "coolify-realtime",
+            "hub"
+          ],
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "supported",
+          "platformManagement": "selected-provider",
+          "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 4,
+            "ramGB": 4,
+            "storageGB": 20
+          }
+        }
+      },
       "evidence": [
         "cloud-core-runtime-evidence"
       ],
@@ -11626,6 +11682,66 @@
       ]
     },
     {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "router",
+            "socket-proxy",
+            "pocketid",
+            "tinyauth",
+            "step-ca",
+            "coolify",
+            "coolify-postgres",
+            "coolify-redis",
+            "coolify-realtime",
+            "kopia-agent",
+            "hub"
+          ],
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "supported",
+          "platformManagement": "selected-provider",
+          "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 4,
+            "ramGB": 4,
+            "storageGB": 20
+          }
+        },
+        "standard": {
+          "components": [
+            "router",
+            "socket-proxy",
+            "pocketid",
+            "tinyauth",
+            "step-ca",
+            "coolify",
+            "coolify-postgres",
+            "coolify-redis",
+            "coolify-realtime",
+            "kopia-agent",
+            "hub"
+          ],
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "supported",
+          "platformManagement": "selected-provider",
+          "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 4,
+            "ramGB": 4,
+            "storageGB": 20
+          }
+        }
+      },
       "evidence": [
         "basement-core-runtime-evidence"
       ],
@@ -12973,6 +13089,36 @@
       ]
     },
     {
+      "computeProfiles": {
+        "low": {
+          "components": [
+            "router",
+            "socket-proxy",
+            "pocketid",
+            "tinyauth",
+            "step-ca",
+            "kopia-agent",
+            "hub"
+          ],
+          "degradations": [
+            "paas-management-omitted"
+          ],
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 2,
+            "minStorageGB": 10
+          },
+          "maturity": "supported",
+          "platformManagement": "standalone",
+          "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 2,
+            "ramGB": 2,
+            "storageGB": 10
+          }
+        }
+      },
       "evidence": [
         "basement-core-runtime-evidence"
       ],
@@ -13950,6 +14096,38 @@
       ]
     },
     {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "immich-server",
+            "immich-machine-learning",
+            "immich-postgres",
+            "immich-postgres-init",
+            "immich-valkey"
+          ],
+          "executable": true,
+          "maturity": "supported",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 1.3125
+          }
+        },
+        "standard": {
+          "components": [
+            "immich-server",
+            "immich-machine-learning",
+            "immich-postgres",
+            "immich-postgres-init",
+            "immich-valkey"
+          ],
+          "executable": true,
+          "maturity": "supported",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 1.3125
+          }
+        }
+      },
       "evidence": [
         "SK-S1",
         "SK-S2",
@@ -14431,6 +14609,25 @@
       ]
     },
     {
+      "computeProfiles": {
+        "low": {
+          "components": [
+            "immich-server",
+            "immich-postgres",
+            "immich-postgres-init",
+            "immich-valkey"
+          ],
+          "degradations": [
+            "machine-learning-disabled"
+          ],
+          "executable": true,
+          "maturity": "supported",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.8125
+          }
+        }
+      },
       "evidence": [
         "SK-S1",
         "SK-S2",
@@ -14791,6 +14988,41 @@
       ]
     },
     {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "cloudreve"
+          ],
+          "executable": true,
+          "maturity": "supported",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.125
+          }
+        },
+        "low": {
+          "components": [
+            "cloudreve"
+          ],
+          "executable": true,
+          "maturity": "supported",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.125
+          }
+        },
+        "standard": {
+          "components": [
+            "cloudreve"
+          ],
+          "executable": true,
+          "maturity": "supported",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.125
+          }
+        }
+      },
       "evidence": [
         "cloudreve-selected-paas-runtime-contract"
       ],
@@ -15025,6 +15257,41 @@
       ]
     },
     {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "vaultwarden"
+          ],
+          "executable": true,
+          "maturity": "supported",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.0625
+          }
+        },
+        "low": {
+          "components": [
+            "vaultwarden"
+          ],
+          "executable": true,
+          "maturity": "supported",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.0625
+          }
+        },
+        "standard": {
+          "components": [
+            "vaultwarden"
+          ],
+          "executable": true,
+          "maturity": "supported",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.0625
+          }
+        }
+      },
       "evidence": [
         "vaultwarden-selected-paas-runtime-contract"
       ],
@@ -15272,6 +15539,30 @@
       ]
     },
     {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "jellyfin"
+          ],
+          "executable": true,
+          "maturity": "supported",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        },
+        "standard": {
+          "components": [
+            "jellyfin"
+          ],
+          "executable": true,
+          "maturity": "supported",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        }
+      },
       "evidence": [
         "jellyfin-selected-paas-runtime-contract"
       ],
@@ -15517,6 +15808,41 @@
       ]
     },
     {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "home-assistant"
+          ],
+          "executable": true,
+          "maturity": "supported",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        },
+        "low": {
+          "components": [
+            "home-assistant"
+          ],
+          "executable": true,
+          "maturity": "supported",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        },
+        "standard": {
+          "components": [
+            "home-assistant"
+          ],
+          "executable": true,
+          "maturity": "supported",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        }
+      },
       "evidence": [
         "home-assistant-selected-paas-runtime-contract"
       ],

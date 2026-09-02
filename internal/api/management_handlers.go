@@ -72,7 +72,7 @@ func (s *Server) handleManagementStatus(w http.ResponseWriter, r *http.Request) 
 		if spec.SpecHash != "" {
 			data["specHash"] = spec.SpecHash
 		}
-		if spec.SourceVersion == stackspecmigration.SourceVersionV2Alpha1 {
+		if spec.SourceVersion.IsV2() {
 			data["status"] = "intent_valid"
 			data["operational"] = false
 			data["readiness"] = "resolve-required"
@@ -270,7 +270,7 @@ func (s *Server) loadWorkspaceSpecSummary() (*managementSpecSummary, string, err
 	if err != nil {
 		return nil, specPath, err
 	}
-	if loaded.Document.Version == stackspecmigration.SourceVersionV2Alpha1 {
+	if loaded.Document.Version.IsV2() {
 		service, serviceErr := s.architectureV2ResolveService()
 		if serviceErr != nil {
 			return nil, specPath, serviceErr
@@ -368,7 +368,7 @@ func (s *Server) loadWorkspaceSpec() (*models.StackSpec, string, error) {
 		}
 		return nil, specPath, resolveErr
 	}
-	if loaded.Document.Version == stackspecmigration.SourceVersionV2Alpha1 {
+	if loaded.Document.Version.IsV2() {
 		return nil, specPath, &architecturev2.ResolveError{
 			Code:    architecturev2.ErrInvalidStackSpec,
 			Message: "canonical StackSpec v2 requires the governed Architecture v2 management path; refusing the legacy workspace reader",

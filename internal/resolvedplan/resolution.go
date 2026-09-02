@@ -27,20 +27,22 @@ func resolveContracts(profile *profileView, spec *specView, catalog *indexedCata
 	if err != nil {
 		return nil, err
 	}
-	tier, err := computeTierFromInstall(spec.install)
-	if err != nil {
-		return nil, err
-	}
-	graph, err := loadKitComputeTierGraph(spec.originalDefinition, tier)
-	if err != nil {
-		return nil, err
-	}
 	resolvedWorkloads := &resolution{workloads: workloads, workloadByModule: make(map[string]string, len(workloads))}
 	for id, workload := range workloads {
 		resolvedWorkloads.workloadByModule[workload.moduleID] = id
 	}
-	if err := applyComputeTierWorkloadSubstitutions(resolvedWorkloads, catalog, graph.moduleSubstitutions); err != nil {
-		return nil, err
+	if spec.legacyComputeTier {
+		tier, err := computeTierFromInstall(spec.install)
+		if err != nil {
+			return nil, err
+		}
+		graph, err := loadKitComputeTierGraph(spec.originalDefinition, tier)
+		if err != nil {
+			return nil, err
+		}
+		if err := applyComputeTierWorkloadSubstitutions(resolvedWorkloads, catalog, graph.moduleSubstitutions); err != nil {
+			return nil, err
+		}
 	}
 	workloads = resolvedWorkloads.workloads
 	workloadProviderSet := make(map[string]struct{}, len(workloads)*2)

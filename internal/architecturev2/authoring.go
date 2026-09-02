@@ -24,6 +24,9 @@ const (
 // matching Definition.authoring.requiredOverrides contract and an explicit
 // materializer implementation; arbitrary paths are never accepted.
 type AuthoringOverrides struct {
+	// APIVersion selects native module-local intent or the explicit legacy
+	// adapter. Empty is retained for existing in-process v2alpha1 callers.
+	APIVersion string
 	Name       string
 	DomainBase string
 	// Platform selects the workload runtime adapter (e.g. coolify, komodo,
@@ -37,12 +40,16 @@ type AuthoringOverrides struct {
 	EnableCapabilities []string
 	// UseCases selects optional kit workloads by ID (e.g. photos, files,
 	// vault). Each ID must be declared by the kit's workload policy; the
-	// catalog computeTiers entry for ComputeTier supplies the alternative.
+	// native UseCaseAlternatives selects the implementation. Only the explicit
+	// v2alpha1 adapter reads the catalog computeTiers fit.
 	UseCases []string
-	// ComputeTier selects a declared kit module graph (low|standard|high).
-	// Empty means the CUE default standard. Missing or undeclared graphs fail
-	// closed. This is not install.mode, hardware.profile, or legacy context.
+	// ComputeTier is v2alpha1 compatibility only. In that adapter, an empty
+	// value retains the legacy CUE default. Native v2alpha2 rejects this field.
 	ComputeTier string
+	// ModuleProfiles and UseCaseAlternatives belong only to v2alpha2. They are
+	// validated against the selected modules and alternatives in the CUE catalog.
+	ModuleProfiles      map[string]ModuleProfileOverride
+	UseCaseAlternatives map[string]string
 	// HardwareProfile writes nodes[0].hardware.profile (standard|pi|gpu|storage).
 	// pi is a constrained homelab device class, not Raspberry-only. Empty leaves
 	// the CUE default. This is never auto-detected from inventory.
@@ -89,7 +96,16 @@ func (s *Service) MaterializeInitialStackSpec(profile stackspecmigration.KitProf
 	if !exists {
 		return StackSpecValidation{}, resolveError(ErrAuthorityLoad, fmt.Sprintf("no governed Definition exists for %q", profile), nil)
 	}
-	workloadSelections, err := resolveUseCaseWorkloadSelections(profile, definition, s.authority.catalog, overrides.UseCases, overrides.Platform, overrides.ComputeTier)
+	nativeProfiles, err := nativeModuleProfileAuthoring(overrides)
+	if err != nil {
+		return StackSpecValidation{}, err
+	}
+	var workloadSelections map[string]useCaseWorkloadSelection
+	if nativeProfiles {
+		workloadSelections, err = resolveNativeWorkloadSelections(profile, definition, s.authority.catalog, overrides)
+	} else {
+		workloadSelections, err = resolveUseCaseWorkloadSelections(profile, definition, s.authority.catalog, overrides.UseCases, overrides.Platform, overrides.ComputeTier)
+	}
 	if err != nil {
 		return StackSpecValidation{}, err
 	}
@@ -195,6 +211,7 @@ type useCaseWorkloadSelection struct {
 	Alternative        string
 	RuntimeAdapterRef  string
 	RequiredSecretRefs []string
+	PlatformManagement string
 }
 
 func containsStringValue(values []string, want string) bool {
@@ -405,7 +422,15 @@ func materializeInitialStackSpec(
 		return StackSpecValidation{}, resolveError(ErrAuthorityLoad, fmt.Sprintf("%s Definition authoring.initialSpec kit.slug is %q", profile, initialProfile), err)
 	}
 
-	if err := applyInstallComputeTier(spec, definition, overrides.ComputeTier); err != nil {
+	nativeProfiles, err := nativeModuleProfileAuthoring(overrides)
+	if err != nil {
+		return StackSpecValidation{}, err
+	}
+	if nativeProfiles {
+		if err := applyNativeModuleProfiles(spec, overrides, workloadSelections); err != nil {
+			return StackSpecValidation{}, err
+		}
+	} else if err := applyInstallComputeTier(spec, definition, overrides.ComputeTier); err != nil {
 		return StackSpecValidation{}, err
 	}
 	if err := applyHardwareProfile(spec, overrides.HardwareProfile); err != nil {
@@ -445,7 +470,7 @@ func materializeInitialStackSpec(
 			spec["workloads"] = workloads
 		}
 		for _, id := range sortedSelectionKeys(workloadSelections) {
-			if _, exists := workloads[id]; exists {
+			if _, exists := workloads[id]; exists && !nativeProfiles {
 				continue
 			}
 			selection := workloadSelections[id]
@@ -464,6 +489,10 @@ func materializeInitialStackSpec(
 					"nodeRefs":      []any{},
 					"requiresRoles": []any{},
 				},
+			}
+			if existing, exists := workloads[id].(map[string]any); exists {
+				entry = existing
+				entry["alternative"] = selection.Alternative
 			}
 			if strings.TrimSpace(selection.RuntimeAdapterRef) != "" {
 				entry["runtimeAdapterRef"] = selection.RuntimeAdapterRef

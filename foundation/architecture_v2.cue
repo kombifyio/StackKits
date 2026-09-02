@@ -13,7 +13,9 @@ import (
 	"struct"
 )
 
-#ArchitectureAPIVersion: "stackkit/v2alpha1"
+#ArchitectureAPIVersion:          "stackkit/v2alpha1"
+#ArchitectureAPIVersionV2Alpha2:  "stackkit/v2alpha2"
+#ArchitectureAPIVersionAny:       #ArchitectureAPIVersion | #ArchitectureAPIVersionV2Alpha2
 
 #ContractID:          string & =~"^[a-z][a-z0-9-]*$"
 #RuntimeListenerIDV1: string & =~"^[a-z][a-z0-9-]*(/[a-z][a-z0-9-]*){3}$"
@@ -139,7 +141,7 @@ import (
 // StackSpec. Runtime detection may validate this choice but must never change
 // the selected kit or its allowed site kinds.
 #KitDefinition: {
-	apiVersion: #ArchitectureAPIVersion
+	apiVersion: #ArchitectureAPIVersionAny
 	kind:       "KitDefinition"
 
 	metadata: {
@@ -340,12 +342,13 @@ import (
 // #KitRedactionPolicy is a declaration of the already-shared security
 // boundary, not a kit-specific redactor implementation. Opaque references stay
 // intact for resolution while values, logs, and exported evidence are safe.
-// #KitHostRequirementsV1 is the observable host floor a kit needs before Apply
+// #KitHostRequirementsV1 is the legacy kit host floor checked before Apply
 // may mutate a target. It is an admission contract, not a sizing guide: below
 // the minimum Apply refuses to start, between minimum and recommended it warns.
 //
 // min* must not undercut #ModuleRuntimeRequirementsV2 of the selected
-// install.computeTier graph. host preflight and compiler admission compare the
+// v2alpha1 install.computeTier graph. Native v2alpha2 aggregates module profiles.
+// Legacy host preflight and compiler admission compare the
 // same floor; a kit that publishes a lower min than its selected modules is
 // wrong.
 #KitHostRequirementsV1: {
@@ -990,26 +993,35 @@ import (
 #ModuleIntentV2: {
 	enabled:         bool | *true
 	runtimeProfile?: #ContractID
+	// v2alpha2 selects the compute profile independently for every module.
+	// v2alpha1 accepts this field only through the explicit compatibility
+	// adapter; the compiler never silently applies it to native intent.
+	computeProfile?:      #ComputeTierV2
+	storageProfile?:     #ContractID
+	acceleratorProfile?: #ContractID
 	settings?:       #PublicSettings
 	secretRefs?: [string]: #SecretReference
 }
 
-// Product axes. Do not add a fourth selector for stack weight.
+// Native product axes (ADR-0039). No global stack-weight selector.
 //
 // install.mode              deployment engine (bootstrapped | bare | advanced)
 // install.runtime           docker | native
-// install.computeTier       declared kit module graph (low | standard | high)
+// modules.<id>.computeProfile  independently declared low | standard | high
+// modules.<id>.storageProfile  independent, only when declared by the module
+// modules.<id>.acceleratorProfile independent, only when declared by the module
+// install.computeTier       v2alpha1 compatibility graph only
 // nodes[].hardware.profile  device class (#HardwareProfileV2)
 // context                   legacy migration input only; v2 init rejects --context
 //
-// Init and the Techstack Unifier write computeTier. Apply executes the
-// selected graph; it does not choose it. Inventory admits capacity; it does
-// not rewrite computeTier. Missing or undeclared graphs fail closed.
+// Init and the Techstack Unifier write explicit native module selections.
+// Apply executes; inventory admits capacity and never rewrites selections.
+// Missing or undeclared profiles fail closed, without a standard fallback.
 #ComputeTierV2: "low" | "standard" | "high"
 
-// #KitComputeTierGraphV2 is the kit-declared module graph selected by
-// install.computeTier. standard is required. low and high exist only when
-// the kit publishes them. Apply never invents a graph.
+// #KitComputeTierGraphV2 is the legacy v2alpha1 graph adapter only. Native
+// v2alpha2 uses module-local profiles and explicit workload alternatives.
+// Legacy standard is required; other tiers exist only when declared.
 #KitComputeTierGraphV2: {
 	platformManagement: "selected-provider" | "standalone" | "native"
 	hostRequirements:   #KitHostRequirementsV1
@@ -1034,7 +1046,9 @@ import (
 #InstallIntentV2: {
 	mode:        *"bootstrapped" | "bare" | "advanced"
 	runtime:     *"docker" | "native"
-	computeTier: #ComputeTierV2 | *"standard"
+	// Native v2alpha2 has no kit-wide compute selector. v2alpha1 keeps the
+	// optional field for one explicit compatibility adapter in the compiler.
+	computeTier?: #ComputeTierV2
 	platform: {
 		management:      *"selected-provider" | "standalone" | "native"
 		providerRef?:    #ContractID
@@ -1056,7 +1070,7 @@ import (
 // #StackSpecV2 is desired intent. It contains no discovered host facts and no
 // plaintext secret material.
 #StackSpecV2: {
-	apiVersion: #ArchitectureAPIVersion
+	apiVersion: #ArchitectureAPIVersionAny
 	kind:       "StackSpec"
 
 	metadata: {
@@ -1072,6 +1086,12 @@ import (
 	}
 
 	install:    #InstallIntentV2
+	if apiVersion == #ArchitectureAPIVersion {
+		install: computeTier: #ComputeTierV2 | *"standard"
+	}
+	if apiVersion == #ArchitectureAPIVersionV2Alpha2 {
+		install: computeTier?: _|_
+	}
 	generation: #GenerationIntentV2
 	system: #SystemIntentV2 | *{}
 	// No `| *{}` here: an empty default wins over the disjunct, so a kit that
@@ -3117,6 +3137,63 @@ _servicePublicationShape: {
 	}
 } & struct.MinFields(1)
 
+// #ModuleResourceBudgetV2 is an explicitly declared resource envelope for a
+// selected module profile. Missing axes stay unknown; the compiler must never
+// manufacture a zero or standard value for an undeclared axis.
+#ModuleResourceBudgetV2: {
+	cpuCores?:   number & >0
+	ramGB?:      number & >0
+	storageGB?:  number & >0
+} & struct.MinFields(1)
+
+// #ModuleComputeProfileV2 is the module-local compute authority. A profile is
+// selected by its map key (low|standard|high), while the body remains hashable
+// and independently describes realization, capabilities and resources.
+#ModuleComputeProfileV2: {
+	profileHash?: #ContentHash
+	maturity:     "experimental" | "beta" | "supported" | "deprecated"
+	executable:   bool | *false
+	realization?: "contract-only" | "generation-ready" | "apply-ready"
+	// Only a core module may constrain the install platform it actually ships.
+	// This is read from the selected profile, never inferred from inventory.
+	platformManagement?: "selected-provider" | "standalone" | "native"
+	hostFloor?:   #ModuleRuntimeRequirementsV2
+	reservation?: #ModuleResourceBudgetV2
+	recommended?: #ModuleResourceBudgetV2
+	headroom?:    #ModuleResourceBudgetV2
+	architectures?: [...("amd64" | "arm64")] | *[]
+	virtualization?: [...#RuntimeVirtualizationV2] | *[]
+	components?: [...#ContractID] | *[]
+	capabilities?: [...#CapabilityID] | *[]
+	degradations?: [...#ContractID] | *[]
+
+	_architecturesUnique: list.UniqueItems(architectures) & true
+	_virtualizationUnique: list.UniqueItems(virtualization) & true
+	_componentsUnique: list.UniqueItems(components) & true
+	_capabilitiesUnique: list.UniqueItems(capabilities) & true
+	_degradationsUnique: list.UniqueItems(degradations) & true
+}
+
+// Storage and accelerator profiles are optional orthogonal axes. They carry
+// no implicit compute selection and are intentionally smaller than compute
+// profiles until a module publishes a richer governed contract.
+#ModuleAxisProfileV2: {
+	maturity:     "experimental" | "beta" | "supported" | "deprecated"
+	realization?: "contract-only" | "generation-ready" | "apply-ready"
+	reservation?: #ModuleResourceBudgetV2
+	components?: [...#ContractID] | *[]
+	capabilities?: [...#CapabilityID] | *[]
+	profileHash?: #ContentHash
+	_componentsUnique: list.UniqueItems(components) & true
+	_capabilitiesUnique: list.UniqueItems(capabilities) & true
+}
+
+#ModuleComputeProfilesV2: {
+	low?:      #ModuleComputeProfileV2
+	standard?: #ModuleComputeProfileV2
+	high?:     #ModuleComputeProfileV2
+}
+
 // #RuntimeAdmissionV1 is the compiler-owned Apply decision for a module's
 // runtimeRequirements versus attested InventoryFacts. Missing facts are not a
 // pass. Generation may still be ready.
@@ -4994,6 +5071,30 @@ _servicePublicationShape: {
 	supportedSiteKinds: [...#SiteKind] & list.MinItems(1)
 	nodeSelection?:           #ModuleNodeSelectionV2
 	runtimeRequirements?:     #ModuleRuntimeRequirementsV2
+	// Module-local profiles replace the kit-wide compute graph in native
+	// v2alpha2 intent. The optional maps are deliberately closed to the three
+	// public profile IDs; absent means undeclared, never standard.
+	computeProfiles?:   #ModuleComputeProfilesV2
+	storageProfiles?:   [string]: #ModuleAxisProfileV2
+	acceleratorProfiles?: [string]: #ModuleAxisProfileV2
+	// Resource-bearing executable workloads must publish module-local compute
+	// authority. Pure policy, plan-only and adapter contracts intentionally do
+	// not acquire an artificial default profile.
+	if role == "workload" && runtime.execution == "executable" {
+		computeProfiles: #ModuleComputeProfilesV2 & struct.MinFields(1)
+	}
+	if runtimeRequirements != _|_ {
+		computeProfiles: #ModuleComputeProfilesV2 & struct.MinFields(1)
+	}
+	// Orthogonal axes refine a selected executable compute realization. They
+	// cannot create an axis-only module that the renderer and demand model do
+	// not otherwise materialize.
+	if storageProfiles != _|_ {
+		computeProfiles: #ModuleComputeProfilesV2 & struct.MinFields(1)
+	}
+	if acceleratorProfiles != _|_ {
+		computeProfiles: #ModuleComputeProfilesV2 & struct.MinFields(1)
+	}
 	enforcementRequirement?:  #PolicyEnforcementRequirementV1
 	runtimeOwnerRequirement?: #RuntimeOwnerRequirementV1
 	// runtimeAdapter marks a platform module as the exact implementation seam
@@ -6568,6 +6669,16 @@ _servicePublicationShape: {
 	requires?: [...#ContractID] & list.MinItems(1)
 	nodeSelection?:           #ModuleNodeSelectionV2
 	runtimeRequirements?:     #ModuleRuntimeRequirementsV2
+	computeProfile?:          #ComputeTierV2
+	computeProfileHash?:      #ContentHash
+	computeProfileBinding?:   #ModuleComputeProfileV2 & {profileHash: #ContentHash}
+	computeProfileSource?:    "catalog" | "legacy-adapter"
+	storageProfile?:          #ContractID
+	storageProfileHash?:      #ContentHash
+	storageProfileBinding?:   #ModuleAxisProfileV2 & {profileHash: #ContentHash}
+	acceleratorProfile?:      #ContractID
+	acceleratorProfileHash?:    #ContentHash
+	acceleratorProfileBinding?: #ModuleAxisProfileV2 & {profileHash: #ContentHash}
 	runtimeAdmission?:        #RuntimeAdmissionV1
 	enforcementRequirement?:  #PolicyEnforcementRequirementV1
 	runtimeOwnerRequirement?: #RuntimeOwnerRequirementV1
@@ -6968,8 +7079,9 @@ _servicePublicationShape: {
 	}]
 }
 
-// #WorkloadComputeTierFitV2 binds one catalog workload to install.computeTier.
-// included:false is fail-closed at init and compile. Apply does not solve it.
+// #WorkloadComputeTierFitV2 is the legacy v2alpha1 global-tier fit adapter.
+// Native v2alpha2 uses explicit alternatives and module-local profiles.
+// Legacy included:false fails closed; Apply never solves an alternative.
 #WorkloadComputeTierFitV2: {
 	included: bool
 	if included {
@@ -7264,7 +7376,7 @@ _servicePublicationShape: {
 #ResolvedInstallPlanV2: {
 	mode:        "bootstrapped" | "bare" | "advanced"
 	runtime:     "docker" | "native"
-	computeTier: #ComputeTierV2 | *"standard"
+	computeTier?: #ComputeTierV2
 	platform: {
 		management:      "selected-provider" | "standalone" | "native"
 		providerRef?:    #ContractID
@@ -7289,8 +7401,13 @@ _servicePublicationShape: {
 	minCLI:         #SemanticVersion
 	minRuntime:     #SemanticVersion
 	minGenerator:   #SemanticVersion
-	specAPIVersion: #ArchitectureAPIVersion
+	specAPIVersion: #ArchitectureAPIVersionAny
 	planAPIVersion: "stackkit.resolved-plan/v1"
+	legacyComputeTierAdapter?: {
+		id:     #ContractID
+		source: "install.computeTier"
+		target: "modules.computeProfile"
+	}
 }
 
 #GeneratedArtifactOwnerV2: {
@@ -7402,12 +7519,18 @@ _servicePublicationShape: {
 		hash:       #ContentHash
 	}
 	normalizedSpec: {
-		apiVersion: #ArchitectureAPIVersion
+		apiVersion: #ArchitectureAPIVersionAny
 		hash:       #ContentHash
 	}
 	inventory: {
 		apiVersion: "stackkit.inventory/v1"
 		hash:       #ContentHash
+		// Exact input to the inventory hash; self-referential host evidence is
+		// projected separately. Admission is recomputed from these facts.
+		document: #InventoryFacts & {nodes: [#NodeID]: {
+			externalHostBinding?:    _|_
+			hostConformanceReceipt?: _|_
+		}}
 	}
 	kitDefinitionHash: #ContentHash
 	migration?:        #MigrationSourceLineage
@@ -7418,6 +7541,22 @@ _servicePublicationShape: {
 	if kind == "migrated-v1" {
 		migration: #MigrationSourceLineage
 	}
+}
+
+// #ResolvedNodeResourceDemandV2 is the compiler's additive per-node view of
+// selected module profiles. Host floors use the maximum across modules;
+// reservations, recommendations and headroom are additive. Omitted axes stay
+// unverified instead of being represented by invented zeroes.
+#ResolvedNodeResourceDemandV2: {
+	nodeRef:      #NodeID
+	moduleRefs:   [...#ContractID] | *[]
+	unverifiedModuleRefs: [...#ContractID] | *[]
+	hostFloor?:   #ModuleResourceBudgetV2
+	reservation?: #ModuleResourceBudgetV2
+	recommended?: #ModuleResourceBudgetV2
+	headroom?:    #ModuleResourceBudgetV2
+	_moduleRefsUnique: list.UniqueItems(moduleRefs) & true
+	_unverifiedModuleRefsUnique: list.UniqueItems(unverifiedModuleRefs) & true
 }
 
 #ResolvedHealthGateV2: {
@@ -7783,6 +7922,7 @@ _servicePublicationShape: {
 	// provider realizes behavior through host/external contracts. Providers do
 	// not become modules by name.
 	modules: [...#ResolvedModuleV2] | *[]
+	resourceDemand: [...#ResolvedNodeResourceDemandV2] | *[]
 	_moduleSecretInputSourcesExact: [
 		for module in modules
 		for unit in module.renderUnits

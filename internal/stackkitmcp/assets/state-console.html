@@ -528,7 +528,7 @@
               <option value="modern-homelab">Modern Homelab (Home + Cloud Sites)</option>
             </select>
           </label>
-          <p class="field full">Choose the KitProfile explicitly. The State Console does not score, recommend, or select a Kit. Context, provider, host, compute-tier, and transport flags are not StackSpec v2 inputs.</p>
+          <p class="field full">This preset editor uses the explicit v2alpha1 compatibility contract. For native module-local profiles, prepare and review your configuration in the <a href="https://stackkit.cc/planner" target="_blank" rel="noopener noreferrer">StackKits Planner</a>, then load its authored StackSpec here. The State Console does not recommend or select a Kit.</p>
         </div>
       </section>
 
@@ -717,6 +717,7 @@
     function initArgs() {
       return prune({
         ...baseArgs(),
+        api_version: "stackkit/v2alpha1",
         kit_profile: state.form.stackkit,
         name: clean(state.form.name),
         domain_base: selectedDomain()

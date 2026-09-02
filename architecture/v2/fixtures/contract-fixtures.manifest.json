@@ -17,8 +17,8 @@
       "compilerVersion": "stackkits-contract-fixture/0.6.0-fixtures.1",
       "specSha256": "sha256:3c5fe2ef9de4854d2c791e3501be99f94e5bb60b1f84b3ccce2235834cb52b1a",
       "inventorySha256": "sha256:8c5452e0c3741b4a1f8581f85e659327110d6ddc52cb4236add57a1df6f29f39",
-      "planSha256": "sha256:6cf8b36483210e0a2f3d7cebe79e05cb9a7bcf7980b7cc6270423ea05baf3faa",
-      "planHash": "sha256:cd56a56c6b7dd7c0c46b6a37b7a7ad96d8bd69282db8b220768fb83ff0d4519a"
+      "planSha256": "sha256:c4b9f49178119d3f479c121cd86cc922162f4091a93b60dd76cfe6f78040dc87",
+      "planHash": "sha256:9a901c6c6a82e69b15b00bfef7f7ecf1bd52b6c20c62341b3cdb108415bec18b"
     }
   ]
 }

@@ -468,7 +468,7 @@ func (s *Service) ValidateStackSpec(raw []byte) (StackSpecValidation, error) {
 		}
 		return StackSpecValidation{}, &ResolveError{Code: code, Message: message, Report: &report, Cause: migrationErr}
 	}
-	if document.Version != stackspecmigration.SourceVersionV2Alpha1 || document.V2 == nil {
+	if !document.Version.IsV2() || document.V2 == nil {
 		return StackSpecValidation{}, resolveError(ErrInvalidStackSpec, "StackSpec reader returned no canonical v2 identity", nil)
 	}
 	specDocument, err := decodeYAMLObject(document.Raw, "StackSpec")
@@ -521,7 +521,7 @@ func (s *Service) Resolve(input ResolveInput) (Result, error) {
 		}
 		return Result{}, &ResolveError{Code: code, Message: message, Report: &report, Cause: migrationErr}
 	}
-	if document.Version != stackspecmigration.SourceVersionV2Alpha1 || document.V2 == nil {
+	if !document.Version.IsV2() || document.V2 == nil {
 		return Result{}, resolveError(ErrInvalidStackSpec, "StackSpec reader returned no canonical v2 identity", nil)
 	}
 

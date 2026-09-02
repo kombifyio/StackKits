@@ -67,14 +67,25 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 	if platform == "" && len(initUseCases) > 0 {
 		platform = architectureV2StandaloneApplicationAdapterRef
 	}
+	moduleProfiles, err := parseInitModuleProfiles()
+	if err != nil {
+		return err
+	}
+	useCaseAlternatives, err := parseInitSelections("use-case-alternative", initUseCaseAlternatives)
+	if err != nil {
+		return err
+	}
 	validation, err := service.MaterializeInitialStackSpec(profile, architecturev2.AuthoringOverrides{
-		Name:               name,
-		DomainBase:         domain,
-		Platform:           platform,
-		EnableCapabilities: initEnableCapabilities,
-		UseCases:           initUseCases,
-		ComputeTier:        initComputeTier,
-		HardwareProfile:    initHardwareProfile,
+		APIVersion:          architectureV2InitAPIVersion(),
+		Name:                name,
+		DomainBase:          domain,
+		Platform:            platform,
+		EnableCapabilities:  initEnableCapabilities,
+		UseCases:            initUseCases,
+		ComputeTier:         initComputeTier,
+		ModuleProfiles:      moduleProfiles,
+		UseCaseAlternatives: useCaseAlternatives,
+		HardwareProfile:     initHardwareProfile,
 	})
 	if err != nil {
 		return fmt.Errorf("materialize %s initial StackSpec from CUE authority: %w", stackkitName, err)
@@ -152,6 +163,9 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		printInfo("Local execution binding: %s / %s / %s", custody.Binding.SiteRef, custody.Binding.NodeRef, custody.Binding.ChannelRef)
 	}
 	printInfo("StackKit: %s", stackkitName)
+	if architectureV2InitAPIVersion() == stackspecmigration.APIVersionV2Alpha1 {
+		printWarning("Explicit v2alpha1 compatibility adapter: install.computeTier selects the legacy kit graph. Native v2alpha2 uses module-local profiles.")
+	}
 	printInfo("Spec hash: %s", result.SpecHash)
 	if authoring.Status == "preview" {
 		printWarning("%s native Architecture v2 authoring is preview.", stackkitName)
@@ -179,6 +193,16 @@ func architectureV2CanonicalDomain(canonicalStackSpec []byte) (string, error) {
 }
 
 func validateArchitectureV2InitFlags(cmd *cobra.Command) error {
+	apiVersion := architectureV2InitAPIVersion()
+	if apiVersion != stackspecmigration.APIVersionV2Alpha1 && apiVersion != stackspecmigration.APIVersionV2Alpha2 {
+		return fmt.Errorf("unsupported --api-version %q", apiVersion)
+	}
+	if apiVersion == stackspecmigration.APIVersionV2Alpha2 && strings.TrimSpace(initComputeTier) != "" {
+		return fmt.Errorf("--compute-tier is forbidden by native v2alpha2; use --module-compute-profile for each selected module")
+	}
+	if apiVersion == stackspecmigration.APIVersionV2Alpha1 && len(initModuleComputeProfiles)+len(initModuleStorageProfiles)+len(initModuleAcceleratorProfiles)+len(initUseCaseAlternatives) > 0 {
+		return fmt.Errorf("module profiles and explicit alternatives require --api-version stackkit/v2alpha2")
+	}
 	unsupported := make([]string, 0, 12)
 	add := func(flag string, used bool) {
 		if used {

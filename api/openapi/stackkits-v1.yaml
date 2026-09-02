@@ -1305,13 +1305,13 @@ components:
     ArchitectureV2InitialAuthoringRequest:
       type: object
       description: >-
-        Native v0.7 initial StackSpec materialization request. Overrides are deliberately limited to the paths governed by the embedded Definition authoring contract; this is not an arbitrary partial-spec overlay.
+        Versioned initial StackSpec materialization request. Native v2alpha2 requires explicit workload alternatives and module-local profiles. v2alpha1 remains the explicit legacy adapter. Overrides are deliberately limited to the paths governed by the embedded Definition authoring contract; this is not an arbitrary partial-spec overlay.
       additionalProperties: false
       required: [apiVersion, kind, kitProfile]
       properties:
         apiVersion:
           type: string
-          const: stackkit/v2alpha1
+          enum: [stackkit/v2alpha1, stackkit/v2alpha2]
         kind:
           type: string
           const: InitialStackSpecAuthoring
@@ -1325,6 +1325,21 @@ components:
               $ref: "#/components/schemas/ArchitectureV2ContractID"
             "network.domain.base":
               type: string
+        useCases:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        useCaseAlternatives:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        moduleProfiles:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ArchitectureV2ModuleProfileSelection"
+        platform:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
     ArchitectureV2InitialAuthoringResponse:
       type: object
       description: >-
@@ -1341,7 +1356,7 @@ components:
           type: boolean
         source_version:
           type: string
-          const: v2alpha1
+          enum: [v2alpha1, v2alpha2]
         kit_profile:
           $ref: "#/components/schemas/ArchitectureV2KitProfile"
         authoring_contract_version:
@@ -1378,6 +1393,17 @@ components:
         the embedded CUE authority remains authoritative for all deeper
         cross-field constraints and defaults.
       additionalProperties: false
+      allOf:
+        - if:
+            properties:
+              apiVersion:
+                const: stackkit/v2alpha2
+            required: [apiVersion]
+          then:
+            properties:
+              install:
+                not:
+                  required: [computeTier]
       required:
         - apiVersion
         - kind
@@ -1395,7 +1421,7 @@ components:
       properties:
         apiVersion:
           type: string
-          const: stackkit/v2alpha1
+          enum: [stackkit/v2alpha1, stackkit/v2alpha2]
         kind:
           type: string
           const: StackSpec
@@ -2726,6 +2752,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ArchitectureV2ResolvedModule"
+        resourceDemand:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArchitectureV2NodeResourceDemand"
         runtimeNetworks:
           type: array
           uniqueItems: true
@@ -3131,6 +3161,34 @@ components:
           $ref: "#/components/schemas/ArchitectureV2ModuleNodeSelection"
         runtimeRequirements:
           $ref: "#/components/schemas/ArchitectureV2ModuleRuntimeRequirements"
+        computeProfile:
+          type: string
+          enum: [low, standard, high]
+        computeProfileHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        computeProfileBinding:
+          allOf:
+            - $ref: "#/components/schemas/ArchitectureV2ModuleComputeProfile"
+            - required: [profileHash]
+        computeProfileSource:
+          type: string
+          enum: [catalog, legacy-adapter]
+        storageProfile:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        storageProfileHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        storageProfileBinding:
+          allOf:
+            - $ref: "#/components/schemas/ArchitectureV2ModuleAxisProfile"
+            - required: [profileHash]
+        acceleratorProfile:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        acceleratorProfileHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        acceleratorProfileBinding:
+          allOf:
+            - $ref: "#/components/schemas/ArchitectureV2ModuleAxisProfile"
+            - required: [profileHash]
         runtimeAdmission:
           $ref: "#/components/schemas/ArchitectureV2RuntimeAdmission"
         runtimeAdapter:
@@ -3584,6 +3642,136 @@ components:
         credentialCustody: {type: string, const: external-owner}
         providerLifecycle: {type: string, const: not-owned}
         evidenceRequired: {type: boolean, const: true}
+    ArchitectureV2ModuleProfileSelection:
+      type: object
+      additionalProperties: false
+      required: [computeProfile]
+      properties:
+        computeProfile:
+          type: string
+          enum: [low, standard, high]
+        storageProfile:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        acceleratorProfile:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+    ArchitectureV2ModuleResourceBudget:
+      type: object
+      description: Declared resource axes only. Missing values are unknown, never zero.
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        cpuCores:
+          type: number
+          exclusiveMinimum: 0
+        ramGB:
+          type: number
+          exclusiveMinimum: 0
+        storageGB:
+          type: number
+          exclusiveMinimum: 0
+    ArchitectureV2ModuleComputeProfile:
+      type: object
+      additionalProperties: false
+      required: [maturity, executable]
+      properties:
+        profileHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        maturity:
+          type: string
+          enum: [experimental, beta, supported, deprecated]
+        executable:
+          type: boolean
+        realization:
+          type: string
+          enum: [contract-only, generation-ready, apply-ready]
+        platformManagement:
+          type: string
+          enum: [selected-provider, standalone, native]
+        hostFloor:
+          $ref: "#/components/schemas/ArchitectureV2ModuleRuntimeRequirements"
+        reservation:
+          $ref: "#/components/schemas/ArchitectureV2ModuleResourceBudget"
+        recommended:
+          $ref: "#/components/schemas/ArchitectureV2ModuleResourceBudget"
+        headroom:
+          $ref: "#/components/schemas/ArchitectureV2ModuleResourceBudget"
+        architectures:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum: [amd64, arm64]
+        virtualization:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2RuntimeVirtualization"
+        components:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        capabilities:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        degradations:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+    ArchitectureV2ModuleAxisProfile:
+      type: object
+      additionalProperties: false
+      required: [maturity]
+      properties:
+        profileHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        maturity:
+          type: string
+          enum: [experimental, beta, supported, deprecated]
+        realization:
+          type: string
+          enum: [contract-only, generation-ready, apply-ready]
+        reservation:
+          $ref: "#/components/schemas/ArchitectureV2ModuleResourceBudget"
+        components:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        capabilities:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+    ArchitectureV2NodeResourceDemand:
+      type: object
+      description: Per-node max host floors and additive reservations; incomplete declarations remain explicit.
+      additionalProperties: false
+      required: [nodeRef, moduleRefs, unverifiedModuleRefs]
+      properties:
+        nodeRef:
+          $ref: "#/components/schemas/ArchitectureV2ContractID"
+        moduleRefs:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        unverifiedModuleRefs:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2ContractID"
+        hostFloor:
+          $ref: "#/components/schemas/ArchitectureV2ModuleResourceBudget"
+        reservation:
+          $ref: "#/components/schemas/ArchitectureV2ModuleResourceBudget"
+        recommended:
+          $ref: "#/components/schemas/ArchitectureV2ModuleResourceBudget"
+        headroom:
+          $ref: "#/components/schemas/ArchitectureV2ModuleResourceBudget"
     ArchitectureV2ModuleNodeSelection:
       type: object
       additionalProperties: false
@@ -7345,7 +7533,7 @@ components:
           const: true
         source_version:
           type: string
-          const: v2alpha1
+          enum: [v2alpha1, v2alpha2]
         stackkit:
           $ref: "#/components/schemas/ArchitectureV2KitProfile"
         spec_hash:
@@ -7471,7 +7659,7 @@ components:
           type: string
         sourceVersion:
           type: string
-          enum: [v1, v2alpha1]
+          enum: [v1, v2alpha1, v2alpha2]
         validationScope:
           type: string
           enum: [legacy-operational, spec-only]

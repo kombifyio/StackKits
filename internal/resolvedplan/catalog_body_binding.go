@@ -64,6 +64,12 @@ func (v *CUEContractValidator) validateBoundCatalogBodies(plan ResolvedPlan) err
 	if err := validateResolvedModuleCoverage(plan, catalog, capabilityProviders); err != nil {
 		return err
 	}
+	if err := validateModuleResourceDemandProjection(plan); err != nil {
+		return err
+	}
+	if err := validateRuntimeAdmissionProjection(plan); err != nil {
+		return err
+	}
 	if err := validateRuntimeNetworkProjection(plan); err != nil {
 		return err
 	}
@@ -105,6 +111,25 @@ func (v *CUEContractValidator) validateBoundCatalogBodies(plan ResolvedPlan) err
 	}
 	if err := validateExecutionReadinessProjection(plan); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateModuleResourceDemandProjection(plan ResolvedPlan) error {
+	modules, err := objectListField(map[string]any(plan), "resolvedPlan", "modules")
+	if err != nil {
+		return err
+	}
+	expected, err := aggregateModuleResourceDemand(objectMapsAsAny(modules))
+	if err != nil {
+		return err
+	}
+	equal, err := canonicalEqual(plan["resourceDemand"], expected)
+	if err != nil {
+		return err
+	}
+	if !equal {
+		return fmt.Errorf("resolvedPlan.resourceDemand does not match the bound module-profile projection")
 	}
 	return nil
 }
@@ -1704,6 +1729,14 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 	if err != nil {
 		return err
 	}
+	compatibility, err := objectField(map[string]any(plan), "resolvedPlan", "compatibility")
+	if err != nil {
+		return err
+	}
+	profileSource := "catalog"
+	if compatibility["specAPIVersion"] == "stackkit/v2alpha1" {
+		profileSource = "legacy-adapter"
+	}
 	for _, id := range mapKeys(actual) {
 		module := actual[id]
 		contract := catalog.modules[id]
@@ -1738,13 +1771,16 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 			return err
 		}
 		for _, field := range []string{
-			"nodeSelection", "runtimeRequirements", "enforcementRequirement", "runtimeOwnerRequirement",
+			"nodeSelection", "enforcementRequirement", "runtimeOwnerRequirement",
 			"runtimeAdapter", "runtimeAdapterAgent", "storageAllocationContract", "dataBindingContract",
 			"backupSourceContract", "snapshotContract", "restoreContract", "recoveryContract",
 		} {
 			if err := requireCatalogOptionalObjectField(module, contract, path, field); err != nil {
 				return err
 			}
+		}
+		if err := validateResolvedModuleProfileBindings(module, contract, path, profileSource); err != nil {
+			return err
 		}
 		wantRequires, err := stringListField(contract, "catalog.modules."+id, "requires", false)
 		if err != nil {
@@ -1774,7 +1810,12 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 			return err
 		}
 		providerNodes := map[string][]string{providerRef: eligibleNodesForKinds(enabledNodes, nodeKinds, providerKinds)}
-		wantSites, wantNodes, err := resolveModuleTargetsWithInventoryAttestation(id, providerRef, contract, moduleTargetSpec, providerNodes, false)
+		runtimeRequirements, _, err := optionalObjectField(module, path, "runtimeRequirements")
+		if err != nil {
+			return err
+		}
+		targetContract := moduleContractWithRuntimeRequirements(contract, runtimeRequirements)
+		wantSites, wantNodes, err := resolveModuleTargetsWithInventoryAttestation(id, providerRef, targetContract, moduleTargetSpec, providerNodes, false)
 		if err != nil {
 			return fmt.Errorf("%s placement cannot be reconstructed from its bound contract: %w", path, err)
 		}
@@ -2032,6 +2073,170 @@ func resolvedRuntimeAdapterModuleTargets(plan ResolvedPlan, moduleID string, nod
 		return nil, nil, fmt.Errorf("runtime adapter module %q has no workload targets", moduleID)
 	}
 	return sortedSet(siteSet), sortedSet(nodeSet), nil
+}
+
+// validateResolvedModuleProfileBindings binds every selected resource profile
+// back to the exact catalog body. Profile-derived runtime requirements are the
+// only allowed departure from the module's legacy top-level requirements.
+func validateResolvedModuleProfileBindings(module, contract map[string]any, path, expectedSource string) error {
+	profileID, hasProfile, err := optionalStringField(module, path, "computeProfile")
+	if err != nil {
+		return err
+	}
+	binding, hasBinding, err := optionalObjectField(module, path, "computeProfileBinding")
+	if err != nil {
+		return err
+	}
+	profileHash, hasHash, err := optionalStringField(module, path, "computeProfileHash")
+	if err != nil {
+		return err
+	}
+	source, hasSource, err := optionalStringField(module, path, "computeProfileSource")
+	if err != nil {
+		return err
+	}
+	if !hasProfile {
+		if _, declaresProfiles := contract["computeProfiles"]; declaresProfiles {
+			return fmt.Errorf("%s omits the module's required compute-profile binding", path)
+		}
+		if hasBinding || hasHash || hasSource {
+			return fmt.Errorf("%s has an incomplete compute-profile binding", path)
+		}
+		if err := requireCatalogOptionalObjectField(module, contract, path, "runtimeRequirements"); err != nil {
+			return err
+		}
+	} else {
+		if !hasBinding || !hasHash || !hasSource {
+			return fmt.Errorf("%s compute profile %q has no complete body/hash/source binding", path, profileID)
+		}
+		if source != expectedSource {
+			return fmt.Errorf("%s.computeProfileSource does not match the StackSpec compatibility contract", path)
+		}
+		profiles, declared, err := optionalObjectField(contract, "catalog.modules", "computeProfiles")
+		if err != nil {
+			return err
+		}
+		if !declared {
+			return fmt.Errorf("%s selects compute profile %q but the bound module has no compute profiles", path, profileID)
+		}
+		rawProfile, exists := profiles[profileID]
+		if !exists {
+			return fmt.Errorf("%s selects compute profile %q outside the bound module body", path, profileID)
+		}
+		expectedProfile, err := asObject(rawProfile, "catalog.modules.computeProfiles."+profileID)
+		if err != nil {
+			return err
+		}
+		if expectedSource == "catalog" {
+			if err := requireExecutableModuleProfile(expectedProfile, path+".computeProfile", true); err != nil {
+				return err
+			}
+		}
+		expectedProfile, err = cloneObject(expectedProfile, true)
+		if err != nil {
+			return err
+		}
+		expectedHash, err := moduleProfileHash(path+"."+profileID, expectedProfile)
+		if err != nil {
+			return err
+		}
+		expectedProfile["profileHash"] = expectedHash
+		if profileHash != expectedHash {
+			return fmt.Errorf("%s.computeProfileHash does not match the bound profile body", path)
+		}
+		if equal, err := canonicalEqual(binding, expectedProfile); err != nil {
+			return err
+		} else if !equal {
+			return fmt.Errorf("%s.computeProfileBinding does not match the bound profile body", path)
+		}
+		expectedRequirements, err := runtimeRequirementsForProfile(path, contract, expectedProfile)
+		if err != nil {
+			return err
+		}
+		actualRequirements, hasRequirements, err := optionalObjectField(module, path, "runtimeRequirements")
+		if err != nil {
+			return err
+		}
+		if (expectedRequirements != nil) != hasRequirements {
+			return fmt.Errorf("%s.runtimeRequirements presence does not match the bound compute profile", path)
+		}
+		if hasRequirements {
+			if equal, err := canonicalEqual(actualRequirements, expectedRequirements); err != nil {
+				return err
+			} else if !equal {
+				return fmt.Errorf("%s.runtimeRequirements does not match the bound compute profile", path)
+			}
+		}
+	}
+	for _, axis := range []struct {
+		idField, hashField, bindingField, contractField string
+	}{
+		{"storageProfile", "storageProfileHash", "storageProfileBinding", "storageProfiles"},
+		{"acceleratorProfile", "acceleratorProfileHash", "acceleratorProfileBinding", "acceleratorProfiles"},
+	} {
+		selectedID, selected, err := optionalStringField(module, path, axis.idField)
+		if err != nil {
+			return err
+		}
+		hash, hasAxisHash, err := optionalStringField(module, path, axis.hashField)
+		if err != nil {
+			return err
+		}
+		axisBinding, hasAxisBinding, err := optionalObjectField(module, path, axis.bindingField)
+		if err != nil {
+			return err
+		}
+		if !selected {
+			if _, declared := contract[axis.contractField]; declared && expectedSource == "catalog" {
+				return fmt.Errorf("%s omits the module's required %s binding", path, axis.idField)
+			}
+			if hasAxisHash || hasAxisBinding {
+				return fmt.Errorf("%s has an incomplete %s binding", path, axis.idField)
+			}
+			continue
+		}
+		if !hasAxisHash || !hasAxisBinding {
+			return fmt.Errorf("%s %s %q has no complete body/hash binding", path, axis.idField, selectedID)
+		}
+		profiles, declared, err := optionalObjectField(contract, "catalog.modules", axis.contractField)
+		if err != nil {
+			return err
+		}
+		if !declared {
+			return fmt.Errorf("%s selects %s %q but the bound module has no %s", path, axis.idField, selectedID, axis.contractField)
+		}
+		rawProfile, exists := profiles[selectedID]
+		if !exists {
+			return fmt.Errorf("%s selects %s %q outside the bound module body", path, axis.idField, selectedID)
+		}
+		expectedProfile, err := asObject(rawProfile, "catalog.modules."+axis.contractField+"."+selectedID)
+		if err != nil {
+			return err
+		}
+		if expectedSource == "catalog" {
+			if err := requireExecutableModuleProfile(expectedProfile, path+"."+axis.idField, false); err != nil {
+				return err
+			}
+		}
+		expectedProfile, err = cloneObject(expectedProfile, true)
+		if err != nil {
+			return err
+		}
+		expectedHash, err := moduleProfileHash(path+"."+axis.contractField+"."+selectedID, expectedProfile)
+		if err != nil {
+			return err
+		}
+		expectedProfile["profileHash"] = expectedHash
+		if hash != expectedHash {
+			return fmt.Errorf("%s.%s does not match the bound profile body", path, axis.hashField)
+		}
+		if equal, err := canonicalEqual(axisBinding, expectedProfile); err != nil {
+			return err
+		} else if !equal {
+			return fmt.Errorf("%s.%s does not match the bound profile body", path, axis.bindingField)
+		}
+	}
+	return nil
 }
 
 func validateResolvedModuleCoverage(plan ResolvedPlan, catalog *indexedCatalog, capabilityProviders map[string]string) error {

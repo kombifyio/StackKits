@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkit.cc/schemas/stackkits-webmcp-catalog-v2alpha1.schema.json",
+  "title": "StackKits WebMCP module-profile catalog v2alpha1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "source_sha",
+    "authority_bundle_sha256",
+    "catalog_sha256",
+    "kits",
+    "operations"
+  ],
+  "properties": {
+    "schema_version": { "const": "stackkits-webmcp/v2alpha1" },
+    "source_sha": { "$ref": "#/$defs/sha40" },
+    "authority_bundle_sha256": { "$ref": "#/$defs/sha64" },
+    "catalog_sha256": { "$ref": "#/$defs/sha64" },
+    "kits": { "type": "array", "items": { "$ref": "#/$defs/kit" } },
+    "operations": { "type": "array", "items": { "$ref": "#/$defs/operation" } }
+  },
+  "$defs": {
+    "sha40": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "sha64": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "contractId": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,127}$" },
+    "profileId": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$" },
+    "resourceVector": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "cpu_cores": { "type": "number", "exclusiveMinimum": 0 },
+        "ram_gb": { "type": "number", "exclusiveMinimum": 0 },
+        "storage_gb": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "computeProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "profile_sha256",
+        "capacity_declaration",
+        "maturity",
+        "executable",
+        "realization",
+        "architectures",
+        "virtualization",
+        "components",
+        "capabilities",
+        "degradations"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/profileId" },
+        "profile_sha256": { "$ref": "#/$defs/sha64" },
+        "capacity_declaration": { "type": "string", "enum": ["declared", "partial", "not_declared"] },
+        "maturity": { "type": "string", "enum": ["experimental", "beta", "supported", "deprecated"] },
+        "executable": { "type": "boolean" },
+        "realization": { "type": "string", "maxLength": 80 },
+        "host_floor": { "$ref": "#/$defs/resourceVector" },
+        "reservation": { "$ref": "#/$defs/resourceVector" },
+        "headroom": { "$ref": "#/$defs/resourceVector" },
+        "recommended": { "$ref": "#/$defs/resourceVector" },
+        "architectures": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "enum": ["amd64", "arm64"] }
+        },
+        "virtualization": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "maxLength": 80 }
+        },
+        "components": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/contractId" }
+        },
+        "capabilities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/contractId" }
+        },
+        "degradations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/contractId" }
+        }
+      }
+    },
+    "axisProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "profile_sha256", "capacity_declaration", "maturity", "realization", "components", "capabilities"],
+      "properties": {
+        "id": { "$ref": "#/$defs/profileId" },
+        "profile_sha256": { "$ref": "#/$defs/sha64" },
+        "capacity_declaration": { "type": "string", "enum": ["declared", "partial", "not_declared"] },
+        "maturity": { "type": "string", "enum": ["experimental", "beta", "supported", "deprecated"] },
+        "realization": { "type": "string", "maxLength": 80 },
+        "reservation": { "$ref": "#/$defs/resourceVector" },
+        "components": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/contractId" } },
+        "capabilities": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/contractId" } }
+      }
+    },
+    "module": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "module_id",
+        "role",
+        "required",
+        "use_case_ids",
+        "capabilities",
+        "compute_profiles",
+        "storage_profiles",
+        "accelerator_profiles"
+      ],
+      "properties": {
+        "module_id": { "$ref": "#/$defs/contractId" },
+        "role": { "type": "string", "enum": ["foundation", "platform", "workload", "operations"] },
+        "required": { "type": "boolean" },
+        "use_case_ids": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/contractId" } },
+        "capabilities": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/contractId" } },
+        "compute_profiles": { "type": "array", "items": { "$ref": "#/$defs/computeProfile" } },
+        "storage_profiles": { "type": "array", "items": { "$ref": "#/$defs/axisProfile" } },
+        "accelerator_profiles": { "type": "array", "items": { "$ref": "#/$defs/axisProfile" } }
+      }
+    },
+    "useCaseLoad": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["residency", "baseline", "burst"],
+      "properties": {
+        "residency": { "type": "string", "enum": ["always-on", "on-demand", "scheduled"] },
+        "baseline": { "type": "string", "enum": ["none", "idle-resident", "active-resident"] },
+        "burst": { "type": "string", "enum": ["none", "interactive", "ingest", "batch"] }
+      }
+    },
+    "useCaseAlternative": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alternative_id", "module_id", "functions", "load"],
+      "properties": {
+        "alternative_id": { "$ref": "#/$defs/contractId" },
+        "module_id": { "$ref": "#/$defs/contractId" },
+        "functions": { "type": "array", "uniqueItems": true, "items": { "type": "string", "maxLength": 80 } },
+        "load": { "$ref": "#/$defs/useCaseLoad" }
+      }
+    },
+    "useCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["use_case_id", "title", "required", "availability", "alternatives"],
+      "properties": {
+        "use_case_id": { "$ref": "#/$defs/contractId" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "required": { "type": "boolean" },
+        "availability": { "type": "string", "enum": ["available", "blocked"] },
+        "reason_code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,63}$" },
+        "alternatives": { "type": "array", "items": { "$ref": "#/$defs/useCaseAlternative" } }
+      }
+    },
+    "legacyMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["compute_tier", "status", "reason_code"],
+      "properties": {
+        "compute_tier": { "type": "string", "enum": ["low", "standard", "high"] },
+        "status": { "const": "migration_only" },
+        "reason_code": { "const": "LEGACY_GLOBAL_COMPUTE_TIER" }
+      }
+    },
+    "kit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stackkit_id",
+        "display_name",
+        "version",
+        "description",
+        "status",
+        "planner_link",
+        "modules",
+        "use_cases",
+        "legacy_compute_tier_mappings",
+        "required_authoring_inputs"
+      ],
+      "properties": {
+        "stackkit_id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$" },
+        "display_name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "version": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "maxLength": 80 },
+        "planner_link": { "type": "string", "pattern": "^/planner\\?stackkit_id=[a-z][a-z0-9-]{0,62}$" },
+        "modules": { "type": "array", "items": { "$ref": "#/$defs/module" } },
+        "use_cases": { "type": "array", "items": { "$ref": "#/$defs/useCase" } },
+        "legacy_compute_tier_mappings": { "type": "array", "items": { "$ref": "#/$defs/legacyMapping" } },
+        "required_authoring_inputs": { "type": "array", "items": { "type": "string", "maxLength": 160 } }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "tool_name", "title", "description", "command", "mutation", "destructive", "idempotent", "owner_approval"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^stackkit\\.[a-z0-9.-]+$" },
+        "tool_name": { "type": "string", "pattern": "^stackkit_[a-z0-9_]+$" },
+        "title": { "type": "string", "maxLength": 160 },
+        "description": { "type": "string", "maxLength": 500 },
+        "command": { "type": "array", "minItems": 1, "items": { "type": "string", "maxLength": 160 } },
+        "mutation": { "type": "boolean" },
+        "destructive": { "type": "boolean" },
+        "idempotent": { "type": "boolean" },
+        "owner_approval": { "type": "boolean" }
+      }
+    }
+  }
+}
