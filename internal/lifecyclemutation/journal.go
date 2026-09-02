@@ -376,16 +376,24 @@ func OpenRecovery(workspace, operationID string) (*Session, Record, error) {
 	return session, session.Record(), nil
 }
 
+func OpenUpgradeRecovery(workspace, operationID string) (*Session, Record, error) {
+	return openRecoveryForKind(workspace, operationID, KindUpgrade)
+}
+
 func OpenRestoreActivationRecovery(
 	workspace, operationID string,
 ) (*Session, Record, error) {
+	return openRecoveryForKind(workspace, operationID, KindRestoreActivation)
+}
+
+func openRecoveryForKind(workspace, operationID, kind string) (*Session, Record, error) {
 	session, record, err := OpenRecovery(workspace, operationID)
 	if err != nil {
 		return nil, Record{}, err
 	}
-	if record.Kind != KindRestoreActivation {
+	if record.Kind != kind {
 		return nil, Record{}, errors.Join(
-			errors.New("exact restore activation is required for explicit recovery"),
+			fmt.Errorf("exact %s operation is required for explicit recovery", kind),
 			session.Close(),
 		)
 	}

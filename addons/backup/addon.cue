@@ -4,10 +4,12 @@
 // self-hosted contract: Kopia engine + Kopia Web UI behind Traefik on the
 // operator's own host, managed from the dashboard or `stackkit backup` CLI.
 //
-// Database consistency is handled INTERNALLY via pre-snapshot hooks (sqlite,
-// postgres, redis, mariadb, mongodb). Users do not configure separate tools
-// like Litestream or pgBackRest — the addon detects which DBs run in the
-// stack and wires up the right hook automatically.
+// The API/legacy path can execute an existing pre-snapshot hook manifest for
+// PostgreSQL and Redis containers. Automatic manifest generation or detection
+// is not evidenced. Native v2 remains a generic, crash-consistent
+// whole-volume boundary and does not invoke these hooks. SQLite, MariaDB,
+// and MongoDB strategies remain planned; users do not configure separate
+// tools like Litestream or pgBackRest.
 //
 // Kopia remains the primary operational backup engine. A portable emergency
 // export is modeled as the complementary fallback for tool-independent restore:
@@ -40,8 +42,10 @@ import "github.com/kombifyio/stackkits/foundation"
 // #Config defines backup add-on configuration.
 //
 // All knobs that are NOT in this struct are intentionally invisible to the
-// user. DB-quiesce hooks, integrity checks, and restore drills are wired up
-// automatically based on what the surrounding StackKit deploys.
+// user. API/legacy PostgreSQL and Redis hooks can be executed from an
+// existing manifest; automatic generation or detection is not evidenced.
+// Native v2 remains crash-consistent, and other hook, integrity, and
+// restore-drill strategies remain separate follow-up work.
 #Config: {
 	_addon: {
 		name:        "backup"
@@ -91,7 +95,8 @@ import "github.com/kombifyio/stackkits/foundation"
 	// Default 7 days protects against ransomware on the host.
 	immutability: #ImmutabilityConfig
 
-	// Restore drill: monthly automated restore verification.
+	// Restore drill policy: monthly verification is requested by default;
+	// host execution and completed evidence remain separate.
 	restoreDrill: #RestoreDrillConfig
 
 	// Recovery layers around Kopia: hardened single-server defaults and a
@@ -355,7 +360,8 @@ import "github.com/kombifyio/stackkits/foundation"
 }
 
 #RestoreDrillConfig: {
-	// Run a real restore from a random snapshot once per period.
+	// Request a real restore from a random snapshot once per period; this
+	// policy does not itself prove RTO, login, client access, or execution.
 	enabled: bool | *true
 
 	// How often (cron). Monthly default — enough to catch silent corruption.
@@ -395,7 +401,9 @@ import "github.com/kombifyio/stackkits/foundation"
 // SERVICE DEFINITIONS
 // =============================================================================
 
-// #KopiaAgentService runs Kopia on every node and performs scheduled snapshots.
+// #KopiaAgentService declares the idle Kopia runtime on every node. An
+// owner-authorized systemd schedule invokes the exact CLI path; host timer
+// execution and completed snapshot evidence remain separate.
 #KopiaAgentService: {
 	name:        "kopia-agent"
 	displayName: "Kopia Backup Agent"

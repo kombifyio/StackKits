@@ -577,6 +577,13 @@ func emitNativeV2BackupResult(cmd *cobra.Command, operation nativeV2BackupOperat
 		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Repository ready: %t\nConsistency: %s\n", status.Ready, status.Consistency); err != nil {
 			return err
 		}
+		if coverage := status.Coverage; coverage != nil {
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Recovery mode: %s\nSelected source volumes: %s\nPolicy exclusions: %s\nIndependent off-host recovery: %s\nApplication data/client recovery: %s\n",
+				coverage.RecoveryMode, strings.Join(coverage.ManagedVolumeNames, ", "), strings.Join(coverage.ExcludePaths, ", "),
+				coverage.OffHostRecovery, coverage.ApplicationRecovery); err != nil {
+				return err
+			}
+		}
 		if status.History != nil {
 			if status.History.Issue != "" {
 				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "History: %s\n", status.History.Issue); err != nil {

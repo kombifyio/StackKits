@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2"
+	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +36,9 @@ func newResolveCommand() *cobra.Command {
 		Long: `Resolve a StackSpec v2 document and optional observed Inventory into the
 canonical ResolvedPlan consumed by generators and runtimes.
 
-The command is read-only unless --output is supplied. StackSpec v1 is never
+The command is read-only unless --output is supplied. File output stays beneath
+the working directory and can replace only an existing valid ResolvedPlan;
+it shares the lifecycle mutation lock. StackSpec v1 is never
 silently upgraded or compiled: it returns the shared typed migration report and
 requires an explicit migration workflow.
 
@@ -47,7 +52,7 @@ Examples:
 		},
 	}
 	cmd.Flags().StringVar(&options.inventoryPath, "inventory", "", "Path to an optional observed Inventory document")
-	cmd.Flags().StringVarP(&options.outputPath, "output", "o", "", "Write canonical ResolvedPlan JSON to this path instead of stdout")
+	cmd.Flags().StringVarP(&options.outputPath, "output", "o", "", "Write canonical ResolvedPlan JSON beneath the working directory instead of stdout")
 	cmd.Flags().StringVar(&options.moduleRoot, "module-root", "", "Architecture authority root containing cue.mod, base, and all kit definitions")
 	return cmd
 }
@@ -56,7 +61,15 @@ func runResolve(cmd *cobra.Command, args []string, options *resolveCLIOptions, w
 	if options == nil {
 		return fmt.Errorf("resolve options are not initialized")
 	}
+	if strings.TrimSpace(options.outputPath) == "" || options.outputPath == "-" {
+		return runResolveLocked(cmd, args, options, wd)
+	}
+	return lifecyclemutation.WithIdleMutation(wd, lifecyclemutation.JoinRequest{}, func() error {
+		return runResolveLocked(cmd, args, options, wd)
+	})
+}
 
+func runResolveLocked(cmd *cobra.Command, args []string, options *resolveCLIOptions, wd string) error {
 	specPath := specFile
 	if len(args) == 1 {
 		specPath = args[0]
@@ -105,8 +118,67 @@ func runResolve(cmd *cobra.Command, args []string, options *resolveCLIOptions, w
 		return writeResolvedPlan(cmd.OutOrStdout(), result.CanonicalPlan)
 	}
 	target := resolvePathFromWorkDir(wd, options.outputPath)
-	if _, err := service.PersistCanonicalPlan(target, result.CanonicalPlan); err != nil {
+	if err := persistResolvedPlan(wd, target, service, result.CanonicalPlan); err != nil {
 		return fmt.Errorf("persist canonical ResolvedPlan %s: %w", target, err)
+	}
+	return nil
+}
+
+func persistResolvedPlan(workspace, target string, service *architecturev2.Service, canonical []byte) (returnErr error) {
+	verified, err := service.VerifyCanonicalPlan(canonical)
+	if err != nil {
+		return fmt.Errorf("verify canonical ResolvedPlan before persistence: %w", err)
+	}
+	root, err := confinedfs.Open(workspace)
+	if err != nil {
+		return fmt.Errorf("open ResolvedPlan output root: %w", err)
+	}
+	defer func() { returnErr = errors.Join(returnErr, root.Close()) }()
+	transaction, err := root.BeginTransaction()
+	if err != nil {
+		return fmt.Errorf("begin ResolvedPlan output transaction: %w", err)
+	}
+	defer func() { returnErr = errors.Join(returnErr, transaction.Close()) }()
+	absoluteTarget, err := filepath.Abs(target)
+	if err != nil {
+		return fmt.Errorf("resolve ResolvedPlan output path: %w", err)
+	}
+	relative, err := filepath.Rel(root.Name(), absoluteTarget)
+	if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+		return fmt.Errorf("ResolvedPlan output must stay beneath the working directory: %s", target)
+	}
+	portable := filepath.ToSlash(relative)
+	if err := transaction.MkdirAll(path.Dir(portable), 0o750); err != nil {
+		return fmt.Errorf("create ResolvedPlan output directory: %w", err)
+	}
+	exists, _, err := transaction.Exists(portable)
+	if err != nil {
+		return fmt.Errorf("inspect ResolvedPlan output %s: %w", target, err)
+	}
+	if exists {
+		current, _, err := transaction.ReadStable(portable)
+		if err != nil {
+			return fmt.Errorf("read existing ResolvedPlan output %s: %w", target, err)
+		}
+		if _, err := service.VerifyCanonicalPlan(current); err != nil {
+			return fmt.Errorf("refuse replacing ResolvedPlan output %s: existing target is not a valid canonical ResolvedPlan: %w", target, err)
+		}
+	}
+	view, err := root.View(".")
+	if err != nil {
+		return fmt.Errorf("open ResolvedPlan output view: %w", err)
+	}
+	var result confinedfs.AtomicWriteResult
+	if exists {
+		result, err = view.WriteAtomic0600(portable, verified.Canonical())
+	} else {
+		result, err = view.WriteAtomic0600NoReplace(portable, verified.Canonical())
+	}
+	if err != nil {
+		return fmt.Errorf("atomically install ResolvedPlan output %s: %w", target, err)
+	}
+	if !result.Installed || !result.FileSynced {
+		return fmt.Errorf("atomically install ResolvedPlan output %s returned incomplete evidence: %#v", target, result)
 	}
 	return nil
 }

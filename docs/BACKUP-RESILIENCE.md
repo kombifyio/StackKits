@@ -87,6 +87,38 @@ or historical authority reports `unverified`. The historical receipt remains
 visible in every case. A present manifest does not prove that every content
 blob can be restored or that the application is usable after recovery.
 
+## Native recovery baseline
+
+The native standard is `physical-whole-set`: stop the governed application and
+database writers, capture their selected complete volumes together, then resume
+the same identities in dependency order. Restore uses isolated staging and the
+existing transactional activation path with compatible, authority-bound runtime
+and image pins. It does not import a logical dump over a running database.
+The reported consistency remains `crash-consistent` until application-specific
+recovery evidence establishes more.
+
+This cold-backup choice follows the physical full-cluster requirements in the
+[PostgreSQL backup guide](https://www.postgresql.org/docs/14/backup-file.html)
+and the recommendation to stop the server while capturing database and assets
+in the [pinned Immich guide](https://github.com/immich-app/immich/blob/v2.7.0/docs/docs/administration/backup-and-restore.md).
+Logical database export is a separate portability or migration workflow; it is
+not an additional implicit step in ordinary native snapshot or activation.
+
+`backup status --json` exposes `coverage` from the authenticated configuration:
+the exact policy digest, target, selected managed volumes, application-volume
+bindings and exclusion patterns. Its `declared-source-policy` scope describes
+what a snapshot will select. It does not inventory external libraries or promise
+coverage for data outside those volumes. The text command lists the same selected
+volumes and exclusions.
+
+The local repository shares a host failure domain with its sources. A second
+directory or container on that host is not independent recovery. An owner-held
+emergency archive and its separately retained private age identity provide the
+portable path described below; actual off-host retention and a functional
+data/client restore must be demonstrated separately. Accordingly, status keeps
+`offHostRecovery` and `applicationRecovery` at `unverified`; repository readiness,
+HTTP health and a staged restore receipt do not attest either one.
+
 ## Portable emergency archive
 
 `stackkit backup emergency-export` now creates actual encrypted bytes. The

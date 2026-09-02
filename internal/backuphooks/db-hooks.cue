@@ -1,29 +1,28 @@
-// Package backuphooks defines database pre/post-snapshot hooks.
+// Package backuphooks defines database pre/post-snapshot hook strategies.
 //
-// These hooks run automatically based on which DB engines are deployed in
-// the surrounding StackKit. They are intentionally NOT exposed in #Config:
-// users do not pick "use Litestream" or "use pgBackRest" — the runtime decides.
+// The API/legacy path can execute an existing hook manifest for PostgreSQL
+// and Redis containers. Automatic manifest generation or detection is not
+// evidenced. Native v2 remains a generic, crash-consistent whole-volume
+// boundary and does not invoke these hooks. SQLite, MariaDB, and MongoDB
+// entries remain planned strategies. They are intentionally NOT exposed in
+// #Config: users do not pick "use Litestream" or "use pgBackRest" — the
+// governed runtime decides when supported.
 //
-// Strategy per engine:
-//   - SQLite   : `sqlite3 .backup` to a consistent copy before snapshot.
-//                Cheap, atomic, no second tool. The output file is what
-//                Kopia snapshots.
-//   - Postgres : `pg_dump --format=custom` (`pg_dumpall` for global roles
-//                separately). Custom format restores cleanly via
-//                `pg_restore` and is what most users want.
-//   - Redis    : `BGSAVE` then poll `LASTSAVE` until the dump file rotates.
-//                Caches like Immich's redis are quiesce-or-skip.
-//   - MariaDB  : `mariadb-dump --single-transaction --routines --events`.
-//                Defensive: most basement-kit deployments do not include MariaDB,
-//                but the hook is here for users who add it.
-//   - MongoDB  : `mongodump` against an internal admin user.
+// Strategy declarations per engine:
+//   - SQLite   : planned `sqlite3 .backup` to a consistent copy.
+//   - Postgres : API/legacy manifest-executable `pg_dump --format=custom` (with
+//                `pg_dumpall` for global roles separately).
+//   - Redis    : API/legacy manifest-executable `BGSAVE` plus `LASTSAVE` polling;
+//                cache-only Redis may skip the wait.
+//   - MariaDB  : planned `mariadb-dump --single-transaction --routines --events`.
+//   - MongoDB  : planned `mongodump` against an internal admin user.
 //
-// Detection rule: StackKit generation walks the deployed module list at apply
-// time and matches container images / volume mount paths against the patterns below.
-// A container that matches more than one pattern (e.g. an app that bundles
-// both sqlite and a redis cache) gets multiple hooks — they run in series.
+// Detection patterns are declarative metadata. The API/legacy executor reads
+// an existing manifest and applies its listed PostgreSQL/Redis hooks; automatic
+// generation or evaluation of these patterns is not evidenced. Native v2 does
+// not call this matcher; its quiescer remains crash-consistent.
 //
-// Output-path rule (binding): every hook output MUST land inside a docker
+// Output-path rule (binding): when a hook is executed, every output MUST land inside a docker
 // named volume. The kopia-agent snapshots /var/lib/docker/volumes read-only —
 // container tmpfs paths are invisible to it, so a tmpfs dump would silently
 // never be backed up. Engine defaults therefore point into the engine's own
@@ -32,17 +31,17 @@
 
 package backuphooks
 
-// #DBHook describes one pre-snapshot quiesce step. Multiple hooks per
-// container are allowed; they execute in declaration order.
+// #DBHook describes one pre-snapshot quiesce step for a supported runtime
+// path. Multiple hooks per container are allowed; they execute in declaration
+// order when that path is enabled.
 #DBHook: {
 	// Engine kind drives the command template.
 	engine: "sqlite" | "postgres" | "redis" | "mariadb" | "mongodb"
 
-	// Container the hook attaches to (matched by service name in the
-	// generated docker-compose).
+	// Container name listed by the hook manifest.
 	container: string
 
-	// Detection patterns. Runtime wiring uses these to discover
+	// Detection patterns. Supported API/legacy wiring uses these to discover
 	// hook targets without the user listing them by hand.
 	detect: {
 		// Container image regex (e.g. "^postgres:" or "vaultwarden/server").
@@ -119,11 +118,14 @@ package backuphooks
 	}
 }
 
-// #BuiltinHooks lists the default detection rules for the supported StackKit
-// catalog. The runtime merges these with any user-added containers it discovers.
+// #BuiltinHooks lists default detection metadata and planned strategies for
+// the StackKit catalog. API/legacy execution may consume an existing manifest
+// containing PostgreSQL or Redis entries; automatic generation and matching of
+// user-added containers are not evidenced.
 #BuiltinHooks: [...#DBHook] & [
-	// Vaultwarden — sqlite by default, postgres optional. The runtime
-	// re-evaluates `detect` at apply time and picks the right branch.
+	// Vaultwarden — sqlite by default, postgres optional. These entries declare
+	// the strategy; an existing API/legacy manifest may contain supported
+	// PostgreSQL or Redis hooks, while native v2 remains crash-consistent.
 	{
 		engine:    "sqlite"
 		container: "vaultwarden"

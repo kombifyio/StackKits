@@ -13,7 +13,7 @@ import (
 var openPublicUpgradeRecovery = func(
 	workspace, operationID string,
 ) (publicUpgradeLifecycleSession, lifecyclemutation.Record, error) {
-	return lifecyclemutation.OpenRecovery(workspace, operationID)
+	return lifecyclemutation.OpenUpgradeRecovery(workspace, operationID)
 }
 
 func recoverPublicUpgradeOperation(

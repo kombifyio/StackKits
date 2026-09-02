@@ -491,6 +491,8 @@ func rollbackPublicUpgrade(
 	if mutation == nil {
 		return errors.New("rollback requires held lifecycle mutation authority")
 	}
+	ctx, cancel := lifecyclemutation.RecoveryContext(ctx)
+	defer cancel()
 	if err := removePublicUpgradeCommittedSuccess(
 		controlTransaction, checkpoint.OperationID,
 	); err != nil {

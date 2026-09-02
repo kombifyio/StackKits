@@ -89,10 +89,11 @@ type RepositoryReceipt struct {
 }
 
 type RepositoryStatus struct {
-	RepositoryID string      `json:"repositoryId"`
-	Ready        bool        `json:"ready"`
-	Consistency  Consistency `json:"consistency"`
-	History      *History    `json:"history,omitempty"`
+	RepositoryID string          `json:"repositoryId"`
+	Ready        bool            `json:"ready"`
+	Consistency  Consistency     `json:"consistency"`
+	History      *History        `json:"history,omitempty"`
+	Coverage     *BackupCoverage `json:"coverage,omitempty"`
 }
 
 type RepositorySnapshotRequest struct {
@@ -457,6 +458,7 @@ func (s *Service) Status(ctx context.Context, input StatusInput) (RepositoryStat
 		}
 	}
 	status.History = &history
+	status.Coverage = sourceCoverage(configuration)
 	return status, nil
 }
 

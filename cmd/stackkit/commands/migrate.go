@@ -15,6 +15,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/stackspeccompletion"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/spf13/cobra"
@@ -130,7 +131,8 @@ reported independently from CUE validity and follows ResolvedPlan readiness.
 
 --spec-output writes the exact completed canonical StackSpec v2 as deterministic
 JSON. It is valid only with --complete-with, never defaults to an in-place rewrite,
-and is governed by the same fail-if-exists/--force policy as --output.
+and refuses to replace an existing canonical target; canonical replacement
+requires an explicit CAS-authorized StackSpec authoring flow.
 
 A ready-for-shadow-resolution result exits successfully. A blocked result is
 still emitted as machine-readable output, then the command exits unsuccessfully.
@@ -152,7 +154,7 @@ Examples:
 	cmd.Flags().StringVarP(&options.outputPath, "output", "o", "", "Write the migration result beneath the working directory instead of stdout")
 	cmd.Flags().StringVar(&options.specOutput, "spec-output", "", "Write the completed canonical StackSpec v2 as deterministic JSON beneath the working directory (requires --complete-with)")
 	cmd.Flags().StringVar(&options.format, "format", "json", "Machine-readable output format: json or yaml")
-	cmd.Flags().BoolVar(&options.force, "force", false, "Atomically replace existing migration result and canonical StackSpec output files")
+	cmd.Flags().BoolVar(&options.force, "force", false, "Atomically replace an existing migration result output; canonical StackSpec output requires a new path")
 	return cmd
 }
 
@@ -160,6 +162,15 @@ func runMigrate(cmd *cobra.Command, args []string, options *migrateCLIOptions, w
 	if options == nil {
 		return fmt.Errorf("migrate options are not initialized")
 	}
+	if !migrationNeedsOutputSession(options.outputPath, options.specOutput) {
+		return runMigrateLocked(cmd, args, options, wd)
+	}
+	return lifecyclemutation.WithIdleMutation(wd, lifecyclemutation.JoinRequest{}, func() error {
+		return runMigrateLocked(cmd, args, options, wd)
+	})
+}
+
+func runMigrateLocked(cmd *cobra.Command, args []string, options *migrateCLIOptions, wd string) (returnErr error) {
 	if strings.TrimSpace(options.specOutput) != "" && strings.TrimSpace(options.completeWith) == "" {
 		return fmt.Errorf("--spec-output requires --complete-with so only a governed completed StackSpec v2 can be persisted")
 	}
@@ -275,7 +286,7 @@ func runMigrate(cmd *cobra.Command, args []string, options *migrateCLIOptions, w
 		return err
 	}
 	if result.Completion != nil && specTarget != "" {
-		if err := outputSession.write(nil, specTarget, canonicalSpecBytes, options.force, "canonical StackSpec v2"); err != nil {
+		if err := outputSession.write(nil, specTarget, canonicalSpecBytes, false, "canonical StackSpec v2"); err != nil {
 			return err
 		}
 	}
@@ -468,10 +479,10 @@ func (s *migrationOutputSession) prepareTargets(inputPath, reportPath, specPath 
 	}
 	inputTarget := s.portableTarget(inputPath)
 	if reportTarget != "" && inputTarget != "" && sameMigrationOutputPath(reportTarget, inputTarget) {
-		return "", "", fmt.Errorf("--output cannot replace the legacy input; use --spec-output with --force for an explicit in-place v2 migration")
+		return "", "", fmt.Errorf("--output cannot replace the legacy input; write the migration result to a new path")
 	}
-	if specTarget != "" && inputTarget != "" && sameMigrationOutputPath(specTarget, inputTarget) && !force {
-		return "", "", fmt.Errorf("canonical StackSpec v2 output %s is the legacy input; use --force for an explicit in-place migration", specTarget)
+	if specTarget != "" && inputTarget != "" && sameMigrationOutputPath(specTarget, inputTarget) {
+		return "", "", fmt.Errorf("canonical StackSpec v2 output %s is the legacy input; write a new path or use an explicit CAS-authorized StackSpec authoring flow", specTarget)
 	}
 	return reportTarget, specTarget, nil
 }
@@ -500,10 +511,37 @@ func (s *migrationOutputSession) prepareTarget(outputPath string, stdoutAllowed,
 	if err != nil {
 		return "", fmt.Errorf("inspect held %s output %s: %w", label, absolute, err)
 	}
-	if exists && !force {
+	if exists && (label == "canonical StackSpec v2" || !force) {
+		if label == "canonical StackSpec v2" {
+			return "", fmt.Errorf("%s output %s already exists; write a new path or use an explicit CAS-authorized StackSpec authoring flow", label, absolute)
+		}
 		return "", fmt.Errorf("%s output %s already exists; use --force to replace it", label, absolute)
 	}
+	if exists {
+		owned, err := s.existingMigrationResult(relative)
+		if err != nil {
+			return "", fmt.Errorf("inspect existing %s output %s: %w", label, absolute, err)
+		}
+		if !owned {
+			return "", fmt.Errorf("%s output %s already exists and is not an owned migration result; write a new path", label, absolute)
+		}
+	}
 	return relative, nil
+}
+
+func (s *migrationOutputSession) existingMigrationResult(relative string) (bool, error) {
+	data, _, err := s.transaction.ReadStable(relative)
+	if err != nil {
+		return false, err
+	}
+	var identity struct {
+		APIVersion string `json:"apiVersion" yaml:"apiVersion"`
+		Kind       string `json:"kind" yaml:"kind"`
+	}
+	if err := yaml.Unmarshal(data, &identity); err != nil {
+		return false, nil
+	}
+	return identity.APIVersion == migrationResultAPIVersion && identity.Kind == migrationResultKind, nil
 }
 
 func (s *migrationOutputSession) portableTarget(target string) string {

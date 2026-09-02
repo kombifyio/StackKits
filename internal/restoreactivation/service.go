@@ -516,7 +516,7 @@ func (service *Service) rollbackLocked(
 // Failure recovery is its own bounded phase. The canceled activation context
 // must not prevent restoring the already authorized prior state.
 func (service *Service) recoverAfterFailure(parent context.Context, session *lifecyclemutation.Session, workspace string, authority Authority, safetySnapshotID string, verify func(context.Context) (LiveVerification, error), finalize func(context.Context, Result, error) error, cause error) (Result, error) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), operationTimeout)
+	ctx, cancel := lifecyclemutation.RecoveryContext(parent)
 	defer cancel()
 	if err := session.ReconcileForRecovery(); err != nil {
 		return Result{}, fmt.Errorf("restoreactivation: reconcile failed journal commit before rollback: %w", err)

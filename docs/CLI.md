@@ -225,6 +225,11 @@ for the normal workflow. `resolve` remains a read-only inspection command
 unless an explicit output is requested. Generation never falls through to the
 retired v1 generator.
 
+`resolve --output` holds the shared lifecycle lock and confines the destination
+to the working directory. A new file is created without replacing a competing
+file; an existing destination must itself be a valid canonical ResolvedPlan.
+It cannot overwrite a StackSpec or an unrelated file.
+
 `--output`/`-o` remains a valid native override only when it resolves to the
 exact plan-owned `outputRoot`. `--local-site` and `--local-node` name the
 local inventory node the same way Apply does; multi-node generate without a
@@ -667,6 +672,15 @@ to authorize or execute a restore.
 
 Validates `stack-spec.yaml` by default. It also validates CUE and generated OpenTofu output when those files are present.
 
+### `stackkit address plan` and `stackkit address bind`
+
+`address plan` reports the public routes from the CUE-validated StackSpec.
+`address bind --prefix my-home --output bound-spec.json` writes a validated
+candidate beneath the working directory through the shared StackSpec intent
+writer. Replacing an existing different StackSpec requires
+`--expected-spec-hash sha256:<current-cue-normalized-spec-hash>`; retrying the
+same intent is idempotent. An active lifecycle mutation blocks the write.
+
 ### `stackkit migrate [v1-spec-file]`
 
 Reads v1 only through the one-minor migration adapter. A projection-only run is
@@ -683,15 +697,15 @@ stackkit migrate legacy.yaml \
 
 `--spec-output` always writes deterministic canonical JSON, regardless of the
 report `--format`. The adapter owns `source.kind: migrated-v1` and its report
-hash; callers must not pre-author migration lineage. Both files default to
-fail-if-exists, and `--force` atomically replaces each destination through a
-held filesystem root. The self-contained audit report is committed first; the
-canonical spec is installed only after report publication succeeds, so an
-in-place migration cannot replace the legacy source without its audit result.
+hash; callers must not pre-author migration lineage. The canonical spec output
+must be a new file, including when `--force` is supplied. `--force` can replace
+an existing migration report only when its API version and kind identify it as
+a migration result. It cannot replace an existing StackSpec or arbitrary file.
+File-producing runs hold the shared lifecycle lock. The self-contained audit
+report is committed first; the canonical spec is installed only after report
+publication succeeds.
 Report and spec paths must differ, remain beneath the working directory, and
-cannot both be stdout aliases. An in-place replacement of the legacy spec is
-allowed only when `--force` is explicit and after the exact v1 source has been
-read and resolved.
+cannot both be stdout aliases. The legacy input remains unchanged.
 
 Immutable v0.6 release artifacts remain available for rollback and migration
 inspection. Native v0.8 rejects raw v1 operational commands. The CLI generator

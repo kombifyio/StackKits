@@ -15,6 +15,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"gopkg.in/yaml.v3"
 )
@@ -321,6 +322,48 @@ func deriveVolumes(components []any) ([]logicalVolume, string, string, string, e
 }
 
 func deriveSourcePolicy(core map[string]any, coreModuleID, expectedOutputRef, stagingRoot string) ([]string, string, error) {
+	source, artifactID, err := readSourcePolicy(core, expectedOutputRef)
+	if err != nil {
+		return nil, "", err
+	}
+	if source == nil || artifactID == "" || text(source, "kind") != "docker-volume-root" ||
+		text(source, "containerPath") == "" || text(source, "hostPath") == "" || source["readOnly"] != true {
+		return nil, "", errors.New("restoreactivation: backup source authority is incomplete")
+	}
+	boundCoreModuleID := text(source, "coreModuleRef")
+	if (boundCoreModuleID != "" && boundCoreModuleID != coreModuleID) ||
+		(coreModuleID == basementCoreLiteModuleID && boundCoreModuleID != coreModuleID) {
+		return nil, "", errors.New("restoreactivation: backup source authority is not bound to the selected core profile")
+	}
+	managed, err := stringArray(source, "managedVolumeNames")
+	if err != nil || len(managed) == 0 {
+		return nil, "", errors.New("restoreactivation: backup source managedVolumeNames is empty or invalid")
+	}
+	excludes, err := stringArray(source, "excludePaths")
+	if err != nil {
+		return nil, "", errors.New("restoreactivation: backup source exclusions are invalid")
+	}
+	expectedStagingExclusion := text(source, "containerPath") + "/" +
+		basementComposeProject + "_kopia-restore-staging/_data"
+	stagingExcluded := false
+	for _, excluded := range excludes {
+		if excluded == expectedStagingExclusion {
+			if stagingExcluded {
+				return nil, "", errors.New("restoreactivation: backup staging exclusion is ambiguous")
+			}
+			stagingExcluded = true
+		}
+	}
+	if !stagingExcluded || stagingRoot != "/restore-staging" {
+		return nil, "", errors.New("restoreactivation: isolated restore staging is not excluded from backups")
+	}
+	return managed, artifactID, nil
+}
+
+// readSourcePolicy is the single reader for the CUE-owned source-policy unit.
+// Callers may apply their domain-specific checks after this structural binding,
+// but must not read mutable generated policy files as a replacement authority.
+func readSourcePolicy(core map[string]any, expectedOutputRef string) (map[string]any, string, error) {
 	units, err := array(core, "renderUnits")
 	if err != nil {
 		return nil, "", errors.New("restoreactivation: Basement core render units are absent")
@@ -367,38 +410,10 @@ func deriveSourcePolicy(core map[string]any, coreModuleID, expectedOutputRef, st
 		}
 		artifactID = text(output, "artifactRef")
 	}
-	if source == nil || artifactID == "" || text(source, "kind") != "docker-volume-root" ||
-		text(source, "containerPath") == "" || text(source, "hostPath") == "" || source["readOnly"] != true {
-		return nil, "", errors.New("restoreactivation: backup source authority is incomplete")
+	if source == nil || artifactID == "" {
+		return nil, "", errors.New("restoreactivation: exact Basement backup source authority is absent")
 	}
-	boundCoreModuleID := text(source, "coreModuleRef")
-	if (boundCoreModuleID != "" && boundCoreModuleID != coreModuleID) ||
-		(coreModuleID == basementCoreLiteModuleID && boundCoreModuleID != coreModuleID) {
-		return nil, "", errors.New("restoreactivation: backup source authority is not bound to the selected core profile")
-	}
-	managed, err := stringArray(source, "managedVolumeNames")
-	if err != nil || len(managed) == 0 {
-		return nil, "", errors.New("restoreactivation: backup source managedVolumeNames is empty or invalid")
-	}
-	excludes, err := stringArray(source, "excludePaths")
-	if err != nil {
-		return nil, "", errors.New("restoreactivation: backup source exclusions are invalid")
-	}
-	expectedStagingExclusion := text(source, "containerPath") + "/" +
-		basementComposeProject + "_kopia-restore-staging/_data"
-	stagingExcluded := false
-	for _, excluded := range excludes {
-		if excluded == expectedStagingExclusion {
-			if stagingExcluded {
-				return nil, "", errors.New("restoreactivation: backup staging exclusion is ambiguous")
-			}
-			stagingExcluded = true
-		}
-	}
-	if !stagingExcluded || stagingRoot != "/restore-staging" {
-		return nil, "", errors.New("restoreactivation: isolated restore staging is not excluded from backups")
-	}
-	return managed, artifactID, nil
+	return source, artifactID, nil
 }
 
 func bindManagedVolumes(
@@ -496,6 +511,7 @@ type standaloneComposeCustodyDocument struct {
 }
 
 type standaloneComposeCustodyService struct {
+	Image   string   `yaml:"image"`
 	Volumes []string `yaml:"volumes"`
 }
 
@@ -507,6 +523,10 @@ func deriveStandaloneComposeApplications(
 	plan map[string]any,
 	operationID string,
 ) ([]ComposeRuntime, []Volume, error) {
+	expectedRuntimes, err := deriveStandaloneComposeRuntimeContracts(plan)
+	if err != nil {
+		return nil, nil, err
+	}
 	lifecycles, err := array(plan, "applicationLifecycles")
 	if err != nil {
 		return nil, nil, errors.New("restoreactivation: Application lifecycle authority is absent")
@@ -615,7 +635,11 @@ func deriveStandaloneComposeApplications(
 		if backupCount == 0 {
 			return nil, nil, fmt.Errorf("restoreactivation: standalone Application %q has no backup-enabled volume", workloadRef)
 		}
-		runtime, custodyErr := bindStandaloneComposeCustody(workspaceRoot, project, allLogical)
+		expectedRuntime, exists := expectedRuntimes[project]
+		if !exists {
+			return nil, nil, fmt.Errorf("restoreactivation: standalone Application %q has no CUE-owned runtime graph", workloadRef)
+		}
+		runtime, custodyErr := bindStandaloneComposeCustody(workspaceRoot, project, allLogical, expectedRuntime)
 		if custodyErr != nil {
 			return nil, nil, fmt.Errorf("restoreactivation: bind standalone Application %q runtime custody: %w", workloadRef, custodyErr)
 		}
@@ -629,9 +653,68 @@ func deriveStandaloneComposeApplications(
 	return runtimes, volumes, nil
 }
 
+// deriveStandaloneComposeRuntimeContracts reads the typed application runtime
+// graph already embedded in the verified CUE-owned source projection. The
+// graph, including its exact image pins, is the expected contract; current
+// Compose bytes are only an observation and must never redefine it.
+func deriveStandaloneComposeRuntimeContracts(
+	plan map[string]any,
+) (map[string]localbackuppolicy.ApplicationRuntime, error) {
+	modules, err := array(plan, "modules")
+	if err != nil {
+		return nil, errors.New("restoreactivation: plan modules are absent")
+	}
+	var source localbackuppolicy.Source
+	found := false
+	for _, raw := range modules {
+		module, ok := raw.(map[string]any)
+		if !ok {
+			return nil, errors.New("restoreactivation: plan module is not an object")
+		}
+		moduleID := text(module, "id")
+		if moduleID != basementCoreModuleID && moduleID != basementCoreLiteModuleID {
+			continue
+		}
+		_, policyOutputRef, ok := basementCoreRestoreContract(moduleID)
+		if !ok {
+			continue
+		}
+		rawSource, _, sourceErr := readSourcePolicy(module, policyOutputRef)
+		if sourceErr != nil {
+			return nil, sourceErr
+		}
+		if found {
+			return nil, errors.New("restoreactivation: backup source runtime authority is ambiguous")
+		}
+		encoded, marshalErr := json.Marshal(rawSource)
+		if marshalErr != nil {
+			return nil, fmt.Errorf("restoreactivation: encode backup source authority: %w", marshalErr)
+		}
+		if unmarshalErr := json.Unmarshal(encoded, &source); unmarshalErr != nil {
+			return nil, fmt.Errorf("restoreactivation: decode backup source authority: %w", unmarshalErr)
+		}
+		if validateErr := localbackuppolicy.ValidateSourceProjection(source); validateErr != nil {
+			return nil, fmt.Errorf("restoreactivation: backup source authority is not the governed projection: %w", validateErr)
+		}
+		found = true
+	}
+	if !found {
+		return nil, errors.New("restoreactivation: exact Basement backup source authority is absent")
+	}
+	runtimes := make(map[string]localbackuppolicy.ApplicationRuntime, len(source.ApplicationRuntimes))
+	for _, runtime := range source.ApplicationRuntimes {
+		if _, duplicate := runtimes[runtime.ComposeProject]; duplicate {
+			return nil, fmt.Errorf("restoreactivation: duplicate standalone Application runtime %q", runtime.ComposeProject)
+		}
+		runtimes[runtime.ComposeProject] = runtime
+	}
+	return runtimes, nil
+}
+
 func bindStandaloneComposeCustody(
 	workspaceRoot, project string,
 	expectedLogicalVolumes []string,
+	expectedRuntime localbackuppolicy.ApplicationRuntime,
 ) (ComposeRuntime, error) {
 	absoluteWorkspace, err := filepath.Abs(workspaceRoot)
 	if err != nil {
@@ -658,6 +741,22 @@ func bindStandaloneComposeCustody(
 	var document standaloneComposeCustodyDocument
 	if err := yaml.Unmarshal(raw, &document); err != nil || document.Name != project || len(document.Services) == 0 {
 		return ComposeRuntime{}, errors.New("standalone Compose custody does not bind the expected project")
+	}
+	expectedServices := make(map[string]struct{}, len(expectedRuntime.Components))
+	for _, component := range expectedRuntime.Components {
+		expectedServices[component.ComponentRef] = struct{}{}
+		service, exists := document.Services[component.ComponentRef]
+		if !exists || service.Image != component.ImageRef+"@"+component.ImageDigest {
+			return ComposeRuntime{}, fmt.Errorf("standalone Compose service %q does not match its CUE-owned pinned image", component.ComponentRef)
+		}
+	}
+	if len(document.Services) != len(expectedServices) {
+		return ComposeRuntime{}, errors.New("standalone Compose service set differs from the CUE-owned runtime graph")
+	}
+	for serviceName := range document.Services {
+		if _, exists := expectedServices[serviceName]; !exists {
+			return ComposeRuntime{}, fmt.Errorf("standalone Compose contains unselected service %q", serviceName)
+		}
 	}
 	declared := make(map[string]struct{}, len(document.Volumes))
 	for name := range document.Volumes {

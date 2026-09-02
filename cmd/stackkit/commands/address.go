@@ -4,16 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/addressplan"
+	"github.com/kombifyio/stackkits/internal/stackspecintent"
 	"github.com/spf13/cobra"
 )
 
 type addressCommandOptions struct {
-	prefix     string
-	outputPath string
+	prefix           string
+	outputPath       string
+	expectedSpecHash string
 }
 
 func newAddressCommand() *cobra.Command {
@@ -73,15 +74,23 @@ func newAddressBindCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			validation, err := service.ValidateStackSpec(candidate)
+			_, err = stackspecintent.Persist(stackspecintent.Request{
+				WorkspaceRoot:    getWorkDir(),
+				SpecPath:         resolvePathFromWorkDir(getWorkDir(), options.outputPath),
+				Candidate:        candidate,
+				ExpectedSpecHash: options.expectedSpecHash,
+				BuildVersion:     version,
+				Authority:        service,
+			})
 			if err != nil {
-				return fmt.Errorf("validate bound StackSpec: %w", err)
+				return fmt.Errorf("persist bound StackSpec intent: %w", err)
 			}
-			return writeAddressSpec(resolvePathFromWorkDir(getWorkDir(), options.outputPath), validation.CanonicalStackSpec)
+			return nil
 		},
 	}
 	command.Flags().StringVar(&options.prefix, "prefix", "", "Allocated DNS-safe subdomain prefix")
 	command.Flags().StringVarP(&options.outputPath, "output", "o", "", "Write the validated bound StackSpec to this path")
+	command.Flags().StringVar(&options.expectedSpecHash, "expected-spec-hash", "", "Native v2 only: exact current CUE-normalized spec hash required for replacement")
 	_ = command.MarkFlagRequired("prefix")
 	return command
 }
@@ -101,28 +110,4 @@ func validateAddressStackSpec(wd, requestedPath string) ([]byte, error) {
 		return nil, err
 	}
 	return validation.CanonicalStackSpec, nil
-}
-
-func writeAddressSpec(path string, canonical []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	temporary, err := os.CreateTemp(filepath.Dir(path), ".stack-spec-address-*")
-	if err != nil {
-		return err
-	}
-	temporaryPath := temporary.Name()
-	defer os.Remove(temporaryPath)
-	if err := temporary.Chmod(0o600); err != nil {
-		_ = temporary.Close()
-		return err
-	}
-	if _, err := temporary.Write(canonical); err != nil {
-		_ = temporary.Close()
-		return err
-	}
-	if err := temporary.Close(); err != nil {
-		return err
-	}
-	return os.Rename(temporaryPath, path)
 }
