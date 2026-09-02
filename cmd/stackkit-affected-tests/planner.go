@@ -159,24 +159,13 @@ var fileFocusedTests = map[string][]string{
 	"internal/releaseindex/installed.go": {
 		"TestInspectInstalledReturnsReverifiedCallbackScopedProof",
 	},
-	"cmd/stackkit/commands/release_commands_test.go": {
-		"TestPublicUpgradeDryRunResolvesWithoutInstalling",
-		"TestPublicUpgradeInstallAndOfflineVerifyUseSameReceipt",
-		"TestKitListUsesPublishedReleaseIndex",
-	},
-	"cmd/stackkit/commands/upgrade_transaction.go": {
-		"TestPublicUpgradeTransactionCommitsOnlyExactLiveVerifiedTarget",
-		"TestPublicUpgradeTransactionFailureRestoresPriorRuntimeWithDataStaged",
-		"TestPublicUpgradeTransactionTamperedCheckpointStopsBeforeTargetSideEffects",
-		"TestPublicUpgradeSuccessProofIsRemovedBeforeRollback",
-	},
-	"cmd/stackkit/commands/upgrade_recover.go": {
-		"TestPublicUpgradeExplicitRecoveryNeverReplaysAmbiguousChild",
-	},
-	"cmd/stackkit/commands/lifecycle_mutation.go": {
-		"TestPublicUpgradeTransactionCommitsOnlyExactLiveVerifiedTarget",
-		"TestPublicUpgradeExplicitRecoveryNeverReplaysAmbiguousChild",
-	},
+	// The historical public-upgrade tests were removed. Keep these boundaries
+	// explicitly compile-only instead of selecting nonexistent tests or falling
+	// back to the unrelated command suite. Shared recovery policy has its own
+	// lifecyclemutation behavior tests; compilation is not runtime evidence.
+	"cmd/stackkit/commands/upgrade_transaction.go": {},
+	"cmd/stackkit/commands/upgrade_recover.go":     {},
+	"cmd/stackkit/commands/lifecycle_mutation.go":  {},
 	"cmd/stackkit/commands/drift.go": {
 		"TestDriftReconcileModesDenyBeforeLifecycleSideEffects",
 	},
@@ -498,8 +487,8 @@ func focusedGoTests(files []string, changedTests map[string][]string) map[string
 		result[dir] = append([]string(nil), names...)
 	}
 	for _, file := range files {
-		tests := fileFocusedTests[file]
-		if len(tests) == 0 {
+		tests, focused := fileFocusedTests[file]
+		if !focused {
 			continue
 		}
 		dir := path.Dir(file)
@@ -711,11 +700,16 @@ func affectedGoCommands(selection affectedGoSelection, changedTests, changedTest
 		if dir == "." {
 			dir = "."
 		}
-		tests := sortedUnique(changedTests[dir])
+		selected, focused := changedTests[dir]
+		tests := sortedUnique(selected)
 		if len(tests) == 0 {
 			if tags := sortedUnique(changedTestTags[dir]); len(tags) > 0 {
 				key := strings.Join(tags, ",")
 				taggedCompilePatterns[key] = append(taggedCompilePatterns[key], pattern)
+				return
+			}
+			if focused {
+				compileOnlyPatterns = append(compileOnlyPatterns, pattern)
 				return
 			}
 			*fallback = append(*fallback, pattern)
@@ -759,7 +753,7 @@ func affectedGoCommands(selection affectedGoSelection, changedTests, changedTest
 		args = append(args, sortedUnique(compileOnlyPatterns)...)
 		commands = append(commands, testCommand{
 			Kind: "go", Scope: "changed-compile", Argv: args,
-			Reason: "compile changed generated authority or test-only packages without running unrelated historical tests",
+			Reason: "compile changed packages with an explicit compile-only boundary; this is not behavioral execution evidence",
 		})
 	}
 	tagSets := make([]string, 0, len(taggedCompilePatterns))

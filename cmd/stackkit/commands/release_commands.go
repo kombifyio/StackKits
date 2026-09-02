@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
+	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
@@ -84,9 +85,12 @@ first inspects that target, creates a native Kopia snapshot plus an
 owner-signed executor-state recovery checkpoint, stages and verifies the
 rollback data without activating it, and only then installs and executes the
 exact target generate/apply/verify transaction. A failed target transaction
-automatically restores the captured prior configuration and executor, then
-re-applies and verifies the prior release. The Kopia data stays isolated in
-staging until a separately governed live-volume cutover exists.`,
+can restore and verify the prior executor only before target Apply is admitted.
+After Apply, prior-runtime restart is blocked until verified prior-data
+activation exists; isolated Kopia staging alone does not authorize it.
+A completed target commit keeps its success proof for explicit finalization.
+Fresh upgrades require support in the embedded CUE Kit policy; recovery of an
+existing operation follows its signed journal and checkpoint.`,
 		RunE: runPublicUpgrade,
 	}
 	if deprecatedAlias {
@@ -139,7 +143,10 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 	}
 	kit, err := loadWorkspaceKit(workspace)
 	if err != nil {
-		return fmt.Errorf("load StackKit identity before release resolution: %w", err)
+		return fmt.Errorf("load StackKit identity before upgrade admission: %w", err)
+	}
+	if err := admitPublicUpgradeKit(kit); err != nil {
+		return err
 	}
 	source := newPublicReleaseSource()
 	resolution, err := (releaseindex.Resolver{
@@ -427,6 +434,32 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 		result.Kit, result.Version, result.InstallDir,
 		result.Checkpoint.ExecutorStateSnapshotID, result.Checkpoint.KopiaAnchorID)
 	return err
+}
+
+// admitPublicUpgradeKit enforces the CUE-owned kit upgrade policy before any
+// release resolution or lifecycle mutation. Recovery of an already-authorized
+// operation is handled before this fresh-upgrade admission.
+func admitPublicUpgradeKit(kit string) error {
+	definition, err := architecturev2.EmbeddedKitDefinition(strings.TrimSpace(kit))
+	if err != nil {
+		return fmt.Errorf("load CUE-owned upgrade policy for %q: %w", kit, err)
+	}
+	policy, ok := definition["upgradePolicy"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("CUE-owned upgrade policy for %q is missing", kit)
+	}
+	support, ok := policy["support"].(string)
+	if !ok || strings.TrimSpace(support) == "" {
+		return fmt.Errorf("CUE-owned upgrade policy for %q has no support level", kit)
+	}
+	switch strings.TrimSpace(support) {
+	case "preview":
+		return nil
+	case "unsupported":
+		return fmt.Errorf("StackKit %q does not support public upgrades (upgradePolicy.support=%q)", kit, support)
+	default:
+		return fmt.Errorf("CUE-owned upgrade policy for %q has unsupported support level %q", kit, support)
+	}
 }
 
 func (checkpoint publicUpgradeCheckpoint) validate() error {

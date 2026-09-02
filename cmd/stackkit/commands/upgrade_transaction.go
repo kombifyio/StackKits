@@ -29,9 +29,11 @@ const (
 	publicUpgradeEventAPIVersion       = "stackkit.upgrade-event/v1"
 	publicUpgradeTransactionRoot       = ".stackkit/upgrades/transactions"
 
-	publicUpgradeRollbackNotRequired = "not-required,dataStaged"
-	publicUpgradeRollbackRestored    = "runtime-restored,dataStaged"
-	publicUpgradeRollbackFailed      = "rollback-failed,dataStaged"
+	publicUpgradeRollbackNotRequired    = "not-required,dataStaged"
+	publicUpgradeRollbackRestored       = "runtime-restored,dataStaged"
+	publicUpgradeRollbackFailed         = "rollback-failed,dataStaged"
+	publicUpgradeRollbackDataRequired   = "data-activation-required,dataStaged"
+	publicUpgradeRollbackCommitRequired = "commit-finalization-required"
 )
 
 var (
@@ -493,12 +495,21 @@ func rollbackPublicUpgrade(
 	}
 	ctx, cancel := lifecyclemutation.RecoveryContext(ctx)
 	defer cancel()
+	record := mutation.Record()
+	if record.Phase == lifecyclemutation.PhaseCommitSucceeded {
+		transaction.Rollback.Status = publicUpgradeRollbackCommitRequired
+		return fmt.Errorf("target commit succeeded; retain its success proof and finalize operation %s with explicit upgrade recovery", checkpoint.OperationID)
+	}
 	if err := removePublicUpgradeCommittedSuccess(
 		controlTransaction, checkpoint.OperationID,
 	); err != nil {
 		return fmt.Errorf(
 			"remove stale upgrade success authority before rollback: %w", err,
 		)
+	}
+	if err := record.RequirePreApplyUpgradeRollback(); err != nil {
+		transaction.Rollback.Status = publicUpgradeRollbackDataRequired
+		return fmt.Errorf("operation %s retains its recovery checkpoint; prior-runtime restart is blocked: %w", checkpoint.OperationID, err)
 	}
 	if mutation.Record().Phase != lifecyclemutation.PhaseRollbackStarted {
 		if err := mutation.Transition(

@@ -362,12 +362,15 @@ health deviations return `hasDrift: true`; Plan, artifact, Apply-evidence,
 Owner-custody, and signature/integrity failures remain hard fail-closed rather
 than being downgraded to ordinary drift.
 
-`stackkit drift reconcile --mode standard|advanced` currently denies before
-rendering or side effects. Standard reconciliation remains unavailable until
-its Owner-approved snapshot/Apply/Verify/rollback transaction is wired to this
-command. Advanced reconciliation also remains unavailable: offline capability
-verification, Owner-installed trust, deterministic Terramate rendering, and
-signed change-set creation exist, but change-set execution is not yet exposed.
+`stackkit drift reconcile --mode standard|advanced` enters the shared lifecycle
+transaction after mode-specific admission. Standard requires local Owner
+approval, current authority and a mandatory Kopia/executor-state checkpoint
+before Generate, Apply and Verify. Advanced requires an offline-verifiable
+capability, the exact candidate, an Owner-signed change-set and its matching
+digest; it re-renders and executes the approved candidate through the same
+checkpointed transaction. Missing approval, authority or evidence stops the
+operation. A failure after Apply requires verified data activation before any
+prior-runtime restart. `drift detect` remains read-only.
 
 ### `stackkit advanced trust`
 
@@ -626,16 +629,18 @@ directory, without Docker, the original host, or a Kombify account. It reports
 verified file content separately from application recovery; database consistency,
 imports, service activation, and real client access are not implied.
 
-The internal owner-signed `stackkit.executor-state-snapshot/v1` store is now
-available for the command-level upgrade implementation. It already provides an
+The owner-signed `stackkit.executor-state-snapshot/v1` store is used by the
+native upgrade command. It provides an
 immutable verified installed-release proof, exact archive-to-executable byte
 matching, current PocketID Owner-binding verification, persisted Kopia-anchor
 verification, private atomic CAS objects, and a final operation commit marker.
-Its capture entry point is intentionally sealed and cannot yet be called by the
-CLI: the next upgrade slice must first add the verifier that binds every
-StackSpec/plan/artifact/runtime byte to the current Plan/Generation/Apply
-manifest and receipts. Therefore this release does not yet claim a working
-transactional upgrade or rollback command. Because Compose is the real Basement
+Its sealed capture entry point verifies the current StackSpec, Plan, generated
+artifacts, runtime Compose, Apply evidence, release and Owner custody before
+target mutation. The target runs `generate -> plan -> apply -> verify`.
+Executor-only rollback is allowed before target Apply; after Apply admission,
+`data-activation-required,dataStaged` blocks old-runtime restart until verified
+prior-data activation exists. A completed target commit retains its success
+proof for journal finalization. Because Compose is the real Basement
 executor, no fictional `terraform.tfstate` is created. An actual OpenTofu target
 remains `unsupported_state_snapshot` until a Product Apply executor owns state
 pull/restore.
@@ -873,8 +878,12 @@ account. Import, export, and roundtrip are Publisher-only Git/CUE artifact
 operations. The former Administration-backed history and unlock operations are
 retired.
 
-`stackkit upgrade` is the canonical public command. Upgrading a single
-tool/module (not the whole Kit) stays outside the public v0.8 lifecycle.
+`stackkit upgrade` is the canonical public command for a verified whole-Kit
+release. It does not independently upgrade one tool or module.
+Fresh attempts use the embedded CUE `upgradePolicy.support` before public
+release resolution. Basement is preview; Cloud and Modern are unsupported,
+including dry-run. Explicit recovery of an already-authorized operation uses
+its signed lifecycle journal and checkpoint instead of fresh-upgrade admission.
 
 ### `stackkit-publisher module` (Publisher-only)
 
