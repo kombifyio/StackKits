@@ -1880,7 +1880,7 @@ by StackKits are projected from the exact pinned module during OSS export.
 | --- | --- | --- |
 | CLI | `cmd/stackkit`, `internal/*` | Standalone operator workflow: init, validate, generate, plan, apply, verify, upgrade, drift, registry inspection, logs, and recovery commands. |
 | API server | `cmd/stackkit-server`, `internal/api` | HTTP surface for catalog, canonical `stackfile.cue` schemas, versioned validation, logs, capabilities, and OpenAPI. Legacy generation/setup/registry operations are exact-v0.6 compatibility surfaces and are absent from native-v0.7 capability discovery. |
-| CUE contracts | `base/`, `basement-kit/`, `cloud-kit/`, `modules/` | Schemas, defaults, constraints, module contracts, and deployment shape. |
+| CUE contracts | `foundation/`, `basement-kit/`, `cloud-kit/`, `modern-homelab/`, `modules/`, `use-cases/` | Schemas, defaults, constraints, module and use-case contracts, and deployment shape. |
 | Composition/generation | `internal/cue`, `internal/composition`, `internal/iac`, `internal/tofu`, `internal/terramate` | Bind CUE/spec data into generated deployment artifacts and execution adapters. |
 | Public docs | `README.md`, `docs/` | Homelab/BaseKit OSS documentation and CLI install contract. |
 | Release automation | `.github/workflows`, `.goreleaser.yaml`, `scripts/public/` | CI, release, server image, private website validation, and curated Homelab/Basement Kit OSS mirror sync. The old `scripts/sync-public.sh` path is intentionally deprecated. |
