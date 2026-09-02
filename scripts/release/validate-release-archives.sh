@@ -76,6 +76,8 @@ check_archive_contents() {
     terramate \
     README.md \
     LICENSE \
+    LICENSE-APACHE \
+    LICENSE-GPL-3.0-or-later \
     cue.mod/module.cue \
     docs/ENTERPRISE_READINESS.md \
     use-cases/photos/agent/family-vault/SKILL.md \

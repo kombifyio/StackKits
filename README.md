@@ -55,4 +55,7 @@ Validate the committed hashes and catalog boundary with
 
 ## License
 
-See [LICENSE](LICENSE).
+Apache-2.0 OR GPL-3.0-or-later, at your option. See [LICENSE](LICENSE)
+and the complete [Apache-2.0](LICENSE-APACHE) and
+[GPL-3.0](LICENSE-GPL-3.0-or-later) texts.
+The [WebMCP package](webmcp/LICENSE) is Apache-2.0-only.

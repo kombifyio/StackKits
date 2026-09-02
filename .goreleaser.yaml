@@ -107,6 +107,8 @@ archives:
           mode: 0755
       - README.md
       - LICENSE
+      - LICENSE-APACHE
+      - LICENSE-GPL-3.0-or-later
       - docs/CLI.md
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
@@ -162,6 +164,8 @@ archives:
           mode: 0755
       - README.md
       - LICENSE
+      - LICENSE-APACHE
+      - LICENSE-GPL-3.0-or-later
       - docs/CLI.md
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
@@ -214,6 +218,8 @@ archives:
           mode: 0755
       - README.md
       - LICENSE
+      - LICENSE-APACHE
+      - LICENSE-GPL-3.0-or-later
       - docs/CLI.md
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
@@ -266,6 +272,8 @@ archives:
           mode: 0755
       - README.md
       - LICENSE
+      - LICENSE-APACHE
+      - LICENSE-GPL-3.0-or-later
       - docs/CLI.md
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
@@ -299,13 +307,22 @@ nfpms:
     homepage: https://github.com/kombifyio/stackKits
     maintainer: kombify <admin@kombify.io>
     description: "kombify StackKits CLI — infrastructure deployment from declarative blueprints"
-    license: "Apache-2.0 AND GPL-3.0"
+    license: "Apache-2.0 OR GPL-3.0-or-later"
     formats:
       - deb
     bindir: /usr/local/bin
     section: utils
     priority: optional
     contents:
+      - src: LICENSE
+        dst: /usr/share/doc/kombify-stackkits/LICENSE
+        type: doc
+      - src: LICENSE-APACHE
+        dst: /usr/share/doc/kombify-stackkits/LICENSE-APACHE
+        type: doc
+      - src: LICENSE-GPL-3.0-or-later
+        dst: /usr/share/doc/kombify-stackkits/LICENSE-GPL-3.0-or-later
+        type: doc
       - src: ".dist-tools/opentofu/linux_{{ .Arch }}/tofu"
         dst: /usr/local/bin/tofu
         file_info:
