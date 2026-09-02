@@ -491,9 +491,11 @@ package foundation
 // to run the one-shot importer before switching the kit back to Kopia.
 #BackupEngine: "kopia" | "restic-import"
 
-// #BackupDataClass describes the kind of state a backup policy covers.
-// Generators and add-ons use this for default frequency/retention decisions;
-// caches and generated data stay outside the default backup set.
+// #BackupDataClass owns the legacy configuration/portable-archive vocabulary.
+// The backup add-on aliases this table. Native ResolvedPlan instead uses the
+// versioned #BackupDataClassV1/#BackupPolicyV1 contract in architecture_v2.cue.
+// Migrating legacy names, cron strings or retention fields also requires their
+// Go readers and existing archives to migrate; a schema-only switch is unsafe.
 #BackupDataClass: "config" | "secrets" | "platform-state" | "database" | "user-content" | "documents" | "photos" | "large-media" | "telemetry-timeseries" | "serverless-config" | "cache-generated"
 
 // #BackupDataClassPolicy is the resolved scheduling/restore contract for one

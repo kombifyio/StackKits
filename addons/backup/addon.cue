@@ -35,6 +35,8 @@
 
 package backup
 
+import "github.com/kombifyio/stackkits/foundation"
+
 // #Config defines backup add-on configuration.
 //
 // All knobs that are NOT in this struct are intentionally invisible to the
@@ -110,34 +112,12 @@ package backup
 	keepYearly:  int | *0
 }
 
-#DataClass: "config" | "secrets" | "platform-state" | "database" | "user-content" | "documents" | "photos" | "large-media" | "telemetry-timeseries" | "serverless-config" | "cache-generated"
-
-#DataClassPolicy: {
-	class: #DataClass
-
-	// Whether the class is included by default for self-hosted StackKits.
-	defaultIncluded: bool
-
-	// Minimum local cadence. Managed tiers may add tighter schedules.
-	schedule: string
-
-	// Operator-facing restore expectation for this class.
-	restoreMode: "file" | "database-hook" | "volume" | "reseed" | "exclude"
-}
-
-#DataClassPolicyByClass: {
-	config: {class: "config", defaultIncluded: true, schedule: "pre-change + daily", restoreMode: "file"}
-	secrets: {class: "secrets", defaultIncluded: true, schedule: "pre-change + daily", restoreMode: "file"}
-	"platform-state": {class: "platform-state", defaultIncluded: true, schedule: "pre-change + daily", restoreMode: "file"}
-	database: {class: "database", defaultIncluded: true, schedule: "daily", restoreMode: "database-hook"}
-	"user-content": {class: "user-content", defaultIncluded: true, schedule: "daily", restoreMode: "volume"}
-	documents: {class: "documents", defaultIncluded: true, schedule: "daily", restoreMode: "volume"}
-	photos: {class: "photos", defaultIncluded: true, schedule: "daily", restoreMode: "volume"}
-	"large-media": {class: "large-media", defaultIncluded: false, schedule: "operator-selected", restoreMode: "volume"}
-	"telemetry-timeseries": {class: "telemetry-timeseries", defaultIncluded: true, schedule: "daily", restoreMode: "database-hook"}
-	"serverless-config": {class: "serverless-config", defaultIncluded: true, schedule: "pre-change + daily", restoreMode: "file"}
-	"cache-generated": {class: "cache-generated", defaultIncluded: false, schedule: "never", restoreMode: "exclude"}
-}
+// Compatibility contract: keep the existing class names and coverage consumed
+// by legacy Go models and portable archives. Foundation owns the one policy
+// table for this format; native ResolvedPlan uses #BackupPolicyV1 separately.
+#DataClass:              foundation.#BackupDataClass
+#DataClassPolicy:        foundation.#BackupDataClassPolicy
+#DataClassPolicyByClass: foundation.#BackupDataClassPolicyByClass
 
 #DefaultDataClassPolicies: [
 	#DataClassPolicyByClass.config,
@@ -153,27 +133,7 @@ package backup
 	#DataClassPolicyByClass["cache-generated"],
 ]
 
-#PolicyForDataClasses: {
-	classes: [...#DataClass]
-
-	policies: [for class in classes {
-		#DataClassPolicyByClass[class]
-	}]
-
-	byClass: {
-		for policy in policies {
-			"\(policy.class)": policy
-		}
-	}
-
-	included: [for policy in policies if policy.defaultIncluded {
-		policy.class
-	}]
-
-	excluded: [for policy in policies if !policy.defaultIncluded {
-		policy.class
-	}]
-}
+#PolicyForDataClasses: foundation.#BackupPolicyForClasses
 
 #BackupResilienceConfig: {
 	singleServer:    #SingleServerBackupSafety

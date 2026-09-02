@@ -694,7 +694,7 @@
     "version": "5.1.0"
   },
   "network": {
-    "defaultDomain": "home.test",
+    "defaultDomain": "home.localhost",
     "defaultTLSMode": "internal",
     "domainRequired": false,
     "mode": "private"

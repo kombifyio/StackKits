@@ -138,6 +138,26 @@ Blank fields remain undeclared. Every edit invalidates prior assessments and
 handoffs, including invalid numeric input; aborting an older agent invocation
 cannot restore stale capacity over a newer human edit.
 
+## Human-to-agent handoff
+
+The manual UI and browser-agent tools share one validated planner state. A ready
+handoff offers a shell selector (Bash/POSIX or PowerShell), a copy action for each
+command, and a complete **Copy agent Markdown** brief. Machine-readable `argv`
+arrays remain available in expandable details. Shell formatting preserves argument
+boundaries; it does not re-solve the selection or change the tool contract.
+
+The Markdown brief includes the selection, declared capacity and notices, each
+step's mutation/idempotency/approval metadata, and CUE/source/catalog provenance.
+It asks the receiving agent to review one step at a time and stop on failure.
+Copying is not permission to execute: local writes still need owner approval,
+target compatibility must be checked, and `apply` is never a runnable handoff
+step. There is deliberately no one-click multi-command runner.
+
+Clipboard access is requested only from a user click. When the browser denies
+it, the same output remains visible in a selectable text area. Changes to
+selection, capacity, or authoring inputs invalidate obsolete handoffs and copy
+feedback. These UI exports do not expand the compact WebMCP result budget.
+
 ## Public exports
 
 `src/index.ts` exports the catalog and planner contracts, `createPlanner`, the

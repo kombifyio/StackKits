@@ -78,6 +78,11 @@ check_archive_contents() {
     LICENSE \
     cue.mod/module.cue \
     docs/ENTERPRISE_READINESS.md \
+    use-cases/photos/agent/family-vault/SKILL.md \
+    use-cases/files/agent/owner-setup/SKILL.md \
+    use-cases/media/agent/owner-setup/SKILL.md \
+    use-cases/vault/agent/owner-setup/SKILL.md \
+    use-cases/smart-home/agent/homelab-mcp/SKILL.md \
     schemas/release-evidence.schema.json \
     schemas/standalone-oss-e2e-receipt.schema.json \
     schemas/stackkits-use-case-catalog-v1.schema.json \

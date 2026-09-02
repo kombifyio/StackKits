@@ -255,7 +255,10 @@ Definition: foundation.#ProductKitDefinition & {
 	network: {
 		mode:           "private"
 		domainRequired: false
-		defaultDomain:  "home.test"
+		// Target-local browser compatibility only (Golden Rules §1.11).
+		// Native authoring below preserves explicit network intent; neither
+		// default establishes LAN DNS or client reachability.
+		defaultDomain:  "home.localhost"
 		defaultTLSMode: "internal"
 	}
 	authoring: {

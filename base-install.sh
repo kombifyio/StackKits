@@ -27,7 +27,7 @@
 # Environment variables (all optional; each pre-seeds one decision):
 #   STACKKIT_INSTALL_MODE  auto | guided | expert
 #   HOMELAB_DIR            Workspace (default: $HOME/my-homelab)
-#   DOMAIN                 Own domain (default: kit default, home.test)
+#   DOMAIN                 Own domain (default: target-local home.localhost)
 #   STACKKIT_NAME          Deployment contract ID (default: workspace name)
 #   STACKKIT_ADMIN_EMAIL   Admin/owner email (KOMBIFY_USER_EMAIL fallback)
 #   STACKKIT_BOOTSTRAP_OWNER  true|false: preconfigure PocketID owner account
@@ -150,11 +150,13 @@ fi
 
 DOMAIN_VALUE="${DOMAIN:-}"
 if [ -z "$DOMAIN_VALUE" ] && [ "$INSTALL_MODE" != "auto" ]; then
-  if prompt_yn "Use your own domain (instead of the local default home.test)?" "n"; then
-    DOMAIN_VALUE=$(prompt_default "Domain" "home.test")
-    [ "$DOMAIN_VALUE" = "home.test" ] && DOMAIN_VALUE=""
+  if prompt_yn "Use your own domain (instead of the local default home.localhost)?" "n"; then
+    DOMAIN_VALUE=$(prompt_default "Domain" "home.localhost")
   fi
 fi
+# The standalone installer explicitly selects target-local browser access.
+# Native CLI authoring keeps its CUE-owned network intent default.
+DOMAIN_VALUE="${DOMAIN_VALUE:-home.localhost}"
 
 ADMIN_EMAIL="${STACKKIT_ADMIN_EMAIL:-${KOMBIFY_USER_EMAIL:-}}"
 if [ -z "$ADMIN_EMAIL" ] && [ "$INSTALL_MODE" != "auto" ]; then
@@ -685,7 +687,7 @@ fi
 
 # --- Done: print access summary -----------------------------------------------
 
-DOMAIN_EFFECTIVE="home.test"
+DOMAIN_EFFECTIVE="home.localhost"
 if [ -f "$HOMELAB_DIR/stack-spec.yaml" ]; then
   _d=$(grep -o '"domain":{"base":"[^"]*"' "$HOMELAB_DIR/stack-spec.yaml" | head -1 | sed -E 's/.*"base":"([^"]+)".*/\1/' || true)
   [ -n "$_d" ] && DOMAIN_EFFECTIVE="$_d"
@@ -769,6 +771,11 @@ echo "    2. Sign in at ${AUTH_URL}"
 echo "    3. Open ${HUB_URL:-$DASH_URL} and protect the hub after owner setup"
 echo ""
 case "$DOMAIN_EFFECTIVE" in
+  localhost|*.localhost)
+    echo "  These .localhost links open on the server itself."
+    echo "  Access from another device requires a configured LAN domain and DNS."
+    echo ""
+    ;;
   *.local|*.lab|*.lan|*.home|*.internal|*.test|home|homelab)
     echo "  Local DNS: resolve *.${DOMAIN_EFFECTIVE} to this host inside your network."
     echo "  Temporary workstation hosts entries:"

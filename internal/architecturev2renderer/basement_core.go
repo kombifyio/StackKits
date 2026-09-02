@@ -420,8 +420,12 @@ func BasementCoreOpenTofuRendererContract() RendererContract {
 // definition used by both generation and the local runtime-owner admission
 // boundary. Callers receive a defensive copy.
 func ExpectedBasementCoreComposeArtifact() []byte {
-	return RenderBasementCoreComposeForDomain("home.test")
+	return RenderBasementCoreComposeForDomain(basementDefaultDomain)
 }
+
+// basementDefaultDomain mirrors basement-kit/stackfile.cue
+// network.defaultDomain (Golden Rules §1.11: browser-native .localhost).
+const basementDefaultDomain = "home.localhost"
 
 var basementDomainPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
 
@@ -671,7 +675,7 @@ func normalizeBasementCoreComponentSets(components []map[string]any) {
 }
 
 func renderBasementCoreOpenTofu(domains ...string) []byte {
-	domain := "home.test"
+	domain := basementDefaultDomain
 	if len(domains) == 1 {
 		domain = domains[0]
 	}

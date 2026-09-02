@@ -133,6 +133,7 @@ archives:
       - modern-homelab/**
       - foundation/**
       - modules/**
+      - use-cases/**
 
   # Per-kit archives — CLI + specific kit + base schemas
   - id: basement-kit
@@ -185,6 +186,7 @@ archives:
       - basement-kit/**
       - foundation/**
       - modules/**
+      - use-cases/**
 
   - id: cloud-kit
     ids:
@@ -236,6 +238,7 @@ archives:
       - cloud-kit/**
       - foundation/**
       - modules/**
+      - use-cases/**
 
   - id: modern-homelab
     ids:
@@ -287,6 +290,7 @@ archives:
       - modern-homelab/**
       - foundation/**
       - modules/**
+      - use-cases/**
 
 nfpms:
   - id: deb

@@ -21,7 +21,14 @@
           "auth": "cloudreve-auth"
         }
       ],
-      "skills": [],
+      "skills": [
+        {
+          "id": "owner-setup",
+          "audience": "product-user",
+          "source": "stackkits",
+          "path": "use-cases/files/agent/owner-setup/SKILL.md"
+        }
+      ],
       "cliHelpers": [
         {
           "command": "stackkit agent mcp-config",
@@ -53,7 +60,14 @@
           "auth": "jellyfin-auth"
         }
       ],
-      "skills": [],
+      "skills": [
+        {
+          "id": "owner-setup",
+          "audience": "product-user",
+          "source": "stackkits",
+          "path": "use-cases/media/agent/owner-setup/SKILL.md"
+        }
+      ],
       "cliHelpers": [
         {
           "command": "stackkit agent mcp-config",
@@ -174,12 +188,23 @@
         {
           "id": "vaultwarden",
           "protocol": "rest",
-          "purpose": "Owner bootstrap and bounded health/readback. Vaultwarden has no native product MCP.",
+          "purpose": "Owner invitation preparation and bounded health/readback. The official client completes the encrypted personal account; Vaultwarden has no native product MCP.",
           "auth": "vaultwarden-owner-auth"
         }
       ],
-      "skills": [],
+      "skills": [
+        {
+          "id": "owner-setup",
+          "audience": "product-user",
+          "source": "stackkits",
+          "path": "use-cases/vault/agent/owner-setup/SKILL.md"
+        }
+      ],
       "cliHelpers": [
+        {
+          "command": "stackkit secrets materialize",
+          "purpose": "Establish or reuse owner-bound custody for declared local secret references; never print or export the Vaultwarden admin token."
+        },
         {
           "command": "stackkit agent mcp-config",
           "purpose": "Print the stackkit lifecycle MCP client connection."

@@ -29,6 +29,17 @@ land.
 Fleet enrollment, tenant identity, and controller operation are not part of the
 public command or CUE surface.
 
+## Configuration compatibility
+
+The add-on reuses the legacy backup class and policy definitions from
+`foundation/observability.cue`. Existing class coverage, cron strings and
+retention field names remain compatible with their Go readers and portable
+archives. Native ResolvedPlan backup intent uses the separate versioned
+`#BackupPolicyV1` contract in `foundation/architecture_v2.cue`, including UTC
+cadence and bounded retention. It cannot be substituted into a legacy config
+without migrating that reader and its data. Neither configuration format alone
+proves a scheduler ran, a database is consistent, or an application recovered.
+
 ## Why Kopia
 
 The v1 add-on used Restic. v2 standardizes on Kopia because it provides:

@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import CapacityInput from "./CapacityInput.svelte";
   import UseCaseTile from "./UseCaseTile.svelte";
+  import HandoffOutput from "./HandoffOutput.svelte";
   import type { PlannerState, PlannerStateListener } from "./session.js";
   import type {
     Authoring,
@@ -296,6 +297,7 @@
     if (path === "network.domain.base") domainBase = value;
     else if (path === "metadata.name") metadataName = value;
     else additionalAuthoring = { ...additionalAuthoring, [path]: value };
+    session.setSelection(currentSelection());
   }
 
   function statusLabel(status: CapacityStatus): string {
@@ -507,19 +509,8 @@
           </div>
         {/if}
 
-        {#if state.handoff}
-          <div class="handoff-output" data-ready={state.handoff.ready} data-testid="handoff-result">
-            <div class="assessment-head"><span>Handoff</span><strong data-status={state.handoff.ready ? "pass" : "fail"}>{state.handoff.ready ? "ready" : "blocked"}</strong></div>
-            {#if state.handoff.blocked_reasons?.length}<p class="not-declared">Blocked reasons: {state.handoff.blocked_reasons.join(" · ")}</p>{/if}
-            {#each state.handoff.steps as [id, argv, mutation, idempotent, ownerApproval], index}
-              <div class="command-step">
-                <span>{index + 1}</span>
-                <div><strong>{id}</strong><code>{JSON.stringify(argv)}</code></div>
-                <small>{mutation ? "local mutation" : "read only"} · {idempotent ? "idempotent" : "non-idempotent"} · {ownerApproval ? "owner approval" : "no approval"}</small>
-              </div>
-            {/each}
-            <div class="apply-boundary"><strong>{state.handoff.apply_follow_up.id}</strong><span>Not executable · explicit owner approval required</span></div>
-          </div>
+        {#if state.handoff && provenance}
+          <HandoffOutput {state} {provenance} />
         {/if}
       </article>
     </div>
@@ -588,7 +579,7 @@
   .not-declared, .empty-state, .inline-warning { margin: .65rem 0 0; color: var(--muted); font-size: .72rem; line-height: 1.45; }
   .inline-warning { color: #fde68a; }
   .capacity-inputs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
-  .assessment, .handoff-output { border: 1px solid var(--outline); border-radius: .7rem; padding: .8rem; margin-top: 1rem; background: rgb(0 0 0 / .18); }
+  .assessment { border: 1px solid var(--outline); border-radius: .7rem; padding: .8rem; margin-top: 1rem; background: rgb(0 0 0 / .18); }
   .assessment-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .65rem; }
   .assessment-head span { color: var(--muted); font-size: .75rem; }
   [data-status="pass"] > .assessment-head strong, strong[data-status="pass"] { color: #4ade80; }
@@ -600,12 +591,7 @@
   .notices { margin-top: .8rem; }
   .notices p { margin: .35rem 0; padding: .6rem .7rem; border-left: 2px solid #facc15; background: rgb(250 204 21 / .06); color: #fde68a; font: .7rem/1.45 ui-monospace, monospace; }
   .notices p.error { border-color: #f87171; background: rgb(248 113 113 / .06); color: #fecaca; }
-  .command-step { display: grid; grid-template-columns: auto 1fr auto; gap: .75rem; align-items: center; padding: .65rem 0; border-top: 1px solid var(--outline); }
-  .command-step > span { display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border: 1px solid var(--outline); border-radius: 50%; color: var(--muted); font-size: .68rem; }
-  .command-step strong, .command-step code { display: block; }
-  .command-step small { max-width: 220px; color: var(--muted); font-size: .66rem; text-align: right; }
   code { font: .72rem/1.45 ui-monospace, SFMono-Regular, monospace; color: #d4d4d4; overflow-wrap: anywhere; }
-  .apply-boundary { display: flex; justify-content: space-between; gap: 1rem; margin-top: .65rem; padding: .7rem; border: 1px dashed #f87171; border-radius: .55rem; color: #fecaca; font-size: .72rem; }
   .integrity-error { border: 1px solid #f87171; border-radius: .7rem; padding: 1rem; background: rgb(248 113 113 / .06); color: #fecaca; }
   .integrity-error p { margin: .45rem 0 0; }
   .integrity-error button { margin-top: .8rem; }
@@ -615,5 +601,5 @@
   @media (max-width: 900px) { .use-case-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 540px) { .use-case-grid { grid-template-columns: 1fr; } }
   @media (max-width: 980px) { .selection-panel, .modules-panel { grid-column: 1 / -1; } .facts { grid-template-columns: 1fr; } }
-  @media (max-width: 680px) { .planner-shell { padding-top: 6.5rem; } .planner-hero { flex-direction: column; } .axis-selectors, .capacity-inputs, .authoring-fields { grid-template-columns: 1fr; } .axis-row { grid-template-columns: 1fr auto; } .axis-row code { grid-column: 1 / -1; } .command-step { grid-template-columns: auto 1fr; } .command-step small { grid-column: 2; text-align: left; } .apply-boundary, .provenance { display: flex; flex-direction: column; } }
+  @media (max-width: 680px) { .planner-shell { padding-top: 6.5rem; } .planner-hero { flex-direction: column; } .axis-selectors, .capacity-inputs, .authoring-fields { grid-template-columns: 1fr; } .axis-row { grid-template-columns: 1fr auto; } .axis-row code { grid-column: 1 / -1; } .provenance { display: flex; flex-direction: column; } }
 </style>

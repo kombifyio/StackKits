@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { loadCatalog } from "./catalog.js";
+  import { CATALOG_PATH, loadCatalog } from "./catalog.js";
   import { createPlannerSession, setSharedPlannerSession, type PlannerSession } from "./session.js";
   import StackKitsPlanner from "./StackKitsPlanner.svelte";
   import {
@@ -36,7 +36,12 @@
       webMcpAvailable = false;
       webMcpStatus = createWebMcpStatus("checking");
       try {
-        const catalog = await loadCatalog(undefined, controller.signal);
+        const catalogURL = new URL(CATALOG_PATH, document.baseURI);
+        if (sourceSha) catalogURL.searchParams.set("source_sha", sourceSha);
+        const catalog = await loadCatalog(
+          (_input, init) => fetch(catalogURL, init),
+          controller.signal,
+        );
         if (!active || currentAttempt !== attempt) return;
         if (sourceSha && catalog.source_sha !== sourceSha) {
           session = createPlannerSession(undefined, { sourceSha });

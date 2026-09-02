@@ -157,7 +157,7 @@ func (r liteBoundRenderer) RenderUnit(ctx context.Context, unit RenderUnit) ([]U
 }
 
 func renderBasementCoreLiteOpenTofu(domains ...string) []byte {
-	domain := "home.test"
+	domain := basementDefaultDomain
 	if len(domains) == 1 {
 		domain = domains[0]
 	}

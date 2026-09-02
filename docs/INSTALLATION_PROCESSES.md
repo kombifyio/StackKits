@@ -456,7 +456,7 @@ Important environment variables (each pre-seeds one decision):
 | --- | --- |
 | `STACKKIT_INSTALL_MODE` | `auto`, `guided`, or `expert`; non-TTY always `auto`. |
 | `HOMELAB_DIR` | Workspace; defaults to `$HOME/my-homelab`. |
-| `DOMAIN` | Own domain; default stays the kit's CUE default (`home.test`). |
+| `DOMAIN` | Own domain; the standalone installer explicitly selects `home.localhost` for target-local browser access. Other devices require a configured LAN domain and DNS. Native CLI authoring retains `home.test` as network intent (Golden Rules §1.11). |
 | `STACKKIT_NAME` | Deployment contract ID; default derives from the workspace name. |
 | `STACKKIT_ADMIN_EMAIL` | Admin/owner email (`KOMBIFY_USER_EMAIL` fallback). |
 | `STACKKIT_BOOTSTRAP_OWNER` | `true` preconfigures the PocketID owner account. |
@@ -506,7 +506,7 @@ stackkit init basement-kit --owner-source=local \
 stackkit validate
 stackkit generate
 stackkit plan
-stackkit apply          # installs Docker on demand; needs docker access
+stackkit apply          # requires a prepared host with Docker access
 stackkit verify --http --json
 ```
 
