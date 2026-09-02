@@ -107,7 +107,7 @@ if [ -z "$INSTALL_MODE" ]; then
   fi
 fi
 if [ "$INSTALL_MODE" != "auto" ] && ! can_prompt; then
-  die "STACKKIT_INSTALL_MODE=$INSTALL_MODE needs an interactive terminal. Without one, run the auto mode or drive the CLI directly: stackkit init cloud-kit --non-interactive --owner-source=local --domain <domain> && stackkit generate && stackkit apply --auto-approve"
+  die "STACKKIT_INSTALL_MODE=$INSTALL_MODE needs an interactive terminal. Without one, run the auto mode or drive the CLI directly: stackkit init cloud-kit --api-version stackkit/v2alpha1 --compute-tier standard --non-interactive --owner-source=local --domain <domain> && stackkit generate && stackkit apply --auto-approve"
 fi
 info "Install mode: $INSTALL_MODE"
 
@@ -289,7 +289,9 @@ if [ "$RESUME_EXISTING" = "1" ]; then
   stackkit validate
   ok "  existing workspace validated in $HOMELAB_DIR"
 else
-  set -- init cloud-kit --non-interactive --owner-source=local --domain "$DOMAIN"
+  # This guided recipe retains its declared standard graph through the explicit
+  # v2alpha1 adapter. Native v2alpha2 requires the caller's per-module selections.
+  set -- init cloud-kit --api-version stackkit/v2alpha1 --compute-tier standard --non-interactive --owner-source=local --domain "$DOMAIN"
   if [ -n "$STACK_NAME" ]; then
     set -- "$@" --name "$STACK_NAME"
   fi

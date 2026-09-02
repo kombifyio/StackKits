@@ -5,6 +5,9 @@ export {
   REQUIRED_OPERATION_IDS,
   canonicalJson,
   catalogDigestPayload,
+  CATALOG_LOAD_TIMEOUT_MS,
+  CatalogFetchError,
+  type CatalogLoadOptions,
   loadCatalog,
   profileDigestPayload,
   sha256Hex,
@@ -30,13 +33,21 @@ export {
   stackkitsPrepareHandoff,
   TOOL_NAMES,
 } from "./tools.js";
-export { hasWebMcp, registerStackKitsWebMcp } from "./webmcp.js";
+export {
+  createWebMcpStatus,
+  hasWebMcp,
+  registerStackKitsWebMcp,
+  WEBMCP_REGISTRATION_TIMEOUT_MS,
+  webMcpStatusForCatalogError,
+} from "./webmcp.js";
 export { SCHEMA_VERSION } from "./types.js";
 export { TOOL_DATA_SCHEMAS_PUBLIC, TOOL_INPUT_SCHEMAS_PUBLIC } from "./schema.js";
 
 export type {
   ModelContextLike,
   ModelContextTool,
+  WebMcpStatus,
+  WebMcpStatusCode,
   WebMcpRegistration,
   WebMcpRegistrationOptions,
 } from "./webmcp.js";

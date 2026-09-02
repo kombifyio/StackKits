@@ -662,7 +662,8 @@ package foundation
 	enabled: bool | *true
 
 	mode:   *"portable-archive" | "provider-native-snapshot"
-	format: *"tar.zst.age" | "tar.gz.age" | "zip.age"
+	// One portable implementation: standard tar/gzip encrypted with age.
+	format: "tar.gz.age"
 
 	schedule: string | *"0 3 * * 0"
 

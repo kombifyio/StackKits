@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/appsetup"
 )
 
 const AgentDirRelPath = ".stackkit/agent"
@@ -41,13 +43,22 @@ func WriteProductMCPClients(root string, spec map[string]any, doc Document) erro
 			}
 		}
 		if surface.Ref == "smart-home" {
+			setup, supported := appsetup.DescribeNativeAction("home-assistant-owner-bootstrap", "standalone-compose")
+			if !supported {
+				return fmt.Errorf("Home Assistant owner setup metadata is unavailable")
+			}
 			owner := map[string]any{
-				"displayName": "Homelab",
-				"username":    "homelab",
-				"role":        "owner",
-				"bootstrap":   "home-assistant-onboarding",
-				"api":         "/api/onboarding/users",
-				"url":         productUIURL("home-assistant", domain),
+				"role":             "owner",
+				"credentialSource": "owner-supplied",
+				"url":              productUIURL("home-assistant", domain),
+				"nativeSetup": map[string]any{
+					"action":                  "home-assistant-owner-bootstrap",
+					"adapter":                 "standalone-compose",
+					"requiresAppliedWorkload": true,
+					"credentialsFile":         setup.CredentialsFile,
+					"credentialFields":        setup.CredentialFields,
+					"guideURL":                setup.GuideURL,
+				},
 			}
 			data, err := json.MarshalIndent(owner, "", "  ")
 			if err != nil {

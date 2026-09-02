@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -138,6 +139,126 @@ type SelectedPaaSWorkloadObservation struct {
 type SelectedPaaSWorkloadOperations interface {
 	ApplyWorkload(context.Context, SelectedPaaSWorkloadDeployment) (SelectedPaaSApplyReceipt, error)
 	ObserveWorkload(context.Context, SelectedPaaSWorkloadDeployment) (SelectedPaaSWorkloadObservation, error)
+}
+
+// SelectedPaaSWorkloadObservationValidator is an optional extension of an
+// operations owner. Existing operations implementations remain source
+// compatible while restore verification can require the selected owner's
+// semantic status-code and component validation.
+type SelectedPaaSWorkloadObservationValidator interface {
+	ValidateWorkloadObservation(SelectedPaaSWorkloadDeployment, SelectedPaaSWorkloadObservation) error
+}
+
+const (
+	jellyfinWorkloadModuleRef      = "stackkits-jellyfin-runtime"
+	homeAssistantWorkloadModuleRef = "stackkits-home-assistant-runtime"
+)
+
+// ValidateSelectedPaaSWorkloadObservation applies the product-owned semantic
+// observation contract after an operations owner has read the runtime. The
+// standalone Compose prober deliberately reports the observed HTTP status but
+// does not decide whether that status satisfies the selected application
+// contract; restore verification must use this boundary rather than trusting
+// the generic Status field.
+func ValidateSelectedPaaSWorkloadObservation(
+	deployment SelectedPaaSWorkloadDeployment,
+	observation SelectedPaaSWorkloadObservation,
+) error {
+	switch deployment.ModuleRef {
+	case immichWorkloadModuleRef, immichLiteWorkloadModuleRef:
+		descriptor, err := architecturev2renderer.ParseImmichWorkloadBundle(deployment.Bundle)
+		if err != nil {
+			return fmt.Errorf("validate Immich workload observation contract: %w", err)
+		}
+		return validateImmichSelectedPaaSObservation(observation, deployment, descriptor)
+	case cloudreveModuleRef:
+		descriptor, err := architecturev2renderer.ParseCloudreveWorkloadBundle(deployment.Bundle)
+		if err != nil {
+			return fmt.Errorf("validate Cloudreve workload observation contract: %w", err)
+		}
+		return validateCloudreveObservation(observation, deployment, descriptor)
+	case vaultwardenModuleRef:
+		descriptor, err := architecturev2renderer.ParseVaultwardenWorkloadBundle(deployment.Bundle)
+		if err != nil {
+			return fmt.Errorf("validate Vaultwarden workload observation contract: %w", err)
+		}
+		return validateVaultwardenObservation(observation, deployment, descriptor)
+	case jellyfinWorkloadModuleRef:
+		if _, err := architecturev2renderer.ParseJellyfinWorkloadBundle(deployment.Bundle); err != nil {
+			return fmt.Errorf("validate Jellyfin workload observation contract: %w", err)
+		}
+		bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(deployment.Bundle)
+		if err != nil {
+			return fmt.Errorf("validate Jellyfin workload observation envelope: %w", err)
+		}
+		return validateStandaloneApplicationObservation(observation, deployment, bundle, 200)
+	case homeAssistantWorkloadModuleRef:
+		if _, err := architecturev2renderer.ParseHomeAssistantWorkloadBundle(deployment.Bundle); err != nil {
+			return fmt.Errorf("validate Home Assistant workload observation contract: %w", err)
+		}
+		bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(deployment.Bundle)
+		if err != nil {
+			return fmt.Errorf("validate Home Assistant workload observation envelope: %w", err)
+		}
+		return validateStandaloneApplicationObservation(observation, deployment, bundle, 200)
+	default:
+		return errors.New("selected-PaaS workload has no product-owned observation validator")
+	}
+}
+
+func validateStandaloneApplicationObservation(
+	observation SelectedPaaSWorkloadObservation,
+	deployment SelectedPaaSWorkloadDeployment,
+	bundle architecturev2renderer.ApplicationDeliveryBundleDescriptor,
+	expectedHTTPStatus int,
+) error {
+	if deployment.WorkloadRef != bundle.WorkloadRef || deployment.ModuleRef != bundle.ModuleRef ||
+		deployment.Release != bundle.Release || deployment.SiteRef != bundle.SiteRef ||
+		deployment.NodeRef != bundle.NodeRef || deployment.InstanceRef != bundle.InstanceRef ||
+		deployment.Route != bundle.Route || observation.WorkloadRef != deployment.WorkloadRef ||
+		observation.Release != deployment.Release || observation.InstanceRef != deployment.InstanceRef ||
+		observation.ArtifactDigest != deployment.ArtifactDigest || observation.Status != "running" ||
+		!exactApplicationDeliveryRouteObservation(observation.Route, bundle.Route) ||
+		observation.Route.Status != "healthy" || observation.Route.HTTPStatus != expectedHTTPStatus ||
+		len(observation.Components) != len(bundle.Components) {
+		return errors.New("selected-PaaS observation does not prove the exact running workload and route")
+	}
+	entry, found := standaloneApplicationComponent(bundle.Components, bundle.EntryComponent)
+	if !found || entry.HealthKind != "http" || entry.HealthPath == "" || observation.Route.Method != "GET" || observation.Route.Path != entry.HealthPath {
+		return errors.New("selected-PaaS observation does not prove the exact workload health route")
+	}
+	seen := make(map[string]struct{}, len(observation.Components))
+	for _, actual := range observation.Components {
+		if _, duplicate := seen[actual.ID]; duplicate {
+			return errors.New("selected-PaaS observation repeats a workload component")
+		}
+		seen[actual.ID] = struct{}{}
+		expected, found := standaloneApplicationComponent(bundle.Components, actual.ID)
+		if !found || actual.ImageDigest != expected.ImageDigest {
+			return errors.New("selected-PaaS observation does not prove the exact workload component image")
+		}
+		wantStatus, wantHealth := "running", "healthy"
+		if expected.Lifecycle == "one-shot" {
+			wantStatus, wantHealth = "completed", "completed"
+		}
+		if actual.Status != wantStatus || actual.Health != wantHealth {
+			return errors.New("selected-PaaS observation does not prove the exact workload component state")
+		}
+	}
+	return nil
+}
+
+func standaloneApplicationComponent(
+	components []architecturev2renderer.ApplicationDeliveryComponentDescriptor,
+	id string,
+) (architecturev2renderer.ApplicationDeliveryComponentDescriptor, bool) {
+	index := slices.IndexFunc(components, func(component architecturev2renderer.ApplicationDeliveryComponentDescriptor) bool {
+		return component.ID == id
+	})
+	if index < 0 {
+		return architecturev2renderer.ApplicationDeliveryComponentDescriptor{}, false
+	}
+	return components[index], true
 }
 
 type selectedPaaSValidatedRequest struct {

@@ -2833,7 +2833,8 @@ func validateRenderUnitPlanInputs(unit rawRenderUnit, unitPath string) ([]string
 }
 
 var allowedRendererPlanInputRefs = map[string]struct{}{
-	"stackId": {}, "kit": {}, "sites": {}, "controlPlane": {},
+	"backupPolicy": {},
+	"stackId":      {}, "kit": {}, "sites": {}, "controlPlane": {},
 	"bridge": {}, "bridgePublications": {}, "bridgeOriginMTLS": {}, "identity": {}, "data": {}, "failurePolicy": {},
 	"federationPolicy": {}, "federationLinkPolicy": {}, "federationControlActions": {}, "federationBackupPolicy": {}, "federationObservability": {},
 	"identityTrust": {}, "localReachability": {}, "homeLANDiscovery": {},

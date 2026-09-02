@@ -35,6 +35,7 @@ var (
 	prepareAutoFix        bool
 	prepareForce          bool
 	prepareNonInteractive bool
+	prepareJSON           bool
 )
 
 const prePullImagesDisabledFalseValue = "false"
@@ -43,41 +44,59 @@ var prepareCmd = &cobra.Command{
 	Use:     "prepare",
 	Aliases: []string{"prep"},
 	Short:   "Prepare a system for StackKit deployment",
-	Long: `Prepare a bare system for StackKit deployment AND validate/adjust the spec file.
+	Long: `Prepare a system for StackKit deployment and inspect the selected StackSpec path.
+
+On the native Architecture v2 line this command performs read-only local host
+validation (Docker, Compose, kernel, resources, storage, and required ports).
+It never installs or configures host packages and never uses a hosted account.
+The exact-v0.6 compatibility adapter retains its historical preparation flow.
 
 This command:
-  1. Checks/installs Docker
-  2. Checks StackKit-packaged OpenTofu
-  3. Validates the spec file against CUE schemas
-  4. Checks hardware requirements
-  5. Applies auto-fixes for common issues
+  1. Selects the versioned StackSpec execution path
+  2. Checks host prerequisites on native Architecture v2
+  3. Retains historical target preparation through the exact-v0.6 compatibility adapter
 
 Examples:
-  stackkit prepare                      Prepare local system
-  stackkit prepare --spec ./spec.yaml   Prepare and validate spec
-  stackkit prepare --host 192.168.1.100 Prepare remote system
+  stackkit prepare                      Inspect local native-v2 host prerequisites
+  stackkit prepare --spec ./spec.yaml   Inspect prerequisites for this StackSpec
+  stackkit prepare --host 192.168.1.100 Prepare an exact-v0.6 remote target
   stackkit prepare --dry-run            Show what would be done`,
 	RunE: runPrepare,
 }
 
 func init() {
-	prepareCmd.Flags().StringVar(&prepareHost, "host", "localhost", "Target host IP/hostname")
-	prepareCmd.Flags().StringVar(&prepareUser, "user", "", "SSH username")
-	prepareCmd.Flags().StringVar(&prepareKey, "key", "", "SSH private key path")
-	prepareCmd.Flags().IntVar(&preparePort, "port", 22, "SSH port for remote targets")
-	prepareCmd.Flags().BoolVar(&prepareDryRun, "dry-run", false, "Show what would be done")
-	prepareCmd.Flags().BoolVar(&prepareSkipDocker, "skip-docker", false, "Skip Docker installation check")
-	prepareCmd.Flags().BoolVar(&prepareSkipTofu, "skip-tofu", false, "Skip packaged OpenTofu check")
-	prepareCmd.Flags().BoolVar(&prepareAutoFix, "auto-fix", true, "Auto-correct fixable issues")
-	prepareCmd.Flags().BoolVar(&prepareForce, "force", false, "Continue even with insufficient disk space")
-	prepareCmd.Flags().BoolVar(&prepareNonInteractive, "non-interactive", false, "Fail instead of prompting when prepare needs operator input")
+	prepareCmd.Flags().StringVar(&prepareHost, "host", "localhost", "Target host IP/hostname (exact-v0.6 only)")
+	prepareCmd.Flags().StringVar(&prepareUser, "user", "", "SSH username (exact-v0.6 only)")
+	prepareCmd.Flags().StringVar(&prepareKey, "key", "", "SSH private key path (exact-v0.6 only)")
+	prepareCmd.Flags().IntVar(&preparePort, "port", 22, "SSH port for remote targets (exact-v0.6 only)")
+	prepareCmd.Flags().BoolVar(&prepareDryRun, "dry-run", false, "Show what would be done (exact-v0.6 only)")
+	prepareCmd.Flags().BoolVar(&prepareSkipDocker, "skip-docker", false, "Skip Docker installation check (exact-v0.6 only)")
+	prepareCmd.Flags().BoolVar(&prepareSkipTofu, "skip-tofu", false, "Skip packaged OpenTofu check (exact-v0.6 only)")
+	prepareCmd.Flags().BoolVar(&prepareAutoFix, "auto-fix", true, "Auto-correct fixable issues (exact-v0.6 only)")
+	prepareCmd.Flags().BoolVar(&prepareForce, "force", false, "Continue even with insufficient disk space (exact-v0.6 only)")
+	prepareCmd.Flags().BoolVar(&prepareNonInteractive, "non-interactive", false, "Fail instead of prompting when prepare needs operator input (exact-v0.6 only)")
+	prepareCmd.Flags().BoolVar(&prepareJSON, "json", false, "Emit the native-v2 host preflight report as stackkit.command-result/v1 JSON")
 }
 
 func runPrepare(cmd *cobra.Command, args []string) (retErr error) {
-	ctx := context.Background()
+	ctx := commandContext(cmd)
 	wd := getWorkDir()
 	if err := requireNativeV2StackSpec(wd, specFile, architectureV2Prepare); err != nil {
 		return err
+	}
+	if architectureV2RejectsV1Execution(version) {
+		_, sourceVersion, handled, err := classifyArchitectureV2ExecutionSpec(wd, specFile)
+		if err != nil {
+			return err
+		}
+		if handled && sourceVersion.IsV2() {
+			return runNativeV2Prepare(cmd, ctx, wd)
+		}
+	}
+	if prepareJSON {
+		return machineAwareCommandError(cmd, fmt.Errorf("prepare --json requires a canonical StackSpec v2"),
+			"Use --json with native-v2 prepare, or remove it for the exact-v0.6 compatibility adapter.",
+		)
 	}
 	isRemote := prepareHost != "localhost" && prepareHost != ""
 	rolloutEvent("prepare", "started", "prepare started", map[string]string{

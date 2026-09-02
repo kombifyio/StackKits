@@ -1,11 +1,13 @@
 package commands
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -20,6 +22,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
 	"github.com/kombifyio/stackkits/internal/runtimeobservation"
 	"github.com/kombifyio/stackkits/internal/servicecontrol"
+	stackverify "github.com/kombifyio/stackkits/internal/verify"
 )
 
 type architectureV2RuntimeObservationInput struct {
@@ -39,6 +42,9 @@ type architectureV2RuntimeObservationInput struct {
 	AccessEvidence     bool
 	ProcessChannelRefs map[string]bool
 	CloudVerify        *runtimeexecutorlocal.CloudCoreVerifyObservation
+	Context            context.Context
+	HTTPProbe          bool
+	HTTPClient         *http.Client
 }
 
 type architectureV2ApplyCommandResult struct {
@@ -56,12 +62,14 @@ type architectureV2ApplyCommandResult struct {
 type runtimeObservationPlanProjection struct {
 	StackID string `json:"stackId"`
 	Modules []struct {
+		ID          string `json:"id"`
 		RenderUnits []struct {
 			ServiceEndpoints []struct {
 				ServiceRef string `json:"serviceRef"`
 				HealthRef  string `json:"healthRef"`
 			} `json:"serviceEndpoints"`
 			Instances []struct {
+				ID      string `json:"id"`
 				SiteRef string `json:"siteRef"`
 				NodeRef string `json:"nodeRef"`
 			} `json:"instances"`
@@ -74,7 +82,7 @@ type runtimeObservationScope struct {
 }
 
 type runtimeObservationServicePlacement struct {
-	ref, healthRef, site, node string
+	ref, healthRef, instanceRef, site, node string
 }
 
 func buildArchitectureV2RuntimeObservations(input architectureV2RuntimeObservationInput) ([]runtimeobservation.Observation, error) {
@@ -191,10 +199,19 @@ func buildArchitectureV2RuntimeObservations(input architectureV2RuntimeObservati
 			if access, ok := accessByRef[placement.ref]; ok {
 				service.URL = access.URL
 			}
-			if healthStatus[placement.healthRef] == "healthy" {
-				service.Status, service.Health = runtimeobservation.StatusRunning, runtimeobservation.HealthHealthy
-			} else if healthStatus[placement.healthRef] != "" {
-				service.Status, service.Health = runtimeobservation.StatusError, runtimeobservation.HealthUnhealthy
+			// Health proves reachability of the probe target, not that the
+			// workload runtime is running. Keep those axes independent and
+			// derive service status only from the bound runtime evidence.
+			service.Status = runtimeObservationServiceStatus(observation.Runtime, placement.instanceRef)
+			switch healthStatus[placement.healthRef] {
+			case "healthy":
+				service.Health = runtimeobservation.HealthHealthy
+			case "unhealthy":
+				service.Health = runtimeobservation.HealthUnhealthy
+			case "starting":
+				service.Health = runtimeobservation.HealthStarting
+			case "not-required":
+				service.Health = runtimeobservation.HealthNotRequired
 			}
 			if live, ok := cloudServices[placement.ref]; ok {
 				service.Status = runtimeobservation.ServiceStatus(live.Status)
@@ -206,6 +223,11 @@ func buildArchitectureV2RuntimeObservations(input architectureV2RuntimeObservati
 			for _, access := range accessByRef {
 				observation.Services = append(observation.Services, runtimeobservation.Service{Ref: access.Key, URL: access.URL, Status: runtimeobservation.StatusUnknown, Health: runtimeobservation.HealthUnknown})
 			}
+		}
+	}
+	if input.HTTPProbe {
+		if err := appendArchitectureV2HTTPProbes(input, projection.StackID, requirements, hostChannel, groups); err != nil {
+			return nil, err
 		}
 	}
 
@@ -242,6 +264,225 @@ func buildArchitectureV2RuntimeObservations(input architectureV2RuntimeObservati
 		result = append(result, observation)
 	}
 	return result, nil
+}
+
+func appendArchitectureV2HTTPProbes(
+	input architectureV2RuntimeObservationInput,
+	stackID string,
+	requirements generationartifact.ApplyRequirements,
+	hostChannel map[string]string,
+	groups map[runtimeObservationScope]*runtimeobservation.Observation,
+) error {
+	access, err := architectureV2HTTPProbeAccess(input, stackID, requirements)
+	if err != nil {
+		return err
+	}
+	ctx := input.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	probes, err := stackverify.ProbeHTTPRoutes(ctx, access, input.HTTPClient)
+	if err != nil {
+		return fmt.Errorf("HTTP route probe requested: %w", err)
+	}
+	for _, probe := range probes {
+		if probe.Vantage != runtimeobservation.VantageVerifierHost {
+			return fmt.Errorf("HTTP route probe %q returned an unsupported vantage %q", probe.Key, probe.Vantage)
+		}
+		evidence, err := runtimeHTTPProbeEvidence(probe)
+		if err != nil {
+			return err
+		}
+		scopes := architectureV2HTTPProbeScopes(probe, requirements, groups)
+		if len(scopes) == 0 {
+			return fmt.Errorf("HTTP route probe %q has no exact plan workload or runtime scope", probe.Key)
+		}
+		for _, scope := range scopes {
+			observation := groups[scope]
+			if observation == nil {
+				continue
+			}
+			observation.HTTPProbes = append(observation.HTTPProbes, evidence)
+		}
+	}
+	return nil
+}
+
+func architectureV2HTTPProbeFailed(observations []runtimeobservation.Observation) bool {
+	for _, observation := range observations {
+		for _, probe := range observation.HTTPProbes {
+			if probe.Status == runtimeobservation.HTTPProbeUnreachable || !probe.Reached {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func architectureV2HTTPProbeAccess(
+	input architectureV2RuntimeObservationInput,
+	stackID string,
+	requirements generationartifact.ApplyRequirements,
+) (*stackverify.AccessSummary, error) {
+	access := input.Access
+	if access == nil {
+		return nil, errors.New("HTTP route probe requested but the verified Access manifest is unavailable; run stackkit generate/apply first")
+	}
+	if access.SchemaVersion != "stackkit.access-manifest/v2" && access.SchemaVersion != architectureV2AccessSchemaVersion {
+		return nil, fmt.Errorf("HTTP route probe requires a verified Access manifest, got schema %q", access.SchemaVersion)
+	}
+	if access.StackID != stackID || access.PlanHash != input.Plan.Binding().PlanHash || access.ApplyResultHash != input.Apply.ResultHash {
+		return nil, errors.New("HTTP route probe Access manifest is not bound to the verified Plan and Apply result")
+	}
+	workloadsByService := map[string][]generationartifact.ApplyWorkloadRequirement{}
+	for _, workload := range requirements.Workloads {
+		key := architectureV2AccessServiceKey(workload.ServiceRef)
+		if key != "" {
+			workloadsByService[key] = append(workloadsByService[key], workload)
+		}
+	}
+	runtimeOwnerByService := map[string]string{}
+	for _, runtime := range access.RuntimeServices {
+		serviceKey := architectureV2AccessServiceKey(runtime.ServiceKey)
+		ownerKey := architectureV2AccessServiceKey(runtime.ApplicationKey)
+		if serviceKey == "" || ownerKey == "" {
+			continue
+		}
+		if previous, ok := runtimeOwnerByService[serviceKey]; ok && previous != ownerKey {
+			return nil, fmt.Errorf("verified Access runtime service %q maps to multiple Plan workloads", serviceKey)
+		}
+		runtimeOwnerByService[serviceKey] = ownerKey
+	}
+	result := &stackverify.AccessSummary{Services: make([]stackverify.AccessService, 0, len(access.Services))}
+	for _, service := range access.Services {
+		key := strings.TrimSpace(service.Key)
+		url := strings.TrimSpace(service.URL)
+		if key == "" || url == "" {
+			return nil, errors.New("verified Access manifest contains a route without an exact service key or URL")
+		}
+		serviceKey := architectureV2AccessServiceKey(key)
+		workloadKey := serviceKey
+		if ownerKey := runtimeOwnerByService[serviceKey]; ownerKey != "" {
+			workloadKey = ownerKey
+		}
+		candidates := workloadsByService[workloadKey]
+		if len(candidates) == 0 {
+			return nil, fmt.Errorf("verified Access manifest route %q has no exact Plan workload binding", key)
+		}
+		if len(candidates) > 1 {
+			return nil, fmt.Errorf("verified Access manifest route %q maps to multiple Plan workloads", key)
+		}
+		serviceRef := key
+		workloadRef := ""
+		if len(candidates) == 1 {
+			serviceRef = candidates[0].ServiceRef
+			workloadRef = candidates[0].ID
+		}
+		routeRef := strings.TrimSpace(service.RouteRef)
+		if routeRef == "" {
+			// Home routes do not carry a network route object; their catalog
+			// slug is still part of the verified Access manifest and is the
+			// stable route identity available to this verifier.
+			routeRef = strings.TrimSpace(service.RouteSlug)
+			if routeRef != "" {
+				routeRef = "route:" + routeRef
+			}
+		}
+		if routeRef == "" {
+			return nil, fmt.Errorf("verified Access manifest route %q has no route identity", key)
+		}
+		result.Services = append(result.Services, stackverify.AccessService{
+			Key: key, URL: url, ServiceRef: serviceRef, RouteRef: routeRef, WorkloadRef: workloadRef,
+		})
+	}
+	return result, nil
+}
+
+func architectureV2HTTPProbeScopes(
+	probe stackverify.HTTPRouteProbe,
+	requirements generationartifact.ApplyRequirements,
+	groups map[runtimeObservationScope]*runtimeobservation.Observation,
+) []runtimeObservationScope {
+	seen := map[runtimeObservationScope]bool{}
+	result := []runtimeObservationScope{}
+	if workloadRef := strings.TrimSpace(probe.WorkloadRef); workloadRef != "" {
+		for _, workload := range requirements.Workloads {
+			if workload.ID != workloadRef {
+				continue
+			}
+			if architectureV2AccessServiceKey(workload.ServiceRef) != architectureV2AccessServiceKey(probe.ServiceRef) {
+				return nil
+			}
+			for candidate := range groups {
+				if scopeMatches(workload.SiteRefs, workload.NodeRefs, candidate) {
+					seen[candidate] = true
+					result = append(result, candidate)
+				}
+			}
+			break
+		}
+		return sortedRuntimeObservationScopes(result)
+	}
+	serviceRef := architectureV2AccessServiceKey(probe.ServiceRef)
+	if serviceRef == "" {
+		serviceRef = architectureV2AccessServiceKey(probe.Key)
+	}
+	if serviceRef == "" {
+		return nil
+	}
+	matchedWorkloads := 0
+	for _, workload := range requirements.Workloads {
+		if architectureV2AccessServiceKey(workload.ServiceRef) != serviceRef {
+			continue
+		}
+		matchedWorkloads++
+		for candidate := range groups {
+			if scopeMatches(workload.SiteRefs, workload.NodeRefs, candidate) && !seen[candidate] {
+				seen[candidate] = true
+				result = append(result, candidate)
+			}
+		}
+	}
+	if matchedWorkloads != 1 {
+		return nil
+	}
+	return sortedRuntimeObservationScopes(result)
+}
+
+func sortedRuntimeObservationScopes(scopes []runtimeObservationScope) []runtimeObservationScope {
+	sort.Slice(scopes, func(i, j int) bool {
+		if scopes[i].site != scopes[j].site {
+			return scopes[i].site < scopes[j].site
+		}
+		if scopes[i].node != scopes[j].node {
+			return scopes[i].node < scopes[j].node
+		}
+		return scopes[i].channel < scopes[j].channel
+	})
+	return scopes
+}
+
+func runtimeHTTPProbeEvidence(probe stackverify.HTTPRouteProbe) (runtimeobservation.HTTPProbeEvidence, error) {
+	raw, err := json.Marshal(probe)
+	if err != nil {
+		return runtimeobservation.HTTPProbeEvidence{}, fmt.Errorf("encode HTTP route probe evidence: %w", err)
+	}
+	sum := sha256.Sum256(raw)
+	digest := "sha256:" + hex.EncodeToString(sum[:])
+	status := runtimeobservation.HTTPProbeUnreachable
+	failureClass := probe.FailureClass
+	if probe.Reached {
+		status = runtimeobservation.HTTPProbeReachable
+	} else if failureClass == "" {
+		failureClass = "http-status"
+	}
+	return runtimeobservation.HTTPProbeEvidence{
+		Vantage: probe.Vantage, ObservedAt: probe.ObservedAt.UTC(), WorkloadRef: probe.WorkloadRef,
+		ServiceRef: probe.ServiceRef, RouteRef: probe.RouteRef, URL: probe.URL, Method: probe.Method,
+		Status: status, Reached: probe.Reached, StatusCode: probe.StatusCode,
+		FailureClass:   failureClass,
+		ObservationRef: "runtime-observation://http-probe/" + strings.TrimPrefix(digest, "sha256:"), ObservationDigest: digest,
+	}, nil
 }
 
 func runtimeObservationCloudVerification(observation *runtimeexecutorlocal.CloudCoreVerifyObservation) (string, map[string]string, error) {
@@ -365,6 +606,7 @@ func runtimeObservationServicePlacements(projection runtimeObservationPlanProjec
 			instances := unit.Instances
 			if len(instances) == 0 && input.FallbackSiteRef != "" && input.FallbackNodeRef != "" {
 				instances = append(instances, struct {
+					ID      string `json:"id"`
 					SiteRef string `json:"siteRef"`
 					NodeRef string `json:"nodeRef"`
 				}{SiteRef: input.FallbackSiteRef, NodeRef: input.FallbackNodeRef})
@@ -375,12 +617,53 @@ func runtimeObservationServicePlacements(projection runtimeObservationPlanProjec
 					continue
 				}
 				for _, instance := range instances {
-					result = append(result, runtimeObservationServicePlacement{ref: ref, healthRef: endpoint.HealthRef, site: instance.SiteRef, node: instance.NodeRef})
+					result = append(result, runtimeObservationServicePlacement{ref: ref, healthRef: endpoint.HealthRef, instanceRef: instance.ID, site: instance.SiteRef, node: instance.NodeRef})
 				}
 			}
 		}
 	}
 	return result
+}
+
+// runtimeObservationServiceStatus derives process state from runtime evidence
+// for the exact rendered instance. A health result is intentionally excluded:
+// a reachable probe can coexist with a stale or independently managed runtime.
+func runtimeObservationServiceStatus(evidence []runtimeobservation.RuntimeEvidence, instanceRef string) runtimeobservation.ServiceStatus {
+	if strings.TrimSpace(instanceRef) == "" {
+		return runtimeobservation.StatusUnknown
+	}
+	status := runtimeobservation.StatusUnknown
+	for _, item := range evidence {
+		if item.InstanceRef != instanceRef {
+			continue
+		}
+		candidate := runtimeObservationStatus(item.Status)
+		if candidate == runtimeobservation.StatusError {
+			return candidate
+		}
+		if candidate == runtimeobservation.StatusRunning || (candidate == runtimeobservation.StatusStarting && status == runtimeobservation.StatusUnknown) {
+			status = candidate
+		}
+		if candidate == runtimeobservation.StatusStopped && status == runtimeobservation.StatusUnknown {
+			status = candidate
+		}
+	}
+	return status
+}
+
+func runtimeObservationStatus(value string) runtimeobservation.ServiceStatus {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "running", "ready", "applied", "succeeded", "success", "healthy", "enforced":
+		return runtimeobservation.StatusRunning
+	case "starting", "pending", "queued", "in-progress":
+		return runtimeobservation.StatusStarting
+	case "stopped", "removed", "absent":
+		return runtimeobservation.StatusStopped
+	case "failed", "error", "unhealthy", "recovery-required":
+		return runtimeobservation.StatusError
+	default:
+		return runtimeobservation.StatusUnknown
+	}
 }
 
 func runtimeObservationRunID(now time.Time) string {

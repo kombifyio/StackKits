@@ -292,6 +292,41 @@ func runtimeRequirementsForProfile(moduleID string, contract, profile map[string
 				if err := constrainProfileRuntimeFacts(requirements, field, values, path); err != nil {
 					return nil, err
 				}
+			case "minAMD64MicroarchitectureLevel":
+				profileMinimum, err := intField(floor, path+".hostFloor", field)
+				if err != nil {
+					return nil, err
+				}
+				if _, exists := requirements[field]; exists {
+					existingMinimum, err := intField(requirements, "catalog.modules."+moduleID+".runtimeRequirements", field)
+					if err != nil {
+						return nil, err
+					}
+					if existingMinimum > profileMinimum {
+						profileMinimum = existingMinimum
+					}
+				}
+				requirements[field] = profileMinimum
+			case "storageFilesystem":
+				profileFilesystem, err := asObject(value, path+".hostFloor."+field)
+				if err != nil {
+					return nil, err
+				}
+				if existingFilesystem, declared, err := optionalObjectField(requirements, "catalog.modules."+moduleID+".runtimeRequirements", field); err != nil {
+					return nil, err
+				} else if declared {
+					merged, err := mergeStorageFilesystemRequirements(existingFilesystem, profileFilesystem, path+".hostFloor."+field)
+					if err != nil {
+						return nil, err
+					}
+					requirements[field] = merged
+				} else {
+					cloned, err := cloneObject(profileFilesystem, true)
+					if err != nil {
+						return nil, err
+					}
+					requirements[field] = cloned
+				}
 			default:
 				// A profile owns its capacity floor, but cannot erase the
 				// module's architecture, virtualization or attestation rules.
@@ -320,6 +355,87 @@ func runtimeRequirementsForProfile(moduleID string, contract, profile map[string
 		return nil, nil
 	}
 	return requirements, nil
+}
+
+// mergeStorageFilesystemRequirements combines two requirements for the same
+// resolved storage target. Identity fields must agree, allowed filesystem
+// types are intersected, and ownership is monotone: an additional ownership
+// requirement can only strengthen the result.
+func mergeStorageFilesystemRequirements(existing, profile map[string]any, path string) (map[string]any, error) {
+	merged, err := cloneObject(existing, true)
+	if err != nil {
+		return nil, err
+	}
+	for _, field := range []string{"sourceRef", "requiredClass"} {
+		profileValue, err := stringField(profile, path, field)
+		if err != nil {
+			return nil, err
+		}
+		if _, declared := existing[field]; declared {
+			existingValue, err := stringField(existing, path, field)
+			if err != nil {
+				return nil, err
+			}
+			if existingValue != profileValue {
+				return nil, fail(ErrContractConflict, path+"."+field, "profile and module filesystem requirements disagree")
+			}
+			continue
+		}
+		merged[field] = profileValue
+	}
+
+	_, profileTypesDeclared := profile["allowedFilesystemTypes"]
+	_, existingTypesDeclared := existing["allowedFilesystemTypes"]
+	if profileTypesDeclared || existingTypesDeclared {
+		var profileValues, existingValues []string
+		if profileTypesDeclared {
+			profileValues, err = stringListField(profile, path, "allowedFilesystemTypes", true)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if existingTypesDeclared {
+			existingValues, err = stringListField(existing, path, "allowedFilesystemTypes", true)
+			if err != nil {
+				return nil, err
+			}
+		}
+		var values []string
+		switch {
+		case profileTypesDeclared && existingTypesDeclared:
+			values = intersectStrings(existingValues, profileValues)
+		case profileTypesDeclared:
+			values = sortStringsUnique(profileValues)
+		default:
+			values = sortStringsUnique(existingValues)
+		}
+		if len(values) == 0 {
+			return nil, fail(ErrContractConflict, path+".allowedFilesystemTypes", "profile and module filesystem requirements have no common type")
+		}
+		merged["allowedFilesystemTypes"] = stringSliceAny(values)
+	}
+
+	_, profileOwnershipDeclared := profile["requireOwnership"]
+	_, existingOwnershipDeclared := existing["requireOwnership"]
+	if profileOwnershipDeclared || existingOwnershipDeclared {
+		profileOwnership, err := boolFieldDefault(profile, path, "requireOwnership", false)
+		if err != nil {
+			return nil, err
+		}
+		existingOwnership, err := boolFieldDefault(existing, path, "requireOwnership", false)
+		if err != nil {
+			return nil, err
+		}
+		merged["requireOwnership"] = profileOwnership || existingOwnership
+	}
+	if requiredClass, err := stringField(merged, path, "requiredClass"); err == nil && requiredClass == "local-posix" {
+		// local-posix is defined as an ownership-preserving persistent class;
+		// do not let an incomplete older requirement weaken that invariant.
+		merged["requireOwnership"] = true
+	} else if err != nil {
+		return nil, err
+	}
+	return merged, nil
 }
 
 func constrainProfileRuntimeFacts(requirements map[string]any, field string, values []string, path string) error {
@@ -692,15 +808,15 @@ func applyModuleResourceAdmission(modules, demands []any, nodes []nodeView) erro
 		if err != nil {
 			return err
 		}
-		if len(unverified) > 0 {
-			status = mergeRuntimeAdmissionStatus(status, "unverified")
-		}
 		refs, err := stringListField(demand, "resolvedPlan.resourceDemand", "moduleRefs", true)
 		if err != nil {
 			return err
 		}
 		for _, moduleRef := range refs {
 			moduleStatus[moduleRef] = mergeRuntimeAdmissionStatus(moduleStatus[moduleRef], status)
+		}
+		for _, moduleRef := range unverified {
+			moduleStatus[moduleRef] = mergeRuntimeAdmissionStatus(moduleStatus[moduleRef], "unverified")
 		}
 	}
 	for _, raw := range modules {

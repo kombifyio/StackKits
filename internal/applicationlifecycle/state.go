@@ -36,10 +36,11 @@ var (
 	contractIDPattern  = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
 	operationIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{7,127}$`)
 	digestPattern      = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	allowedStages      = map[string]struct{}{
+	requiredStages     = map[string]struct{}{
 		"install": {}, "manage": {}, "backup": {}, "upgrade": {},
 		"restore": {}, "drift": {}, "remove": {},
 	}
+	optionalStages = map[string]struct{}{"setup": {}}
 )
 
 type StageContract struct {
@@ -279,16 +280,39 @@ func decodeContract(object map[string]any, planHash string) (Contract, error) {
 		return Contract{}, errors.New("resolved application lifecycle body is invalid")
 	}
 	stages, ok := lifecycle["stages"].(map[string]any)
-	if !ok || len(stages) != len(allowedStages) {
-		return Contract{}, errors.New("resolved application lifecycle must contain the seven standard stages")
+	if !ok || len(stages) < len(requiredStages) || len(stages) > len(requiredStages)+len(optionalStages) {
+		return Contract{}, errors.New("resolved application lifecycle must contain the seven standard stages and at most the optional setup stage")
 	}
 	contract.Stages = make(map[string]StageContract, len(stages))
-	for name := range allowedStages {
+	for name := range stages {
+		if _, required := requiredStages[name]; required {
+			continue
+		}
+		if _, optional := optionalStages[name]; !optional {
+			return Contract{}, fmt.Errorf("resolved application lifecycle stage %q is unknown", name)
+		}
+	}
+	for name := range requiredStages {
 		rawStage, ok := stages[name].(map[string]any)
 		if !ok {
 			return Contract{}, fmt.Errorf("resolved application lifecycle stage %q is missing", name)
 		}
 		stage, err := decodeStage(name, rawStage)
+		if err != nil {
+			return Contract{}, err
+		}
+		contract.Stages[name] = stage
+	}
+	for name := range optionalStages {
+		rawStage, ok := stages[name]
+		if !ok {
+			continue
+		}
+		object, ok := rawStage.(map[string]any)
+		if !ok {
+			return Contract{}, fmt.Errorf("resolved application lifecycle stage %q is invalid", name)
+		}
+		stage, err := decodeStage(name, object)
 		if err != nil {
 			return Contract{}, err
 		}
@@ -539,7 +563,7 @@ func loadWithTransaction(transaction *confinedfs.Transaction, workloadRef string
 func validateContract(contract Contract) error {
 	if !contractIDPattern.MatchString(contract.WorkloadRef) || !contractIDPattern.MatchString(contract.PackageRef) ||
 		!digestPattern.MatchString(contract.PlanHash) || !digestPattern.MatchString(contract.ContractHash) ||
-		strings.TrimSpace(contract.Version) == "" || len(contract.Stages) != len(allowedStages) {
+		strings.TrimSpace(contract.Version) == "" || len(contract.Stages) < len(requiredStages) || len(contract.Stages) > len(requiredStages)+len(optionalStages) {
 		return errors.New("application lifecycle contract is incomplete")
 	}
 	switch contract.Delivery.Kind {
@@ -554,9 +578,20 @@ func validateContract(contract Contract) error {
 	default:
 		return errors.New("application lifecycle delivery contract is invalid")
 	}
-	for name := range allowedStages {
+	for name := range requiredStages {
 		if stage, ok := contract.Stages[name]; !ok || stage.Name != name ||
 			len(stage.Operations) == 0 || len(stage.Phases) == 0 {
+			return fmt.Errorf("application lifecycle contract stage %q is incomplete", name)
+		}
+	}
+	for name, stage := range contract.Stages {
+		if _, required := requiredStages[name]; required {
+			continue
+		}
+		if _, optional := optionalStages[name]; !optional {
+			return fmt.Errorf("application lifecycle contract stage %q is unknown", name)
+		}
+		if stage.Name != name || len(stage.Operations) == 0 || len(stage.Phases) == 0 {
 			return fmt.Errorf("application lifecycle contract stage %q is incomplete", name)
 		}
 	}
@@ -604,7 +639,7 @@ func validateTransition(from, to string) error {
 	case StatusFailed:
 		allowed = to == StatusRunning || to == StatusRecoveryRequired
 	case StatusRecoveryRequired:
-		allowed = to == StatusRecovered
+		allowed = to == StatusSucceeded || to == StatusRecovered
 	case StatusRecovered:
 		allowed = to == StatusRunning
 	}

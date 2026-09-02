@@ -100,7 +100,7 @@ func (s *Service) reconcileProductApplyWithClock(ctx context.Context, input Prod
 		return VerifiedApplyResult{}, resolveError(ErrApplyAuthorization, "Product Apply reconcile requires an exact UTC instant", nil)
 	}
 	validUntil, err := time.Parse(time.RFC3339Nano, capsule.ValidUntil)
-	if err != nil || !at.Before(validUntil) {
+	if err != nil || at.Before(capsule.Request.ExecutionAt) || !at.Before(validUntil) {
 		return VerifiedApplyResult{}, resolveError(ErrApplyAuthorization, "Product Apply recovery authority expired before execution", applyExecutorError(generationartifact.ErrEvidenceFreshness, "apply.reconcile.validUntil", "Product Apply recovery authority is expired", err))
 	}
 
@@ -118,15 +118,15 @@ func (s *Service) reconcileProductApplyWithClock(ctx context.Context, input Prod
 	var sharedResult runtimeexecutor.ExecutionResult
 	if productApplyRecoveryHasExternalBindings(capsule) {
 		continuation, continuationErr := s.newProductApplyFreshContinuation(
-			ctx, current.plan, manifest, receipt, capsule, input.RequestDigest, input.Versions.Runtime, at,
+			ctx, current.plan, manifest, receipt, capsule, input.RequestDigest, input.Versions.Runtime, at, clock,
 		)
 		if continuationErr != nil {
 			return VerifiedApplyResult{}, resolveError(ErrApplyAuthorization, "construct fresh Product Apply recovery continuation", continuationErr)
 		}
 		executionRequest = continuation.Request
-		sharedResult, err = s.productRuntimeOwners.executeProductApplyContinuation(ctx, continuation, at)
+		sharedResult, err = s.productRuntimeOwners.executeProductApplyContinuation(ctx, continuation, clock)
 	} else {
-		sharedResult, err = s.productRuntimeOwners.reconcileProductApply(ctx, input.RequestDigest, at)
+		sharedResult, err = s.productRuntimeOwners.reconcileProductApply(ctx, input.RequestDigest, clock)
 	}
 	if err != nil {
 		cause := applyExecutorError(generationartifact.ErrExecutorFailed, "apply.executor.reconcile", "Product Apply recovery execution failed", err)
@@ -193,6 +193,7 @@ func (s *Service) newProductApplyFreshContinuation(
 	recoveryRequestDigest string,
 	runtimeVersion string,
 	at time.Time,
+	clock func() time.Time,
 ) (productApplyContinuation, error) {
 	if nilProductApplyEvidenceCollector(s.productApplyEvidenceCollector) {
 		return productApplyContinuation{}, applyExecutorError(generationartifact.ErrEvidenceFreshness, "apply.reconcile.evidenceCollector", "external-binding recovery requires the service-owned Apply evidence collector", nil)
@@ -209,10 +210,17 @@ func (s *Service) newProductApplyFreshContinuation(
 	if err != nil {
 		return productApplyContinuation{}, fmt.Errorf("collect fresh Product Apply evidence: %w", err)
 	}
+	// Collection can perform remote I/O. Authorize at its completion, so time
+	// spent collecting evidence cannot extend the original recovery authority.
+	executionAt := clock()
+	recoveryValidUntil, err := time.Parse(time.RFC3339Nano, capsule.ValidUntil)
+	if err != nil || executionAt.IsZero() || executionAt.Location() != time.UTC || executionAt.Before(at) || !executionAt.Before(recoveryValidUntil) {
+		return productApplyContinuation{}, applyExecutorError(generationartifact.ErrEvidenceFreshness, "apply.reconcile.validUntil", "Product Apply recovery authority expired during evidence collection", err)
+	}
 	evidence, err := generationartifact.VerifyApplyEvidenceBundleAt(generationartifact.ApplyEvidenceVerificationInput{
 		Plan: plan, Manifest: manifest, GenerationReceipt: receipt, Executor: registry.entry.identity,
 		Bundle: evidenceBytes, TrustedProducers: registry.entry.trustedProducers,
-	}, at)
+	}, executionAt)
 	if err != nil {
 		return productApplyContinuation{}, fmt.Errorf("verify fresh Product Apply evidence: %w", err)
 	}

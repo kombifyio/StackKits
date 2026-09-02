@@ -19,12 +19,20 @@ type nativeV2BackupService interface {
 	Restore(context.Context, backuplifecycle.RestoreInput) (backuplifecycle.RestoreResult, error)
 }
 
-var newNativeV2BackupService = func(workspaceRoot string) (nativeV2BackupService, error) {
-	runtime, err := localbackupruntime.New(workspaceRoot)
+type nativeV2BackupAbandonService interface {
+	AbandonRestore(context.Context, backuplifecycle.RestoreAbandonInput) (backuplifecycle.RestoreAbandonment, error)
+}
+
+var newNativeV2BackupService = func(authority nativeV2BackupAuthority) (nativeV2BackupService, error) {
+	custody, err := nativeBackupApplicationCustody(authority)
+	if err != nil {
+		return nil, err
+	}
+	runtime, err := localbackupruntime.New(authority.WorkspaceRoot, authority.Policy, custody)
 	if err != nil {
 		return nil, fmt.Errorf("initialize native v2 backup runtime: %w", err)
 	}
-	service, err := backuplifecycle.NewCreator().Create(workspaceRoot, runtime)
+	service, err := backuplifecycle.NewCreator().Create(authority.WorkspaceRoot, runtime)
 	if err != nil {
 		return nil, fmt.Errorf("initialize native v2 backup lifecycle: %w", err)
 	}
@@ -37,7 +45,7 @@ func continueNativeV2BackupProduction(
 	authority nativeV2BackupAuthority,
 	request nativeV2BackupRequest,
 ) (any, error) {
-	service, err := newNativeV2BackupService(authority.WorkspaceRoot)
+	service, err := newNativeV2BackupService(authority)
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +96,21 @@ func continueNativeV2BackupProduction(
 			) (backuplifecycle.RestoreVerification, error) {
 				return verifyNativeV2BackupRestore(verifyContext, authority, verifyRequest)
 			},
+		})
+	case nativeV2BackupAbandon:
+		operationContext, cancel := nativeV2BackupOperationContext(ctx, backupQuickOperationTimeout)
+		defer cancel()
+		abandonService, ok := service.(nativeV2BackupAbandonService)
+		if !ok {
+			return nil, errors.New("native v2 backup service does not support restore abandonment")
+		}
+		return abandonService.AbandonRestore(operationContext, backuplifecycle.RestoreAbandonInput{
+			OwnerRef:       authority.OwnerRef,
+			AuthorityRef:   authority.AuthorityRef,
+			Lineage:        authority.Lineage,
+			PolicyArtifact: append([]byte(nil), authority.PolicyArtifact...),
+			OperationID:    request.OperationID,
+			OwnerApproved:  request.OwnerApproved,
 		})
 	default:
 		return nil, errors.New("native v2 backup operation is unsupported")

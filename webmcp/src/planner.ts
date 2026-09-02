@@ -1,6 +1,7 @@
 import {
   COMPUTE_PROFILE_ORDER,
   REQUIRED_OPERATION_IDS,
+  canonicalJson,
   validateCatalog,
   type CatalogValidation,
 } from "./catalog.js";
@@ -165,6 +166,9 @@ export class PlannerService {
         module_id: module.module_id,
         required: module.required,
         profiles: module.compute_profiles.map(compactProfile),
+        ...(module.compute_profiles.some((profile) => profile.host_requirements)
+          ? { host_requirements: groupHostRequirements(module.compute_profiles) }
+          : {}),
         storage_profiles: module.storage_profiles.map(compactAxisProfile),
         accelerator_profiles: module.accelerator_profiles.map(compactAxisProfile),
       })),
@@ -567,6 +571,18 @@ function capacityNotices(capacity: CapacityData, handoff: boolean): ReturnType<t
       axes.length > 1 ? `${message} Axes: ${axes.join(", ")}.` : message,
       axes.length === 1 ? axes[0] : undefined);
   });
+}
+
+function groupHostRequirements(profiles: ModuleComputeProfile[]): NonNullable<ModuleProfilesData["modules"][number]["host_requirements"]> {
+  const groups = new Map<string, NonNullable<ModuleProfilesData["modules"][number]["host_requirements"]>[number]>();
+  for (const profile of profiles) {
+    if (!profile.host_requirements) continue;
+    const key = canonicalJson(profile.host_requirements);
+    const group = groups.get(key);
+    if (group) group.profile_ids.push(profile.id);
+    else groups.set(key, { profile_ids: [profile.id], requirements: profile.host_requirements });
+  }
+  return [...groups.values()];
 }
 
 function compactProfile(profile: ModuleComputeProfile): ModuleProfilesData["modules"][number]["profiles"][number] {

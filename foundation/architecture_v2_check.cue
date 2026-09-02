@@ -88,7 +88,7 @@ _assertPhotosWorkloadContract: [
 	healthRef:          "immich-http"
 	runtimeKinds: ["container"]
 	runtimeDeliveries: ["application-adapter"]
-	setup: {mode: "manual", owner: "operator", actionRefs: []}
+	setup: {mode: "on-demand", owner: "module", actionRefs: ["immich-owner-bootstrap"]}
 	settings: {allowedRefs: [], requiredRefs: []}
 	secretInputs: {allowedRefs: ["database-password"], requiredRefs: ["database-password"]}
 }, {
@@ -105,7 +105,7 @@ _assertPhotosWorkloadContract: [
 	healthRef:          "immich-http"
 	runtimeKinds: ["container"]
 	runtimeDeliveries: ["application-adapter"]
-	setup: {mode: "manual", owner: "operator", actionRefs: []}
+	setup: {mode: "on-demand", owner: "module", actionRefs: ["immich-owner-bootstrap"]}
 	settings: {allowedRefs: [], requiredRefs: []}
 	secretInputs: {allowedRefs: ["database-password"], requiredRefs: ["database-password"]}
 }]

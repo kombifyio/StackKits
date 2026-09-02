@@ -69,6 +69,10 @@ Common evidence:
 
 - latest run ID and `.stackkit/runs/<runId>/` evidence;
 - `stackkit verify --http --json` output when HTTP routes are expected;
+- `stackkit status --http --json` when the five-axis application view should
+  include a fresh route probe from the machine running the CLI. This proves
+  only that verifier host; LAN, mobile, VPN and public clients need their own
+  explicitly scoped evidence;
 - relevant `stackkit logs` output;
 - final Hub URL for local Basement Kit: `http://base.home.localhost`;
 - confirmation that generated artifacts were not hand-edited.
@@ -416,13 +420,18 @@ verbs, whoever runs this entrypoint is carried to a running homelab):
 4. Downloads and runs the shared CLI installer from
    `https://install.stackkit.cc` (binaries, packaged OpenTofu, kit
    definitions — SUDO_USER-safe).
-5. `stackkit init basement-kit --non-interactive --owner-source=local`
+5. `stackkit init basement-kit --api-version stackkit/v2alpha1 --compute-tier standard --non-interactive --owner-source=local`
    with the collected `--domain`, `--name`, `--owner-email`,
    `--owner-username`, `--use-case`, `--platform` parameters, then
-   `stackkit validate`.
+   `stackkit validate`. Basement and Cloud guided installers explicitly retain
+   their CUE-declared standard graph through the v2alpha1 compatibility adapter.
+   They do not infer native module profiles or retry rejected v2alpha2 intent.
+   Direct native v2alpha2 authoring requires explicit alternatives and compute
+   profiles for every selected workload module; the Planner emits that handoff.
 6. Bootstraps the container runtime: installs Docker via get.docker.com
    when missing and activates the docker group for the current session on
-   non-root runs (`stackkit prepare` is external-host-only on native v2).
+   non-root runs. Native-v2 `stackkit prepare` checks these prerequisites
+   locally without installing packages; the guided installer owns bootstrap.
 7. Builds the local FROM-scratch `stackkit-server:local` image with the
    host CA bundle, falling back to the configured registry image when
    Docker or the binary is unavailable.
@@ -491,7 +500,9 @@ This path installs the toolchain first, then runs lifecycle commands explicitly.
 curl -sSL https://install.stackkit.cc | sh
 mkdir my-homelab
 cd my-homelab
-stackkit init basement-kit --owner-source=local
+stackkit init basement-kit --owner-source=local \
+  --use-case-alternative basement-core=standalone \
+  --module-compute-profile stackkits-basement-core-runtime=standard
 stackkit validate
 stackkit generate
 stackkit plan
@@ -499,8 +510,10 @@ stackkit apply          # installs Docker on demand; needs docker access
 stackkit verify --http --json
 ```
 
-`stackkit prepare` is external-host-only on the native v2 line (local
-host preparation is governed by admission/conformance contracts). For a
+`stackkit prepare` inspects local host prerequisites on the native v2 line;
+it does not install Docker or change host packages. Run it on the target
+through the owner-managed execution channel. Module-local capacity admission
+uses the attested Inventory and canonical ResolvedPlan. For a
 non-root user, ensure Docker group access before apply
 (`sudo usermod -aG docker $USER` + re-login) or let the guided installer
 handle the group activation for you.
@@ -557,7 +570,9 @@ curl -sSL https://base.stackkit.cc | sh
 curl -sSL https://install.stackkit.cc | sh
 stackkit agent install-plan --json
 stackkit agent self-check --json
-stackkit init basement-kit --owner-source=local --non-interactive
+stackkit init basement-kit --owner-source=local --non-interactive \
+  --use-case-alternative basement-core=standalone \
+  --module-compute-profile stackkits-basement-core-runtime=standard
 stackkit validate
 stackkit generate
 stackkit plan

@@ -11,13 +11,14 @@ This release contains the self-hosted CUE contract, the Basement renderer and
 local Apply owner for `kopia-agent`, native configure/status/run, a verified
 isolated staging restore, database-hook metadata, integrity policy, and the
 Restic migration contract. Fresh-host Day-2 release evidence, live restore
-cutover/boot proof, schedules, database quiesce execution, and restore drills
-remain separate gates and are not implied here.
+cutover/boot proof, database-specific consistency and restore drills
+remain separate evidence and are not implied here.
 
 The local surface is:
 
 - `init`, `configure`, `status`, `run`, `list`, `restore`, and `verify`
-- `emergency-export` for a Kopia-independent manifest and restore runbook
+- `emergency-export` and `emergency-restore` for encrypted portable data and
+  checksum-verified isolated recovery without Kopia
 - `migrate-from-restic` for the one-shot legacy migration
 
 `configure`, `status`, `run`, and the isolated `restore` are native v2.
@@ -64,6 +65,9 @@ stackkit backup restore sha256:<snapshot-anchor-id> \
   --owner-approve \
   --operation-id first-owner-restore \
   --json
+stackkit backup restore abandon first-owner-restore \
+  --owner-approve \
+  --json
 stackkit backup verify
 stackkit backup migrate-from-restic --dry-run
 ```
@@ -82,8 +86,14 @@ Stack, PocketID Owner binding, services, and probes still pass verification.
 The staging volume is canonically excluded from subsequent snapshots, and a
 persisted staged receipt prevents retries after post-verification failure from
 repeating the repository restore.
-This proves isolated recovery bytes without writing into live Docker volumes;
-it does not activate those bytes or prove that services boot from them.
+
+To close a pending or staged restore whose source is no longer available, use
+the exact operation ID with `--owner-approve`. This records signed terminal
+abandonment without invoking Docker or Kopia, deleting repository data, or
+touching live volumes. Any later restore must use a new operation ID.
+A successful staging restore proves isolated recovery bytes without writing
+into live Docker volumes; it does not activate those bytes or prove that services
+boot from them. An abandonment receipt proves only the terminal Owner decision.
 
 StackKits remains the standalone lifecycle authority. Techstack can provide an
 optional Orchestrator UI/RIL over the exact published binary and versioned
@@ -94,6 +104,41 @@ restore authorization.
 See [`docs/CLI.md`](../../docs/CLI.md#stackkit-backup) for flags and command
 details.
 
+## Local schedule
+
+The generated policy carries `backupPolicy.schedule`: daily, hourly or weekly
+UTC cadence with bounded jitter. On an observed active systemd host, enable the
+timer after configuring and checking the repository:
+
+```bash
+stackkit backup schedule enable --owner-approve --json
+stackkit backup schedule status --json
+stackkit backup schedule disable --owner-approve --json
+```
+
+The service executes the exact packaged CLI through the normal backup lifecycle.
+Its signed approval binds the current Plan and Apply, policy, workspace and spec
+paths, operating-system account, CLI bytes and unit files. Run these commands as
+the account that owns the local custody; installing system units also requires
+permission to write `/etc/systemd/system` and control its manager. StackKits does
+not switch accounts or obtain privileges automatically.
+
+A CUE cadence alone grants no scheduler authority. A changed Plan, Apply, CLI or
+unit leaves scheduled execution blocked until the Owner approves the current
+binding. Each UTC slot has a stable operation ID; an interrupted snapshot
+resumes its existing journal. Failed starts retry after 60 seconds with at most
+three starts per hour; every attempt is bounded to 14 minutes. The timer catches
+up after a missed slot, while the signed journal prevents a second successful
+snapshot for the same slot. Disabling revokes dispatch before stopping the
+timer; a failed revocation still attempts to stop the timer and reports the
+incomplete result. Reapproval archives the previous signed grant. With unchanged
+runtime authority it preserves the interrupted operation and its original
+slot approval; a changed runtime can start a new operation only after the old
+journal proves no unresolved quiescence. Every reapproval records its actual
+approval time. Timer state and the last signed snapshot are separate status fields.
+Fresh-host execution and a missed-run/restart exercise remain live evidence to
+be collected on the final candidate.
+
 ## Portable emergency export
 
 Kopia remains the primary operational engine. `resilience.emergencyExport`
@@ -103,21 +148,24 @@ repository:
 ```cue
 resilience: emergencyExport: {
 	mode:           "portable-archive"
-	format:         "tar.zst.age"
+	format:         "tar.gz.age"
 	includeClasses: ["config", "secrets", "platform-state", "database", "documents", "serverless-config"]
 	largeMediaMode: "manifest-only"
 }
 ```
 
-The current CLI command writes the portable manifest and restore runbook:
+The CLI creates encrypted bytes, checksums, a manifest and restore runbook:
 
 ```bash
-stackkit backup emergency-export --target /backup/emergency-export
+stackkit backup emergency-export --recipient age1YOUR_PUBLIC_RECIPIENT \
+  --source config=/opt/stacks --target /backup/emergency-export-new
 ```
 
-Archive bytes, database dumps, encryption, and checksums still require the
-deployment runner that consumes this contract. The CLI deliberately does not
-claim those bytes were produced when it has only written metadata.
+Sources are explicit `CLASS=PATH` selections. Automatic database dumps and
+CUE-selected source execution remain separate integration work; source labels
+alone do not prove consistency or full application coverage. Follow
+[Backup resilience](../../docs/BACKUP-RESILIENCE.md) for owner identity custody,
+media exclusions and independent staged restore.
 
 ## Data classes
 

@@ -15,6 +15,7 @@ import (
 const (
 	immichWorkloadProviderRef    = "stackkits-immich"
 	immichWorkloadModuleRef      = "stackkits-immich-runtime"
+	immichLiteWorkloadModuleRef  = "stackkits-immich-lite-runtime"
 	immichWorkloadUnitRef        = "immich-server"
 	immichWorkloadRef            = "photos"
 	immichWorkloadInstancePrefix = "immich-server-node-"

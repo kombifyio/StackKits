@@ -108,6 +108,8 @@ func (runtime *dockerRuntime) ValidateStaging(ctx context.Context, authority Aut
 	}
 	args := []string{
 		"run", "--name", helperName(authority, "staging"),
+		"--label", "io.stackkit.restore.operation=" + authority.OperationID,
+		"--label", "io.stackkit.restore.plan=" + authority.PlanHash,
 		"--rm", "--network", "none", "--read-only",
 		"--cap-drop", "ALL",
 		"--security-opt", "no-new-privileges",
@@ -124,6 +126,12 @@ func (runtime *dockerRuntime) ValidateStaging(ctx context.Context, authority Aut
 }
 
 func (runtime *dockerRuntime) Stop(ctx context.Context, authority Authority) error {
+	// Killing the Docker CLI does not guarantee that its daemon-side helper
+	// stopped copying. End only helpers bound to this exact operation before
+	// any resumed copy or service restart can touch the same volumes.
+	if err := runtime.stopCopyHelpers(ctx, authority); err != nil {
+		return err
+	}
 	runtimes := authorityComposeRuntimes(authority)
 	for index := len(runtimes) - 1; index >= 0; index-- {
 		composePath, err := runtime.verifiedComposeRuntimePath(runtimes[index])
@@ -251,6 +259,8 @@ func (runtime *dockerRuntime) copyVolume(
 ) error {
 	args := []string{
 		"run", "--name", helperName(authority, volume.LiveName),
+		"--label", "io.stackkit.restore.operation=" + authority.OperationID,
+		"--label", "io.stackkit.restore.plan=" + authority.PlanHash,
 		"--rm", "--network", "none", "--read-only",
 		"--user", "0:0",
 		"--cap-drop", "ALL", "--cap-add", "CHOWN", "--cap-add", "FOWNER",
@@ -266,6 +276,115 @@ func (runtime *dockerRuntime) copyVolume(
 		return wrapDocker("copy governed volume", err)
 	}
 	return nil
+}
+
+func (runtime *dockerRuntime) stopCopyHelpers(ctx context.Context, authority Authority) error {
+	allowedNames := map[string]bool{helperName(authority, "staging"): true}
+	allowedVolumes := map[string]bool{authority.StagingVolume: true}
+	for _, volume := range authority.VolumeDetails {
+		allowedNames[helperName(authority, volume.LiveName)] = true
+		allowedVolumes[volume.LiveName] = true
+		allowedVolumes[volume.RollbackName] = true
+	}
+	queries := [][]string{{"--filter", "label=io.stackkit.restore.operation=" + authority.OperationID}}
+	for name := range allowedNames {
+		queries = append(queries, []string{"--filter", "name=^/" + name + "$"})
+	}
+	ids := map[string]bool{}
+	for _, query := range queries {
+		args := []string{"ps", "--all", "--no-trunc"}
+		args = append(args, query...)
+		args = append(args, "--format", "{{.ID}}")
+		output, err := runtime.docker(ctx, args...)
+		if err != nil {
+			return wrapDocker("find interrupted restore helpers", err)
+		}
+		for _, id := range strings.Fields(string(output)) {
+			ids[id] = true
+		}
+	}
+	for id := range ids {
+		decoded, err := hex.DecodeString(id)
+		if err != nil || len(decoded) != 32 {
+			return errors.New("restoreactivation: interrupted helper identity is invalid")
+		}
+		inspected, err := runtime.docker(ctx, "inspect", id)
+		if err != nil {
+			if runtime.containerGone(ctx, id) {
+				continue
+			}
+			return wrapDocker("inspect interrupted restore helper", err)
+		}
+		var containers []struct {
+			ID     string `json:"Id"`
+			Name   string `json:"Name"`
+			Config struct {
+				Image  string            `json:"Image"`
+				Labels map[string]string `json:"Labels"`
+			} `json:"Config"`
+			Mounts []struct {
+				Type        string `json:"Type"`
+				Name        string `json:"Name"`
+				Destination string `json:"Destination"`
+				RW          bool   `json:"RW"`
+			} `json:"Mounts"`
+		}
+		if err := json.Unmarshal(inspected, &containers); err != nil || len(containers) != 1 {
+			return errors.New("restoreactivation: interrupted helper inspection is invalid")
+		}
+		container := containers[0]
+		operationLabel := container.Config.Labels["io.stackkit.restore.operation"]
+		planLabel := container.Config.Labels["io.stackkit.restore.plan"]
+		legacy := operationLabel == "" && planLabel == ""
+		if container.ID != id || !allowedNames[strings.TrimPrefix(container.Name, "/")] || container.Config.Image != authority.KopiaHelperImage ||
+			(!legacy && (operationLabel != authority.OperationID || planLabel != authority.PlanHash)) ||
+			!validRestoreHelperMounts(container.Mounts, allowedVolumes) {
+			return errors.New("restoreactivation: interrupted helper differs from the verified operation")
+		}
+		if _, err := runtime.docker(ctx, "rm", "--force", id); err != nil {
+			if runtime.containerGone(ctx, id) {
+				continue
+			}
+			return wrapDocker("stop interrupted restore helper", err)
+		}
+	}
+	return nil
+}
+
+func (runtime *dockerRuntime) containerGone(ctx context.Context, id string) bool {
+	output, err := runtime.docker(ctx, "ps", "--all", "--no-trunc", "--filter", "id="+id, "--format", "{{.ID}}")
+	return err == nil && len(strings.Fields(string(output))) == 0
+}
+
+func validRestoreHelperMounts(mounts []struct {
+	Type        string `json:"Type"`
+	Name        string `json:"Name"`
+	Destination string `json:"Destination"`
+	RW          bool   `json:"RW"`
+}, allowed map[string]bool) bool {
+	if len(mounts) < 1 || len(mounts) > 2 {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, mount := range mounts {
+		if mount.Type != "volume" || !allowed[mount.Name] || seen[mount.Destination] {
+			return false
+		}
+		seen[mount.Destination] = true
+		switch mount.Destination {
+		case "/staging", "/source":
+			if mount.RW {
+				return false
+			}
+		case "/target":
+			if !mount.RW {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return (len(mounts) == 1 && seen["/staging"]) || (len(mounts) == 2 && seen["/source"] && seen["/target"])
 }
 
 func (runtime *dockerRuntime) docker(ctx context.Context, args ...string) ([]byte, error) {

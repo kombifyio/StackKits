@@ -1116,7 +1116,7 @@ import (
 	availability: #AvailabilityIntent & {mode: controlPlane.mode}
 	deviceEnrollment?: #DeviceEnrollmentPolicy
 	partitionPolicy:   #PartitionPolicy
-	backupPolicy: #BackupPolicyV1 | *{}
+	backupPolicy: #BackupPolicyV1
 	driftPolicy: #DriftPolicyV1 | *{}
 	observability?: #ModuleOTLPBaselineV1
 	workloads?: [#WorkloadID]: #WorkloadSelectionV2
@@ -1623,6 +1623,46 @@ import (
 
 #DataClass: "public" | "internal" | "personal" | "sensitive" | "secret"
 
+// #DataCapacityDemandV2 is an explicit additional/new-data budget for one
+// canonical binding. initialGiB describes new data planned at first delivery,
+// not bytes already present on an existing volume. The projected and reserved
+// values are CUE-owned formula outputs; omission keeps demand unknown rather
+// than selecting a profile default.
+#DataCapacityDemandV2: close({
+	initialGiB:          number & >0
+	growthGiBPerMonth:   number & >=0
+	horizonMonths:      int & >=1 & <=120
+	reservePercent:     number & >=0 & <=100
+	projectedGiB:       initialGiB + growthGiBPerMonth * horizonMonths
+	requiredGiB:        projectedGiB * (1 + reservePercent / 100)
+})
+
+#StorageFilesystemClassV2: "local-posix" | "network" | "non-posix" | "ephemeral" | "unknown"
+
+#StorageFilesystemTypeV2: string & =~"^[a-z0-9][a-z0-9._-]*$"
+
+// #StorageFilesystemRequirementV2 binds an application data root to a
+// classified host filesystem. It is a host prerequisite, not a data-capacity
+// promise or a request to create or reconfigure storage.
+#StorageFilesystemRequirementV2: close({
+	sourceRef:               "storage.dataRoot" | "system.container.dataRoot"
+	requiredClass:           #StorageFilesystemClassV2
+	allowedFilesystemTypes?: [...#StorageFilesystemTypeV2] & list.MinItems(1)
+	requireOwnership:        true
+})
+
+#InventoryStorageCapacityV2: close({
+	// The source reference and path identify the exact filesystem whose free
+	// bytes are observed. A root filesystem fact cannot stand in for another
+	// mounted data root.
+	sourceRef:          "storage.dataRoot" | "system.container.dataRoot"
+	path:               #AbsolutePath
+	freeGiB:            number & >=0
+	filesystemType?:    #StorageFilesystemTypeV2
+	filesystemClass?:   #StorageFilesystemClassV2
+	supportsOwnership?: bool
+})
+
 #CloudCopyPolicyV2: {
 	policyRef: #ContractID
 	allowedClasses: [...#DataClass] & list.MinItems(1)
@@ -1638,6 +1678,7 @@ import (
 	replicaSiteRefs?: [...#SiteID]
 	cloudCopyAllowed: bool | *false
 	cloudCopyPolicy?: #CloudCopyPolicyV2
+	capacityDemand?: #DataCapacityDemandV2
 
 	_classesUnique: list.UniqueItems(classes) & true
 }
@@ -3113,7 +3154,7 @@ _servicePublicationShape: {
 	}
 }
 
-#ModuleRuntimeInventoryFactV1: "arch" | "cpuCores" | "ramGB" | "storageGB" | "virtualization"
+#ModuleRuntimeInventoryFactV1: "arch" | "cpuCores" | "ramGB" | "storageGB" | "virtualization" | "amd64MicroarchitectureLevel"
 
 // #ModuleRuntimeRequirementsV2 describes the minimum attested runtime facts a
 // selected node must satisfy before Apply. Topology placement still uses
@@ -3123,6 +3164,10 @@ _servicePublicationShape: {
 	minCpuCores?:  int & >=1
 	minRamGB?:     int & >=1
 	minStorageGB?: int & >=1
+	// x86-64-v2 is an amd64-only floor. The observed inventory fact is
+	// optional because arm64 nodes do not have an x86 microarchitecture level.
+	minAMD64MicroarchitectureLevel?: int & >=1 & <=4
+	storageFilesystem?: #StorageFilesystemRequirementV2
 	allowedVirtualization?: [...#RuntimeVirtualizationV2] & list.MinItems(1)
 	requireInventoryFacts?: [...#ModuleRuntimeInventoryFactV1] & list.MinItems(1)
 
@@ -3831,7 +3876,9 @@ _servicePublicationShape: {
 	installMode: "bootstrapped"
 	runtime:     "docker"
 	engine:      "docker"
-	dataRoot:    #AbsolutePath
+	rootless:    false
+	// The v1 Core renderer and local backup source share this daemon root.
+	dataRoot:    "/var/lib/docker"
 }
 
 #ModulePublicHostStorageRootsV1: {
@@ -3848,23 +3895,91 @@ _servicePublicationShape: {
 }
 
 #ModulePublicLocalKopiaBackupSourceV1: {
+	coreModuleRef: *"stackkits-basement-core-runtime" | "stackkits-basement-core-lite-runtime"
 	kind:          "docker-volume-root"
 	hostPath:      "/var/lib/docker/volumes"
 	containerPath: "/source/docker-volumes"
 	readOnly:      true
-	managedVolumeNames: [
-		"stackkit-basement-core_coolify-applications",
-		"stackkit-basement-core_coolify-backups",
-		"stackkit-basement-core_coolify-data",
-		"stackkit-basement-core_coolify-databases",
-		"stackkit-basement-core_coolify-postgres-data",
-		"stackkit-basement-core_coolify-redis-data",
-		"stackkit-basement-core_coolify-services",
-		"stackkit-basement-core_coolify-ssh",
-		"stackkit-basement-core_pocketid-data",
-		"stackkit-basement-core_step-ca-db",
-		"stackkit-basement-core_tinyauth-data",
-	]
+	if coreModuleRef == "stackkits-basement-core-runtime" {
+		managedVolumeNames: [
+			"stackkit-basement-core_coolify-applications",
+			"stackkit-basement-core_coolify-backups",
+			"stackkit-basement-core_coolify-data",
+			"stackkit-basement-core_coolify-databases",
+			"stackkit-basement-core_coolify-postgres-data",
+			"stackkit-basement-core_coolify-redis-data",
+			"stackkit-basement-core_coolify-services",
+			"stackkit-basement-core_coolify-ssh",
+			"stackkit-basement-core_pocketid-data",
+			"stackkit-basement-core_step-ca-db",
+			"stackkit-basement-core_tinyauth-data",
+			...string & =~"^[a-z][a-z0-9_.-]*$",
+		]
+	}
+	if coreModuleRef == "stackkits-basement-core-lite-runtime" {
+		managedVolumeNames: [
+			"stackkit-basement-core_pocketid-data",
+			"stackkit-basement-core_step-ca-db",
+			"stackkit-basement-core_tinyauth-data",
+			...string & =~"^[a-z][a-z0-9_.-]*$",
+		]
+	}
+	applicationVolumes?: [...close({
+		workloadRef:    #ContractID
+		siteRef:        #SiteID
+		nodeRef:        #NodeID
+		composeProject: string & =~"^[a-z][a-z0-9_.-]*$"
+		componentRef:   #ContractID
+		volumeRef:      #ContractID
+		logicalName:    string & =~"^[a-z][a-z0-9_.-]*$"
+		volumeName:     string & =~"^[a-z][a-z0-9_.-]*$"
+		target:         #AbsolutePath
+		class:          "persistent"
+		backup:         true
+		dataClasses: [...#DataClass] & list.MinItems(1)
+		dataBindingRef: #ContractID
+	})]
+	// applicationRuntimes is the closed, compiler-owned Standalone-Compose
+	// component graph used by local backup quiescence. Its component facts are
+	// copied from the selected module runtime; dependency order must never be
+	// inferred from Docker names or mutable labels.
+	applicationRuntimes?: [...close({
+		workloadRef:    #ContractID
+		siteRef:        #SiteID
+		nodeRef:        #NodeID
+		composeProject: "stackkit-\(workloadRef)-\(nodeRef)"
+		components: [...close({
+			componentRef: #ContractID
+			role:         #ModuleRuntimeComponentV2.role
+			lifecycle:    #ModuleRuntimeComponentV2.lifecycle
+			imageRef:     string & =~"^[^[:space:]@]+$"
+			imageDigest:  #ContentHash
+			dependsOn:    [...#ContractID] | *[]
+		})] & list.MinItems(1)
+
+		_componentRefsUnique: list.UniqueItems([for component in components {component.componentRef}]) & true
+		_componentDependenciesClosed: [for component in components for dependencyRef in component.dependsOn {
+			component:  component.componentRef
+			dependency: dependencyRef
+			matches:    [for candidate in components if candidate.componentRef == dependencyRef {candidate.componentRef}] & list.MinItems(1) & list.MaxItems(1)
+		}]
+	})]
+	if applicationRuntimes != _|_ {
+		_applicationRuntimeKeysUnique: list.UniqueItems([for runtime in applicationRuntimes {
+			"\(runtime.workloadRef)/\(runtime.siteRef)/\(runtime.nodeRef)/\(runtime.composeProject)"
+		}]) & true
+		if applicationVolumes != _|_ {
+			_applicationRuntimeSelected: [for runtime in applicationRuntimes {
+				matches: [for volume in applicationVolumes if volume.workloadRef == runtime.workloadRef && volume.siteRef == runtime.siteRef && volume.nodeRef == runtime.nodeRef && volume.composeProject == runtime.composeProject {volume.volumeName}] & list.MinItems(1)
+			}]
+		}
+	}
+	if applicationVolumes != _|_ {
+		applicationRuntimes: list.MinItems(1)
+		_applicationVolumeRuntimeBinding: [for volume in applicationVolumes {
+			matches: [for runtime in applicationRuntimes if volume.workloadRef == runtime.workloadRef && volume.siteRef == runtime.siteRef && volume.nodeRef == runtime.nodeRef && volume.composeProject == runtime.composeProject for component in runtime.components if component.componentRef == volume.componentRef {component.componentRef}] & list.MinItems(1) & list.MaxItems(1)
+		}]
+	}
 	excludePaths: [
 		"/source/docker-volumes/stackkit-basement-core_kopia-repository/_data",
 		"/source/docker-volumes/stackkit-basement-core_kopia-config/_data",
@@ -6161,6 +6276,9 @@ _servicePublicationShape: {
 		version:      string & =~"^[^[:space:]]+$"
 	}
 	architecture: "amd64" | "arm64"
+	// Optional on arm64 and when the platform has no safe CPU feature source.
+	// Values 1 and 2 are currently measured; 3 and 4 remain reserved levels.
+	amd64MicroarchitectureLevel?: int & >=1 & <=4
 	kernel: {
 		release: string & =~"^[^[:space:]]+$"
 	}
@@ -6171,6 +6289,22 @@ _servicePublicationShape: {
 	virtualization: {
 		class:  #RuntimeVirtualizationV2
 		nested: bool
+	}
+	// The init system is an observed host fact. A systemd value is only
+	// truthful when PID 1 is systemd and the local manager reports an active
+	// state; other platforms remain explicit non-capabilities.
+	initSystem?: {
+		name:         "systemd" | "other" | "unknown"
+		pid1:         "systemd" | "other" | "unknown"
+		managerState: "initializing" | "starting" | "running" | "degraded" | "maintenance" | "stopping" | "offline" | "unknown" | "unavailable"
+		if name == "systemd" {
+			pid1:         "systemd"
+			managerState: "running" | "degraded"
+		}
+		if name == "other" {
+			pid1:         "other"
+			managerState: "unavailable"
+		}
 	}
 }
 
@@ -6269,9 +6403,11 @@ _servicePublicationShape: {
 	nodes: [#NodeID]: {
 		observedSiteKind?:       #SiteKind
 		arch?:                   "amd64" | "arm64"
+		amd64MicroarchitectureLevel?: int & >=1 & <=4
 		cpuCores?:               int & >=1
 		ramGB?:                  int & >=1
 		storageGB?:              int & >=1
+		storageCapacity?:        #InventoryStorageCapacityV2
 		virtualization?:         #RuntimeVirtualizationV2
 		externalHostBinding?:    #ExternalHostBindingV1
 		hostConformanceReceipt?: #HostConformanceReceiptV1

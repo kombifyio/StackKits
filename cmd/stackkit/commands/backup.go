@@ -14,6 +14,7 @@ package commands
 //   run                     force a snapshot of all configured paths
 //   list                    list snapshots (table or --json)
 //   restore <anchor>        verify and stage one owner-signed snapshot anchor
+//   restore abandon <id>    close one pending or staged restore journal
 //   verify                  trigger validate-provider ad-hoc
 //   migrate-from-restic     drive the one-shot Restic→Kopia importer
 //
@@ -23,11 +24,9 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -46,13 +45,14 @@ var (
 	backupOutputJSON                    bool
 	backupRestoreOperationID            string
 	backupRestoreOwnerApproved          bool
+	backupRestoreAbandonOwnerApproved   bool
 	backupActivationOperationID         string
 	backupActivationOwnerApproved       bool
 	backupRecoveryOwnerApproved         bool
 	backupEmergencyExportTarget         string
 	backupEmergencyExportFormat         string
 	backupEmergencyExportLargeMediaMode string
-	backupEmergencyExportIncludeClasses []string
+	backupEmergencyExportRecipients     []string
 	backupEmergencyExportSourcePaths    []string
 	backupMigrateDryRun                 bool
 	backupRunOperationID                string
@@ -155,6 +155,14 @@ authorization; this command never requires a Kombify account or Cloud service.`,
 	RunE: runBackupRestore,
 }
 
+var backupRestoreAbandonCmd = &cobra.Command{
+	Use:         "abandon <restore-operation-id>",
+	Short:       "Abandon one pending or staged restore operation",
+	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
+	Args:        cobra.ExactArgs(1),
+	RunE:        runBackupRestoreAbandon,
+}
+
 var backupRestoreActivateCmd = &cobra.Command{
 	Use:         "activate <restore-result-id>",
 	Short:       "Activate one verified staged restore into the live Basement volumes",
@@ -164,8 +172,12 @@ var backupRestoreActivateCmd = &cobra.Command{
 }
 
 var backupRestoreRecoverCmd = &cobra.Command{
-	Use:         "recover <activation-operation-id>",
-	Short:       "Roll back one interrupted live restore activation",
+	Use:   "recover <activation-operation-id>",
+	Short: "Recover an interrupted restore or finish its committed result",
+	Long: `Recover the exact owner-approved restore activation. Before commit, recovery
+restores the prior live volumes. After commit, it preserves the activated data
+and resumes result cleanup and application finalization. Repeating recovery for
+a completed operation returns its original signed result.`,
 	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	Args:        cobra.ExactArgs(1),
 	RunE:        runBackupRestoreRecover,
@@ -180,15 +192,13 @@ var backupVerifyCmd = &cobra.Command{
 
 var backupEmergencyExportCmd = &cobra.Command{
 	Use:   "emergency-export",
-	Short: "Write a Kopia-independent emergency export manifest and restore runbook",
-	Long: `Write the portable emergency-export metadata layer.
-
-This command intentionally does not call Kopia. It writes a manifest and
-restore runbook that describe the minimum state classes, source paths, and
-operator steps needed when the primary Kopia client or repository cannot be
-used during an incident. Archive byte materialization is handled by the addon
-runner/controller path; this CLI path keeps the recovery manifest available
-without depending on Docker or Kopia.`,
+	Short: "Export selected local data as an encrypted portable recovery archive",
+	Args:  machineAwareNoArgs,
+	Long: `Create a portable age-encrypted tar/gzip archive with per-file checksums and a
+restore runbook. Select each source explicitly as CLASS=PATH and provide an age
+recipient public key. The target must be a new directory outside the sources.
+File copying does not prove application consistency; stop writers or export database-native dumps first.
+Recovery stages data without the original host, Kopia, or a Kombify account.`,
 	RunE: runBackupEmergencyExport,
 }
 
@@ -218,6 +228,10 @@ func init() {
 		"Stable idempotency key for this staged restore operation")
 	backupRestoreCmd.Flags().BoolVar(&backupRestoreOwnerApproved, "owner-approve", false,
 		"Authorize this staged restore with the established local Owner custody")
+	backupRestoreAbandonCmd.Flags().BoolVar(&backupOutputJSON, "json", false, "Emit stackkit.command-result/v1 JSON")
+	backupRestoreAbandonCmd.Flags().BoolVar(&backupRestoreAbandonOwnerApproved, "owner-approve",
+		false,
+		"Authorize this restore abandonment with the established local Owner custody")
 	backupRestoreActivateCmd.Flags().BoolVar(&backupOutputJSON, "json", false,
 		"Emit stackkit.command-result/v1 JSON")
 	backupRestoreActivateCmd.Flags().StringVar(&backupActivationOperationID, "operation-id", "",
@@ -227,20 +241,11 @@ func init() {
 	backupRestoreRecoverCmd.Flags().BoolVar(&backupOutputJSON, "json", false,
 		"Emit stackkit.command-result/v1 JSON")
 	backupRestoreRecoverCmd.Flags().BoolVar(&backupRecoveryOwnerApproved, "owner-approve", false,
-		"Authorize explicit rollback recovery with the established local Owner custody")
+		"Authorize recovery with the established local Owner custody")
 	backupRestoreRecoverCmd.Flags().Bool("rollback", false,
-		"Require rollback of the exact interrupted activation")
-	backupRestoreCmd.AddCommand(backupRestoreActivateCmd, backupRestoreRecoverCmd)
-	backupEmergencyExportCmd.Flags().StringVar(&backupEmergencyExportTarget, "target", "/backup/emergency-export",
-		"Directory where the emergency export manifest and runbook are written")
-	backupEmergencyExportCmd.Flags().StringVar(&backupEmergencyExportFormat, "format", "tar.zst.age",
-		"Planned portable archive format recorded in the manifest")
-	backupEmergencyExportCmd.Flags().StringVar(&backupEmergencyExportLargeMediaMode, "large-media-mode", "manifest-only",
-		"Large-media handling: manifest-only, include, or exclude")
-	backupEmergencyExportCmd.Flags().StringSliceVar(&backupEmergencyExportIncludeClasses, "include-class", defaultEmergencyExportClasses(),
-		"State class to include in the emergency export manifest; repeatable")
-	backupEmergencyExportCmd.Flags().StringSliceVar(&backupEmergencyExportSourcePaths, "source", defaultEmergencyExportSources(),
-		"Source path to record in the emergency export manifest; repeatable")
+		"Authorize rollback if the interrupted activation has not committed")
+	backupRestoreCmd.AddCommand(backupRestoreAbandonCmd, backupRestoreActivateCmd, backupRestoreRecoverCmd)
+	configureEmergencyBackupCommands()
 	backupMigrateResticCmd.Flags().BoolVar(&backupMigrateDryRun, "dry-run", false,
 		"Print the plan without importing")
 	// Wire subcommands.
@@ -251,7 +256,7 @@ func init() {
 	backupCmd.AddCommand(backupListCmd)
 	backupCmd.AddCommand(backupRestoreCmd)
 	backupCmd.AddCommand(backupVerifyCmd)
-	backupCmd.AddCommand(backupEmergencyExportCmd)
+	backupCmd.AddCommand(backupEmergencyExportCmd, backupEmergencyRestoreCmd)
 	backupCmd.AddCommand(backupMigrateResticCmd)
 
 	// Self-register on the root command — same pattern as break_glass.go.
@@ -345,6 +350,14 @@ func runBackupRestore(cmd *cobra.Command, args []string) error {
 	)
 }
 
+func runBackupRestoreAbandon(cmd *cobra.Command, args []string) error {
+	return runNativeV2BackupRestoreAbandonCommand(
+		cmd,
+		args[0],
+		backupRestoreAbandonOwnerApproved,
+	)
+}
+
 func runBackupRestoreActivate(cmd *cobra.Command, args []string) error {
 	return runNativeV2RestoreActivationCommand(
 		cmd, args[0], backupActivationOperationID,
@@ -382,75 +395,6 @@ func runBackupVerify(cmd *cobra.Command, args []string) error {
 		fmt.Println(out)
 	}
 	printSuccess("Repository validates against the storage provider")
-	return nil
-}
-
-func runBackupEmergencyExport(cmd *cobra.Command, args []string) error {
-	target := strings.TrimSpace(backupEmergencyExportTarget)
-	if target == "" {
-		return fmt.Errorf("--target is required")
-	}
-	format := strings.TrimSpace(backupEmergencyExportFormat)
-	if format == "" {
-		format = "tar.zst.age"
-	}
-	switch format {
-	case "tar.zst.age", "tar.gz.age", "zip.age":
-	default:
-		return fmt.Errorf("unsupported emergency export format %q (use tar.zst.age, tar.gz.age, or zip.age)", format)
-	}
-	largeMediaMode := strings.TrimSpace(backupEmergencyExportLargeMediaMode)
-	switch largeMediaMode {
-	case "", "manifest-only":
-		largeMediaMode = "manifest-only"
-	case "include", "exclude":
-	default:
-		return fmt.Errorf("unsupported --large-media-mode %q (use manifest-only, include, or exclude)", largeMediaMode)
-	}
-
-	if len(backupEmergencyExportIncludeClasses) == 0 {
-		backupEmergencyExportIncludeClasses = defaultEmergencyExportClasses()
-	}
-	if len(backupEmergencyExportSourcePaths) == 0 {
-		backupEmergencyExportSourcePaths = defaultEmergencyExportSources()
-	}
-
-	if err := os.MkdirAll(target, 0o700); err != nil {
-		return fmt.Errorf("prepare emergency export target: %w", err)
-	}
-
-	manifest := backupEmergencyExportManifest{
-		SchemaVersion:          "stackkit.backup-emergency-export/v1",
-		CreatedAt:              time.Now().UTC().Format(time.RFC3339),
-		Mode:                   "portable-archive",
-		Format:                 format,
-		ToolDependency:         "none-kopia-independent",
-		Target:                 target,
-		IncludeClasses:         cleanStringList(backupEmergencyExportIncludeClasses),
-		LargeMediaMode:         largeMediaMode,
-		Sources:                describeEmergencyExportSources(backupEmergencyExportSourcePaths),
-		RestoreRunbook:         "RESTORE.md",
-		PrimaryBackupEngine:    "kopia",
-		PrimaryFailureFallback: "portable emergency export manifest and encrypted archive lane",
-	}
-	data, err := json.MarshalIndent(manifest, "", "  ")
-	if err != nil {
-		return fmt.Errorf("render emergency export manifest: %w", err)
-	}
-	manifestPath := filepath.Join(target, "stackkit-emergency-export-manifest.json")
-	if err := os.WriteFile(manifestPath, append(data, '\n'), 0o600); err != nil {
-		return fmt.Errorf("write emergency export manifest: %w", err)
-	}
-	runbookPath := filepath.Join(target, "RESTORE.md")
-	if err := os.WriteFile(runbookPath, []byte(renderEmergencyExportRunbook(manifest)), 0o600); err != nil {
-		return fmt.Errorf("write emergency export runbook: %w", err)
-	}
-
-	printSuccess("Emergency export manifest written: %s", manifestPath)
-	printInfo("Restore runbook written: %s", runbookPath)
-	if largeMediaMode == "manifest-only" {
-		printWarning("Large media is manifest-only; reattach NAS/object-store media according to the runbook.")
-	}
 	return nil
 }
 
@@ -495,101 +439,6 @@ func requireLegacyBackupCLI(operation string) error {
 // =============================================================================
 // HELPERS
 // =============================================================================
-
-type backupEmergencyExportManifest struct {
-	SchemaVersion          string                        `json:"schemaVersion"`
-	CreatedAt              string                        `json:"createdAt"`
-	Mode                   string                        `json:"mode"`
-	Format                 string                        `json:"format"`
-	ToolDependency         string                        `json:"toolDependency"`
-	Target                 string                        `json:"target"`
-	IncludeClasses         []string                      `json:"includeClasses"`
-	LargeMediaMode         string                        `json:"largeMediaMode"`
-	Sources                []backupEmergencyExportSource `json:"sources"`
-	RestoreRunbook         string                        `json:"restoreRunbook"`
-	PrimaryBackupEngine    string                        `json:"primaryBackupEngine"`
-	PrimaryFailureFallback string                        `json:"primaryFailureFallback"`
-}
-
-type backupEmergencyExportSource struct {
-	Path   string `json:"path"`
-	Exists bool   `json:"exists"`
-	Kind   string `json:"kind,omitempty"`
-	Bytes  int64  `json:"bytes,omitempty"`
-}
-
-func defaultEmergencyExportClasses() []string {
-	return []string{"config", "secrets", "platform-state", "database", "documents", "serverless-config"}
-}
-
-func defaultEmergencyExportSources() []string {
-	return []string{"/opt/stacks", "/var/lib/docker/volumes", "/etc/stackkit", "/opt/stackkit/.stackkit"}
-}
-
-func describeEmergencyExportSources(paths []string) []backupEmergencyExportSource {
-	cleaned := cleanStringList(paths)
-	sources := make([]backupEmergencyExportSource, 0, len(cleaned))
-	for _, path := range cleaned {
-		src := backupEmergencyExportSource{Path: path}
-		info, err := os.Stat(path)
-		if err == nil {
-			src.Exists = true
-			if info.IsDir() {
-				src.Kind = "directory"
-			} else {
-				src.Kind = "file"
-				src.Bytes = info.Size()
-			}
-		}
-		sources = append(sources, src)
-	}
-	return sources
-}
-
-func cleanStringList(values []string) []string {
-	out := make([]string, 0, len(values))
-	seen := map[string]bool{}
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" || seen[value] {
-			continue
-		}
-		seen[value] = true
-		out = append(out, value)
-	}
-	return out
-}
-
-func renderEmergencyExportRunbook(manifest backupEmergencyExportManifest) string {
-	var b strings.Builder
-	b.WriteString("# StackKit Emergency Restore Runbook\n\n")
-	b.WriteString("Use this path when the primary Kopia client, repository, or operational path is unavailable.\n\n")
-	b.WriteString("## Contract\n\n")
-	fmt.Fprintf(&b, "- Primary engine: %s\n", manifest.PrimaryBackupEngine)
-	fmt.Fprintf(&b, "- Fallback lane: %s\n", manifest.Mode)
-	fmt.Fprintf(&b, "- Planned archive format: %s\n", manifest.Format)
-	fmt.Fprintf(&b, "- Large media mode: %s\n", manifest.LargeMediaMode)
-	b.WriteString("- Tool dependency: none on Kopia for this manifest/runbook layer\n\n")
-	b.WriteString("## State Classes\n\n")
-	for _, class := range manifest.IncludeClasses {
-		fmt.Fprintf(&b, "- %s\n", class)
-	}
-	b.WriteString("\n## Sources\n\n")
-	for _, source := range manifest.Sources {
-		status := "missing at manifest time"
-		if source.Exists {
-			status = source.Kind
-		}
-		fmt.Fprintf(&b, "- `%s` (%s)\n", source.Path, status)
-	}
-	b.WriteString("\n## Restore Order\n\n")
-	b.WriteString("1. Recreate the StackKit version/channel and deployment intent from the manifest.\n")
-	b.WriteString("2. Restore config, secrets, platform state, and serverless config before application data.\n")
-	b.WriteString("3. Restore database dumps with the matching consistency hook family.\n")
-	b.WriteString("4. Restore documents and user content; reattach large-media stores when largeMediaMode is manifest-only.\n")
-	b.WriteString("5. Run `stackkit backup verify` when Kopia is available again, then perform an application-level restore drill.\n")
-	return b.String()
-}
 
 func truncate(s string, n int) string {
 	if len(s) <= n {

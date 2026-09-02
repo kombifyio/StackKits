@@ -273,9 +273,9 @@ Service placement rules:
 - **Use cases are the reason to install a StackKit.**
 - **Variants are DEAD.** Use the role system (default/alternative/optional).
 - **ADR-0031 defines the standalone lifecycle boundary; ADR-0029 defines kit topology.** The v1/v5 shapes are compatibility inputs during the bounded migration, not authorities for new design.
-- **CUE is the technical contract source of truth; DB is the registry and operations mirror.** Never edit generated files.
+- **CUE and the canonical local lifecycle are authoritative; hosted databases are optional mirrors.** Never edit generated files.
 - **OpenTofu, never Terraform.** Licensing violation.
-- **Local default links must open as printed.** Use browser-native names such as `service.home.localhost`; never require hosts-file edits, manual DNS mapping, trust-store setup, or port suffixes for generated default links.
+- **Access claims include the client context.** A `.localhost` link is local to the device opening it; `home.test` alone does not create DNS. Guide required resolver, trust and device setup, and keep reachability unverified until the relevant client-side path is checked. See [ADR-0040](ADR/ADR-0040-scoped-application-readiness.md).
 - **CUE contracts define tool roles; embedded registries and private databases
   are derived mirrors.**
-- **Resource profile = user intent, not just hardware.** `--compute-tier low` can be chosen explicitly even when hardware auto-detection would allow more.
+- **Native resource profiles express explicit intent per module.** Inventory admits or rejects that selection; it never silently changes it. `--compute-tier` belongs to the explicitly selected v2alpha1 compatibility adapter.

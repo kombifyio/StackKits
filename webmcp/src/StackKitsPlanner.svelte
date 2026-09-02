@@ -23,6 +23,7 @@
     WebMcpCatalog,
     ResourceVector,
   } from "./types.js";
+  import { createWebMcpStatus, type WebMcpStatus } from "./webmcp.js";
 
   interface PlannerSessionContract {
     readonly service: { readonly catalog?: WebMcpCatalog };
@@ -35,6 +36,8 @@
 
   export let session: PlannerSessionContract;
   export let webMcpAvailable = false;
+  export let webMcpStatus: WebMcpStatus = createWebMcpStatus("checking");
+  export let onWebMcpRetry: (() => void) | undefined;
   export let preselectedStackkitId = "";
 
   let catalog: WebMcpCatalog | undefined;
@@ -303,15 +306,27 @@
       <h1>Module profile planner</h1>
       <p class="lede">Select each use-case alternative and every module-local profile explicitly. Compare your declared capacity with CUE facts, then prepare a reviewable CLI handoff. Nothing is installed from this page.</p>
     </div>
-    <div class:available={webMcpAvailable} class="agent-status" data-testid="webmcp-status">
+    <div class:available={webMcpStatus.code === "ready" && webMcpAvailable} class="agent-status" data-status={webMcpStatus.code} data-testid="webmcp-status">
       <span aria-hidden="true"></span>
-      {webMcpAvailable ? "Browser-agent tools available" : "Planner available · agent tools unavailable"}
+      {webMcpStatus.label}
     </div>
+    {#if catalog && webMcpStatus.code !== "ready" && webMcpStatus.code !== "checking"}
+      <div class="webmcp-diagnostic" data-status={webMcpStatus.code} data-testid="webmcp-diagnostic" role="status">
+        <span>{webMcpStatus.message}</span>
+        {#if webMcpStatus.retryable && onWebMcpRetry}
+          <button type="button" class="secondary-action" onclick={onWebMcpRetry} data-testid="webmcp-retry">Retry WebMCP</button>
+        {/if}
+      </div>
+    {/if}
   </header>
 
   {#if !catalog}
-    <div class="integrity-error" role="alert" data-testid="authority-error">
-      The public CUE authority catalog could not be verified. WebMCP tools remain disabled while the planner stays available for diagnostics.
+    <div class="integrity-error" role="alert" data-status={webMcpStatus.code} data-testid="authority-error">
+      <strong>{webMcpStatus.label}</strong>
+      <p>{webMcpStatus.message}</p>
+      {#if webMcpStatus.retryable && onWebMcpRetry}
+        <button type="button" class="secondary-action" onclick={onWebMcpRetry} data-testid="webmcp-retry">Retry WebMCP</button>
+      {/if}
     </div>
   {:else}
     <div class="planner-grid">
@@ -420,6 +435,12 @@
                         <p><b>CUE reference</b> {formatVector(selectedCompute.recommended)}</p>
                         <p><b>Status</b> {selectedCompute.capacity_declaration} · {selectedCompute.maturity} · {selectedCompute.executable ? "executable" : "contract-only"}</p>
                         <p><b>Realization</b> {selectedCompute.realization}</p>
+                        {#if selectedCompute.host_requirements?.min_amd64_microarchitecture_level}
+                          <p><b>CPU requirement</b> On amd64, x86-64-v{selectedCompute.host_requirements.min_amd64_microarchitecture_level} or newer. This must be verified on the exact target before Apply.</p>
+                        {/if}
+                        {#if selectedCompute.host_requirements?.storage_filesystem}
+                          <p><b>Storage requirement</b> Persistent local storage with Unix ownership for the application data. This must be verified on the exact target before Apply.</p>
+                        {/if}
                         {#if selectedCompute.degradations.length > 0}<p><b>Degradations</b> {selectedCompute.degradations.join(" · ")}</p>{/if}
                       </div>
                     {/if}
@@ -526,6 +547,9 @@
   .agent-status { display: flex; align-items: center; gap: .55rem; flex: 0 0 auto; padding: .65rem .8rem; border: 1px solid var(--outline); border-radius: 999px; color: var(--muted); font-size: .78rem; background: color-mix(in srgb, var(--surface) 88%, transparent); }
   .agent-status span { width: .5rem; height: .5rem; border-radius: 50%; background: #737373; }
   .agent-status.available span { background: #4ade80; box-shadow: 0 0 0 4px rgb(74 222 128 / .1); }
+  .webmcp-diagnostic { display: flex; align-items: center; justify-content: flex-end; gap: .75rem; margin: -.9rem 0 1.3rem; color: var(--muted); font-size: .78rem; text-align: right; }
+  .webmcp-diagnostic span { max-width: 58rem; }
+  .webmcp-diagnostic button { flex: 0 0 auto; margin-top: 0; }
   .planner-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 1rem; }
   .panel { border: 1px solid var(--outline); border-radius: 1rem; padding: 1.35rem; background: linear-gradient(145deg, color-mix(in srgb, var(--surface-high) 75%, transparent), var(--surface)); box-shadow: 0 24px 80px rgb(0 0 0 / .16); }
   .selection-panel { grid-column: span 5; }
@@ -588,6 +612,8 @@
   code { font: .72rem/1.45 ui-monospace, SFMono-Regular, monospace; color: #d4d4d4; overflow-wrap: anywhere; }
   .apply-boundary { display: flex; justify-content: space-between; gap: 1rem; margin-top: .65rem; padding: .7rem; border: 1px dashed #f87171; border-radius: .55rem; color: #fecaca; font-size: .72rem; }
   .integrity-error { border: 1px solid #f87171; border-radius: .7rem; padding: 1rem; background: rgb(248 113 113 / .06); color: #fecaca; }
+  .integrity-error p { margin: .45rem 0 0; }
+  .integrity-error button { margin-top: .8rem; }
   .provenance { display: grid; grid-template-columns: auto 1fr; gap: .35rem .8rem; margin-top: 1rem; padding: 1rem; border-top: 1px solid var(--outline); color: var(--muted); overflow: hidden; }
   .provenance span { grid-row: 1 / 4; color: var(--accent); font-size: .72rem; font-weight: 800; }
   .provenance code { color: var(--muted); font-size: .62rem; }

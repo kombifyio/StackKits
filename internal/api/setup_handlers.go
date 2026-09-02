@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/kombifyio/stackkits/internal/appsetup"
 	"image"
 	"image/color"
 	"image/png"
@@ -18,6 +20,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/config"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
 	"github.com/kombifyio/stackkits/internal/platformdeploy"
@@ -385,6 +388,7 @@ func (s *Server) runManifestServiceSetup(ctx context.Context, service servicecat
 
 	completed := make([]setupDropResponse, 0, len(app.SetupDrops))
 	waiting := false
+	waitingMessage := "Setup is waiting for PocketID Owner activation."
 	for _, drop := range app.SetupDrops {
 		run, alreadyComplete, state, statePath, stateErr := s.startSetupRun(service, app, drop)
 		if stateErr != nil {
@@ -412,6 +416,21 @@ func (s *Server) runManifestServiceSetup(ctx context.Context, service servicecat
 			return serviceSetupResponse{}, setupHTTPStatus(err), err
 		}
 		run.Evidence = evidence
+		if isVaultwardenOwnerCompletionPending(service, app, drop) {
+			waiting = true
+			waitingMessage = "Vaultwarden Owner preparation is recorded; complete encrypted account setup in the official client."
+			phase := models.BootstrapPhaseOwnerActivated
+			if evidence["ownerProvisioning"] == "skipped-pocketid-disabled" {
+				phase = models.BootstrapPhasePrepared
+				waitingMessage = "Vaultwarden setup is waiting for a configured Owner; complete encrypted account setup in the official client."
+			}
+			run, stateErr = s.finishSetupRun(state, statePath, run, models.SetupRunStatusWaiting, phase, waitingMessage, nil)
+			if stateErr != nil {
+				return serviceSetupResponse{}, setupHTTPStatus(stateErr), stateErr
+			}
+			completed = append(completed, setupDropResponseFromRun(drop, run))
+			continue
+		}
 		run, stateErr = s.finishSetupRun(state, statePath, run, models.SetupRunStatusCompleted, models.BootstrapPhaseVerified, "Setup drop completed.", nil)
 		if stateErr != nil {
 			return serviceSetupResponse{}, setupHTTPStatus(stateErr), stateErr
@@ -421,7 +440,7 @@ func (s *Server) runManifestServiceSetup(ctx context.Context, service servicecat
 
 	if waiting {
 		resp.Status = "waiting"
-		resp.Message = "Setup is waiting for PocketID Owner activation."
+		resp.Message = waitingMessage
 		resp.Drops = completed
 		return resp, http.StatusAccepted, nil
 	}
@@ -433,7 +452,15 @@ func (s *Server) runManifestServiceSetup(ctx context.Context, service servicecat
 }
 
 func isSetupWaitingForOwnerActivation(err *skerrors.StackKitError) bool {
-	return err != nil && (err.Code == "immich_pocketid_owner_missing" || err.Code == "vaultwarden_pocketid_owner_missing")
+	if err == nil || (err.Code != "immich_pocketid_owner_missing" && err.Code != "vaultwarden_pocketid_owner_missing") {
+		return false
+	}
+	cleanup, ok := err.Fields["sessionCleanup"].(string)
+	return !ok || cleanup != "failed"
+}
+
+func isVaultwardenOwnerCompletionPending(service servicecatalog.Service, app platformdeploy.AppManifest, drop platformdeploy.SetupDropManifest) bool {
+	return service.Key == "vault" && app.Name == "vaultwarden" && drop.Name == "vaultwarden-admin-handoff"
 }
 
 func ownerActivationWaitingEvidence(serviceKey, appName, dropName string) map[string]string {
@@ -451,16 +478,6 @@ func ownerActivationWaitingEvidence(serviceKey, appName, dropName string) map[st
 		evidence["oidcClientId"] = immichPocketIDClientID
 		evidence["autoRegister"] = "false"
 		evidence["autoLaunch"] = "true"
-	}
-	if serviceKey == "vault" && appName == "vaultwarden" && dropName == "vaultwarden-admin-handoff" {
-		evidence["credentialRole"] = "break-glass-admin-token"
-		evidence["adminTokenPosture"] = "verified-break-glass"
-		evidence["adminTokenStorage"] = "argon2id-phc-runtime"
-		evidence["appLocalSignups"] = "disabled"
-		evidence["plaintextAdminTokenEnv"] = "absent"
-		evidence["outerAuthBoundary"] = "tinyauth-pocketid"
-		evidence["appLocalOwner"] = "waiting-pocketid-owner"
-		evidence["readyToUseContentStatus"] = "waiting-owner-activation"
 	}
 	return evidence
 }
@@ -892,7 +909,8 @@ func (s *Server) startSetupRun(service servicecatalog.Service, app platformdeplo
 	}
 	now := time.Now().UTC()
 	idx := findSetupRunIndex(state.SetupRuns, service.Key, app.Name, drop.Name)
-	if idx >= 0 && state.SetupRuns[idx].Status == models.SetupRunStatusCompleted {
+	if idx >= 0 && state.SetupRuns[idx].Status == models.SetupRunStatusCompleted &&
+		!isVaultwardenOwnerCompletionPending(service, app, drop) {
 		run := state.SetupRuns[idx]
 		run.LastRequested = now
 		run.Phase = models.BootstrapPhaseVerified
@@ -1099,7 +1117,7 @@ func (s *Server) runSetupDrop(ctx context.Context, service servicecatalog.Servic
 	}
 }
 
-func (s *Server) runCloudreveOwnerBootstrap(ctx context.Context) (map[string]string, *skerrors.StackKitError) {
+func (s *Server) runCloudreveOwnerBootstrap(ctx context.Context) (evidence map[string]string, returnErr *skerrors.StackKitError) {
 	owner, ownerErr := s.resolvePocketIDOwner(ctx)
 	if ownerErr != nil {
 		return nil, ownerErr
@@ -1113,28 +1131,21 @@ func (s *Server) runCloudreveOwnerBootstrap(ctx context.Context) (map[string]str
 		)
 	}
 
-	login, userID, bridgeErr := s.prepareCloudreveOwnerSession(ctx, ownerEmail)
+	session, bridgeErr := s.prepareCloudreveOwnerSession(ctx, ownerEmail)
 	if bridgeErr != nil {
 		return nil, bridgeErr
 	}
-	var parsed cloudreveLoginResponse
-	if err := json.Unmarshal(login, &parsed); err != nil {
-		return nil, skerrors.NewDependencyError(
-			"files_cloudreve_session_parse_failed",
-			"Cloudreve Owner bootstrap could not parse the prepared session response",
-			skerrors.WithCause(err),
-		)
+	defer func() {
+		if cleanupErr := finishCloudreveOwnerSession(session, nil); cleanupErr != nil {
+			evidence = nil
+			returnErr = withCloudreveSessionCleanup(returnErr, cleanupErr)
+		}
+	}()
+	_, userID, handoffErr := session.handoffPayload()
+	if handoffErr != nil {
+		return nil, handoffErr
 	}
-	token := strings.TrimSpace(parsed.Token.AccessToken)
-	if token == "" {
-		return nil, skerrors.NewDependencyError(
-			"files_cloudreve_session_token_missing",
-			"Cloudreve Owner bootstrap did not receive a usable session token",
-		)
-	}
-	baseURL := strings.TrimRight(firstNonEmptyString(s.config.SetupCloudreveURL, "http://cloudreve:5212"), "/")
-	client := &http.Client{Timeout: 20 * time.Second}
-	if err := ensureCloudreveOwnerDemoContent(ctx, client, baseURL, token); err != nil {
+	if err := ensureCloudreveOwnerDemoContent(ctx, session.client, session.baseURL, session.technical.AccessTokenForHandoff()); err != nil {
 		return nil, cloudreveStackKitError("files_cloudreve_owner_demo_seed_failed", "failed to seed Cloudreve demo content for the PocketID Owner", err)
 	}
 
@@ -1156,7 +1167,7 @@ func (s *Server) runCloudreveOwnerBootstrap(ctx context.Context) (map[string]str
 	}, nil
 }
 
-func (s *Server) runVaultwardenAdminHandoff(ctx context.Context, app platformdeploy.AppManifest) (map[string]string, *skerrors.StackKitError) {
+func (s *Server) runVaultwardenAdminHandoff(ctx context.Context, app platformdeploy.AppManifest) (evidence map[string]string, returnErr *skerrors.StackKitError) {
 	_, tfvars, err := loadBaseHubTFVars(s.config.BaseDir)
 	if err != nil {
 		return nil, skerrors.NewValidationError(
@@ -1173,8 +1184,8 @@ func (s *Server) runVaultwardenAdminHandoff(ctx context.Context, app platformdep
 			skerrors.WithSuggestion("Enable Vaultwarden and re-apply before running its bootstrap action"),
 		)
 	}
-	token := strings.TrimSpace(stringTFVar(tfvars, "vaultwarden_admin_token", ""))
-	if token == "" {
+	tokenValue := strings.TrimSpace(stringTFVar(tfvars, "vaultwarden_admin_token", ""))
+	if tokenValue == "" {
 		return nil, skerrors.NewValidationError(
 			"vaultwarden_admin_token_missing",
 			"Vaultwarden admin token is not present in generated StackKit inputs",
@@ -1191,34 +1202,86 @@ func (s *Server) runVaultwardenAdminHandoff(ctx context.Context, app platformdep
 	if err := verifyVaultwardenHandoffCompose(app.ComposeYAML); err != nil {
 		return nil, err
 	}
-	baseURL := strings.TrimRight(firstNonEmptyString(s.config.SetupVaultwardenURL, "http://vaultwarden:80"), "/")
-	client := &http.Client{Timeout: 20 * time.Second}
-	if err := vaultwardenAdminHealth(ctx, client, baseURL); err != nil {
-		return nil, err
-	}
-	adminCookies, loginErr := vaultwardenAdminLogin(ctx, client, baseURL, token)
-	if loginErr != nil {
-		return nil, loginErr
-	}
-	evidence := map[string]string{
-		"credentialRole":         "break-glass-admin-token",
-		"ownerLogin":             initialAccessOwnerLogin,
-		"adminTokenPosture":      "verified-break-glass",
-		"adminTokenStorage":      "argon2id-phc-runtime",
-		"appLocalSignups":        "disabled",
-		"plaintextAdminTokenEnv": "absent",
-		"outerAuthBoundary":      "tinyauth-pocketid",
-	}
 	owner, ownerErr := s.resolveVaultwardenPocketIDOwner(ctx)
 	if ownerErr != nil {
 		return nil, ownerErr
 	}
-	ownerEvidence, inviteErr := vaultwardenInvitePocketIDOwner(ctx, client, baseURL, adminCookies, owner)
-	if inviteErr != nil {
-		return nil, inviteErr
+	ownerEmail := strings.TrimSpace(owner.Email)
+	if ownerEmail == "" {
+		return map[string]string{
+			"appLocalOwner":           "technical-admin-bootstrap-only",
+			"ownerProvisioning":       "skipped-pocketid-disabled",
+			"appLocalSessionHandoff":  "not-configured-pocketid-disabled",
+			"readyToUseContentStatus": "not-configured-pocketid-disabled",
+		}, nil
 	}
-	for key, value := range ownerEvidence {
-		evidence[key] = value
+
+	baseURL := strings.TrimRight(firstNonEmptyString(s.config.SetupVaultwardenURL, "http://vaultwarden:80"), "/")
+	client := &http.Client{Timeout: 20 * time.Second, Transport: &http.Transport{Proxy: nil}}
+	defer client.CloseIdleConnections()
+	adminToken := []byte(tokenValue)
+	tokenValue = ""
+	tfvars["vaultwarden_admin_token"] = ""
+	defer clear(adminToken)
+	observed, setupErr := appsetup.BootstrapVaultwardenOwner(ctx, client, baseURL, appsetup.VaultwardenOwnerRequest{
+		Email: ownerEmail, AdminToken: adminToken, ExpectedVersion: appsetup.VaultwardenPinnedVersion,
+	})
+	if setupErr != nil {
+		return nil, skerrors.NewDependencyError(
+			"vaultwarden_admin_handoff_failed",
+			"failed to verify or prepare the Vaultwarden Owner invitation",
+			skerrors.WithCause(setupErr),
+			skerrors.WithSuggestion("Check the generated Vaultwarden admin token and invite settings, then retry the Vault setup action"),
+		)
+	}
+	defer func() {
+		if cleanupErr := observed.Cleanup(context.Background(), client, baseURL); cleanupErr != nil {
+			evidence = nil
+			cleanupFailure := skerrors.NewDependencyError(
+				"vaultwarden_admin_session_cleanup_failed",
+				"failed to close the temporary Vaultwarden admin session",
+				skerrors.WithCause(cleanupErr),
+			)
+			if returnErr == nil {
+				returnErr = cleanupFailure
+			} else {
+				returnErr = skerrors.NewDependencyError(
+					"vaultwarden_admin_handoff_failed",
+					"Vaultwarden Owner invitation completed but its temporary admin session could not be closed",
+					skerrors.WithCause(errors.Join(returnErr, cleanupFailure)),
+				)
+			}
+		}
+	}()
+
+	evidence = map[string]string{
+		"credentialRole":          "break-glass-admin-token",
+		"ownerLogin":              initialAccessOwnerLogin,
+		"adminTokenPosture":       "verified-break-glass",
+		"adminTokenStorage":       "argon2id-phc-runtime",
+		"appLocalSignups":         "disabled",
+		"plaintextAdminTokenEnv":  "absent",
+		"outerAuthBoundary":       "tinyauth-pocketid",
+		"appLocalOwner":           "pocketid-owner-preprovisioned",
+		"ownerEmail":              ownerEmail,
+		"appLocalSessionHandoff":  "vaultwarden-invite-prepared",
+		"readyToUseContentStatus": "owner-completes-vaultwarden-invite",
+	}
+	switch observed.Preparation {
+	case applicationlifecycle.VaultOwnerPreparationInvited:
+		evidence["ownerProvisioning"] = "vaultwarden-admin-invite-prepared"
+		evidence["vaultwardenInvite"] = applicationlifecycle.VaultOwnerPreparationInvited
+	case applicationlifecycle.VaultOwnerPreparationRegistered:
+		evidence["ownerProvisioning"] = "vaultwarden-owner-already-registered"
+		evidence["vaultwardenInvite"] = applicationlifecycle.VaultOwnerPreparationRegistered
+	default:
+		return nil, skerrors.NewDependencyError(
+			"vaultwarden_owner_state_unverified",
+			"Vaultwarden returned an unsupported Owner preparation state",
+		)
+	}
+	if id := strings.TrimSpace(owner.ID); id != "" {
+		evidence["pocketidOwnerId"] = id
 	}
 	return evidence, nil
 }
@@ -1258,62 +1321,6 @@ func verifyVaultwardenHandoffCompose(composeYAML string) *skerrors.StackKitError
 	return nil
 }
 
-func vaultwardenAdminHealth(ctx context.Context, client *http.Client, baseURL string) *skerrors.StackKitError {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/alive", nil)
-	if err != nil {
-		return skerrors.NewValidationError("vaultwarden_admin_url_invalid", "Vaultwarden setup URL is invalid", skerrors.WithCause(err))
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return skerrors.NewDependencyError("vaultwarden_admin_unreachable", "failed to reach Vaultwarden health endpoint", skerrors.WithCause(err))
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return skerrors.NewDependencyError(
-			"vaultwarden_admin_unhealthy",
-			"Vaultwarden health endpoint is not ready",
-			skerrors.WithField("status", resp.StatusCode),
-		)
-	}
-	return nil
-}
-
-func vaultwardenAdminLogin(ctx context.Context, client *http.Client, baseURL, token string) ([]*http.Cookie, *skerrors.StackKitError) {
-	form := url.Values{"token": []string{token}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/admin", strings.NewReader(form.Encode()))
-	if err != nil {
-		return nil, skerrors.NewValidationError("vaultwarden_admin_url_invalid", "Vaultwarden admin URL is invalid", skerrors.WithCause(err))
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, skerrors.NewDependencyError("vaultwarden_admin_login_unreachable", "failed to reach Vaultwarden admin login", skerrors.WithCause(err))
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, skerrors.NewAuthError(
-			"vaultwarden_admin_login_failed",
-			"Vaultwarden rejected the generated admin token",
-			skerrors.WithField("status", resp.StatusCode),
-			skerrors.WithSuggestion("Rotate the generated Vaultwarden admin token and re-run the setup action"),
-		)
-	}
-	for _, cookie := range resp.Cookies() {
-		if cookie.Name == "VW_ADMIN" && strings.TrimSpace(cookie.Value) != "" {
-			return resp.Cookies(), nil
-		}
-	}
-	if !strings.Contains(string(body), "Vaultwarden Admin Panel") {
-		return nil, skerrors.NewDependencyError(
-			"vaultwarden_admin_login_unverified",
-			"Vaultwarden admin login completed without a verifiable admin session",
-			skerrors.WithField("status", resp.StatusCode),
-		)
-	}
-	return resp.Cookies(), nil
-}
-
 func (s *Server) resolveVaultwardenPocketIDOwner(ctx context.Context) (pocketIDUser, *skerrors.StackKitError) {
 	owner, err := s.resolvePocketIDOwner(ctx)
 	if err == nil {
@@ -1329,124 +1336,47 @@ func (s *Server) resolveVaultwardenPocketIDOwner(ctx context.Context) (pocketIDU
 	return owner, err
 }
 
-func vaultwardenInvitePocketIDOwner(ctx context.Context, client *http.Client, baseURL string, cookies []*http.Cookie, owner pocketIDUser) (map[string]string, *skerrors.StackKitError) {
-	ownerEmail := strings.TrimSpace(owner.Email)
-	if ownerEmail == "" {
-		return map[string]string{
-			"appLocalOwner":           "technical-admin-bootstrap-only",
-			"ownerProvisioning":       "skipped-pocketid-disabled",
-			"appLocalSessionHandoff":  "not-configured-pocketid-disabled",
-			"readyToUseContentStatus": "not-configured-pocketid-disabled",
-		}, nil
-	}
-	payload, err := json.Marshal(map[string]string{"email": ownerEmail})
-	if err != nil {
-		return nil, skerrors.NewValidationError("vaultwarden_owner_invite_payload_failed", "failed to prepare Vaultwarden Owner invite payload", skerrors.WithCause(err))
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/admin/invite", bytes.NewReader(payload))
-	if err != nil {
-		return nil, skerrors.NewValidationError("vaultwarden_owner_invite_url_invalid", "Vaultwarden invite URL is invalid", skerrors.WithCause(err))
-	}
-	req.Header.Set("Content-Type", "application/json")
-	for _, cookie := range cookies {
-		req.AddCookie(cookie)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, skerrors.NewDependencyError("vaultwarden_owner_invite_unreachable", "failed to reach Vaultwarden Owner invite endpoint", skerrors.WithCause(err))
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 256*1024))
-	var inviteStatus string
-	switch {
-	case resp.StatusCode >= 200 && resp.StatusCode < 300:
-		inviteStatus = "created"
-	case resp.StatusCode == http.StatusConflict:
-		inviteStatus = "already-exists"
-	default:
-		return nil, skerrors.NewDependencyError(
-			"vaultwarden_owner_invite_failed",
-			"Vaultwarden rejected the PocketID Owner invite",
-			skerrors.WithField("status", resp.StatusCode),
-			skerrors.WithField("body", truncateForField(string(body))),
-			skerrors.WithSuggestion("Check the generated Vaultwarden admin token and invite settings, then retry the Vault setup action"),
-		)
-	}
-	evidence := map[string]string{
-		"appLocalOwner":           "pocketid-owner-preprovisioned",
-		"ownerEmail":              ownerEmail,
-		"ownerProvisioning":       "vaultwarden-admin-invite-" + inviteStatus,
-		"appLocalSessionHandoff":  "vaultwarden-invite-prepared",
-		"readyToUseContentStatus": "owner-completes-vaultwarden-invite",
-		"vaultwardenInvite":       inviteStatus,
-	}
-	if id := strings.TrimSpace(owner.ID); id != "" {
-		evidence["pocketidOwnerId"] = id
-	}
-	return evidence, nil
-}
-
-func (s *Server) runImmichOwnerBootstrap(ctx context.Context) (map[string]string, *skerrors.StackKitError) {
+func (s *Server) runImmichOwnerBootstrap(ctx context.Context) (evidence map[string]string, returnErr *skerrors.StackKitError) {
 	baseURL := strings.TrimRight(firstNonEmptyString(s.config.SetupImmichURL, "http://immich:2283"), "/")
 	email := strings.TrimSpace(s.config.SetupAdminEmail)
-	password := strings.TrimSpace(s.config.SetupAdminPassword)
-	if email == "" || password == "" {
-		return nil, skerrors.NewValidationError(
-			"setup_credentials_missing",
-			"Immich owner bootstrap requires StackKit admin credentials",
-			skerrors.WithSuggestion("Set STACKKIT_ADMIN_EMAIL and STACKKIT_ADMIN_PASSWORD for stackkit-server"),
-		)
+	password := s.config.SetupAdminPassword
+	client := appsetup.NewImmichHTTPClient()
+	defer client.CloseIdleConnections()
+	technical, setupErr := appsetup.BootstrapImmichOwner(ctx, client, baseURL, appsetup.ImmichOwnerRequest{
+		Email:              email,
+		Password:           password,
+		DisplayName:        "StackKit Admin",
+		CompleteOnboarding: true,
+	})
+	if setupErr != nil {
+		return nil, setupErr
 	}
-
-	client := &http.Client{Timeout: 20 * time.Second}
-	var config struct {
-		IsInitialized bool `json:"isInitialized"`
-	}
-	if err := immichRequest(ctx, client, baseURL, http.MethodGet, "/api/server/config", nil, "", &config); err != nil {
-		return nil, skerrors.NewDependencyError("immich_config_failed", "failed to read Immich server config", skerrors.WithCause(err))
-	}
-	if !config.IsInitialized {
-		payload := map[string]string{
-			"email":    email,
-			"password": password,
-			"name":     "StackKit Admin",
+	technicalToken := technical.AccessTokenForHandoff()
+	var token string
+	var ownerToken string
+	defer func() {
+		cleanupErr := technical.Cleanup(context.Background(), client, baseURL)
+		if ownerToken != "" && ownerToken != technicalToken {
+			if ownerCleanupErr := appsetup.LogoutImmichSession(context.Background(), client, baseURL, ownerToken); cleanupErr == nil {
+				cleanupErr = ownerCleanupErr
+			}
 		}
-		if err := immichRequest(ctx, client, baseURL, http.MethodPost, "/api/auth/admin-sign-up", payload, "", nil); err != nil {
-			return nil, skerrors.NewDependencyError("immich_admin_signup_failed", "failed to create Immich owner", skerrors.WithCause(err))
+		technicalToken = ""
+		token = ""
+		ownerToken = ""
+		if cleanupErr != nil {
+			if returnErr == nil {
+				returnErr = cleanupErr
+				evidence = nil
+			} else {
+				if returnErr.Fields == nil {
+					returnErr.Fields = make(map[string]interface{})
+				}
+				returnErr.Fields["sessionCleanup"] = "failed"
+			}
 		}
-	}
-
-	var login struct {
-		AccessToken string `json:"accessToken"`
-	}
-	if err := immichRequest(ctx, client, baseURL, http.MethodPost, "/api/auth/login", map[string]string{
-		"email":    email,
-		"password": password,
-	}, "", &login); err != nil {
-		return nil, skerrors.NewAuthError("immich_login_failed", "failed to log in to Immich with StackKit admin credentials", skerrors.WithCause(err))
-	}
-	if strings.TrimSpace(login.AccessToken) == "" {
-		return nil, skerrors.NewAuthError("immich_login_missing_token", "Immich login did not return an access token")
-	}
-
-	token := login.AccessToken
-	name := "StackKit Admin"
-	if err := immichRequest(ctx, client, baseURL, http.MethodPut, "/api/users/me", map[string]string{
-		"name":     name,
-		"password": password,
-	}, token, nil); err != nil {
-		return nil, skerrors.NewDependencyError("immich_profile_update_failed", "failed to update Immich owner profile", skerrors.WithCause(err))
-	}
-	if err := immichRequest(ctx, client, baseURL, http.MethodPut, "/api/users/me/onboarding", map[string]bool{
-		"isOnboarded": true,
-	}, token, nil); err != nil {
-		return nil, skerrors.NewDependencyError("immich_user_onboarding_failed", "failed to complete Immich user onboarding", skerrors.WithCause(err))
-	}
-	if err := immichRequest(ctx, client, baseURL, http.MethodPost, "/api/system-metadata/admin-onboarding", map[string]bool{
-		"isOnboarded": true,
-	}, token, nil); err != nil {
-		return nil, skerrors.NewDependencyError("immich_admin_onboarding_failed", "failed to complete Immich admin onboarding", skerrors.WithCause(err))
-	}
+	}()
+	token = technicalToken
 
 	evidence, err := s.configureImmichPocketIDOAuth(ctx, client, baseURL, token)
 	if err != nil {
@@ -1456,7 +1386,9 @@ func (s *Server) runImmichOwnerBootstrap(ctx context.Context) (map[string]string
 	if ownerErr != nil {
 		return nil, ownerErr
 	}
-	ownerToken, ownerEvidence, ownerSetupErr := ensureImmichPocketIDOwner(ctx, client, baseURL, token, email, owner)
+	var ownerEvidence map[string]string
+	var ownerSetupErr *skerrors.StackKitError
+	ownerToken, ownerEvidence, ownerSetupErr = ensureImmichPocketIDOwner(ctx, client, baseURL, token, email, owner)
 	if ownerSetupErr != nil {
 		return nil, ownerSetupErr
 	}
@@ -1471,6 +1403,8 @@ func (s *Server) runImmichOwnerBootstrap(ctx context.Context) (map[string]string
 	}
 	evidence["credentialRole"] = "technical-admin-bootstrap"
 	evidence["technicalAdmin"] = "stackkit-admin-created"
+	evidence["serverInitialized"] = "verified"
+	evidence["ownerReadback"] = "verified"
 	if evidence["appLocalOwner"] == "" {
 		evidence["appLocalOwner"] = "technical-admin-bootstrap-only"
 	}
@@ -1579,7 +1513,7 @@ func pocketIDOwnerDisplayName(owner pocketIDUser) string {
 	return strings.TrimSpace(owner.Email)
 }
 
-func ensureImmichPocketIDOwner(ctx context.Context, client *http.Client, baseURL, adminToken, technicalAdminEmail string, owner pocketIDUser) (string, map[string]string, *skerrors.StackKitError) {
+func ensureImmichPocketIDOwner(ctx context.Context, client *http.Client, baseURL, adminToken, technicalAdminEmail string, owner pocketIDUser) (ownerToken string, evidence map[string]string, returnErr *skerrors.StackKitError) {
 	ownerEmail := strings.TrimSpace(owner.Email)
 	if ownerEmail == "" {
 		return adminToken, map[string]string{
@@ -1588,9 +1522,23 @@ func ensureImmichPocketIDOwner(ctx context.Context, client *http.Client, baseURL
 			"appLocalSessionHandoff": "not-configured-pocketid-disabled",
 		}, nil
 	}
+	var sessionToken string
+	defer func() {
+		if returnErr == nil || sessionToken == "" {
+			return
+		}
+		cleanupErr := appsetup.LogoutImmichSession(context.Background(), client, baseURL, sessionToken)
+		sessionToken = ""
+		if cleanupErr != nil {
+			if returnErr.Fields == nil {
+				returnErr.Fields = make(map[string]interface{})
+			}
+			returnErr.Fields["sessionCleanup"] = "failed"
+		}
+	}()
 
 	ownerName := pocketIDOwnerDisplayName(owner)
-	evidence := map[string]string{
+	evidence = map[string]string{
 		"appLocalOwner":          "pocketid-owner-preprovisioned",
 		"ownerEmail":             ownerEmail,
 		"ownerProvisioning":      "pocketid-owner-email-preprovisioned",
@@ -1663,21 +1611,26 @@ func ensureImmichPocketIDOwner(ctx context.Context, client *http.Client, baseURL
 	var ownerLogin struct {
 		AccessToken string `json:"accessToken"`
 	}
-	if err := immichRequest(ctx, client, baseURL, http.MethodPost, "/api/auth/login", map[string]string{
+	loginErr := immichRequest(ctx, client, baseURL, http.MethodPost, "/api/auth/login", map[string]string{
 		"email":    ownerEmail,
 		"password": ownerPassword,
-	}, "", &ownerLogin); err != nil {
-		return "", nil, skerrors.NewAuthError("immich_owner_login_failed", "failed to log in to Immich with the generated Owner bootstrap credential", skerrors.WithCause(err))
+	}, "", &ownerLogin)
+	sessionToken = strings.TrimSpace(ownerLogin.AccessToken)
+	ownerLogin.AccessToken = ""
+	if loginErr != nil {
+		return "", nil, skerrors.NewAuthError("immich_owner_login_failed", "failed to log in to Immich with the generated Owner bootstrap credential", skerrors.WithCause(loginErr))
 	}
-	if strings.TrimSpace(ownerLogin.AccessToken) == "" {
+	if sessionToken == "" {
 		return "", nil, skerrors.NewAuthError("immich_owner_login_missing_token", "Immich Owner login did not return an access token")
 	}
 	if err := immichRequest(ctx, client, baseURL, http.MethodPut, "/api/users/me/onboarding", map[string]bool{
 		"isOnboarded": true,
-	}, ownerLogin.AccessToken, nil); err != nil {
+	}, sessionToken, nil); err != nil {
 		return "", nil, skerrors.NewDependencyError("immich_owner_onboarding_failed", "failed to complete Immich Owner onboarding", skerrors.WithCause(err))
 	}
-	return ownerLogin.AccessToken, evidence, nil
+	ownerToken = sessionToken
+	sessionToken = ""
+	return ownerToken, evidence, nil
 }
 
 func generatedImmichOwnerBootstrapPassword() string {
@@ -1982,44 +1935,8 @@ func setupHTTPStatus(err *skerrors.StackKitError) int {
 }
 
 func immichRequest(ctx context.Context, client *http.Client, baseURL, method, path string, payload any, token string, out any) error {
-	var body io.Reader
-	if payload != nil {
-		data, err := json.Marshal(payload)
-		if err != nil {
-			return err
-		}
-		body = bytes.NewReader(data)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, baseURL+path, body)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	data, readErr := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if readErr != nil {
-		return readErr
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("%s %s returned HTTP %d: %s", method, path, resp.StatusCode, strings.TrimSpace(string(data)))
-	}
-	if out == nil || len(bytes.TrimSpace(data)) == 0 {
-		return nil
-	}
-	if err := json.Unmarshal(data, out); err != nil {
-		return fmt.Errorf("decode %s %s response: %w", method, path, err)
-	}
-	return nil
+	return appsetup.ImmichRequest(ctx, client, baseURL, method, path, payload, token, out)
 }
-
 func firstNonEmptyString(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {

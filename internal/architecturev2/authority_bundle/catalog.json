@@ -184,6 +184,28 @@
               "state-console"
             ]
           },
+          "setup": {
+            "destructive": false,
+            "evidence": [
+              "setup-result"
+            ],
+            "mutation": true,
+            "name": "setup",
+            "operations": [
+              "stackkit.setup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "configure",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
           "upgrade": {
             "destructive": true,
             "evidence": [
@@ -941,6 +963,28 @@
               "activate",
               "verify",
               "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "setup": {
+            "destructive": false,
+            "evidence": [
+              "setup-result"
+            ],
+            "mutation": true,
+            "name": "setup",
+            "operations": [
+              "stackkit.setup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "configure",
+              "verify"
             ],
             "surfaces": [
               "cli",
@@ -11978,7 +12022,8 @@
             "kit",
             "sites",
             "moduleTargets",
-            "moduleCapabilities"
+            "moduleCapabilities",
+            "backupPolicy"
           ]
         },
         "scope": "concrete"
@@ -12536,7 +12581,8 @@
             "kit",
             "sites",
             "moduleTargets",
-            "moduleCapabilities"
+            "moduleCapabilities",
+            "backupPolicy"
           ],
           "providesInterfaces": [],
           "publicInputRefs": [
@@ -12565,7 +12611,8 @@
             "kit",
             "sites",
             "moduleTargets",
-            "moduleCapabilities"
+            "moduleCapabilities",
+            "backupPolicy"
           ],
           "publicInputRefs": [
             "backup-source"
@@ -12590,7 +12637,8 @@
             "kit",
             "sites",
             "moduleTargets",
-            "moduleCapabilities"
+            "moduleCapabilities",
+            "backupPolicy"
           ],
           "publicInputRefs": [
             "backup-source"
@@ -12617,7 +12665,8 @@
             "kit",
             "sites",
             "moduleTargets",
-            "moduleCapabilities"
+            "moduleCapabilities",
+            "backupPolicy"
           ],
           "publicInputRefs": [
             "backup-source"
@@ -13263,6 +13312,20 @@
               "outputRef": "platform/basement-core-lite/stack.tm.hcl",
               "required": true,
               "unitRef": "terramate"
+            },
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu",
+                "terramate"
+              ],
+              "format": "json",
+              "id": "local-kopia-backup-source-policy-lite",
+              "kind": "native-config",
+              "mode": "0600",
+              "outputRef": "home/backup/kopia-source-policy-lite.json",
+              "required": true,
+              "unitRef": "source-policy"
             }
           ],
           "outputBindings": [
@@ -13290,6 +13353,11 @@
               "artifactRef": "basement-core-lite-terramate-stack",
               "outputRef": "platform/basement-core-lite/stack.tm.hcl",
               "unitRef": "terramate"
+            },
+            {
+              "artifactRef": "local-kopia-backup-source-policy-lite",
+              "outputRef": "home/backup/kopia-source-policy-lite.json",
+              "unitRef": "source-policy"
             }
           ],
           "requiredRefs": [
@@ -13297,7 +13365,8 @@
             "basement-core-lite-opentofu",
             "basement-core-lite-terramate-opentofu",
             "basement-core-lite-terramate-root",
-            "basement-core-lite-terramate-stack"
+            "basement-core-lite-terramate-stack",
+            "local-kopia-backup-source-policy-lite"
           ]
         },
         "compatibleRendererRefs": [
@@ -13311,12 +13380,21 @@
         },
         "inputs": {
           "contractComplete": true,
-          "requiredRefs": []
+          "requiredRefs": [
+            "backup-source"
+          ]
         },
         "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
-          "requiredRefs": []
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities",
+            "backupPolicy"
+          ]
         },
         "scope": "concrete"
       },
@@ -13760,54 +13838,134 @@
           ],
           "templateRef": "builtin://basement/core-lite/terramate/v1",
           "version": "1.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "compose",
+            "opentofu",
+            "terramate"
+          ],
+          "contractHash": "sha256:7edfa9c808cedb14d3f58a7101f7a31f597fa09ea1488002587225a4ee43bee3",
+          "id": "source-policy",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "backup.localKopiaSource",
+              "targetRef": "backup-source",
+              "valueType": "local-kopia-backup-source-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "home/backup/kopia-source-policy-lite.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities",
+            "backupPolicy"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "backup-source"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://home/backup/kopia-source/v1.json",
+          "version": "1.0.0"
         }
       ],
       "renderVariants": [
         {
           "artifactRefs": [
-            "basement-core-lite-compose"
+            "basement-core-lite-compose",
+            "local-kopia-backup-source-policy-lite"
           ],
           "contractHash": "sha256:ad87a08fc59a84686db9160045e2e6a158b4107ff17bc9cb769e89afc00c356e",
           "id": "compose",
-          "planInputRefs": [],
-          "publicInputRefs": [],
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities",
+            "backupPolicy"
+          ],
+          "publicInputRefs": [
+            "backup-source"
+          ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
           "target": "compose",
           "unitRefs": [
-            "compose"
+            "compose",
+            "source-policy"
           ]
         },
         {
           "artifactRefs": [
-            "basement-core-lite-opentofu"
+            "basement-core-lite-opentofu",
+            "local-kopia-backup-source-policy-lite"
           ],
           "contractHash": "sha256:b7e11c232677a50c30569345a4ded35ea52cc3cdf60c9874f0fc513ed31b6d36",
           "id": "opentofu",
-          "planInputRefs": [],
-          "publicInputRefs": [],
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities",
+            "backupPolicy"
+          ],
+          "publicInputRefs": [
+            "backup-source"
+          ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
           "target": "opentofu",
           "unitRefs": [
-            "opentofu"
+            "opentofu",
+            "source-policy"
           ]
         },
         {
           "artifactRefs": [
             "basement-core-lite-terramate-opentofu",
             "basement-core-lite-terramate-root",
-            "basement-core-lite-terramate-stack"
+            "basement-core-lite-terramate-stack",
+            "local-kopia-backup-source-policy-lite"
           ],
           "contractHash": "sha256:6282b30a8232c76a74c562d6d7eae310e131226f8c74c846c138f3c48a2f3fc2",
           "id": "terramate",
-          "planInputRefs": [],
-          "publicInputRefs": [],
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities",
+            "backupPolicy"
+          ],
+          "publicInputRefs": [
+            "backup-source"
+          ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
           "target": "terramate",
           "unitRefs": [
-            "terramate"
+            "terramate",
+            "source-policy"
           ]
         }
       ],
@@ -14106,6 +14264,25 @@
             "immich-valkey"
           ],
           "executable": true,
+          "hostFloor": {
+            "minAMD64MicroarchitectureLevel": 2,
+            "minCpuCores": 2,
+            "minRamGB": 6,
+            "minStorageGB": 20,
+            "storageFilesystem": {
+              "allowedFilesystemTypes": [
+                "ext2",
+                "ext3",
+                "ext4",
+                "xfs",
+                "btrfs",
+                "zfs"
+              ],
+              "requireOwnership": true,
+              "requiredClass": "local-posix",
+              "sourceRef": "system.container.dataRoot"
+            }
+          },
           "maturity": "supported",
           "realization": "apply-ready",
           "reservation": {
@@ -14121,6 +14298,25 @@
             "immich-valkey"
           ],
           "executable": true,
+          "hostFloor": {
+            "minAMD64MicroarchitectureLevel": 2,
+            "minCpuCores": 2,
+            "minRamGB": 6,
+            "minStorageGB": 20,
+            "storageFilesystem": {
+              "allowedFilesystemTypes": [
+                "ext2",
+                "ext3",
+                "ext4",
+                "xfs",
+                "btrfs",
+                "zfs"
+              ],
+              "requireOwnership": true,
+              "requiredClass": "local-posix",
+              "sourceRef": "system.container.dataRoot"
+            }
+          },
           "maturity": "supported",
           "realization": "apply-ready",
           "reservation": {
@@ -14621,6 +14817,24 @@
             "machine-learning-disabled"
           ],
           "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 10,
+            "storageFilesystem": {
+              "allowedFilesystemTypes": [
+                "ext2",
+                "ext3",
+                "ext4",
+                "xfs",
+                "btrfs",
+                "zfs"
+              ],
+              "requireOwnership": true,
+              "requiredClass": "local-posix",
+              "sourceRef": "system.container.dataRoot"
+            }
+          },
           "maturity": "supported",
           "realization": "apply-ready",
           "reservation": {
@@ -14994,6 +15208,11 @@
             "cloudreve"
           ],
           "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
           "maturity": "supported",
           "realization": "apply-ready",
           "reservation": {
@@ -15005,6 +15224,11 @@
             "cloudreve"
           ],
           "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 2,
+            "minStorageGB": 10
+          },
           "maturity": "supported",
           "realization": "apply-ready",
           "reservation": {
@@ -15016,6 +15240,11 @@
             "cloudreve"
           ],
           "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
           "maturity": "supported",
           "realization": "apply-ready",
           "reservation": {
@@ -15263,6 +15492,11 @@
             "vaultwarden"
           ],
           "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
           "maturity": "supported",
           "realization": "apply-ready",
           "reservation": {
@@ -15274,6 +15508,11 @@
             "vaultwarden"
           ],
           "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 2,
+            "minStorageGB": 10
+          },
           "maturity": "supported",
           "realization": "apply-ready",
           "reservation": {
@@ -15285,6 +15524,11 @@
             "vaultwarden"
           ],
           "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
           "maturity": "supported",
           "realization": "apply-ready",
           "reservation": {
@@ -15545,6 +15789,11 @@
             "jellyfin"
           ],
           "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
           "maturity": "supported",
           "realization": "apply-ready",
           "reservation": {
@@ -15556,6 +15805,11 @@
             "jellyfin"
           ],
           "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
           "maturity": "supported",
           "realization": "apply-ready",
           "reservation": {
@@ -15814,6 +16068,11 @@
             "home-assistant"
           ],
           "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
           "maturity": "supported",
           "realization": "apply-ready",
           "reservation": {
@@ -15825,6 +16084,11 @@
             "home-assistant"
           ],
           "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 2,
+            "minStorageGB": 10
+          },
           "maturity": "supported",
           "realization": "apply-ready",
           "reservation": {
@@ -15836,6 +16100,11 @@
             "home-assistant"
           ],
           "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
           "maturity": "supported",
           "realization": "apply-ready",
           "reservation": {
@@ -23141,9 +23410,11 @@
             ]
           },
           "setup": {
-            "actionRefs": [],
-            "mode": "manual",
-            "owner": "operator"
+            "actionRefs": [
+              "immich-owner-bootstrap"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
           }
         },
         {
@@ -23259,9 +23530,11 @@
             "defaultFallbackAdapterRefs": []
           },
           "setup": {
-            "actionRefs": [],
-            "mode": "manual",
-            "owner": "operator"
+            "actionRefs": [
+              "immich-owner-bootstrap"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
           }
         }
       ],
@@ -23416,9 +23689,11 @@
             ]
           },
           "setup": {
-            "actionRefs": [],
-            "mode": "manual",
-            "owner": "operator"
+            "actionRefs": [
+              "cloudreve-owner-bootstrap"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
           }
         }
       ],
@@ -23577,9 +23852,11 @@
             ]
           },
           "setup": {
-            "actionRefs": [],
-            "mode": "manual",
-            "owner": "operator"
+            "actionRefs": [
+              "vault-owner-invite"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
           }
         }
       ],
@@ -23753,9 +24030,11 @@
             ]
           },
           "setup": {
-            "actionRefs": [],
-            "mode": "manual",
-            "owner": "operator"
+            "actionRefs": [
+              "jellyfin-owner-bootstrap"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
           }
         }
       ],
@@ -23910,9 +24189,11 @@
             ]
           },
           "setup": {
-            "actionRefs": [],
-            "mode": "manual",
-            "owner": "operator"
+            "actionRefs": [
+              "home-assistant-owner-bootstrap"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
           }
         }
       ],

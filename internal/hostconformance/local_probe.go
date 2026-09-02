@@ -23,9 +23,16 @@ type LocalSource interface {
 }
 
 type LocalProbe struct {
-	Source       LocalSource
-	Architecture string
+	Source           LocalSource
+	Architecture     string
+	StorageSourceRef string
+	StoragePath      string
 }
+
+// amd64MicroarchitectureFlags are the x86-64-v2 feature flags as exposed by
+// Linux /proc/cpuinfo. The observation is an intersection across every CPU
+// record, so a flag exposed by only one CPU cannot satisfy the requirement.
+var amd64MicroarchitectureFlags = []string{"ssse3", "sse4_1", "sse4_2", "popcnt", "cx16", "lahf_lm"}
 
 type osLocalSource struct{}
 
@@ -63,6 +70,7 @@ func (p LocalProbe) Observe(ctx context.Context) (Observation, error) {
 	if architecture != "amd64" && architecture != "arm64" {
 		return Observation{}, fmt.Errorf("unsupported host architecture %q", architecture)
 	}
+	microarchitectureLevel := observeAMD64MicroarchitectureLevel(source, architecture)
 	kernelOutput, err := source.Run(ctx, "uname", "-r")
 	if err != nil {
 		return Observation{}, fmt.Errorf("read kernel release: %w", err)
@@ -73,6 +81,7 @@ func (p LocalProbe) Observe(ctx context.Context) (Observation, error) {
 	}
 	runtimeFacts := detectRuntime(ctx, source)
 	virtualization := detectVirtualization(ctx, source)
+	initSystem := ObserveInitSystem(ctx, source)
 
 	runtimeStatus := "pass"
 	runtimeSummary := "A supported container runtime binary is available"
@@ -82,17 +91,99 @@ func (p LocalProbe) Observe(ctx context.Context) (Observation, error) {
 	}
 	return Observation{
 		Facts: Facts{
-			OS:             osFacts,
-			Architecture:   architecture,
-			KernelRelease:  kernel,
-			Runtime:        runtimeFacts,
-			Virtualization: virtualization,
+			OS:                          osFacts,
+			Architecture:                architecture,
+			AMD64MicroarchitectureLevel: microarchitectureLevel,
+			KernelRelease:               kernel,
+			Runtime:                     runtimeFacts,
+			Virtualization:              virtualization,
+			InitSystem:                  initSystem,
 		},
 		Checks: []Check{
 			{ID: "host-facts-complete", Category: "host-diagnostic", Status: "pass", Summary: "Required read-only host facts were observed"},
 			{ID: "container-runtime", Category: "host-diagnostic", Status: runtimeStatus, Summary: runtimeSummary},
 		},
 	}, nil
+}
+
+// observeAMD64MicroarchitectureLevel returns 0 when the feature source is
+// unavailable or incomplete, 1 for a complete amd64 CPU inventory below
+// x86-64-v2, and 2 when every observed CPU exposes the x86-64-v2 flags.
+// Higher levels are reserved until a safe source measures them.
+func observeAMD64MicroarchitectureLevel(source LocalSource, architecture string) int {
+	if architecture != "amd64" {
+		return 0
+	}
+	data, err := source.ReadFile("/proc/cpuinfo")
+	if err != nil {
+		return 0
+	}
+	records := cpuInfoFlagRecords(data)
+	if len(records) == 0 {
+		return 0
+	}
+	for _, flags := range records {
+		if len(flags) == 0 {
+			return 0
+		}
+	}
+	for _, flags := range records {
+		if !hasAMD64MicroarchitectureFlags(flags) {
+			return 1
+		}
+	}
+	return 2
+}
+
+func cpuInfoFlagRecords(data []byte) []map[string]struct{} {
+	var records []map[string]struct{}
+	var current map[string]struct{}
+	seenProcessor := false
+	seenFlags := false
+	for _, line := range strings.Split(string(data), "\n") {
+		key, value, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		switch strings.TrimSpace(key) {
+		case "processor":
+			if current != nil {
+				if !seenProcessor || !seenFlags {
+					return nil
+				}
+				records = append(records, current)
+			}
+			current = map[string]struct{}{}
+			seenProcessor, seenFlags = true, false
+		case "flags":
+			if current == nil || !seenProcessor {
+				return nil
+			}
+			seenFlags = true
+			for _, flag := range strings.Fields(value) {
+				current[strings.ToLower(flag)] = struct{}{}
+			}
+		}
+	}
+	if current == nil || !seenProcessor || !seenFlags {
+		return nil
+	}
+	records = append(records, current)
+	return records
+}
+
+func hasAMD64MicroarchitectureFlags(flags map[string]struct{}) bool {
+	if _, ok := flags["pni"]; !ok {
+		if _, ok := flags["sse3"]; !ok {
+			return false
+		}
+	}
+	for _, required := range amd64MicroarchitectureFlags {
+		if _, ok := flags[required]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func parseOSRelease(data []byte) (OSFacts, error) {

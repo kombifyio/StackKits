@@ -33,6 +33,13 @@ export interface CatalogValidation {
   issues: string[];
 }
 
+export interface CatalogLoadOptions {
+  /** Maximum end-to-end catalog load time. Values above the safety cap are clamped. */
+  timeoutMs?: number;
+}
+
+export const CATALOG_LOAD_TIMEOUT_MS = 4_500 as const;
+
 export class CatalogValidationError extends Error {
   readonly code = "AUTHORITY_INTEGRITY_FAILED" as const;
 
@@ -42,8 +49,26 @@ export class CatalogValidationError extends Error {
   }
 }
 
+export class CatalogFetchError extends Error {
+  readonly code = "CATALOG_FETCH_FAILED" as const;
+  readonly timedOut: boolean;
+
+  constructor(message: string, timedOut = false) {
+    super(message);
+    this.name = "CatalogFetchError";
+    this.timedOut = timedOut;
+  }
+}
+
+// Only fully verified, deeply frozen catalog objects enter this cache. This
+// preserves the public validation boundary for mutable or externally-created
+// values while avoiding repeated work for one immutable page catalog.
+const verifiedCatalogs = new WeakMap<object, WebMcpCatalog>();
+
 /** Validate the closed public JSON shape plus cross-reference invariants. */
 export function validateCatalog(value: unknown): CatalogValidation {
+  const cached = cachedVerifiedCatalog(value);
+  if (cached) return { valid: true, catalog: cached, issues: [] };
   const schema = WEBMCP_CATALOG_SCHEMA as unknown as Schema;
   const definitions = isRecord(schema.$defs) ? schema.$defs as Record<string, Schema> : {};
   const shape = validateSchema(schema, value, "$", new Set(), definitions);
@@ -65,6 +90,8 @@ export function validateCatalog(value: unknown): CatalogValidation {
 
 /** Validate the public shape and all content-addressed digests before use. */
 export async function validateAndVerifyCatalog(value: unknown): Promise<CatalogValidation> {
+  const cached = cachedVerifiedCatalog(value);
+  if (cached) return { valid: true, catalog: cached, issues: [] };
   const validation = validateCatalog(value);
   if (!validation.valid || !validation.catalog) return validation;
   const issues: string[] = [];
@@ -92,22 +119,63 @@ export async function validateAndVerifyCatalog(value: unknown): Promise<CatalogV
     issues.push("catalog digest could not be verified");
   }
   if (issues.length > 0) return { valid: false, issues };
+  verifiedCatalogs.set(validation.catalog, validation.catalog);
   return validation;
 }
 
 export async function loadCatalog(
   fetcher: typeof fetch = globalThis.fetch,
   signal?: AbortSignal,
+  options: CatalogLoadOptions = {},
 ): Promise<WebMcpCatalog> {
   if (signal?.aborted) throw abortError();
-  if (typeof fetcher !== "function") throw new CatalogValidationError("fetch is unavailable");
-  const response = await fetcher(CATALOG_PATH, { signal });
-  if (!response.ok) throw new CatalogValidationError(`catalog request failed with status ${response.status}`);
-  const raw: unknown = await response.json();
-  if (signal?.aborted) throw abortError();
-  const validation = await validateAndVerifyCatalog(raw);
-  if (!validation.valid || !validation.catalog) throw new CatalogValidationError(validation.issues.join("; "));
-  return validation.catalog;
+  if (typeof fetcher !== "function") throw new CatalogFetchError("catalog fetch is unavailable");
+  const requestedTimeout = options.timeoutMs ?? CATALOG_LOAD_TIMEOUT_MS;
+  if (!Number.isFinite(requestedTimeout) || requestedTimeout <= 0) {
+    throw new RangeError("catalog load timeout must be a positive finite number");
+  }
+  const timeoutMs = Math.min(requestedTimeout, CATALOG_LOAD_TIMEOUT_MS);
+  const requestController = new AbortController();
+  const forwardAbort = (): void => requestController.abort();
+  signal?.addEventListener("abort", forwardAbort, { once: true });
+  let timedOut = false;
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timeoutHandle = setTimeout(() => {
+      timedOut = true;
+      requestController.abort();
+      reject(new CatalogFetchError("catalog fetch exceeded its time budget", true));
+    }, timeoutMs);
+  });
+  const operation = (async (): Promise<WebMcpCatalog> => {
+    let response: Response;
+    try {
+      response = await fetcher(CATALOG_PATH, { signal: requestController.signal });
+    } catch {
+      if (signal?.aborted) throw abortError();
+      if (timedOut) throw new CatalogFetchError("catalog fetch exceeded its time budget", true);
+      throw new CatalogFetchError("catalog request failed");
+    }
+    if (!response.ok) throw new CatalogFetchError(`catalog request failed with status ${response.status}`);
+    let raw: unknown;
+    try {
+      raw = await response.json();
+    } catch {
+      if (signal?.aborted) throw abortError();
+      throw new CatalogValidationError("catalog response is not valid JSON");
+    }
+    if (signal?.aborted) throw abortError();
+    const validation = await validateAndVerifyCatalog(raw);
+    if (signal?.aborted) throw abortError();
+    if (!validation.valid || !validation.catalog) throw new CatalogValidationError(validation.issues.join("; "));
+    return validation.catalog;
+  })();
+  try {
+    return await Promise.race([operation, deadline]);
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+    signal?.removeEventListener("abort", forwardAbort);
+  }
 }
 
 export function catalogDigestPayload(catalog: WebMcpCatalog): Omit<WebMcpCatalog, "catalog_sha256"> {
@@ -269,6 +337,10 @@ function unique(values: string[]): string[] {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function cachedVerifiedCatalog(value: unknown): WebMcpCatalog | undefined {
+  return value !== null && typeof value === "object" ? verifiedCatalogs.get(value) : undefined;
 }
 
 function sameJson(left: unknown, right: unknown): boolean {

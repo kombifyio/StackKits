@@ -225,7 +225,7 @@ func createPublicUpgradeSnapshot(
 	authority nativeV2BackupAuthority,
 	operationID string,
 ) (backuplifecycle.SnapshotAnchor, error) {
-	service, err := newNativeV2BackupService(authority.WorkspaceRoot)
+	service, err := newNativeV2BackupService(authority)
 	if err != nil {
 		return backuplifecycle.SnapshotAnchor{}, err
 	}
@@ -275,7 +275,8 @@ func createPublicUpgradeSnapshot(
 	anchor, err := service.Run(snapshotContext, backuplifecycle.RunInput{
 		OwnerRef: authority.OwnerRef, AuthorityRef: authority.AuthorityRef,
 		Lineage: authority.Lineage, PolicyArtifact: append([]byte(nil), authority.PolicyArtifact...),
-		OperationID: "backup-" + operationID,
+		OperationID:     "backup-" + operationID,
+		ProtectRecovery: true,
 	})
 	cancelSnapshot()
 	if err != nil {
@@ -401,6 +402,17 @@ func withPreparedPublicUpgradeCapture(
 	if err != nil {
 		return fmt.Errorf("read current Apply receipt: %w", err)
 	}
+	if authority.AppliedAuthority == nil {
+		return errors.New("current Core recovery profile requires applied Owner custody")
+	}
+	coreProfile, err := upgradelifecycle.CurrentStateCoreProfileForPlan(
+		plan,
+		authority.AppliedAuthority.Owner.Binding.SiteRef,
+		authority.AppliedAuthority.Owner.Binding.NodeRef,
+	)
+	if err != nil {
+		return fmt.Errorf("select current Core recovery profile: %w", err)
+	}
 
 	artifacts := make([]upgradelifecycle.ExecutorStateBlobInput, 0, len(manifest.Artifacts))
 	var generatedCompose []byte
@@ -410,8 +422,8 @@ func withPreparedPublicUpgradeCapture(
 			return fmt.Errorf("read recovery artifact %s: %w", artifact.ID, err)
 		}
 		recoveryPath := artifact.Path
-		if artifact.ID == upgradeCheckpointComposeArtifactID {
-			recoveryPath = "platform/basement-core/compose.yaml"
+		if artifact.ID == coreProfile.ComposeArtifactID {
+			recoveryPath = coreProfile.ComposeOutputRef
 			generatedCompose = append([]byte(nil), data...)
 		}
 		artifacts = append(artifacts, upgradelifecycle.ExecutorStateBlobInput{

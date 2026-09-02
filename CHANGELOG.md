@@ -43,6 +43,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Failed Product Apply (human and `--json`) ends with retry/`status`/`logs` guidance and the Run-ID when a local run exists.
 - `base-install.sh` and `cloud-install.sh` resume apply on an existing workspace instead of dying.
 
+## [0.24.2](https://github.com/kombifyio/stackKits/compare/v0.23.0...v0.24.2) (2026-09-02)
+
+### Fixed
+
+* Keep release archive validation focused on packaged contents, executables and
+  contract integrity; remove obsolete backup lifecycle assertions from publication.
+* Keep the guided Basement and Cloud standard recipes explicit through the CUE
+  compatibility adapter; native CLI examples supply module selections.
+* Include the public backup and application-readiness documentation in release
+  archives and remove a link to private release operations from public authoring docs.
+
+### Added
+
+* integrate recoverable Homelab lifecycle and application experience ([#829](https://github.com/kombifyio/stackKits/issues/829)) ([3f82fd8](https://github.com/kombifyio/stackKits/commit/3f82fd8a343cf5e7f2444f7c6ef49bdf3e00704b))
+
 ## [0.23.0](https://github.com/kombifyio/stackKits/compare/v0.22.0...v0.23.0) (2026-09-02)
 
 

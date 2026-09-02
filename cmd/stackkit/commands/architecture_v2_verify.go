@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2"
-	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localevidence"
@@ -256,20 +255,23 @@ func verifyBasementCoreWorkspace(
 		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("Basement workspace verification requires a context")
 	}
 	requirements := plan.ApplyRequirements()
-	var targets []generationartifact.ApplyRuntimeRequirement
+	var target generationartifact.ApplyRuntimeRequirement
+	var profile runtimeexecutorlocal.BasementCoreRuntimeProfile
+	targets := 0
 	for _, candidate := range requirements.RuntimeInstances {
-		if candidate.OwnerKind == "module" &&
-			candidate.OwnerRef == "stackkits-basement-core-runtime" &&
-			candidate.ProviderRef == "stackkits-basement-core" &&
-			candidate.ModuleRef == "stackkits-basement-core-runtime" &&
-			candidate.UnitRef == "compose" && candidate.WorkloadRef == "basement-core" {
-			targets = append(targets, candidate)
+		candidateProfile, supported := runtimeexecutorlocal.BasementCoreRuntimeProfileForModule(candidate.ModuleRef)
+		if supported && candidate.OwnerKind == "module" &&
+			candidate.OwnerRef == candidateProfile.ModuleRef &&
+			candidate.ProviderRef == candidateProfile.ProviderRef &&
+			candidate.UnitRef == candidateProfile.UnitRef && candidate.WorkloadRef == candidateProfile.WorkloadRef {
+			target = candidate
+			profile = candidateProfile
+			targets++
 		}
 	}
-	if len(targets) != 1 {
+	if targets != 1 {
 		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("verified plan requires exactly one Basement core runtime")
 	}
-	target := targets[0]
 	if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 || len(target.ArtifactRefs) != 1 ||
 		target.RuntimeKind != "container" || target.RuntimeDelivery != "stackkit" ||
 		target.RuntimeEngine != "docker" {
@@ -301,13 +303,14 @@ func verifyBasementCoreWorkspace(
 	if requirementCount != 1 || renderedCount != 1 ||
 		artifactRequirement.Kind != "compose" || artifactRequirement.Format != "yaml" ||
 		artifactRequirement.ExecutionClass != generationartifact.ApplyExecutionClassExecutable ||
+		artifactRequirement.OutputRef != profile.OutputRef ||
 		rendered.Kind != artifactRequirement.Kind || rendered.Format != artifactRequirement.Format ||
 		rendered.Mode != artifactRequirement.Mode {
 		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("verified generation lacks the exact executable Basement Compose artifact")
 	}
 	artifactPath := filepath.Join(workspaceRoot, filepath.FromSlash(rendered.Path))
 	info, err := os.Lstat(artifactPath)
-	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() <= 0 || info.Size() > 256<<10 {
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() <= 0 || info.Size() > int64(profile.MaxArtifactBytes) {
 		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("Basement Compose artifact is not a bounded plain file")
 	}
 	definition, err := os.ReadFile(artifactPath) //nolint:gosec // exact manifest path was already verified by the generation gate
@@ -316,20 +319,16 @@ func verifyBasementCoreWorkspace(
 	}
 	digest := sha256.Sum256(definition)
 	if "sha256:"+hex.EncodeToString(digest[:]) != rendered.SHA256 ||
-		!architecturev2renderer.ValidateBasementCoreComposeArtifact(definition) {
+		!profile.ValidateComposeArtifact(definition) {
 		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("Basement Compose artifact differs from the CUE-owned standard")
 	}
-	serviceContracts := architecturev2renderer.BasementCoreServiceContracts()
-	services := make([]runtimeexecutorlocal.BasementCoreServiceExpectation, len(serviceContracts))
-	for index, contract := range serviceContracts {
-		services[index] = runtimeexecutorlocal.BasementCoreServiceExpectation(contract)
-	}
+	services := append([]runtimeexecutorlocal.BasementCoreServiceExpectation(nil), profile.Services...)
 	health, err := verifiedBasementCoreHealth(requirements, target)
 	if err != nil {
 		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, err
 	}
 	project := runtimeexecutorlocal.BasementCoreProject{
-		ProjectRef: target.InstanceRef, SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0],
+		ModuleRef: profile.ModuleRef, ProjectRef: target.InstanceRef, SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0],
 		ExecutionChannelRef: channelRef, ArtifactID: rendered.ID, ArtifactDigest: rendered.SHA256,
 		Definition: definition, Services: services, Health: health,
 	}
@@ -382,25 +381,15 @@ func verifiedBasementCoreHealth(
 	requirements generationartifact.ApplyRequirements,
 	target generationartifact.ApplyRuntimeRequirement,
 ) ([]runtimeexecutorlocal.BasementCoreHealthExpectation, error) {
-	type expectedHealth struct {
-		sourceRef, kind, targetKind, targetRef, path string
-		port                                         int
-		statuses                                     []int
+	profile, ok := runtimeexecutorlocal.BasementCoreRuntimeProfileForModule(target.ModuleRef)
+	if !ok {
+		return nil, errors.New("verified Basement runtime has an unsupported local profile")
 	}
-	expected := []expectedHealth{
-		{sourceRef: "basement-hub-http", kind: "http", targetKind: "module", targetRef: target.ModuleRef, path: "/healthz", port: 80, statuses: []int{200}},
-		{sourceRef: "basement-router-http", kind: "http", targetKind: "module", targetRef: target.ModuleRef, path: "/ping", port: 8080, statuses: []int{200}},
-		{sourceRef: "coolify-http", kind: "http", targetKind: "module", targetRef: target.ModuleRef, path: "/", port: 8000, statuses: []int{200, 302}},
-		{sourceRef: "local-kopia-runtime-container", kind: "container", targetKind: "module", targetRef: target.ModuleRef},
-		{sourceRef: "pocketid-http", kind: "http", targetKind: "module", targetRef: target.ModuleRef, path: "/", port: 1411, statuses: []int{200, 302}},
-		{sourceRef: "step-ca-tcp", kind: "tcp", targetKind: "module", targetRef: target.ModuleRef, port: 9000},
-		{sourceRef: "tinyauth-http", kind: "http", targetKind: "module", targetRef: target.ModuleRef, path: "/", port: 4000, statuses: []int{200, 302}},
-	}
-	bySource := make(map[string]generationartifact.ApplyHealthRequirement, len(expected))
+	bySource := make(map[string]generationartifact.ApplyHealthRequirement, len(profile.Health))
 	for _, item := range requirements.HealthRequirements {
-		for _, want := range expected {
-			if item.SourceRef != want.sourceRef || item.Kind != want.kind ||
-				item.TargetKind != want.targetKind || item.TargetRef != want.targetRef {
+		for _, want := range profile.Health {
+			if item.SourceRef != want.SourceRef || item.Kind != want.Kind ||
+				item.TargetKind != want.TargetKind || item.TargetRef != want.TargetRef {
 				continue
 			}
 			if _, duplicate := bySource[item.SourceRef]; duplicate {
@@ -409,16 +398,16 @@ func verifiedBasementCoreHealth(
 			bySource[item.SourceRef] = item
 		}
 	}
-	health := make([]runtimeexecutorlocal.BasementCoreHealthExpectation, 0, len(expected))
-	for _, want := range expected {
-		item, ok := bySource[want.sourceRef]
+	health := make([]runtimeexecutorlocal.BasementCoreHealthExpectation, 0, len(profile.Health))
+	for _, want := range profile.Health {
+		item, ok := bySource[want.SourceRef]
 		if !ok {
-			return nil, errors.New("verified Basement runtime lacks one of its exact seven postconditions")
+			return nil, errors.New("verified Basement runtime lacks one of its exact profile postconditions")
 		}
 		expectation := runtimeexecutorlocal.BasementCoreHealthExpectation{
 			RequirementID: item.ID, SourceRef: item.SourceRef, Kind: item.Kind,
-			Port: want.port, Path: want.path,
-			ExpectedStatuses: append([]int(nil), want.statuses...),
+			Port: want.Port, Path: want.Path,
+			ExpectedStatuses: append([]int(nil), want.ExpectedStatuses...),
 		}
 		health = append(health, expectation)
 	}
@@ -426,7 +415,12 @@ func verifiedBasementCoreHealth(
 }
 
 func printArchitectureV2VerifyReport(w io.Writer, report architectureV2VerifyReport) error {
-	if _, err := fmt.Fprintf(w, "Architecture v2 verify: success\nPlan: %s\nApply result: %s\nApply evidence: %s\nOwner: %s (%s)\n",
+	status := "success"
+	if architectureV2HTTPProbeFailed(report.Observations) {
+		status = "failed"
+	}
+	if _, err := fmt.Fprintf(w, "Architecture v2 verify: %s\nPlan: %s\nApply result: %s\nApply evidence: %s\nOwner: %s (%s)\n",
+		status,
 		report.PlanHash, report.Apply.ResultHash, report.Apply.EvidenceBundleHash,
 		report.Owner.OwnerRef, report.Owner.PocketIDSubject); err != nil {
 		return err

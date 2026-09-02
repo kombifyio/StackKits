@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "ee9039687fd373b0a275b6bf1ff6d399ea3db032",
-  "authority_bundle_sha256": "6a0f1e4fac50ab4825431909a0ee39c9f3cc7e97ffb4d6cff7140d2ba6ac902e",
+  "source_sha": "bd9fe67c5bf78cb9ca07e6f856ca6a185db25b58",
+  "authority_bundle_sha256": "f6132a13c82f6c97a54edd991717db9897abb43eaaf8e020c3546302f0ffe53a",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -155,10 +155,15 @@
           "compute_profiles": [
             {
               "id": "low",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 2,
+                "storage_gb": 10
+              },
               "reservation": {
                 "ram_gb": 0.125
               },
@@ -169,14 +174,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "fcc6731d1b75ead500a271837deb6051bf50392a98e85318b1a90a6c78565998"
+              "profile_sha256": "037018f7e3a391beaaaf3e2b6e94df5eaaa57af9c55ef86f148e071e0428ca21"
             },
             {
               "id": "standard",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.125
               },
@@ -187,14 +197,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "8e28318262eb5ea1ec16fc75db8713e34964f93336a86b7d2fe6d133196164c2"
+              "profile_sha256": "b6e88509966bf5f918f7637c298c47e6e71936a58adbb4af8209902b00a1332a"
             },
             {
               "id": "high",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.125
               },
@@ -205,7 +220,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "d4f586dd3b3181658f7477ef2a47bd2532bb90278a583da10ab94e895ab17195"
+              "profile_sha256": "b272ee4439662c9b8ffceb5bf816661417a0e478e60778c30dc146b64001f1f7"
             }
           ],
           "storage_profiles": [],
@@ -234,10 +249,15 @@
           "compute_profiles": [
             {
               "id": "low",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 2,
+                "storage_gb": 10
+              },
               "reservation": {
                 "ram_gb": 0.5
               },
@@ -248,14 +268,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "2f1ecf175196fe930c9f3bb274f7cabf65eb746f4217090d989403e061778e98"
+              "profile_sha256": "b6672f7068d7e402041233a7c1edfd54d224caf03443ac3cfbb4ee5989eced25"
             },
             {
               "id": "standard",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.5
               },
@@ -266,14 +291,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "89a363e1bf4fb2271a51e8f89a114a4ce526499447ad9a2708595f59fc30c416"
+              "profile_sha256": "892bceed9f29534e68e7f9c9f2866763561befbbefc831b1625c2c53c82cdcc5"
             },
             {
               "id": "high",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.5
               },
@@ -284,7 +314,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "0e8e018065cae6c19d0892e4fbe25c18f4099738da33035ab4acf3e675688462"
+              "profile_sha256": "87d1db6a2b8ab5d90d31e5aecbbe7d646f94fbe7a96ea080b703f3bce5c21c65"
             }
           ],
           "storage_profiles": [],
@@ -313,12 +343,32 @@
           "compute_profiles": [
             {
               "id": "low",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 10
+              },
               "reservation": {
                 "ram_gb": 0.8125
+              },
+              "host_requirements": {
+                "storage_filesystem": {
+                  "source_ref": "system.container.dataRoot",
+                  "required_class": "local-posix",
+                  "allowed_filesystem_types": [
+                    "btrfs",
+                    "ext2",
+                    "ext3",
+                    "ext4",
+                    "xfs",
+                    "zfs"
+                  ],
+                  "require_ownership": true
+                }
               },
               "architectures": [],
               "virtualization": [],
@@ -332,7 +382,7 @@
               "degradations": [
                 "machine-learning-disabled"
               ],
-              "profile_sha256": "58b0d656c2a8d632c5f7cfbcba42052760c732457075283e5a447481d6a976de"
+              "profile_sha256": "ebab0c7daf0da3d108031fcc702e54c821e8edd84f0377b2996a31a48c67b1b9"
             }
           ],
           "storage_profiles": [],
@@ -349,12 +399,33 @@
           "compute_profiles": [
             {
               "id": "standard",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 6,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 1.3125
+              },
+              "host_requirements": {
+                "min_amd64_microarchitecture_level": 2,
+                "storage_filesystem": {
+                  "source_ref": "system.container.dataRoot",
+                  "required_class": "local-posix",
+                  "allowed_filesystem_types": [
+                    "btrfs",
+                    "ext2",
+                    "ext3",
+                    "ext4",
+                    "xfs",
+                    "zfs"
+                  ],
+                  "require_ownership": true
+                }
               },
               "architectures": [],
               "virtualization": [],
@@ -367,16 +438,37 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "4040aa5e98677802fc0a921cab24d37c0ef65e5139837f17ebc04df3cd658494"
+              "profile_sha256": "14b4ef506e725f95130b83deadc4559f173bc0adc048a49d45ea5f13aa38c471"
             },
             {
               "id": "high",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 6,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 1.3125
+              },
+              "host_requirements": {
+                "min_amd64_microarchitecture_level": 2,
+                "storage_filesystem": {
+                  "source_ref": "system.container.dataRoot",
+                  "required_class": "local-posix",
+                  "allowed_filesystem_types": [
+                    "btrfs",
+                    "ext2",
+                    "ext3",
+                    "ext4",
+                    "xfs",
+                    "zfs"
+                  ],
+                  "require_ownership": true
+                }
               },
               "architectures": [],
               "virtualization": [],
@@ -389,7 +481,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "89e611eb4a5317d5aaf0168eb74ffe53569b72dcca9a04b0305c30567240ce5d"
+              "profile_sha256": "e526eec24d63aa11de330930ec9fb3b6c303bc0c23faae396af6207b66baff92"
             }
           ],
           "storage_profiles": [],
@@ -406,10 +498,15 @@
           "compute_profiles": [
             {
               "id": "standard",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.5
               },
@@ -420,14 +517,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "7cf5addab4436a8da3574e5e09c19f6f245bcb47a0c290ab95cb454e17d17f8b"
+              "profile_sha256": "9d7451ab513c464335f36886b1a9e5e374cc8ad1f1247ec1c78bd449e1dc93ae"
             },
             {
               "id": "high",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.5
               },
@@ -438,7 +540,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "1deed7357d933ac9a0cc4a6c6aa2f484d1aad76f05a94fb4b23a6830af9aef0c"
+              "profile_sha256": "24e80f29c9589e1f333c30856fe900ea082a79fbe06e5ee3a1aa2c6a08f73914"
             }
           ],
           "storage_profiles": [],
@@ -455,10 +557,15 @@
           "compute_profiles": [
             {
               "id": "low",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 2,
+                "storage_gb": 10
+              },
               "reservation": {
                 "ram_gb": 0.0625
               },
@@ -469,14 +576,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "27bc07d051631019a43964fb568ced0006e514af03ab2c6a6cb17eb5f74e041e"
+              "profile_sha256": "df485ae538408be3b32f4f919606ade8208794e4902cdcf3c90e2ac2951a8f6a"
             },
             {
               "id": "standard",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.0625
               },
@@ -487,14 +599,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "ddcf9de6f9e70fcdcced666c37a11d3cf1061901ce93eb1e7924df58a06ba75e"
+              "profile_sha256": "a348f0cdb6f26227d03f5cca26629579c4b76f5f5e33c06c10779f4551d69178"
             },
             {
               "id": "high",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.0625
               },
@@ -505,7 +622,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "4f6f531d3174e452bf8be7483ab0de2abb7ebd4e16e6df5e9042d0f0389b5884"
+              "profile_sha256": "99679f9d7e8856f7706053f96db55f0316caaaa0f55d5a3196e5d6a8da6e58b2"
             }
           ],
           "storage_profiles": [],
@@ -835,10 +952,15 @@
           "compute_profiles": [
             {
               "id": "low",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 2,
+                "storage_gb": 10
+              },
               "reservation": {
                 "ram_gb": 0.125
               },
@@ -849,14 +971,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "fcc6731d1b75ead500a271837deb6051bf50392a98e85318b1a90a6c78565998"
+              "profile_sha256": "037018f7e3a391beaaaf3e2b6e94df5eaaa57af9c55ef86f148e071e0428ca21"
             },
             {
               "id": "standard",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.125
               },
@@ -867,14 +994,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "8e28318262eb5ea1ec16fc75db8713e34964f93336a86b7d2fe6d133196164c2"
+              "profile_sha256": "b6e88509966bf5f918f7637c298c47e6e71936a58adbb4af8209902b00a1332a"
             },
             {
               "id": "high",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.125
               },
@@ -885,7 +1017,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "d4f586dd3b3181658f7477ef2a47bd2532bb90278a583da10ab94e895ab17195"
+              "profile_sha256": "b272ee4439662c9b8ffceb5bf816661417a0e478e60778c30dc146b64001f1f7"
             }
           ],
           "storage_profiles": [],
@@ -914,10 +1046,15 @@
           "compute_profiles": [
             {
               "id": "low",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 2,
+                "storage_gb": 10
+              },
               "reservation": {
                 "ram_gb": 0.5
               },
@@ -928,14 +1065,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "2f1ecf175196fe930c9f3bb274f7cabf65eb746f4217090d989403e061778e98"
+              "profile_sha256": "b6672f7068d7e402041233a7c1edfd54d224caf03443ac3cfbb4ee5989eced25"
             },
             {
               "id": "standard",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.5
               },
@@ -946,14 +1088,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "89a363e1bf4fb2271a51e8f89a114a4ce526499447ad9a2708595f59fc30c416"
+              "profile_sha256": "892bceed9f29534e68e7f9c9f2866763561befbbefc831b1625c2c53c82cdcc5"
             },
             {
               "id": "high",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.5
               },
@@ -964,7 +1111,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "0e8e018065cae6c19d0892e4fbe25c18f4099738da33035ab4acf3e675688462"
+              "profile_sha256": "87d1db6a2b8ab5d90d31e5aecbbe7d646f94fbe7a96ea080b703f3bce5c21c65"
             }
           ],
           "storage_profiles": [],
@@ -981,12 +1128,32 @@
           "compute_profiles": [
             {
               "id": "low",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 10
+              },
               "reservation": {
                 "ram_gb": 0.8125
+              },
+              "host_requirements": {
+                "storage_filesystem": {
+                  "source_ref": "system.container.dataRoot",
+                  "required_class": "local-posix",
+                  "allowed_filesystem_types": [
+                    "btrfs",
+                    "ext2",
+                    "ext3",
+                    "ext4",
+                    "xfs",
+                    "zfs"
+                  ],
+                  "require_ownership": true
+                }
               },
               "architectures": [],
               "virtualization": [],
@@ -1000,7 +1167,7 @@
               "degradations": [
                 "machine-learning-disabled"
               ],
-              "profile_sha256": "58b0d656c2a8d632c5f7cfbcba42052760c732457075283e5a447481d6a976de"
+              "profile_sha256": "ebab0c7daf0da3d108031fcc702e54c821e8edd84f0377b2996a31a48c67b1b9"
             }
           ],
           "storage_profiles": [],
@@ -1017,12 +1184,33 @@
           "compute_profiles": [
             {
               "id": "standard",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 6,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 1.3125
+              },
+              "host_requirements": {
+                "min_amd64_microarchitecture_level": 2,
+                "storage_filesystem": {
+                  "source_ref": "system.container.dataRoot",
+                  "required_class": "local-posix",
+                  "allowed_filesystem_types": [
+                    "btrfs",
+                    "ext2",
+                    "ext3",
+                    "ext4",
+                    "xfs",
+                    "zfs"
+                  ],
+                  "require_ownership": true
+                }
               },
               "architectures": [],
               "virtualization": [],
@@ -1035,16 +1223,37 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "4040aa5e98677802fc0a921cab24d37c0ef65e5139837f17ebc04df3cd658494"
+              "profile_sha256": "14b4ef506e725f95130b83deadc4559f173bc0adc048a49d45ea5f13aa38c471"
             },
             {
               "id": "high",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 6,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 1.3125
+              },
+              "host_requirements": {
+                "min_amd64_microarchitecture_level": 2,
+                "storage_filesystem": {
+                  "source_ref": "system.container.dataRoot",
+                  "required_class": "local-posix",
+                  "allowed_filesystem_types": [
+                    "btrfs",
+                    "ext2",
+                    "ext3",
+                    "ext4",
+                    "xfs",
+                    "zfs"
+                  ],
+                  "require_ownership": true
+                }
               },
               "architectures": [],
               "virtualization": [],
@@ -1057,7 +1266,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "89e611eb4a5317d5aaf0168eb74ffe53569b72dcca9a04b0305c30567240ce5d"
+              "profile_sha256": "e526eec24d63aa11de330930ec9fb3b6c303bc0c23faae396af6207b66baff92"
             }
           ],
           "storage_profiles": [],
@@ -1074,10 +1283,15 @@
           "compute_profiles": [
             {
               "id": "standard",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.5
               },
@@ -1088,14 +1302,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "7cf5addab4436a8da3574e5e09c19f6f245bcb47a0c290ab95cb454e17d17f8b"
+              "profile_sha256": "9d7451ab513c464335f36886b1a9e5e374cc8ad1f1247ec1c78bd449e1dc93ae"
             },
             {
               "id": "high",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.5
               },
@@ -1106,7 +1325,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "1deed7357d933ac9a0cc4a6c6aa2f484d1aad76f05a94fb4b23a6830af9aef0c"
+              "profile_sha256": "24e80f29c9589e1f333c30856fe900ea082a79fbe06e5ee3a1aa2c6a08f73914"
             }
           ],
           "storage_profiles": [],
@@ -1135,10 +1354,15 @@
           "compute_profiles": [
             {
               "id": "low",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 2,
+                "storage_gb": 10
+              },
               "reservation": {
                 "ram_gb": 0.0625
               },
@@ -1149,14 +1373,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "27bc07d051631019a43964fb568ced0006e514af03ab2c6a6cb17eb5f74e041e"
+              "profile_sha256": "df485ae538408be3b32f4f919606ade8208794e4902cdcf3c90e2ac2951a8f6a"
             },
             {
               "id": "standard",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.0625
               },
@@ -1167,14 +1396,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "ddcf9de6f9e70fcdcced666c37a11d3cf1061901ce93eb1e7924df58a06ba75e"
+              "profile_sha256": "a348f0cdb6f26227d03f5cca26629579c4b76f5f5e33c06c10779f4551d69178"
             },
             {
               "id": "high",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.0625
               },
@@ -1185,7 +1419,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "4f6f531d3174e452bf8be7483ab0de2abb7ebd4e16e6df5e9042d0f0389b5884"
+              "profile_sha256": "99679f9d7e8856f7706053f96db55f0316caaaa0f55d5a3196e5d6a8da6e58b2"
             }
           ],
           "storage_profiles": [],
@@ -1509,10 +1743,15 @@
           "compute_profiles": [
             {
               "id": "low",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 2,
+                "storage_gb": 10
+              },
               "reservation": {
                 "ram_gb": 0.125
               },
@@ -1523,14 +1762,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "fcc6731d1b75ead500a271837deb6051bf50392a98e85318b1a90a6c78565998"
+              "profile_sha256": "037018f7e3a391beaaaf3e2b6e94df5eaaa57af9c55ef86f148e071e0428ca21"
             },
             {
               "id": "standard",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.125
               },
@@ -1541,14 +1785,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "8e28318262eb5ea1ec16fc75db8713e34964f93336a86b7d2fe6d133196164c2"
+              "profile_sha256": "b6e88509966bf5f918f7637c298c47e6e71936a58adbb4af8209902b00a1332a"
             },
             {
               "id": "high",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.125
               },
@@ -1559,7 +1808,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "d4f586dd3b3181658f7477ef2a47bd2532bb90278a583da10ab94e895ab17195"
+              "profile_sha256": "b272ee4439662c9b8ffceb5bf816661417a0e478e60778c30dc146b64001f1f7"
             }
           ],
           "storage_profiles": [],
@@ -1588,10 +1837,15 @@
           "compute_profiles": [
             {
               "id": "low",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 2,
+                "storage_gb": 10
+              },
               "reservation": {
                 "ram_gb": 0.5
               },
@@ -1602,14 +1856,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "2f1ecf175196fe930c9f3bb274f7cabf65eb746f4217090d989403e061778e98"
+              "profile_sha256": "b6672f7068d7e402041233a7c1edfd54d224caf03443ac3cfbb4ee5989eced25"
             },
             {
               "id": "standard",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.5
               },
@@ -1620,14 +1879,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "89a363e1bf4fb2271a51e8f89a114a4ce526499447ad9a2708595f59fc30c416"
+              "profile_sha256": "892bceed9f29534e68e7f9c9f2866763561befbbefc831b1625c2c53c82cdcc5"
             },
             {
               "id": "high",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.5
               },
@@ -1638,7 +1902,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "0e8e018065cae6c19d0892e4fbe25c18f4099738da33035ab4acf3e675688462"
+              "profile_sha256": "87d1db6a2b8ab5d90d31e5aecbbe7d646f94fbe7a96ea080b703f3bce5c21c65"
             }
           ],
           "storage_profiles": [],
@@ -1667,12 +1931,32 @@
           "compute_profiles": [
             {
               "id": "low",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 10
+              },
               "reservation": {
                 "ram_gb": 0.8125
+              },
+              "host_requirements": {
+                "storage_filesystem": {
+                  "source_ref": "system.container.dataRoot",
+                  "required_class": "local-posix",
+                  "allowed_filesystem_types": [
+                    "btrfs",
+                    "ext2",
+                    "ext3",
+                    "ext4",
+                    "xfs",
+                    "zfs"
+                  ],
+                  "require_ownership": true
+                }
               },
               "architectures": [],
               "virtualization": [],
@@ -1686,7 +1970,7 @@
               "degradations": [
                 "machine-learning-disabled"
               ],
-              "profile_sha256": "58b0d656c2a8d632c5f7cfbcba42052760c732457075283e5a447481d6a976de"
+              "profile_sha256": "ebab0c7daf0da3d108031fcc702e54c821e8edd84f0377b2996a31a48c67b1b9"
             }
           ],
           "storage_profiles": [],
@@ -1703,12 +1987,33 @@
           "compute_profiles": [
             {
               "id": "standard",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 6,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 1.3125
+              },
+              "host_requirements": {
+                "min_amd64_microarchitecture_level": 2,
+                "storage_filesystem": {
+                  "source_ref": "system.container.dataRoot",
+                  "required_class": "local-posix",
+                  "allowed_filesystem_types": [
+                    "btrfs",
+                    "ext2",
+                    "ext3",
+                    "ext4",
+                    "xfs",
+                    "zfs"
+                  ],
+                  "require_ownership": true
+                }
               },
               "architectures": [],
               "virtualization": [],
@@ -1721,16 +2026,37 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "4040aa5e98677802fc0a921cab24d37c0ef65e5139837f17ebc04df3cd658494"
+              "profile_sha256": "14b4ef506e725f95130b83deadc4559f173bc0adc048a49d45ea5f13aa38c471"
             },
             {
               "id": "high",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 6,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 1.3125
+              },
+              "host_requirements": {
+                "min_amd64_microarchitecture_level": 2,
+                "storage_filesystem": {
+                  "source_ref": "system.container.dataRoot",
+                  "required_class": "local-posix",
+                  "allowed_filesystem_types": [
+                    "btrfs",
+                    "ext2",
+                    "ext3",
+                    "ext4",
+                    "xfs",
+                    "zfs"
+                  ],
+                  "require_ownership": true
+                }
               },
               "architectures": [],
               "virtualization": [],
@@ -1743,7 +2069,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "89e611eb4a5317d5aaf0168eb74ffe53569b72dcca9a04b0305c30567240ce5d"
+              "profile_sha256": "e526eec24d63aa11de330930ec9fb3b6c303bc0c23faae396af6207b66baff92"
             }
           ],
           "storage_profiles": [],
@@ -1760,10 +2086,15 @@
           "compute_profiles": [
             {
               "id": "standard",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.5
               },
@@ -1774,14 +2105,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "7cf5addab4436a8da3574e5e09c19f6f245bcb47a0c290ab95cb454e17d17f8b"
+              "profile_sha256": "9d7451ab513c464335f36886b1a9e5e374cc8ad1f1247ec1c78bd449e1dc93ae"
             },
             {
               "id": "high",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.5
               },
@@ -1792,7 +2128,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "1deed7357d933ac9a0cc4a6c6aa2f484d1aad76f05a94fb4b23a6830af9aef0c"
+              "profile_sha256": "24e80f29c9589e1f333c30856fe900ea082a79fbe06e5ee3a1aa2c6a08f73914"
             }
           ],
           "storage_profiles": [],
@@ -1809,10 +2145,15 @@
           "compute_profiles": [
             {
               "id": "low",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 2,
+                "storage_gb": 10
+              },
               "reservation": {
                 "ram_gb": 0.0625
               },
@@ -1823,14 +2164,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "27bc07d051631019a43964fb568ced0006e514af03ab2c6a6cb17eb5f74e041e"
+              "profile_sha256": "df485ae538408be3b32f4f919606ade8208794e4902cdcf3c90e2ac2951a8f6a"
             },
             {
               "id": "standard",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.0625
               },
@@ -1841,14 +2187,19 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "ddcf9de6f9e70fcdcced666c37a11d3cf1061901ce93eb1e7924df58a06ba75e"
+              "profile_sha256": "a348f0cdb6f26227d03f5cca26629579c4b76f5f5e33c06c10779f4551d69178"
             },
             {
               "id": "high",
-              "capacity_declaration": "partial",
+              "capacity_declaration": "declared",
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
               "reservation": {
                 "ram_gb": 0.0625
               },
@@ -1859,7 +2210,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "4f6f531d3174e452bf8be7483ab0de2abb7ebd4e16e6df5e9042d0f0389b5884"
+              "profile_sha256": "99679f9d7e8856f7706053f96db55f0316caaaa0f55d5a3196e5d6a8da6e58b2"
             }
           ],
           "storage_profiles": [],
@@ -2081,6 +2432,56 @@
       "owner_approval": true
     },
     {
+      "id": "stackkit.backup.schedule.disable",
+      "tool_name": "stackkit_backup_schedule_disable",
+      "title": "Disable backup schedule",
+      "description": "Revoke the local backup timer after explicit local Owner approval.",
+      "command": [
+        "backup",
+        "schedule",
+        "disable",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.backup.schedule.enable",
+      "tool_name": "stackkit_backup_schedule_enable",
+      "title": "Enable backup schedule",
+      "description": "Enable the CUE-governed local backup timer after explicit local Owner approval.",
+      "command": [
+        "backup",
+        "schedule",
+        "enable",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.backup.schedule.status",
+      "tool_name": "stackkit_backup_schedule_status",
+      "title": "Backup schedule status",
+      "description": "Read the local backup timer and signed schedule authorization without changing either.",
+      "command": [
+        "backup",
+        "schedule",
+        "status",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
       "id": "stackkit.drift",
       "tool_name": "stackkit_drift",
       "title": "Drift",
@@ -2192,6 +2593,35 @@
       "owner_approval": true
     },
     {
+      "id": "stackkit.restore.abandon",
+      "tool_name": "stackkit_restore_abandon",
+      "title": "Abandon restore",
+      "description": "Close one pending or staged restore journal with explicit local Owner approval without touching repository or live volumes.",
+      "command": [
+        "backup",
+        "restore",
+        "abandon"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.setup",
+      "tool_name": "stackkit_setup",
+      "title": "Set up application",
+      "description": "Set up and verify a Plan-declared app-local owner account on the existing application.",
+      "command": [
+        "setup",
+        "--json"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
       "id": "stackkit.status",
       "tool_name": "stackkit_status",
       "title": "Status",
@@ -2247,5 +2677,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "f2d99a48c21cded9bdc644b8675b601ea50d3476878095598302fd887b45ad63"
+  "catalog_sha256": "de4e61e4cce1ad295dce75c8db0b7eb2eaff038b4c94ad89049284a57fa7633d"
 }

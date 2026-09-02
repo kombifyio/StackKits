@@ -16,7 +16,35 @@
         "fencing": "none",
         "mode": "single"
       },
-      "backupPolicy": {},
+      "backupPolicy": {
+        "apiVersion": "stackkit.backup-policy/v1",
+        "dataClasses": [
+          "config",
+          "secret-material",
+          "platform-state",
+          "database",
+          "user-content"
+        ],
+        "kind": "BackupPolicy",
+        "restoreVerification": {
+          "cadence": "monthly",
+          "evidenceRef": "backup-restore-verification",
+          "maxEvidenceAgeDays": 35,
+          "required": true
+        },
+        "retention": {
+          "keepDaily": 7,
+          "keepMonthly": 6,
+          "keepWeekly": 4,
+          "keepYearly": 0
+        },
+        "schedule": {
+          "cadence": "daily",
+          "hourUTC": 2,
+          "jitterSeconds": 300,
+          "minuteUTC": 0
+        }
+      },
       "capabilities": {
         "disable": [],
         "enable": []

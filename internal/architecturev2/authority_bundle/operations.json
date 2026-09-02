@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:845ca9c6df7b6fa1149a15d4faebbd146cec37f21162c6f2b6fb425e78f05d5f",
+  "contentDigest": "sha256:7666f925e19a285bb5446ad29dfa80a0c93b4980e1892c9191798c86f721fc1e",
   "operations": [
     {
       "command": [
@@ -29,6 +29,56 @@
       "ownerApproval": true,
       "title": "Backup",
       "toolName": "stackkit_backup"
+    },
+    {
+      "command": [
+        "backup",
+        "schedule",
+        "disable",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Revoke the local backup timer after explicit local Owner approval.",
+      "destructive": false,
+      "id": "stackkit.backup.schedule.disable",
+      "idempotent": true,
+      "mutation": true,
+      "ownerApproval": true,
+      "title": "Disable backup schedule",
+      "toolName": "stackkit_backup_schedule_disable"
+    },
+    {
+      "command": [
+        "backup",
+        "schedule",
+        "enable",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Enable the CUE-governed local backup timer after explicit local Owner approval.",
+      "destructive": false,
+      "id": "stackkit.backup.schedule.enable",
+      "idempotent": true,
+      "mutation": true,
+      "ownerApproval": true,
+      "title": "Enable backup schedule",
+      "toolName": "stackkit_backup_schedule_enable"
+    },
+    {
+      "command": [
+        "backup",
+        "schedule",
+        "status",
+        "--json"
+      ],
+      "description": "Read the local backup timer and signed schedule authorization without changing either.",
+      "destructive": false,
+      "id": "stackkit.backup.schedule.status",
+      "idempotent": true,
+      "mutation": false,
+      "ownerApproval": false,
+      "title": "Backup schedule status",
+      "toolName": "stackkit_backup_schedule_status"
     },
     {
       "command": [
@@ -140,6 +190,35 @@
       "ownerApproval": true,
       "title": "Restore",
       "toolName": "stackkit_restore"
+    },
+    {
+      "command": [
+        "backup",
+        "restore",
+        "abandon"
+      ],
+      "description": "Close one pending or staged restore journal with explicit local Owner approval without touching repository or live volumes.",
+      "destructive": false,
+      "id": "stackkit.restore.abandon",
+      "idempotent": true,
+      "mutation": true,
+      "ownerApproval": true,
+      "title": "Abandon restore",
+      "toolName": "stackkit_restore_abandon"
+    },
+    {
+      "command": [
+        "setup",
+        "--json"
+      ],
+      "description": "Set up and verify a Plan-declared app-local owner account on the existing application.",
+      "destructive": false,
+      "id": "stackkit.setup",
+      "idempotent": true,
+      "mutation": true,
+      "ownerApproval": true,
+      "title": "Set up application",
+      "toolName": "stackkit_setup"
     },
     {
       "command": [

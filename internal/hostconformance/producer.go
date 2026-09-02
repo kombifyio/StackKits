@@ -97,11 +97,13 @@ type VirtualizationFacts struct {
 }
 
 type Facts struct {
-	OS             OSFacts
-	Architecture   string
-	KernelRelease  string
-	Runtime        RuntimeFacts
-	Virtualization VirtualizationFacts
+	OS                          OSFacts
+	Architecture                string
+	AMD64MicroarchitectureLevel int
+	KernelRelease               string
+	Runtime                     RuntimeFacts
+	Virtualization              VirtualizationFacts
+	InitSystem                  InitSystemFacts
 }
 
 type Check struct {
@@ -305,6 +307,9 @@ func validateFacts(facts Facts) error {
 	if facts.Architecture != "amd64" && facts.Architecture != "arm64" {
 		return fmt.Errorf("host architecture %q is unsupported by the receipt contract", facts.Architecture)
 	}
+	if facts.AMD64MicroarchitectureLevel < 0 || facts.AMD64MicroarchitectureLevel > 4 || (facts.Architecture == "arm64" && facts.AMD64MicroarchitectureLevel != 0) {
+		return errors.New("host amd64 microarchitecture level is invalid for the observed architecture")
+	}
 	if strings.TrimSpace(facts.KernelRelease) == "" || strings.ContainsAny(facts.KernelRelease, " \t\r\n") {
 		return errors.New("host kernel release is invalid")
 	}
@@ -313,6 +318,9 @@ func validateFacts(facts Facts) error {
 	}
 	if !allowedValue(facts.Virtualization.Class, "bare-metal", "kvm", "openvz", "lxc", "vmware", "hyperv", "xen", "oracle", "microsoft", "none") {
 		return errors.New("host virtualization class is invalid")
+	}
+	if err := validateInitSystemFacts(facts.InitSystem); err != nil {
+		return err
 	}
 	return nil
 }
@@ -365,7 +373,7 @@ func deriveResult(checks []Check) string {
 }
 
 func factsDocument(facts Facts) map[string]any {
-	return map[string]any{
+	document := map[string]any{
 		"os": map[string]any{
 			"family": facts.OS.Family, "distribution": facts.OS.Distribution, "version": facts.OS.Version,
 		},
@@ -376,6 +384,16 @@ func factsDocument(facts Facts) map[string]any {
 			"class": facts.Virtualization.Class, "nested": facts.Virtualization.Nested,
 		},
 	}
+	if facts.AMD64MicroarchitectureLevel > 0 {
+		document["amd64MicroarchitectureLevel"] = facts.AMD64MicroarchitectureLevel
+	}
+	if facts.InitSystem.Observed() {
+		document["initSystem"] = map[string]any{
+			"name": facts.InitSystem.Name, "pid1": facts.InitSystem.PID1,
+			"managerState": facts.InitSystem.ManagerState,
+		}
+	}
+	return document
 }
 
 func checksDocument(checks []Check) []any {

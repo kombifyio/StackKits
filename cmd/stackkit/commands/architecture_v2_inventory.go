@@ -20,8 +20,24 @@ import (
 var errInventoryNodeUnbound = errors.New("local inventory probe requires --local-node/--local-site when the spec has multiple enabled nodes")
 
 type inventorySpecView struct {
-	Sites []inventorySpecSite `yaml:"sites"`
-	Nodes []inventorySpecNode `yaml:"nodes"`
+	Sites     []inventorySpecSite    `yaml:"sites"`
+	Nodes     []inventorySpecNode    `yaml:"nodes"`
+	Install   inventorySpecInstall   `yaml:"install"`
+	Storage   inventorySpecStorage   `yaml:"storage"`
+	Container inventorySpecContainer `yaml:"container"`
+}
+
+type inventorySpecInstall struct {
+	Runtime string `yaml:"runtime"`
+}
+
+type inventorySpecStorage struct {
+	DataRoot     string `yaml:"dataRoot"`
+	VolumeDriver string `yaml:"volumeDriver"`
+}
+
+type inventorySpecContainer struct {
+	DataRoot string `yaml:"dataRoot"`
 }
 
 type inventorySpecSite struct {
@@ -89,8 +105,12 @@ func attestLocalInventoryFacts(
 		return inventory, "", nil
 	}
 	if observe == nil {
+		probe, probeErr := localInventoryStorageProbe(wd, rawSpec)
+		if probeErr != nil {
+			return nil, "", probeErr
+		}
 		observe = func(ctx context.Context) (hostconformance.NodeInventoryFacts, error) {
-			return hostconformance.ObserveNodeInventory(ctx, hostconformance.LocalProbe{})
+			return hostconformance.ObserveNodeInventory(ctx, probe)
 		}
 	}
 	nodeRef, siteKind, err := localInventoryNode(wd, rawSpec, options)
@@ -118,6 +138,32 @@ func attestLocalInventoryFacts(
 		persistPath = filepath.Join(wd, ".stackkit", "inventory.yaml")
 	}
 	return encoded, persistPath, nil
+}
+
+func localInventoryStorageProbe(wd string, rawSpec []byte) (hostconformance.LocalProbe, error) {
+	service, err := newArchitectureV2CLIService(wd, "", os.Getenv(architectureAuthorityRootEnv))
+	if err != nil {
+		return hostconformance.LocalProbe{}, fmt.Errorf("load CUE authority for local storage probe: %w", err)
+	}
+	normalized, err := service.ValidateStackSpec(rawSpec)
+	if err != nil {
+		return hostconformance.LocalProbe{}, fmt.Errorf("normalize StackSpec for local storage probe: %w", err)
+	}
+	view, err := decodeInventorySpecView(normalized.CanonicalStackSpec)
+	if err != nil {
+		return hostconformance.LocalProbe{}, err
+	}
+	if strings.EqualFold(strings.TrimSpace(view.Storage.VolumeDriver), "nfs") {
+		// NFS free space is owned by the remote storage authority and cannot be
+		// represented by this local host observation.
+		return hostconformance.LocalProbe{}, nil
+	}
+	if strings.TrimSpace(view.Container.DataRoot) != "" || strings.EqualFold(strings.TrimSpace(view.Install.Runtime), "docker") || strings.EqualFold(strings.TrimSpace(view.Install.Runtime), "podman") {
+		dataRoot := strings.TrimSpace(view.Container.DataRoot)
+		return hostconformance.LocalProbe{StorageSourceRef: "system.container.dataRoot", StoragePath: dataRoot}, nil
+	}
+	dataRoot := strings.TrimSpace(view.Storage.DataRoot)
+	return hostconformance.LocalProbe{StorageSourceRef: "storage.dataRoot", StoragePath: dataRoot}, nil
 }
 
 func localInventoryNode(wd string, rawSpec []byte, options architectureV2ExecutionCLIOptions) (nodeRef, siteKind string, err error) {

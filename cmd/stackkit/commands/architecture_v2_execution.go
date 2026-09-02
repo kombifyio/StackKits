@@ -78,6 +78,7 @@ type architectureV2ExecutionCLIOptions struct {
 	applySink           func(architectureV2ApplyCommandResult) error
 	verifySink          func(architectureV2VerifyReport) error
 	verifyOffline       bool
+	httpProbe           bool
 	driftObservation    bool
 	legacyPlanFile      string
 	workloadRef         string
@@ -240,9 +241,6 @@ func admitCommandBeforeDeployObservability(cmd *cobra.Command) error {
 	}
 	if !sourceVersion.IsV2() {
 		return fmt.Errorf("%s: required local StackSpec has unsupported version %q", mode, sourceVersion)
-	}
-	if mode == architectureV2Prepare {
-		return fmt.Errorf("prepare: canonical StackSpec v2 has no governed host-preparation implementation; use external host admission/conformance and the resolved execution channel")
 	}
 	return nil
 }
@@ -837,6 +835,8 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 			RolloutEvidence:    rolloutRecorder != nil || deployLog != nil,
 			AccessEvidence:     access != nil,
 			CloudVerify:        cloudVerify,
+			Context:            verifyContext,
+			HTTPProbe:          options.httpProbe,
 		})
 		if observationErr != nil {
 			return observationErr

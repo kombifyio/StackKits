@@ -100,6 +100,7 @@ post-install evidence; `status` and HTTP `verify` remain follow-up runtime gaps.
 | `drift` | Detect native-v2 local drift read-only; reconciliation remains fail-closed until its required authority exists. |
 | `remove` | Destroy a StackKit deployment. |
 | `status` | Show deployment state and service health. |
+| `setup <workload>` | Run a Plan-bound Photos, Files, Media, Vault or Smart Home owner setup action on local standalone Compose. |
 | `validate [file]` | Validate stack specs, CUE files, and generated OpenTofu output where present. |
 | `resolve [file]` | Resolve canonical StackSpec v2 through the embedded CUE authority or return a typed v1 migration report. |
 | `migrate [v1-spec-file]` | Classify v1, reconcile one explicit v2 draft, and optionally persist canonical migrated-v1 intent. |
@@ -200,12 +201,17 @@ foreign custody instead of replacing it. `generate` remains deterministic and
 
 ### `stackkit prepare`
 
-Provider creation, credentials, SSH transport, and host package lifecycle are
-outside the standalone StackKits boundary. Current native-v2 `prepare` therefore
-fails closed instead of inferring or mutating a host. Techstack or another
-external host owner may perform those operations and hand StackKits observed
-Inventory plus an execution-channel binding. The former remote preparation
-flags and phase events describe immutable v0.6 artifacts only.
+Provider creation, credentials, SSH transport, and host package lifecycle remain
+outside the standalone StackKits boundary. Native-v2 `prepare` performs the
+shared read-only local host preflight: it checks Docker binary and daemon access,
+Compose, kernel/runtime facts, resources, storage, and required ports, then
+returns actionable diagnostics and optional `stackkit.command-result/v1` JSON.
+For native v2alpha2, selected module-local capacity is outside this report and
+remains explicitly unverified here; canonical module admission must use an
+attested Inventory before Apply.
+It never installs or configures packages, persists inventory, prepares a remote
+host, or requires a hosted account. The former remote preparation flags and
+phase events describe immutable v0.6 artifacts only.
 
 ### `stackkit generate`
 
@@ -443,10 +449,92 @@ evidence is absent or invalid, the command still returns the Plan and a
 `stackkit.actionable-error/v1` recovery contract instead of leaving the
 operator at a dead end.
 
+The additive `applications` projection contains one
+`stackkit.application-experience/v1` view per selected workload, even when
+Apply/runtime evidence is unavailable. Installation, client access, initial
+setup, usability, and recovery have separate states, reasons, timestamps, and
+evidence references. An internal healthy probe cannot verify LAN/client access;
+a staged restore cannot verify live application recovery. `lifecycleVersion`
+identifies the lifecycle contract, not the deployed application version.
+The State Console displays this same view with direct application links and
+next steps. Changing the selected workspace clears its previous status view.
+
+### `stackkit setup <workload>`
+
+The native Photos setup action creates or verifies the Immich owner on the
+already applied local `standalone-compose` workload and records a secret-free,
+Plan-bound `setup-result`. Prepare the workspace-relative credential file first;
+its closed JSON shape is:
+
+```json
+{
+  "email": "<owner email>",
+  "password": "<local password>",
+  "displayName": "<owner display name>"
+}
+```
+
+Keep `.stackkit/setup/owner.json` private. On Unix, use `chmod 600 .stackkit/setup/owner.json`; on Windows, remove inherited access and grant the
+file only to the current account, for example:
+
+```powershell
+$setupOwner = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+icacls .stackkit\setup\owner.json /inheritance:r /grant:r "${setupOwner}:F"
+```
+
+Then run:
+
+```bash
+stackkit setup photos \
+  --credentials-file .stackkit/setup/owner.json \
+  --owner-approve \
+  --complete-onboarding \
+  --json
+```
+
+Use `--operation-id ID` to resume a pending setup operation. The JSON result
+contains the selected Plan, workload, runtime instance, Immich version, and
+verification facts, never the email, password, or credential file contents.
+First user client login remains a separate user step. The equivalent MCP tool
+is `stackkit_setup` with `workload_ref: "photos"`, an optional
+`credentials_file`, explicit `complete_onboarding`,
+`operation_confirmation: "stackkit.setup"`, and `owner_approved: true`; MCP
+receives the path only, never the credential values. The same command and MCP
+tool support Files, Media, Vault and Smart Home through their Plan-declared native actions:
+
+| Workload | Private credential file | Guide |
+|---|---|---|
+| `photos` | `.stackkit/setup/owner.json` | [Photos owner setup](../use-cases/photos/agent/family-vault/SKILL.md#owner-setup) |
+| `files` | `.stackkit/setup/files-owner.json` | [Files administrator](../use-cases/files/agent/owner-setup/SKILL.md#owner-setup) |
+| `media` | `.stackkit/setup/media-owner.json` | [Media administrator](../use-cases/media/agent/owner-setup/SKILL.md#owner-setup) |
+| `vault` | `.stackkit/setup/vault-owner.json` (email only) | [Vault invitation and personal account](../use-cases/vault/agent/owner-setup/SKILL.md#invitation-and-personal-account) |
+| `smart-home` | `.stackkit/setup/home-assistant-owner.json` | [Smart Home owner setup](../use-cases/smart-home/agent/homelab-mcp/SKILL.md#owner-setup) |
+
+Files uses an existing administrator login unless the private credential JSON
+explicitly permits first-owner registration. Smart Home verifies its native
+owner login and leaves personal onboarding choices in Home Assistant. Neither
+accepts `--complete-onboarding`. Media prepares or verifies the explicit Jellyfin
+administrator and completes its startup wizard only with that flag. Libraries,
+household viewer accounts and playback remain explicit application setup and
+client checks. Vault resolves its administrator token from existing signed
+Apply-bound local custody and invites the email in its private input file.
+It records `owner-invited` or `owner-registered` as preparation and leaves
+personal login, encryption keys and client decryption pending. It does not
+accept `--complete-onboarding`. Other applications and deployment adapters keep
+their declared manual instructions. Each action verifies the pinned version
+and owner/admin identity, then cleans up its temporary session before saving a
+receipt. Vaultwarden's logout clears the temporary cookie; its stateless admin
+JWT is not claimed to be revoked. Setup shares the local lifecycle-mutation lock with backup,
+restore and upgrade.
+
+Omitting `--complete-onboarding` leaves existing onboarding flags intact;
+it never reopens onboarding that the owner has already completed. Only an
+authenticated result for the current Plan and Apply verifies the setup axis.
+
 ### `stackkit backup`
 
-The native v0.8 path operates the pinned `kopia-agent` rendered and applied by
-the Basement core. Before every repository, snapshot, staged-restore, live
+The native path operates the pinned `kopia-agent` rendered and applied by
+Full or Lite Basement Core. Before every repository, snapshot, staged-restore, live
 activation, or rollback side effect, the command revalidates the current
 StackSpec and ResolvedPlan, generated manifest and receipt, exact CUE
 backup-policy artifact, local Owner custody, current Apply result, and its
@@ -459,6 +547,14 @@ not CLI inputs. The passphrase remains in owner-only local custody and is sent
 to Kopia only over a redacted stdin boundary. Successful JSON uses
 `stackkit.command-result/v1`.
 
+The [local schedule](../addons/backup/README.md#local-schedule) requires a separate
+`backup schedule enable --owner-approve` command after the backup repository is
+configured. It binds the local systemd timer to the current Plan, Apply, CLI and
+CUE cadence. `backup schedule status --json` separates authorization, timer
+state and the last signed snapshot. `backup schedule disable --owner-approve`
+revokes dispatch before stopping the timer. A CUE schedule alone grants no
+unattended execution authority.
+
 `restore` accepts only the content-addressed ID of an owner-signed native-v2
 snapshot anchor. It requires explicit local Owner approval, writes an
 owner-signed recovery anchor before invoking Kopia, verifies every snapshot
@@ -470,8 +566,22 @@ probes still verify. Staging is excluded from future snapshots, and successful
 extraction is journaled before post-verification so a retry does not restore
 the same bytes again.
 
-This command is a **verified isolated staging restore**. Live replacement is a
-separate, explicit Owner-approved step:
+If a restore is left pending or staged after its source topology or approval
+window has changed, an Owner may explicitly close that exact journal:
+
+```bash
+stackkit backup restore abandon <restore-operation-id> \
+  --owner-approve \
+  --json
+```
+
+Abandonment writes signed terminal evidence while preserving the original
+recovery anchor and repository receipt. It does not invoke Docker or Kopia,
+delete snapshots or files, or touch live volumes. A new restore must use a new
+operation ID.
+
+A successful staging restore still leaves live data unchanged. Live replacement
+is a separate, explicit Owner-approved step:
 
 ```bash
 stackkit backup restore activate sha256:<restore-result-id> \
@@ -505,8 +615,11 @@ operation is marked recovered.
 `list`, `verify`, and `migrate-from-restic` still use the exact-v0.6
 compatibility implementation and are rejected by native-v2 builds until their
 corresponding lifecycle slices land. The Kopia-independent `emergency-export`
-command remains available without claiming archive bytes or a completed data
-restore.
+command streams explicitly selected files into one `tar.gz.age` archive.
+`emergency-restore` authenticates and checks its contents in a new isolated
+directory, without Docker, the original host, or a Kombify account. It reports
+verified file content separately from application recovery; database consistency,
+imports, service activation, and real client access are not implied.
 
 The internal owner-signed `stackkit.executor-state-snapshot/v1` store is now
 available for the command-level upgrade implementation. It already provides an
@@ -526,19 +639,25 @@ Common commands:
 
 - `stackkit backup init` prints the first-run checklist.
 - `stackkit backup configure [--json]` creates or reconnects the exact CUE-governed local filesystem repository.
-- `stackkit backup status [--json]` checks the exact local repository.
-- `stackkit backup run [--operation-id ID] [--json]` creates a crash-consistent snapshot of the governed read-only Docker-volume source. Reusing an operation ID returns its existing exact snapshot instead of duplicating it.
-- `stackkit backup list [--json]` lists snapshots.
+- `stackkit backup status [--json]` checks the exact local repository and reports the age of owner-signed snapshot and staged-restore receipts for its current source policy. Missing or unauthenticated history remains unverified; a future receipt timestamp reports clock skew. Receipt age does not prove retained content, application recovery, or an RPO/RTO objective.
+- `stackkit backup run [--operation-id ID] [--json]` quiesces the governed Core and selected application writers, then creates a crash-consistent snapshot. CUE retention is applied to ordinary snapshots; protected upgrade and restore-safety anchors are retained. Reusing an operation ID returns its recorded snapshot receipt, without claiming expired bytes remain available.
+- `stackkit backup list [--json]` is a legacy-v0.6 repository command; native deployments use the authenticated history in `backup status`.
 - `stackkit backup restore sha256:<snapshot-anchor-id> --owner-approve [--operation-id ID] [--json]` verifies and extracts one signed snapshot into isolated CUE-owned staging. Reusing the operation ID returns the existing exact result.
+- `stackkit backup restore abandon <restore-operation-id> --owner-approve --json` signs terminal abandonment of an exact pending or staged restore journal without invoking Docker/Kopia or changing repository data or live volumes. It is idempotent and requires a new operation ID for any later restore.
 - `stackkit backup restore activate sha256:<restore-result-id> --owner-approve [--operation-id ID] [--json]` creates the mandatory safety snapshot, activates the exact Plan-owned volume set, restarts the runtime, and verifies Owner binding and services.
-- `stackkit backup restore recover <activation-operation-id> --owner-approve --rollback [--json]` explicitly rolls back an interrupted activation from its signed journal and verifies the recovered runtime.
-- `stackkit backup verify` runs `kopia repository validate-provider`.
-- `stackkit backup emergency-export --target /backup/emergency-export` writes a portable export manifest and restore runbook without requiring a healthy Kopia repository. Use `--large-media-mode manifest-only|include|exclude` to control media handling.
+- `stackkit backup restore recover <activation-operation-id> --owner-approve --rollback [--json]` resumes the signed activation journal. Before commit it rolls back and verifies the prior runtime; after commit it preserves activated data and finishes cleanup and application evidence. A completed retry returns the original signed result.
+- `stackkit backup verify` is a legacy-v0.6 command for `kopia repository validate-provider`; it is not the native restore-verification path.
+- `stackkit backup emergency-export --recipient age1PUBLIC_RECIPIENT --source config=/opt/stacks --source documents=/srv/documents --target /backup/emergency-export --json` writes an encrypted portable archive, checksummed manifest, and restore runbook. The target must not exist. Use `--large-media-mode manifest-only|include|exclude` for explicitly selected `large-media` sources.
+- `stackkit backup emergency-restore --archive /backup/emergency-export/stackkit-emergency.tar.gz.age --identity-file /recovery/private/age-key.txt --target /recovery/staged --json` verifies the entire encrypted archive and publishes a new private staging directory. The identity file must have owner-only permissions. `--max-bytes` bounds decompressed input, including metadata (default 512 GiB).
 - `stackkit backup migrate-from-restic [--dry-run]` runs the one-shot legacy importer.
 
 Fleet enrollment and controller operations are outside the public CLI contract.
-There are no native `--repo`, `--container`, source, exclusion, password,
-raw-snapshot, or restore-target overrides. Techstack may dispatch this exact
+The governed Kopia lifecycle has no native `--repo`, `--container`, source,
+exclusion, password, raw-snapshot, or restore-target overrides. The separate
+portable archive commands require explicit local sources and a new target;
+they cannot mutate a Kopia repository or activate restored services. See
+[Backup resilience](BACKUP-RESILIENCE.md) for their coverage and consistency
+limits. Techstack may dispatch this exact
 published CLI and consume its versioned result; it does not replace local
 authority. kombify Cloud identity sync is an optional, user-approved
 convenience for the local PocketID/TinyAuth identity plane and is never required

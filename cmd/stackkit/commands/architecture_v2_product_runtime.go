@@ -250,6 +250,10 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 	if err != nil {
 		return nil, fmt.Errorf("configure owner-bound local policy operations: %w", err)
 	}
+	basementCoreOperations, err := runtimeexecutorlocal.NewOSBasementCoreOperations(workspaceRoot)
+	if err != nil {
+		return nil, fmt.Errorf("configure local Basement core operations: %w", err)
+	}
 	constructors := []func() (architecturev2.ProductRuntimeOwnerRegistration, error){
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductHostAdmissionRegistration(runtimeVersion)
@@ -264,11 +268,10 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return architecturev2.NewProductHomeBackupTargetRegistration(runtimeVersion, runtimeexecutorlocal.NewOSHomeBackupTargetOperations())
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
-			operations, err := runtimeexecutorlocal.NewOSBasementCoreOperations(workspaceRoot)
-			if err != nil {
-				return architecturev2.ProductRuntimeOwnerRegistration{}, err
-			}
-			return architecturev2.NewProductBasementCoreRegistration(runtimeVersion, operations)
+			return architecturev2.NewProductBasementCoreRegistration(runtimeVersion, basementCoreOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductBasementCoreLiteRegistration(runtimeVersion, basementCoreOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			operations, err := runtimeexecutorlocal.NewOSCloudCoreOperations(workspaceRoot)

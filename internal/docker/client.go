@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -170,6 +171,7 @@ type ContainerInfo struct {
 type ContainerConfig struct {
 	Hostname     string                `json:"Hostname"`
 	Image        string                `json:"Image"`
+	StopSignal   string                `json:"StopSignal"`
 	User         string                `json:"User"`
 	WorkingDir   string                `json:"WorkingDir"`
 	Env          []string              `json:"Env"`
@@ -348,11 +350,14 @@ type ContainerNetworkSettings struct {
 	Networks map[string]ContainerNetwork `json:"Networks"`
 }
 
-type ContainerNetwork struct{}
+type ContainerNetwork struct {
+	NetworkID string `json:"NetworkID"`
+}
 
 // NetworkInfo is the exact isolation projection returned by docker network
 // inspect for a rendered local-only network.
 type NetworkInfo struct {
+	ID         string                      `json:"Id"`
 	Name       string                      `json:"Name"`
 	Internal   bool                        `json:"Internal"`
 	Containers map[string]NetworkContainer `json:"Containers"`
@@ -368,6 +373,9 @@ type ContainerState struct {
 	Running    bool         `json:"Running"`
 	Paused     bool         `json:"Paused"`
 	Restarting bool         `json:"Restarting"`
+	ExitCode   int          `json:"ExitCode"`
+	OOMKilled  bool         `json:"OOMKilled"`
+	Error      string       `json:"Error"`
 	Health     *HealthState `json:"Health,omitempty"`
 }
 
@@ -457,6 +465,62 @@ func (c *Client) InspectContainer(ctx context.Context, nameOrID string) (*Contai
 	}
 
 	return &containers[0], nil
+}
+
+// StopContainer stops one exact container identity. Callers that need
+// idempotent quiescence inspect first and only invoke this method while the
+// container is still running.
+func (c *Client) StopContainer(ctx context.Context, nameOrID string) error {
+	if err := validateNameOrID(nameOrID); err != nil {
+		return fmt.Errorf("invalid container name/ID: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	cmd := c.command(ctx, "stop", nameOrID)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to stop container %s: %w (%s)", nameOrID, err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+// StopContainerWithTimeout stops one exact container identity with an
+// explicit Docker grace period. StopContainer intentionally retains its
+// historical daemon-default behavior for consumers that do not own a cold
+// snapshot boundary.
+func (c *Client) StopContainerWithTimeout(ctx context.Context, nameOrID string, grace time.Duration) error {
+	if err := validateNameOrID(nameOrID); err != nil {
+		return fmt.Errorf("invalid container name/ID: %w", err)
+	}
+	if grace <= 0 {
+		return fmt.Errorf("container stop grace must be positive")
+	}
+	seconds := (grace + time.Second - 1) / time.Second
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	cmd := c.command(ctx, "stop", "--time", strconv.FormatInt(int64(seconds), 10), nameOrID)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to stop container %s: %w (%s)", nameOrID, err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+// StartContainer starts one exact container identity. Callers that need
+// idempotent restoration inspect first and only invoke this method while the
+// container is stopped and was recorded as running before quiescence.
+func (c *Client) StartContainer(ctx context.Context, nameOrID string) error {
+	if err := validateNameOrID(nameOrID); err != nil {
+		return fmt.Errorf("invalid container name/ID: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	cmd := c.command(ctx, "start", nameOrID)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to start container %s: %w (%s)", nameOrID, err, strings.TrimSpace(string(output)))
+	}
+	return nil
 }
 
 // ContainerIPAddress returns the first Docker network IP assigned to a

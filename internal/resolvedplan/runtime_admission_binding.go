@@ -83,6 +83,28 @@ func validateRuntimeAdmissionProjection(plan ResolvedPlan) error {
 			return err
 		}
 	}
+	data, err := objectField(map[string]any(plan), "resolvedPlan", "data")
+	if err != nil {
+		return err
+	}
+	storage, err := objectField(map[string]any(plan), "resolvedPlan", "storage")
+	if err != nil {
+		return err
+	}
+	system, err := objectField(map[string]any(plan), "resolvedPlan", "system")
+	if err != nil {
+		return err
+	}
+	workloads, err := objectListField(map[string]any(plan), "resolvedPlan", "workloads")
+	if err != nil {
+		return err
+	}
+	if err := applyDataCapacityAdmission(expected, objectMapsAsAny(workloads), data, storage, system, view.nodes); err != nil {
+		return err
+	}
+	if err := applyStorageFilesystemAdmission(expected, storage, system, view.nodes); err != nil {
+		return err
+	}
 	for index, module := range modules {
 		want := expected[index].(map[string]any)["runtimeAdmission"]
 		equal, err := canonicalEqual(module["runtimeAdmission"], want)

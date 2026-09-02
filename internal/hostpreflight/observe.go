@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kombifyio/stackkits/internal/hostconformance"
 )
 
 // probeTimeout bounds every external command. A host that cannot answer a
@@ -38,6 +40,7 @@ func Observe(ctx context.Context, request ObserveRequest) Facts {
 		Architecture: runtime.GOARCH,
 		CPUCores:     runtime.NumCPU(),
 	}
+	facts.InitSystem = hostconformance.ObserveInitSystem(ctx, nil)
 	if facts.OS != "linux" {
 		// Every StackKits Apply target is a Linux host. Measuring this machine
 		// instead would describe the wrong device.

@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v1",
-  "source_sha": "ee9039687fd373b0a275b6bf1ff6d399ea3db032",
-  "authority_bundle_sha256": "6a0f1e4fac50ab4825431909a0ee39c9f3cc7e97ffb4d6cff7140d2ba6ac902e",
+  "source_sha": "bd9fe67c5bf78cb9ca07e6f856ca6a185db25b58",
+  "authority_bundle_sha256": "f6132a13c82f6c97a54edd991717db9897abb43eaaf8e020c3546302f0ffe53a",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -1268,6 +1268,56 @@
       "owner_approval": true
     },
     {
+      "id": "stackkit.backup.schedule.disable",
+      "tool_name": "stackkit_backup_schedule_disable",
+      "title": "Disable backup schedule",
+      "description": "Revoke the local backup timer after explicit local Owner approval.",
+      "command": [
+        "backup",
+        "schedule",
+        "disable",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.backup.schedule.enable",
+      "tool_name": "stackkit_backup_schedule_enable",
+      "title": "Enable backup schedule",
+      "description": "Enable the CUE-governed local backup timer after explicit local Owner approval.",
+      "command": [
+        "backup",
+        "schedule",
+        "enable",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.backup.schedule.status",
+      "tool_name": "stackkit_backup_schedule_status",
+      "title": "Backup schedule status",
+      "description": "Read the local backup timer and signed schedule authorization without changing either.",
+      "command": [
+        "backup",
+        "schedule",
+        "status",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
       "id": "stackkit.drift",
       "tool_name": "stackkit_drift",
       "title": "Drift",
@@ -1379,6 +1429,35 @@
       "owner_approval": true
     },
     {
+      "id": "stackkit.restore.abandon",
+      "tool_name": "stackkit_restore_abandon",
+      "title": "Abandon restore",
+      "description": "Close one pending or staged restore journal with explicit local Owner approval without touching repository or live volumes.",
+      "command": [
+        "backup",
+        "restore",
+        "abandon"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.setup",
+      "tool_name": "stackkit_setup",
+      "title": "Set up application",
+      "description": "Set up and verify a Plan-declared app-local owner account on the existing application.",
+      "command": [
+        "setup",
+        "--json"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
       "id": "stackkit.status",
       "tool_name": "stackkit_status",
       "title": "Status",
@@ -1434,5 +1513,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "fcf1334ec72db7f39efb4c50351d1079d5aa1b31395c6b31a6a7e4edd2f40eb7"
+  "catalog_sha256": "02823fece199b1c94d88b95701ea2fc40c6d71eff2ef545935b0cc55e0b7c5bd"
 }

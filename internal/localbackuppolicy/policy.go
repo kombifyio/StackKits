@@ -19,6 +19,12 @@ const (
 	APIVersion = "stackkit.local-kopia-runtime-policy/v1"
 	Kind       = "LocalKopiaRuntimePolicy"
 
+	// CoreModuleRef and CoreLiteModuleRef are the only runtime profiles that
+	// may own the local Kopia source. An empty Source.CoreModuleRef is retained
+	// solely for decoding pre-profile Full-Core policy artifacts.
+	CoreModuleRef     = "stackkits-basement-core-runtime"
+	CoreLiteModuleRef = "stackkits-basement-core-lite-runtime"
+
 	ServiceRef          = "kopia-agent"
 	Hostname            = "stackkit-basement-backup"
 	ImageRef            = "docker.io/kopia/kopia:0.18.2"
@@ -37,6 +43,10 @@ const (
 	RestoreStagingSourcePath = "/source/docker-volumes/stackkit-basement-core_kopia-restore-staging/_data"
 	Custody                  = "owner-local"
 	RuntimeMaterial          = "owner-command"
+	DockerDaemonRef          = "docker-default"
+	DockerDaemonEngine       = "docker"
+	DockerDaemonSocketPath   = "/var/run/docker.sock"
+	HostScope                = "exclusive-stack-per-daemon"
 	canonicalNewline         = byte('\n')
 )
 
@@ -59,6 +69,27 @@ var managedVolumeNames = []string{
 	"stackkit-basement-core_tinyauth-data",
 }
 
+var managedLiteVolumeNames = []string{
+	"stackkit-basement-core_pocketid-data",
+	"stackkit-basement-core_step-ca-db",
+	"stackkit-basement-core_tinyauth-data",
+}
+
+type coreSourceProfile struct {
+	managedVolumeNames []string
+}
+
+func coreProfile(coreModuleRef string) (coreSourceProfile, error) {
+	switch coreModuleRef {
+	case "", CoreModuleRef:
+		return coreSourceProfile{managedVolumeNames: managedVolumeNames}, nil
+	case CoreLiteModuleRef:
+		return coreSourceProfile{managedVolumeNames: managedLiteVolumeNames}, nil
+	default:
+		return coreSourceProfile{}, fmt.Errorf("local Kopia source coreModuleRef %q is not a supported Core profile", coreModuleRef)
+	}
+}
+
 // Document is the versioned on-disk local Kopia runtime policy artifact.
 type Document struct {
 	APIVersion string `json:"apiVersion"`
@@ -68,15 +99,83 @@ type Document struct {
 
 // Policy binds the governed local Kopia runtime to one resolved Stack target.
 type Policy struct {
-	StackID string  `json:"stackId"`
-	Target  Target  `json:"target"`
-	Runtime Runtime `json:"runtime"`
-	Source  Source  `json:"source"`
+	StackID   string     `json:"stackId"`
+	Target    Target     `json:"target"`
+	Runtime   Runtime    `json:"runtime"`
+	Source    Source     `json:"source"`
+	Retention *Retention `json:"retention,omitempty"`
+	Schedule  *Schedule  `json:"schedule,omitempty"`
+}
+
+// Schedule is the resolved foundation.#BackupScheduleV1 UTC intent. It grants
+// no execution authority; local scheduling requires separate Owner approval.
+// Nil preserves historical policies that have no executable schedule intent.
+type Schedule struct {
+	Cadence       string `json:"cadence"`
+	MinuteUTC     int    `json:"minuteUTC"`
+	HourUTC       *int   `json:"hourUTC,omitempty"`
+	WeekdayUTC    string `json:"weekdayUTC,omitempty"`
+	JitterSeconds int    `json:"jitterSeconds"`
+}
+
+func (schedule Schedule) Validate() error {
+	if schedule.MinuteUTC < 0 || schedule.MinuteUTC > 59 || schedule.JitterSeconds < 0 || schedule.JitterSeconds > 1800 {
+		return errors.New("backup schedule is outside the governed UTC ranges")
+	}
+	if schedule.Cadence == "hourly" {
+		if schedule.HourUTC != nil || schedule.WeekdayUTC != "" {
+			return errors.New("hourly backup schedule cannot declare an hour or weekday")
+		}
+		return nil
+	}
+	if schedule.HourUTC == nil || *schedule.HourUTC < 0 || *schedule.HourUTC > 23 {
+		return errors.New("backup schedule requires a governed UTC hour")
+	}
+	switch schedule.Cadence {
+	case "daily":
+		if schedule.WeekdayUTC != "" {
+			return errors.New("daily backup schedule cannot declare a weekday")
+		}
+	case "weekly":
+		switch schedule.WeekdayUTC {
+		case "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday":
+		default:
+			return errors.New("weekly backup schedule requires a governed UTC weekday")
+		}
+	default:
+		return errors.New("backup schedule requires daily, hourly or weekly cadence")
+	}
+	return nil
+}
+
+// Retention carries the resolved foundation.#BackupRetentionV1 contract.
+// Defaults are supplied by CUE. Nil preserves the historical manual policy;
+// it must never be interpreted as a newly selected retention schedule.
+type Retention struct {
+	KeepDaily   int `json:"keepDaily"`
+	KeepWeekly  int `json:"keepWeekly"`
+	KeepMonthly int `json:"keepMonthly"`
+	KeepYearly  int `json:"keepYearly"`
+}
+
+// Validate bounds the runtime lowering of an already CUE-resolved policy.
+func (retention Retention) Validate() error {
+	if retention.KeepDaily < 1 || retention.KeepDaily > 365 ||
+		retention.KeepWeekly < 0 || retention.KeepWeekly > 104 ||
+		retention.KeepMonthly < 0 || retention.KeepMonthly > 60 ||
+		retention.KeepYearly < 0 || retention.KeepYearly > 10 {
+		return errors.New("backup retention is outside the governed CUE ranges")
+	}
+	return nil
 }
 
 type Target struct {
-	SiteRef string `json:"siteRef"`
-	NodeRef string `json:"nodeRef"`
+	SiteRef          string `json:"siteRef"`
+	NodeRef          string `json:"nodeRef"`
+	DaemonRef        string `json:"daemonRef,omitempty"`
+	DaemonEngine     string `json:"daemonEngine,omitempty"`
+	DaemonSocketPath string `json:"daemonSocketPath,omitempty"`
+	HostScope        string `json:"hostScope,omitempty"`
 }
 
 type Runtime struct {
@@ -91,27 +190,77 @@ type Runtime struct {
 }
 
 type Source struct {
-	Kind               string   `json:"kind"`
-	HostPath           string   `json:"hostPath"`
-	ContainerPath      string   `json:"containerPath"`
-	ReadOnly           bool     `json:"readOnly"`
-	ManagedVolumeNames []string `json:"managedVolumeNames"`
-	ExcludePaths       []string `json:"excludePaths"`
-	RepositoryPath     string   `json:"repositoryPath"`
-	ConfigPath         string   `json:"configPath"`
-	CachePath          string   `json:"cachePath"`
-	Custody            string   `json:"custody"`
-	RuntimeMaterial    string   `json:"runtimeMaterial"`
+	Kind                string               `json:"kind"`
+	HostPath            string               `json:"hostPath"`
+	ContainerPath       string               `json:"containerPath"`
+	ReadOnly            bool                 `json:"readOnly"`
+	CoreModuleRef       string               `json:"coreModuleRef,omitempty"`
+	ManagedVolumeNames  []string             `json:"managedVolumeNames"`
+	ApplicationVolumes  []ApplicationVolume  `json:"applicationVolumes,omitempty"`
+	ApplicationRuntimes []ApplicationRuntime `json:"applicationRuntimes,omitempty"`
+	ExcludePaths        []string             `json:"excludePaths"`
+	RepositoryPath      string               `json:"repositoryPath"`
+	ConfigPath          string               `json:"configPath"`
+	CachePath           string               `json:"cachePath"`
+	Custody             string               `json:"custody"`
+	RuntimeMaterial     string               `json:"runtimeMaterial"`
+}
+
+// NewWithApplicationVolumes returns the governed local Kopia policy with the
+// selected Standalone-Compose application volumes attached to the target.
+// Application records remain in the signed policy artifact so the runtime and
+// restore authorities retain the CUE-derived ownership binding.
+func NewWithApplicationVolumes(stackID, siteRef, nodeRef string, applicationVolumes []ApplicationVolume) (Policy, error) {
+	return NewWithApplicationVolumesAndRuntimes(stackID, siteRef, nodeRef, applicationVolumes, nil)
+}
+
+// NewWithApplicationVolumesAndRuntimes returns the governed policy with the
+// exact selected application volumes and their compiler-owned runtime graphs.
+func NewWithApplicationVolumesAndRuntimes(stackID, siteRef, nodeRef string, applicationVolumes []ApplicationVolume, applicationRuntimes []ApplicationRuntime) (Policy, error) {
+	source, err := GovernedSourceWithApplicationVolumesAndRuntimes(applicationVolumes, applicationRuntimes)
+	if err != nil {
+		return Policy{}, err
+	}
+	policy := Policy{
+		StackID: stackID,
+		Target:  governedTarget(siteRef, nodeRef),
+		Runtime: GovernedRuntime(),
+		Source:  source,
+	}
+	if err := policy.validate(); err != nil {
+		return Policy{}, err
+	}
+	return policy, nil
+}
+
+// NewWithApplicationVolumesAndRuntimesForCoreModule returns a policy bound to
+// one of the finite local Core runtime profiles. The profile controls the
+// governed Core volume set; application volumes remain compiler-selected.
+// Full-Core intentionally retains the fieldless legacy wire encoding so a
+// profile-aware regeneration does not change an otherwise identical artifact;
+// CoreLite remains explicitly identified in the source.
+func NewWithApplicationVolumesAndRuntimesForCoreModule(coreModuleRef, stackID, siteRef, nodeRef string, applicationVolumes []ApplicationVolume, applicationRuntimes []ApplicationRuntime) (Policy, error) {
+	source, err := governedSourceWithApplicationVolumesAndRuntimes(coreModuleRef, coreModuleRef == CoreLiteModuleRef, applicationVolumes, applicationRuntimes)
+	if err != nil {
+		return Policy{}, err
+	}
+	policy := Policy{
+		StackID: stackID,
+		Target:  governedTarget(siteRef, nodeRef),
+		Runtime: GovernedRuntime(),
+		Source:  source,
+	}
+	if err := policy.validate(); err != nil {
+		return Policy{}, err
+	}
+	return policy, nil
 }
 
 // New returns the exact governed policy for one resolved Basement target.
 func New(stackID, siteRef, nodeRef string) (Policy, error) {
 	policy := Policy{
 		StackID: stackID,
-		Target: Target{
-			SiteRef: siteRef,
-			NodeRef: nodeRef,
-		},
+		Target:  governedTarget(siteRef, nodeRef),
 		Runtime: GovernedRuntime(),
 		Source:  GovernedSource(),
 	}
@@ -119,6 +268,21 @@ func New(stackID, siteRef, nodeRef string) (Policy, error) {
 		return Policy{}, err
 	}
 	return policy, nil
+}
+
+// NewForCoreModule returns a policy bound to one of the finite local Core
+// runtime profiles. Full-Core uses the pre-profile fieldless encoding for
+// compatibility; CoreLite carries its explicit module binding.
+func NewForCoreModule(coreModuleRef, stackID, siteRef, nodeRef string) (Policy, error) {
+	return NewWithApplicationVolumesAndRuntimesForCoreModule(coreModuleRef, stackID, siteRef, nodeRef, nil, nil)
+}
+
+func governedTarget(siteRef, nodeRef string) Target {
+	return Target{
+		SiteRef: siteRef, NodeRef: nodeRef,
+		DaemonRef: DockerDaemonRef, DaemonEngine: DockerDaemonEngine,
+		DaemonSocketPath: DockerDaemonSocketPath, HostScope: HostScope,
+	}
 }
 
 // RestorePathForOperation returns the non-caller-controlled staging directory
@@ -145,14 +309,27 @@ func GovernedRuntime() Runtime {
 // GovernedSource returns a detached copy of the exact read-only backup source.
 // Exclusion order is a canonical contract: repository, config, then cache.
 func GovernedSource() Source {
-	return Source{
-		Kind:          "docker-volume-root",
-		HostPath:      "/var/lib/docker/volumes",
-		ContainerPath: SourcePath,
-		ReadOnly:      true,
-		ManagedVolumeNames: append(
-			[]string(nil), managedVolumeNames...,
-		),
+	return governedSource(CoreModuleRef, false)
+}
+
+// GovernedSourceForCoreModule returns the exact source for a supported Core
+// runtime profile. New artifacts carry the selected module explicitly so the
+// source allowlist cannot be widened by a consumer.
+func GovernedSourceForCoreModule(coreModuleRef string) (Source, error) {
+	if _, err := coreProfile(coreModuleRef); err != nil {
+		return Source{}, err
+	}
+	return governedSource(coreModuleRef, true), nil
+}
+
+func governedSource(coreModuleRef string, explicit bool) Source {
+	profile, _ := coreProfile(coreModuleRef)
+	source := Source{
+		Kind:               "docker-volume-root",
+		HostPath:           "/var/lib/docker/volumes",
+		ContainerPath:      SourcePath,
+		ReadOnly:           true,
+		ManagedVolumeNames: append([]string(nil), profile.managedVolumeNames...),
 		ExcludePaths: []string{
 			"/source/docker-volumes/stackkit-basement-core_kopia-repository/_data",
 			"/source/docker-volumes/stackkit-basement-core_kopia-config/_data",
@@ -165,6 +342,62 @@ func GovernedSource() Source {
 		Custody:         Custody,
 		RuntimeMaterial: RuntimeMaterial,
 	}
+	if explicit {
+		source.CoreModuleRef = coreModuleRef
+	}
+	return source
+}
+
+func governedSourceForRef(coreModuleRef string) (Source, error) {
+	if coreModuleRef == "" {
+		return GovernedSource(), nil
+	}
+	return GovernedSourceForCoreModule(coreModuleRef)
+}
+
+// GovernedSourceWithApplicationVolumes extends the CUE-owned Core source with
+// exactly the selected application volumes. The static Core list and
+// exclusion topology remain unchanged.
+func GovernedSourceWithApplicationVolumes(applicationVolumes []ApplicationVolume) (Source, error) {
+	return GovernedSourceWithApplicationVolumesAndRuntimes(applicationVolumes, nil)
+}
+
+// GovernedSourceWithApplicationVolumesAndRuntimes extends the CUE-owned Core
+// source with selected application volumes and their closed runtime graphs.
+func GovernedSourceWithApplicationVolumesAndRuntimes(applicationVolumes []ApplicationVolume, applicationRuntimes []ApplicationRuntime) (Source, error) {
+	return governedSourceWithApplicationVolumesAndRuntimes(CoreModuleRef, false, applicationVolumes, applicationRuntimes)
+}
+
+// GovernedSourceWithApplicationVolumesAndRuntimesForCoreModule extends the
+// selected finite Core profile with compiler-owned application volumes and
+// runtime graphs.
+func GovernedSourceWithApplicationVolumesAndRuntimesForCoreModule(coreModuleRef string, applicationVolumes []ApplicationVolume, applicationRuntimes []ApplicationRuntime) (Source, error) {
+	return governedSourceWithApplicationVolumesAndRuntimes(coreModuleRef, true, applicationVolumes, applicationRuntimes)
+}
+
+func governedSourceWithApplicationVolumesAndRuntimes(coreModuleRef string, explicit bool, applicationVolumes []ApplicationVolume, applicationRuntimes []ApplicationRuntime) (Source, error) {
+	applications, err := canonicalApplicationVolumes(applicationVolumes)
+	if err != nil {
+		return Source{}, err
+	}
+	runtimes, err := canonicalApplicationRuntimes(applicationRuntimes)
+	if err != nil {
+		return Source{}, err
+	}
+	if err := validateApplicationProjection(applications, runtimes); err != nil {
+		return Source{}, err
+	}
+	if _, err := coreProfile(coreModuleRef); err != nil {
+		return Source{}, err
+	}
+	source := governedSource(coreModuleRef, explicit)
+	if len(applications) == 0 && len(runtimes) == 0 {
+		return source, nil
+	}
+	source.ApplicationVolumes = applications
+	source.ApplicationRuntimes = runtimes
+	source.ManagedVolumeNames = append(source.ManagedVolumeNames, applicationVolumeNames(applications)...)
+	return source, nil
 }
 
 // ManagedVolumeNames returns the exact Compose-qualified persistent volume
@@ -174,21 +407,88 @@ func ManagedVolumeNames() []string {
 	return append([]string(nil), managedVolumeNames...)
 }
 
+// ManagedVolumeNamesForCoreModule returns the exact profile-owned Core names.
+func ManagedVolumeNamesForCoreModule(coreModuleRef string) ([]string, error) {
+	profile, err := coreProfile(coreModuleRef)
+	if err != nil {
+		return nil, err
+	}
+	return append([]string(nil), profile.managedVolumeNames...), nil
+}
+
+// ManagedVolumeNamesWithApplicationVolumes returns the canonical Core names
+// followed by selected application volume names in stable order.
+func ManagedVolumeNamesWithApplicationVolumes(applicationVolumes []ApplicationVolume) ([]string, error) {
+	source, err := GovernedSourceWithApplicationVolumes(applicationVolumes)
+	if err != nil {
+		return nil, err
+	}
+	return append([]string(nil), source.ManagedVolumeNames...), nil
+}
+
+// ManagedVolumeNamesWithApplicationVolumesForCoreModule returns the exact
+// selected Core profile names followed by compiler-owned application names.
+func ManagedVolumeNamesWithApplicationVolumesForCoreModule(coreModuleRef string, applicationVolumes []ApplicationVolume) ([]string, error) {
+	source, err := GovernedSourceWithApplicationVolumesAndRuntimesForCoreModule(coreModuleRef, applicationVolumes, nil)
+	if err != nil {
+		return nil, err
+	}
+	return append([]string(nil), source.ManagedVolumeNames...), nil
+}
+
+// SourceDigest binds restore execution to the exact historical/current volume
+// selection without coupling it to unrelated runtime-policy revisions.
+func SourceDigest(source Source) (string, error) {
+	if expected, ok := recognizedSnapshotSource(source.CoreModuleRef, source.ContainerPath, source.ExcludePaths); ok {
+		source.ExcludePaths = append([]string(nil), expected.ExcludePaths...)
+	}
+	if err := validateSourceProjection(source); err != nil {
+		return "", err
+	}
+	// Full-Core's new explicit profile marker is metadata for selecting the
+	// same governed source, not a new physical source identity. Keep it out of
+	// the digest while preserving CoreLite's distinct marker and volume set.
+	if source.CoreModuleRef == CoreModuleRef {
+		source.CoreModuleRef = ""
+	}
+	encoded, err := json.Marshal(source)
+	if err != nil {
+		return "", fmt.Errorf("marshal local Kopia source digest: %w", err)
+	}
+	sum := sha256.Sum256(encoded)
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
 // IsRecognizedSnapshotSelection accepts the current governed backup selection
 // and the immediately preceding v1 selection. The latter did not mention the
 // restore-staging volume because that volume did not exist yet. Keeping this
 // narrow compatibility rule allows pre-restore anchors to remain usable while
 // every new snapshot excludes staged restore bytes.
 func IsRecognizedSnapshotSelection(containerPath string, excludes []string) bool {
-	current := GovernedSource()
-	if containerPath != current.ContainerPath {
-		return false
+	return IsRecognizedSnapshotSelectionForCoreModule("", containerPath, excludes)
+}
+
+// IsRecognizedSnapshotSelectionForCoreModule accepts the current or
+// pre-staging selection for one supported Core profile. Empty moduleRef is the
+// legacy Full-Core encoding and is intentionally never inferred as Lite.
+func IsRecognizedSnapshotSelectionForCoreModule(coreModuleRef, containerPath string, excludes []string) bool {
+	_, ok := recognizedSnapshotSource(coreModuleRef, containerPath, excludes)
+	return ok
+}
+
+func recognizedSnapshotSource(coreModuleRef, containerPath string, excludes []string) (Source, bool) {
+	current, err := governedSourceForRef(coreModuleRef)
+	if err != nil || containerPath != current.ContainerPath {
+		return Source{}, false
 	}
 	if reflect.DeepEqual(excludes, current.ExcludePaths) {
-		return true
+		return current, true
 	}
 	legacy := current.ExcludePaths[:len(current.ExcludePaths)-1]
-	return reflect.DeepEqual(excludes, legacy)
+	if reflect.DeepEqual(excludes, legacy) {
+		return current, true
+	}
+	return Source{}, false
 }
 
 // ValidateSnapshotPolicy verifies a policy embedded in owner-signed snapshot
@@ -196,6 +496,16 @@ func IsRecognizedSnapshotSelection(containerPath string, excludes []string) bool
 // verifier additionally recognizes the pre-staging v1 snapshot selection so
 // upgrades do not invalidate existing anchors.
 func ValidateSnapshotPolicy(policy Policy) error {
+	if policy.Schedule != nil {
+		if err := policy.Schedule.Validate(); err != nil {
+			return err
+		}
+	}
+	if policy.Retention != nil {
+		if err := policy.Retention.Validate(); err != nil {
+			return err
+		}
+	}
 	for _, field := range []struct {
 		name  string
 		value string
@@ -208,14 +518,17 @@ func ValidateSnapshotPolicy(policy Policy) error {
 			return fmt.Errorf("local Kopia runtime policy %s must be a non-empty portable contract ID", field.name)
 		}
 	}
-	current := GovernedSource()
+	if !legacySnapshotTarget(policy.Target) && policy.Target != governedTarget(policy.Target.SiteRef, policy.Target.NodeRef) {
+		return errors.New("local Kopia snapshot policy daemon target is not recognized")
+	}
 	source := policy.Source
-	if !IsRecognizedSnapshotSelection(source.ContainerPath, source.ExcludePaths) {
+	current, recognized := recognizedSnapshotSource(source.CoreModuleRef, source.ContainerPath, source.ExcludePaths)
+	if !recognized {
 		return errors.New("local Kopia snapshot policy selection is not recognized")
 	}
 	source.ExcludePaths = append([]string(nil), current.ExcludePaths...)
-	if !reflect.DeepEqual(source, current) {
-		return errors.New("local Kopia snapshot policy data topology is not recognized")
+	if err := validateSource(source, policy.Target); err != nil {
+		return fmt.Errorf("local Kopia snapshot policy data topology is not recognized: %w", err)
 	}
 	runtime := policy.Runtime
 	imageName, imageDigest, imagePinned := strings.Cut(runtime.Image, "@")
@@ -234,11 +547,17 @@ func ValidateSnapshotPolicy(policy Policy) error {
 	return nil
 }
 
+func legacySnapshotTarget(target Target) bool {
+	return target.DaemonRef == "" && target.DaemonEngine == "" && target.DaemonSocketPath == "" && target.HostScope == ""
+}
+
 // SourceProjection returns a detached source projection suitable for lifecycle
 // translation without allowing callers to mutate the decoded authority.
 func (policy Policy) SourceProjection() Source {
 	source := policy.Source
 	source.ManagedVolumeNames = append([]string(nil), policy.Source.ManagedVolumeNames...)
+	source.ApplicationVolumes = cloneApplicationVolumes(policy.Source.ApplicationVolumes)
+	source.ApplicationRuntimes = cloneApplicationRuntimes(policy.Source.ApplicationRuntimes)
 	source.ExcludePaths = append([]string(nil), policy.Source.ExcludePaths...)
 	return source
 }
@@ -304,6 +623,16 @@ func Digest(raw []byte) (string, error) {
 }
 
 func (policy Policy) validate() error {
+	if policy.Schedule != nil {
+		if err := policy.Schedule.Validate(); err != nil {
+			return err
+		}
+	}
+	if policy.Retention != nil {
+		if err := policy.Retention.Validate(); err != nil {
+			return err
+		}
+	}
 	for _, field := range []struct {
 		name  string
 		value string
@@ -316,11 +645,14 @@ func (policy Policy) validate() error {
 			return fmt.Errorf("local Kopia runtime policy %s must be a non-empty portable contract ID", field.name)
 		}
 	}
+	if policy.Target != governedTarget(policy.Target.SiteRef, policy.Target.NodeRef) {
+		return errors.New("local Kopia runtime policy target differs from the governed exclusive rootful Docker daemon")
+	}
 	if !reflect.DeepEqual(policy.Runtime, GovernedRuntime()) {
 		return errors.New("local Kopia runtime policy runtime differs from the governed local runtime")
 	}
-	if !reflect.DeepEqual(policy.Source, GovernedSource()) {
-		return errors.New("local Kopia runtime policy source differs from the governed read-only source")
+	if err := validateSource(policy.Source, policy.Target); err != nil {
+		return fmt.Errorf("local Kopia runtime policy source differs from the governed read-only source: %w", err)
 	}
 	return nil
 }

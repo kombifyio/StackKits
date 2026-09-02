@@ -81,7 +81,7 @@ func runNativeV2RestoreActivationCommand(
 	if err != nil {
 		return err
 	}
-	backupService, err := newNativeV2BackupService(workspace)
+	backupService, err := newNativeV2BackupService(authority)
 	if err != nil {
 		return err
 	}
@@ -115,14 +115,35 @@ func runNativeV2RestoreActivationCommand(
 				PolicyArtifact: append(
 					[]byte(nil), authority.PolicyArtifact...,
 				),
-				OperationID: safetySnapshotOperationID(operationID),
+				OperationID:     safetySnapshotOperationID(operationID),
+				ProtectRecovery: true,
 			})
 		},
 		VerifyLive: nativeV2RestoreActivationVerifier(
 			workspace, restoreResult,
 		),
+		FinalizeResult: func(_ context.Context, finalized restoreactivation.Result, _ error) error {
+			evidence, evidenceRef, finalizeErr := restoreActivationApplicationLifecycleEvidence(workspace, finalized)
+			if finalizeErr != nil {
+				return finalizeErr
+			}
+			if finalized.Status == "recovered" {
+				return recoverArchitectureV2ApplicationLifecycles(
+					workspace, lifecycleRuns,
+					"restore activation failed; the prior application state was restored automatically",
+					evidenceRef, evidence, time.Now().UTC(), nil,
+				)
+			}
+			return succeedArchitectureV2ApplicationLifecycles(
+				workspace, lifecycleRuns, evidence, time.Now().UTC(),
+			)
+		},
 	})
 	if err != nil {
+		var recovered *restoreactivation.ActivationRecoveredError
+		if errors.As(err, &recovered) {
+			return err
+		}
 		return requireArchitectureV2ApplicationLifecycleRecovery(
 			workspace,
 			lifecycleRuns,
@@ -131,24 +152,6 @@ func runNativeV2RestoreActivationCommand(
 			time.Now().UTC(),
 			err,
 		)
-	}
-	evidence, evidenceRef, err := restoreActivationApplicationLifecycleEvidence(
-		workspace, result,
-	)
-	if err != nil {
-		return requireArchitectureV2ApplicationLifecycleRecovery(
-			workspace,
-			lifecycleRuns,
-			"restore activation completed but owner evidence could not be bound",
-			evidenceRef,
-			time.Now().UTC(),
-			err,
-		)
-	}
-	if err := succeedArchitectureV2ApplicationLifecycles(
-		workspace, lifecycleRuns, evidence, time.Now().UTC(),
-	); err != nil {
-		return err
 	}
 	return emitRestoreActivationResult(cmd, result)
 }
@@ -223,17 +226,21 @@ func runNativeV2RestoreRecoveryCommand(
 				workspace, recoveryRestoreResult,
 			)(verifyContext)
 		},
+		FinalizeResult: func(_ context.Context, finalized restoreactivation.Result, _ error) error {
+			evidence, _, finalizeErr := restoreActivationApplicationLifecycleEvidence(workspace, finalized)
+			if finalizeErr != nil {
+				return finalizeErr
+			}
+			terminalStatus := applicationlifecycle.StatusSucceeded
+			if finalized.Status == "recovered" {
+				terminalStatus = applicationlifecycle.StatusRecovered
+			}
+			return completeExistingApplicationLifecycles(
+				workspace, recoveryPlan, operationID, terminalStatus, evidence, time.Now().UTC(),
+			)
+		},
 	})
 	if err != nil {
-		return err
-	}
-	evidence, _, err := restoreActivationApplicationLifecycleEvidence(workspace, result)
-	if err != nil {
-		return err
-	}
-	if err := completeExistingRecoveredApplicationLifecycles(
-		workspace, recoveryPlan, operationID, evidence, time.Now().UTC(),
-	); err != nil {
 		return err
 	}
 	return emitRestoreActivationResult(cmd, result)

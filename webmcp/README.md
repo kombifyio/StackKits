@@ -58,7 +58,13 @@ same-origin tools through `document.modelContext.registerTool` when that API
 exists. A registration `AbortController` is passed to the registration call,
 and each execution receives and observes the WebMCP execution signal. A
 browser without WebMCP continues to work; the adapter simply reports
-`available: false`.
+`available: false` with the explicit `browser_api_unavailable` status. The host
+also reports distinct `catalog_fetch_failed`, `catalog_fetch_timeout`,
+`catalog_integrity_failed`, `catalog_source_mismatch`, `registration_failed`,
+and `registration_timeout` states. Catalog loading and tool registration each
+have a 4,500 ms safety deadline. Retry restarts the catalog and registration
+attempt; a missing browser API requires a WebMCP-capable browser and is never
+replaced with a polyfill.
 
 The four public tools are `stackkits_list_catalog`,
 `stackkits_get_module_profiles`, `stackkits_assess_capacity`, and
@@ -66,10 +72,26 @@ The four public tools are `stackkits_list_catalog`,
 CUE/build/catalog provenance, and declares zero executed, target, or provider
 effects. `apply` is only described as a non-executable follow-up.
 
-Profile discovery returns one module per page. Repeat the same kit and filters
-with `cursor: data.next_cursor` until `next_cursor` is absent, or provide an exact
-`module_id`. `use_case_ids` filters both modules and their alternatives. Paging
-never selects a profile; the visible planner reads the same complete catalog.
+Profile discovery returns one module per page. Prefer an exact `module_id` when
+it is already known; otherwise repeat the same kit and filters with
+`cursor: data.next_cursor` until `next_cursor` is absent. `use_case_ids` filters
+both modules and their alternatives. Paging never selects a profile; the
+visible planner reads the same complete catalog.
+
+Use only the calls needed for the current question. When the user has already
+chosen the complete module selection and declared capacity, call
+`stackkits_prepare_handoff` directly: it includes the capacity assessment.
+There is no mandatory list → profile → assess → handoff round trip. No tool
+performs network requests or model inference; the catalog is fetched once per
+load attempt and verified immutable data is reused within that page session.
+
+Compute profiles may include `host_requirements` for CPU instruction sets and
+the persistent local data filesystem. Profile discovery groups identical
+requirements under `host_requirements`, with explicit `profile_ids` per group,
+preserving the existing compact profile tuples and bounded response size.
+The UI shows the same CUE declarations. Numeric capacity assessment does not
+attest these requirements: the CLI must observe them on the exact target before
+Apply. A matching amount of RAM or free space cannot replace that observation.
 
 To keep agent responses compact without dropping approval metadata, each handoff
 step is a schema-defined tuple:
@@ -80,6 +102,16 @@ envelope. Capacity results likewise do not repeat the supplied profile IDs.
 The shared session preserves the full validated selection in the visible planner.
 The current representative catalog, profile pages, capacity checks, and handoffs
 are checked against the 1,500-character JSON output budget.
+
+For a bounded local latency diagnostic over the existing build, run:
+
+```sh
+node scripts/benchmark.mjs
+```
+
+The diagnostic covers local parsing, integrity, registration, schema checks,
+and shared state. It excludes network, browser-bridge, DOM-rendering, and agent
+reasoning time.
 
 The stateful Svelte component is available at
 `@kombifyio/stackkits-webmcp/StackKitsPlanner.svelte`. Pass it the same

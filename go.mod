@@ -5,6 +5,7 @@ go 1.26.5
 require (
 	cuelang.org/go v0.15.4
 	filippo.io/age v1.3.1
+	github.com/coder/websocket v1.8.15
 	github.com/fatih/color v1.18.0
 	github.com/getsentry/sentry-go v0.46.2
 	github.com/google/uuid v1.6.0

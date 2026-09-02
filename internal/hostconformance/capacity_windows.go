@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -47,9 +48,14 @@ func platformMemoryBytes() (uint64, error) {
 }
 
 func platformStorageBytes() (uint64, error) {
-	root := `C:\`
+	return platformStorageBytesForPath(`C:\`)
+}
+
+func platformStorageBytesForPath(root string) (uint64, error) {
 	if wd, err := os.Getwd(); err == nil && wd != "" {
-		root = wd
+		if root == `C:\` {
+			root = wd
+		}
 	}
 	path, err := windows.UTF16PtrFromString(root)
 	if err != nil {
@@ -63,4 +69,23 @@ func platformStorageBytes() (uint64, error) {
 		return 0, fmt.Errorf("host storage is unobserved")
 	}
 	return total, nil
+}
+
+func platformStorageFreeBytes(path string) (uint64, error) {
+	root := strings.TrimSpace(path)
+	if root == "" {
+		root = `C:\`
+	}
+	pathPtr, err := windows.UTF16PtrFromString(root)
+	if err != nil {
+		return 0, fmt.Errorf("encode storage path: %w", err)
+	}
+	var free, total, totalFree uint64
+	if err := windows.GetDiskFreeSpaceEx(pathPtr, &free, &total, &totalFree); err != nil {
+		return 0, fmt.Errorf("read storage free space for %q: %w", root, err)
+	}
+	if total == 0 {
+		return 0, fmt.Errorf("storage free space for %q is unobserved", root)
+	}
+	return free, nil
 }

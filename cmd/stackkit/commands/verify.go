@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -158,6 +159,7 @@ func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 	v2Options := verifyV2ExecutionOptions
 	v2Options.context = cmd.Context()
 	v2Options.verifyOffline = verifyOffline
+	v2Options.httpProbe = verifyHTTP
 	var v2Report architectureV2VerifyReport
 	v2Options.verifySink = func(report architectureV2VerifyReport) error {
 		v2Report = report
@@ -173,12 +175,24 @@ func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 		if receipts, receiptErr := verifyWorkspaceReleaseReceipts(cmd, wd); receiptErr == nil {
 			v2Report.Releases = receipts
 		}
+		httpProbeFailed := architectureV2HTTPProbeFailed(v2Report.Observations)
 		if verifyJSON {
-			retErr = writeCommandResult(cmd, cmd.CommandPath(), v2Report)
+			status := "success"
+			if httpProbeFailed {
+				status = "failed"
+			}
+			retErr = writeCommandResultStatus(cmd, cmd.CommandPath(), status, v2Report)
 			machineResultWritten = retErr == nil
+			if retErr == nil && httpProbeFailed {
+				retErr = errors.New("verify failed: one or more explicitly requested HTTP routes were unreachable")
+			}
 			return retErr
 		}
-		return printArchitectureV2VerifyReport(cmd.OutOrStdout(), v2Report)
+		retErr = printArchitectureV2VerifyReport(cmd.OutOrStdout(), v2Report)
+		if retErr == nil && httpProbeFailed {
+			retErr = errors.New("verify failed: one or more explicitly requested HTTP routes were unreachable")
+		}
+		return retErr
 	}
 	if verifyOffline {
 		retErr = runOfflineReleaseVerification(cmd, wd, verifyJSON)

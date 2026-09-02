@@ -6,25 +6,25 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"reflect"
 
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 )
 
 const (
-	localKopiaRuntimeUnitID      = "source-policy"
-	localKopiaRuntimeRendererRef = "stackkit"
-	localKopiaRuntimeTemplateRef = "builtin://home/backup/kopia-source/v1.json"
-	localKopiaRuntimeVersion     = "1.0.0"
-	localKopiaRuntimeOutputRef   = "home/backup/kopia-source-policy.json"
-	localKopiaRuntimeToken       = "@@POLICY@@"
+	localKopiaRuntimeUnitID        = "source-policy"
+	localKopiaRuntimeRendererRef   = "stackkit"
+	localKopiaRuntimeTemplateRef   = "builtin://home/backup/kopia-source/v1.json"
+	localKopiaRuntimeVersion       = "1.0.0"
+	localKopiaRuntimeOutputRef     = "home/backup/kopia-source-policy.json"
+	localKopiaRuntimeLiteOutputRef = "home/backup/kopia-source-policy-lite.json"
+	localKopiaRuntimeToken         = "@@POLICY@@"
 )
 
 const localKopiaRuntimeTemplate = `{"apiVersion":"` + localbackuppolicy.APIVersion + `","kind":"` + localbackuppolicy.Kind + `","policy":@@POLICY@@}
 `
 
 var localKopiaRuntimePlanInputRefs = []string{
-	"kit", "moduleCapabilities", "moduleTargets", "sites", "stackId",
+	"backupPolicy", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId",
 }
 
 var localKopiaRuntimePublicInputRefs = []string{"backup-source"}
@@ -76,7 +76,8 @@ func (r localKopiaRuntimeRenderer) RenderUnit(ctx context.Context, unit RenderUn
 	if !bytes.Equal(output, canonical) {
 		return nil, fail(ErrOutputChanged, "renderer.local-kopia-runtime.template", "registered template does not materially produce the canonical local Kopia policy artifact")
 	}
-	return []UnitOutput{{Ref: localKopiaRuntimeOutputRef, Bytes: output}}, nil
+	outputRef, _ := localKopiaRuntimeOutputRefForModule(unit.ModuleID())
+	return []UnitOutput{{Ref: outputRef, Bytes: output}}, nil
 }
 
 type localKopiaBackupSource = localbackuppolicy.Source
@@ -85,11 +86,35 @@ type localKopiaRuntimeValues struct {
 	BackupSource localKopiaBackupSource `json:"backup-source"`
 }
 
+func localKopiaCoreProfile(moduleID string) (closedLocalCoreProfile, bool) {
+	switch moduleID {
+	case basementCoreModuleID:
+		return basementClosedLocalCoreProfile(), true
+	case basementCoreLiteModuleID:
+		return basementClosedLocalCoreLiteProfile(), true
+	default:
+		return closedLocalCoreProfile{}, false
+	}
+}
+
+func localKopiaRuntimeOutputRefForModule(moduleID string) (string, bool) {
+	switch moduleID {
+	case basementCoreModuleID:
+		return localKopiaRuntimeOutputRef, true
+	case basementCoreLiteModuleID:
+		return localKopiaRuntimeLiteOutputRef, true
+	default:
+		return "", false
+	}
+}
+
 //nolint:gocyclo // This is the closed CUE-to-local-runtime authority boundary.
 func validateLocalKopiaRuntimeUnit(unit RenderUnit, contract RendererContract) (localbackuppolicy.Policy, error) {
-	path := "resolvedPlan.modules." + basementCoreModuleID + ".renderUnits." + localKopiaRuntimeUnitID
-	if unit.ModuleID() != basementCoreModuleID || unit.ID() != localKopiaRuntimeUnitID {
-		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path, "renderer accepts only %s/%s", basementCoreModuleID, localKopiaRuntimeUnitID)
+	profile, supported := localKopiaCoreProfile(unit.ModuleID())
+	outputRef, hasOutputRef := localKopiaRuntimeOutputRefForModule(unit.ModuleID())
+	path := "resolvedPlan.modules." + unit.ModuleID() + ".renderUnits." + localKopiaRuntimeUnitID
+	if !supported || !hasOutputRef || unit.ID() != localKopiaRuntimeUnitID {
+		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path, "renderer accepts only the governed Full-Core or CoreLite %s unit", localKopiaRuntimeUnitID)
 	}
 	if unit.Kind() != contract.Kind || unit.RendererRef() != contract.RendererRef ||
 		unit.TemplateRef() != contract.TemplateRef || unit.Version() != contract.Version ||
@@ -102,18 +127,17 @@ func validateLocalKopiaRuntimeUnit(unit RenderUnit, contract RendererContract) (
 	imageRef, hasImageRef := unit.ContainerImageRef()
 	imageDigest, hasImageDigest := unit.ContainerImageDigest()
 	entryComponent, hasEntryComponent := unit.RuntimeEntryComponentRef()
-	if unit.RuntimeKind() != "container" || unit.RuntimeDelivery() != "stackkit" || engine != "docker" || !hasEngine ||
-		imageRef != "ghcr.io/coollabsio/coolify:4.1.2" || !hasImageRef ||
-		imageDigest != "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f" || !hasImageDigest ||
-		entryComponent != "coolify" || !hasEntryComponent || unit.InstanceScope() != "node-local" || !hasSite || !hasNode {
-		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".runtime", "requires the exact node-local Basement core runtime")
+	if unit.RuntimeKind() != "container" || unit.RuntimeDelivery() != "stackkit" || engine != profile.runtimeEngine || !hasEngine ||
+		imageRef != profile.imageRef || !hasImageRef || imageDigest != profile.imageDigest || !hasImageDigest ||
+		entryComponent != profile.entryComponent || !hasEntryComponent || unit.InstanceScope() != "node-local" || !hasSite || !hasNode {
+		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".runtime", "requires the exact node-local %s runtime", profile.displayName)
 	}
 	if unit.InstanceID() != localKopiaRuntimeUnitID+"-node-"+nodeRef ||
 		!containsExact(unit.LogicalSiteRefs(), siteRef) ||
 		!containsExact(unit.LogicalNodeRefs(), nodeRef) {
 		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".instances", "requires one exact node-local Basement core target")
 	}
-	if err := validateBasementCoreComponents(unit.RuntimeComponentsJSON(), path+".runtime.components"); err != nil {
+	if err := validateClosedLocalCoreComponents(unit.RuntimeComponentsJSON(), profile.componentsJSON, path+".runtime.components", profile.displayName); err != nil {
 		return localbackuppolicy.Policy{}, err
 	}
 	if !exactStringList(unit.PublicInputRefs(), localKopiaRuntimePublicInputRefs) ||
@@ -137,10 +161,20 @@ func validateLocalKopiaRuntimeUnit(unit RenderUnit, contract RendererContract) (
 		placement.Scope != "node-local" || placement.Cardinality != "one-per-node" {
 		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".placement", "requires exact node-local/one-per-node placement")
 	}
-	if outputs := unit.DeclaredOutputs(); len(outputs) != 1 || outputs[0] != localKopiaRuntimeOutputRef {
-		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".outputs", "requires exactly output %q", localKopiaRuntimeOutputRef)
+	if outputs := unit.DeclaredOutputs(); len(outputs) != 1 || outputs[0] != outputRef {
+		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".outputs", "requires exactly output %q", outputRef)
 	}
-	var inputs homeBackupTargetPlanInputs
+	var inputs struct {
+		homeBackupTargetPlanInputs
+		BackupPolicy struct {
+			APIVersion          string                      `json:"apiVersion"`
+			Kind                string                      `json:"kind"`
+			Schedule            localbackuppolicy.Schedule  `json:"schedule"`
+			DataClasses         []string                    `json:"dataClasses"`
+			Retention           localbackuppolicy.Retention `json:"retention"`
+			RestoreVerification json.RawMessage             `json:"restoreVerification"`
+		} `json:"backupPolicy"`
+	}
 	if err := decodeStrict(unit.PlanInputsJSON(), &inputs); err != nil {
 		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".planInputs", "decode exact local Kopia inputs", err)
 	}
@@ -159,13 +193,38 @@ func validateLocalKopiaRuntimeUnit(unit RenderUnit, contract RendererContract) (
 	if err := decodeStrict(unit.ValuesJSON(), &values); err != nil {
 		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".values", "decode typed local Kopia backup source", err)
 	}
-	if !reflect.DeepEqual(values.BackupSource, governedLocalKopiaBackupSource()) {
-		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".values.backup-source", "must match the read-only governed Docker volume source")
+	if values.BackupSource.CoreModuleRef != "" && values.BackupSource.CoreModuleRef != profile.moduleID {
+		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".values.backup-source.coreModuleRef", "must bind the selected %s runtime", profile.displayName)
 	}
-	policy, err := localbackuppolicy.New(inputs.StackID, siteRef, nodeRef)
+	if profile.moduleID == basementCoreLiteModuleID && values.BackupSource.CoreModuleRef != profile.moduleID {
+		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".values.backup-source.coreModuleRef", "CoreLite source policy must carry its explicit module binding")
+	}
+	if err := localbackuppolicy.ValidateSourceProjection(values.BackupSource); err != nil {
+		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".values.backup-source", "validate the compiler-owned read-only Docker volume source", err)
+	}
+	applications, err := localbackuppolicy.ApplicationVolumesForTarget(values.BackupSource.ApplicationVolumes, siteRef, nodeRef)
+	if err != nil {
+		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".values.backup-source.applicationVolumes", "select the exact node-local application volumes", err)
+	}
+	runtimes, err := localbackuppolicy.ApplicationRuntimesForTarget(values.BackupSource.ApplicationRuntimes, siteRef, nodeRef)
+	if err != nil {
+		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".values.backup-source.applicationRuntimes", "select the exact node-local application runtime graphs", err)
+	}
+	policy, err := localbackuppolicy.NewWithApplicationVolumesAndRuntimesForCoreModule(profile.moduleID, inputs.StackID, siteRef, nodeRef, applications, runtimes)
 	if err != nil {
 		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".policy", "build governed local Kopia runtime policy", err)
 	}
+	if inputs.BackupPolicy.APIVersion != "stackkit.backup-policy/v1" || inputs.BackupPolicy.Kind != "BackupPolicy" {
+		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".planInputs.backupPolicy", "requires the resolved CUE backup policy")
+	}
+	if err := inputs.BackupPolicy.Retention.Validate(); err != nil {
+		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".planInputs.backupPolicy.retention", "validate resolved backup retention", err)
+	}
+	policy.Retention = &inputs.BackupPolicy.Retention
+	if err := inputs.BackupPolicy.Schedule.Validate(); err != nil {
+		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".planInputs.backupPolicy.schedule", "validate resolved backup schedule", err)
+	}
+	policy.Schedule = &inputs.BackupPolicy.Schedule
 	return policy, nil
 }
 
@@ -184,10 +243,6 @@ func validateLocalKopiaRuntimeBinding(raw []byte, path string) error {
 		return fail(ErrInvalidPlan, path, "does not match the governed local Kopia source binding")
 	}
 	return nil
-}
-
-func governedLocalKopiaBackupSource() localKopiaBackupSource {
-	return localbackuppolicy.GovernedSource()
 }
 
 var _ UnitRenderer = localKopiaRuntimeRenderer{}

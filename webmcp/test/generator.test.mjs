@@ -50,6 +50,10 @@ test('native v2 projection exposes explicit alternatives and local profiles', as
   assert.ok(basement.modules.some(({ compute_profiles }) => compute_profiles.length === 0))
   assert.equal(Object.hasOwn(basement, 'compute_tiers'), false)
 
+  const photos = basement.modules.find(({ module_id }) => module_id === 'stackkits-immich-runtime')
+  assert.ok(photos.compute_profiles.every(({ host_requirements }) =>
+    host_requirements?.min_amd64_microarchitecture_level === 2 && host_requirements.storage_filesystem?.required_class === 'local-posix'))
+
   const modern = first.kits.find(({ stackkit_id }) => stackkit_id === 'modern-homelab')
   assert.ok(modern)
   const initialWorkload = modern.use_cases.find(({ use_case_id }) => use_case_id === 'photos')

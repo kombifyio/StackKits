@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 )
 
 const (
@@ -68,7 +70,14 @@ type moduleRenderInputSource struct {
 	install       map[string]any
 	system        map[string]any
 	storage       map[string]any
+	nodes         []any
 	workloads     []any
+	modules       []any
+}
+
+type moduleRenderInputTarget struct {
+	siteRefs []string
+	nodeRefs []string
 }
 
 func moduleRenderInputBindings(unit map[string]any, unitPath string) ([]moduleRenderInputBinding, error) {
@@ -358,6 +367,17 @@ func bindResolvedModuleRenderInputs(modules []any, source moduleRenderInputSourc
 			if err != nil {
 				return err
 			}
+			target := moduleRenderInputTarget{}
+			for _, binding := range bindings {
+				if binding.sourceRef != moduleInputSourceLocalKopiaBackup {
+					continue
+				}
+				target, err = localKopiaRenderInputTarget(unit, unitPath)
+				if err != nil {
+					return err
+				}
+				break
+			}
 			values, err := objectField(unit, unitPath, "values")
 			if err != nil {
 				return err
@@ -366,7 +386,7 @@ func bindResolvedModuleRenderInputs(modules []any, source moduleRenderInputSourc
 				if _, exists := values[binding.targetRef]; exists {
 					return fail(ErrContractConflict, unitPath+".values."+binding.targetRef, "compiler-bound public input was already populated")
 				}
-				value, available, err := source.resolve(binding, moduleID)
+				value, available, err := source.resolve(binding, moduleID, target)
 				if err != nil {
 					return fail(ErrContractConflict, unitPath+".inputBindings."+binding.targetRef, "%v", err)
 				}
@@ -389,7 +409,7 @@ func bindResolvedModuleRenderInputs(modules []any, source moduleRenderInputSourc
 	return nil
 }
 
-func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding, moduleID string) (any, bool, error) {
+func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding, moduleID string, target moduleRenderInputTarget) (any, bool, error) {
 	switch binding.sourceRef {
 	case moduleInputSourceDeviceEnrollment:
 		if source.identity == nil {
@@ -548,7 +568,13 @@ func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding, 
 		projected, err := projectPublicLocalBackupRoot(source.storage, "resolvedPlan.storage.backupRoot", false)
 		return projected, err == nil, err
 	case moduleInputSourceLocalKopiaBackup:
-		return localKopiaBackupSourceProjection(), true, nil
+		if len(target.siteRefs) == 0 || len(target.nodeRefs) == 0 {
+			return nil, false, fmt.Errorf("local Kopia backup source requires one exact node-local render target")
+		}
+		if _, err := localbackuppolicy.GovernedSourceForCoreModule(moduleID); err != nil {
+			return nil, false, fmt.Errorf("local Kopia backup source is not owned by a supported Basement core profile: %w", err)
+		}
+		return localKopiaBackupSourceProjection(source.nodes, source.workloads, source.modules, target.siteRefs, target.nodeRefs, moduleID)
 	default:
 		return nil, false, fmt.Errorf("unsupported resolved-plan input source %q", binding.sourceRef)
 	}
@@ -582,39 +608,6 @@ func selectedWorkloadServiceForModule(workloads []any, moduleID string) (string,
 		return serviceRef, true, nil
 	}
 	return "", false, nil
-}
-
-func localKopiaBackupSourceProjection() map[string]any {
-	return map[string]any{
-		"kind":          "docker-volume-root",
-		"hostPath":      "/var/lib/docker/volumes",
-		"containerPath": "/source/docker-volumes",
-		"readOnly":      true,
-		"managedVolumeNames": []any{
-			"stackkit-basement-core_coolify-applications",
-			"stackkit-basement-core_coolify-backups",
-			"stackkit-basement-core_coolify-data",
-			"stackkit-basement-core_coolify-databases",
-			"stackkit-basement-core_coolify-postgres-data",
-			"stackkit-basement-core_coolify-redis-data",
-			"stackkit-basement-core_coolify-services",
-			"stackkit-basement-core_coolify-ssh",
-			"stackkit-basement-core_pocketid-data",
-			"stackkit-basement-core_step-ca-db",
-			"stackkit-basement-core_tinyauth-data",
-		},
-		"excludePaths": []any{
-			"/source/docker-volumes/stackkit-basement-core_kopia-repository/_data",
-			"/source/docker-volumes/stackkit-basement-core_kopia-config/_data",
-			"/source/docker-volumes/stackkit-basement-core_kopia-cache/_data",
-			"/source/docker-volumes/stackkit-basement-core_kopia-restore-staging/_data",
-		},
-		"repositoryPath":  "/app/repository",
-		"configPath":      "/app/config",
-		"cachePath":       "/app/cache",
-		"custody":         "owner-local",
-		"runtimeMaterial": "owner-command",
-	}
 }
 
 func projectPublicHomeDeviceAuthority(value any, kit map[string]any, sites []any, stackID, path string, alreadyPublic bool) (map[string]any, error) {
@@ -1101,18 +1094,22 @@ func projectPublicHostBootstrapRuntime(value any, path string, alreadyPublic boo
 	if err != nil {
 		return nil, err
 	}
+	rootless, err := boolFieldDefault(container, path+".system.container", "rootless", false)
+	if err != nil {
+		return nil, err
+	}
 	dataRoot, err := stringField(container, path+".system.container", "dataRoot")
 	if err != nil {
 		return nil, err
 	}
 	return exactHostBootstrapRuntime(map[string]any{
-		"installMode": mode, "runtime": runtime, "engine": engine, "dataRoot": dataRoot,
+		"installMode": mode, "runtime": runtime, "engine": engine, "rootless": rootless, "dataRoot": dataRoot,
 	}, path)
 }
 
 func exactHostBootstrapRuntime(input map[string]any, path string) (map[string]any, error) {
-	if len(input) != 4 {
-		return nil, fail(ErrContractConflict, path, "host bootstrap runtime must contain exactly four public fields")
+	if len(input) != 5 {
+		return nil, fail(ErrContractConflict, path, "host bootstrap runtime must contain exactly five public fields")
 	}
 	result := map[string]any{}
 	for field, expected := range map[string]string{"installMode": "bootstrapped", "runtime": "docker", "engine": "docker"} {
@@ -1125,9 +1122,20 @@ func exactHostBootstrapRuntime(input map[string]any, path string) (map[string]an
 		}
 		result[field] = value
 	}
+	if _, present := input["rootless"]; !present {
+		return nil, fail(ErrContractConflict, path+".rootless", "host bootstrap runtime requires an explicit rootless boolean")
+	}
+	rootless, err := boolFieldDefault(input, path, "rootless", false)
+	if err != nil {
+		return nil, err
+	}
+	if rootless {
+		return nil, fail(ErrContractConflict, path+".rootless", "Core host bootstrap requires a rootful Docker daemon")
+	}
+	result["rootless"] = false
 	dataRoot, err := stringField(input, path, "dataRoot")
-	if err != nil || !pathpkg.IsAbs(dataRoot) || pathpkg.Clean(dataRoot) != dataRoot {
-		return nil, fail(ErrContractConflict, path+".dataRoot", "requires an absolute container data root")
+	if err != nil || dataRoot != "/var/lib/docker" {
+		return nil, fail(ErrContractConflict, path+".dataRoot", "Core host bootstrap v1 requires /var/lib/docker for the governed Core and backup mounts")
 	}
 	result["dataRoot"] = dataRoot
 	return result, nil

@@ -13,6 +13,10 @@ import (
 
 var machineOutputCommandActive bool
 
+func machineAwareNoArgs(cmd *cobra.Command, args []string) error {
+	return machineAwareCommandError(cmd, cobra.NoArgs(cmd, args))
+}
+
 func commandRequestsMachineOutput(cmd *cobra.Command) bool {
 	if cmd == nil {
 		return false
@@ -32,7 +36,7 @@ func commandRequestsMachineOutput(cmd *cobra.Command) bool {
 }
 
 func humanOutputSuppressed() bool {
-	return machineOutputCommandActive || applyJSON || statusJSON || verifyJSON || logsJSON || logsJSONL || removeTerminalEvidenceJSON
+	return machineOutputCommandActive || applyJSON || statusJSON || verifyJSON || logsJSON || logsJSONL || removeTerminalEvidenceJSON || prepareJSON
 }
 
 func machineCommandFailureStatus(err error) string {

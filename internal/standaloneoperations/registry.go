@@ -12,20 +12,25 @@ import (
 type ID string
 
 const (
-	Init     ID = "stackkit.init"
-	Validate ID = "stackkit.validate"
-	Resolve  ID = "stackkit.resolve"
-	Generate ID = "stackkit.generate"
-	Plan     ID = "stackkit.plan"
-	Apply    ID = "stackkit.apply"
-	Verify   ID = "stackkit.verify"
-	Status   ID = "stackkit.status"
-	Logs     ID = "stackkit.logs"
-	Backup   ID = "stackkit.backup"
-	Restore  ID = "stackkit.restore"
-	Upgrade  ID = "stackkit.upgrade"
-	Drift    ID = "stackkit.drift"
-	Remove   ID = "stackkit.remove"
+	Init                  ID = "stackkit.init"
+	Validate              ID = "stackkit.validate"
+	Resolve               ID = "stackkit.resolve"
+	Generate              ID = "stackkit.generate"
+	Plan                  ID = "stackkit.plan"
+	Apply                 ID = "stackkit.apply"
+	Verify                ID = "stackkit.verify"
+	Status                ID = "stackkit.status"
+	Setup                 ID = "stackkit.setup"
+	Logs                  ID = "stackkit.logs"
+	Backup                ID = "stackkit.backup"
+	BackupScheduleEnable  ID = "stackkit.backup.schedule.enable"
+	BackupScheduleDisable ID = "stackkit.backup.schedule.disable"
+	BackupScheduleStatus  ID = "stackkit.backup.schedule.status"
+	Restore               ID = "stackkit.restore"
+	RestoreAbandon        ID = "stackkit.restore.abandon"
+	Upgrade               ID = "stackkit.upgrade"
+	Drift                 ID = "stackkit.drift"
+	Remove                ID = "stackkit.remove"
 )
 
 // Contract describes one operation without owning its lifecycle
@@ -51,9 +56,14 @@ var catalog = []Contract{
 	{ID: Apply, ToolName: "stackkit_apply", Title: "Apply", Description: "Apply the exact persisted plan after explicit local Owner approval.", Command: []string{"apply", "--json"}, Mutation: true, Destructive: true, Idempotent: false, OwnerApproval: true},
 	{ID: Verify, ToolName: "stackkit_verify", Title: "Verify", Description: "Verify desired, planned, applied, and observed local state.", Command: []string{"verify", "--json"}, Idempotent: true},
 	{ID: Status, ToolName: "stackkit_status", Title: "Status", Description: "Read the current standalone StackKits lifecycle status.", Command: []string{"status", "--json"}, Idempotent: true},
+	{ID: Setup, ToolName: "stackkit_setup", Title: "Set up application", Description: "Set up and verify a Plan-declared app-local owner account on the existing application.", Command: []string{"setup", "--json"}, Mutation: true, Idempotent: true, OwnerApproval: true},
 	{ID: Logs, ToolName: "stackkit_logs", Title: "Logs", Description: "List local structured rollout logs.", Command: []string{"logs", "list", "--json"}, Idempotent: true},
 	{ID: Backup, ToolName: "stackkit_backup", Title: "Backup", Description: "Create a local owner-custodied backup snapshot.", Command: []string{"backup", "run", "--json"}, Mutation: true, Idempotent: true, OwnerApproval: true},
+	{ID: BackupScheduleEnable, ToolName: "stackkit_backup_schedule_enable", Title: "Enable backup schedule", Description: "Enable the CUE-governed local backup timer after explicit local Owner approval.", Command: []string{"backup", "schedule", "enable", "--json", "--owner-approve"}, Mutation: true, Idempotent: true, OwnerApproval: true},
+	{ID: BackupScheduleDisable, ToolName: "stackkit_backup_schedule_disable", Title: "Disable backup schedule", Description: "Revoke the local backup timer after explicit local Owner approval.", Command: []string{"backup", "schedule", "disable", "--json", "--owner-approve"}, Mutation: true, Idempotent: true, OwnerApproval: true},
+	{ID: BackupScheduleStatus, ToolName: "stackkit_backup_schedule_status", Title: "Backup schedule status", Description: "Read the local backup timer and signed schedule authorization without changing either.", Command: []string{"backup", "schedule", "status", "--json"}, Idempotent: true},
 	{ID: Restore, ToolName: "stackkit_restore", Title: "Restore", Description: "Verify and restore one signed snapshot into isolated staging.", Command: []string{"backup", "restore"}, Mutation: true, Destructive: true, Idempotent: true, OwnerApproval: true},
+	{ID: RestoreAbandon, ToolName: "stackkit_restore_abandon", Title: "Abandon restore", Description: "Close one pending or staged restore journal with explicit local Owner approval without touching repository or live volumes.", Command: []string{"backup", "restore", "abandon"}, Mutation: true, Destructive: false, Idempotent: true, OwnerApproval: true},
 	{ID: Upgrade, ToolName: "stackkit_upgrade", Title: "Upgrade", Description: "Resolve, verify, checkpoint, install, apply, and verify a StackKits release.", Command: []string{"upgrade", "--json"}, Mutation: true, Destructive: true, Idempotent: false, OwnerApproval: true},
 	{ID: Drift, ToolName: "stackkit_drift", Title: "Drift", Description: "Observe desired-versus-applied standalone state drift.", Command: []string{"drift", "detect", "--json"}, Idempotent: true},
 	{ID: Remove, ToolName: "stackkit_remove", Title: "Remove", Description: "Remove one governed workload from its exact applied ResolvedPlan after local Owner approval.", Command: []string{"remove", "--json"}, Mutation: true, Destructive: true, Idempotent: true, OwnerApproval: true},

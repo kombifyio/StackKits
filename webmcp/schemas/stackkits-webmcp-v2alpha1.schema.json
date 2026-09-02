@@ -225,6 +225,27 @@
       "items": false,
       "description": "Axis profile, declaration, reservation, realization, hash."
     },
+    "storageFilesystemRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_ref", "required_class", "allowed_filesystem_types", "require_ownership"],
+      "properties": {
+        "source_ref": { "enum": ["system.container.dataRoot", "storage.dataRoot"] },
+        "required_class": { "const": "local-posix" },
+        "allowed_filesystem_types": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/contractId" } },
+        "require_ownership": { "const": true }
+      }
+    },
+    "hostRequirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "description": "CUE-declared requirements that must be verified on the exact target before Apply.",
+      "properties": {
+        "min_amd64_microarchitecture_level": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "storage_filesystem": { "$ref": "#/$defs/storageFilesystemRequirement" }
+      }
+    },
     "compactModuleProfiles": {
       "type": "object",
       "additionalProperties": false,
@@ -233,6 +254,18 @@
         "module_id": { "$ref": "#/$defs/contractId" },
         "required": { "type": "boolean" },
         "profiles": { "type": "array", "items": { "$ref": "#/$defs/compactProfile" } },
+        "host_requirements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["profile_ids", "requirements"],
+            "properties": {
+              "profile_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/profileId" } },
+              "requirements": { "$ref": "#/$defs/hostRequirements" }
+            }
+          }
+        },
         "storage_profiles": { "type": "array", "items": { "$ref": "#/$defs/compactAxisProfile" } },
         "accelerator_profiles": { "type": "array", "items": { "$ref": "#/$defs/compactAxisProfile" } }
       }

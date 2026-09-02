@@ -80,16 +80,19 @@ type ExecutorStateExecutable struct {
 }
 
 type ExecutorStateCaptureInput struct {
-	OperationID         string
-	GenerationTarget    string
-	Release             releaseindex.VerifiedInstallation
-	Executable          ExecutorStateExecutableInput
-	Lineage             backuplifecycle.AuthorityLineage
-	StackSpec           ExecutorStateBlobInput
-	Inventory           *ExecutorStateBlobInput
-	Artifacts           []ExecutorStateBlobInput
-	RuntimeCompose      ExecutorStateBlobInput
-	KopiaSnapshotAnchor backuplifecycle.SnapshotAnchor
+	OperationID           string
+	GenerationTarget      string
+	CoreModuleRef         string
+	CoreComposeArtifactID string
+	CorePolicyArtifactID  string
+	Release               releaseindex.VerifiedInstallation
+	Executable            ExecutorStateExecutableInput
+	Lineage               backuplifecycle.AuthorityLineage
+	StackSpec             ExecutorStateBlobInput
+	Inventory             *ExecutorStateBlobInput
+	Artifacts             []ExecutorStateBlobInput
+	RuntimeCompose        ExecutorStateBlobInput
+	KopiaSnapshotAnchor   backuplifecycle.SnapshotAnchor
 }
 
 type executorStateCaptureInput = ExecutorStateCaptureInput
@@ -107,22 +110,25 @@ type VerifiedExecutorStateCapture struct {
 }
 
 type ExecutorStateSnapshot struct {
-	APIVersion          string                                    `json:"apiVersion"`
-	ID                  string                                    `json:"id"`
-	RequestHash         string                                    `json:"requestHash"`
-	OwnerRef            string                                    `json:"ownerRef"`
-	OperationID         string                                    `json:"operationId"`
-	GenerationTarget    string                                    `json:"generationTarget"`
-	Release             ExecutorStateRelease                      `json:"release"`
-	Executable          ExecutorStateExecutable                   `json:"executable"`
-	Lineage             backuplifecycle.AuthorityLineage          `json:"lineage"`
-	StackSpec           ExecutorStateBlob                         `json:"stackSpec"`
-	Inventory           *ExecutorStateBlob                        `json:"inventory,omitempty"`
-	Artifacts           []ExecutorStateBlob                       `json:"artifacts"`
-	RuntimeCompose      ExecutorStateBlob                         `json:"runtimeCompose"`
-	KopiaSnapshotAnchor backuplifecycle.SnapshotAnchor            `json:"kopiaSnapshotAnchor"`
-	CapturedAt          time.Time                                 `json:"capturedAt"`
-	Signature           localevidence.OwnerExecutorStateSignature `json:"signature"`
+	APIVersion            string                                    `json:"apiVersion"`
+	ID                    string                                    `json:"id"`
+	RequestHash           string                                    `json:"requestHash"`
+	OwnerRef              string                                    `json:"ownerRef"`
+	OperationID           string                                    `json:"operationId"`
+	GenerationTarget      string                                    `json:"generationTarget"`
+	CoreModuleRef         string                                    `json:"coreModuleRef,omitempty"`
+	CoreComposeArtifactID string                                    `json:"coreComposeArtifactId,omitempty"`
+	CorePolicyArtifactID  string                                    `json:"corePolicyArtifactId,omitempty"`
+	Release               ExecutorStateRelease                      `json:"release"`
+	Executable            ExecutorStateExecutable                   `json:"executable"`
+	Lineage               backuplifecycle.AuthorityLineage          `json:"lineage"`
+	StackSpec             ExecutorStateBlob                         `json:"stackSpec"`
+	Inventory             *ExecutorStateBlob                        `json:"inventory,omitempty"`
+	Artifacts             []ExecutorStateBlob                       `json:"artifacts"`
+	RuntimeCompose        ExecutorStateBlob                         `json:"runtimeCompose"`
+	KopiaSnapshotAnchor   backuplifecycle.SnapshotAnchor            `json:"kopiaSnapshotAnchor"`
+	CapturedAt            time.Time                                 `json:"capturedAt"`
+	Signature             localevidence.OwnerExecutorStateSignature `json:"signature"`
 }
 
 type executorStateOperation struct {
@@ -376,6 +382,10 @@ func prepareExecutorStateSnapshot(
 	if err := validateExecutorStateLineage(input.Lineage); err != nil {
 		return ExecutorStateSnapshot{}, nil, err
 	}
+	profile, err := currentStateCoreProfileForCapture(input)
+	if err != nil {
+		return ExecutorStateSnapshot{}, nil, err
+	}
 	payloadInputs := []ExecutorStateBlobInput{input.Executable.Blob, input.StackSpec}
 	if input.Inventory != nil {
 		payloadInputs = append(payloadInputs, *input.Inventory)
@@ -432,16 +442,24 @@ func prepareExecutorStateSnapshot(
 		return ExecutorStateSnapshot{}, nil, errors.New("executor state: runtime Compose path is not the governed Basement runtime path")
 	}
 	sourceMatches := 0
+	policyMatches := 0
 	for _, artifact := range artifacts {
-		if artifact.Path == basementCoreComposeArtifactPath {
+		if artifact.Path == profile.ComposeOutputRef &&
+			(profile.ComposeArtifactID == "" || artifact.ID == profile.ComposeArtifactID) {
 			sourceMatches++
 			if artifact.SHA256 != runtimeCompose.SHA256 {
 				return ExecutorStateSnapshot{}, nil, errors.New("executor state: runtime Compose differs from the governed generation artifact")
 			}
 		}
+		if profile.PolicyArtifactID != "" && artifact.ID == profile.PolicyArtifactID {
+			policyMatches++
+		}
 	}
 	if sourceMatches != 1 {
 		return ExecutorStateSnapshot{}, nil, errors.New("executor state: runtime Compose requires exactly one governed source artifact")
+	}
+	if profile.PolicyArtifactID != "" && policyMatches != 1 {
+		return ExecutorStateSnapshot{}, nil, errors.New("executor state: selected Core source-policy artifact is missing or ambiguous")
 	}
 	sort.Slice(artifacts, func(left, right int) bool {
 		if artifacts[left].ID == artifacts[right].ID {
@@ -453,6 +471,9 @@ func prepareExecutorStateSnapshot(
 		APIVersion: ExecutorStateSnapshotAPIVersion,
 		OwnerRef:   ownerRef, OperationID: input.OperationID,
 		GenerationTarget: input.GenerationTarget, Release: release,
+		CoreModuleRef:         strings.TrimSpace(input.CoreModuleRef),
+		CoreComposeArtifactID: strings.TrimSpace(input.CoreComposeArtifactID),
+		CorePolicyArtifactID:  strings.TrimSpace(input.CorePolicyArtifactID),
 		Executable: ExecutorStateExecutable{
 			Version: release.Version, Blob: executable,
 		},
@@ -540,10 +561,19 @@ func (store ExecutorStateStore) verifySnapshot(
 	); err != nil {
 		return err
 	}
+	profile, err := currentStateCoreProfileForCapture(ExecutorStateCaptureInput{
+		CoreModuleRef:         snapshot.CoreModuleRef,
+		CoreComposeArtifactID: snapshot.CoreComposeArtifactID,
+		CorePolicyArtifactID:  snapshot.CorePolicyArtifactID,
+	})
+	if err != nil {
+		return err
+	}
 	if snapshot.RuntimeCompose.Path != basementCoreRuntimeComposePath {
 		return errors.New("executor state: runtime Compose path is invalid")
 	}
 	sourceMatches := 0
+	policyMatches := 0
 	seenIDs := make(map[string]struct{})
 	seenPaths := make(map[string]struct{})
 	for _, blob := range executorStateBlobs(snapshot) {
@@ -560,15 +590,22 @@ func (store ExecutorStateStore) verifySnapshot(
 		seenPaths[pathKey] = struct{}{}
 	}
 	for _, artifact := range snapshot.Artifacts {
-		if artifact.Path == basementCoreComposeArtifactPath {
+		if artifact.Path == profile.ComposeOutputRef &&
+			(profile.ComposeArtifactID == "" || artifact.ID == profile.ComposeArtifactID) {
 			sourceMatches++
 			if artifact.SHA256 != snapshot.RuntimeCompose.SHA256 {
 				return errors.New("executor state: runtime Compose differs from source artifact")
 			}
 		}
+		if profile.PolicyArtifactID != "" && artifact.ID == profile.PolicyArtifactID {
+			policyMatches++
+		}
 	}
 	if sourceMatches != 1 {
 		return errors.New("executor state: governed Compose source is missing or ambiguous")
+	}
+	if profile.PolicyArtifactID != "" && policyMatches != 1 {
+		return errors.New("executor state: selected Core source-policy artifact is missing or ambiguous")
 	}
 	if !verifyBlobs {
 		return nil

@@ -15,3 +15,11 @@ func platformMemoryBytes() (uint64, error) {
 func platformStorageBytes() (uint64, error) {
 	return 0, fmt.Errorf("host storage is unobserved on this OS")
 }
+
+func platformStorageBytesForPath(path string) (uint64, error) {
+	return 0, fmt.Errorf("storage target %q is unobserved on this OS", path)
+}
+
+func platformStorageFreeBytes(path string) (uint64, error) {
+	return 0, fmt.Errorf("storage target %q free space is unobserved on this OS", path)
+}

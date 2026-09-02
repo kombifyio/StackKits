@@ -152,16 +152,16 @@ _architectureV2MediaInfrastructure: #WorkloadInfrastructureV1 & {
 		moduleRef: "stackkits-storage-allocation"
 		allocations: [
 			{
-				componentRef: "jellyfin", volumeRef: "config", target:                                 "/config"
-				class:        "persistent", backup:   true, dataClasses: ["personal"], dataBindingRef: "media"
+				componentRef: "jellyfin", volumeRef: "config", target:                                "/config"
+				class:        "persistent", backup:  true, dataClasses: ["personal"], dataBindingRef: "media"
 			},
 			{
 				componentRef: "jellyfin", volumeRef: "cache", target: "/cache"
-				class:        "cache", backup:         false, dataClasses: []
+				class:        "cache", backup:       false, dataClasses: []
 			},
 			{
 				componentRef: "jellyfin", volumeRef: "library", target:                                "/media"
-				class:        "persistent", backup:    false, dataClasses: ["personal"], dataBindingRef: "media"
+				class:        "persistent", backup:  false, dataClasses: ["personal"], dataBindingRef: "media"
 			},
 		]
 	}
@@ -191,8 +191,8 @@ _architectureV2SmartHomeInfrastructure: #WorkloadInfrastructureV1 & {
 	storageAllocation: {
 		moduleRef: "stackkits-storage-allocation"
 		allocations: [{
-			componentRef: "home-assistant", volumeRef: "config", target:                          "/config"
-			class:        "persistent", backup:         true, dataClasses: ["personal"], dataBindingRef: "smart-home"
+			componentRef: "home-assistant", volumeRef: "config", target:                                "/config"
+			class:        "persistent", backup:        true, dataClasses: ["personal"], dataBindingRef: "smart-home"
 		}]
 	}
 	dataBinding: {
@@ -458,9 +458,9 @@ _architectureV2WorkloadContracts: [
 				]
 			}
 			setup: {
-				mode:  "manual"
-				owner: "operator"
-				actionRefs: []
+				mode:  "on-demand"
+				owner: "module"
+				actionRefs: ["immich-owner-bootstrap"]
 			}
 			inputs: {
 				settings: {allowedRefs: [], requiredRefs: []}
@@ -486,9 +486,9 @@ _architectureV2WorkloadContracts: [
 				]
 			}
 			setup: {
-				mode:  "manual"
-				owner: "operator"
-				actionRefs: []
+				mode:  "on-demand"
+				owner: "module"
+				actionRefs: ["immich-owner-bootstrap"]
 			}
 			inputs: {
 				settings: {allowedRefs: [], requiredRefs: []}
@@ -534,7 +534,7 @@ _architectureV2WorkloadContracts: [
 					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
-			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["cloudreve-owner-bootstrap"]}
 			inputs: {
 				settings: {allowedRefs: [], requiredRefs: []}
 				secretInputs: {allowedRefs: [], requiredRefs: []}
@@ -576,7 +576,7 @@ _architectureV2WorkloadContracts: [
 					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
-			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["vault-owner-invite"]}
 			inputs: {
 				settings: {allowedRefs: [], requiredRefs: []}
 				secretInputs: {
@@ -621,7 +621,7 @@ _architectureV2WorkloadContracts: [
 					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
-			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["jellyfin-owner-bootstrap"]}
 			inputs: {
 				settings: {allowedRefs: [], requiredRefs: []}
 				secretInputs: {allowedRefs: [], requiredRefs: []}
@@ -663,7 +663,7 @@ _architectureV2WorkloadContracts: [
 					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
-			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["home-assistant-owner-bootstrap"]}
 			inputs: {
 				settings: {allowedRefs: [], requiredRefs: []}
 				secretInputs: {allowedRefs: [], requiredRefs: []}
@@ -685,6 +685,7 @@ _architectureV2ApplicationLifecycleContracts: [
 		packageRef:  "photos"
 		lifecycle: #StandardUseCaseLifecycle & {
 			referenceVertical: true
+			stages: setup: {}
 		}
 	},
 	#ApplicationLifecycleContractV1 & {
@@ -729,7 +730,7 @@ _architectureV2ApplicationLifecycleContracts: [
 		workloadRef: "smart-home"
 		useCaseRef:  "smart-home"
 		packageRef:  "smart-home"
-		lifecycle:   #StandardUseCaseLifecycle
+		lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
 	},
 ]
 
@@ -2541,6 +2542,29 @@ _basementCoreServiceControls: list.Concat([_sharedCoreServiceControls, [
 	{key: "base", serviceRef: "basement-hub", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["router", "socket-proxy", "step-ca", "kopia-agent", "hub"], allowedActions: ["start", "restart", "logs"], critical: true},
 ]])
 
+_architectureV2LocalKopiaSourceRenderUnit: {
+	_outputRef:   string | *"home/backup/kopia-source-policy.json"
+	id:           "source-policy"
+	kind:         "native-config"
+	rendererRef:  "stackkit"
+	applyMode:    "artifact-only"
+	templateRef:  "builtin://home/backup/kopia-source/v1.json"
+	version:      "1.0.0"
+	contractHash: "sha256:7edfa9c808cedb14d3f58a7101f7a31f597fa09ea1488002587225a4ee43bee3"
+	compatibleTargets: ["compose", "opentofu", "terramate"]
+	publicInputRefs: ["backup-source"], secretInputRefs: []
+	planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities", "backupPolicy"]
+	inputBindings: [{
+		targetRef:   "backup-source"
+		sourceRef:   "backup.localKopiaSource"
+		valueType:   "local-kopia-backup-source-v1"
+		cardinality: "single"
+		required:    true
+	}]
+	outputs: [_outputRef]
+	placement: {scope: "node-local", cardinality: "one-per-node"}
+}
+
 _architectureV2Modules: list.Concat([[
 	{
 		metadata: {
@@ -3955,27 +3979,7 @@ _architectureV2Modules: list.Concat([[
 				serviceEndpoints: _basementCoreServiceEndpoints
 				runtimeListeners: _basementCoreRuntimeListeners
 			},
-			{
-				id:           "source-policy"
-				kind:         "native-config"
-				rendererRef:  "stackkit"
-				applyMode:    "artifact-only"
-				templateRef:  "builtin://home/backup/kopia-source/v1.json"
-				version:      "1.0.0"
-				contractHash: "sha256:7edfa9c808cedb14d3f58a7101f7a31f597fa09ea1488002587225a4ee43bee3"
-				compatibleTargets: ["compose", "opentofu", "terramate"]
-				publicInputRefs: ["backup-source"], secretInputRefs: []
-				planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
-				inputBindings: [{
-					targetRef:   "backup-source"
-					sourceRef:   "backup.localKopiaSource"
-					valueType:   "local-kopia-backup-source-v1"
-					cardinality: "single"
-					required:    true
-				}]
-				outputs: ["home/backup/kopia-source-policy.json"]
-				placement: {scope: "node-local", cardinality: "one-per-node"}
-			},
+			_architectureV2LocalKopiaSourceRenderUnit,
 		]
 		renderVariants: [
 			{
@@ -3983,14 +3987,14 @@ _architectureV2Modules: list.Concat([[
 				contractHash: "sha256:4db83db58296db815c26fdd95b16e1f1099c6c18648be77cf60efa74da9a2e53"
 				unitRefs: ["compose", "source-policy"], artifactRefs: ["basement-core-compose", "local-kopia-backup-source-policy"]
 				publicInputRefs: ["backup-source"], secretInputRefs: []
-				planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
+				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:c7628f0520224fa57f4934e20711c55f15a50f2ed00721f67e662941a616037c"
 				unitRefs: ["opentofu", "source-policy"], artifactRefs: ["basement-core-opentofu", "local-kopia-backup-source-policy"]
 				publicInputRefs: ["backup-source"], secretInputRefs: []
-				planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
+				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
@@ -4003,7 +4007,7 @@ _architectureV2Modules: list.Concat([[
 					"local-kopia-backup-source-policy",
 				]
 				publicInputRefs: ["backup-source"], secretInputRefs: []
-				planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
+				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 			},
 		]
 		realizationSupport: {
@@ -4014,7 +4018,7 @@ _architectureV2Modules: list.Concat([[
 			inputs: {contractComplete: true, requiredRefs: ["backup-source"]}
 			planInputs: {
 				contractComplete: true
-				requiredRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
+				requiredRefs:     _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 			}
 			artifacts: {
 				requiredRefs: [
@@ -4246,30 +4250,35 @@ _architectureV2Modules: list.Concat([[
 				serviceEndpoints: _basementCoreLiteServiceEndpoints
 				runtimeListeners: _basementCoreLiteRuntimeListeners
 			},
+			_architectureV2LocalKopiaSourceRenderUnit & {_outputRef: "home/backup/kopia-source-policy-lite.json"},
 		]
 		renderVariants: [
 			{
 				id:           "compose", target: "compose", rendererRef: "stackkit"
 				contractHash: "sha256:ad87a08fc59a84686db9160045e2e6a158b4107ff17bc9cb769e89afc00c356e"
-				unitRefs: ["compose"], artifactRefs: ["basement-core-lite-compose"]
-				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				unitRefs: ["compose", "source-policy"], artifactRefs: ["basement-core-lite-compose", "local-kopia-backup-source-policy-lite"]
+				publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: []
+				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:b7e11c232677a50c30569345a4ded35ea52cc3cdf60c9874f0fc513ed31b6d36"
-				unitRefs: ["opentofu"], artifactRefs: ["basement-core-lite-opentofu"]
-				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				unitRefs: ["opentofu", "source-policy"], artifactRefs: ["basement-core-lite-opentofu", "local-kopia-backup-source-policy-lite"]
+				publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: []
+				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
 				contractHash: "sha256:6282b30a8232c76a74c562d6d7eae310e131226f8c74c846c138f3c48a2f3fc2"
-				unitRefs: ["terramate"]
+				unitRefs: ["terramate", "source-policy"]
 				artifactRefs: [
 					"basement-core-lite-terramate-opentofu",
 					"basement-core-lite-terramate-root",
 					"basement-core-lite-terramate-stack",
+					"local-kopia-backup-source-policy-lite",
 				]
-				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: []
+				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 			},
 		]
 		realizationSupport: {
@@ -4277,8 +4286,8 @@ _architectureV2Modules: list.Concat([[
 			scope:           "concrete"
 			level:           "apply-ready"
 			compatibleRendererRefs: ["stackkit"]
-			inputs: {contractComplete: true, requiredRefs: []}
-			planInputs: {contractComplete: true, requiredRefs: []}
+			inputs: {contractComplete: true, requiredRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs}
+			planInputs: {contractComplete: true, requiredRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs}
 			artifacts: {
 				requiredRefs: [
 					"basement-core-lite-compose",
@@ -4286,6 +4295,7 @@ _architectureV2Modules: list.Concat([[
 					"basement-core-lite-terramate-opentofu",
 					"basement-core-lite-terramate-root",
 					"basement-core-lite-terramate-stack",
+					"local-kopia-backup-source-policy-lite",
 				]
 				outputBindings: [
 					{
@@ -4307,6 +4317,10 @@ _architectureV2Modules: list.Concat([[
 					{
 						artifactRef: "basement-core-lite-terramate-stack", unitRef: "terramate"
 						outputRef:   "platform/basement-core-lite/stack.tm.hcl"
+					},
+					{
+						artifactRef: "local-kopia-backup-source-policy-lite", unitRef: "source-policy"
+						outputRef:   "home/backup/kopia-source-policy-lite.json"
 					},
 				]
 				contracts: [
@@ -4334,6 +4348,11 @@ _architectureV2Modules: list.Concat([[
 						id: "basement-core-lite-terramate-stack", kind: "terramate", format: "hcl", mode: "0640", required: true
 						compatibleTargets: ["terramate"], unitRef: "terramate"
 						outputRef:                                 "platform/basement-core-lite/stack.tm.hcl"
+					},
+					{
+						id: "local-kopia-backup-source-policy-lite", kind: "native-config", format: "json", mode: "0600", required: true
+						compatibleTargets: ["compose", "opentofu", "terramate"], unitRef: "source-policy"
+						outputRef:                                                        "home/backup/kopia-source-policy-lite.json"
 					},
 				]
 			}

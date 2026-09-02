@@ -73,6 +73,16 @@ type architectureV2CommandInput struct {
 	TimeoutSeconds int    `json:"timeout_seconds,omitempty" jsonschema:"command timeout capped at 870 seconds"`
 }
 
+type architectureV2VerifyInput struct {
+	architectureV2CommandInput
+	HTTP bool `json:"http,omitempty" jsonschema:"probe verified Access routes from this verifier host"`
+}
+
+type architectureV2StatusInput struct {
+	architectureV2CommandInput
+	HTTP bool `json:"http,omitempty" jsonschema:"probe verified Access routes from this verifier host"`
+}
+
 func (in architectureV2CommandInput) commandInput() stackkitCommandInput {
 	return stackkitCommandInput{BaseDir: in.BaseDir, SpecPath: in.SpecPath, CorrelationID: in.CorrelationID, TimeoutSeconds: in.TimeoutSeconds}
 }
@@ -116,10 +126,23 @@ type backupOperationInput struct {
 	OperationID string `json:"operation_id,omitempty" jsonschema:"stable idempotency key for the snapshot"`
 }
 
+type setupOperationInput struct {
+	architectureV2MutationInput
+	WorkloadRef        string `json:"workload_ref" jsonschema:"exact applied workload ref with a Plan-declared native setup action, including photos and smart-home on standalone-compose"`
+	CredentialsFile    string `json:"credentials_file,omitempty" jsonschema:"workspace-relative private credential JSON path; never pass credentials in MCP arguments"`
+	OperationID        string `json:"operation_id,omitempty" jsonschema:"optional pending setup operation to resume"`
+	CompleteOnboarding bool   `json:"complete_onboarding" jsonschema:"explicit approval to complete app user and administrator onboarding"`
+}
+
 type restoreOperationInput struct {
 	architectureV2MutationInput
 	SnapshotAnchorID string `json:"snapshot_anchor_id" jsonschema:"owner-signed snapshot anchor ID"`
 	OperationID      string `json:"operation_id,omitempty" jsonschema:"stable idempotency key for the staged restore"`
+}
+
+type restoreAbandonOperationInput struct {
+	architectureV2MutationInput
+	OperationID string `json:"operation_id" jsonschema:"exact pending or staged restore operation ID"`
 }
 
 type upgradeOperationInput struct {
@@ -735,16 +758,24 @@ func (a *App) stackkitApplyV2(ctx context.Context, req *mcp.CallToolRequest, in 
 	return a.runApprovedStackkitTool(ctx, standaloneoperations.Apply, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), args, nil)
 }
 
-func (a *App) stackkitVerifyV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2CommandInput) (*mcp.CallToolResult, any, error) {
-	return a.runRegisteredReadOnlyTool(ctx, standaloneoperations.Verify, in.commandInput(), nil, nil)
+func (a *App) stackkitVerifyV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2VerifyInput) (*mcp.CallToolResult, any, error) {
+	args := []string{"verify", "--json"}
+	if in.HTTP {
+		args = append(args, "--http")
+	}
+	return a.runRegisteredReadOnlyTool(ctx, standaloneoperations.Verify, in.commandInput(), args, nil)
 }
 
 func (a *App) stackkitValidateV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2CommandInput) (*mcp.CallToolResult, any, error) {
 	return a.runRegisteredReadOnlyTool(ctx, standaloneoperations.Validate, in.commandInput(), nil, nil)
 }
 
-func (a *App) stackkitStatusV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2CommandInput) (*mcp.CallToolResult, any, error) {
-	return a.runRegisteredReadOnlyTool(ctx, standaloneoperations.Status, in.commandInput(), nil, nil)
+func (a *App) stackkitStatusV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2StatusInput) (*mcp.CallToolResult, any, error) {
+	args := []string{"status", "--json"}
+	if in.HTTP {
+		args = append(args, "--http")
+	}
+	return a.runRegisteredReadOnlyTool(ctx, standaloneoperations.Status, in.commandInput(), args, nil)
 }
 
 func (a *App) stackkitLogsV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2CommandInput) (*mcp.CallToolResult, any, error) {
@@ -757,6 +788,35 @@ func (a *App) stackkitBackupV2(ctx context.Context, req *mcp.CallToolRequest, in
 	return a.runApprovedStackkitTool(ctx, standaloneoperations.Backup, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), args, nil)
 }
 
+func (a *App) stackkitBackupScheduleEnableV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2MutationInput) (*mcp.CallToolResult, any, error) {
+	return a.runApprovedStackkitTool(ctx, standaloneoperations.BackupScheduleEnable, in.OperationConfirmation, in.OwnerApproved,
+		in.commandInput(), []string{"backup", "schedule", "enable", "--json", "--owner-approve"}, nil)
+}
+
+func (a *App) stackkitBackupScheduleDisableV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2MutationInput) (*mcp.CallToolResult, any, error) {
+	return a.runApprovedStackkitTool(ctx, standaloneoperations.BackupScheduleDisable, in.OperationConfirmation, in.OwnerApproved,
+		in.commandInput(), []string{"backup", "schedule", "disable", "--json", "--owner-approve"}, nil)
+}
+
+func (a *App) stackkitBackupScheduleStatusV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2CommandInput) (*mcp.CallToolResult, any, error) {
+	return a.runRegisteredReadOnlyTool(ctx, standaloneoperations.BackupScheduleStatus, in.commandInput(), nil, nil)
+}
+
+func (a *App) stackkitSetupV2(ctx context.Context, _ *mcp.CallToolRequest, in setupOperationInput) (*mcp.CallToolResult, any, error) {
+	workload := strings.TrimSpace(in.WorkloadRef)
+	if workload == "" || strings.HasPrefix(workload, "-") {
+		out := errorOutput("stackkit_setup", fmt.Errorf("an exact applied workload ref is required"))
+		return errorJSONResult(out), out, nil
+	}
+	args := []string{"setup", workload, "--json", "--owner-approve"}
+	args = appendOptionalFlag(args, "--credentials-file", in.CredentialsFile)
+	args = appendOptionalFlag(args, "--operation-id", in.OperationID)
+	if in.CompleteOnboarding {
+		args = append(args, "--complete-onboarding")
+	}
+	return a.runApprovedStackkitTool(ctx, standaloneoperations.Setup, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), args, nil)
+}
+
 func (a *App) stackkitRestoreV2(ctx context.Context, req *mcp.CallToolRequest, in restoreOperationInput) (*mcp.CallToolResult, any, error) {
 	if strings.TrimSpace(in.SnapshotAnchorID) == "" {
 		out := errorOutput("stackkit_restore", fmt.Errorf("snapshot_anchor_id is required"))
@@ -765,6 +825,16 @@ func (a *App) stackkitRestoreV2(ctx context.Context, req *mcp.CallToolRequest, i
 	args := []string{"backup", "restore", strings.TrimSpace(in.SnapshotAnchorID), "--json", "--owner-approve"}
 	args = appendOptionalFlag(args, "--operation-id", in.OperationID)
 	return a.runApprovedStackkitTool(ctx, standaloneoperations.Restore, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), args, nil)
+}
+
+func (a *App) stackkitRestoreAbandonV2(ctx context.Context, req *mcp.CallToolRequest, in restoreAbandonOperationInput) (*mcp.CallToolResult, any, error) {
+	operationID := strings.TrimSpace(in.OperationID)
+	if operationID == "" || strings.HasPrefix(operationID, "-") {
+		out := errorOutput("stackkit_restore_abandon", fmt.Errorf("operation_id is required"))
+		return errorJSONResult(out), out, nil
+	}
+	args := []string{"backup", "restore", "abandon", operationID, "--json", "--owner-approve"}
+	return a.runApprovedStackkitTool(ctx, standaloneoperations.RestoreAbandon, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), args, nil)
 }
 
 func (a *App) stackkitUpgradeV2(ctx context.Context, req *mcp.CallToolRequest, in upgradeOperationInput) (*mcp.CallToolResult, any, error) {
@@ -923,7 +993,7 @@ func (a *App) runStackkitCommand(ctx context.Context, tool string, in stackkitCo
 	}
 	args = appendSpecFlag(args, in.SpecPath)
 	start := time.Now()
-	cmd := exec.CommandContext(ctx, a.cliBinding.path, args...) // #nosec G204 -- executable is the identity-bound packaged CLI and args are assembled from typed MCP inputs.
+	cmd := exec.CommandContext(ctx, a.cliBinding.Path(), args...) // #nosec G204 -- executable is the identity-bound packaged CLI and args are assembled from typed MCP inputs.
 	cmd.Dir = baseDir
 	cmd.Env = commandEnv(in.ExtraEnv, env)
 	var stdout, stderr bytes.Buffer
@@ -943,7 +1013,7 @@ func (a *App) runStackkitCommand(ctx context.Context, tool string, in stackkitCo
 		"tool":        tool,
 		"success":     err == nil,
 		"exit_code":   exitCode,
-		"command":     append([]string{a.cliBinding.path}, args...),
+		"command":     append([]string{a.cliBinding.Path()}, args...),
 		"cwd":         baseDir,
 		"duration_ms": duration.Milliseconds(),
 		"stdout":      truncateOutput(stdout.String()),

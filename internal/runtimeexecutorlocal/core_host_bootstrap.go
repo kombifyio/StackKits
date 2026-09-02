@@ -15,6 +15,7 @@ import (
 	pathpkg "path"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/productkits"
@@ -42,14 +43,16 @@ type LocalTargetBinding struct {
 type RuntimeExpectation struct {
 	Runtime  string
 	Engine   string
+	Rootless bool
 	DataRoot string
 }
 
 // RuntimeObservation is bounded evidence for an already present runtime.
 type RuntimeObservation struct {
-	Engine  string `json:"engine"`
-	Version string `json:"version"`
-	Status  string `json:"status"`
+	Engine   string `json:"engine"`
+	Version  string `json:"version"`
+	DataRoot string `json:"dataRoot"`
+	Status   string `json:"status"`
 }
 
 // CoreHostBootstrapOperations is a closed host capability. It deliberately
@@ -89,19 +92,21 @@ func (e *CoreHostBootstrapExecutor) Execute(ctx context.Context, request runtime
 	if err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, err
 	}
-	for _, directory := range policy.Policy.Directories {
-		if err := e.host.EnsureDirectory(ctx, directory.Path, 0o750); err != nil {
-			return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("prepare %s storage directory: %w", directory.Purpose, err)
-		}
-	}
 	runtimeObservation, err := e.host.ObserveRuntime(ctx, RuntimeExpectation{
-		Runtime: policy.Policy.Runtime.Runtime, Engine: policy.Policy.Runtime.Engine, DataRoot: policy.Policy.Runtime.DataRoot,
+		Runtime: policy.Policy.Runtime.Runtime, Engine: policy.Policy.Runtime.Engine,
+		Rootless: policy.Policy.Runtime.Rootless != nil && *policy.Policy.Runtime.Rootless,
+		DataRoot: policy.Policy.Runtime.DataRoot,
 	})
 	if err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("observe existing host runtime: %w", err)
 	}
-	if runtimeObservation.Engine != "docker" || runtimeObservation.Status != "ready" || runtimeObservation.Version == "" || strings.ContainsAny(runtimeObservation.Version, "\r\n\t ") {
+	if policy.Policy.Runtime.Rootless == nil || *policy.Policy.Runtime.Rootless || runtimeObservation.Engine != "docker" || runtimeObservation.Status != "ready" || runtimeObservation.Version == "" || strings.ContainsAny(runtimeObservation.Version, "\r\n\t ") || runtimeObservation.DataRoot != policy.Policy.Runtime.DataRoot {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("host runtime observation does not prove the exact ready Docker postcondition")
+	}
+	for _, directory := range policy.Policy.Directories {
+		if err := e.host.EnsureDirectory(ctx, directory.Path, 0o750); err != nil {
+			return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("prepare %s storage directory: %w", directory.Purpose, err)
+		}
 	}
 	evidence := coreHostBootstrapEvidence{
 		SchemaVersion: "stackkit.core-host-bootstrap-evidence/v1", Status: "pass", StackID: policy.Policy.StackID,
@@ -157,6 +162,7 @@ type coreHostBootstrapPolicyDocument struct {
 		InstallMode string `json:"installMode"`
 		Runtime     string `json:"runtime"`
 		Engine      string `json:"engine"`
+		Rootless    *bool  `json:"rootless"`
 		DataRoot    string `json:"dataRoot"`
 	} `json:"runtime"`
 	Directories []coreHostBootstrapDirectoryDocument `json:"directories"`
@@ -245,7 +251,8 @@ func validateCoreHostBootstrapDocument(document coreHostBootstrapDocument, bindi
 		!productkits.IsActive(policy.Kit.Slug) || policy.Kit.Version == "" || !validCoreHostBootstrapDigest(policy.Kit.DefinitionHash) ||
 		policy.Target.SiteRef != binding.SiteRef || policy.Target.NodeRef != binding.NodeRef ||
 		policy.Runtime.InstallMode != "bootstrapped" || policy.Runtime.Runtime != "docker" || policy.Runtime.Engine != "docker" ||
-		policy.Runtime.DataRoot == "" || len(policy.Directories) < 3 || len(policy.Directories) > 4 {
+		policy.Runtime.Rootless == nil || *policy.Runtime.Rootless ||
+		policy.Runtime.DataRoot != "/var/lib/docker" || len(policy.Directories) < 3 || len(policy.Directories) > 4 {
 		return errors.New("Core host-bootstrap policy does not bind the exact local target and supported runtime")
 	}
 	seenPath := make(map[string]struct{}, len(policy.Directories))
@@ -328,14 +335,18 @@ func (osCoreHostBootstrapOperations) EnsureDirectory(ctx context.Context, path s
 }
 
 func (osCoreHostBootstrapOperations) ObserveRuntime(ctx context.Context, expected RuntimeExpectation) (RuntimeObservation, error) {
-	if expected.Runtime != "docker" || expected.Engine != "docker" || expected.DataRoot == "" {
+	if expected.Runtime != "docker" || expected.Engine != "docker" || expected.Rootless || expected.DataRoot != "/var/lib/docker" {
 		return RuntimeObservation{}, errors.New("runtime expectation is outside the closed Docker observation contract")
 	}
 	executable, err := exec.LookPath("docker")
 	if err != nil {
 		return RuntimeObservation{}, errors.New("required Docker runtime is not installed")
 	}
-	command := exec.CommandContext(ctx, executable, "version", "--format", "{{.Server.Version}}")
+	bounded, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	// Select the same local daemon as the closed runtime contract. Environment
+	// variables or a saved Docker context must not redirect this observation.
+	command := exec.CommandContext(bounded, executable, "--host", "unix:///var/run/docker.sock", "info", "--format", `{"version":{{json .ServerVersion}},"dataRoot":{{json .DockerRootDir}}}`)
 	command.Env = []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin", "LANG=C", "LC_ALL=C"}
 	output := &coreRuntimeObservationBuffer{remaining: 4096}
 	command.Stdout = output
@@ -346,11 +357,20 @@ func (osCoreHostBootstrapOperations) ObserveRuntime(ctx context.Context, expecte
 	if output.exceeded {
 		return RuntimeObservation{}, errors.New("Docker runtime observation exceeded the output bound")
 	}
-	version := strings.TrimSpace(output.String())
-	if version == "" || strings.ContainsAny(version, "\r\n\t ") {
+	var observed struct {
+		Version  string `json:"version"`
+		DataRoot string `json:"dataRoot"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &observed); err != nil {
+		return RuntimeObservation{}, errors.New("Docker runtime returned an invalid observation")
+	}
+	if observed.Version == "" || strings.ContainsAny(observed.Version, "\r\n\t ") {
 		return RuntimeObservation{}, errors.New("Docker runtime returned an invalid version")
 	}
-	return RuntimeObservation{Engine: "docker", Version: version, Status: "ready"}, nil
+	if observed.DataRoot != expected.DataRoot {
+		return RuntimeObservation{}, errors.New("Docker daemon data root differs from the CUE-declared container data root")
+	}
+	return RuntimeObservation{Engine: "docker", Version: observed.Version, DataRoot: observed.DataRoot, Status: "ready"}, nil
 }
 
 type coreRuntimeObservationBuffer struct {

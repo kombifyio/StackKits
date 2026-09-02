@@ -92,6 +92,37 @@ type HealthEvidence struct {
 	NodeRef           string `json:"nodeRef"`
 }
 
+// HTTPProbeStatus is the result of an explicitly requested HTTP probe from
+// the host running the verifier. It describes transport reachability of the
+// plan-bound route only; it is not a claim about another client or network.
+type HTTPProbeStatus string
+
+const (
+	HTTPProbeReachable   HTTPProbeStatus = "reachable"
+	HTTPProbeUnreachable HTTPProbeStatus = "unreachable"
+)
+
+const VantageVerifierHost = "verifier-host"
+
+// HTTPProbeEvidence is one plan-bound client-route observation. ObservedAt is
+// kept on the item because a status projection may combine historical runtime
+// evidence with a fresh, explicitly requested verifier-host probe.
+type HTTPProbeEvidence struct {
+	Vantage           string          `json:"vantage"`
+	ObservedAt        time.Time       `json:"observedAt"`
+	WorkloadRef       string          `json:"workloadRef,omitempty"`
+	ServiceRef        string          `json:"serviceRef"`
+	RouteRef          string          `json:"routeRef"`
+	URL               string          `json:"url"`
+	Method            string          `json:"method"`
+	Status            HTTPProbeStatus `json:"status"`
+	Reached           bool            `json:"reached"`
+	StatusCode        int             `json:"statusCode,omitempty"`
+	FailureClass      string          `json:"failureClass,omitempty"`
+	ObservationRef    string          `json:"observationRef"`
+	ObservationDigest string          `json:"observationDigest"`
+}
+
 type EvidenceLink struct {
 	Kind   string `json:"kind"`
 	Ref    string `json:"ref"`
@@ -99,16 +130,17 @@ type EvidenceLink struct {
 }
 
 type Observation struct {
-	SchemaVersion string            `json:"schemaVersion"`
-	Phase         Phase             `json:"phase"`
-	Source        Source            `json:"source"`
-	ObservedAt    time.Time         `json:"observedAt"`
-	Live          bool              `json:"live"`
-	Identity      Identity          `json:"identity"`
-	Services      []Service         `json:"services"`
-	Runtime       []RuntimeEvidence `json:"runtime"`
-	Health        []HealthEvidence  `json:"health"`
-	EvidenceLinks []EvidenceLink    `json:"evidenceLinks"`
+	SchemaVersion string              `json:"schemaVersion"`
+	Phase         Phase               `json:"phase"`
+	Source        Source              `json:"source"`
+	ObservedAt    time.Time           `json:"observedAt"`
+	Live          bool                `json:"live"`
+	Identity      Identity            `json:"identity"`
+	Services      []Service           `json:"services"`
+	Runtime       []RuntimeEvidence   `json:"runtime"`
+	Health        []HealthEvidence    `json:"health"`
+	HTTPProbes    []HTTPProbeEvidence `json:"httpProbes,omitempty"`
+	EvidenceLinks []EvidenceLink      `json:"evidenceLinks"`
 }
 
 func (o Observation) Validate() error {
@@ -160,12 +192,41 @@ func (o Observation) Validate() error {
 			return fmt.Errorf("runtime observation health[%d] is invalid", index)
 		}
 	}
+	for index, item := range o.HTTPProbes {
+		if item.Vantage != VantageVerifierHost || !canonicalNonEmpty(item.ServiceRef) || !canonicalNonEmpty(item.RouteRef) ||
+			!validHTTPURL(item.URL) || item.Method != "GET" ||
+			(item.Status != HTTPProbeReachable && item.Status != HTTPProbeUnreachable) ||
+			(item.Reached != (item.Status == HTTPProbeReachable)) ||
+			(item.Reached && item.FailureClass != "") || (!item.Reached && !validHTTPProbeFailureClass(item.FailureClass)) ||
+			(item.Reached && !reachableHTTPProbeStatus(item.StatusCode)) ||
+			(!item.Reached && item.StatusCode != 0 && (item.StatusCode < 100 || item.StatusCode > 599 || reachableHTTPProbeStatus(item.StatusCode))) ||
+			item.ObservedAt.IsZero() || item.ObservedAt.Location() != time.UTC ||
+			!canonicalRef(item.ObservationRef) || !validDigest(item.ObservationDigest) {
+			return fmt.Errorf("runtime observation httpProbes[%d] is invalid", index)
+		}
+		if item.WorkloadRef != "" && !canonicalNonEmpty(item.WorkloadRef) {
+			return fmt.Errorf("runtime observation httpProbes[%d].workloadRef is invalid", index)
+		}
+	}
 	for index, link := range o.EvidenceLinks {
 		if !canonicalNonEmpty(link.Kind) || !canonicalRef(link.Ref) || (link.Digest != "" && !validDigest(link.Digest)) {
 			return fmt.Errorf("runtime observation evidenceLinks[%d] is invalid", index)
 		}
 	}
 	return nil
+}
+
+func validHTTPProbeFailureClass(value string) bool {
+	switch value {
+	case "invalid-target", "request-creation-failed", "request-failed", "response-read-failed", "response-too-large", "http-status":
+		return true
+	default:
+		return false
+	}
+}
+
+func reachableHTTPProbeStatus(status int) bool {
+	return (status >= 200 && status < 400) || status == 401 || status == 403
 }
 
 func (o Observation) Canonical() ([]byte, error) {
@@ -176,10 +237,20 @@ func (o Observation) Canonical() ([]byte, error) {
 	clone.Services = append([]Service{}, o.Services...)
 	clone.Runtime = append([]RuntimeEvidence{}, o.Runtime...)
 	clone.Health = append([]HealthEvidence{}, o.Health...)
+	clone.HTTPProbes = append([]HTTPProbeEvidence{}, o.HTTPProbes...)
 	clone.EvidenceLinks = append([]EvidenceLink{}, o.EvidenceLinks...)
 	sort.Slice(clone.Services, func(i, j int) bool { return clone.Services[i].Ref < clone.Services[j].Ref })
 	sort.Slice(clone.Runtime, func(i, j int) bool { return clone.Runtime[i].RequirementID < clone.Runtime[j].RequirementID })
 	sort.Slice(clone.Health, func(i, j int) bool { return clone.Health[i].RequirementID < clone.Health[j].RequirementID })
+	sort.Slice(clone.HTTPProbes, func(i, j int) bool {
+		if clone.HTTPProbes[i].WorkloadRef != clone.HTTPProbes[j].WorkloadRef {
+			return clone.HTTPProbes[i].WorkloadRef < clone.HTTPProbes[j].WorkloadRef
+		}
+		if clone.HTTPProbes[i].RouteRef != clone.HTTPProbes[j].RouteRef {
+			return clone.HTTPProbes[i].RouteRef < clone.HTTPProbes[j].RouteRef
+		}
+		return clone.HTTPProbes[i].ObservedAt.Before(clone.HTTPProbes[j].ObservedAt)
+	})
 	sort.Slice(clone.EvidenceLinks, func(i, j int) bool {
 		if clone.EvidenceLinks[i].Kind != clone.EvidenceLinks[j].Kind {
 			return clone.EvidenceLinks[i].Kind < clone.EvidenceLinks[j].Kind
@@ -216,6 +287,11 @@ func validDigest(value string) bool {
 
 func validServiceStatus(value ServiceStatus) bool {
 	return value == StatusRunning || value == StatusStopped || value == StatusStarting || value == StatusError || value == StatusUnknown
+}
+
+func validHTTPURL(value string) bool {
+	parsed, err := url.Parse(value)
+	return err == nil && !strings.ContainsAny(value, "\r\n\x00") && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != "" && parsed.User == nil && parsed.Fragment == ""
 }
 
 func validHealthStatus(value HealthStatus) bool {

@@ -20,13 +20,18 @@ import (
 )
 
 const (
-	basementKitSlug         = "basement-kit"
-	basementCoreModuleID    = "stackkits-basement-core-runtime"
-	basementComposeProject  = "stackkit-basement-core"
-	restoreResultAPIVersion = "stackkit.local-backup-restore-result/v1"
-	restoreRecoveryAPI      = "stackkit.local-backup-restore-recovery-anchor/v1"
-	repositoryRestoreAPI    = "stackkit.local-backup-repository-restore/v1"
-	restoreVerificationAPI  = "stackkit.local-backup-restore-verification/v1"
+	basementKitSlug                  = "basement-kit"
+	basementCoreModuleID             = "stackkits-basement-core-runtime"
+	basementCoreLiteModuleID         = "stackkits-basement-core-lite-runtime"
+	basementCoreComposeOutputRef     = "platform/basement-core/compose.yaml"
+	basementCoreLiteComposeOutputRef = "platform/basement-core-lite/compose.yaml"
+	basementCorePolicyOutputRef      = "home/backup/kopia-source-policy.json"
+	basementCoreLitePolicyOutputRef  = "home/backup/kopia-source-policy-lite.json"
+	basementComposeProject           = "stackkit-basement-core"
+	restoreResultAPIVersion          = "stackkit.local-backup-restore-result/v1"
+	restoreRecoveryAPI               = "stackkit.local-backup-restore-recovery-anchor/v1"
+	repositoryRestoreAPI             = "stackkit.local-backup-repository-restore/v1"
+	restoreVerificationAPI           = "stackkit.local-backup-restore-verification/v1"
 )
 
 var (
@@ -65,13 +70,6 @@ func deriveAuthority(
 	if err != nil {
 		return Authority{}, fmt.Errorf("restoreactivation: hash generation manifest: %w", err)
 	}
-	derived, err := derivePlanAuthority(plan.Canonical(), manifest, operationID)
-	if err != nil {
-		return Authority{}, err
-	}
-	if err := bindRestoreResult(plan.Binding(), manifestHash, derived, restoreResult); err != nil {
-		return Authority{}, err
-	}
 	var planDocument map[string]any
 	if err := json.Unmarshal(plan.Canonical(), &planDocument); err != nil {
 		return Authority{}, fmt.Errorf("restoreactivation: decode verified plan for Application restore authority: %w", err)
@@ -80,6 +78,13 @@ func deriveAuthority(
 		workspaceRoot, planDocument, operationID,
 	)
 	if err != nil {
+		return Authority{}, err
+	}
+	derived, err := derivePlanAuthority(plan.Canonical(), manifest, operationID, applicationVolumes)
+	if err != nil {
+		return Authority{}, err
+	}
+	if err := bindRestoreResult(plan.Binding(), manifestHash, derived, restoreResult); err != nil {
 		return Authority{}, err
 	}
 	volumeDetails := append([]Volume(nil), derived.volumes...)
@@ -130,7 +135,19 @@ func deriveAuthority(
 	}, nil
 }
 
-func derivePlanAuthority(raw []byte, manifest generationartifact.ArtifactManifest, operationID string) (planAuthority, error) {
+func derivePlanAuthority(
+	raw []byte,
+	manifest generationartifact.ArtifactManifest,
+	operationID string,
+	applicationVolumeSets ...[]Volume,
+) (planAuthority, error) {
+	if len(applicationVolumeSets) > 1 {
+		return planAuthority{}, errors.New("restoreactivation: application volume authority is ambiguous")
+	}
+	var applicationVolumes []Volume
+	if len(applicationVolumeSets) == 1 {
+		applicationVolumes = applicationVolumeSets[0]
+	}
 	var plan map[string]any
 	if err := json.Unmarshal(raw, &plan); err != nil {
 		return planAuthority{}, fmt.Errorf("restoreactivation: decode verified plan: %w", err)
@@ -148,20 +165,27 @@ func derivePlanAuthority(raw []byte, manifest generationartifact.ArtifactManifes
 		return planAuthority{}, errors.New("restoreactivation: plan modules are absent")
 	}
 	var core map[string]any
+	var coreModuleID string
 	for _, candidate := range modules {
 		module, ok := candidate.(map[string]any)
 		if !ok {
 			return planAuthority{}, errors.New("restoreactivation: plan module is not an object")
 		}
-		if text(module, "id") == basementCoreModuleID {
+		moduleID := text(module, "id")
+		if moduleID == basementCoreModuleID || moduleID == basementCoreLiteModuleID {
 			if core != nil {
 				return planAuthority{}, errors.New("restoreactivation: Basement core runtime selection is ambiguous")
 			}
 			core = module
+			coreModuleID = moduleID
 		}
 	}
 	if core == nil || text(core, "renderTarget") != "compose" {
 		return planAuthority{}, errors.New("restoreactivation: exact Compose Basement core runtime is not selected")
+	}
+	composeOutputRef, policyOutputRef, ok := basementCoreRestoreContract(coreModuleID)
+	if !ok {
+		return planAuthority{}, errors.New("restoreactivation: selected Basement core profile is unsupported")
 	}
 	runtime, err := object(core, "runtime")
 	if err != nil || text(runtime, "kind") != "container" || text(runtime, "engine") != "docker" ||
@@ -176,11 +200,11 @@ func derivePlanAuthority(raw []byte, manifest generationartifact.ArtifactManifes
 	if err != nil {
 		return planAuthority{}, err
 	}
-	managedNames, policyArtifactID, err := deriveSourcePolicy(core, stagingRoot)
+	managedNames, policyArtifactID, err := deriveSourcePolicy(core, coreModuleID, policyOutputRef, stagingRoot)
 	if err != nil {
 		return planAuthority{}, err
 	}
-	composeProject, volumes, liveNames, err := bindManagedVolumes(logicalVolumes, managedNames, operationID)
+	composeProject, volumes, liveNames, err := bindManagedVolumes(logicalVolumes, managedNames, applicationVolumes, operationID)
 	if err != nil {
 		return planAuthority{}, err
 	}
@@ -197,7 +221,7 @@ func derivePlanAuthority(raw []byte, manifest generationartifact.ArtifactManifes
 			return planAuthority{}, errors.New("restoreactivation: deterministic rollback volume collides with governed runtime volumes")
 		}
 	}
-	composeArtifact, policyArtifact, err := bindManifest(plan, manifest, policyArtifactID)
+	composeArtifact, policyArtifact, err := bindManifest(plan, manifest, policyArtifactID, coreModuleID, composeOutputRef)
 	if err != nil {
 		return planAuthority{}, err
 	}
@@ -212,6 +236,17 @@ func derivePlanAuthority(raw []byte, manifest generationartifact.ArtifactManifes
 		volumes:         volumes,
 		liveNames:       liveNames,
 	}, nil
+}
+
+func basementCoreRestoreContract(moduleID string) (composeOutputRef, policyOutputRef string, ok bool) {
+	switch moduleID {
+	case basementCoreModuleID:
+		return basementCoreComposeOutputRef, basementCorePolicyOutputRef, true
+	case basementCoreLiteModuleID:
+		return basementCoreLiteComposeOutputRef, basementCoreLitePolicyOutputRef, true
+	default:
+		return "", "", false
+	}
 }
 
 type logicalVolume struct {
@@ -285,7 +320,7 @@ func deriveVolumes(components []any) ([]logicalVolume, string, string, string, e
 	return managed, kopiaImage, stagingLogical, stagingRoot, nil
 }
 
-func deriveSourcePolicy(core map[string]any, stagingRoot string) ([]string, string, error) {
+func deriveSourcePolicy(core map[string]any, coreModuleID, expectedOutputRef, stagingRoot string) ([]string, string, error) {
 	units, err := array(core, "renderUnits")
 	if err != nil {
 		return nil, "", errors.New("restoreactivation: Basement core render units are absent")
@@ -327,11 +362,19 @@ func deriveSourcePolicy(core map[string]any, stagingRoot string) ([]string, stri
 		if !ok {
 			return nil, "", errors.New("restoreactivation: backup source-policy output is invalid")
 		}
+		if text(output, "ref") != expectedOutputRef {
+			return nil, "", errors.New("restoreactivation: backup source-policy output is not bound to the selected core profile")
+		}
 		artifactID = text(output, "artifactRef")
 	}
 	if source == nil || artifactID == "" || text(source, "kind") != "docker-volume-root" ||
 		text(source, "containerPath") == "" || text(source, "hostPath") == "" || source["readOnly"] != true {
 		return nil, "", errors.New("restoreactivation: backup source authority is incomplete")
+	}
+	boundCoreModuleID := text(source, "coreModuleRef")
+	if (boundCoreModuleID != "" && boundCoreModuleID != coreModuleID) ||
+		(coreModuleID == basementCoreLiteModuleID && boundCoreModuleID != coreModuleID) {
+		return nil, "", errors.New("restoreactivation: backup source authority is not bound to the selected core profile")
 	}
 	managed, err := stringArray(source, "managedVolumeNames")
 	if err != nil || len(managed) == 0 {
@@ -361,12 +404,14 @@ func deriveSourcePolicy(core map[string]any, stagingRoot string) ([]string, stri
 func bindManagedVolumes(
 	logical []logicalVolume,
 	managedNames []string,
+	applicationVolumes []Volume,
 	operationID string,
 ) (string, []Volume, []string, error) {
-	if len(logical) != len(managedNames) {
-		return "", nil, nil, errors.New("restoreactivation: source-policy managedVolumeNames does not match persistent backup volumes 1:1")
+	if len(logical)+len(applicationVolumes) != len(managedNames) {
+		return "", nil, nil, errors.New("restoreactivation: source-policy managedVolumeNames does not match the selected persistent backup volumes")
 	}
 	nameSet := make(map[string]struct{}, len(managedNames))
+	applicationNames := make(map[string]struct{}, len(applicationVolumes))
 	var project string
 	for _, entry := range managedNames {
 		if !portableNamePattern.MatchString(entry) {
@@ -377,10 +422,23 @@ func bindManagedVolumes(
 		}
 		nameSet[entry] = struct{}{}
 	}
+	for _, volume := range applicationVolumes {
+		if !portableNamePattern.MatchString(volume.LiveName) || volume.ComposeProject == "" || volume.LogicalName == "" ||
+			volume.LiveName != volume.ComposeProject+"_"+volume.LogicalName {
+			return "", nil, nil, errors.New("restoreactivation: selected Application volume identity is invalid")
+		}
+		if _, duplicate := applicationNames[volume.LiveName]; duplicate {
+			return "", nil, nil, fmt.Errorf("restoreactivation: duplicate selected Application volume %q", volume.LiveName)
+		}
+		applicationNames[volume.LiveName] = struct{}{}
+	}
 	for _, candidate := range logical {
 		suffix := "_" + candidate.logicalName
 		matches := make([]string, 0, 1)
 		for managed := range nameSet {
+			if _, application := applicationNames[managed]; application {
+				continue
+			}
 			if strings.HasSuffix(managed, suffix) {
 				matches = append(matches, managed)
 			}
@@ -394,6 +452,12 @@ func bindManagedVolumes(
 		}
 		project = candidateProject
 		delete(nameSet, matches[0])
+	}
+	for applicationName := range applicationNames {
+		if _, exists := nameSet[applicationName]; !exists {
+			return "", nil, nil, fmt.Errorf("restoreactivation: source-policy omits selected Application volume %q", applicationName)
+		}
+		delete(nameSet, applicationName)
 	}
 	if len(nameSet) != 0 || project != basementComposeProject {
 		return "", nil, nil, errors.New("restoreactivation: source-policy contains a substituted managed volume")
@@ -641,6 +705,8 @@ func bindManifest(
 	plan map[string]any,
 	manifest generationartifact.ArtifactManifest,
 	policyArtifactID string,
+	coreModuleID string,
+	composeOutputRef string,
 ) (generationartifact.RenderedArtifact, generationartifact.RenderedArtifact, error) {
 	generation, err := object(plan, "generation")
 	if err != nil {
@@ -684,8 +750,8 @@ func bindManifest(
 			}
 		}
 		owner, _ := object(declaration, "owner")
-		if text(owner, "moduleRef") == basementCoreModuleID && text(owner, "unitRef") == "compose" {
-			if compose.ID != "" || text(declaration, "kind") != "compose" || text(declaration, "format") != "yaml" {
+		if text(owner, "moduleRef") == coreModuleID && text(owner, "unitRef") == "compose" {
+			if compose.ID != "" || text(owner, "outputRef") != composeOutputRef || text(declaration, "kind") != "compose" || text(declaration, "format") != "yaml" {
 				return generationartifact.RenderedArtifact{}, generationartifact.RenderedArtifact{}, errors.New("restoreactivation: Basement Compose artifact selection is ambiguous")
 			}
 			compose = manifestByID[id]

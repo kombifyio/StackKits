@@ -89,5 +89,15 @@ import "list"
 			destructive:   true
 			ownerApproval: true
 		}
+		setup?: {
+			name: "setup"
+			operations: ["stackkit.setup"]
+			phases: ["authorize", "configure", "verify"]
+			surfaces: ["cli", "mcp", "state-console"]
+			evidence: ["setup-result"]
+			mutation:      true
+			destructive:   false
+			ownerApproval: true
+		}
 	}
 }

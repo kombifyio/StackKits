@@ -26,6 +26,8 @@ const (
 	resultEvidenceRoot = resultRoot + "/results"
 )
 
+var errResultNotFound = errors.New("restoreactivation: persisted result is unavailable")
+
 type LiveVerification = backuplifecycle.RestoreVerification
 
 type ActivateInput struct {
@@ -38,13 +40,15 @@ type ActivateInput struct {
 	CurrentLineage       backuplifecycle.AuthorityLineage
 	CreateSafetySnapshot func(context.Context, string) (backuplifecycle.SnapshotAnchor, error)
 	VerifyLive           func(context.Context) (LiveVerification, error)
+	FinalizeResult       func(context.Context, Result, error) error
 }
 
 type RecoverInput struct {
-	WorkspaceRoot string
-	OperationID   string
-	OwnerApproved bool
-	VerifyLive    func(context.Context) (LiveVerification, error)
+	WorkspaceRoot  string
+	OperationID    string
+	OwnerApproved  bool
+	VerifyLive     func(context.Context) (LiveVerification, error)
+	FinalizeResult func(context.Context, Result, error) error
 }
 
 type Result struct {
@@ -58,6 +62,21 @@ type Result struct {
 	Verification         LiveVerification                              `json:"verification"`
 	Signature            localevidence.OwnerRestoreActivationSignature `json:"signature"`
 }
+
+// ActivationRecoveredError reports that activation failed but the prior live
+// state was restored and its signed result was persisted. Callers must record
+// the requested restore as recovered rather than asking for an impossible
+// second recovery of the terminal journal.
+type ActivationRecoveredError struct {
+	Cause  error
+	Result Result
+}
+
+func (err *ActivationRecoveredError) Error() string {
+	return "restore activation failed; prior application state was restored: " + err.Cause.Error()
+}
+
+func (err *ActivationRecoveredError) Unwrap() error { return err.Cause }
 
 type Runtime interface {
 	Inspect(context.Context, Authority) error
@@ -94,8 +113,8 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (Resu
 	if !input.OwnerApproved {
 		return Result{}, errors.New("restoreactivation: explicit local Owner approval is required")
 	}
-	if input.CreateSafetySnapshot == nil || input.VerifyLive == nil {
-		return Result{}, errors.New("restoreactivation: safety snapshot and live verification are required")
+	if input.CreateSafetySnapshot == nil || input.VerifyLive == nil || input.FinalizeResult == nil {
+		return Result{}, errors.New("restoreactivation: safety snapshot, live verification, and result finalizer are required")
 	}
 	if input.CurrentLineage != input.RestoreResult.AuthorizationLineage {
 		return Result{}, errors.New("restoreactivation: current authority differs from the staged restore")
@@ -143,18 +162,20 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (Resu
 		bounded, session, authority, input.VerifyLive,
 	)
 	if executionErr != nil {
-		_, rollbackErr := service.rollbackLocked(
-			bounded, session, authority, input.VerifyLive,
-		)
+		recovered, rollbackErr := service.recoverAfterFailure(bounded, session, input.WorkspaceRoot, authority, safety.ID, input.VerifyLive, input.FinalizeResult, executionErr)
+		if rollbackErr == nil {
+			return Result{}, &ActivationRecoveredError{Cause: executionErr, Result: recovered}
+		}
 		return Result{}, errors.Join(executionErr, rollbackErr)
 	}
 	result, err := signResult(
 		input.WorkspaceRoot, authority, safety.ID, "activated", verification,
 	)
 	if err != nil {
-		_, rollbackErr := service.rollbackLocked(
-			bounded, session, authority, input.VerifyLive,
-		)
+		recovered, rollbackErr := service.recoverAfterFailure(bounded, session, input.WorkspaceRoot, authority, safety.ID, input.VerifyLive, input.FinalizeResult, err)
+		if rollbackErr == nil {
+			return Result{}, &ActivationRecoveredError{Cause: err, Result: recovered}
+		}
 		return Result{}, errors.Join(err, rollbackErr)
 	}
 	progress := session.Record().RestoreActivation
@@ -179,13 +200,18 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (Resu
 	); err != nil {
 		return Result{}, err
 	}
-	if err := session.Complete(lifecyclemutation.StatusSucceeded); err != nil {
-		return Result{}, err
-	}
 	if err := persistResult(input.WorkspaceRoot, result); err != nil {
 		return Result{}, err
 	}
-	cleanupRollbackVolumes(bounded, service.runtime, authority)
+	if err := cleanupRollbackVolumes(bounded, service.runtime, authority); err != nil {
+		return Result{}, err
+	}
+	if err := input.FinalizeResult(bounded, result, nil); err != nil {
+		return Result{}, fmt.Errorf("restoreactivation: finalize activated result: %w", err)
+	}
+	if err := session.Complete(lifecyclemutation.StatusSucceeded); err != nil {
+		return Result{}, err
+	}
 	return result, nil
 }
 
@@ -193,8 +219,8 @@ func (service *Service) Recover(ctx context.Context, input RecoverInput) (Result
 	if service == nil || service.runtime == nil || service.resolveRecovery == nil {
 		return Result{}, errors.New("restoreactivation: recovery authority resolver is unavailable")
 	}
-	if !input.OwnerApproved || input.VerifyLive == nil {
-		return Result{}, errors.New("restoreactivation: explicit Owner approval and verification are required")
+	if !input.OwnerApproved || input.VerifyLive == nil || input.FinalizeResult == nil {
+		return Result{}, errors.New("restoreactivation: explicit Owner approval, verification, and result finalizer are required")
 	}
 	bounded, cancel := boundedContext(ctx)
 	defer cancel()
@@ -214,13 +240,57 @@ func (service *Service) Recover(ctx context.Context, input RecoverInput) (Result
 	if err := bindJournalAuthority(authority, record.RestoreActivation.Authority); err != nil {
 		return Result{}, err
 	}
+	if record.Status == lifecyclemutation.StatusSucceeded || record.Status == lifecyclemutation.StatusRecovered {
+		result, err := loadPersistedResult(input.WorkspaceRoot, input.OperationID)
+		if err != nil {
+			return Result{}, err
+		}
+		expectedStatus := "activated"
+		if record.Status == lifecyclemutation.StatusRecovered {
+			expectedStatus = "recovered"
+		}
+		if err := bindResultAuthority(result, authority, record.RestoreActivation.Authority.SafetySnapshotID, expectedStatus); err != nil {
+			return Result{}, err
+		}
+		return result, nil
+	}
+	if record.Phase == lifecyclemutation.PhaseCommitSucceeded {
+		verification, err := input.VerifyLive(bounded)
+		if err != nil {
+			return Result{}, err
+		}
+		if err := validateLiveVerification(authority, verification); err != nil {
+			return Result{}, err
+		}
+		result, err := resultForFinalization(
+			input.WorkspaceRoot, authority,
+			record.RestoreActivation.Authority.SafetySnapshotID,
+			"activated", verification,
+		)
+		if err != nil {
+			return Result{}, err
+		}
+		if err := persistResult(input.WorkspaceRoot, result); err != nil {
+			return Result{}, err
+		}
+		if err := cleanupRollbackVolumes(bounded, service.runtime, authority); err != nil {
+			return Result{}, err
+		}
+		if err := input.FinalizeResult(bounded, result, nil); err != nil {
+			return Result{}, fmt.Errorf("restoreactivation: finalize recovered activation commit: %w", err)
+		}
+		if err := session.Complete(lifecyclemutation.StatusSucceeded); err != nil {
+			return Result{}, err
+		}
+		return result, nil
+	}
 	verification, err := service.rollbackLocked(
 		bounded, session, authority, input.VerifyLive,
 	)
 	if err != nil {
 		return Result{}, err
 	}
-	result, err := signResult(
+	result, err := resultForFinalization(
 		input.WorkspaceRoot, authority,
 		record.RestoreActivation.Authority.SafetySnapshotID,
 		"recovered", verification,
@@ -229,6 +299,15 @@ func (service *Service) Recover(ctx context.Context, input RecoverInput) (Result
 		return Result{}, err
 	}
 	if err := persistResult(input.WorkspaceRoot, result); err != nil {
+		return Result{}, err
+	}
+	if err := cleanupRollbackVolumes(bounded, service.runtime, authority); err != nil {
+		return Result{}, err
+	}
+	if err := input.FinalizeResult(bounded, result, nil); err != nil {
+		return Result{}, fmt.Errorf("restoreactivation: finalize recovered result: %w", err)
+	}
+	if err := session.Complete(lifecyclemutation.StatusRecovered); err != nil {
 		return Result{}, err
 	}
 	return result, nil
@@ -339,21 +418,35 @@ func (service *Service) rollbackLocked(
 	progress := lifecyclemutation.RestoreActivationProgress{
 		RollbackPrepared: append([]string(nil), state.RollbackPrepared...),
 		Activated:        append([]string(nil), state.Activated...),
+		InFlight:         state.InFlight,
 	}
 	phase := record.Phase
-	if phase != lifecyclemutation.PhaseRollbackStarted {
+	transition := func(next string) error {
+		if err := session.TransitionRestoreActivation(phase, next, progress); err != nil {
+			return err
+		}
+		phase = next
+		return nil
+	}
+	if !rollbackPhase(phase) {
 		if phase == lifecyclemutation.PhaseActivationCopyStarted &&
 			state.InFlight != nil {
 			progress.Activated = append(
 				progress.Activated, state.InFlight.Volume,
 			)
 		}
-		if err := session.TransitionRestoreActivation(
-			phase, lifecyclemutation.PhaseRollbackStarted, progress,
-		); err != nil {
+		progress.InFlight = nil
+		if err := transition(lifecyclemutation.PhaseRollbackStarted); err != nil {
 			return LiveVerification{}, err
 		}
-		phase = lifecyclemutation.PhaseRollbackStarted
+	}
+	// Activation may have started the services before verification failed.
+	// Stop again before replacing any live bytes, including after a process
+	// restart during rollback. The persisted phase remains resumable on error.
+	if phase == lifecyclemutation.PhaseRollbackStarted || phase == lifecyclemutation.PhaseRollbackVolumeStarted || phase == lifecyclemutation.PhaseRollbackVolumeSucceeded {
+		if err := service.runtime.Stop(ctx, authority); err != nil {
+			return LiveVerification{}, fmt.Errorf("restoreactivation: quiesce before rollback: %w", err)
+		}
 	}
 	byName := make(map[string]Volume, len(authority.VolumeDetails))
 	for _, volume := range authority.VolumeDetails {
@@ -365,44 +458,40 @@ func (service *Service) rollbackLocked(
 		if !exists {
 			return LiveVerification{}, errors.New("restoreactivation: journal contains a foreign active volume")
 		}
-		progress.InFlight = &lifecyclemutation.RestoreActivationStep{Volume: name}
-		if err := session.TransitionRestoreActivation(
-			phase, lifecyclemutation.PhaseRollbackVolumeStarted, progress,
-		); err != nil {
-			return LiveVerification{}, err
+		if phase != lifecyclemutation.PhaseRollbackVolumeStarted {
+			progress.InFlight = &lifecyclemutation.RestoreActivationStep{Volume: name}
+			if err := transition(lifecyclemutation.PhaseRollbackVolumeStarted); err != nil {
+				return LiveVerification{}, err
+			}
+		} else if progress.InFlight == nil || progress.InFlight.Volume != name {
+			return LiveVerification{}, errors.New("restoreactivation: in-flight rollback volume differs from journal tail")
 		}
-		phase = lifecyclemutation.PhaseRollbackVolumeStarted
 		if err := service.runtime.RestoreVolume(ctx, authority, volume); err != nil {
 			return LiveVerification{}, err
 		}
 		progress.Activated = progress.Activated[:len(progress.Activated)-1]
 		progress.InFlight = nil
-		if err := session.TransitionRestoreActivation(
-			phase, lifecyclemutation.PhaseRollbackVolumeSucceeded, progress,
-		); err != nil {
+		if err := transition(lifecyclemutation.PhaseRollbackVolumeSucceeded); err != nil {
 			return LiveVerification{}, err
 		}
-		phase = lifecyclemutation.PhaseRollbackVolumeSucceeded
 	}
-	if err := session.TransitionRestoreActivation(
-		phase, lifecyclemutation.PhaseRollbackRuntimeStarted, progress,
-	); err != nil {
-		return LiveVerification{}, err
+	if phase == lifecyclemutation.PhaseRollbackStarted || phase == lifecyclemutation.PhaseRollbackVolumeSucceeded {
+		if err := transition(lifecyclemutation.PhaseRollbackRuntimeStarted); err != nil {
+			return LiveVerification{}, err
+		}
 	}
-	if err := service.runtime.Start(ctx, authority); err != nil {
-		return LiveVerification{}, err
+	if phase == lifecyclemutation.PhaseRollbackRuntimeStarted {
+		if err := service.runtime.Start(ctx, authority); err != nil {
+			return LiveVerification{}, err
+		}
+		if err := transition(lifecyclemutation.PhaseRollbackRuntimeSucceeded); err != nil {
+			return LiveVerification{}, err
+		}
 	}
-	if err := session.TransitionRestoreActivation(
-		lifecyclemutation.PhaseRollbackRuntimeStarted,
-		lifecyclemutation.PhaseRollbackRuntimeSucceeded, progress,
-	); err != nil {
-		return LiveVerification{}, err
-	}
-	if err := session.TransitionRestoreActivation(
-		lifecyclemutation.PhaseRollbackRuntimeSucceeded,
-		lifecyclemutation.PhaseRollbackActivationVerifyStarted, progress,
-	); err != nil {
-		return LiveVerification{}, err
+	if phase == lifecyclemutation.PhaseRollbackRuntimeSucceeded {
+		if err := transition(lifecyclemutation.PhaseRollbackActivationVerifyStarted); err != nil {
+			return LiveVerification{}, err
+		}
 	}
 	verification, err := verify(ctx)
 	if err != nil {
@@ -411,23 +500,61 @@ func (service *Service) rollbackLocked(
 	if err := validateLiveVerification(authority, verification); err != nil {
 		return LiveVerification{}, err
 	}
-	if err := session.TransitionRestoreActivation(
-		lifecyclemutation.PhaseRollbackActivationVerifyStarted,
-		lifecyclemutation.PhaseRollbackActivationVerifyDone, progress,
-	); err != nil {
-		return LiveVerification{}, err
+	if phase == lifecyclemutation.PhaseRollbackActivationVerifyStarted {
+		if err := transition(lifecyclemutation.PhaseRollbackActivationVerifyDone); err != nil {
+			return LiveVerification{}, err
+		}
 	}
-	if err := session.TransitionRestoreActivation(
-		lifecyclemutation.PhaseRollbackActivationVerifyDone,
-		lifecyclemutation.PhaseRollbackSucceeded, progress,
-	); err != nil {
-		return LiveVerification{}, err
+	if phase == lifecyclemutation.PhaseRollbackActivationVerifyDone {
+		if err := transition(lifecyclemutation.PhaseRollbackSucceeded); err != nil {
+			return LiveVerification{}, err
+		}
+	}
+	return verification, nil
+}
+
+// Failure recovery is its own bounded phase. The canceled activation context
+// must not prevent restoring the already authorized prior state.
+func (service *Service) recoverAfterFailure(parent context.Context, session *lifecyclemutation.Session, workspace string, authority Authority, safetySnapshotID string, verify func(context.Context) (LiveVerification, error), finalize func(context.Context, Result, error) error, cause error) (Result, error) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), operationTimeout)
+	defer cancel()
+	if err := session.ReconcileForRecovery(); err != nil {
+		return Result{}, fmt.Errorf("restoreactivation: reconcile failed journal commit before rollback: %w", err)
+	}
+	verification, err := service.rollbackLocked(ctx, session, authority, verify)
+	if err != nil {
+		return Result{}, err
+	}
+	result, err := signResult(workspace, authority, safetySnapshotID, "recovered", verification)
+	if err != nil {
+		return Result{}, err
+	}
+	if err := persistResult(workspace, result); err != nil {
+		return Result{}, err
+	}
+	if err := cleanupRollbackVolumes(ctx, service.runtime, authority); err != nil {
+		return Result{}, err
+	}
+	if err := finalize(ctx, result, cause); err != nil {
+		return Result{}, fmt.Errorf("restoreactivation: finalize automatic recovery result: %w", err)
 	}
 	if err := session.Complete(lifecyclemutation.StatusRecovered); err != nil {
-		return LiveVerification{}, err
+		return Result{}, err
 	}
-	cleanupRollbackVolumes(ctx, service.runtime, authority)
-	return verification, nil
+	return result, nil
+}
+
+func rollbackPhase(phase string) bool {
+	switch phase {
+	case lifecyclemutation.PhaseRollbackStarted,
+		lifecyclemutation.PhaseRollbackVolumeStarted, lifecyclemutation.PhaseRollbackVolumeSucceeded,
+		lifecyclemutation.PhaseRollbackRuntimeStarted, lifecyclemutation.PhaseRollbackRuntimeSucceeded,
+		lifecyclemutation.PhaseRollbackActivationVerifyStarted, lifecyclemutation.PhaseRollbackActivationVerifyDone,
+		lifecyclemutation.PhaseRollbackSucceeded:
+		return true
+	default:
+		return false
+	}
 }
 
 func beginRequest(authority Authority, safetySnapshotID string) lifecyclemutation.RestoreActivationBeginRequest {
@@ -538,6 +665,81 @@ func VerifyResult(workspace string, result Result) error {
 	)
 }
 
+func bindResultAuthority(result Result, authority Authority, safetySnapshotID, status string) error {
+	if result.OperationID != authority.OperationID || result.RestoreResultID != authority.RestoreResultID ||
+		result.SafetySnapshotID != safetySnapshotID || result.PlanHash != authority.PlanHash ||
+		result.ManagedVolumeSetHash != authority.ManagedVolumeSetHash || result.Status != status ||
+		result.Signature.OwnerRef != authority.OwnerRef {
+		return errors.New("restoreactivation: persisted result differs from the terminal journal authority")
+	}
+	return nil
+}
+
+// A finalizer can commit only part of a multi-application operation before
+// failing. Its retry must carry the original signed evidence, including the
+// original verification timestamp, so those committed transitions remain valid.
+func resultForFinalization(workspace string, authority Authority, safetySnapshotID, status string, verification LiveVerification) (Result, error) {
+	result, err := loadPersistedResult(workspace, authority.OperationID)
+	if errors.Is(err, errResultNotFound) {
+		return signResult(workspace, authority, safetySnapshotID, status, verification)
+	}
+	if err != nil {
+		return Result{}, err
+	}
+	if err := bindResultAuthority(result, authority, safetySnapshotID, status); err != nil {
+		return Result{}, err
+	}
+	return result, nil
+}
+
+func loadPersistedResult(workspace, operationID string) (Result, error) {
+	if !activationOperationPattern.MatchString(operationID) {
+		return Result{}, errors.New("restoreactivation: result operation ID is invalid")
+	}
+	root, err := confinedfs.Open(workspace)
+	if err != nil {
+		return Result{}, err
+	}
+	defer func() { _ = root.Close() }()
+	transaction, err := root.BeginTransaction()
+	if err != nil {
+		return Result{}, err
+	}
+	defer func() { _ = transaction.Close() }()
+	name := filepath.ToSlash(filepath.Join(resultRoot, operationID+".json"))
+	exists, _, err := transaction.Exists(name)
+	if err != nil {
+		return Result{}, err
+	}
+	if !exists {
+		return Result{}, errResultNotFound
+	}
+	raw, info, err := transaction.ReadStable(name)
+	if err != nil {
+		return Result{}, fmt.Errorf("restoreactivation: read persisted result: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return Result{}, errors.New("restoreactivation: persisted result is not a regular file")
+	}
+	var result Result
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&result); err != nil {
+		return Result{}, fmt.Errorf("restoreactivation: decode terminal result: %w", err)
+	}
+	canonical, err := json.MarshalIndent(result, "", "  ")
+	if err != nil || !bytes.Equal(raw, canonical) {
+		return Result{}, errors.New("restoreactivation: terminal result is not canonical")
+	}
+	if result.OperationID != operationID {
+		return Result{}, errors.New("restoreactivation: terminal result operation differs from request")
+	}
+	if err := VerifyResult(workspace, result); err != nil {
+		return Result{}, err
+	}
+	return result, nil
+}
+
 func persistResult(workspace string, result Result) error {
 	if err := VerifyResult(workspace, result); err != nil {
 		return err
@@ -601,10 +803,14 @@ func ResultEvidence(workspace string, result Result) (string, string, error) {
 	return ref, digestText, nil
 }
 
-func cleanupRollbackVolumes(ctx context.Context, runtime Runtime, authority Authority) {
+func cleanupRollbackVolumes(ctx context.Context, runtime Runtime, authority Authority) error {
+	var result error
 	for _, volume := range authority.VolumeDetails {
-		_ = runtime.CleanupRollback(ctx, authority, volume)
+		if err := runtime.CleanupRollback(ctx, authority, volume); err != nil {
+			result = errors.Join(result, fmt.Errorf("cleanup rollback volume %q: %w", volume.RollbackName, err))
+		}
 	}
+	return result
 }
 
 func boundedContext(parent context.Context) (context.Context, context.CancelFunc) {

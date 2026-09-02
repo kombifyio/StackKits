@@ -30,12 +30,27 @@ func platformMemoryBytes() (uint64, error) {
 }
 
 func platformStorageBytes() (uint64, error) {
+	return platformStorageBytesForPath("/")
+}
+
+func platformStorageBytesForPath(path string) (uint64, error) {
 	var stat unix.Statfs_t
-	if err := unix.Statfs("/", &stat); err != nil {
-		return 0, fmt.Errorf("read root filesystem size: %w", err)
+	if err := unix.Statfs(path, &stat); err != nil {
+		return 0, fmt.Errorf("read filesystem size for %q: %w", path, err)
 	}
 	if stat.Bsize <= 0 || stat.Blocks == 0 {
-		return 0, fmt.Errorf("root filesystem size is unobserved")
+		return 0, fmt.Errorf("filesystem size for %q is unobserved", path)
 	}
 	return stat.Blocks * uint64(stat.Bsize), nil
+}
+
+func platformStorageFreeBytes(path string) (uint64, error) {
+	var stat unix.Statfs_t
+	if err := unix.Statfs(path, &stat); err != nil {
+		return 0, fmt.Errorf("read filesystem free space for %q: %w", path, err)
+	}
+	if stat.Bsize <= 0 || stat.Bavail < 0 {
+		return 0, fmt.Errorf("filesystem free space for %q is unobserved", path)
+	}
+	return uint64(stat.Bavail) * uint64(stat.Bsize), nil
 }

@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -804,6 +805,7 @@ func (session *Session) transition(
 		current.Phase != expected || digest != session.recordDigest {
 		return errors.New("lifecycle mutation journal changed before transition")
 	}
+	previous := session.record
 	session.record.Phase = next
 	session.record.Join = join
 	if restoreActivation != nil {
@@ -815,15 +817,16 @@ func (session *Session) transition(
 		session.workspace, session.transaction, session.view, &session.record,
 		session.recordDigest,
 	)
-	if err == nil {
+	if nextDigest != "" {
 		session.recordDigest = nextDigest
+	} else if err != nil {
+		session.record = previous
 	}
 	return err
 }
 
 func (session *Session) Complete(status string) error {
-	if session == nil || session.transaction == nil ||
-		session.record.Status != StatusActive {
+	if session == nil || session.transaction == nil {
 		return errors.New("active lifecycle mutation session is required")
 	}
 	if status != StatusSucceeded && status != StatusRecovered {
@@ -834,6 +837,16 @@ func (session *Session) Complete(status string) error {
 	}
 	if status == StatusRecovered && session.record.Phase != PhaseRollbackSucceeded {
 		return errors.New("recovered lifecycle mutation requires verified rollback phase")
+	}
+	if session.record.Status == status {
+		current, digest, exists, err := loadRecord(session.workspace, session.transaction)
+		if err != nil || !exists || current.OperationID != session.record.OperationID || digest != session.recordDigest {
+			return errors.Join(errors.New("terminal lifecycle mutation journal changed before completion retry"), err)
+		}
+		return nil
+	}
+	if session.record.Status != StatusActive {
+		return errors.New("active lifecycle mutation session is required")
 	}
 	current, digest, exists, err := loadRecord(
 		session.workspace, session.transaction,
@@ -847,6 +860,7 @@ func (session *Session) Complete(status string) error {
 		digest != session.recordDigest {
 		return errors.New("lifecycle mutation journal changed before completion")
 	}
+	previous := session.record
 	session.record.Status = status
 	session.record.Join = nil
 	session.record.Sequence++
@@ -855,10 +869,34 @@ func (session *Session) Complete(status string) error {
 		session.workspace, session.transaction, session.view, &session.record,
 		session.recordDigest,
 	)
-	if err == nil {
+	if nextDigest != "" {
 		session.recordDigest = nextDigest
+	} else if err != nil {
+		session.record = previous
 	}
 	return err
+}
+
+// ReconcileForRecovery repairs a stale active pointer from the immutable
+// signed history while the caller still holds the lifecycle lock. A failed
+// transition can therefore roll back in the same process when its history
+// record was installed before the pointer write reported an error. Root and
+// identity failures remain fail-closed in recoverLatestRecord.
+func (session *Session) ReconcileForRecovery() error {
+	if session == nil || session.transaction == nil || session.record.OperationID == "" {
+		return errors.New("lifecycle mutation recovery reconciliation requires an active session")
+	}
+	record, digest, err := recoverLatestRecord(
+		session.workspace, session.record.OperationID, session.transaction, session.view,
+	)
+	if err != nil {
+		return err
+	}
+	if record.OperationID != session.record.OperationID {
+		return errors.New("lifecycle mutation recovery reconciled a different operation")
+	}
+	session.record, session.recordDigest = record, digest
+	return nil
 }
 
 func (session *Session) Close() (returnErr error) {
@@ -1194,6 +1232,11 @@ func recoverLatestRecord(
 		)
 	}
 	if exists {
+		if err := backupcustody.RequirePrivatePath(
+			filepath.Join(workspace, filepath.FromSlash(activePath)), false,
+		); err != nil {
+			return Record{}, "", fmt.Errorf("verify private recovery pointer: %w", err)
+		}
 		raw, _, readErr := transaction.ReadStable(activePath)
 		if readErr != nil {
 			return Record{}, "", readErr
@@ -1287,6 +1330,16 @@ func persistRecord(
 	if record == nil {
 		return "", errors.New("lifecycle mutation record is required")
 	}
+	if previousDigest != "" {
+		prior, info, readErr := transaction.ReadStable(activePath)
+		if readErr != nil || !info.Mode().IsRegular() {
+			return "", errors.New("read previous lifecycle mutation journal before commit")
+		}
+		previousSum := sha256.Sum256(prior)
+		if "sha256:"+hex.EncodeToString(previousSum[:]) != previousDigest {
+			return "", errors.New("previous lifecycle mutation journal digest changed before commit")
+		}
+	}
 	record.PreviousRecordDigest = previousDigest
 	record.Signature = localevidence.OwnerLifecycleMutationSignature{}
 	canonical, err := signingBytes(*record)
@@ -1316,32 +1369,60 @@ func persistRecord(
 		"%s/%020d-%s.json",
 		operationRoot, record.Sequence, strings.TrimPrefix(digest, "sha256:"),
 	)
-	if _, err := view.WriteAtomic0600NoReplace(historyPath, encoded); err != nil {
+	result, err := view.WriteAtomic0600NoReplace(historyPath, encoded)
+	if err := settleJournalWrite(transaction, historyPath, encoded, result, err); err != nil {
 		return "", fmt.Errorf("commit immutable lifecycle mutation phase: %w", err)
 	}
 	if err := backupcustody.ProtectPrivatePath(
 		filepath.Join(workspace, filepath.FromSlash(historyPath)), false,
 	); err != nil {
-		return "", err
+		return digest, err
 	}
-	if _, err := view.WriteAtomic0600(activePath, encoded); err != nil {
-		return "", err
+	result, err = view.WriteAtomic0600(activePath, encoded)
+	if err := settleJournalWrite(transaction, activePath, encoded, result, err); err != nil {
+		return digest, err
 	}
 	if err := backupcustody.ProtectPrivatePath(
 		filepath.Join(workspace, filepath.FromSlash(activePath)), false,
 	); err != nil {
-		return "", err
+		return digest, err
 	}
 	loaded, loadedDigest, exists, err := loadRecord(workspace, transaction)
 	if err != nil || !exists || loaded.OperationID != record.OperationID ||
 		loaded.Sequence != record.Sequence || loaded.Phase != record.Phase ||
 		loaded.Status != record.Status || loadedDigest != digest {
 		if err != nil {
-			return "", err
+			return digest, err
 		}
-		return "", errors.New("re-read lifecycle mutation journal differs after commit")
+		return digest, errors.New("re-read lifecycle mutation journal differs after commit")
 	}
 	return digest, nil
+}
+
+// An atomic writer can report a post-install durability or identity error after
+// the signed bytes became visible. Re-read the exact file through the held
+// transaction and flush its parent before deciding whether the journal commit
+// is retryable. This also repairs a retry whose immutable history entry was
+// installed before the previous process stopped.
+func settleJournalWrite(transaction *confinedfs.Transaction, relative string, expected []byte, result confinedfs.AtomicWriteResult, writeErr error) error {
+	if writeErr == nil {
+		return nil
+	}
+	var confined *confinedfs.Error
+	if errors.As(writeErr, &confined) && (confined.Code == confinedfs.ErrRootChanged || confined.Code == confinedfs.ErrIdentityUnsupported || confined.Code == confinedfs.ErrUnsafeEntry) {
+		return writeErr
+	}
+	if result.Installed {
+		writeErr = fmt.Errorf("journal bytes were installed before durability verification failed: %w", writeErr)
+	}
+	actual, info, readErr := transaction.ReadStable(relative)
+	if readErr != nil || !info.Mode().IsRegular() || !bytes.Equal(actual, expected) {
+		return writeErr
+	}
+	if _, syncErr := transaction.SyncDirectory(path.Dir(relative)); syncErr != nil {
+		return errors.Join(writeErr, syncErr)
+	}
+	return nil
 }
 
 func signingBytes(record Record) ([]byte, error) {

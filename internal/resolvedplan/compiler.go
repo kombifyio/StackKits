@@ -345,6 +345,14 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	if err != nil {
 		return nil, err
 	}
+	if err := applyDataCapacityAdmission(
+		contracts.modules, contracts.workloads, topology.data, deployment.storage, deployment.system, spec.nodes,
+	); err != nil {
+		return nil, err
+	}
+	if err := applyStorageFilesystemAdmission(contracts.modules, deployment.storage, deployment.system, spec.nodes); err != nil {
+		return nil, err
+	}
 	privilegedInterfaceApprovals, err := c.resolvePrivilegedInterfaceApprovals(contracts.modules, deployment.gates)
 	if err != nil {
 		return nil, err
@@ -434,7 +442,9 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		install:       deployment.install,
 		system:        deployment.system,
 		storage:       deployment.storage,
+		nodes:         topology.nodes,
 		workloads:     contracts.workloads,
+		modules:       contracts.modules,
 	}); err != nil {
 		return nil, err
 	}

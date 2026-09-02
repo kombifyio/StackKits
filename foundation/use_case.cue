@@ -27,15 +27,15 @@ import "list"
 
 #UseCaseCapabilityAuthority: "read-only" | "gated-write" | "destructive"
 
-#UseCaseLifecycleStageName: "install" | "manage" | "backup" | "upgrade" | "restore" | "drift" | "remove"
+#UseCaseLifecycleStageName: "install" | "manage" | "backup" | "upgrade" | "restore" | "drift" | "remove" | "setup"
 
-#UseCaseLifecycleOperationID: "stackkit.init" | "stackkit.validate" | "stackkit.resolve" | "stackkit.generate" | "stackkit.plan" | "stackkit.apply" | "stackkit.verify" | "stackkit.status" | "stackkit.logs" | "stackkit.backup" | "stackkit.restore" | "stackkit.upgrade" | "stackkit.drift" | "stackkit.remove" | "stackkit.advanced.change-set.apply" | "stackkit.drift.reconcile.advanced"
+#UseCaseLifecycleOperationID: "stackkit.init" | "stackkit.validate" | "stackkit.resolve" | "stackkit.generate" | "stackkit.plan" | "stackkit.apply" | "stackkit.verify" | "stackkit.status" | "stackkit.logs" | "stackkit.backup" | "stackkit.restore" | "stackkit.upgrade" | "stackkit.drift" | "stackkit.remove" | "stackkit.setup" | "stackkit.advanced.change-set.apply" | "stackkit.drift.reconcile.advanced"
 
 #UseCaseLifecycleSurface: "installer" | "cli" | "mcp" | "state-console"
 
-#UseCaseLifecycleEvidence: "resolved-plan" | "generation-receipt" | "apply-result" | "owner-observation" | "snapshot-anchor" | "restore-result" | "upgrade-result" | "drift-report" | "removal-result"
+#UseCaseLifecycleEvidence: "resolved-plan" | "generation-receipt" | "apply-result" | "owner-observation" | "snapshot-anchor" | "restore-result" | "upgrade-result" | "drift-report" | "removal-result" | "setup-result"
 
-#UseCaseLifecyclePhase: "resolve" | "generate" | "apply" | "verify" | "observe" | "inspect" | "snapshot" | "preflight" | "update" | "migrate" | "rollback" | "stage" | "safety-snapshot" | "activate" | "recover" | "compare" | "authorize" | "remove"
+#UseCaseLifecyclePhase: "resolve" | "generate" | "apply" | "verify" | "observe" | "inspect" | "snapshot" | "preflight" | "update" | "migrate" | "rollback" | "stage" | "safety-snapshot" | "activate" | "recover" | "compare" | "authorize" | "remove" | "configure"
 
 #UseCasePackage: {
 	metadata: {
@@ -145,6 +145,7 @@ import "list"
 			restore: #UseCaseLifecycleStage & {name: "restore"}
 			drift: #UseCaseLifecycleStage & {name: "drift"}
 			remove: #UseCaseLifecycleStage & {name: "remove"}
+			setup?: #UseCaseLifecycleStage & {name: "setup"}
 		}
 	}
 }

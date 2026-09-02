@@ -92,21 +92,21 @@ Package: foundation.#UseCasePackage & {
 
 	computeTiers: {
 		low: {
-			included: true
+			included:   true
 			moduleSlug: "cloudreve"
 			functions: ["files", "document-storage", "file-sharing"]
 			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
 			notes: ["Lightweight sharing. Nextcloud is not on low."]
 		}
 		standard: {
-			included: true
+			included:   true
 			moduleSlug: "cloudreve"
 			functions: ["files", "document-storage", "file-sharing"]
 			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
 			notes: ["Nextcloud remains an authoring alternative, not the default standard graph."]
 		}
 		high: {
-			included: true
+			included:   true
 			moduleSlug: "cloudreve"
 			functions: ["files", "document-storage", "file-sharing"]
 			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
@@ -211,9 +211,9 @@ Package: foundation.#UseCasePackage & {
 		defaultPolicy: "on_demand"
 		drops: [
 			{
-				name:        "files-owner-bootstrap"
+				name:        "cloudreve-owner-bootstrap"
 				policy:      "on_demand"
-				description: "Create or verify the app-local Files owner, close unsafe public registration, and record route/API evidence."
+				description: "Create or verify the app-local Files administrator through the pinned Cloudreve API and revoke temporary setup sessions. Storage and sharing choices remain in the application."
 			},
 			{
 				name:        "document-index-bootstrap"
@@ -231,9 +231,15 @@ Package: foundation.#UseCasePackage & {
 	lifecycle: foundation.#StandardUseCaseLifecycle
 
 	agentSurface: {
-		equipPolicy:  "on-generate"
+		equipPolicy: "on-generate"
 		lifecycleMcp: {}
 		productMcps: []
+		skills: [{
+			id:       "owner-setup"
+			audience: "product-user"
+			source:   "stackkits"
+			path:     "use-cases/files/agent/owner-setup/SKILL.md"
+		}]
 		apis: [{
 			id:       "cloudreve"
 			protocol: "rest"

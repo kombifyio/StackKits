@@ -16,15 +16,20 @@ import (
 )
 
 const (
-	basementCoreProviderRef      = "stackkits-basement-core"
-	basementCoreModuleRef        = "stackkits-basement-core-runtime"
-	basementCoreUnitRef          = "compose"
-	basementCoreWorkloadRef      = "basement-core"
-	basementCoreOutputRef        = "platform/basement-core/compose.yaml"
-	basementCoreArtifactPrefix   = "basement-core-compose-instance-"
-	basementCoreImageRef         = "ghcr.io/coollabsio/coolify:4.1.2"
-	basementCoreImageDigest      = "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f"
-	basementCoreMaxArtifactBytes = 256 << 10
+	basementCoreProviderRef        = "stackkits-basement-core"
+	basementCoreModuleRef          = "stackkits-basement-core-runtime"
+	basementCoreLiteModuleRef      = "stackkits-basement-core-lite-runtime"
+	basementCoreUnitRef            = "compose"
+	basementCoreWorkloadRef        = "basement-core"
+	basementCoreOutputRef          = "platform/basement-core/compose.yaml"
+	basementCoreArtifactPrefix     = "basement-core-compose-instance-"
+	basementCoreImageRef           = "ghcr.io/coollabsio/coolify:4.1.2"
+	basementCoreImageDigest        = "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f"
+	basementCoreLiteOutputRef      = "platform/basement-core-lite/compose.yaml"
+	basementCoreLiteArtifactPrefix = "basement-core-lite-compose-instance-"
+	basementCoreLiteImageRef       = "docker.io/library/nginx:alpine"
+	basementCoreLiteImageDigest    = "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"
+	basementCoreMaxArtifactBytes   = 256 << 10
 )
 
 type BasementCoreServiceExpectation struct {
@@ -43,10 +48,83 @@ type BasementCoreHealthExpectation struct {
 	ExpectedStatuses []int
 }
 
+// BasementCoreHealthContract is the public, secret-free projection of one
+// selected Core profile's post-apply health gate. Commands and local runtime
+// owners consume this projection instead of maintaining a second Lite list.
+type BasementCoreHealthContract struct {
+	SourceRef        string
+	Kind             string
+	TargetKind       string
+	TargetRef        string
+	Port             int
+	Path             string
+	ExpectedStatuses []int
+}
+
+// BasementCoreRuntimeProfile is the finite profile identity shared by Apply,
+// live Verify, and Restore post-verification. It carries no endpoints,
+// credentials, or caller-controlled paths.
+type BasementCoreRuntimeProfile struct {
+	ProviderRef      string
+	ModuleRef        string
+	UnitRef          string
+	WorkloadRef      string
+	OutputRef        string
+	ArtifactPrefix   string
+	ImageRef         string
+	ImageDigest      string
+	MaxArtifactBytes int
+	Services         []BasementCoreServiceExpectation
+	Health           []BasementCoreHealthContract
+}
+
+// BasementCoreRuntimeProfileForModule returns the one known local Core
+// profile selected by the verified plan. Unknown module identities are
+// rejected so a caller cannot turn a generic verifier into a fallback.
+func BasementCoreRuntimeProfileForModule(moduleRef string) (BasementCoreRuntimeProfile, bool) {
+	profile, ok := basementClosedLocalCoreExecutionProfileForModule(moduleRef)
+	if !ok {
+		return BasementCoreRuntimeProfile{}, false
+	}
+	services := profile.serviceContracts()
+	result := BasementCoreRuntimeProfile{
+		ProviderRef: profile.providerRef, ModuleRef: profile.moduleRef,
+		UnitRef: profile.unitRef, WorkloadRef: profile.workloadRef,
+		OutputRef: profile.outputRef, ArtifactPrefix: profile.artifactPrefix,
+		ImageRef: profile.imageRef, ImageDigest: profile.imageDigest,
+		MaxArtifactBytes: profile.maxArtifactBytes,
+		Services:         make([]BasementCoreServiceExpectation, len(services)),
+		Health:           make([]BasementCoreHealthContract, len(profile.healthSpecs)),
+	}
+	for index, service := range services {
+		result.Services[index] = BasementCoreServiceExpectation(service)
+	}
+	for index, spec := range profile.healthSpecs {
+		result.Health[index] = BasementCoreHealthContract{
+			SourceRef: spec.source, Kind: spec.kind, TargetKind: spec.targetKind,
+			TargetRef: spec.targetRef, Port: spec.port, Path: spec.path,
+			ExpectedStatuses: append([]int(nil), spec.statuses...),
+		}
+	}
+	return result, true
+}
+
+func (profile BasementCoreRuntimeProfile) ValidateComposeArtifact(content []byte) bool {
+	switch profile.ModuleRef {
+	case basementCoreModuleRef:
+		return architecturev2renderer.ValidateBasementCoreComposeArtifact(content)
+	case basementCoreLiteModuleRef:
+		return architecturev2renderer.ValidateBasementCoreLiteComposeArtifact(content)
+	default:
+		return false
+	}
+}
+
 // BasementCoreProject is the closed, provider-free capability passed to the
 // local Docker owner. It contains no executable, Docker endpoint, credential,
 // or caller-selected filesystem path.
 type BasementCoreProject struct {
+	ModuleRef           string
 	ProjectRef          string
 	SiteRef             string
 	NodeRef             string
@@ -133,6 +211,31 @@ func basementClosedLocalCoreExecutionProfile() closedLocalCoreExecutionProfile {
 	}
 }
 
+func basementClosedLocalCoreLiteExecutionProfile() closedLocalCoreExecutionProfile {
+	return closedLocalCoreExecutionProfile{
+		displayName: "Basement core lite", providerRef: basementCoreProviderRef,
+		moduleRef: basementCoreLiteModuleRef, unitRef: basementCoreUnitRef,
+		workloadRef: basementCoreWorkloadRef, outputRef: basementCoreLiteOutputRef,
+		artifactPrefix: basementCoreLiteArtifactPrefix, imageRef: basementCoreLiteImageRef,
+		imageDigest: basementCoreLiteImageDigest, maxArtifactBytes: basementCoreMaxArtifactBytes,
+		healthSpecs:             basementCoreLiteHealthSpecs,
+		rendererContract:        architecturev2renderer.BasementCoreLiteComposeRendererContract,
+		serviceContracts:        architecturev2renderer.BasementCoreLiteServiceContracts,
+		validateComposeArtifact: architecturev2renderer.ValidateBasementCoreLiteComposeArtifact,
+	}
+}
+
+func basementClosedLocalCoreExecutionProfileForModule(moduleRef string) (closedLocalCoreExecutionProfile, bool) {
+	switch moduleRef {
+	case basementCoreModuleRef:
+		return basementClosedLocalCoreExecutionProfile(), true
+	case basementCoreLiteModuleRef:
+		return basementClosedLocalCoreLiteExecutionProfile(), true
+	default:
+		return closedLocalCoreExecutionProfile{}, false
+	}
+}
+
 type BasementCoreExecutor struct {
 	identity   runtimeexecutor.ExecutorIdentity
 	binding    LocalTargetBinding
@@ -150,12 +253,18 @@ func (e *BasementCoreExecutor) Execute(ctx context.Context, request runtimeexecu
 	if ctx == nil {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Basement core executor requires a context")
 	}
-	profile := basementClosedLocalCoreExecutionProfile()
 	if e == nil || e.operations == nil || strings.TrimSpace(e.binding.SiteRef) == "" ||
 		strings.TrimSpace(e.binding.NodeRef) == "" || strings.TrimSpace(e.binding.ExecutionChannelRef) == "" ||
 		!validCoreHostBootstrapDigest(e.authority.ProviderContractHash) ||
-		!validCoreHostBootstrapDigest(e.authority.ModuleContractHash) || len(e.authority.HealthContractHashes) != len(profile.healthSpecs) {
+		!validCoreHostBootstrapDigest(e.authority.ModuleContractHash) {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Basement core executor requires one explicit authenticated local authority")
+	}
+	if len(request.RuntimeTargets) != 1 {
+		return runtimeexecutor.ExecutionOutcome{}, errors.New("Basement core executor requires one exact runtime target")
+	}
+	profile, supported := basementClosedLocalCoreExecutionProfileForModule(request.RuntimeTargets[0].ModuleRef)
+	if !supported || len(e.authority.HealthContractHashes) != len(profile.healthSpecs) {
+		return runtimeexecutor.ExecutionOutcome{}, errors.New("Basement core executor does not support the selected local profile")
 	}
 	target, health, project, err := validateClosedLocalCoreRequest(request, e.binding, e.authority, profile)
 	if err != nil {
@@ -273,7 +382,7 @@ func validateClosedLocalCoreRequest(request runtimeexecutor.ExecutionRequest, bi
 		serviceExpectations[index] = BasementCoreServiceExpectation(service)
 	}
 	return target, health, BasementCoreProject{
-		ProjectRef: instanceRef, SiteRef: binding.SiteRef, NodeRef: binding.NodeRef,
+		ModuleRef: profile.moduleRef, ProjectRef: instanceRef, SiteRef: binding.SiteRef, NodeRef: binding.NodeRef,
 		ExecutionChannelRef: binding.ExecutionChannelRef, ArtifactID: artifact.ID,
 		ArtifactDigest: artifact.Digest, Definition: append([]byte(nil), artifact.Content...),
 		Services: serviceExpectations, Health: expectations,
@@ -322,6 +431,21 @@ var basementCoreHealthSpecs = []basementCoreHealthSpec{
 	{source: "pocketid-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/", port: 1411, timeout: 30, statuses: []int{200, 302}},
 	{source: "step-ca-tcp", kind: "tcp", targetKind: "module", targetRef: basementCoreModuleRef, port: 9000, timeout: 30},
 	{source: "tinyauth-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/", port: 4000, timeout: 30, statuses: []int{200, 302}},
+}
+
+var basementCoreLiteHealthSpecs = liteBasementCoreHealthSpecs()
+
+func liteBasementCoreHealthSpecs() []basementCoreHealthSpec {
+	result := make([]basementCoreHealthSpec, 0, len(basementCoreHealthSpecs)-1)
+	for _, spec := range basementCoreHealthSpecs {
+		if spec.source == "coolify-http" {
+			continue
+		}
+		spec.targetRef = basementCoreLiteModuleRef
+		spec.statuses = append([]int(nil), spec.statuses...)
+		result = append(result, spec)
+	}
+	return result
 }
 
 func exactClosedLocalCoreHealth(input []runtimeexecutor.HealthTarget, target runtimeexecutor.RuntimeTarget, authority BasementCoreAuthority, profile closedLocalCoreExecutionProfile) ([]runtimeexecutor.HealthTarget, []BasementCoreHealthExpectation, error) {

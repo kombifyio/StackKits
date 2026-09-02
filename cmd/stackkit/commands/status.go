@@ -12,6 +12,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/applyledger"
+	"github.com/kombifyio/stackkits/internal/appsetup"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/docker"
@@ -27,6 +28,7 @@ import (
 
 var (
 	statusJSON             bool
+	statusHTTP             bool
 	statusResolvedPlanPath string
 	statusInventoryPath    string
 )
@@ -51,23 +53,32 @@ Examples:
 
 func init() {
 	statusCmd.Flags().BoolVar(&statusJSON, "json", false, "Output as JSON")
+	statusCmd.Flags().BoolVar(&statusHTTP, "http", false, "Probe verified service routes from this verifier host")
 	statusCmd.Flags().StringVar(&statusResolvedPlanPath, "resolved-plan", "", "Canonical Architecture v2 ResolvedPlan (default: deploy/.stackkit/resolved-plan.json)")
 	statusCmd.Flags().StringVar(&statusInventoryPath, "inventory", "", "Architecture v2 observed Inventory used to identify a configured Standard process runtime")
 }
 
 type architectureV2StatusResult struct {
-	APIVersion            string                              `json:"apiVersion"`
-	StackID               any                                 `json:"stackId"`
-	Kit                   any                                 `json:"kit"`
-	PlanHash              string                              `json:"planHash"`
-	ExecutionReadiness    any                                 `json:"executionReadiness"`
-	Workloads             any                                 `json:"workloads"`
-	ApplicationLifecycles []applicationlifecycle.State        `json:"applicationLifecycles"`
-	FleetLifecycle        map[string]any                      `json:"fleetLifecycle"`
-	ApplyState            string                              `json:"applyState"`
-	Apply                 *architecturev2.ApplyResultSummary  `json:"apply,omitempty"`
-	Runtime               *architectureV2RuntimeVerifySummary `json:"runtime,omitempty"`
-	Observations          []runtimeobservation.Observation    `json:"observations"`
+	APIVersion            string                       `json:"apiVersion"`
+	StackID               any                          `json:"stackId"`
+	Kit                   any                          `json:"kit"`
+	PlanHash              string                       `json:"planHash"`
+	ExecutionReadiness    any                          `json:"executionReadiness"`
+	Workloads             any                          `json:"workloads"`
+	ApplicationLifecycles []applicationlifecycle.State `json:"applicationLifecycles"`
+	// Applications is a derived experience view. Durable lifecycle state and
+	// provider-neutral runtime observations remain the authorities.
+	Applications   []applicationlifecycle.ApplicationExperience `json:"applications"`
+	FleetLifecycle map[string]any                               `json:"fleetLifecycle"`
+	ApplyState     string                                       `json:"applyState"`
+	Apply          *architecturev2.ApplyResultSummary           `json:"apply,omitempty"`
+	Runtime        *architectureV2RuntimeVerifySummary          `json:"runtime,omitempty"`
+	Observations   []runtimeobservation.Observation             `json:"observations"`
+	// applicationAccess is retained only while assembling the derived
+	// experience view. It is deliberately private so status JSON keeps the
+	// established public shape while the projection can still use verified
+	// access URLs when Apply evidence is available.
+	applicationAccess *accessSummary
 	// Outcomes is the per-unit account of the last Apply. Without it a caller
 	// can only learn that an Apply happened, not which of its units are
 	// actually running.
@@ -85,12 +96,18 @@ func runStatus(cmd *cobra.Command, args []string) (retErr error) {
 			)
 		}
 	}()
-	ctx := context.Background()
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	wd := getWorkDir()
 	if architectureV2RejectsV1Execution(version) {
 		retErr = runArchitectureV2Status(cmd, wd)
 		machineResultWritten = retErr == nil && statusJSON
 		return retErr
+	}
+	if statusHTTP {
+		return errors.New("status: --http requires Architecture v2; legacy status has no plan-bound route probe")
 	}
 
 	loader := config.NewLoader(wd)
@@ -210,6 +227,10 @@ func runStatus(cmd *cobra.Command, args []string) (retErr error) {
 }
 
 func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	planPath := strings.TrimSpace(statusResolvedPlanPath)
 	if planPath == "" {
 		planPath = filepath.Join("deploy", ".stackkit", "resolved-plan.json")
@@ -246,19 +267,63 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 		APIVersion: "stackkit.status/v2", StackID: plan["stackId"], Kit: plan["kit"],
 		PlanHash: verified.Binding().PlanHash, ExecutionReadiness: plan["executionReadiness"],
 		Workloads: plan["workloads"], ApplicationLifecycles: lifecycles, FleetLifecycle: fleetProjection,
-		ApplyState: "unavailable", Observations: []runtimeobservation.Observation{},
+		ApplyState: "unavailable", Applications: []applicationlifecycle.ApplicationExperience{}, Observations: []runtimeobservation.Observation{},
 		// The last Apply recorded what each unit did. Report that account here,
 		// so status answers "which parts are running" and not only "an Apply
 		// happened".
 		Outcomes: latestApplyLedger(wd),
 	}
 	statusOptions := architectureV2ExecutionCLIOptions{inventoryPath: statusInventoryPath}
+	statusOptions.context = ctx
+	statusOptions.httpProbe = statusHTTP
 	statusOptions.inventoryData, err = readArchitectureV2Inventory(wd, statusInventoryPath)
 	if err == nil {
 		err = initializeArchitectureV2StatusRuntime(statusOptions, &output)
 	}
 	if err == nil {
 		err = populateArchitectureV2StatusRuntime(wd, verified, statusOptions, &output)
+	}
+	// Application experience is useful even when Apply/runtime evidence is
+	// unavailable: it must expose the selected workloads and their explicit
+	// unverified/blocked axes instead of disappearing with the runtime error.
+	// Only the plan-bound lifecycle store feeds the current setup axis. The
+	// legacy state.yaml journal has no Authority binding and remains outside
+	// this v2 projection, so an old failure cannot mask a current result.
+	var setupRuns []applicationlifecycle.SetupRun
+	setupContracts, setupErr := applicationlifecycle.ContractsFromResolvedPlan(plan)
+	if setupErr == nil {
+		applyHash := ""
+		if output.applicationAccess != nil {
+			applyHash = output.applicationAccess.ApplyResultHash
+		}
+		for _, contract := range setupContracts {
+			input := architectureV2SetupInput(plan, contract, nil)
+			if len(input.ActionRefs) != 1 {
+				continue
+			}
+			runs, readErr := (applicationlifecycle.Store{Workspace: wd}).SetupRuns(contract, applyHash, input.ActionRefs[0])
+			if readErr != nil {
+				setupErr = errors.Join(setupErr, readErr)
+				continue
+			}
+			setupRuns = append(setupRuns, runs...)
+		}
+	}
+	if setupErr != nil {
+		err = errors.Join(err, fmt.Errorf("verify native application setup evidence: %w", setupErr))
+	}
+	applications, experienceErr := buildArchitectureV2ApplicationExperiences(
+		verified, output.ApplicationLifecycles, output.Observations,
+		output.applicationAccess, setupRuns,
+	)
+	if experienceErr == nil {
+		output.Applications = applications
+	} else if err == nil {
+		err = fmt.Errorf("build Application experience: %w", experienceErr)
+	} else {
+		// Preserve the runtime failure as the primary actionable condition while
+		// retaining projection diagnostics for operators.
+		err = errors.Join(err, fmt.Errorf("build Application experience: %w", experienceErr))
 	}
 	if err != nil {
 		action := actionableerror.New(
@@ -302,6 +367,14 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 			status = state.Operations[len(state.Operations)-1].Status
 		}
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s: %s\n", state.WorkloadRef, status)
+	}
+	if len(output.Applications) > 0 {
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Application experience:")
+		for _, application := range output.Applications {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s: installed=%s reachable=%s setup=%s usable=%s recoverable=%s\n",
+				application.WorkloadRef, application.Installed.Status, application.Reachable.Status,
+				application.Setup.Status, application.Usable.Status, application.Recoverable.Status)
+		}
 	}
 	return nil
 }
@@ -367,6 +440,7 @@ func populateArchitectureV2StatusRuntime(
 	if err != nil {
 		return err
 	}
+	output.applicationAccess = access
 	summary := result.Summary()
 	observedAt, observationRunID := historicalRuntimeObservationIdentity(summary.AppliedAt)
 	observations, err := buildArchitectureV2RuntimeObservations(architectureV2RuntimeObservationInput{
@@ -376,6 +450,7 @@ func populateArchitectureV2StatusRuntime(
 		FallbackSiteRef: custody.Binding.SiteRef, FallbackNodeRef: custody.Binding.NodeRef,
 		FallbackChannelRef: custody.Binding.ChannelRef, AccessEvidence: access != nil,
 		RolloutEvidence: rolloutRecorder != nil || deployLog != nil,
+		Context:         options.context, HTTPProbe: options.httpProbe,
 	})
 	if err != nil {
 		return err
@@ -393,7 +468,7 @@ func populateArchitectureV2StatusRuntime(
 func runtimeObservationCounts(observations []runtimeobservation.Observation) (services, probes int) {
 	for _, observation := range observations {
 		services += len(observation.Services)
-		probes += len(observation.Health)
+		probes += len(observation.Health) + len(observation.HTTPProbes)
 	}
 	return services, probes
 }
@@ -441,6 +516,125 @@ func loadApplicationLifecycleEvidence(wd string, plan resolvedplan.ResolvedPlan)
 		states = append(states, state)
 	}
 	return states, nil
+}
+
+func buildArchitectureV2ApplicationExperiences(
+	plan generationartifact.VerifiedPlan,
+	lifecycles []applicationlifecycle.State,
+	observations []runtimeobservation.Observation,
+	access *accessSummary,
+	setupRuns []applicationlifecycle.SetupRun,
+) ([]applicationlifecycle.ApplicationExperience, error) {
+	resolved, err := resolvedplan.DecodeCanonicalPlan(plan.Canonical())
+	if err != nil {
+		return nil, fmt.Errorf("decode verified Plan for application experience: %w", err)
+	}
+	contracts, err := applicationlifecycle.ContractsFromResolvedPlan(resolved)
+	if err != nil {
+		return nil, err
+	}
+	requirements := plan.ApplyRequirements()
+	workloads := make(map[string]generationartifact.ApplyWorkloadRequirement, len(requirements.Workloads))
+	for _, requirement := range requirements.Workloads {
+		workloads[requirement.ID] = requirement
+	}
+	runtimeTargets := make(map[string][]applicationlifecycle.RuntimeTarget)
+	for _, requirement := range requirements.RuntimeInstances {
+		if requirement.WorkloadRef == "" {
+			continue
+		}
+		runtimeTargets[requirement.WorkloadRef] = append(runtimeTargets[requirement.WorkloadRef], applicationlifecycle.RuntimeTarget{
+			RequirementID: requirement.ID, InstanceRef: requirement.InstanceRef,
+		})
+	}
+	stateByWorkload := make(map[string]applicationlifecycle.State, len(lifecycles))
+	for _, state := range lifecycles {
+		stateByWorkload[state.WorkloadRef] = state
+	}
+	urlByService := map[string]string{}
+	if access != nil {
+		for _, service := range access.Services {
+			urlByService[service.Key] = service.URL
+		}
+	}
+	result := make([]applicationlifecycle.ApplicationExperience, 0, len(contracts))
+	for _, contract := range contracts {
+		requirement := workloads[contract.WorkloadRef]
+		serviceRef := architectureV2AccessServiceKey(requirement.ServiceRef)
+		if serviceRef == "" {
+			serviceRef = contract.WorkloadRef
+		}
+		routeRef := architectureV2AccessRouteRef(access, serviceRef)
+		setup := architectureV2SetupInput(resolved, contract, setupRuns)
+		experience, err := applicationlifecycle.ProjectExperience(applicationlifecycle.ExperienceInput{
+			Contract: contract, State: stateByWorkload[contract.WorkloadRef], ServiceRef: serviceRef,
+			RouteRef: routeRef, URL: urlByService[serviceRef], HealthRef: requirement.HealthRef,
+			RuntimeTargets: runtimeTargets[contract.WorkloadRef], Setup: setup, Observations: observations,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if len(setup.ActionRefs) == 1 && setup.Policy == "on-demand" {
+			if description, supported := appsetup.DescribeNativeAction(setup.ActionRefs[0], contract.Delivery.AdapterRef); supported {
+				experience.SetupAction = &applicationlifecycle.ApplicationSetupAction{
+					OperationRef: "stackkit.setup", WorkloadRef: contract.WorkloadRef,
+					Title: description.Title, CredentialFields: description.CredentialFields,
+					CredentialsFile: description.CredentialsFile,
+					GuideURL:        description.GuideURL, SupportsOnboardingCompletion: description.SupportsOnboardingCompletion,
+				}
+			}
+		}
+		result = append(result, experience)
+	}
+	return result, nil
+}
+
+func architectureV2AccessRouteRef(access *accessSummary, serviceRef string) string {
+	if access == nil {
+		return ""
+	}
+	for _, service := range access.Services {
+		if service.Key != serviceRef {
+			continue
+		}
+		if routeRef := strings.TrimSpace(service.RouteRef); routeRef != "" {
+			return routeRef
+		}
+		if routeSlug := strings.TrimSpace(service.RouteSlug); routeSlug != "" {
+			return "route:" + routeSlug
+		}
+		return ""
+	}
+	return ""
+}
+
+func architectureV2SetupInput(plan resolvedplan.ResolvedPlan, contract applicationlifecycle.Contract, runs []applicationlifecycle.SetupRun) applicationlifecycle.SetupInput {
+	input := applicationlifecycle.SetupInput{PlanHash: contract.PlanHash, WorkloadRef: contract.WorkloadRef}
+	if raw, ok := plan["workloads"].([]any); ok {
+		for _, item := range raw {
+			workload, ok := item.(map[string]any)
+			if !ok || workload["id"] != contract.WorkloadRef {
+				continue
+			}
+			alternative, _ := workload["alternative"].(map[string]any)
+			setup, _ := alternative["setup"].(map[string]any)
+			input.Policy, _ = setup["mode"].(string)
+			if actionRefs, ok := setup["actionRefs"].([]any); ok {
+				for _, action := range actionRefs {
+					if value, ok := action.(string); ok {
+						input.ActionRefs = append(input.ActionRefs, value)
+					}
+				}
+			}
+			break
+		}
+	}
+	for _, run := range runs {
+		if run.WorkloadRef == contract.WorkloadRef || (run.WorkloadRef == "" && run.AppName == contract.WorkloadRef) {
+			input.Runs = append(input.Runs, run)
+		}
+	}
+	return input
 }
 
 func buildStatusJSONOutput(spec *models.StackSpec, state *models.DeploymentState, services []models.ServiceState, overallStatus models.DeploymentStatus, access *accessSummary) map[string]interface{} {

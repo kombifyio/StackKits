@@ -92,6 +92,7 @@ type coreHostBootstrapRuntimeInput struct {
 	InstallMode string `json:"installMode"`
 	Runtime     string `json:"runtime"`
 	Engine      string `json:"engine"`
+	Rootless    *bool  `json:"rootless"`
 	DataRoot    string `json:"dataRoot"`
 }
 
@@ -123,6 +124,7 @@ type coreHostBootstrapPolicy struct {
 		InstallMode string `json:"installMode"`
 		Runtime     string `json:"runtime"`
 		Engine      string `json:"engine"`
+		Rootless    bool   `json:"rootless"`
 		DataRoot    string `json:"dataRoot"`
 	} `json:"runtime"`
 	Directories []coreHostBootstrapDirectory `json:"directories"`
@@ -240,8 +242,8 @@ func decodeCoreHostBootstrapRuntime(raw json.RawMessage, path string) (coreHostB
 }
 
 func decodeCoreHostBootstrapRuntimeJSON(value coreHostBootstrapRuntimeInput, path string) (coreHostBootstrapRuntimeInput, error) {
-	if value.InstallMode != "bootstrapped" || value.Runtime != "docker" || value.Engine != "docker" || !cleanAbsolutePath(value.DataRoot) {
-		return value, fail(ErrInvalidPlan, path, "requires exact bootstrapped Docker runtime and an absolute data root")
+	if value.InstallMode != "bootstrapped" || value.Runtime != "docker" || value.Engine != "docker" || value.Rootless == nil || *value.Rootless || value.DataRoot != "/var/lib/docker" {
+		return value, fail(ErrInvalidPlan, path, "requires the bootstrapped rootful Docker runtime at /var/lib/docker")
 	}
 	return value, nil
 }
@@ -314,6 +316,7 @@ func newCoreHostBootstrapPolicy(inputs coreHostBootstrapPlanInputs, runtime core
 	policy.Runtime.InstallMode = runtime.InstallMode
 	policy.Runtime.Runtime = runtime.Runtime
 	policy.Runtime.Engine = runtime.Engine
+	policy.Runtime.Rootless = runtime.Rootless != nil && *runtime.Rootless
 	policy.Runtime.DataRoot = runtime.DataRoot
 	paths := map[string]string{
 		storage.DataRoot:   "data",

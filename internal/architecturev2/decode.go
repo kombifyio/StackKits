@@ -44,6 +44,14 @@ func decodeYAMLObject(data []byte, documentName string) (map[string]any, error) 
 	return resolvedplan.DecodeDocument[map[string]any](jsonData)
 }
 
+// DecodeYAMLObject exposes the resolver's single YAML/JSON normalization
+// boundary to downstream projections that consume the already-admitted v2
+// document. It deliberately shares decodeYAMLObject rather than introducing
+// another parser or partial StackSpec model.
+func DecodeYAMLObject(data []byte, documentName string) (map[string]any, error) {
+	return decodeYAMLObject(data, documentName)
+}
+
 func rejectDuplicateOrNonStringKeys(node *yaml.Node, path string) error {
 	if node == nil {
 		return fmt.Errorf("%s is empty", path)

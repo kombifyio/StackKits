@@ -30,6 +30,21 @@ func basementCoreLiteComponentsJSON() string {
 	return filterCoolifyJSONComponents(basementCoreComponentsJSON)
 }
 
+// BasementCoreLiteServiceContracts returns the exact service graph emitted by
+// the Lite renderer. It is projected from the shared component authority so
+// local Apply and Verify cannot grow a second service list.
+func BasementCoreLiteServiceContracts() []BasementCoreServiceContract {
+	services := BasementCoreServiceContracts()
+	result := make([]BasementCoreServiceContract, 0, len(services))
+	for _, service := range services {
+		if strings.HasPrefix(service.Ref, "coolify") {
+			continue
+		}
+		result = append(result, service)
+	}
+	return result
+}
+
 func basementClosedLocalCoreLiteProfile() closedLocalCoreProfile {
 	return closedLocalCoreProfile{
 		displayName: "Basement core lite", moduleID: basementCoreLiteModuleID, runtimeEngine: "docker",

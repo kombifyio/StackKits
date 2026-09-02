@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	ownerRestoreRecoveryDomain = "stackkit.owner-signed-restore-recovery-anchor/v1\x00"
-	ownerRestoreResultDomain   = "stackkit.owner-signed-restore-result/v1\x00"
+	ownerRestoreRecoveryDomain    = "stackkit.owner-signed-restore-recovery-anchor/v1\x00"
+	ownerRestoreResultDomain      = "stackkit.owner-signed-restore-result/v1\x00"
+	ownerRestoreAbandonmentDomain = "stackkit.owner-signed-restore-abandonment/v1\x00"
 )
 
 // OwnerRestoreRecoverySignature authenticates the exact local Owner approval
@@ -24,6 +25,16 @@ type OwnerRestoreRecoverySignature struct {
 // evidence. It uses a different domain so intent and result signatures cannot
 // be replayed across lifecycle phases.
 type OwnerRestoreResultSignature struct {
+	OwnerRef string `json:"ownerRef"`
+	KeyID    string `json:"keyId"`
+	Value    string `json:"value"`
+}
+
+// OwnerRestoreAbandonmentSignature authenticates the explicit terminal
+// release of one pending or staged restore operation. It uses a separate
+// domain so recovery intent and restore result signatures cannot be replayed
+// as abandonment evidence.
+type OwnerRestoreAbandonmentSignature struct {
 	OwnerRef string `json:"ownerRef"`
 	KeyID    string `json:"keyId"`
 	Value    string `json:"value"`
@@ -90,6 +101,38 @@ func VerifyOwnerRestoreResult(
 		signature.KeyID,
 		signature.Value,
 		"restore result",
+	)
+}
+
+func SignOwnerRestoreAbandonment(
+	workspaceRoot string,
+	canonicalAbandonment []byte,
+) (OwnerRestoreAbandonmentSignature, error) {
+	value, ownerRef, keyID, err := signOwnerRestore(
+		workspaceRoot,
+		canonicalAbandonment,
+		ownerRestoreAbandonmentDomain,
+		"restore abandonment",
+	)
+	if err != nil {
+		return OwnerRestoreAbandonmentSignature{}, err
+	}
+	return OwnerRestoreAbandonmentSignature{OwnerRef: ownerRef, KeyID: keyID, Value: value}, nil
+}
+
+func VerifyOwnerRestoreAbandonment(
+	workspaceRoot string,
+	canonicalAbandonment []byte,
+	signature OwnerRestoreAbandonmentSignature,
+) error {
+	return verifyOwnerRestore(
+		workspaceRoot,
+		canonicalAbandonment,
+		ownerRestoreAbandonmentDomain,
+		signature.OwnerRef,
+		signature.KeyID,
+		signature.Value,
+		"restore abandonment",
 	)
 }
 

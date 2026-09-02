@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/kombifyio/stackkits/internal/architecturev2"
 )
 
 //go:embed surfaces.json
@@ -171,8 +173,8 @@ func WriteWorkspaceFromSpec(root, specPath string) error {
 	if err != nil {
 		return fmt.Errorf("read stack spec for agent-surface: %w", err)
 	}
-	var spec map[string]any
-	if err := json.Unmarshal(raw, &spec); err != nil {
+	spec, err := architecturev2.DecodeYAMLObject(raw, "StackSpec")
+	if err != nil {
 		return fmt.Errorf("decode stack spec for agent-surface: %w", err)
 	}
 	workloads, _ := spec["workloads"].(map[string]any)

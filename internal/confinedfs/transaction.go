@@ -209,6 +209,19 @@ func (t *Transaction) CreatePrivateDirectory(prefix string) (string, error) {
 // regular file beneath an existing directory chain. It never truncates or
 // replaces an existing entry.
 func (t *Transaction) WriteFileExclusive(relative string, data []byte, mode os.FileMode) error {
+	return t.WriteFileExclusiveStream(relative, mode, func(writer io.Writer) error {
+		_, err := io.Copy(writer, bytes.NewReader(data))
+		return err
+	})
+}
+
+// WriteFileExclusiveStream applies the same held-root and exclusive-file
+// guarantees to streamed data, without buffering an archive in memory.
+// The callback must return only after all encoders have been closed.
+func (t *Transaction) WriteFileExclusiveStream(relative string, mode os.FileMode, write func(io.Writer) error) error {
+	if write == nil {
+		return fail(ErrInvalidPath, "transaction-write-exclusive", relative, "stream writer is required")
+	}
 	full, release, err := t.beginPath("transaction-write-exclusive", relative, false)
 	if err != nil {
 		return err
@@ -235,7 +248,7 @@ func (t *Transaction) WriteFileExclusive(relative string, data []byte, mode os.F
 	if err := file.Chmod(mode); err != nil {
 		return wrap(ErrIO, "transaction-write-exclusive", full, "set file permissions through held handle", err)
 	}
-	if _, err := io.Copy(file, bytes.NewReader(append([]byte(nil), data...))); err != nil {
+	if err := write(file); err != nil {
 		return wrap(ErrIO, "transaction-write-exclusive", full, "write held file", err)
 	}
 	if err := file.Sync(); err != nil {
@@ -316,8 +329,9 @@ func (t *Transaction) ReadStable(relative string) ([]byte, os.FileInfo, error) {
 	return data, afterRead, nil
 }
 
-// Rename moves one plain entry between two absent/present root-relative names.
-// The destination must not exist. installed is true once the confined rename
+// Rename moves one plain entry between two root-relative names. The
+// destination must not exist, and the platform operation enforces that
+// constraint atomically. installed is true once the confined rename
 // succeeded, including when a later identity check fails.
 func (t *Transaction) Rename(oldRelative, newRelative string) (installed bool, returnErr error) {
 	oldFull, release, err := t.beginPath("transaction-rename", oldRelative, false)
@@ -335,35 +349,81 @@ func (t *Transaction) Rename(oldRelative, newRelative string) (installed bool, r
 	if err := t.requirePlainParents(newFull); err != nil {
 		return false, err
 	}
-	source, err := t.root.fs.Lstat(nativePath(oldFull))
+	oldParent := path.Dir(oldFull)
+	newParent := path.Dir(newFull)
+	oldName := path.Base(oldFull)
+	newName := path.Base(newFull)
+	view := View{root: t.root}
+	oldParentRoot, oldParentHandle, oldParentInfo, err := view.openAtomicParent(oldParent)
+	if err != nil {
+		return false, err
+	}
+	oldParentClosed := false
+	defer func() {
+		if !oldParentClosed {
+			_ = closeAtomicParent(oldParentRoot, oldParentHandle)
+		}
+	}()
+	newParentRoot, newParentHandle, newParentInfo, err := view.openAtomicParent(newParent)
+	if err != nil {
+		return false, err
+	}
+	newParentClosed := false
+	defer func() {
+		if !newParentClosed {
+			_ = closeAtomicParent(newParentRoot, newParentHandle)
+		}
+	}()
+
+	source, err := oldParentRoot.Lstat(nativePath(oldName))
 	if err != nil {
 		return false, wrap(ErrIO, "transaction-rename", oldFull, "inspect rename source", err)
 	}
 	if !isPlainDirectory(source) && !isPlainRegular(source) {
 		return false, fail(ErrUnsafeEntry, "transaction-rename", oldFull, "rename source must be a plain directory or regular file")
 	}
-	if _, err := t.root.fs.Lstat(nativePath(newFull)); err == nil {
+	if _, err := newParentRoot.Lstat(nativePath(newName)); err == nil {
 		return false, fail(ErrUnsafeEntry, "transaction-rename", newFull, "rename destination already exists")
 	} else if !os.IsNotExist(err) {
 		return false, wrap(ErrIO, "transaction-rename", newFull, "inspect rename destination", err)
 	}
-	if err := t.root.fs.Rename(nativePath(oldFull), nativePath(newFull)); err != nil {
-		return false, wrap(ErrIO, "transaction-rename", oldFull, "rename root-relative entry", err)
+	if err := renameNoReplace(oldParentHandle, newParentHandle, nativePath(oldName), nativePath(newName)); err != nil {
+		if os.IsExist(err) {
+			return false, fail(ErrUnsafeEntry, "transaction-rename", newFull, "rename destination appeared concurrently")
+		}
+		return false, wrap(ErrIO, "transaction-rename", oldFull, "rename root-relative entry without replacement", err)
 	}
 	installed = true
-	destination, err := t.root.fs.Lstat(nativePath(newFull))
+	destination, err := newParentRoot.Lstat(nativePath(newName))
 	if err != nil {
 		return true, wrap(ErrIO, "transaction-rename", newFull, "inspect renamed entry", err)
 	}
 	if (!isPlainDirectory(destination) && !isPlainRegular(destination)) || !os.SameFile(source, destination) {
 		return true, fail(ErrRootChanged, "transaction-rename", newFull, "destination does not identify the renamed entry")
 	}
-	if _, err := t.root.fs.Lstat(nativePath(oldFull)); !os.IsNotExist(err) {
+	if _, err := oldParentRoot.Lstat(nativePath(oldName)); !os.IsNotExist(err) {
 		if err == nil {
 			return true, fail(ErrRootChanged, "transaction-rename", oldFull, "source name still exists after rename")
 		}
 		return true, wrap(ErrIO, "transaction-rename", oldFull, "reinspect rename source", err)
 	}
+	if err := view.verifyAtomicParent(oldParent, oldParentRoot, oldParentHandle, oldParentInfo); err != nil {
+		return true, err
+	}
+	if err := view.verifyAtomicParent(newParent, newParentRoot, newParentHandle, newParentInfo); err != nil {
+		return true, err
+	}
+	if err := t.root.verifyPathIdentityLocked(); err != nil {
+		return true, err
+	}
+	if err := closeAtomicParent(oldParentRoot, oldParentHandle); err != nil {
+		return true, wrap(ErrIO, "transaction-rename", oldParent, "close held source parent", err)
+	}
+	oldParentClosed = true
+	if err := closeAtomicParent(newParentRoot, newParentHandle); err != nil {
+		return true, wrap(ErrIO, "transaction-rename", newParent, "close held destination parent", err)
+	}
+	newParentClosed = true
 	return true, nil
 }
 

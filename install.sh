@@ -345,7 +345,11 @@ print_cli_chain() {
   kit="$1"
   echo "  CLI path (you drive every step; fully parameterizable/automatable):"
   echo "    mkdir my-homelab && cd my-homelab"
-  echo "    stackkit init $kit --non-interactive --owner-source=local"
+  case "$kit" in
+    cloud-kit|modern-homelab) domain_arg=" --domain <your-domain>" ;;
+    *) domain_arg="" ;;
+  esac
+  echo "    stackkit init $kit --api-version stackkit/v2alpha1 --compute-tier standard --non-interactive --owner-source=local$domain_arg"
   echo "    stackkit generate                            # resolve + render artifacts"
   echo "    stackkit apply --auto-approve                # deploy (installs Docker on demand)"
 }

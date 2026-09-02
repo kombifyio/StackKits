@@ -8,7 +8,11 @@
 // demands of a device.
 package hostpreflight
 
-import "time"
+import (
+	"time"
+
+	"github.com/kombifyio/stackkits/internal/hostconformance"
+)
 
 // SchemaVersion identifies the machine-readable preflight report.
 const SchemaVersion = "stackkit.host-preflight/v1"
@@ -118,23 +122,24 @@ type PortFact struct {
 
 // Facts is everything the probe measured about the host.
 type Facts struct {
-	ObservedAt     time.Time   `json:"observedAt"`
-	OS             string      `json:"os"`
-	Distribution   string      `json:"distribution,omitempty"`
-	OSVersion      string      `json:"osVersion,omitempty"`
-	Architecture   string      `json:"architecture"`
-	KernelRelease  string      `json:"kernelRelease,omitempty"`
-	Virtualization string      `json:"virtualization,omitempty"`
-	CPUCores       int         `json:"cpuCores"`
-	CPUBaseline    *bool       `json:"cpuBaselineX8664V2,omitempty"`
-	Memory         MemoryFacts `json:"memory"`
-	CgroupVersion  string      `json:"cgroupVersion,omitempty"`
-	MemoryCgroup   *bool       `json:"memoryCgroupController,omitempty"`
-	NamespacesOK   *bool       `json:"namespacesAvailable,omitempty"`
-	ClockSynced    *bool       `json:"clockSynchronized,omitempty"`
-	Docker         DockerFacts `json:"docker"`
-	Disks          []DiskFact  `json:"disks,omitempty"`
-	Ports          []PortFact  `json:"ports,omitempty"`
+	ObservedAt     time.Time                       `json:"observedAt"`
+	OS             string                          `json:"os"`
+	Distribution   string                          `json:"distribution,omitempty"`
+	OSVersion      string                          `json:"osVersion,omitempty"`
+	Architecture   string                          `json:"architecture"`
+	KernelRelease  string                          `json:"kernelRelease,omitempty"`
+	Virtualization string                          `json:"virtualization,omitempty"`
+	CPUCores       int                             `json:"cpuCores"`
+	CPUBaseline    *bool                           `json:"cpuBaselineX8664V2,omitempty"`
+	InitSystem     hostconformance.InitSystemFacts `json:"initSystem"`
+	Memory         MemoryFacts                     `json:"memory"`
+	CgroupVersion  string                          `json:"cgroupVersion,omitempty"`
+	MemoryCgroup   *bool                           `json:"memoryCgroupController,omitempty"`
+	NamespacesOK   *bool                           `json:"namespacesAvailable,omitempty"`
+	ClockSynced    *bool                           `json:"clockSynchronized,omitempty"`
+	Docker         DockerFacts                     `json:"docker"`
+	Disks          []DiskFact                      `json:"disks,omitempty"`
+	Ports          []PortFact                      `json:"ports,omitempty"`
 }
 
 // Check is one performed admission check.

@@ -1,6 +1,6 @@
 # StackKits Configuration
 
-> Last verified: 2026-07-27
+> Last verified: 2026-09-02
 
 This document collects the runtime configuration surfaces for StackKits. CUE remains the technical contract source of truth; `stack-spec.yaml`, CLI flags, environment variables, registry snapshots, and server settings are inputs or mirrors, not replacements for CUE contracts.
 
@@ -13,17 +13,32 @@ This document collects the runtime configuration surfaces for StackKits. CUE rem
 | CLI flags | Operators or CI | One-run overrides for init, generate, apply, verify, and registry operations. |
 | `stackkit-server` flags/env | Operators or platform | Local API auth, CORS, rate limits, and log directory. |
 | Registry snapshot | Release pipeline | Read-only, CUE-derived catalog mirror baked into CLI/runtime; it has no Admin or DB availability dependency. |
-| Test env vars | CI/operators | Fresh-VM, kombify.me, Simulate, and proxy test credentials. |
+| Historical test-harness inputs | Historical versions only | Removed Fresh-VM, Simulate, provider, DNS-test, and proxy-harness inputs; no native-v2 lifecycle dependency. |
 
 ## Stack Spec
 
 The default spec path is `stack-spec.yaml`. `kombination.yaml` is accepted when
-the default file is missing. Do not hand-author a minimal default:
-`stackkit init --owner-source=local` writes the complete CUE-owned seed. Its
-native-v2 Basement shape includes:
+the default file is missing. `stackkit init` writes the complete CUE-owned seed
+with explicit module profile selections and `--owner-source=local`. For example,
+this selects Core Lite without selecting application workloads:
+
+```bash
+stackkit init basement-kit --platform standalone-compose \
+  --use-case-alternative basement-core=standalone-lite \
+  --module-compute-profile stackkits-basement-core-lite-runtime=low \
+  --owner-source=local --non-interactive
+```
+
+The native-v2 Basement seed is materialized from
+`Definition.authoring.initialSpec` in `basement-kit/stackfile.cue`. The following
+excerpt shows the stable identity, storage, network, and topology shape; use
+the generated file from `stackkit init` for the complete CUE-owned defaults.
+The [Architecture v2 contract](ARCHITECTURE.md) explains its typed concerns;
+[stack-spec-reference.md](stack-spec-reference.md) is the historical v1
+migration reference, not a native authoring template.
 
 ```yaml
-apiVersion: stackkit/v2alpha1
+apiVersion: stackkit/v2alpha2
 kind: StackSpec
 metadata:
   name: my-homelab
@@ -34,17 +49,29 @@ kit:
 install:
   mode: bootstrapped
   runtime: docker
+  platform:
+    management: standalone
+modules:
+  stackkits-basement-core-lite-runtime:
+    enabled: true
+    computeProfile: low
+workloads:
+  basement-core:
+    alternative: standalone-lite
 generation:
   strategy: kit-template
   target: compose
 storage:
-  dataRoot: /absolute/local/path/data
-  backupRoot: /absolute/local/path/backups
-  stacksRoot: /absolute/local/path/stacks
+  dataRoot: /opt/data
+  backupRoot: /opt/backups
+  stacksRoot: /opt/stacks
+  volumeDriver: local
 network:
   mode: private
   domain:
-    base: home.localhost
+    base: home.test
+  tls:
+    defaultMode: internal
 sites:
   - id: home
     kind: home
@@ -60,11 +87,22 @@ controlPlane:
   members: [main]
 ```
 
-`stackkit init --owner-source=local` derives platform-appropriate absolute
+The seed's `home.test` value is a CUE-owned local-domain setting; it does not
+create DNS, map names to loopback, or enable LAN discovery. A client resolves
+`*.home.test` only when that client's resolver path is configured. The separate
+browser-native `*.home.localhost` convention remains a compatibility/runtime
+path and resolves to the loopback interface of the client opening the link, so
+it is target-local and does not provide access from another LAN device. LAN
+access requires an explicitly enabled and realized LAN capability (for example
+the CUE-declared `lan-dns` capability) together with its resolver path. This
+documentation change does not alter either runtime default.
+
+`stackkit init` with `--owner-source=local` derives platform-appropriate absolute
 storage paths and persists Owner custody separately under `.stackkit/custody/`.
 The StackSpec does not contain private keys, Cloud sessions, or an Admin-owned
-identity envelope. The canonical schema and examples are documented in
-[stack-spec-reference.md](stack-spec-reference.md). Generated OpenTofu,
+identity envelope. CUE's `#StackSpecV2` in
+[`foundation/architecture_v2.cue`](../foundation/architecture_v2.cue) owns the
+native schema. Generated OpenTofu,
 Compose, tfvars, scripts, and snapshots are outputs and must not be hand-edited.
 
 ## Global CLI Flags
@@ -78,14 +116,16 @@ Compose, tfvars, scripts, and snapshots are outputs and must not be hand-edited.
 | `--context` | auto | v1 compatibility only. Native v2 `init` rejects it. Migration maps `pi` to `site.kind: home` plus `hardware.profile: pi` (constrained device class, not Raspberry-only). |
 | `--no-log` | `false` | Disable structured deploy logging. |
 
-## Init, Generate, Apply, Verify
+## Init, Prepare, Generate, Apply, Verify
 
 | Command | Important flags/env | Purpose |
 | --- | --- | --- |
-| `stackkit init` (native v2: v0.8+) | `--name`, `--domain`, `--compute-tier`, `--hardware-profile`, `--owner-source=local`, `--expected-spec-hash`, `--non-interactive` | Materialize the selected product's embedded CUE authoring seed as canonical StackSpec v2. `--compute-tier` writes `install.computeTier` (`low` \| `standard` \| `high`; default `standard`) and selects the kit-declared graph. Basement publishes `low` (standalone, no Coolify, Immich without ML) and `high` (`telemetry-collection`); undeclared kit/tier pairs fail closed. `--hardware-profile` writes `nodes[0].hardware.profile` (`standard` \| `pi` \| `gpu` \| `storage`); `pi` is a constrained homelab device class, not Raspberry-only, and is not auto-detected. Basement includes concrete absolute local storage roots; `--owner-source=local` establishes standalone owner custody. Create is atomic no-replace; an existing CUE-valid v2 spec changes only when its exact normalized hash is supplied. `--force` is rejected. Cloud Kit and Modern Home Lab require `--domain`. No empty deployment directory is created and no readiness claim is made. |
+| `stackkit init` (native v2: v0.8+) | `--name`, `--domain`, `--hardware-profile`, `--owner-source=local`, `--expected-spec-hash`, `--non-interactive`; explicit module profile flags for v2alpha2 | Materialize the selected product's embedded CUE authoring seed as canonical StackSpec v2. Native v2alpha2 selects module-local compute, storage, and accelerator profiles; it does not infer a global `install.computeTier`. The explicit v2alpha1 compatibility adapter alone accepts `--compute-tier` and its kit-declared graph. `--hardware-profile` writes `nodes[0].hardware.profile` (`standard` \| `pi` \| `gpu` \| `storage`); `pi` is a constrained homelab device class, not Raspberry-only, and is not auto-detected. Basement includes concrete absolute local storage roots; `--owner-source=local` establishes standalone owner custody. Create is atomic no-replace; an existing CUE-valid v2 spec changes only when its exact normalized hash is supplied. `--force` is rejected. Cloud Kit and Modern Home Lab require `--domain`. No empty deployment directory is created and no readiness claim is made. |
 | Exact-v0.6 `stackkit init` compatibility | `--compute-tier`, `--domain`, `--local-dns`, `--local-name`, `--mode`, `--output`, `--force`, `--non-interactive`, `--admin-email`, `--service-profile` | Historical authoring compatibility only. On that binary `--compute-tier` still fills legacy `ComputeSpec.Tier`. It cannot restore the current-source v1 generator, which is retired across build identities. |
 | `stackkit init` owner bootstrap | `--owner-source=local`, optional exact `--local-site`, `--local-node`, `--local-execution-channel`; legacy v1 flags remain migration-only | Native v2 creates local ownerRef/Ed25519/step-ca custody and desired PocketID projection outside StackSpec. |
 | `stackkit secrets materialize` | global `--spec` / `--chdir` | Explicitly create or reuse owner-bound local custody for every `secret://` reference after a canonical workload change. The command validates intent first, emits no locator/material, and leaves deterministic generation plus Apply free of secret-minting side effects. |
+| `stackkit prepare` (native v2) | `--json`; `STACKKIT_PREFLIGHT` (`strict`, `warn`, or `skip`) | Read-only local host validation through the shared preflight boundary: Docker binary, daemon/user access, Compose, kernel/runtime facts, v2alpha1 kit floor when declared, storage, and required ports. Native v2alpha2 module-local capacity is outside this report and remains unverified here; canonical module admission must use an attested Inventory before Apply. It never installs or configures packages, prepares a remote host, persists inventory, or requires a hosted account. |
+| Exact-v0.6 `stackkit prepare` compatibility | `--host`, `--user`, `--key`, `--port`, `--dry-run`, `--skip-docker`, `--skip-tofu`, `--auto-fix`, `--force`, `--non-interactive` | Historical preparation adapter only; these flags retain their v0.6 behavior on exact-v0.6 artifacts. |
 | `stackkit init` cloud owner handoff (v0.6 compatibility) | `--cloud-oidc-issuer`, `--cloud-oidc-client-id`, `--cloud-oidc-client-secret-ref`, `--cloud-oidc-foreign-subject` | Optional legacy metadata for orchestrator-managed auto owner bootstrap. |
 | `stackkit addon list` | none | On v0.7, list the embedded CUE add-on catalog and, when a canonical v2 spec exists, its validated kit-filtered selection state. This is discovery only. `addon add/remove` remains v0.6 compatibility-only. |
 | `stackkit app add` (v0.6 compatibility) | `<name>`, `--image`, `--kind`, `--port`, `--host`, `--auth`, `--health-path`, repeated `--env`, repeated `--secret` | Add legacy PaaS handoff metadata. Native v2 fails closed: catalog apps remain StackKit-owned, and no TechStack customer-workload desired-state contract exists yet. |
@@ -99,9 +139,10 @@ On the v0.6 compatibility line, `stackkit app add --host` accepts a DNS hostname
 The v0.6 compatibility Basement Kit supports `--service-profile admin-only` for managed first rollouts. Native v2 init rejects this flag because application selection is not part of its initial authoring seed. On v0.6 the profile keeps L1/L2 services and admin access enabled while disabling L3 application modules such as Vaultwarden, Jellyfin, and Immich. The one-line installer exposes the same switch through `STACKKIT_SERVICE_PROFILE=admin-only`.
 
 The public Basement installer installs the released artifacts, initializes local
-Owner custody, and validates StackSpec v2. It does not prepare a host, build a
-server image, or silently apply workloads. Generation and Apply remain explicit
-standalone lifecycle commands.
+Owner custody, and validates StackSpec v2. Native-v2 `stackkit prepare` then
+checks the supplied local host read-only; it does not install or configure host
+packages, prepare a remote host, build a server image, or silently apply
+workloads. Generation and Apply remain explicit standalone lifecycle commands.
 
 ## Platform App Deployment Env
 
@@ -309,24 +350,14 @@ If this dev helper is enabled, `stackkit apply` writes the handoff into `.stackk
 
 | Variable | Purpose |
 | --- | --- |
-| `STACKKIT_LOCAL_DOMAIN` | Overrides the default local domain when no explicit `--domain` or `domain:` is set. Leave unset for the release default `home.localhost`. Generated default links must remain browser-native, portless, and free of hosts-file or DNS setup requirements. |
+| `STACKKIT_LOCAL_DOMAIN` | Compatibility/local-path override when no explicit `--domain` or `domain:` is set. Its existing helper default remains `home.localhost`; native-v2 authoring uses the CUE seed `home.test` or an explicit `--domain`. This variable does not provision DNS or make a name LAN-wide. |
 
-## Production Test Env Vars
+## Retired production-test configuration
 
-| Area | Variables |
-| --- | --- |
-| Fresh Ubuntu VM | `STACKKIT_FRESH_VM_IMAGE`, `STACKKIT_FRESH_VM_KEEP`, `STACKKIT_FRESH_VM_SSH_PORT`, `STACKKIT_FRESH_VM_HTTP_PORT`, `STACKKIT_FRESH_VM_HTTPS_PORT`, `STACKKIT_FRESH_VM_TRAEFIK_PORT`, `STACKKIT_FRESH_VM_OUTPUT` |
-| Scenario artifacts | `STACKKIT_SCENARIO_OUTPUT` |
-| Docker auth injection | `STACKKIT_FRESH_VM_DOCKER_CONFIG`, `STACKKIT_FRESH_VM_DOCKER_CONFIG_JSON` |
-| Local bundle/installer | `STACKKIT_CURRENT_BUNDLE_PATH`, `STACKKIT_BASE_INSTALL_PATH`, `STACKKIT_BASE_INSTALL_URL`, `STACKKIT_INSTALL_URL`, `STACKKIT_SERVER_IMAGE`, `STACKKIT_SERVER_LOCAL_IMAGE` |
-| kombify API | `KOMBIFY_API_URL`, `KOMBIFY_API_KEY`, `KOMBIFY_JWT_TOKEN` |
-| kombify Simulate | `KOMBIFY_SIM_BASE_URL`, `KOMBIFY_SIM_CLIENT_ID`, `KOMBISIM_AUTH_CLOUD_CLIENT_ID`, `KOMBIFY_SIM_REDIRECT_URL`, `KOMBISIM_AUTH_CLOUD_REDIRECT_URL` |
-| Cloudflare DNS tests | `STACKKIT_DNS_TOKEN`, `STACKKIT_DNS_ZONE_ID`, `STACKKIT_DNS_ZONE`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ZONE_ID`, `CLOUDFLARE_EMAIL` |
-| Cloud node defaults | `STACKKIT_E2E_SERVER_PROVIDER`, `STACKKIT_E2E_CLOUD_NODE_ENGINE`, `STACKKIT_TECHSTACK_LEASE_PROVIDER`, `STACKKIT_E2E_CLOUD_NODE_IMAGE`, `STACKKIT_E2E_CLOUD_NODE_REGION` |
-| SSH/proxy jump | `KOMBIFY_PROXY_JUMP`, `KOMBIFY_PROXY_JUMP_KEY`, `KOMBIFY_PROXY_JUMP_KEY_PEM`, `KOMBIFY_PROXY_JUMP_PASSWORD`, `KOMBIFY_SSH_KEY_PATH`, `KOMBIFY_SSH_PASSWORD` |
-
-Fresh-VM release smoke requires Docker authentication when anonymous Docker Hub pulls are rate-limited. Use either `STACKKIT_FRESH_VM_DOCKER_CONFIG` to point to a Docker config file or `STACKKIT_FRESH_VM_DOCKER_CONFIG_JSON` to pass the JSON content directly.
-
-When `STACKKIT_FRESH_VM_HTTP_PORT`, `STACKKIT_FRESH_VM_HTTPS_PORT`, `STACKKIT_FRESH_VM_SSH_PORT`, and `STACKKIT_FRESH_VM_TRAEFIK_PORT` are unset, the local Fresh-VM harness lets Docker allocate isolated host ports and then discovers the mapped ports for SSH and HTTP probes. Set these variables only when a fixed local port is intentionally needed for manual inspection or a dedicated runner.
-
-Cloud production tests default to the `centron-managed` Sim/Lease provider. Provider selection uses `STACKKIT_E2E_SERVER_PROVIDER`, then `STACKKIT_E2E_CLOUD_NODE_ENGINE`, then `STACKKIT_TECHSTACK_LEASE_PROVIDER`, then `centron-managed`; set `STACKKIT_E2E_CLOUD_NODE_REGION` only when a provider requires an explicit region. Provider profiles must stay below the Node contract: StackKit assertions should verify OS, SSH, Docker, public origin, ports, generated service URLs, cleanup, and registry state rather than provider-specific implementation details.
+The current public CLI and native-v2 lifecycle do not consume Fresh-VM,
+Simulate, provider, Cloudflare DNS-test, or SSH/proxy-jump harness variables.
+Those inputs belong to old removed test harnesses and historical release
+versions; they are not current StackKits configuration. Server allocation,
+credentials, cleanup, and compatibility evidence remain TechStack-owned; they
+are not StackKits lifecycle or release prerequisites. Use the documentation
+shipped with the matching historical artifact when reproducing that lane.

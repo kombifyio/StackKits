@@ -433,8 +433,19 @@ func RenderBasementCoreComposeForDomain(domain string) []byte {
 }
 
 func ValidateBasementCoreComposeArtifact(content []byte) bool {
+	return validateBasementCoreComposeArtifact(content, RenderBasementCoreComposeForDomain)
+}
+
+// ValidateBasementCoreLiteComposeArtifact validates the Lite artifact against
+// the same immutable renderer family while preserving Lite's reduced service
+// graph and output contract.
+func ValidateBasementCoreLiteComposeArtifact(content []byte) bool {
+	return validateBasementCoreComposeArtifact(content, RenderBasementCoreLiteComposeForDomain)
+}
+
+func validateBasementCoreComposeArtifact(content []byte, render func(string) []byte) bool {
 	match := regexp.MustCompile("id\\.([a-z0-9.-]+)`").FindSubmatch(content)
-	return len(match) == 2 && bytes.Equal(content, RenderBasementCoreComposeForDomain(string(match[1])))
+	return len(match) == 2 && bytes.Equal(content, render(string(match[1])))
 }
 
 // BasementCoreServiceContract is the secret-free, pinned service identity

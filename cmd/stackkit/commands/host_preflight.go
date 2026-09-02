@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2"
@@ -65,14 +66,16 @@ func resolveHostPreflightPolicy(requested string) (hostpreflight.Policy, error) 
 }
 
 // evaluateHostPreflight measures this host against the floor the named kit
-// declares in the embedded authority. An unknown kit still yields the runtime
-// checks; only the declared resource floors are then unavailable.
+// declares in the embedded authority when that floor belongs to the compatible
+// v2alpha1 surface. Native v2alpha2 module demand stays out of this general
+// report; an unknown kit still yields the runtime checks.
 func evaluateHostPreflight(ctx context.Context, workspace, kitSlug string, policy hostpreflight.Policy) hostpreflight.Report {
 	if policy == hostpreflight.PolicySkip {
 		return hostpreflight.Evaluate(hostpreflight.Facts{}, hostpreflight.Requirements{}, kitSlug, policy)
 	}
 	requirements := hostpreflight.Requirements{}
-	if strings.TrimSpace(kitSlug) != "" {
+	nativeModuleProfiles := hostPreflightUsesNativeModuleProfiles(workspace)
+	if !nativeModuleProfiles && strings.TrimSpace(kitSlug) != "" {
 		if definition, err := architecturev2.EmbeddedKitDefinition(kitSlug); err == nil {
 			requirements = hostpreflight.RequirementsFromDefinitionForTier(definition, hostPreflightComputeTier(workspace))
 		}
@@ -84,19 +87,71 @@ func evaluateHostPreflight(ctx context.Context, workspace, kitSlug string, polic
 	return hostpreflight.Evaluate(facts, requirements, kitSlug, policy)
 }
 
+// evaluateNativeV2HostPreflight adds the bounded native-v2 limitation to the
+// general read-only report. Apply keeps using evaluateHostPreflight so an
+// already admitted canonical ResolvedPlan is not blocked by a prepare-only
+// observation that cannot measure module-local demand.
+func evaluateNativeV2HostPreflight(ctx context.Context, workspace, kitSlug string, policy hostpreflight.Policy) hostpreflight.Report {
+	report := evaluateHostPreflight(ctx, workspace, kitSlug, policy)
+	if hostPreflightUsesNativeModuleProfiles(workspace) {
+		return markNativeModuleCapacityUnverified(report)
+	}
+	return report
+}
+
+// hostPreflightUsesNativeModuleProfiles keeps the v2alpha2 path out of the
+// v2alpha1-only kit-wide compute-tier projection. Its selected module demand is
+// owned by the canonical module admission/ResolvedPlan path, so this general
+// host preflight reports that capacity as unverified rather than guessing a
+// global low, standard, or high tier.
+func hostPreflightUsesNativeModuleProfiles(workspace string) bool {
+	loaded, err := config.NewLoader(workspace).ReadStackSpecDocument(specFile)
+	if err != nil {
+		return false
+	}
+	document, err := stackspecmigration.Read(loaded.Document.Raw)
+	return err == nil && document.Version == stackspecmigration.SourceVersionV2Alpha2
+}
+
+func markNativeModuleCapacityUnverified(report hostpreflight.Report) hostpreflight.Report {
+	if report.Policy == hostpreflight.PolicySkip {
+		return report
+	}
+	report.Checks = append(report.Checks, hostpreflight.Check{
+		ID:      "module-capacity",
+		Status:  hostpreflight.StatusUnknown,
+		Summary: "Native v2alpha2 module-local capacity is not measured by this host preflight",
+		Remediation: []string{
+			"Resolve and generate with an attested local Inventory before Apply; selected module profiles own their capacity demand.",
+		},
+	})
+	sort.SliceStable(report.Checks, func(i, j int) bool { return report.Checks[i].ID < report.Checks[j].ID })
+	if report.Status != hostpreflight.StatusBlocked {
+		report.Status = hostpreflight.StatusUnknown
+		report.Admitted = report.Policy != hostpreflight.PolicyStrict
+	}
+	return report
+}
+
 func hostPreflightComputeTier(workspace string) string {
+	// This kit-wide floor is retained for the explicit v2alpha1 compatibility
+	// adapter. Native v2alpha2 admission uses module-local profiles instead.
 	loader := config.NewLoader(workspace)
 	loaded, err := loader.ReadStackSpecDocument(specFile)
 	if err != nil {
 		return "standard"
 	}
 	var view struct {
-		Install struct {
+		APIVersion string `yaml:"apiVersion"`
+		Install    struct {
 			ComputeTier string `yaml:"computeTier"`
 		} `yaml:"install"`
 	}
 	if err := yaml.Unmarshal(loaded.Document.Raw, &view); err != nil {
 		return "standard"
+	}
+	if view.APIVersion == stackspecmigration.APIVersionV2Alpha2 {
+		return ""
 	}
 	tier := strings.TrimSpace(view.Install.ComputeTier)
 	if tier == "" {
@@ -135,13 +190,17 @@ func printHostPreflightReport(report hostpreflight.Report) {
 		case hostpreflight.StatusWarning:
 			printWarning("%s: %s", check.ID, check.Summary)
 		case hostpreflight.StatusUnknown:
-			printVerbose("%s: %s", check.ID, check.Summary)
+			if check.ID == "module-capacity" {
+				printWarning("%s: %s", check.ID, check.Summary)
+			} else {
+				printVerbose("%s: %s", check.ID, check.Summary)
+			}
 		case hostpreflight.StatusSkipped:
 			printVerbose("%s: %s", check.ID, check.Summary)
 		default:
 			printVerbose("%s: %s", check.ID, check.Summary)
 		}
-		if check.Status == hostpreflight.StatusBlocked || check.Status == hostpreflight.StatusWarning {
+		if check.Status == hostpreflight.StatusBlocked || check.Status == hostpreflight.StatusWarning || check.ID == "module-capacity" {
 			for _, guidance := range check.Remediation {
 				if strings.EqualFold(strings.TrimRight(guidance, "."), strings.TrimRight(check.Summary, ".")) {
 					continue
@@ -170,7 +229,7 @@ configures anything. Apply runs the same admission before it mutates the host.`,
 				return err
 			}
 			workspace := getWorkDir()
-			report := evaluateHostPreflight(cmd.Context(), workspace, workspaceKitSlug(workspace), policy)
+			report := evaluateNativeV2HostPreflight(cmd.Context(), workspace, workspaceKitSlug(workspace), policy)
 			if hostPreflightJSON {
 				status := "success"
 				if !report.Admitted {

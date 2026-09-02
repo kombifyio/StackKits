@@ -139,6 +139,14 @@ test('module profile projection exposes independent dimensions and explicit alte
   assert.ok(photos.data.modules.some(({ profiles }) => profiles.some(([id]) => id === 'low')))
   assert.ok(result.data.modules.every(({ storage_profiles, accelerator_profiles }) =>
     Array.isArray(storage_profiles) && Array.isArray(accelerator_profiles)))
+  const fullPhotos = await session.invoke('stackkits_get_module_profiles', {
+    stackkit_id: 'basement-kit', module_id: 'stackkits-immich-runtime',
+  })
+  assert.deepEqual(Object.fromEntries(fullPhotos.data.modules[0].host_requirements
+    .flatMap(({ profile_ids, requirements }) => profile_ids.map((id) => [id, requirements]))),
+    Object.fromEntries(catalog.kits.find(({ stackkit_id }) => stackkit_id === 'basement-kit')
+      .modules.find(({ module_id }) => module_id === 'stackkits-immich-runtime').compute_profiles
+      .map(({ id, host_requirements }) => [id, host_requirements])))
   const policy = await session.invoke('stackkits_get_module_profiles', {
     stackkit_id: 'basement-kit', module_id: 'stackkits-home-backup-target',
   })
@@ -183,7 +191,13 @@ test('native initial workloads are required before a WebMCP handoff can be ready
 })
 
 test('mixed module profiles expose per-axis unverified facts without recommendation selection', async () => {
-  const session = createPlannerSession(catalog)
+  const partial = structuredClone(catalog)
+  const photo = partial.kits.find(({ stackkit_id }) => stackkit_id === 'basement-kit')
+    .modules.find(({ module_id }) => module_id === 'stackkits-immich-lite-runtime').compute_profiles[0]
+  delete photo.host_floor
+  photo.capacity_declaration = 'partial'
+  await rehashCatalog(partial)
+  const session = createPlannerSession(partial)
   const selection = selectionFor('basement-kit', [
     { use_case_id: 'basement-core', alternative_id: 'standalone-lite' },
     { use_case_id: 'photos', alternative_id: 'immich-lite' },
@@ -421,8 +435,12 @@ test('registration discovers v2 tools and rejects a tampered direct catalog', as
   const session = createPlannerSession(catalog, { sourceSha: catalog.source_sha })
   const registration = await registerStackKitsWebMcp({ document, session, sourceSha: catalog.source_sha })
   assert.equal(registration.registered, true)
+  assert.equal(registration.status.code, 'ready')
   assert.deepEqual(registered.map(({ name }) => name), [...TOOL_NAMES])
   registration.dispose()
+
+  const unavailable = await registerStackKitsWebMcp({ document: {}, session, sourceSha: catalog.source_sha })
+  assert.equal(unavailable.status.code, 'browser_api_unavailable')
 
   const tampered = structuredClone(catalog)
   tampered.kits[0].status = `${tampered.kits[0].status}-tampered`
@@ -430,7 +448,21 @@ test('registration discovers v2 tools and rejects a tampered direct catalog', as
   const badDocument = { modelContext: { registerTool(tool) { rejected.push(tool) } } }
   const badRegistration = await registerStackKitsWebMcp({ document: badDocument, catalog: tampered })
   assert.equal(badRegistration.registered, false)
+  assert.equal(badRegistration.status.code, 'catalog_integrity_failed')
   assert.equal(rejected.length, 0)
+
+  const mismatch = await registerStackKitsWebMcp({ document, session, sourceSha: '0'.repeat(40) })
+  assert.equal(mismatch.status.code, 'catalog_source_mismatch')
+
+  const failed = await registerStackKitsWebMcp({
+    document: { modelContext: { registerTool() { throw new Error('registration rejected') } } }, session, sourceSha: catalog.source_sha,
+  })
+  assert.equal(failed.status.code, 'registration_failed')
+
+  const timedOut = await registerStackKitsWebMcp({
+    document, fetcher: () => new Promise(() => {}), catalogLoadOptions: { timeoutMs: 10 },
+  })
+  assert.equal(timedOut.status.code, 'catalog_fetch_timeout')
 })
 
 function selectionFor(stackkitId, useCases, preferredProfile) {

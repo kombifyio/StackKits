@@ -20,7 +20,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
-	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/localbackupschedule"
 	"github.com/spf13/cobra"
 )
 
@@ -33,6 +33,7 @@ const (
 	nativeV2BackupStatus    nativeV2BackupOperation = "status"
 	nativeV2BackupRun       nativeV2BackupOperation = "run"
 	nativeV2BackupRestore   nativeV2BackupOperation = "restore"
+	nativeV2BackupAbandon   nativeV2BackupOperation = "restore-abandon"
 )
 
 type nativeV2BackupAuthority struct {
@@ -45,6 +46,7 @@ type nativeV2BackupAuthority struct {
 	PolicyDigest     string
 	PolicyArtifact   []byte
 	Policy           localbackuppolicy.Policy
+	AppliedAuthority *nativeV2AppliedAuthority
 	LegacyBeta4      *publicUpgradeBridge
 	HistoricalStable *publicUpgradeBridge
 }
@@ -60,6 +62,7 @@ type nativeV2BackupRequest struct {
 	OperationID      string
 	SnapshotAnchorID string
 	OwnerApproved    bool
+	Scheduled        bool
 }
 
 var (
@@ -87,6 +90,17 @@ func runNativeV2BackupRestoreCommand(
 	})
 }
 
+func runNativeV2BackupRestoreAbandonCommand(
+	cmd *cobra.Command,
+	operationID string,
+	ownerApproved bool,
+) error {
+	return runNativeV2BackupRequest(cmd, nativeV2BackupAbandon, nativeV2BackupRequest{
+		OperationID:   strings.TrimSpace(operationID),
+		OwnerApproved: ownerApproved,
+	})
+}
+
 func runNativeV2BackupRequest(
 	cmd *cobra.Command,
 	operation nativeV2BackupOperation,
@@ -98,16 +112,24 @@ func runNativeV2BackupRequest(
 	if operation == nativeV2BackupConfigure && cmd.Flags().Lookup("repo") != nil {
 		return errors.New("native v2 backup repository paths are CUE-owned; --repo is not accepted")
 	}
-	operationID, err := normalizeNativeV2BackupOperationID(operation, request.OperationID)
-	if err != nil {
-		return err
+	if request.Scheduled && (operation != nativeV2BackupRun || request.OperationID != "" || request.SnapshotAnchorID != "") {
+		return errors.New("scheduled backup must use the ordinary run operation with a schedule-owned operation ID")
 	}
-	request.OperationID = operationID
-	if operation == nativeV2BackupRestore {
+	if !request.Scheduled {
+		operationID, err := normalizeNativeV2BackupOperationID(operation, request.OperationID)
+		if err != nil {
+			return err
+		}
+		request.OperationID = operationID
+	}
+	if operation == nativeV2BackupRestore || operation == nativeV2BackupAbandon {
 		if !request.OwnerApproved {
+			if operation == nativeV2BackupAbandon {
+				return errors.New("native v2 restore abandonment requires --owner-approve")
+			}
 			return errors.New("native v2 restore requires --owner-approve")
 		}
-		if !nativeV2BackupDigestPattern.MatchString(request.SnapshotAnchorID) {
+		if operation == nativeV2BackupRestore && !nativeV2BackupDigestPattern.MatchString(request.SnapshotAnchorID) {
 			return errors.New("native v2 restore requires a sha256 snapshot-anchor ID")
 		}
 	}
@@ -130,6 +152,22 @@ func runNativeV2BackupRequest(
 			if !sameNativeV2BackupAuthority(initial, current) {
 				return errors.New("native v2 backup authority changed while acquiring the output lock")
 			}
+			var scheduleAuthorization localbackupschedule.Authorization
+			if request.Scheduled {
+				var alreadyHandled bool
+				scheduleAuthorization, alreadyHandled, inspectErr = authorizeScheduledNativeBackup(ctx, current)
+				if inspectErr != nil {
+					return inspectErr
+				}
+				if alreadyHandled {
+					result = nativeBackupScheduleNoop{APIVersion: "stackkit.local-backup-scheduled-dispatch/v1", State: "no-snapshot-due", LastExecution: scheduleAuthorization.Execution}
+					return nil
+				}
+				if scheduleAuthorization.Execution == nil || scheduleAuthorization.Execution.OperationID == "" {
+					return errors.New("scheduled backup has no admitted pending operation")
+				}
+				request.OperationID = scheduleAuthorization.Execution.OperationID
+			}
 			var (
 				lifecycleRuns  []architectureV2ApplicationLifecycleRun
 				lifecycleStage string
@@ -149,6 +187,9 @@ func runNativeV2BackupRequest(
 				}
 			}
 			result, inspectErr = continueNativeV2Backup(ctx, operation, current, request)
+			if inspectErr == nil && request.Scheduled {
+				inspectErr = completeScheduledNativeBackup(current, scheduleAuthorization, result)
+			}
 			if inspectErr != nil {
 				return failArchitectureV2ApplicationLifecycles(
 					workspace, lifecycleRuns,
@@ -229,146 +270,47 @@ func nativeV2BackupApplicationLifecycleEvidence(
 }
 
 func inspectNativeV2BackupAuthority(ctx context.Context, workspace, requestedSpec string) (nativeV2BackupAuthority, error) {
-	heldRoot, err := confinedfs.Open(workspace)
+	applied, err := inspectNativeV2AppliedAuthority(ctx, workspace, requestedSpec)
 	if err != nil {
 		return nativeV2BackupAuthority{}, err
 	}
-	defer func() { _ = heldRoot.Close() }()
-	workspace = heldRoot.Name()
+	heldRoot, err := confinedfs.Open(applied.WorkspaceRoot)
+	if err != nil {
+		return nativeV2BackupAuthority{}, err
+	}
+	defer heldRoot.Close()
 	transaction, err := heldRoot.BeginTransaction()
 	if err != nil {
 		return nativeV2BackupAuthority{}, err
 	}
-	defer func() { _ = transaction.Close() }()
-
-	var inspection generationartifact.PlanInspection
-	gate := newArchitectureV2ExecutionGate()
-	handled, err := gate.preflight(workspace, requestedSpec, architectureV2Plan, architectureV2ExecutionCLIOptions{
-		context: ctx,
-		inspectionSink: func(value generationartifact.PlanInspection) error {
-			inspection = value
-			return nil
-		},
-	})
+	defer transaction.Close()
+	coreModuleRef, policyArtifactRequirement, err := nativeV2BackupPolicyRequirement(
+		applied.Plan, applied.Owner.Binding.SiteRef, applied.Owner.Binding.NodeRef,
+	)
 	if err != nil {
 		return nativeV2BackupAuthority{}, err
 	}
-	if !handled || inspection.APIVersion != generationartifact.PlanInspectionAPIVersion ||
-		inspection.Kind != generationartifact.PlanInspectionKind ||
-		inspection.VerifiedPhase != generationartifact.ExecutionPhaseGeneration ||
-		inspection.Readiness.Generation.Status != "ready" ||
-		inspection.Readiness.Apply.Status != "ready" ||
-		len(inspection.Readiness.Generation.Blockers) != 0 ||
-		len(inspection.Readiness.Apply.Blockers) != 0 ||
-		inspection.ExecutorInvoked {
-		return nativeV2BackupAuthority{}, errors.New("native v2 backup requires the exact generation- and Apply-ready Architecture v2 closure")
-	}
-
-	planPath := filepath.Join(workspace, filepath.FromSlash(inspection.OutputRoot), ".stackkit", "resolved-plan.json")
-	authority, err := gate.newAuthority()
+	policyArtifact, policyDigest, policy, err := readNativeV2BackupPolicyForArtifact(
+		transaction, applied.Manifest, policyArtifactRequirement.ID,
+	)
 	if err != nil {
 		return nativeV2BackupAuthority{}, err
 	}
-	if closer, ok := authority.(interface{ Close() error }); ok {
-		defer func() { _ = closer.Close() }()
-	}
-	plan, err := authority.ReadCanonicalPlan(planPath)
-	if err != nil {
-		return nativeV2BackupAuthority{}, err
-	}
-	if plan.Binding() != inspection.Binding || plan.OutputRoot() != inspection.OutputRoot {
-		return nativeV2BackupAuthority{}, errors.New("native v2 backup plan differs from the verified inspection")
-	}
-	_, manifestPath, receiptPath := plan.MetadataPaths(workspace)
-	manifest, err := generationartifact.ReadManifest(manifestPath)
-	if err != nil {
-		return nativeV2BackupAuthority{}, err
-	}
-	manifestRaw, _, err := transaction.ReadStable(workspaceRelativeBackupPath(workspace, manifestPath))
-	if err != nil {
-		return nativeV2BackupAuthority{}, err
-	}
-	canonicalManifest, err := manifest.MarshalCanonical()
-	if err != nil || !bytes.Equal(manifestRaw, canonicalManifest) {
-		return nativeV2BackupAuthority{}, errors.New("native v2 backup manifest changed during stable inspection")
-	}
-	receipt, err := generationartifact.ReadReceipt(receiptPath)
-	if err != nil {
-		return nativeV2BackupAuthority{}, err
-	}
-	receiptRaw, _, err := transaction.ReadStable(workspaceRelativeBackupPath(workspace, receiptPath))
-	if err != nil {
-		return nativeV2BackupAuthority{}, err
-	}
-	canonicalReceipt, err := receipt.MarshalCanonical()
-	if err != nil || !bytes.Equal(receiptRaw, canonicalReceipt) {
-		return nativeV2BackupAuthority{}, errors.New("native v2 backup generation receipt changed during stable inspection")
-	}
-	manifestHash, err := manifest.Hash()
-	if err != nil || manifestHash != inspection.Manifest.Hash {
-		return nativeV2BackupAuthority{}, errors.New("native v2 backup manifest differs from the verified inspection")
-	}
-	generationReceiptHash, err := receipt.Hash()
-	if err != nil {
-		return nativeV2BackupAuthority{}, err
-	}
-
-	policyArtifact, policyDigest, policy, err := readNativeV2BackupPolicy(transaction, manifest)
-	if err != nil {
-		return nativeV2BackupAuthority{}, err
-	}
-	owner, err := localevidence.LoadOwnerCustody(workspace)
-	if err != nil {
-		return nativeV2BackupAuthority{}, fmt.Errorf("verify local owner custody: %w", err)
-	}
-	if policy.Target.SiteRef != owner.Binding.SiteRef || policy.Target.NodeRef != owner.Binding.NodeRef {
+	if policy.Target.SiteRef != applied.Owner.Binding.SiteRef || policy.Target.NodeRef != applied.Owner.Binding.NodeRef {
 		return nativeV2BackupAuthority{}, errors.New("local Kopia policy target differs from owner custody")
 	}
-
-	verifyRaw, err := newArchitectureV2ProductVerifyAuthority(workspace, architectureV2ExecutionCLIOptions{})
-	if err != nil {
-		return nativeV2BackupAuthority{}, err
+	if policy.Source.CoreModuleRef != "" && policy.Source.CoreModuleRef != coreModuleRef {
+		return nativeV2BackupAuthority{}, errors.New("local Kopia policy source differs from the applied Core profile")
 	}
-	if closer, ok := verifyRaw.(interface{ Close() error }); ok {
-		defer func() { _ = closer.Close() }()
-	}
-	verifyAuthority, ok := verifyRaw.(architectureV2ProductVerifyAuthority)
-	if !ok {
-		return nativeV2BackupAuthority{}, errors.New("native v2 backup Apply verifier is unavailable")
-	}
-	verifiedApply, err := readCurrentArchitectureV2ApplyResult(workspace, plan.Binding(), func(data []byte) (architecturev2.VerifiedApplyResult, error) {
-		return verifyAuthority.VerifyProductApplyResult(architecturev2.ProductApplyResultVerificationInput{
-			Plan: plan, Manifest: manifest, Receipt: receipt, Versions: gate.versions, Result: data,
-		})
-	})
-	if err != nil {
-		return nativeV2BackupAuthority{}, err
-	}
-	ownerSummary, _, err := verifyArchitectureV2LocalState(ctx, workspace, plan, manifest, true)
-	if err != nil {
-		return nativeV2BackupAuthority{}, err
-	}
-	if ownerSummary.OwnerRef != owner.OwnerRef {
-		return nativeV2BackupAuthority{}, errors.New("offline owner verification differs from local custody")
-	}
-	applyReceiptHash, err := currentApplyReceiptHash(workspace, transaction, verifiedApply)
-	if err != nil {
-		return nativeV2BackupAuthority{}, err
+	if coreModuleRef == localbackuppolicy.CoreLiteModuleRef && policy.Source.CoreModuleRef != coreModuleRef {
+		return nativeV2BackupAuthority{}, errors.New("CoreLite local Kopia policy must carry its explicit Core profile")
 	}
 	return nativeV2BackupAuthority{
-		OwnerRef: owner.OwnerRef, AuthorityRef: owner.Trust.HumanAuthorityRef, WorkspaceRoot: workspace,
-		OutputRoot: inspection.OutputRoot, Plan: plan,
-		Lineage: backuplifecycle.AuthorityLineage{
-			Binding: inspection.Binding, ManifestHash: manifestHash,
-			GenerationReceiptHash: generationReceiptHash,
-			ApplyResultHash:       verifiedApply.ResultHash(), ApplyReceiptHash: applyReceiptHash,
-			OwnerBindingDigest: ownerSummary.OwnerBindingDigest,
-			PocketIDSubject:    ownerSummary.PocketIDSubject,
-		},
-		PolicyDigest: policyDigest, PolicyArtifact: policyArtifact, Policy: policy,
+		OwnerRef: applied.OwnerRef, AuthorityRef: applied.AuthorityRef, WorkspaceRoot: applied.WorkspaceRoot,
+		OutputRoot: applied.OutputRoot, Plan: applied.Plan, Lineage: applied.Lineage,
+		PolicyDigest: policyDigest, PolicyArtifact: policyArtifact, Policy: policy, AppliedAuthority: &applied,
 	}, nil
 }
-
 func verifyNativeV2BackupRestore(
 	ctx context.Context,
 	expected nativeV2BackupAuthority,
@@ -436,6 +378,9 @@ func verifyNativeV2BackupRestore(
 		owner.PocketIDSubject != current.Lineage.PocketIDSubject {
 		return backuplifecycle.RestoreVerification{}, errors.New("native v2 restore post-verifier did not prove the current local service and Owner closure")
 	}
+	if err := verifyNativeV2BackupApplications(ctx, current); err != nil {
+		return backuplifecycle.RestoreVerification{}, err
+	}
 	return backuplifecycle.RestoreVerification{
 		APIVersion:         "stackkit.local-backup-restore-verification/v1",
 		OwnerRef:           owner.OwnerRef,
@@ -447,14 +392,80 @@ func verifyNativeV2BackupRestore(
 	}, nil
 }
 
+// nativeV2BackupPolicyRequirement selects the one source-policy artifact and
+// its applied Core runtime from the already verified Plan-owned Apply
+// requirements. It does not infer a profile from generated Compose or from a
+// default compute tier.
+func nativeV2BackupPolicyRequirement(
+	plan generationartifact.VerifiedPlan,
+	siteRef string,
+	nodeRef string,
+) (string, generationartifact.ApplyArtifactRequirement, error) {
+	requirements := plan.ApplyRequirements()
+	var (
+		selected generationartifact.ApplyArtifactRequirement
+		matches  int
+	)
+	for _, candidate := range requirements.Artifacts {
+		if candidate.OwnerKind != "render-instance" ||
+			candidate.UnitRef != "source-policy" ||
+			candidate.Kind != "native-config" || candidate.Format != "json" ||
+			candidate.Mode != "0600" ||
+			candidate.ExecutionClass != generationartifact.ApplyExecutionClassArtifactOnly {
+			continue
+		}
+		if candidate.ModuleRef != localbackuppolicy.CoreModuleRef &&
+			candidate.ModuleRef != localbackuppolicy.CoreLiteModuleRef {
+			continue
+		}
+		if len(candidate.SiteRefs) != 1 || candidate.SiteRefs[0] != siteRef ||
+			len(candidate.NodeRefs) != 1 || candidate.NodeRefs[0] != nodeRef {
+			continue
+		}
+		selected = candidate
+		matches++
+	}
+	if matches != 1 || selected.ID == "" || selected.InstanceRef == "" || selected.OutputRef == "" {
+		return "", generationartifact.ApplyArtifactRequirement{}, errors.New(
+			"native v2 backup requires exactly one applied Full-Core or CoreLite source-policy artifact",
+		)
+	}
+	runtimeMatches := 0
+	for _, runtime := range requirements.RuntimeInstances {
+		if runtime.OwnerKind == "module" && runtime.ModuleRef == selected.ModuleRef &&
+			runtime.UnitRef == "compose" && runtime.InstanceRef != "" &&
+			len(runtime.SiteRefs) == 1 && runtime.SiteRefs[0] == siteRef &&
+			len(runtime.NodeRefs) == 1 && runtime.NodeRefs[0] == nodeRef {
+			runtimeMatches++
+		}
+	}
+	if runtimeMatches != 1 {
+		return "", generationartifact.ApplyArtifactRequirement{}, errors.New(
+			"native v2 backup requires exactly one applied Core runtime for its source-policy profile",
+		)
+	}
+	return selected.ModuleRef, selected, nil
+}
+
+// readNativeV2BackupPolicy retains the historical Full-Core artifact lookup
+// used by pre-profile upgrade bridges. New native-v2 callers use the
+// Plan-owned requirement above so CoreLite cannot inherit Full-Core output.
 func readNativeV2BackupPolicy(
 	transaction *confinedfs.Transaction,
 	manifest generationartifact.ArtifactManifest,
 ) ([]byte, string, localbackuppolicy.Policy, error) {
+	return readNativeV2BackupPolicyForArtifact(transaction, manifest, nativeV2BackupPolicyArtifactID)
+}
+
+func readNativeV2BackupPolicyForArtifact(
+	transaction *confinedfs.Transaction,
+	manifest generationartifact.ArtifactManifest,
+	artifactID string,
+) ([]byte, string, localbackuppolicy.Policy, error) {
 	var artifact generationartifact.RenderedArtifact
 	count := 0
 	for _, candidate := range manifest.Artifacts {
-		if candidate.ID == nativeV2BackupPolicyArtifactID {
+		if candidate.ID == artifactID {
 			artifact = candidate
 			count++
 		}
@@ -516,11 +527,14 @@ func workspaceRelativeBackupPath(workspace, target string) string {
 }
 
 func normalizeNativeV2BackupOperationID(operation nativeV2BackupOperation, requested string) (string, error) {
-	if operation != nativeV2BackupRun && operation != nativeV2BackupRestore {
+	if operation != nativeV2BackupRun && operation != nativeV2BackupRestore && operation != nativeV2BackupAbandon {
 		return "", nil
 	}
 	requested = strings.TrimSpace(requested)
 	if requested == "" {
+		if operation == nativeV2BackupAbandon {
+			return "", errors.New("restore abandonment requires an exact --operation-id")
+		}
 		random := make([]byte, 8)
 		if _, err := rand.Read(random); err != nil {
 			return "", fmt.Errorf("generate backup operation ID: %w", err)
@@ -554,6 +568,42 @@ func sameNativeV2BackupAuthority(left, right nativeV2BackupAuthority) bool {
 func emitNativeV2BackupResult(cmd *cobra.Command, operation nativeV2BackupOperation, result any) error {
 	if backupOutputJSON {
 		return writeCommandResult(cmd, cmd.CommandPath(), result)
+	}
+	if _, ok := result.(nativeBackupScheduleNoop); ok {
+		_, err := fmt.Fprintln(cmd.OutOrStdout(), "No new snapshot: the approved schedule has no pending UTC slot.")
+		return err
+	}
+	if status, ok := result.(backuplifecycle.RepositoryStatus); operation == nativeV2BackupStatus && ok {
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Repository ready: %t\nConsistency: %s\n", status.Ready, status.Consistency); err != nil {
+			return err
+		}
+		if status.History != nil {
+			if status.History.Issue != "" {
+				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "History: %s\n", status.History.Issue); err != nil {
+					return err
+				}
+			}
+			for _, event := range []struct {
+				label string
+				age   backuplifecycle.EvidenceAge
+			}{{"Snapshot receipt", status.History.Snapshot}, {"Staged restore receipt", status.History.StagedRestore}} {
+				text := event.age.State
+				if event.age.RecordedAt != nil {
+					text += " at " + event.age.RecordedAt.Format(time.RFC3339)
+					if !event.age.CurrentPlan {
+						text += " [historical plan]"
+					}
+				}
+				if event.age.AgeSeconds != nil {
+					text += fmt.Sprintf(" (%s ago)", (time.Duration(*event.age.AgeSeconds) * time.Second).String())
+				}
+				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s: %s\n", event.label, text); err != nil {
+					return err
+				}
+			}
+		}
+		_, err := fmt.Fprintln(cmd.OutOrStdout(), "Recorded receipts do not prove current backup content or successful application recovery.")
+		return err
 	}
 	_, err := fmt.Fprintf(cmd.OutOrStdout(), "Native v2 backup %s completed\n", operation)
 	return err

@@ -66,6 +66,27 @@ func DockerV2Executor() SecretExecutor {
 	})
 }
 
+// NewDockerV2EngineForPolicy binds the native-v2 engine to one already
+// validated, immutable local Kopia policy. The canonical codec both validates
+// the policy and detaches all caller-owned slices before the source reaches
+// the Docker runtime validator.
+func NewDockerV2EngineForPolicy(policy localbackuppolicy.Policy) (V2Engine, error) {
+	raw, err := localbackuppolicy.ArtifactBytes(policy)
+	if err != nil {
+		return V2Engine{}, fmt.Errorf("validate local Kopia policy for Docker engine: %w", err)
+	}
+	held, err := localbackuppolicy.Decode(raw)
+	if err != nil {
+		return V2Engine{}, fmt.Errorf("decode local Kopia policy for Docker engine: %w", err)
+	}
+	source := held.SourceProjection()
+	engine := NewV2Engine(dockerV2ExecutorForSource(dockerV2ClientFactory(func(timeout time.Duration) dockerV2Client {
+		return docker.NewLocalClient(docker.WithTimeout(timeout))
+	}), source))
+	engine.retention = held.Retention
+	return engine, nil
+}
+
 type dockerV2Client interface {
 	IsInstalled() bool
 	IsRunning(context.Context) bool
@@ -77,6 +98,10 @@ type dockerV2Client interface {
 type dockerV2ClientFactory func(time.Duration) dockerV2Client
 
 func dockerV2Executor(newClient dockerV2ClientFactory) SecretExecutor {
+	return dockerV2ExecutorForSource(newClient, localbackuppolicy.GovernedSource())
+}
+
+func dockerV2ExecutorForSource(newClient dockerV2ClientFactory, source localbackuppolicy.Source) SecretExecutor {
 	return func(ctx context.Context, command []string, sensitiveInput []byte) (string, error) {
 		if newClient == nil {
 			return "", fmt.Errorf("native-v2 Docker client factory is required")
@@ -96,7 +121,7 @@ func dockerV2Executor(newClient dockerV2ClientFactory) SecretExecutor {
 		if err != nil {
 			return "", fmt.Errorf("inspect local kopia runtime network: %w", err)
 		}
-		if err := validateDockerV2Runtime(container, network); err != nil {
+		if err := validateDockerV2RuntimeForSource(container, network, source); err != nil {
 			return "", fmt.Errorf("local kopia runtime differs from the governed policy: %w", err)
 		}
 		passwordCommand, err := kopiaPasswordCommand(command)
@@ -108,11 +133,21 @@ func dockerV2Executor(newClient dockerV2ClientFactory) SecretExecutor {
 }
 
 func validateDockerV2Runtime(container *docker.ContainerInfo, network *docker.NetworkInfo) error {
+	return validateDockerV2RuntimeForSource(container, network, localbackuppolicy.GovernedSource())
+}
+
+func validateDockerV2RuntimeForSource(container *docker.ContainerInfo, network *docker.NetworkInfo, source localbackuppolicy.Source) error {
+	return validateDockerV2RuntimeState(container, network, source, false)
+}
+
+func validateDockerV2RuntimeState(container *docker.ContainerInfo, network *docker.NetworkInfo, source localbackuppolicy.Source, allowStopped bool) error {
 	if container == nil || network == nil {
 		return fmt.Errorf("container and network inspection are required")
 	}
+	if err := localbackuppolicy.ValidateSourceProjection(source); err != nil {
+		return fmt.Errorf("source selection is not the governed Full-Core or CoreLite projection: %w", err)
+	}
 	runtime := localbackuppolicy.GovernedRuntime()
-	source := localbackuppolicy.GovernedSource()
 	config := container.Config
 	if config.Image != runtime.Image {
 		return fmt.Errorf("container image is not the exact pinned runtime")
@@ -218,8 +253,16 @@ func validateDockerV2Runtime(container *docker.ContainerInfo, network *docker.Ne
 		}
 	}
 
-	if network.Name != v2NetworkName || !network.Internal ||
-		len(network.Containers) != 1 {
+	if network.Name != v2NetworkName || !network.Internal {
+		return fmt.Errorf("backup network is not internal with exactly one peer")
+	}
+	// Docker detaches the active endpoint when a container stops while
+	// retaining its configured NetworkID. Only recovery may accept this empty
+	// network; its caller also binds that exact ID before allowing Start.
+	if allowStopped && container.State.Status == "exited" && !container.State.Running && !container.State.Paused && !container.State.Restarting && len(network.Containers) == 0 {
+		return nil
+	}
+	if len(network.Containers) != 1 {
 		return fmt.Errorf("backup network is not internal with exactly one peer")
 	}
 	peer, ok := network.Containers[container.ID]

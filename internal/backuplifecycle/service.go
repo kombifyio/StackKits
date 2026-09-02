@@ -16,10 +16,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/backupcustody"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )
 
 const (
@@ -90,6 +92,7 @@ type RepositoryStatus struct {
 	RepositoryID string      `json:"repositoryId"`
 	Ready        bool        `json:"ready"`
 	Consistency  Consistency `json:"consistency"`
+	History      *History    `json:"history,omitempty"`
 }
 
 type RepositorySnapshotRequest struct {
@@ -102,6 +105,7 @@ type RepositorySnapshotRequest struct {
 	Source               string           `json:"source"`
 	Excludes             []string         `json:"excludes"`
 	Consistency          Consistency      `json:"consistency"`
+	ProtectRecovery      bool             `json:"protectRecovery,omitempty"`
 }
 
 type RepositorySnapshotReceipt struct {
@@ -115,6 +119,40 @@ type RepositorySnapshotReceipt struct {
 	CreatedAt     time.Time   `json:"createdAt"`
 }
 
+// SnapshotQuiescence is the journaled pre-snapshot Docker identity set. The
+// operation journal persists this value before the first stop mutation so a
+// retry can address only the exact containers that were running at capture
+// time.
+type SnapshotQuiescence struct {
+	Phase       string                      `json:"phase"`
+	GraphDigest string                      `json:"graphDigest,omitempty"`
+	Containers  []SnapshotQuiescedContainer `json:"containers"`
+}
+
+type SnapshotQuiescedContainer struct {
+	ID             string                 `json:"id"`
+	Name           string                 `json:"name"`
+	WasRunning     bool                   `json:"wasRunning"`
+	WorkloadRef    string                 `json:"workloadRef,omitempty"`
+	SiteRef        string                 `json:"siteRef,omitempty"`
+	NodeRef        string                 `json:"nodeRef,omitempty"`
+	ComposeProject string                 `json:"composeProject,omitempty"`
+	ComposeService string                 `json:"composeService,omitempty"`
+	ComponentRef   string                 `json:"componentRef,omitempty"`
+	Image          string                 `json:"image,omitempty"`
+	StopOrder      int                    `json:"stopOrder,omitempty"`
+	Mounts         []SnapshotQuiesceMount `json:"mounts"`
+}
+
+type SnapshotQuiesceMount struct {
+	Type        string `json:"type"`
+	Name        string `json:"name"`
+	Source      string `json:"source"`
+	Destination string `json:"destination"`
+	RW          bool   `json:"rw"`
+	Propagation string `json:"propagation"`
+}
+
 type RepositoryRestoreRequest struct {
 	OwnerRef             string                    `json:"ownerRef"`
 	AuthorityRef         string                    `json:"authorityRef"`
@@ -122,6 +160,7 @@ type RepositoryRestoreRequest struct {
 	PolicyArtifactDigest string                    `json:"policyArtifactDigest"`
 	RepositoryID         string                    `json:"repositoryId"`
 	SnapshotAnchorID     string                    `json:"snapshotAnchorId"`
+	SnapshotSourceDigest string                    `json:"snapshotSourceDigest"`
 	SnapshotRequest      RepositorySnapshotRequest `json:"snapshotRequest"`
 	SnapshotReceipt      RepositorySnapshotReceipt `json:"snapshotReceipt"`
 	OperationID          string                    `json:"operationId"`
@@ -151,6 +190,18 @@ type RepositoryRuntime interface {
 	RestoreSnapshot(context.Context, RepositoryRestoreRequest) (RepositoryRestoreReceipt, error)
 }
 
+// SnapshotQuiesceRuntime is an optional extension for productive runtimes
+// that can stop and restore Docker writers around one Kopia snapshot. Keeping
+// it optional preserves legacy repository fakes and v1 journals.
+type SnapshotQuiesceRuntime interface {
+	CreateSnapshotWithQuiescence(
+		context.Context,
+		RepositorySnapshotRequest,
+		SnapshotQuiescence,
+		func(SnapshotQuiescence) error,
+	) (RepositorySnapshotReceipt, error)
+}
+
 type ConfigureInput struct {
 	OwnerRef       string           `json:"ownerRef"`
 	AuthorityRef   string           `json:"authorityRef"`
@@ -177,11 +228,12 @@ type StatusInput struct {
 }
 
 type RunInput struct {
-	OwnerRef       string           `json:"ownerRef"`
-	AuthorityRef   string           `json:"authorityRef"`
-	Lineage        AuthorityLineage `json:"lineage"`
-	PolicyArtifact []byte           `json:"-"`
-	OperationID    string           `json:"operationId"`
+	OwnerRef        string           `json:"ownerRef"`
+	AuthorityRef    string           `json:"authorityRef"`
+	Lineage         AuthorityLineage `json:"lineage"`
+	PolicyArtifact  []byte           `json:"-"`
+	OperationID     string           `json:"operationId"`
+	ProtectRecovery bool             `json:"protectRecovery,omitempty"`
 }
 
 type RestoreVerificationRequest struct {
@@ -222,6 +274,7 @@ type operationInput struct {
 	PolicyArtifactDigest string           `json:"policyArtifactDigest"`
 	OperationID          string           `json:"operationId"`
 	Policy               Policy           `json:"policy"`
+	ProtectRecovery      bool             `json:"protectRecovery,omitempty"`
 }
 
 type SnapshotAnchor struct {
@@ -236,6 +289,7 @@ type SnapshotAnchor struct {
 	Repository           RepositoryReceipt                          `json:"repository"`
 	Snapshot             RepositorySnapshotReceipt                  `json:"snapshot"`
 	Signature            localevidence.OwnerSnapshotAnchorSignature `json:"signature"`
+	ProtectRecovery      bool                                       `json:"protectRecovery,omitempty"`
 }
 
 type RestoreRecoveryAnchor struct {
@@ -281,19 +335,22 @@ type configurationIntent struct {
 }
 
 type snapshotOperation struct {
-	APIVersion string          `json:"apiVersion"`
-	State      string          `json:"state"`
-	Input      operationInput  `json:"input"`
-	Anchor     *SnapshotAnchor `json:"anchor,omitempty"`
+	APIVersion string                                         `json:"apiVersion"`
+	State      string                                         `json:"state"`
+	Input      operationInput                                 `json:"input"`
+	Quiescence *SnapshotQuiescence                            `json:"quiescence,omitempty"`
+	Anchor     *SnapshotAnchor                                `json:"anchor,omitempty"`
+	Signature  *localevidence.OwnerLifecycleMutationSignature `json:"signature,omitempty"`
 }
 
 type restoreOperation struct {
-	APIVersion string                    `json:"apiVersion"`
-	State      string                    `json:"state"`
-	Input      restoreOperationInput     `json:"input"`
-	Recovery   RestoreRecoveryAnchor     `json:"recoveryAnchor"`
-	Receipt    *RepositoryRestoreReceipt `json:"receipt,omitempty"`
-	Result     *RestoreResult            `json:"result,omitempty"`
+	APIVersion  string                    `json:"apiVersion"`
+	State       string                    `json:"state"`
+	Input       restoreOperationInput     `json:"input"`
+	Recovery    RestoreRecoveryAnchor     `json:"recoveryAnchor"`
+	Receipt     *RepositoryRestoreReceipt `json:"receipt,omitempty"`
+	Result      *RestoreResult            `json:"result,omitempty"`
+	Abandonment *RestoreAbandonment       `json:"abandonment,omitempty"`
 }
 
 type restoreOperationInput struct {
@@ -382,6 +439,27 @@ func (s *Service) Status(ctx context.Context, input StatusInput) (RepositoryStat
 	if err != nil {
 		return RepositoryStatus{}, err
 	}
+	status, err := s.repositoryStatus(ctx, configuration)
+	if err != nil {
+		return RepositoryStatus{}, err
+	}
+	history, err := s.history(ctx, configuration, time.Now().UTC())
+	if err != nil {
+		if ctx.Err() != nil {
+			return RepositoryStatus{}, ctx.Err()
+		}
+		history = History{
+			ObservedAt: time.Now().UTC(), Scope: "current-source-policy-receipts", Issue: "history-could-not-be-authenticated",
+			Snapshot: EvidenceAge{State: "unverified"}, StagedRestore: EvidenceAge{State: "unverified"},
+		}
+	}
+	status.History = &history
+	return status, nil
+}
+
+// Snapshot admission reads current runtime readiness without scanning historical
+// diagnostic receipts. An unrelated old receipt cannot disable a new backup.
+func (s *Service) repositoryStatus(ctx context.Context, configuration Configuration) (RepositoryStatus, error) {
 	status, err := s.runtime.Status(ctx, RepositoryScope{
 		OwnerRef: configuration.OwnerRef, AuthorityRef: configuration.AuthorityRef,
 		RepositoryID: configuration.Repository.RepositoryID, Lineage: configuration.Lineage,
@@ -415,10 +493,11 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 	boundInput := operationInput{
 		OwnerRef: configuration.OwnerRef, AuthorityRef: configuration.AuthorityRef,
 		Lineage: configuration.Lineage, PolicyArtifactDigest: configuration.PolicyArtifactDigest,
-		OperationID: input.OperationID, Policy: clonePolicy(configuration.Policy),
+		OperationID: input.OperationID, Policy: clonePolicy(configuration.Policy), ProtectRecovery: input.ProtectRecovery,
 	}
 	operationPath := operationDirectory + "/" + operationKey(input.OperationID) + ".json"
 	pending := false
+	var pendingOperation snapshotOperation
 	if operation, loadErr := s.loadOperation(operationPath); loadErr == nil {
 		if !operationInputsEqual(operation.Input, boundInput) {
 			return SnapshotAnchor{}, errors.New("backuplifecycle: operation intent differs from requested authority lineage, policy, or operation")
@@ -440,15 +519,49 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 			}
 			return stored, nil
 		case operation.State == "pending" && operation.Anchor == nil:
-			pending = true
+			pending, pendingOperation = true, operation
 		default:
 			return SnapshotAnchor{}, errors.New("backuplifecycle: snapshot operation journal is malformed")
 		}
 	} else if !errors.Is(loadErr, os.ErrNotExist) {
 		return SnapshotAnchor{}, loadErr
 	}
+	if err := s.admitSnapshotRetention(ctx, configuration); err != nil {
+		return SnapshotAnchor{}, err
+	}
 
 	request := snapshotRequest(configuration, input.OperationID)
+	request.ProtectRecovery = input.ProtectRecovery
+	quiescedRuntime, supportsQuiescence := s.runtime.(SnapshotQuiesceRuntime)
+	persistQuiescence := func(quiescence SnapshotQuiescence) error {
+		return s.persistSnapshotQuiescence(operationPath, boundInput, quiescence)
+	}
+	if pending && pendingOperation.Quiescence != nil && !supportsQuiescence {
+		return SnapshotAnchor{}, errors.New("backuplifecycle: journaled snapshot quiescence requires a quiescence-capable runtime")
+	}
+	if pending && supportsQuiescence {
+		if pendingOperation.Quiescence == nil {
+			status, statusErr := s.repositoryStatus(ctx, configuration)
+			if statusErr != nil {
+				return SnapshotAnchor{}, statusErr
+			}
+			if !status.Ready || status.Consistency != ConsistencyCrashConsistent {
+				return SnapshotAnchor{}, errors.New("backuplifecycle: repository is not ready for a crash-consistent snapshot")
+			}
+		}
+		quiescence := SnapshotQuiescence{}
+		if pendingOperation.Quiescence != nil {
+			quiescence = cloneSnapshotQuiescence(*pendingOperation.Quiescence)
+		}
+		snapshot, quiesceErr := quiescedRuntime.CreateSnapshotWithQuiescence(ctx, request, quiescence, persistQuiescence)
+		if quiesceErr != nil {
+			return SnapshotAnchor{}, fmt.Errorf("backuplifecycle: create repository snapshot: %w", quiesceErr)
+		}
+		if err := validateSnapshotReceipt(snapshot, request); err != nil {
+			return SnapshotAnchor{}, err
+		}
+		return s.completeSnapshot(operationPath, boundInput, configuration.Repository, snapshot)
+	}
 	if pending {
 		snapshot, found, lookupErr := s.runtime.LookupSnapshot(ctx, request)
 		if lookupErr != nil {
@@ -462,10 +575,7 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 		}
 	}
 
-	status, err := s.Status(ctx, StatusInput{
-		OwnerRef: input.OwnerRef, AuthorityRef: input.AuthorityRef,
-		Lineage: input.Lineage, PolicyArtifact: input.PolicyArtifact,
-	})
+	status, err := s.repositoryStatus(ctx, configuration)
 	if err != nil {
 		return SnapshotAnchor{}, err
 	}
@@ -473,13 +583,18 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 		return SnapshotAnchor{}, errors.New("backuplifecycle: repository is not ready for a crash-consistent snapshot")
 	}
 	if !pending {
-		if err := s.writeJSON(operationPath, snapshotOperation{
+		if err := s.writeSnapshotOperation(operationPath, snapshotOperation{
 			APIVersion: snapshotOperationAPI, State: "pending", Input: cloneOperationInput(boundInput),
 		}); err != nil {
 			return SnapshotAnchor{}, err
 		}
 	}
-	snapshot, err := s.runtime.CreateSnapshot(ctx, request)
+	var snapshot RepositorySnapshotReceipt
+	if supportsQuiescence {
+		snapshot, err = quiescedRuntime.CreateSnapshotWithQuiescence(ctx, request, SnapshotQuiescence{}, persistQuiescence)
+	} else {
+		snapshot, err = s.runtime.CreateSnapshot(ctx, request)
+	}
 	if err != nil {
 		return SnapshotAnchor{}, fmt.Errorf("backuplifecycle: create repository snapshot: %w", err)
 	}
@@ -549,7 +664,10 @@ func (s *Service) Restore(ctx context.Context, input RestoreInput) (RestoreResul
 		return *existingResult, nil
 	}
 
-	request := repositoryRestoreRequest(configuration, anchor, input.OperationID)
+	request, err := repositoryRestoreRequest(configuration, anchor, input.OperationID)
+	if err != nil {
+		return RestoreResult{}, err
+	}
 	var receipt RepositoryRestoreReceipt
 	if stagedReceipt != nil {
 		receipt = *stagedReceipt
@@ -602,15 +720,18 @@ func (s *Service) prepareRestoreOperation(
 		}
 		switch existing.State {
 		case "pending":
-			if existing.Receipt != nil || existing.Result != nil {
+			if existing.Receipt != nil || existing.Result != nil || existing.Abandonment != nil {
 				return RestoreRecoveryAnchor{}, nil, nil, errors.New("backuplifecycle: pending restore operation unexpectedly contains a receipt or result")
 			}
 			return existing.Recovery, nil, nil, nil
 		case "staged":
-			if existing.Receipt == nil || existing.Result != nil {
+			if existing.Receipt == nil || existing.Result != nil || existing.Abandonment != nil {
 				return RestoreRecoveryAnchor{}, nil, nil, errors.New("backuplifecycle: staged restore operation must contain only its repository receipt")
 			}
-			request := repositoryRestoreRequest(configuration, anchor, input.OperationID)
+			request, requestErr := repositoryRestoreRequest(configuration, anchor, input.OperationID)
+			if requestErr != nil {
+				return RestoreRecoveryAnchor{}, nil, nil, requestErr
+			}
 			if err := validateRestoreReceipt(*existing.Receipt, request); err != nil {
 				return RestoreRecoveryAnchor{}, nil, nil, err
 			}
@@ -631,6 +752,26 @@ func (s *Service) prepareRestoreOperation(
 				return RestoreRecoveryAnchor{}, nil, nil, errors.New("backuplifecycle: restore journal differs from its content-addressed result")
 			}
 			return existing.Recovery, nil, &stored, nil
+		case "abandoned":
+			if existing.Abandonment == nil || existing.Result != nil {
+				return RestoreRecoveryAnchor{}, nil, nil, errors.New("backuplifecycle: abandoned restore operation lacks its terminal evidence")
+			}
+			if err := VerifyRestoreAbandonment(s.workspaceRoot, *existing.Abandonment); err != nil {
+				return RestoreRecoveryAnchor{}, nil, nil, err
+			}
+			if err := validateRestoreAbandonmentBinding(existing, anchor, *existing.Abandonment); err != nil {
+				return RestoreRecoveryAnchor{}, nil, nil, err
+			}
+			if existing.Receipt != nil {
+				request, requestErr := repositoryRestoreRequest(configuration, anchor, input.OperationID)
+				if requestErr != nil {
+					return RestoreRecoveryAnchor{}, nil, nil, requestErr
+				}
+				if err := validateRestoreReceipt(*existing.Receipt, request); err != nil {
+					return RestoreRecoveryAnchor{}, nil, nil, err
+				}
+			}
+			return RestoreRecoveryAnchor{}, nil, nil, errors.New("backuplifecycle: restore operation was explicitly abandoned; use a new operation ID")
 		default:
 			return RestoreRecoveryAnchor{}, nil, nil, errors.New("backuplifecycle: restore operation state is malformed")
 		}
@@ -708,6 +849,10 @@ func (s *Service) completeRestore(
 	receipt RepositoryRestoreReceipt,
 	verification RestoreVerification,
 ) (RestoreResult, error) {
+	request, err := repositoryRestoreRequestFromRecovery(recovery, anchor)
+	if err != nil {
+		return RestoreResult{}, err
+	}
 	result := RestoreResult{
 		APIVersion: restoreResultAPI,
 		OwnerRef:   recovery.OwnerRef, AuthorityRef: recovery.AuthorityRef,
@@ -715,7 +860,7 @@ func (s *Service) completeRestore(
 		SnapshotAnchorID:     anchor.ID, SnapshotLineage: anchor.Lineage,
 		OperationID:    recovery.OperationID,
 		RecoveryAnchor: recovery,
-		Request:        repositoryRestoreRequestFromRecovery(recovery, anchor),
+		Request:        request,
 		Receipt:        receipt, Verification: verification,
 	}
 	unsigned, err := canonicalRestoreResult(result)
@@ -768,7 +913,7 @@ func (s *Service) completeSnapshot(operationPath string, input operationInput, r
 		APIVersion: snapshotAnchorAPIVersion,
 		OwnerRef:   input.OwnerRef, AuthorityRef: input.AuthorityRef,
 		Lineage: input.Lineage, PolicyArtifactDigest: input.PolicyArtifactDigest,
-		OperationID: input.OperationID, Policy: clonePolicy(input.Policy),
+		OperationID: input.OperationID, Policy: clonePolicy(input.Policy), ProtectRecovery: input.ProtectRecovery,
 		Repository: repository, Snapshot: snapshot,
 	}
 	unsigned, err := canonicalAnchor(anchor)
@@ -806,7 +951,7 @@ func (s *Service) completeSnapshot(operationPath string, input operationInput, r
 	} else {
 		return SnapshotAnchor{}, loadErr
 	}
-	if err := s.writeJSON(operationPath, snapshotOperation{
+	if err := s.writeSnapshotOperation(operationPath, snapshotOperation{
 		APIVersion: snapshotOperationAPI, State: "completed",
 		Input: cloneOperationInput(input), Anchor: &anchor,
 	}); err != nil {
@@ -857,7 +1002,7 @@ func VerifySnapshotAnchor(workspaceRoot string, anchor SnapshotAnchor) error {
 	request := RepositorySnapshotRequest{
 		OwnerRef: anchor.OwnerRef, AuthorityRef: anchor.AuthorityRef,
 		Lineage: anchor.Lineage, PolicyArtifactDigest: anchor.PolicyArtifactDigest,
-		RepositoryID: anchor.Repository.RepositoryID, OperationID: anchor.OperationID,
+		RepositoryID: anchor.Repository.RepositoryID, OperationID: anchor.OperationID, ProtectRecovery: anchor.ProtectRecovery,
 		Source:      anchor.Policy.Source.ContainerPath,
 		Excludes:    append([]string(nil), anchor.Policy.Source.ExcludePaths...),
 		Consistency: ConsistencyCrashConsistent,
@@ -951,6 +1096,7 @@ func VerifyRestoreResult(workspaceRoot string, result RestoreResult) error {
 		result.Request.AuthorityRef != result.AuthorityRef ||
 		!lineagesEqual(result.Request.AuthorizationLineage, result.AuthorizationLineage) ||
 		result.Request.PolicyArtifactDigest != result.RecoveryAnchor.PolicyArtifactDigest ||
+		!validDigest(result.Request.SnapshotSourceDigest) ||
 		result.Request.RepositoryID != result.RecoveryAnchor.RepositoryID ||
 		result.Request.SnapshotAnchorID != result.SnapshotAnchorID ||
 		result.Request.SnapshotReceipt.SnapshotID != result.RecoveryAnchor.SnapshotID ||
@@ -1148,6 +1294,14 @@ func (s *Service) loadOperation(relative string) (snapshotOperation, error) {
 	if operation.APIVersion != snapshotOperationAPI {
 		return snapshotOperation{}, errors.New("backuplifecycle: snapshot operation has an unsupported API version")
 	}
+	if operation.Quiescence != nil {
+		if err := validateSnapshotQuiescence(*operation.Quiescence); err != nil {
+			return snapshotOperation{}, err
+		}
+	}
+	if err := verifySnapshotOperation(s.workspaceRoot, operation); err != nil {
+		return snapshotOperation{}, err
+	}
 	return operation, nil
 }
 
@@ -1184,6 +1338,13 @@ func (s *Service) readJSON(relative string, target any) error {
 		return err
 	}
 	defer func() { _ = file.Close() }()
+	absolute := filepath.Join(root.Name(), filepath.FromSlash(relative))
+	if err := backupcustody.RequirePrivatePath(filepath.Dir(absolute), true); err != nil {
+		return fmt.Errorf("backuplifecycle: private custody check for %s: %w", filepath.Dir(relative), err)
+	}
+	if err := backupcustody.RequirePrivatePath(absolute, false); err != nil {
+		return fmt.Errorf("backuplifecycle: private custody check for %s: %w", relative, err)
+	}
 	decoder := json.NewDecoder(file)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
@@ -1232,7 +1393,135 @@ func (s *Service) writeJSON(relative string, value any) error {
 	if !result.Installed || !result.FileSynced {
 		return errors.New("backuplifecycle: lifecycle record was not atomically installed and synced")
 	}
+	absoluteParent := filepath.Join(root.Name(), filepath.FromSlash(parent))
+	if err := backupcustody.ProtectPrivatePath(absoluteParent, true); err != nil {
+		return fmt.Errorf("backuplifecycle: protect %s: %w", parent, err)
+	}
+	if err := backupcustody.ProtectPrivatePath(filepath.Join(root.Name(), filepath.FromSlash(relative)), false); err != nil {
+		return fmt.Errorf("backuplifecycle: protect %s: %w", relative, err)
+	}
 	return nil
+}
+
+func (s *Service) writeSnapshotOperation(relative string, operation snapshotOperation) error {
+	signed, err := signSnapshotOperation(s.workspaceRoot, operation)
+	if err != nil {
+		return err
+	}
+	return s.writeJSON(relative, signed)
+}
+
+func (s *Service) persistSnapshotQuiescence(
+	operationPath string,
+	input operationInput,
+	quiescence SnapshotQuiescence,
+) error {
+	if err := validateSnapshotQuiescence(quiescence); err != nil {
+		return err
+	}
+	cloned := cloneSnapshotQuiescence(quiescence)
+	return s.writeSnapshotOperation(operationPath, snapshotOperation{
+		APIVersion: snapshotOperationAPI,
+		State:      "pending",
+		Input:      cloneOperationInput(input),
+		Quiescence: &cloned,
+	})
+}
+
+func signSnapshotOperation(workspaceRoot string, operation snapshotOperation) (snapshotOperation, error) {
+	operation.Signature = nil
+	canonical, err := canonicalSnapshotOperation(operation)
+	if err != nil {
+		return snapshotOperation{}, err
+	}
+	signature, err := localevidence.SignOwnerLifecycleMutation(workspaceRoot, canonical)
+	if err != nil {
+		return snapshotOperation{}, fmt.Errorf("backuplifecycle: sign snapshot operation: %w", err)
+	}
+	operation.Signature = &signature
+	return operation, nil
+}
+
+func verifySnapshotOperation(workspaceRoot string, operation snapshotOperation) error {
+	if operation.Signature == nil {
+		if operation.Quiescence != nil {
+			return errors.New("backuplifecycle: snapshot operation with quiescence is not owner-authenticated")
+		}
+		return nil
+	}
+	if operation.Signature.OwnerRef == "" || operation.Signature.OwnerRef != operation.Input.OwnerRef {
+		return errors.New("backuplifecycle: snapshot operation Owner signature differs from its input owner")
+	}
+	canonical, err := canonicalSnapshotOperation(operation)
+	if err != nil {
+		return err
+	}
+	if err := localevidence.VerifyOwnerLifecycleMutation(workspaceRoot, canonical, *operation.Signature); err != nil {
+		return fmt.Errorf("backuplifecycle: verify snapshot operation Owner signature: %w", err)
+	}
+	return nil
+}
+
+func canonicalSnapshotOperation(operation snapshotOperation) ([]byte, error) {
+	operation.Signature = nil
+	encoded, err := resolvedplan.CanonicalJSON(operation)
+	if err != nil {
+		return nil, fmt.Errorf("backuplifecycle: encode canonical snapshot operation: %w", err)
+	}
+	return encoded, nil
+}
+
+func validateSnapshotQuiescence(quiescence SnapshotQuiescence) error {
+	switch quiescence.Phase {
+	case "prepared", "stopped", "snapshot-created", "restored":
+	default:
+		return errors.New("backuplifecycle: snapshot quiescence phase is invalid")
+	}
+	if quiescence.GraphDigest != "" && !validDigest(quiescence.GraphDigest) {
+		return errors.New("backuplifecycle: snapshot quiescence graph digest is invalid")
+	}
+	seen := make(map[string]struct{}, len(quiescence.Containers))
+	for index, container := range quiescence.Containers {
+		if strings.TrimSpace(container.ID) == "" || strings.TrimSpace(container.Name) == "" || !container.WasRunning {
+			return fmt.Errorf("backuplifecycle: snapshot quiescence container %d identity or running state is incomplete", index)
+		}
+		if _, exists := seen[container.ID]; exists {
+			return fmt.Errorf("backuplifecycle: snapshot quiescence repeats container %q", container.ID)
+		}
+		seen[container.ID] = struct{}{}
+		if container.ComposeProject != "" {
+			if quiescence.GraphDigest == "" || container.WorkloadRef == "" || container.SiteRef == "" ||
+				container.NodeRef == "" || container.ComposeService == "" || container.ComponentRef == "" ||
+				container.ComposeService != container.ComponentRef || container.Image == "" || container.StopOrder < 0 {
+				return fmt.Errorf("backuplifecycle: snapshot quiescence container %q has incomplete runtime graph identity", container.ID)
+			}
+		} else if container.WorkloadRef != "" || container.SiteRef != "" || container.NodeRef != "" ||
+			container.ComposeService != "" || container.ComponentRef != "" || container.Image != "" || container.StopOrder != 0 {
+			return fmt.Errorf("backuplifecycle: snapshot quiescence container %q has unbound runtime graph identity", container.ID)
+		}
+		if len(container.Mounts) == 0 && container.ComposeProject == "" {
+			return fmt.Errorf("backuplifecycle: snapshot quiescence container %q has no mount identity", container.ID)
+		}
+	}
+	return nil
+}
+
+func cloneSnapshotQuiescence(quiescence SnapshotQuiescence) SnapshotQuiescence {
+	cloned := SnapshotQuiescence{
+		Phase:       quiescence.Phase,
+		GraphDigest: quiescence.GraphDigest,
+		Containers:  make([]SnapshotQuiescedContainer, len(quiescence.Containers)),
+	}
+	for index, container := range quiescence.Containers {
+		cloned.Containers[index] = SnapshotQuiescedContainer{
+			ID: container.ID, Name: container.Name, WasRunning: container.WasRunning,
+			WorkloadRef: container.WorkloadRef, SiteRef: container.SiteRef, NodeRef: container.NodeRef,
+			ComposeProject: container.ComposeProject, ComposeService: container.ComposeService,
+			ComponentRef: container.ComponentRef, Image: container.Image, StopOrder: container.StopOrder,
+			Mounts: append([]SnapshotQuiesceMount(nil), container.Mounts...),
+		}
+	}
+	return cloned
 }
 
 func (s *Service) ensureConfigurationIntent(configuration RepositoryConfiguration) error {
@@ -1338,7 +1627,7 @@ func validateRestoreSource(configuration Configuration, anchor SnapshotAnchor) e
 	if anchor.OwnerRef != configuration.OwnerRef ||
 		anchor.Repository.RepositoryID != configuration.Repository.RepositoryID ||
 		anchor.Policy.StackID != configuration.Policy.StackID ||
-		anchor.Policy.Target != configuration.Policy.Target ||
+		!restoreTargetsCompatible(anchor.Policy.Target, configuration.Policy.Target) ||
 		!restoreDataTopologyCompatible(anchor.Policy.Source, configuration.Policy.Source) {
 		return errors.New("backuplifecycle: snapshot anchor is not compatible with the current Owner, Stack target, repository, or governed data topology")
 	}
@@ -1346,14 +1635,21 @@ func validateRestoreSource(configuration Configuration, anchor SnapshotAnchor) e
 }
 
 func restoreDataTopologyCompatible(historical, current localbackuppolicy.Source) bool {
-	return historical.Kind == current.Kind &&
-		historical.HostPath == current.HostPath &&
-		historical.ContainerPath == current.ContainerPath &&
-		historical.ReadOnly &&
-		current.ReadOnly &&
-		historical.Custody == current.Custody &&
-		historical.RuntimeMaterial == current.RuntimeMaterial &&
-		localbackuppolicy.IsRecognizedSnapshotSelection(historical.ContainerPath, historical.ExcludePaths)
+	historicalDigest, err := localbackuppolicy.SourceDigest(historical)
+	if err != nil {
+		return false
+	}
+	currentDigest, err := localbackuppolicy.SourceDigest(current)
+	return err == nil && historicalDigest == currentDigest
+}
+
+func restoreTargetsCompatible(historical, current localbackuppolicy.Target) bool {
+	if historical.SiteRef != current.SiteRef || historical.NodeRef != current.NodeRef {
+		return false
+	}
+	legacy := historical.DaemonRef == "" && historical.DaemonEngine == "" &&
+		historical.DaemonSocketPath == "" && historical.HostScope == ""
+	return legacy || historical == current
 }
 
 func validateRestoreRecoveryBinding(
@@ -1387,7 +1683,11 @@ func repositoryRestoreRequest(
 	configuration Configuration,
 	anchor SnapshotAnchor,
 	operationID string,
-) RepositoryRestoreRequest {
+) (RepositoryRestoreRequest, error) {
+	sourceDigest, err := localbackuppolicy.SourceDigest(anchor.Policy.Source)
+	if err != nil {
+		return RepositoryRestoreRequest{}, fmt.Errorf("backuplifecycle: digest snapshot source policy: %w", err)
+	}
 	return RepositoryRestoreRequest{
 		OwnerRef:             configuration.OwnerRef,
 		AuthorityRef:         configuration.AuthorityRef,
@@ -1395,17 +1695,22 @@ func repositoryRestoreRequest(
 		PolicyArtifactDigest: configuration.PolicyArtifactDigest,
 		RepositoryID:         configuration.Repository.RepositoryID,
 		SnapshotAnchorID:     anchor.ID,
+		SnapshotSourceDigest: sourceDigest,
 		SnapshotRequest:      snapshotRequestFromAnchor(anchor),
 		SnapshotReceipt:      anchor.Snapshot,
 		OperationID:          operationID,
 		StagingPath:          RestoreStagingPath(operationID),
-	}
+	}, nil
 }
 
 func repositoryRestoreRequestFromRecovery(
 	recovery RestoreRecoveryAnchor,
 	anchor SnapshotAnchor,
-) RepositoryRestoreRequest {
+) (RepositoryRestoreRequest, error) {
+	sourceDigest, err := localbackuppolicy.SourceDigest(anchor.Policy.Source)
+	if err != nil {
+		return RepositoryRestoreRequest{}, fmt.Errorf("backuplifecycle: digest recovered snapshot source policy: %w", err)
+	}
 	return RepositoryRestoreRequest{
 		OwnerRef:             recovery.OwnerRef,
 		AuthorityRef:         recovery.AuthorityRef,
@@ -1413,22 +1718,24 @@ func repositoryRestoreRequestFromRecovery(
 		PolicyArtifactDigest: recovery.PolicyArtifactDigest,
 		RepositoryID:         recovery.RepositoryID,
 		SnapshotAnchorID:     recovery.SnapshotAnchorID,
+		SnapshotSourceDigest: sourceDigest,
 		SnapshotRequest:      snapshotRequestFromAnchor(anchor),
 		SnapshotReceipt:      anchor.Snapshot,
 		OperationID:          recovery.OperationID,
 		StagingPath:          recovery.StagingPath,
-	}
+	}, nil
 }
 
 func snapshotRequestFromAnchor(anchor SnapshotAnchor) RepositorySnapshotRequest {
 	return RepositorySnapshotRequest{
 		OwnerRef: anchor.OwnerRef, AuthorityRef: anchor.AuthorityRef,
 		Lineage: anchor.Lineage, PolicyArtifactDigest: anchor.PolicyArtifactDigest,
-		RepositoryID: anchor.Repository.RepositoryID,
-		OperationID:  anchor.OperationID,
-		Source:       anchor.Policy.Source.ContainerPath,
-		Excludes:     append([]string(nil), anchor.Policy.Source.ExcludePaths...),
-		Consistency:  ConsistencyCrashConsistent,
+		RepositoryID:    anchor.Repository.RepositoryID,
+		OperationID:     anchor.OperationID,
+		ProtectRecovery: anchor.ProtectRecovery,
+		Source:          anchor.Policy.Source.ContainerPath,
+		Excludes:        append([]string(nil), anchor.Policy.Source.ExcludePaths...),
+		Consistency:     ConsistencyCrashConsistent,
 	}
 }
 
@@ -1495,6 +1802,10 @@ func validDigest(value string) bool {
 func clonePolicy(policy Policy) Policy {
 	policy.Source = policy.SourceProjection()
 	policy.Runtime = policy.RuntimeProjection()
+	if policy.Retention != nil {
+		retention := *policy.Retention
+		policy.Retention = &retention
+	}
 	return policy
 }
 
@@ -1520,7 +1831,7 @@ func operationInputsEqual(left, right operationInput) bool {
 		left.AuthorityRef == right.AuthorityRef &&
 		lineagesEqual(left.Lineage, right.Lineage) &&
 		left.PolicyArtifactDigest == right.PolicyArtifactDigest &&
-		left.OperationID == right.OperationID &&
+		left.OperationID == right.OperationID && left.ProtectRecovery == right.ProtectRecovery &&
 		policiesEqual(left.Policy, right.Policy)
 }
 
@@ -1534,7 +1845,7 @@ func anchorMatchesOperation(anchor SnapshotAnchor, input operationInput) bool {
 		anchor.AuthorityRef == input.AuthorityRef &&
 		lineagesEqual(anchor.Lineage, input.Lineage) &&
 		anchor.PolicyArtifactDigest == input.PolicyArtifactDigest &&
-		anchor.OperationID == input.OperationID &&
+		anchor.OperationID == input.OperationID && anchor.ProtectRecovery == input.ProtectRecovery &&
 		policiesEqual(anchor.Policy, input.Policy)
 }
 

@@ -2635,6 +2635,10 @@ func validateResolvedModulePlanInputProjection(plan ResolvedPlan, module map[str
 		if err != nil {
 			return err
 		}
+		nodes, err := objectListField(map[string]any(plan), "resolvedPlan", "nodes")
+		if err != nil {
+			return err
+		}
 		stackID, err := stringField(map[string]any(plan), "resolvedPlan", "stackId")
 		if err != nil {
 			return err
@@ -2667,14 +2671,29 @@ func validateResolvedModulePlanInputProjection(plan ResolvedPlan, module map[str
 		if err != nil {
 			return err
 		}
+		modules, err := objectListField(map[string]any(plan), "resolvedPlan", "modules")
+		if err != nil {
+			return err
+		}
 		bindingSource := moduleRenderInputSource{
 			stackID: stackID, kit: kit, sites: objectMapsAsAny(sites),
 			identity: identity, identityTrust: identityTrust, controlPlane: controlPlane, data: data,
 			failurePolicy: failurePolicy, network: network, gates: gates,
-			install: install, system: system, storage: storage, workloads: objectMapsAsAny(workloads),
+			install: install, system: system, storage: storage, nodes: objectMapsAsAny(nodes), workloads: objectMapsAsAny(workloads), modules: objectMapsAsAny(modules),
+		}
+		target := moduleRenderInputTarget{}
+		for _, binding := range bindings {
+			if binding.sourceRef != moduleInputSourceLocalKopiaBackup {
+				continue
+			}
+			target, err = localKopiaRenderInputTarget(unit, unitPath)
+			if err != nil {
+				return err
+			}
+			break
 		}
 		for _, binding := range bindings {
-			want, available, err := bindingSource.resolve(binding, moduleID)
+			want, available, err := bindingSource.resolve(binding, moduleID, target)
 			if err != nil {
 				return fmt.Errorf("recompute %s.values.%s: %w", unitPath, binding.targetRef, err)
 			}

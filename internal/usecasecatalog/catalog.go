@@ -160,6 +160,7 @@ type sourceCatalog struct {
 	Modules                       map[string]bool
 	NotApplicable                 map[string]map[string]string
 	RuntimeEvidence               map[string]string
+	RuntimeEvidencePresent        bool
 	RuntimeEvidenceSourceMismatch bool
 	OS                            []OSCompatibility
 }
@@ -467,6 +468,7 @@ func loadRuntimeEvidence(path, sourceSHA string, target *sourceCatalog) error {
 	if receipt.SchemaVersion != "stackkits-use-case-runtime-evidence/v1" {
 		return fmt.Errorf("unknown use-case runtime evidence schema %q", receipt.SchemaVersion)
 	}
+	target.RuntimeEvidencePresent = true
 	if receipt.SourceSHA != sourceSHA {
 		target.RuntimeEvidenceSourceMismatch = true
 		return nil
@@ -629,6 +631,10 @@ func internalProjection(source sourceCatalog, receipt *TestReceipt, releaseProje
 		if source.RuntimeEvidenceSourceMismatch {
 			runtimeReason = "RUNTIME_EVIDENCE_SOURCE_MISMATCH"
 		}
+		runtimeSources := []string{"schemas/stackkits-use-case-runtime-evidence-v1.schema.json"}
+		if source.RuntimeEvidencePresent {
+			runtimeSources = append(runtimeSources, "docs/data/use-case-runtime-evidence/latest.json")
+		}
 		packageSource := "foundation/use_case_catalog.cue"
 		if pkg != nil {
 			packageSource = "use-cases/" + useCase.ID + "/use-case.cue"
@@ -642,7 +648,7 @@ func internalProjection(source sourceCatalog, receipt *TestReceipt, releaseProje
 			gate("setup-network-auth-data-backup", hasOperationalShape(pkg, workload), "setup and runtime data/backup shape exist", "OPERATIONAL_CONTRACTS_INCOMPLETE", "docs/USE_CASE_PACKAGES.md", "foundation/architecture_v2_catalog.cue"),
 			gate("application-lifecycle", lifecycle != nil, "seven-stage Architecture v2 lifecycle exists", "APPLICATION_LIFECYCLE_MISSING", "foundation/architecture_v2_catalog.cue"),
 			gate("source-sha-tests", tested, "source-SHA-bound catalog tests passed", "SOURCE_SHA_TEST_EVIDENCE_MISSING", "schemas/stackkits-use-case-evidence-v1.schema.json"),
-			gate("runtime-evidence", runtimeEvidence, "runtime evidence is bound to the same source SHA: "+runtimeEvidenceRef, runtimeReason, "docs/data/use-case-runtime-evidence/latest.json"),
+			gate("runtime-evidence", runtimeEvidence, "runtime evidence is bound to the same source SHA: "+runtimeEvidenceRef, runtimeReason, runtimeSources...),
 			gate("release-documentation", releaseProjection, "release manifests are being emitted for a published tag", "RELEASE_DOCUMENTATION_PENDING", "schemas/stackkits-use-case-catalog-v1.schema.json"),
 		}
 		for index := range gates {

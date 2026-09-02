@@ -145,8 +145,28 @@ export interface CompactModuleProfiles {
   module_id: ContractId;
   required: boolean;
   profiles: CompactProfile[];
+  host_requirements?: {
+    /**
+     * @minItems 1
+     */
+    profile_ids: ProfileId[];
+    requirements: HostRequirements;
+  }[];
   storage_profiles: CompactAxisProfile[];
   accelerator_profiles: CompactAxisProfile[];
+}
+/**
+ * CUE-declared requirements that must be verified on the exact target before Apply.
+ */
+export interface HostRequirements {
+  min_amd64_microarchitecture_level?: number;
+  storage_filesystem?: StorageFilesystemRequirement;
+}
+export interface StorageFilesystemRequirement {
+  source_ref: "system.container.dataRoot" | "storage.dataRoot";
+  required_class: "local-posix";
+  allowed_filesystem_types: ContractId[];
+  require_ownership: true;
 }
 export interface AssessCapacityInput {
   stackkit_id: StackkitId;
@@ -352,6 +372,7 @@ export interface ComputeProfile {
   executable: boolean;
   realization: string;
   host_floor?: ResourceVector;
+  host_requirements?: ProfileHostRequirements;
   reservation?: ResourceVector;
   headroom?: ResourceVector;
   recommended?: ResourceVector;
@@ -365,6 +386,19 @@ export interface ResourceVector {
   cpu_cores?: number;
   ram_gb?: number;
   storage_gb?: number;
+}
+/**
+ * CUE-declared target requirements. These are not observed host facts.
+ */
+export interface ProfileHostRequirements {
+  min_amd64_microarchitecture_level?: number;
+  storage_filesystem?: ProfileStorageFilesystemRequirement;
+}
+export interface ProfileStorageFilesystemRequirement {
+  source_ref: "system.container.dataRoot" | "storage.dataRoot";
+  required_class: "local-posix";
+  allowed_filesystem_types: ContractId[];
+  require_ownership: true;
 }
 export interface AxisProfile {
   id: ProfileId;

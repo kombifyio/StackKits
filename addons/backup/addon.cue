@@ -283,7 +283,7 @@ package backup
 	// snapshots can complement it on managed infrastructure but must not be
 	// the only export path for self-hosted hosts.
 	mode:   *"portable-archive" | "provider-native-snapshot"
-	format: *"tar.zst.age" | "tar.gz.age" | "zip.age"
+	format: "tar.gz.age"
 
 	schedule: string | *"0 3 * * 0"
 

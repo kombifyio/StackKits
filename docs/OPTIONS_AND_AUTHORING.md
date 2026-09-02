@@ -3,8 +3,10 @@
 > Last verified: 2026-09-01
 
 This page is the compact contract for adding or promoting StackKit options. CUE
-is the technical source of truth; the kombify database mirrors catalog,
-version, rollout, and lifecycle state.
+is the technical source of truth. The canonical ResolvedPlan, local Owner
+custody, and lifecycle evidence own deployment state. Hosted catalog or
+database projections are optional mirrors; standalone operation does not
+depend on them.
 
 ## Roles
 
@@ -89,10 +91,11 @@ For pre-1.0 changes, run the affected gate (target two minutes, hard limit five)
 mise run check
 ```
 
-For release packaging:
-
-```bash
-goreleaser release --snapshot --clean
-bash scripts/release/validate-release-archives.sh dist
-bash tests/e2e/test_live_installers.sh
-```
+For publication, follow the [public release workflow](https://github.com/kombifyio/stackKits/blob/main/.github/workflows/release.yml). The v0.x path binds a clean
+checkout and built/exported artifacts to the exact current main SHA. Target,
+browser, compatibility, and restore evidence remain separate diagnostics;
+missing evidence is pending, never a fabricated pass. The former in-repository
+live-installer harness is retired and must not be recreated as a v0.x gate.
+Stable v1.0 publication additionally requires the signed exact-SHA Candidate
+receipt. The option-promotion evidence above describes product confidence,
+not extra v0.x publication dependencies.

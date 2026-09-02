@@ -239,15 +239,15 @@ func (r *ProductRuntimeOwnerRegistry) storeProductApplyRecovery(ctx context.Cont
 // reconcileProductApply resumes one exact custody-bound request after process
 // restart. It is deliberately package-private until the product Service adds
 // held-workspace/output revalidation around it.
-func (r *ProductRuntimeOwnerRegistry) reconcileProductApply(ctx context.Context, requestDigest string, at time.Time) (runtimeexecutor.ExecutionResult, error) {
+func (r *ProductRuntimeOwnerRegistry) reconcileProductApply(ctx context.Context, requestDigest string, clock func() time.Time) (runtimeexecutor.ExecutionResult, error) {
 	if ctx == nil {
 		return runtimeexecutor.ExecutionResult{}, errors.New("Product Apply reconcile requires a context")
 	}
 	if r == nil || nilProductRuntimeOwnerValue(r.recovery) {
 		return runtimeexecutor.ExecutionResult{}, errors.New("Product Apply reconcile requires recovery custody")
 	}
-	if at.IsZero() || at.Location() != time.UTC {
-		return runtimeexecutor.ExecutionResult{}, errors.New("Product Apply reconcile requires an exact UTC instant")
+	if clock == nil {
+		return runtimeexecutor.ExecutionResult{}, errors.New("Product Apply reconcile requires a service-owned clock")
 	}
 	canonical, err := safeLoadProductApplyRecovery(r.recovery, ctx, requestDigest)
 	if err != nil {
@@ -258,7 +258,8 @@ func (r *ProductRuntimeOwnerRegistry) reconcileProductApply(ctx context.Context,
 		return runtimeexecutor.ExecutionResult{}, err
 	}
 	validUntil, err := time.Parse(time.RFC3339Nano, capsule.ValidUntil)
-	if err != nil || !at.Before(validUntil) {
+	at := clock()
+	if err != nil || at.IsZero() || at.Location() != time.UTC || at.Before(capsule.Request.ExecutionAt) || !at.Before(validUntil) {
 		return runtimeexecutor.ExecutionResult{}, errors.New("Product Apply recovery authority is expired")
 	}
 	if len(capsule.Shared.AccessBindings) != 0 || len(capsule.Shared.BackupTargetBindings) != 0 {
@@ -270,12 +271,12 @@ func (r *ProductRuntimeOwnerRegistry) reconcileProductApply(ctx context.Context,
 	return runtimeexecutor.InvokeAt(ctx, r, capsule.Shared, at)
 }
 
-func (r *ProductRuntimeOwnerRegistry) executeProductApplyContinuation(ctx context.Context, continuation productApplyContinuation, at time.Time) (runtimeexecutor.ExecutionResult, error) {
+func (r *ProductRuntimeOwnerRegistry) executeProductApplyContinuation(ctx context.Context, continuation productApplyContinuation, clock func() time.Time) (runtimeexecutor.ExecutionResult, error) {
 	if ctx == nil {
 		return runtimeexecutor.ExecutionResult{}, errors.New("Product Apply continuation requires a context")
 	}
-	if r == nil || at.IsZero() || at.Location() != time.UTC {
-		return runtimeexecutor.ExecutionResult{}, errors.New("Product Apply continuation requires an exact service-owned UTC instant")
+	if r == nil || clock == nil {
+		return runtimeexecutor.ExecutionResult{}, errors.New("Product Apply continuation requires a service-owned clock")
 	}
 	canonical, err := safeLoadProductApplyRecovery(r.recovery, ctx, continuation.RecoveryRequestDigest)
 	if err != nil {
@@ -290,13 +291,17 @@ func (r *ProductRuntimeOwnerRegistry) executeProductApplyContinuation(ctx contex
 	}
 	evaluatedAt, _ := time.Parse(time.RFC3339Nano, continuation.EvaluatedAt)
 	validUntil, _ := time.Parse(time.RFC3339Nano, continuation.ValidUntil)
-	if at != evaluatedAt || !at.Before(validUntil) {
+	recoveryValidUntil, _ := time.Parse(time.RFC3339Nano, capsule.ValidUntil)
+	at := clock()
+	if at.IsZero() || at.Location() != time.UTC || at.Before(evaluatedAt) || !at.Before(validUntil) || !at.Before(recoveryValidUntil) {
 		return runtimeexecutor.ExecutionResult{}, errors.New("Product Apply continuation is not valid at the execution instant")
 	}
 	if continuation.Shared.Executor != r.identity {
 		return runtimeexecutor.ExecutionResult{}, errors.New("Product Apply continuation does not bind the service-owned registry identity")
 	}
-	return runtimeexecutor.InvokeAt(ctx, r, continuation.Shared, at)
+	// The shared request is sealed to its evaluation instant. The live clock
+	// above independently bounds admission after loading recovery custody.
+	return runtimeexecutor.InvokeAt(ctx, r, continuation.Shared, evaluatedAt)
 }
 
 // Identity returns the immutable product-owned root executor identity. It is

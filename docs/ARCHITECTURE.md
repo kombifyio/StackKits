@@ -260,9 +260,34 @@ of governed data classes, and mandatory restore-verification cadence/evidence
 freshness. Arbitrary cron, provider/repository/endpoint/credential selection,
 paths, commands, lifecycle handles, and secret material are outside the
 contract. The policy participates in spec and plan hashing and is available
-only through the finite `backupPolicy` module-plan input. No module currently
-claims job scheduling, retention execution, repository lifecycle, or restore
-evidence merely because the immutable intent exists.
+only through the finite `backupPolicy` module-plan input. Defaults are resolved
+before modules consume that input. Full Core and CoreLite project the retention
+counts into the same local Kopia source policy. The native runtime sets and
+reads back all Kopia retention buckets explicitly, including zero hourly/latest
+buckets and the `keepYearly` to `keepAnnual` mapping. Kopia stays manual-only:
+retention runs when the authorized snapshot operation runs, after its existing
+writer-quiescence boundary. A declared schedule or restore cadence alone still
+does not establish an executing scheduler or successful restore drill.
+
+Upgrade and restore-activation safety snapshots request recovery protection
+before creation. Kopia stores the pin in the initial manifest; the resulting
+snapshot ID, protection intent and receipt are bound into the signed lifecycle
+anchor. Later pin/unpin operations are not used: Kopia 0.18.2 replaces the
+manifest ID when its pins change. Protected anchors therefore remain retained;
+ordinary snapshots follow the configured retention. Historical fieldless
+policies and anchors retain their original encoding and are not retroactively
+rewritten or claimed to be protected. Receipt history reports past events,
+not continued availability of expired repository content.
+
+Before creating another retention-bearing snapshot, the local lifecycle reads
+the existing restore journals and authenticates their recovery/source anchors.
+An unfinished restore of an unprotected source blocks snapshot creation, even
+after its approval expires or a policy lineage changes. A later authorized and
+successfully verified restore of that same source may supersede the pending
+attempt; an older result, a future timestamp or a damaged journal cannot.
+Completed history is verified independently of the current source topology.
+An incompatible active restore remains blocked until an explicit owner-owned
+terminal decision; this guard never deletes journals or changes repository pins.
 
 Every native spec also normalizes a closed `stackkit.drift-policy/v1` into
 `ResolvedPlan.driftPolicy`. The policy carries only an enabled bit, structured
@@ -420,6 +445,14 @@ their authenticated external owners. The CUE catalog is also the source for
 the read-only per-service compatibility matrix exposed by
 `stackkit app compatibility` and MCP.
 
+Native application setup treats the Docker daemon as a trust boundary. It
+rechecks the exact persisted Compose bytes, service/image identities, route
+readback, container identity, and loopback port before each local API request
+and after the action, but those checks cannot make daemon observation and the
+subsequent socket dial atomic. A compromised Docker daemon or host can still
+substitute the endpoint between checks; setup receipts do not turn that
+daemon-level state into independent evidence.
+
 Backup and restore use that same selected-delivery boundary. The local Kopia
 snapshot remains one owner-approved, content-addressed snapshot of the local
 Docker volume root bound to the exact Plan, manifest, Apply result, and Owner
@@ -430,9 +463,28 @@ allocations become exact Compose-qualified volume names; their private
 `compose.yaml` and `.env` custody is digest-bound before mutation. The runtime
 quiesces Applications before Basement, prepares deterministic per-volume
 rollback copies, activates staged content, starts Basement before Applications,
-and records success only after the normal full live readback. Coolify, Komodo,
+and records success only after the normal host runtime verification readback.
+That readback does not establish client access or application-data recovery. Coolify, Komodo,
 unknown adapters, missing capability rows, substituted files, and foreign
 volumes remain fail-closed.
+
+For a selected `standalone-compose` application, the local source policy also
+carries the compiler-selected runtime graph beside the backup-enabled volume
+list. The graph is bound to the exact Apply bundle: component IDs, dependency
+edges, Compose project/service identity, and pinned image ref/digest are checked
+before mutation, while adapter-owned custody resolves one exact container ID
+per component. Quiescence includes graph components without a selected
+persistent volume, stops them in reverse dependency order, and starts only the
+previously running exact IDs in dependency order. With no selected application
+graph, the source remains the existing Core-only policy and its legacy
+crash-consistent path. An active one-shot initializer prevents a new snapshot
+before any container is stopped; snapshot recovery never reruns an initializer.
+A persisted stop boundary requires settlement of the previous Kopia process
+before writer recovery, including failures at early readiness or policy checks.
+Each new snapshot attempt renews that settlement requirement on failure.
+This is Docker-level crash-consistency evidence; it does
+not establish native database consistency, application recovery, or client/live
+reachability.
 
 Komodo is intentionally two contracts. `stackkits-komodo-core-runtime` is the
 only workload adapter and API authority. It targets Control Plane members at
@@ -587,9 +639,11 @@ per-node Health observation.
 
 This first executable slice establishes the local backup target only. The
 shared `backupPolicy` owns schedule/retention/data-class/restore-verification
-intent, but scheduling and retention execution, repository initialization,
-encryption keys, off-site copies, restore orchestration, and backup success
-evidence remain separate owners. A Modern Homelab may add an explicit
+intent. The local Kopia runtime separately owns repository initialization,
+retention execution and owner-custodied encryption; the backup/restore lifecycle
+owns signed operation evidence. Scheduling, off-site copies, restore
+orchestration and backup success never follow merely from this target
+observation. A Modern Homelab may add an explicit
 cross-site backup owner later; Home+Cloud topology alone never silently enables
 Basement backup semantics.
 
@@ -832,6 +886,67 @@ binds the selected profile bodies and hashes plus the aggregate demand so plan
 validation detects catalog or plan drift. A declared-capacity browser result is
 still not host compatibility; Apply requires the normal attested preflight.
 
+Application profiles now reuse the existing Core floors as a deliberate
+Kombify hosting policy. These are absolute requirements for the host, not
+benchmarks or storage reserved for user content:
+
+| Selected profile | CPU / RAM / host storage | Basis |
+| --- | --- | --- |
+| Core Standard/High | 2 / 4 GiB / 20 GiB | Existing platform policy |
+| Core Lite Low | 2 / 2 GiB / 10 GiB | Existing smaller platform policy |
+| Immich Standard/High | 2 / 6 GiB / 20 GiB | Pinned upstream CPU/RAM; platform storage policy |
+| Immich Lite Low | 2 / 4 GiB / 10 GiB | Pinned upstream RAM with ML omitted; smaller platform storage policy |
+| Files, Vault, Smart Home Low | 2 / 2 GiB / 10 GiB | Smaller platform policy |
+| Files, Vault, Media, Smart Home Standard/High | 2 / 4 GiB / 20 GiB | Standard platform policy |
+
+The Immich CPU/RAM requirements come from the
+[v2.7.0 requirements](https://github.com/immich-app/immich/blob/v2.7.0/docs/docs/install/requirements.md).
+The other application floors are Kombify starting configurations, not numeric
+manufacturer minima. Module RAM reservations remain additive. A Core Standard
+plus Immich host therefore has a floor of 6 GiB rather than 10 GiB; observed
+capacity must still satisfy the aggregate reservations. No profile promises
+transcoding concurrency or photo-import throughput. Immich's 8 GiB whole-host
+recommendation is not encoded as an additive app recommendation.
+
+Admission also needs the applicable CPU instruction-set and filesystem
+requirements; numeric floors alone do not establish runtime compatibility.
+For Full Immich on amd64, every observed CPU must provide x86-64-v2. Linux
+inventory reads the exposed CPU flags; incomplete observations stay unknown and
+a fresh unknown observation clears a previous level. Arm64 does not acquire an
+x86 requirement, and Immich Lite omits the ML component that requires it.
+Both Immich profiles require persistent local POSIX storage with Unix ownership
+for their PostgreSQL data. The host observer resolves the exact data path and
+reads its Linux mount; unresolved paths and ambiguous mounts stay unverified,
+while known network, non-POSIX, or ephemeral filesystems cannot satisfy this
+profile. This filesystem classification does not prove available capacity or
+writability. The Core host-bootstrap adapter also observes the actual Docker
+data root on the fixed local socket before preparing storage directories; a
+different daemon data root cannot reuse the declared path's admission facts.
+This adapter's `host.bootstrapRuntime` contract explicitly requires rootful
+Docker. A rootless request is rejected during projection rather than inspected
+through the rootful socket. The Docker executable still belongs to the local
+operator's trusted tool installation; this observation is not binary attestation.
+The native Core renderer and its local Kopia source use the opinionated
+`/var/lib/docker` data root and `/var/lib/docker/volumes` mount layout. A
+separate local disk may be mounted there, but an alternate Docker data root is
+outside this native bootstrap contract and is rejected; this does not narrow
+the generic `system.container` schema or other adapters.
+The public profile catalog exposes these declarations through the existing
+planner, CLI and MCP surfaces; only target inventory can satisfy them.
+The storage column excludes photo libraries, media, data growth, backup copies,
+and restore staging. Those need their own explicit capacity budgets.
+
+An explicit `DataBinding.capacityDemand` is a CUE-owned additional/new-data
+budget. Its `initialGiB`, monthly growth, horizon, and reserve produce the
+projected and required GiB values; omitted demand stays unknown. ResolvedPlan
+admission reserves that budget once per actual `(binding, node)` placement and
+does not multiply it by data classes, declared replicas, or duplicate workloads.
+For local storage, the attested `storageCapacity` fact must identify the exact
+resolved `storage.dataRoot` or container `system.container.dataRoot` filesystem;
+generic root-filesystem free space and remote/NFS storage remain unverified.
+This is a data-budget check in addition to module minima and does not claim
+capacity for backup snapshots, staging, rollback, or restore copies.
+
 This boundary is the foundation for the provider- and device-neutral OS
 compatibility matrix: a matrix result names the same normalized OS facts used for
 host admission, while architecture, kernel, runtime, virtualization, and hardware
@@ -870,15 +985,67 @@ Every module has one closed role: `foundation`, `platform`, `workload`, or
 `operations`. A workload alternative must bind exactly one `workload` module
 owned by its catalog adapter, an allowed runtime kind and delivery, one service
 endpoint and health contract, compatible Site kinds and data classes, and only
-inputs declared by that module. The initial contract is `photos -> immich`.
-Its setup remains manual and operator-owned until a separate native-v2 setup
-action catalog exists; legacy setup action names are not treated as authority.
+inputs declared by that module. Photos declares `immich-owner-bootstrap`,
+Files declares `cloudreve-owner-bootstrap`, Media declares
+`jellyfin-owner-bootstrap`, Vault declares `vault-owner-invite`, and Smart Home declares
+`home-assistant-owner-bootstrap` as module-owned,
+on-demand actions through the same setup lifecycle stage. An action is
+executable only when its selected adapter registers native support; declaration
+alone does not make other adapter handoffs executable.
 
-This is currently an authority checkpoint: catalog decoding, generated bundles,
-and distribution hashes include the workload contract, but compiler selection
-and ResolvedPlan placement are the next cutover slice. Until that lands, the
-transitional `photos` capability path is not a second supported long-term API
-and does not grant an Apply-readiness claim.
+The compiler selects the declared workload and persists its placement and
+module-local profile in the ResolvedPlan. Generated bundles and distribution
+hashes carry that same contract. Apply readiness additionally requires the
+observed host and capacity facts. Native Photos, Files, Media, Vault and Smart Home setup use the
+exact signed Apply, application bundle and local Owner binding. Their shared
+CLI/MCP operation and State Console action read the same setup metadata, and
+credentials stay in a private local file. Home Assistant requires an actual
+owner/admin credential login, version and running-state readback; personal
+onboarding remains separate. A completed receipt from an earlier Plan or Apply
+remains historical evidence.
+
+The Console prepares an unapproved setup request with the application's
+credential-file path. It cannot manufacture Owner approval: the registered
+operation still requires explicit confirmation and Owner approval before CLI
+dispatch. Missing or failed connector results remain unavailable. Photos checks
+the applied API version both before setup and after owner readback, so a missing
+or changed final version cannot become a signed success receipt.
+Home Assistant's setup adapter is pinned to the deployed release's
+[login-flow implementation](https://github.com/home-assistant/core/blob/2026.7.2/homeassistant/components/auth/login_flow.py)
+and [token revocation contract](https://github.com/home-assistant/core/blob/2026.7.2/homeassistant/components/auth/__init__.py).
+Its onboarding and credential-login sessions are temporary and both are revoked
+through the bounded cleanup path.
+Immich setup similarly owns its temporary session: failed bootstrap closes it,
+and native setup or the legacy identity handoff closes it after its last use.
+A cleanup failure remains an explicit setup failure rather than a success
+receipt.
+
+Files shares the pinned Cloudreve owner adapter with the legacy Files session
+bridge, while native setup does not require that bridge or PocketID handoff.
+It verifies version, password login, current-user identity and an admin-only
+API readback before revoking its temporary session. Its receipt establishes the
+administrator account; storage policy, quotas, registration and sharing choices
+remain application settings. The [Files owner guide](../use-cases/files/agent/owner-setup/SKILL.md)
+uses the same credential fields and native command as the Console metadata.
+
+Media prepares or verifies an explicit Jellyfin administrator through the pinned
+startup and login APIs. Password login always identifies the temporary StackKit
+client, and authenticated user-policy and server-info readback precede session
+revocation. Only an explicit completion request closes the startup wizard. The
+[Media owner guide](../use-cases/media/agent/owner-setup/SKILL.md) keeps library
+paths, household viewer permissions and client playback separate from the
+administrator receipt. Backup of server configuration does not prove that every
+external media library is protected.
+
+Vault uses its signed Apply-bound administrator-token custody to prepare the
+owner's invitation on the pinned Vaultwarden API with public signups closed.
+Only a bounded identity/status readback is retained. The signed setup receipt
+records preparation; it cannot complete the personal account, handle client
+encryption keys or claim usability. The temporary admin cookie is logged out
+and cleared, without claiming revocation of Vaultwarden's stateless JWT.
+The [Vault owner guide](../use-cases/vault/agent/owner-setup/SKILL.md) places
+master-password creation and the save/sync/lock/unlock/read check in the official
+client, followed by separate backup and isolated-recovery evidence.
 
 ### Service endpoints and Modern publication backends
 
@@ -1535,6 +1702,20 @@ idempotent by operation ID. Techstack may display or dispatch this public CLI
 contract, but cannot supply repository credentials, rewrite the policy, or
 replace local PocketID/TinyAuth/step-ca authority.
 
+Full and Lite Basement Core select the same Kopia implementation with distinct
+generated source policies. Full retains its existing managed volumes and
+legacy source identity. Lite selects only its PocketID, step-ca and TinyAuth
+volumes, plus the selected backup-enabled application volumes. Its policy has
+a distinct artifact path and explicitly identifies the Lite Core module;
+admission binds the policy to that exact Core runtime. Neither profile silently
+includes volumes belonging to the other. Both reuse the same application
+dependency graph, writer custody, snapshot and restore lifecycle.
+Restore activation binds the complete source volume set to the selected Core
+and standalone applications before cutover. Missing application volumes or
+additional foreign volumes fail admission. Full and Lite share the runtime
+owner and verifier, which validate the selected profile's exact Compose output
+and health requirements.
+
 Upgrade recovery follows the executor that actually performed Product Apply.
 For the v0.8 Basement default this is Compose, not the alternative OpenTofu
 renderer. The internal `stackkit.executor-state-snapshot/v1` store already
@@ -1545,16 +1726,18 @@ persisted Kopia anchor plus the current PocketID Owner runtime binding. CAS
 objects are atomically published under one non-blocking store lock and their
 directory hierarchy is durability-synced where the platform supports it.
 
-This store is deliberately not command-reachable yet. Its capture API accepts
-only a package-private sealed current-state authority handle; no other package
-can fabricate one. The command-level upgrade slice must mint that handle only
-after it has re-run the complete current Plan/Generation/Apply authority gate
-and bound every captured artifact to its verified manifest and receipts. Until
-that verifier exists, StackKits does not claim an executable transactional
-upgrade or rollback anchor. OpenTofu state is required only if a future Product
-Apply actually selects an OpenTofu state owner; unsupported executor targets
-fail before runtime side effects rather than recording empty or unrelated
-state.
+The public upgrade checkpoint reaches this store through the sealed
+current-state authority constructor. It re-runs the current
+Plan/Generation/Apply authority gate and binds every captured artifact to its
+verified manifest and receipts before capture. Full and Lite select their
+Compose and source-policy artifacts from the exact Plan-owned runtime; the
+checkpoint never substitutes a Full artifact for Lite. New snapshots retain
+the selected module and artifact identities. Historical snapshots without
+profile fields remain Full-only compatibility data. These are implementation
+and local verification claims; the final exact-candidate upgrade and rollback
+on a test host remain pending. OpenTofu state is required only if a Product
+Apply selects an OpenTofu state owner; unsupported executor targets fail before
+runtime side effects rather than recording empty or unrelated state.
 
 `ProductApplyFileJournal` is the concrete provider-free durable option for a
 workspace-bound product integration. Construction opens and validates the
@@ -1581,11 +1764,12 @@ evidence expiry. The service-owned store must return byte-identical canonical
 data before execution can continue; missing custody, panics, substitutions, or
 conflicting capsules fail closed. The file Journal implements this opaque
 custody beside (but not inside) the Shared Journal record; DB-backed products
-can implement the same interface. The future public reconcile entry must still
-reacquire and revalidate the held workspace/output authority. In particular,
-an access-bound request cannot reuse its old `authorization_time` as a new
-invocation instant; delayed access-bound recovery remains blocked pending an
-explicit versioned continuation contract.
+can implement the same interface. The public reconcile entry reacquires and
+revalidates the held workspace/output authority. An access-bound request cannot
+reuse its old `authorization_time` as a new invocation instant: the service
+creates a `stackkits.product-apply-continuation/v1alpha1` contract with freshly
+collected and verified evidence, while retaining the original recovery lookup
+identity and immutable plan, artifact, executor, and requirement bindings.
 
 The registry's reconcile core can load one exact capsule
 after process restart, reject expired/foreign authority, reconstruct only the
@@ -1594,9 +1778,14 @@ same fenced Journal. A persisted successful owner is not prepared for
 execution again merely because a later owner failed before restart. The public
 `Service.ReconcileProductApply` entry encloses that core with a fresh
 CurrentResolution, held workspace/output-lock reacquisition, and immutable
-plan/manifest/receipt/artifact revalidation. Access-bound delayed continuation
-remains rejected until a versioned contract can bind a fresh invocation instant
-without replaying stale authorization.
+plan/manifest/receipt/artifact revalidation. Access- or backup-target-bound
+continuations require the service-owned evidence collector. Their verification
+instant is sampled after collection; admission samples the clock again after
+loading recovery custody. Both the original recovery authority and the fresh
+evidence must remain valid. Slow collection or custody reads therefore cannot
+extend an expired authorization. The shared request retains its sealed
+evaluation instant; the independently checked admission time is not a caller
+override. An expired original capsule requires a newly authorized Apply.
 
 The v0.8 CLI registers all factories and local transport required by the
 closed single-node Basement default graph. It opts into the durable file

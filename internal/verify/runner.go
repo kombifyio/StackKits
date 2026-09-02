@@ -3,9 +3,13 @@ package verify
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/docker"
@@ -53,9 +57,40 @@ type AccessSummary struct {
 
 // AccessService is a routable service endpoint.
 type AccessService struct {
-	Key string `json:"key"`
-	URL string `json:"url"`
+	Key         string `json:"key"`
+	URL         string `json:"url"`
+	ServiceRef  string `json:"serviceRef,omitempty"`
+	RouteRef    string `json:"routeRef,omitempty"`
+	WorkloadRef string `json:"workloadRef,omitempty"`
 }
+
+// HTTPRouteProbe is the reusable transport result consumed by both the
+// legacy verify report and the native runtime-observation projection. The
+// caller supplies only access-manifest targets; this package never discovers
+// or invents routes.
+type HTTPRouteProbe struct {
+	Vantage      string    `json:"vantage"`
+	Key          string    `json:"key"`
+	ServiceRef   string    `json:"serviceRef,omitempty"`
+	RouteRef     string    `json:"routeRef,omitempty"`
+	WorkloadRef  string    `json:"workloadRef,omitempty"`
+	URL          string    `json:"url"`
+	Method       string    `json:"method"`
+	Reached      bool      `json:"reached"`
+	StatusCode   int       `json:"statusCode,omitempty"`
+	ObservedAt   time.Time `json:"observedAt"`
+	FailureClass string    `json:"failureClass,omitempty"`
+	Error        string    `json:"error,omitempty"`
+}
+
+const (
+	HTTPProbeVantage          = "verifier-host"
+	maxHTTPProbeDuration      = 10 * time.Second
+	maxHTTPProbeBatchDuration = 30 * time.Second
+	maxHTTPProbeResponseBytes = 64 << 10
+	maxHTTPProbeRedirects     = 5
+	maxHTTPProbeConcurrency   = 4
+)
 
 // DockerClient is the Docker surface needed by the verifier.
 type DockerClient interface {
@@ -233,39 +268,186 @@ func verifyHTTPRoutes(
 		add("http-routes", StatusWarn, "", "no access summary available; run stackkit generate/apply first")
 		return
 	}
-	if client == nil {
-		client = &http.Client{Timeout: 10 * time.Second}
+	probes, err := ProbeHTTPRoutes(ctx, access, client)
+	if err != nil {
+		add("http-routes", StatusFail, "", err.Error())
+		return
 	}
-
-	for _, service := range access.Services {
-		key := strings.TrimSpace(service.Key)
+	for _, probe := range probes {
+		key := probe.Key
 		if key == "" {
 			key = "service"
 		}
-		url := strings.TrimSpace(service.URL)
-		if url == "" {
-			add("http:"+key, StatusWarn, "", "service has no URL")
+		if probe.Error != "" {
+			add("http:"+key, StatusFail, probe.URL, probe.Error)
 			continue
 		}
-
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-		if err != nil {
-			add("http:"+key, StatusFail, url, fmt.Sprintf("invalid URL: %v", err))
+		if isReachableHTTPStatus(probe.StatusCode) {
+			add("http:"+key, StatusPass, probe.URL, fmt.Sprintf("route is reachable with HTTP %d", probe.StatusCode))
 			continue
 		}
-		resp, err := client.Do(req)
-		if err != nil {
-			add("http:"+key, StatusFail, url, fmt.Sprintf("request failed: %v", err))
-			continue
-		}
-		_ = resp.Body.Close()
-
-		if isReachableHTTPStatus(resp.StatusCode) {
-			add("http:"+key, StatusPass, url, fmt.Sprintf("route is reachable with HTTP %d", resp.StatusCode))
-			continue
-		}
-		add("http:"+key, StatusFail, url, fmt.Sprintf("route returned HTTP %d", resp.StatusCode))
+		add("http:"+key, StatusFail, probe.URL, fmt.Sprintf("route returned HTTP %d", probe.StatusCode))
 	}
+}
+
+// ProbeHTTPRoutes performs bounded GET requests using the verifier host as
+// the sole vantage. Redirects must remain on the same authority and HTTPS
+// cannot be downgraded. A per-request result preserves failed probes so a
+// caller can expose an honest unverified/blocked projection for each route.
+func ProbeHTTPRoutes(ctx context.Context, access *AccessSummary, client *http.Client) ([]HTTPRouteProbe, error) {
+	if access == nil || len(access.Services) == 0 {
+		return nil, errors.New("HTTP probe requested but no verified access manifest is available; run stackkit generate/apply first")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	client, err := prepareHTTPProbeClient(client)
+	if err != nil {
+		return nil, err
+	}
+	batchContext, cancel := context.WithTimeout(ctx, maxHTTPProbeBatchDuration)
+	defer cancel()
+	result := make([]HTTPRouteProbe, len(access.Services))
+	semaphore := make(chan struct{}, maxHTTPProbeConcurrency)
+	var wait sync.WaitGroup
+	for index, service := range access.Services {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			select {
+			case semaphore <- struct{}{}:
+				defer func() { <-semaphore }()
+			case <-batchContext.Done():
+				result[index] = probeHTTPRoute(batchContext, client, service)
+				return
+			}
+			result[index] = probeHTTPRoute(batchContext, client, service)
+		}()
+	}
+	wait.Wait()
+	return result, nil
+}
+
+func prepareHTTPProbeClient(input *http.Client) (*http.Client, error) {
+	client := &http.Client{}
+	if input != nil {
+		clone := *input
+		client = &clone
+	}
+	if client.Timeout <= 0 || client.Timeout > maxHTTPProbeDuration {
+		client.Timeout = maxHTTPProbeDuration
+	}
+	transport := client.Transport
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+	base, ok := transport.(*http.Transport)
+	if !ok {
+		return nil, errors.New("HTTP probe requires the standard TLS-validating transport")
+	}
+	base = base.Clone()
+	if base.DialTLS != nil || base.DialTLSContext != nil {
+		return nil, errors.New("HTTP probe refuses a custom TLS dialer")
+	}
+	if base.TLSClientConfig != nil && base.TLSClientConfig.InsecureSkipVerify {
+		return nil, errors.New("HTTP probe refuses an insecure TLS transport")
+	}
+	// A proxy changes the network vantage and is not part of the verified
+	// Access manifest. Direct transport keeps the claim scoped to this host.
+	base.Proxy = nil
+	client.Transport = base
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) == 0 {
+			return nil
+		}
+		previous := via[len(via)-1].URL
+		if previous == nil || req.URL == nil || !sameHTTPAuthority(previous, req.URL) {
+			return errors.New("HTTP probe redirect changed route authority")
+		}
+		if previous.Scheme == "https" && req.URL.Scheme != "https" {
+			return errors.New("HTTP probe redirect downgraded HTTPS")
+		}
+		if len(via) >= maxHTTPProbeRedirects {
+			return http.ErrUseLastResponse
+		}
+		return nil
+	}
+	return client, nil
+}
+
+func probeHTTPRoute(ctx context.Context, client *http.Client, service AccessService) HTTPRouteProbe {
+	probe := HTTPRouteProbe{
+		Vantage:     HTTPProbeVantage,
+		Key:         strings.TrimSpace(service.Key),
+		ServiceRef:  strings.TrimSpace(service.ServiceRef),
+		RouteRef:    strings.TrimSpace(service.RouteRef),
+		WorkloadRef: strings.TrimSpace(service.WorkloadRef),
+		URL:         strings.TrimSpace(service.URL),
+		Method:      http.MethodGet,
+		ObservedAt:  time.Now().UTC(),
+	}
+	if probe.Key == "" {
+		probe.Key = "service"
+	}
+	if probe.ServiceRef == "" {
+		probe.ServiceRef = probe.Key
+	}
+	parsed, err := url.Parse(probe.URL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" || strings.ContainsAny(probe.URL, "\r\n\x00") {
+		probe.Error = "HTTP probe target is not a valid secret-free HTTP(S) URL"
+		probe.FailureClass = "invalid-target"
+		return probe
+	}
+	requestContext, cancel := context.WithTimeout(ctx, maxHTTPProbeDuration)
+	defer cancel()
+	request, err := http.NewRequestWithContext(requestContext, http.MethodGet, probe.URL, nil)
+	if err != nil {
+		probe.Error = "HTTP probe request could not be created"
+		probe.FailureClass = "request-creation-failed"
+		return probe
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		probe.Error = "HTTP probe request failed: " + err.Error()
+		probe.FailureClass = "request-failed"
+		return probe
+	}
+	defer response.Body.Close()
+	probe.StatusCode = response.StatusCode
+	read, readErr := io.Copy(io.Discard, io.LimitReader(response.Body, maxHTTPProbeResponseBytes+1))
+	if readErr != nil {
+		probe.Error = "HTTP probe response could not be read: " + readErr.Error()
+		probe.FailureClass = "response-read-failed"
+		return probe
+	}
+	if read > maxHTTPProbeResponseBytes {
+		probe.Error = "HTTP probe response exceeded the bounded response limit"
+		probe.FailureClass = "response-too-large"
+		return probe
+	}
+	probe.Reached = isReachableHTTPStatus(response.StatusCode)
+	return probe
+}
+
+func sameHTTPAuthority(left, right *url.URL) bool {
+	if left == nil || right == nil {
+		return false
+	}
+	leftPort, rightPort := left.Port(), right.Port()
+	if leftPort == "" {
+		leftPort = defaultHTTPPort(left.Scheme)
+	}
+	if rightPort == "" {
+		rightPort = defaultHTTPPort(right.Scheme)
+	}
+	return strings.EqualFold(left.Hostname(), right.Hostname()) && leftPort == rightPort
+}
+
+func defaultHTTPPort(scheme string) string {
+	if strings.EqualFold(scheme, "https") {
+		return "443"
+	}
+	return "80"
 }
 
 func isReachableHTTPStatus(code int) bool {

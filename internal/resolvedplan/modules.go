@@ -766,6 +766,38 @@ func nodeRuntimeAdmission(requirements map[string]any, node nodeView) (string, e
 			status = mergeRuntimeAdmissionStatus(status, "unsatisfied")
 		}
 	}
+	if _, exists := requirements["minAMD64MicroarchitectureLevel"]; exists {
+		wanted, err := intField(requirements, "runtimeRequirements", "minAMD64MicroarchitectureLevel")
+		if err != nil {
+			return "", err
+		}
+		architecture, attested, err := optionalStringField(node.inventoryFacts, "inventory", "arch")
+		if err != nil {
+			return "", err
+		}
+		if !attested {
+			return mergeRuntimeAdmissionStatus(status, "unverified"), nil
+		}
+		if architecture == "arm64" {
+			return status, nil
+		}
+		if architecture != "amd64" {
+			return mergeRuntimeAdmissionStatus(status, "unverified"), nil
+		}
+		observed, observedOK, err := inventoryIntFact(node.inventoryFacts, "amd64MicroarchitectureLevel")
+		if err != nil {
+			return "", err
+		}
+		if !observedOK {
+			return mergeRuntimeAdmissionStatus(status, "unverified"), nil
+		}
+		if observed < 1 || observed > 4 {
+			return "", fail(ErrInvalidInput, "inventory.amd64MicroarchitectureLevel", "observed amd64 microarchitecture level must be between 1 and 4")
+		}
+		if observed < wanted {
+			status = mergeRuntimeAdmissionStatus(status, "unsatisfied")
+		}
+	}
 	return status, nil
 }
 

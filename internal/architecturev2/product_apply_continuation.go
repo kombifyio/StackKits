@@ -57,7 +57,7 @@ func validateProductApplyContinuation(continuation productApplyContinuation, cap
 	}
 	evaluatedAt, err := time.Parse(time.RFC3339Nano, continuation.EvaluatedAt)
 	if err != nil || evaluatedAt.Location() != time.UTC || evaluatedAt.Format(time.RFC3339Nano) != continuation.EvaluatedAt ||
-		continuation.Request.ExecutionAt != evaluatedAt {
+		continuation.Request.ExecutionAt != evaluatedAt || evaluatedAt.Before(capsule.Request.ExecutionAt) {
 		return errors.New("Product Apply continuation evaluation instant is invalid")
 	}
 	validUntil, err := time.Parse(time.RFC3339Nano, continuation.ValidUntil)

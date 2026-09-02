@@ -149,7 +149,7 @@ func ParseImmichWorkloadBundle(data []byte) (ImmichWorkloadBundleDescriptor, err
 		return ImmichWorkloadBundleDescriptor{}, wrap(ErrInvalidPlan, path, "decode closed Immich workload bundle", err)
 	}
 	if bundle.APIVersion != "stackkit.workload-bundle/v2" || bundle.Kind != "ImmichWorkloadBundle" ||
-		bundle.Workload.Ref != "photos" || bundle.Workload.AlternativeRef != "immich" || bundle.Workload.ModuleRef != immichWorkloadModuleID ||
+		bundle.Workload.Ref != "photos" || bundle.Workload.AlternativeRef != "immich" || (bundle.Workload.ModuleRef != immichWorkloadModuleID && bundle.Workload.ModuleRef != immichLiteWorkloadModuleID) ||
 		bundle.Workload.Release != "v2.7.0" || bundle.Workload.Delivery != "application-adapter" || bundle.Workload.EntryComponent != "immich-server" ||
 		bundle.Ownership.ExecutionAdapter != "selected-application-adapter" || bundle.Ownership.ProviderLifecycle != "not-owned" || bundle.Ownership.Credentials != "opaque-references-only" {
 		return ImmichWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed Immich v2.7.0 contract")
@@ -165,11 +165,16 @@ func ParseImmichWorkloadBundle(data []byte) (ImmichWorkloadBundleDescriptor, err
 	if err != nil {
 		return ImmichWorkloadBundleDescriptor{}, err
 	}
+	if bundle.Workload.ModuleRef == immichLiteWorkloadModuleID {
+		if err := validateImmichLiteComponents(components, path+".components"); err != nil {
+			return ImmichWorkloadBundleDescriptor{}, err
+		}
+	}
 	if err := validateImmichServiceEndpoint(bundle.Route, path+".route"); err != nil {
 		return ImmichWorkloadBundleDescriptor{}, err
 	}
 	if bundle.DeliveryRoute != nil {
-		if err := validateParsedApplicationDeliveryRoute(*bundle.DeliveryRoute, immichWorkloadModuleID, "photos", 2283, path+".deliveryRoute"); err != nil {
+		if err := validateParsedApplicationDeliveryRoute(*bundle.DeliveryRoute, bundle.Workload.ModuleRef, "photos", 2283, path+".deliveryRoute"); err != nil {
 			return ImmichWorkloadBundleDescriptor{}, err
 		}
 	}
@@ -285,18 +290,8 @@ func validateImmichWorkloadUnit(unit RenderUnit, contract RendererContract, modu
 		return selectedPaaSWorkloadBundle{}, err
 	}
 	if omitML {
-		for _, component := range components {
-			if component.ID == "immich-machine-learning" || component.Role == "machine-learning" {
-				return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime.components", "lite Immich omits machine-learning")
-			}
-			if _, exists := component.Environment["IMMICH_MACHINE_LEARNING_URL"]; exists {
-				return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime.components", "lite Immich omits machine-learning URL")
-			}
-			for _, dep := range component.DependsOn {
-				if dep == "immich-machine-learning" {
-					return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime.components", "lite Immich omits machine-learning")
-				}
-			}
+		if err := validateImmichLiteComponents(components, path+".runtime.components"); err != nil {
+			return selectedPaaSWorkloadBundle{}, err
 		}
 	}
 	var endpoints []selectedPaaSServiceEndpoint
@@ -319,6 +314,23 @@ func validateImmichWorkloadUnit(unit RenderUnit, contract RendererContract, modu
 	bundle.Ownership.ProviderLifecycle = "not-owned"
 	bundle.Ownership.Credentials = "opaque-references-only"
 	return bundle, nil
+}
+
+func validateImmichLiteComponents(components []selectedPaaSRuntimeComponent, path string) error {
+	for _, component := range components {
+		if component.ID == "immich-machine-learning" || component.Role == "machine-learning" {
+			return fail(ErrInvalidPlan, path, "lite Immich omits machine-learning")
+		}
+		if _, exists := component.Environment["IMMICH_MACHINE_LEARNING_URL"]; exists {
+			return fail(ErrInvalidPlan, path, "lite Immich omits machine-learning URL")
+		}
+		for _, dep := range component.DependsOn {
+			if dep == "immich-machine-learning" {
+				return fail(ErrInvalidPlan, path, "lite Immich omits machine-learning")
+			}
+		}
+	}
+	return nil
 }
 
 func validateImmichServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path string) error {

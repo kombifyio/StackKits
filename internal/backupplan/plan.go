@@ -274,7 +274,7 @@ func buildEmergencyExportPlan(resilience *models.BackupResilienceSpec, dataClass
 	plan := EmergencyExportPlan{
 		Enabled:        true,
 		Mode:           "portable-archive",
-		Format:         "tar.zst.age",
+		Format:         "tar.gz.age",
 		IncludeClasses: append([]string(nil), dataClasses...),
 		LargeMediaMode: "manifest-only",
 		Manifest: EmergencyExportManifestPlan{

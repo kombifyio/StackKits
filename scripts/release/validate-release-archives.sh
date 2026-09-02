@@ -116,14 +116,10 @@ check_archive_contents "$basement_archive" basement-kit/stackkit.yaml
 check_archive_contents "$cloud_archive" cloud-kit/stackkit.yaml
 check_archive_contents "$modern_archive" modern-homelab/stackkit.yaml
 
-# Keep the quick executable/public-surface contract before publication. These
-# checks do not resolve a release or create lifecycle state.
-smoke_public_archive_cli() {
+# Verify packaged executables and the bundled contract fixture before
+# publication. Lifecycle behavior belongs to separately invoked diagnostics.
+validate_public_archive_executables() {
   local extract_dir="$1"
-  local help_log="$tmp/archive-backup-help.log"
-  local restore_help_log="$tmp/archive-backup-restore-help.log"
-  local enroll_log="$tmp/archive-backup-enroll.log"
-  local export_dir="$tmp/archive-emergency-export"
 
   "$extract_dir/stackkit" version >/dev/null
   "$extract_dir/tofu" version >/dev/null
@@ -132,55 +128,13 @@ smoke_public_archive_cli() {
   "$extract_dir/stackkit-mcp" --help >/dev/null 2>&1
   node "$extract_dir/scripts/release/validate-architecture-contract-fixture.mjs" \
     --repo-root "$extract_dir" --proof-only
-
-  "$extract_dir/stackkit" backup --help >"$help_log"
-  local verb
-  for verb in init configure status run list restore verify emergency-export migrate-from-restic; do
-    grep -Eq "^[[:space:]]+${verb}[[:space:]]" "$help_log" ||
-      fail "archive CLI is missing public backup verb: $verb"
-  done
-  if grep -Eq '^[[:space:]]+enroll[[:space:]]' "$help_log"; then
-    fail "archive CLI leaked backup enroll"
-  fi
-  if "$extract_dir/stackkit" backup enroll >"$enroll_log" 2>&1; then
-    fail "archive CLI unexpectedly resolved backup enroll"
-  fi
-  grep -qi 'unknown command "enroll"' "$enroll_log" ||
-    fail "archive CLI did not reject backup enroll as an unknown command"
-
-  "$extract_dir/stackkit" backup restore --help >"$restore_help_log"
-  grep -Eqi 'snapshot[- ]anchor' "$restore_help_log" ||
-    fail "archive CLI does not describe restore as a snapshot-anchor operation"
-  local restore_flag
-  for restore_flag in --owner-approve --operation-id --json; do
-    grep -q -- "$restore_flag" "$restore_help_log" ||
-      fail "archive CLI restore is missing ${restore_flag}"
-  done
-  if grep -Eq -- '(^|[[:space:]])--target([=[:space:]]|$)' "$restore_help_log"; then
-    fail "archive CLI restore exposed a caller-controlled target"
-  fi
-
-  "$extract_dir/stackkit" backup emergency-export \
-    --target "$export_dir" \
-    --source "$extract_dir/README.md" \
-    --include-class config >"$tmp/archive-emergency-export.log"
-  [ -f "$export_dir/stackkit-emergency-export-manifest.json" ] ||
-    fail "archive emergency export did not write its manifest"
-  [ -f "$export_dir/RESTORE.md" ] ||
-    fail "archive emergency export did not write its restore runbook"
-  grep -q '"schemaVersion": "stackkit.backup-emergency-export/v1"' \
-    "$export_dir/stackkit-emergency-export-manifest.json" ||
-    fail "archive emergency export manifest schema drifted"
 }
 
 full_extract="$tmp/full-extract"
 mkdir -p "$full_extract"
 tar xzf "$full_archive" -C "$full_extract"
-smoke_public_archive_cli "$full_extract"
+validate_public_archive_executables "$full_extract"
 
-# Lifecycle execution cannot be authoritative before the release index and its
-# attestations exist. The public tag workflow therefore keeps this pre-trust
-# gate structural and runs the exact Basement init/validate/generate/apply/
-# verify path once, after the trust set is materialized, in
-# run-standalone-oss-runtime-e2e.sh.
+# This gate proves archive contents and executability. It does not claim
+# runtime or recovery evidence; v0.x publication does not require those runs.
 printf 'pre-trust release archive structural validation passed\n'

@@ -167,7 +167,7 @@ Package: foundation.#UseCasePackage & {
 		defaultPolicy: "on_demand"
 		drops: [
 			{
-				name:        "photos-owner-bootstrap"
+				name:        "immich-owner-bootstrap"
 				policy:      "on_demand"
 				description: "Create or verify the Immich owner from StackKit admin credentials and complete server/user onboarding (realized today by the immich-owner-bootstrap setup drop)."
 			},
@@ -186,6 +186,16 @@ Package: foundation.#UseCasePackage & {
 
 	lifecycle: foundation.#StandardUseCaseLifecycle & {
 		referenceVertical: true
+		stages: setup: {
+			name:        "setup"
+			operations:  ["stackkit.setup"]
+			phases:      ["authorize", "configure", "verify"]
+			surfaces:    ["cli", "mcp", "state-console"]
+			evidence:    ["setup-result"]
+			mutation:    true
+			destructive: false
+			ownerApproval: true
+		}
 	}
 
 	agentSurface: {

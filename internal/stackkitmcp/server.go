@@ -295,8 +295,12 @@ func (a *App) addActions(server *mcp.Server) {
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Resolve), a.stackkitResolveV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Generate), a.stackkitGenerateV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Apply), a.stackkitApplyV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.Setup), a.stackkitSetupV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Backup), a.stackkitBackupV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.BackupScheduleEnable), a.stackkitBackupScheduleEnableV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.BackupScheduleDisable), a.stackkitBackupScheduleDisableV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Restore), a.stackkitRestoreV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.RestoreAbandon), a.stackkitRestoreAbandonV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Upgrade), a.stackkitUpgradeV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Remove), a.stackkitRemoveV2)
 }
@@ -309,6 +313,7 @@ func (a *App) addReadOnlyActions(server *mcp.Server) {
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Plan), a.stackkitPlanV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Verify), a.stackkitVerifyV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Status), a.stackkitStatusV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.BackupScheduleStatus), a.stackkitBackupScheduleStatusV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Logs), a.stackkitLogsV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Drift), a.stackkitDriftV2)
 }
@@ -346,28 +351,32 @@ func mcpTool(name, description string, readOnly, destructive, idempotent bool) *
 }
 
 var stateConsoleToolNames = map[string]bool{
-	"stackkit_state_console":    true,
-	"stackkit_self_check_plan":  true,
-	"stackkit_status":           true,
-	"stackkit_config_get":       true,
-	"stackkit_init":             true,
-	"stackkit_config_set":       true,
-	"stackkit_validate_spec":    true,
-	"stackkit_validate":         true,
-	"stackkit_generate_preview": true,
-	"stackkit_resolve":          true,
-	"stackkit_generate":         true,
-	"stackkit_plan":             true,
-	"stackkit_verify":           true,
-	"stackkit_verify_plan":      true,
-	"stackkit_backup":           true,
-	"stackkit_restore":          true,
-	"stackkit_upgrade":          true,
-	"stackkit_remove":           true,
-	"stackkit_drift":            true,
-	"stackkit_logs":             true,
-	"stackkit_logs_list":        true,
-	"stackkit_doctor":           true,
+	"stackkit_state_console":           true,
+	"stackkit_self_check_plan":         true,
+	"stackkit_status":                  true,
+	"stackkit_config_get":              true,
+	"stackkit_init":                    true,
+	"stackkit_config_set":              true,
+	"stackkit_validate_spec":           true,
+	"stackkit_validate":                true,
+	"stackkit_generate_preview":        true,
+	"stackkit_resolve":                 true,
+	"stackkit_generate":                true,
+	"stackkit_plan":                    true,
+	"stackkit_verify":                  true,
+	"stackkit_verify_plan":             true,
+	"stackkit_backup":                  true,
+	"stackkit_backup_schedule_enable":  true,
+	"stackkit_backup_schedule_disable": true,
+	"stackkit_backup_schedule_status":  true,
+	"stackkit_restore":                 true,
+	"stackkit_restore_abandon":         true,
+	"stackkit_upgrade":                 true,
+	"stackkit_remove":                  true,
+	"stackkit_drift":                   true,
+	"stackkit_logs":                    true,
+	"stackkit_logs_list":               true,
+	"stackkit_doctor":                  true,
 }
 
 func toolMeta(name string) mcp.Meta {

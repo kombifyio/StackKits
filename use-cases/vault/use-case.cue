@@ -89,15 +89,15 @@ Package: foundation.#UseCasePackage & {
 		protocol: "rest"
 		basePath: "/api"
 		auth:     "vaultwarden-owner-auth"
-		purpose:  "Owner bootstrap and bounded health/readback for the Bitwarden-compatible Vaultwarden service."
+		purpose:  "Owner invitation preparation plus manual encrypted account setup and bounded health/readback for the Bitwarden-compatible Vaultwarden service."
 	}
 
 	setup: {
 		defaultPolicy: "on_demand"
 		drops: [{
-			name:        "vault-owner-bootstrap"
+			name:        "vault-owner-invite"
 			policy:      "on_demand"
-			description: "Create or verify the Vault owner, keep public sign-up closed, and retain break-glass administration material in secret custody."
+			description: "Prepare or verify the Vaultwarden owner invitation using owner-custodied administration; the official client completes the encrypted personal account."
 		}]
 	}
 
@@ -115,10 +115,19 @@ Package: foundation.#UseCasePackage & {
 		apis: [{
 			id:       "vaultwarden"
 			protocol: "rest"
-			purpose:  "Owner bootstrap and bounded health/readback. Vaultwarden has no native product MCP."
+			purpose:  "Owner invitation preparation and bounded health/readback. The official client completes the encrypted personal account; Vaultwarden has no native product MCP."
 			auth:     "vaultwarden-owner-auth"
 		}]
+		skills: [{
+			id:       "owner-setup"
+			audience: "product-user"
+			source:   "stackkits"
+			path:     "use-cases/vault/agent/owner-setup/SKILL.md"
+		}]
 		cliHelpers: [{
+			command: "stackkit secrets materialize"
+			purpose: "Establish or reuse owner-bound custody for declared local secret references; never print or export the Vaultwarden admin token."
+		}, {
 			command: "stackkit agent mcp-config"
 			purpose: "Print the stackkit lifecycle MCP client connection."
 		}]

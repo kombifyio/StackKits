@@ -130,6 +130,9 @@ func (o *osBasementCoreOperations) ApplyProject(ctx context.Context, project Bas
 	if err := o.ready(ctx); err != nil {
 		return BasementCoreApplyObservation{}, err
 	}
+	if _, ok := basementCoreProjectProfile(project); !ok {
+		return BasementCoreApplyObservation{}, errors.New("Basement core operations do not support the selected local profile")
+	}
 	if _, err := localevidence.LoadBasementRuntimeCustody(o.workspaceRoot); err != nil {
 		return BasementCoreApplyObservation{}, fmt.Errorf("verify local Basement runtime custody before Apply: %w", err)
 	}
@@ -160,6 +163,9 @@ func (o *osBasementCoreOperations) ApplyProject(ctx context.Context, project Bas
 func (o *osBasementCoreOperations) VerifyProject(ctx context.Context, project BasementCoreProject) (BasementCoreVerifyObservation, error) {
 	if err := o.ready(ctx); err != nil {
 		return BasementCoreVerifyObservation{}, err
+	}
+	if _, ok := basementCoreProjectProfile(project); !ok {
+		return BasementCoreVerifyObservation{}, errors.New("Basement core operations do not support the selected local profile")
 	}
 	if _, err := localevidence.LoadBasementRuntimeCustody(o.workspaceRoot); err != nil {
 		return BasementCoreVerifyObservation{}, fmt.Errorf("verify local Basement runtime custody before observation: %w", err)
@@ -228,6 +234,14 @@ func (o *osBasementCoreOperations) VerifyProject(ctx context.Context, project Ba
 		OwnerBindingDigest: localevidence.OwnerRuntimeBindingDigest(binding),
 		Status:             "ready", Services: services, Probes: probes,
 	}, nil
+}
+
+func basementCoreProjectProfile(project BasementCoreProject) (closedLocalCoreExecutionProfile, bool) {
+	moduleRef := project.ModuleRef
+	if moduleRef == "" {
+		moduleRef = basementCoreModuleRef
+	}
+	return basementClosedLocalCoreExecutionProfileForModule(moduleRef)
 }
 
 func readStablePrivateBasementRuntimeFile(workspaceRoot, absolutePath string) ([]byte, error) {

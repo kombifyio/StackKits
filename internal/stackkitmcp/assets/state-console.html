@@ -182,6 +182,40 @@
       letter-spacing: 0;
     }
 
+    .application-card {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      overflow-wrap: anywhere;
+    }
+
+    .application-card h4 { margin: 0 0 5px; font-size: 15px; }
+    .application-card > a { color: var(--accent); font-size: 13px; }
+    .application-card dl { display: grid; grid-template-columns: 105px minmax(0, 1fr); gap: 12px 16px; margin: 18px 0; font-size: 13px; }
+    .application-card dt { color: var(--muted); padding-top: 2px; }
+    .application-card dd { margin: 0; display: grid; gap: 4px; }
+    .application-card dd span, .application-card small { color: var(--muted); line-height: 1.5; }
+    .application-axis { font-weight: 600; }
+    .application-axis[data-state="verified"] { color: var(--ok); }
+    .application-axis[data-state="blocked"] { color: var(--error); }
+    .application-axis[data-state="required"] { color: var(--warn); }
+    .application-card summary { cursor: pointer; min-height: 30px; font-size: 13px; }
+    .application-card li { margin-bottom: 8px; line-height: 1.5; font-size: 13px; }
+    .application-setup {
+      display: grid;
+      gap: 8px;
+      margin-top: 14px;
+      padding: 11px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel-soft);
+    }
+    .application-setup strong { font-size: 13px; }
+    .application-setup p { margin: 0; color: var(--muted); line-height: 1.5; font-size: 13px; }
+    .application-setup a { color: var(--accent); }
+    .application-setup .actions { margin-top: 2px; }
+    .application-setup-help { margin: 14px 0 0; color: var(--muted); line-height: 1.5; font-size: 13px; }
+
     .panel h3 {
       margin: 16px 0 8px;
       font-size: 13px;
@@ -513,7 +547,11 @@
         <div class="actions">
           <button type="button" id="loadConfig">Read Spec</button>
           <button type="button" id="selfCheck">Host Check</button>
-          <button type="button" id="status">Server Status</button>
+          <button type="button" id="status">Refresh Application Status</button>
+        </div>
+        <div id="applicationStatus" aria-live="polite">
+          <h3>Your applications</h3>
+          <p>Refresh status to see the applications selected for this workspace.</p>
         </div>
       </section>
 
@@ -646,6 +684,10 @@
 
     let state = mergeState(defaults, window.openai?.widgetState || {});
     let busy = false;
+    // This is a transient projection of CLI evidence, never a persisted
+    // readiness decision. A different workspace must fetch its own status.
+    let applicationSnapshot = null;
+    let applicationScopeVersion = 0;
 
     const output = document.getElementById("output");
     const writeDot = document.getElementById("writeDot");
@@ -697,6 +739,8 @@
     function invalidatePersistedSpec() {
       state.specReady = false;
       delete state.runState.stackkit_init;
+      applicationSnapshot = null;
+      applicationScopeVersion++;
     }
 
     function selectedDomain() {
@@ -788,15 +832,32 @@
       }
       setBusy(true);
       markRun(name, "running");
+      if (name === "stackkit_status") {
+        applicationSnapshot = null;
+        renderApplicationStatus("Checking the selected workspace…");
+      }
+      const requestScopeVersion = applicationScopeVersion;
       try {
         const result = await window.openai.callTool(name, args);
-        const success = !(result && result.isError);
+        const success = toolSucceeded(result);
         markRun(name, success ? "ok" : "error");
-        setOutput(result);
+        setOutput(result ?? { tool: name, error: "The connector returned no result." });
+        if (name === "stackkit_status") {
+          const data = structured(result);
+          const status = data?.structured_output || data;
+          if (success && requestScopeVersion === applicationScopeVersion && status?.apiVersion === "stackkit.status/v2" &&
+              Array.isArray(status.applications) && status.applications.every((application) => application?.schemaVersion === "stackkit.application-experience/v1")) {
+            applicationSnapshot = { scope: JSON.stringify(args), data: status };
+          }
+          renderApplicationStatus(success && data && !data.structured_output && data.apiVersion !== "stackkit.status/v2"
+            ? "This server connector provides legacy status. Connect the current local StackKits CLI to view application evidence; server diagnostics remain available below."
+            : "Application status is unavailable. See the diagnostic output and refresh the selected workspace.");
+        }
         return result;
       } catch (error) {
         markRun(name, "error");
         setOutput({ tool: name, error: error?.message || String(error) });
+        if (name === "stackkit_status") renderApplicationStatus("The status request failed. Check the connector and retry.");
         return null;
       } finally {
         setBusy(false);
@@ -818,7 +879,7 @@
     }
 
     function toolSucceeded(result) {
-      return !!result && result.isError !== true;
+      return !!result && result.isError !== true && structured(result)?.success !== false;
     }
 
     function markSkippedAfter(sequence, failedTool) {
@@ -961,7 +1022,160 @@
       }
     }
 
+    function executableSetupAction(application) {
+      const action = application?.setupAction;
+      if (!action || typeof action !== "object") {
+        return null;
+      }
+      if (clean(action.operationRef) !== "stackkit.setup" || !clean(action.workloadRef) || clean(action.workloadRef) !== clean(application.workloadRef) || !clean(action.credentialsFile)) {
+        return null;
+      }
+      return action;
+    }
+
+    function requestSetupApproval(application) {
+      const action = executableSetupAction(application);
+      if (!action) {
+        return;
+      }
+      setOutput({
+        operation_approval_required: true,
+        operation: action.operationRef,
+        requested_arguments: {
+          ...baseArgs(),
+          workload_ref: action.workloadRef,
+          credentials_file: clean(action.credentialsFile),
+          complete_onboarding: action.supportsOnboardingCompletion === true,
+          operation_confirmation: "",
+          owner_approved: false
+        },
+        message: "The State Console does not invoke setup directly. Prepare the private credential file, then ask the connected agent to present this registered setup operation for confirmation."
+      });
+    }
+
+    function renderApplicationStatus(emptyMessage) {
+      const container = document.getElementById("applicationStatus");
+      container.replaceChildren();
+      const heading = document.createElement("h3");
+      heading.textContent = "Your applications";
+      container.append(heading);
+      const status = applicationSnapshot?.scope === JSON.stringify(baseArgs()) ? applicationSnapshot.data : null;
+      if (!status) {
+        const message = document.createElement("p");
+        message.textContent = emptyMessage || "Refresh status to see the applications selected for this workspace.";
+        container.append(message);
+        return;
+      }
+      if (!status.applications.length) {
+        const message = document.createElement("p");
+        message.textContent = "This plan has no selected application workloads.";
+        container.append(message);
+        return;
+      }
+      const labels = { verified: "Verified", unverified: "Not verified", required: "Action required", blocked: "Blocked", absent: "Not installed", "not-required": "Not required" };
+      const axes = [["installed", "Installation"], ["reachable", "Client access"], ["setup", "Initial setup"], ["usable", "Ready to use"], ["recoverable", "Recovery"]];
+      for (const application of status.applications) {
+        const card = document.createElement("article");
+        card.className = "application-card";
+        const title = document.createElement("h4");
+        title.textContent = clean(application.workloadRef) || "Application";
+        card.append(title);
+        try {
+          const url = new URL(application.url);
+          if (["https:", "http:"].includes(url.protocol) && !url.username && !url.password) {
+            const link = document.createElement("a");
+            link.href = url.href;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.textContent = url.host + (url.pathname === "/" ? "" : url.pathname);
+            link.setAttribute("aria-label", "Open " + title.textContent);
+            card.append(link);
+          }
+        } catch { /* Missing or unsafe URLs are not actionable links. */ }
+        const list = document.createElement("dl");
+        for (const [key, label] of axes) {
+          const axis = application[key] || {};
+          const term = document.createElement("dt");
+          term.textContent = label;
+          const detail = document.createElement("dd");
+          const badge = document.createElement("strong");
+          badge.className = "application-axis";
+          badge.dataset.state = Object.hasOwn(labels, axis.status) ? axis.status : "unverified";
+          badge.textContent = labels[badge.dataset.state];
+          detail.append(badge);
+          if (axis.reason) {
+            const reason = document.createElement("span");
+            reason.textContent = clean(axis.reason);
+            detail.append(reason);
+          }
+          if (axis.freshness === "historical" || axis.freshness === "live") {
+            const age = document.createElement("small");
+            const observed = new Date(axis.observedAt);
+            age.textContent = (axis.freshness === "historical" ? "Earlier evidence" : "Current observation") +
+              (Number.isFinite(observed.getTime()) ? " · " + observed.toLocaleString() : "");
+            detail.append(age);
+          }
+          list.append(term, detail);
+        }
+        card.append(list);
+        const setupAction = executableSetupAction(application);
+        if (setupAction) {
+          const setup = document.createElement("div");
+          setup.className = "application-setup";
+          const setupTitle = document.createElement("strong");
+          setupTitle.textContent = clean(setupAction.title) || "Owner setup";
+          setup.append(setupTitle);
+          const setupHelp = document.createElement("p");
+          const credentialFields = Array.isArray(setupAction.credentialFields) ? setupAction.credentialFields.map(clean).filter(Boolean) : [];
+          setupHelp.append(document.createTextNode("Prepare " + clean(setupAction.credentialsFile) + (credentialFields.length ? " with " + credentialFields.join(", ") : " using the setup guide") + ". Keep the file private; this console never receives its contents. "));
+          try {
+            const guideURL = new URL(setupAction.guideUrl);
+            if (["https:", "http:"].includes(guideURL.protocol) && !guideURL.username && !guideURL.password) {
+              const guide = document.createElement("a");
+              guide.href = guideURL.href;
+              guide.target = "_blank";
+              guide.rel = "noopener noreferrer";
+              guide.textContent = "Open the setup guide";
+              setupHelp.append(guide);
+            }
+          } catch { /* Missing or unsafe guide URLs are not actionable. */ }
+          setup.append(setupHelp);
+          const setupActions = document.createElement("div");
+          setupActions.className = "actions";
+          const setupButton = document.createElement("button");
+          setupButton.type = "button";
+          setupButton.className = "primary";
+          setupButton.textContent = "Request owner setup";
+          setupButton.addEventListener("click", () => requestSetupApproval(application));
+          setupActions.append(setupButton);
+          setup.append(setupActions);
+          card.append(setup);
+        } else if (["required", "blocked", "unverified"].includes(application.setup?.status)) {
+          const manual = document.createElement("p");
+          manual.className = "application-setup-help";
+          manual.textContent = "Setup remains manual for this application; follow its product onboarding guide.";
+          card.append(manual);
+        }
+        if (Array.isArray(application.nextActions) && application.nextActions.length) {
+          const next = document.createElement("details");
+          const summary = document.createElement("summary");
+          summary.textContent = "Next steps";
+          next.append(summary);
+          const actions = document.createElement("ul");
+          for (const action of application.nextActions) {
+            const item = document.createElement("li");
+            item.textContent = clean(action);
+            actions.append(item);
+          }
+          next.append(actions);
+          card.append(next);
+        }
+        container.append(card);
+      }
+    }
+
     function render() {
+      renderApplicationStatus();
       panels.forEach((panel, index) => {
         document.getElementById(`panel-${panel}`).classList.toggle("hidden", index !== state.step);
       });
@@ -1058,6 +1272,8 @@
     window.addEventListener("openai:set_globals", (event) => {
       const next = event.detail?.globals?.widgetState;
       if (next) {
+        applicationSnapshot = null;
+        applicationScopeVersion++;
         state = mergeState(state, next);
         render();
       }

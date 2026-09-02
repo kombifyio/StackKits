@@ -168,6 +168,13 @@ func (o *osStandaloneComposeWorkloadOperations) ObserveWorkload(
 	}, nil
 }
 
+func (o *osStandaloneComposeWorkloadOperations) ValidateWorkloadObservation(
+	deployment SelectedPaaSWorkloadDeployment,
+	observation SelectedPaaSWorkloadObservation,
+) error {
+	return ValidateSelectedPaaSWorkloadObservation(deployment, observation)
+}
+
 type standaloneComposeProject struct {
 	name        string
 	directory   string
@@ -665,6 +672,7 @@ func (b *standaloneComposeBoundedBuffer) Write(value []byte) (int, error) {
 }
 
 type standaloneComposePS struct {
+	ID       string `json:"ID"`
 	Service  string `json:"Service"`
 	Image    string `json:"Image"`
 	State    string `json:"State"`
@@ -757,18 +765,60 @@ func standaloneComposeCSVSet(raw string) map[string]struct{} {
 	return result
 }
 
+func standaloneComposeContainerIdentities(
+	components []architecturev2renderer.ApplicationDeliveryComponentDescriptor,
+	statuses map[string]standaloneComposePS,
+	requireIDs bool,
+) (map[string]string, error) {
+	if len(statuses) != len(components) {
+		return nil, errors.New("standalone Compose service set differs from the authorized component graph")
+	}
+	identities := make(map[string]string, len(components))
+	seenComponents := make(map[string]struct{}, len(components))
+	seenIDs := make(map[string]string, len(components))
+	for _, component := range components {
+		if _, duplicate := seenComponents[component.ID]; duplicate {
+			return nil, fmt.Errorf("standalone Compose component %q occurs more than once in the authorized graph", component.ID)
+		}
+		seenComponents[component.ID] = struct{}{}
+		status, exists := statuses[component.ID]
+		if !exists || status.Image != component.ImageRef+"@"+component.ImageDigest {
+			return nil, fmt.Errorf("standalone Compose component %q differs from its pinned image", component.ID)
+		}
+		if requireIDs && strings.TrimSpace(status.ID) == "" {
+			return nil, fmt.Errorf("standalone Compose component %q has no exact container identity", component.ID)
+		}
+		if status.ID != "" {
+			if previous, duplicate := seenIDs[status.ID]; duplicate {
+				return nil, fmt.Errorf("standalone Compose components %q and %q share a container identity", previous, component.ID)
+			}
+			seenIDs[status.ID] = component.ID
+		}
+		identities[component.ID] = status.ID
+	}
+	return identities, nil
+}
+
 func observeStandaloneComposeComponents(
 	components []architecturev2renderer.ApplicationDeliveryComponentDescriptor,
 	statuses map[string]standaloneComposePS,
 ) ([]SelectedPaaSComponentObservation, error) {
-	if len(statuses) != len(components) {
-		return nil, errors.New("standalone Compose service set differs from the authorized component graph")
+	return observeStandaloneComposeComponentsWithIdentity(components, statuses, false)
+}
+
+func observeStandaloneComposeComponentsWithIdentity(
+	components []architecturev2renderer.ApplicationDeliveryComponentDescriptor,
+	statuses map[string]standaloneComposePS,
+	requireIDs bool,
+) ([]SelectedPaaSComponentObservation, error) {
+	if _, err := standaloneComposeContainerIdentities(components, statuses, requireIDs); err != nil {
+		return nil, err
 	}
 	result := make([]SelectedPaaSComponentObservation, len(components))
 	for index, component := range components {
 		status, exists := statuses[component.ID]
-		if !exists || status.Image != component.ImageRef+"@"+component.ImageDigest {
-			return nil, fmt.Errorf("standalone Compose component %q differs from its pinned image", component.ID)
+		if !exists {
+			return nil, fmt.Errorf("standalone Compose component %q is absent from status readback", component.ID)
 		}
 		observation := SelectedPaaSComponentObservation{ID: component.ID, ImageDigest: component.ImageDigest}
 		if component.Lifecycle == "one-shot" {
@@ -777,7 +827,14 @@ func observeStandaloneComposeComponents(
 			}
 			observation.Status, observation.Health = "completed", "completed"
 		} else {
-			if status.State != "running" || (status.Health != "" && status.Health != "healthy") {
+			if status.State != "running" {
+				return nil, fmt.Errorf("standalone Compose daemon component %q is not healthy", component.ID)
+			}
+			if len(component.HealthCommand) > 0 {
+				if status.Health != "healthy" {
+					return nil, fmt.Errorf("standalone Compose daemon component %q is not healthy", component.ID)
+				}
+			} else if status.Health != "" && status.Health != "healthy" {
 				return nil, fmt.Errorf("standalone Compose daemon component %q is not healthy", component.ID)
 			}
 			observation.Status, observation.Health = "running", "healthy"
@@ -803,8 +860,11 @@ func standaloneComposeLoopbackAddress(raw []byte) (string, error) {
 type osStandaloneComposeHTTPProber struct{}
 
 func (osStandaloneComposeHTTPProber) Probe(ctx context.Context, target string) (int, error) {
+	transport := &http.Transport{Proxy: nil}
+	defer transport.CloseIdleConnections()
 	client := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout:   10 * time.Second,
+		Transport: transport,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
 		},

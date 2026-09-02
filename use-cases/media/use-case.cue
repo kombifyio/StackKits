@@ -1,8 +1,9 @@
 // Package media defines the Media Library use case package.
 //
-// Architecture v2 ships digest-pinned Jellyfin on standard and high. Basement
-// low still omits Media. This package does not claim the retired add-on's
-// unimplemented *arr services.
+// Native Architecture v2 ships digest-pinned Jellyfin with its own standard or
+// high module profile, independently of the Core profile. Only the retained
+// v2alpha1 low graph omits Media. This package does not claim the retired
+// add-on's unimplemented *arr services.
 package media
 
 import "github.com/kombifyio/stackkits/foundation"
@@ -34,7 +35,7 @@ Package: foundation.#UseCasePackage & {
 	defaultRuntimeProfile: "self-hosted-media"
 	runtimeProfiles: "self-hosted-media": {
 		displayName: "Self-hosted Media Library"
-		description: "StackKits deploys digest-pinned Jellyfin through the graph-selected runtime on standard and high. Basement low omits Media until a lite substitution exists."
+		description: "StackKits deploys digest-pinned Jellyfin through the explicitly selected runtime with its own standard or high module profile, independently of the Core profile. The retained v2alpha1 low graph omits Media."
 		realization: "oss"
 		placementModes: ["local-only", "standard"]
 		managedServerlessEligible: false
@@ -46,17 +47,17 @@ Package: foundation.#UseCasePackage & {
 	computeTiers: {
 		low: {
 			included: false
-			reason: "Jellyfin library + transcode is not on the Basement low graph. Needs a lite substitution before it can be included."
+			reason:   "Jellyfin library + transcode is not on the Basement low graph. Needs a lite substitution before it can be included."
 		}
 		standard: {
-			included: true
+			included:   true
 			moduleSlug: "jellyfin"
 			functions: ["media-server", "video-stream"]
 			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
 			notes: ["Library waits; playback and transcode are the spike. Catalog alternative jellyfin on standard/high."]
 		}
 		high: {
-			included: true
+			included:   true
 			moduleSlug: "jellyfin"
 			functions: ["media-server", "video-stream"]
 			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
@@ -75,9 +76,9 @@ Package: foundation.#UseCasePackage & {
 	setup: {
 		defaultPolicy: "on_demand"
 		drops: [{
-			name:        "media-owner-bootstrap"
+			name:        "jellyfin-owner-bootstrap"
 			policy:      "on_demand"
-			description: "Complete Jellyfin first-run in the UI and create the owner account. Catalog setup is manual/operator; StackKits does not ship an automated bootstrap for this workload."
+			description: "Prepare or verify the native Jellyfin administrator using private owner credentials. Explicit completion closes the startup wizard; library, household and playback choices remain owner-managed."
 		}]
 	}
 
@@ -89,9 +90,15 @@ Package: foundation.#UseCasePackage & {
 	lifecycle: foundation.#StandardUseCaseLifecycle
 
 	agentSurface: {
-		equipPolicy:  "on-generate"
+		equipPolicy: "on-generate"
 		lifecycleMcp: {}
 		productMcps: []
+		skills: [{
+			id:       "owner-setup"
+			audience: "product-user"
+			source:   "stackkits"
+			path:     "use-cases/media/agent/owner-setup/SKILL.md"
+		}]
 		apis: [{
 			id:       "jellyfin"
 			protocol: "rest"

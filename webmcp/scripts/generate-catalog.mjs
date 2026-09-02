@@ -214,6 +214,7 @@ async function projectNativeComputeProfile(id, source, path) {
     ...optionalResource("reservation", "reservation", source, `${path}.${id}`),
     ...optionalResource("headroom", "headroom", source, `${path}.${id}`),
     ...optionalResource("recommended", "recommended", source, `${path}.${id}`),
+    ...publicHostRequirements(hostFloor, `${path}.${id}.hostFloor`),
     architectures: publicStringArray(source.architectures ?? hostFloor?.allowedArchitectures ?? [], `${path}.${id}.architectures`, ["amd64", "arm64"]),
     virtualization: publicStringArray(source.virtualization ?? hostFloor?.allowedVirtualization ?? [], `${path}.${id}.virtualization`),
     components: publicIdArray(source.components ?? [], `${path}.${id}.components`),
@@ -261,7 +262,7 @@ function capacityDeclaration(source, compute) {
     const axisKeys = key === "hostFloor"
       ? [["minCpuCores", "cpuCores", "cpu_cores"], ["minRamGB", "ramGB", "ram_gb"], ["minStorageGB", "storageGB", "storage_gb"]]
       : [["cpuCores", "cpu_cores"], ["ramGB", "ram_gb"], ["storageGB", "storage_gb"]];
-    for (const aliases of axisKeys) if (aliases.some((axis) => vector[axis] !== undefined)) axes.add(aliases[0]);
+    for (const [index, aliases] of axisKeys.entries()) if (aliases.some((axis) => vector[axis] !== undefined)) axes.add(index);
   }
   if (!compute && isObject(source.reservation)) return axes.size > 0 ? "declared" : "not_declared";
   return axes.size === 0 ? "not_declared" : axes.size === 3 ? "declared" : "partial";
@@ -287,7 +288,7 @@ function optionalResource(sourceKey, outputKey, source, path) {
     : [["cpuCores", "cpu_cores"], ["ramGB", "ram_gb"], ["storageGB", "storage_gb"]];
   const allowedKeys = new Set(aliases.map(([key]) => key).concat([
     "cpu_cores", "ram_gb", "storage_gb",
-    ...(sourceKey === "hostFloor" ? ["allowedArchitectures", "allowedVirtualization", "requireInventoryFacts"] : []),
+    ...(sourceKey === "hostFloor" ? ["allowedArchitectures", "allowedVirtualization", "requireInventoryFacts", "minAMD64MicroarchitectureLevel", "storageFilesystem"] : []),
   ]));
   rejectUnknownKeys(value, `${path}.${sourceKey}`, allowedKeys);
   for (const [input, output] of aliases) {
@@ -302,6 +303,33 @@ function optionalResource(sourceKey, outputKey, source, path) {
     fail(`${path}.${sourceKey} must declare at least one resource axis`);
   }
   return { [outputKey]: result };
+}
+
+// A public declaration for the host verifier, never a browser observation.
+// Keep non-capacity constraints separate from CPU/RAM/disk arithmetic.
+function publicHostRequirements(floor, path) {
+  if (!floor) return {};
+  const requirements = {};
+  if (floor.minAMD64MicroarchitectureLevel !== undefined) {
+    const level = floor.minAMD64MicroarchitectureLevel;
+    if (!Number.isInteger(level) || level < 1 || level > 4) fail(`${path}.minAMD64MicroarchitectureLevel must be 1..4`);
+    requirements.min_amd64_microarchitecture_level = level;
+  }
+  if (floor.storageFilesystem !== undefined) {
+    const filesystem = floor.storageFilesystem;
+    if (!isObject(filesystem)) fail(`${path}.storageFilesystem must be an object`);
+    rejectUnknownKeys(filesystem, `${path}.storageFilesystem`, new Set(["sourceRef", "requiredClass", "allowedFilesystemTypes", "requireOwnership"]));
+    if (!["system.container.dataRoot", "storage.dataRoot"].includes(filesystem.sourceRef)) fail(`${path}.storageFilesystem has an unsupported sourceRef`);
+    if (filesystem.requiredClass !== "local-posix") fail(`${path}.storageFilesystem has an unsupported requiredClass`);
+    if (filesystem.requireOwnership !== undefined && filesystem.requireOwnership !== true) fail(`${path}.storageFilesystem must require Unix ownership`);
+    requirements.storage_filesystem = {
+      source_ref: filesystem.sourceRef,
+      required_class: filesystem.requiredClass,
+      allowed_filesystem_types: publicIdArray(filesystem.allowedFilesystemTypes ?? [], `${path}.storageFilesystem.allowedFilesystemTypes`),
+      require_ownership: true,
+    };
+  }
+  return Object.keys(requirements).length > 0 ? { host_requirements: requirements } : {};
 }
 
 function publicStringArray(value, path, allowed) {

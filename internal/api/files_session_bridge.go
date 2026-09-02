@@ -1,19 +1,17 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
+	"github.com/kombifyio/stackkits/internal/appsetup"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
 )
 
@@ -24,28 +22,86 @@ const (
 	filesSessionBridgeHeader = "X-StackKit-Files-Bridge"
 )
 
-type cloudreveAPIError struct {
-	HTTPStatus int
-	Code       int
-	Message    string
-	Cause      error
-}
-
-type cloudreveLoginResponse struct {
-	User struct {
-		ID    json.RawMessage `json:"id"`
-		Email string          `json:"email"`
-	} `json:"user"`
-	Token struct {
-		AccessToken string `json:"access_token"`
-	} `json:"token"`
-}
+type cloudreveAPIError = appsetup.CloudreveAPIError
+type cloudreveLoginResponse = appsetup.CloudreveLoginResponse
 
 type cloudreveFileList struct {
 	Files []struct {
 		Type int    `json:"type"`
 		Name string `json:"name"`
 	} `json:"files"`
+}
+
+// cloudreveOwnerSession keeps the temporary technical session alive only
+// until a caller either commits the explicit browser handoff or cleans it up.
+// The shared appsetup adapter remains the sole Cloudreve authority.
+type cloudreveOwnerSession struct {
+	technical        appsetup.CloudreveOwnerResult
+	client           *http.Client
+	baseURL          string
+	handoffCommitted bool
+}
+
+func (s *cloudreveOwnerSession) close() {
+	if s != nil && s.client != nil {
+		s.client.CloseIdleConnections()
+	}
+}
+
+func (s *cloudreveOwnerSession) cleanup() *skerrors.StackKitError {
+	if s == nil || s.handoffCommitted {
+		return nil
+	}
+	return s.technical.Cleanup(context.Background(), s.client, s.baseURL)
+}
+
+func (s *cloudreveOwnerSession) handoffPayload() (json.RawMessage, string, *skerrors.StackKitError) {
+	if s == nil {
+		return nil, "", skerrors.NewDependencyError(
+			"files_cloudreve_session_incomplete",
+			"Cloudreve session response did not include a usable access token",
+		)
+	}
+	if strings.TrimSpace(s.technical.AccessTokenForHandoff()) == "" {
+		return nil, "", skerrors.NewDependencyError(
+			"files_cloudreve_session_incomplete",
+			"Cloudreve session response did not include a usable access token",
+		)
+	}
+	return s.technical.LoginResponseForHandoff(), s.technical.UserID, nil
+}
+
+func (s *cloudreveOwnerSession) commitHandoff() {
+	if s != nil {
+		s.handoffCommitted = true
+	}
+}
+
+func withCloudreveSessionCleanup(primary, cleanupErr *skerrors.StackKitError) *skerrors.StackKitError {
+	if cleanupErr == nil {
+		return primary
+	}
+	if primary == nil {
+		return cleanupErr
+	}
+	if primary.Fields == nil {
+		primary.Fields = make(map[string]interface{})
+	}
+	if cleanupErr.Code == "cloudreve_session_cleanup_unavailable" {
+		primary.Fields["sessionCleanup"] = "unavailable"
+	} else {
+		primary.Fields["sessionCleanup"] = "failed"
+	}
+	return primary
+}
+
+func finishCloudreveOwnerSession(session *cloudreveOwnerSession, primary *skerrors.StackKitError) *skerrors.StackKitError {
+	if session == nil {
+		return primary
+	}
+	cleanupErr := session.cleanup()
+	session.close()
+	return withCloudreveSessionCleanup(primary, cleanupErr)
 }
 
 func (s *Server) handleFilesSessionBridge(w http.ResponseWriter, r *http.Request) {
@@ -92,10 +148,29 @@ func (s *Server) handleFilesSessionBridge(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	login, userID, bridgeErr := s.prepareCloudreveOwnerSession(r.Context(), ownerEmail)
+	session, bridgeErr := s.prepareCloudreveOwnerSession(r.Context(), ownerEmail)
 	if bridgeErr != nil {
 		writeStructuredError(w, r, setupHTTPStatus(bridgeErr), bridgeErr)
 		return
+	}
+	defer func() {
+		if session != nil && !session.handoffCommitted {
+			_ = finishCloudreveOwnerSession(session, nil)
+		} else if session != nil {
+			session.close()
+		}
+	}()
+	login, userID, handoffErr := session.handoffPayload()
+	if handoffErr != nil {
+		writeStructuredError(w, r, setupHTTPStatus(handoffErr), handoffErr)
+		return
+	}
+	if cloudreveDemoDataEnabled(s.config.BaseDir) {
+		if err := ensureCloudreveOwnerDemoContent(r.Context(), session.client, session.baseURL, session.technical.AccessTokenForHandoff()); err != nil {
+			bridgeErr := finishCloudreveOwnerSession(session, cloudreveStackKitError("files_cloudreve_owner_demo_seed_failed", "failed to seed Cloudreve demo content for the PocketID Owner", err))
+			writeStructuredError(w, r, setupHTTPStatus(bridgeErr), bridgeErr)
+			return
+		}
 	}
 	nonce, nonceErr := newScriptNonce()
 	if nonceErr != nil {
@@ -114,7 +189,10 @@ func (s *Server) handleFilesSessionBridge(w http.ResponseWriter, r *http.Request
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(renderCloudreveSessionBridgeHTML(login, userID, nonce))
+	body := renderCloudreveSessionBridgeHTML(login, userID, nonce)
+	if written, writeErr := w.Write(body); writeErr == nil && written == len(body) {
+		session.commitHandoff()
+	}
 }
 
 func (s *Server) filesSessionBridgeRequestAuthorized(r *http.Request) bool {
@@ -135,71 +213,38 @@ func forwardedIdentityEmail(r *http.Request) string {
 	return ""
 }
 
-func (s *Server) prepareCloudreveOwnerSession(ctx context.Context, ownerEmail string) (json.RawMessage, string, *skerrors.StackKitError) {
-	password := strings.TrimSpace(s.config.SetupAdminPassword)
-	if password == "" {
-		return nil, "", skerrors.NewValidationError(
+func (s *Server) prepareCloudreveOwnerSession(ctx context.Context, ownerEmail string) (*cloudreveOwnerSession, *skerrors.StackKitError) {
+	password := s.config.SetupAdminPassword
+	if strings.TrimSpace(password) == "" {
+		return nil, skerrors.NewValidationError(
 			"files_session_app_password_missing",
 			"Files session bridge requires generated StackKit app-local bootstrap material",
 			skerrors.WithSuggestion("Re-run stackkit generate/apply so STACKKIT_ADMIN_PASSWORD is available to stackkit-server"),
 		)
 	}
-
 	baseURL := strings.TrimRight(firstNonEmptyString(s.config.SetupCloudreveURL, "http://cloudreve:5212"), "/")
-	client := &http.Client{Timeout: 20 * time.Second}
-	login, parsed, err := cloudreveLogin(ctx, client, baseURL, ownerEmail, password)
-	if err != nil {
-		if createErr := ensureCloudreveOwnerAccount(ctx, client, baseURL, ownerEmail, password); createErr != nil {
-			return nil, "", cloudreveStackKitError("files_cloudreve_owner_create_failed", "failed to prepare the Cloudreve app-local Owner account", createErr)
-		}
-		login, parsed, err = cloudreveLogin(ctx, client, baseURL, ownerEmail, password)
-		if err != nil {
-			return nil, "", cloudreveStackKitError("files_cloudreve_owner_login_failed", "failed to create a Cloudreve app-local session for the PocketID Owner", err)
-		}
+	client := appsetup.NewCloudreveHTTPClient()
+	technical, setupErr := appsetup.BootstrapCloudreveOwner(ctx, client, baseURL, appsetup.CloudreveOwnerRequest{
+		Email:                       ownerEmail,
+		Password:                    password,
+		Language:                    "en-US",
+		ExpectedVersion:             appsetup.CloudrevePinnedVersion,
+		AllowFirstOwnerRegistration: true,
+	})
+	if setupErr != nil {
+		client.CloseIdleConnections()
+		return nil, setupErr
 	}
-	if !strings.EqualFold(strings.TrimSpace(parsed.User.Email), ownerEmail) {
-		return nil, "", skerrors.NewAuthError(
-			"files_cloudreve_owner_email_mismatch",
-			"Cloudreve returned a session for a different email address",
-			skerrors.WithField("ownerEmail", ownerEmail),
-			skerrors.WithField("cloudreveEmail", parsed.User.Email),
-		)
-	}
-	userID := jsonScalarString(parsed.User.ID)
-	if userID == "" || strings.TrimSpace(parsed.Token.AccessToken) == "" {
-		return nil, "", skerrors.NewDependencyError(
-			"files_cloudreve_session_incomplete",
-			"Cloudreve session response did not include a usable user id and access token",
-		)
-	}
-	if cloudreveDemoDataEnabled(s.config.BaseDir) {
-		if err := ensureCloudreveOwnerDemoContent(ctx, client, baseURL, parsed.Token.AccessToken); err != nil {
-			return nil, "", cloudreveStackKitError("files_cloudreve_owner_demo_seed_failed", "failed to seed Cloudreve demo content for the PocketID Owner", err)
-		}
-	}
-	return login, userID, nil
+	session := &cloudreveOwnerSession{technical: technical, client: client, baseURL: baseURL}
+	return session, nil
 }
 
 func ensureCloudreveOwnerAccount(ctx context.Context, client *http.Client, baseURL, email, password string) *cloudreveAPIError {
-	payload := map[string]string{"email": email, "password": password, "language": "en-US"}
-	_, err := cloudreveJSON(ctx, client, http.MethodPost, baseURL, "/user", "", payload)
-	if err == nil || cloudreveAlreadyExists(err) {
-		return nil
-	}
-	return err
+	return appsetup.EnsureCloudreveOwnerAccount(ctx, client, baseURL, email, password, "en-US")
 }
 
 func cloudreveLogin(ctx context.Context, client *http.Client, baseURL, email, password string) (json.RawMessage, cloudreveLoginResponse, *cloudreveAPIError) {
-	payload := map[string]string{"email": email, "password": password}
-	raw, err := cloudreveJSON(ctx, client, http.MethodPost, baseURL, "/session/token", "", payload)
-	if err != nil {
-		return nil, cloudreveLoginResponse{}, err
-	}
-	var parsed cloudreveLoginResponse
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return nil, cloudreveLoginResponse{}, &cloudreveAPIError{Message: "failed to parse Cloudreve session response", Cause: err}
-	}
-	return raw, parsed, nil
+	return appsetup.CloudreveLogin(ctx, client, baseURL, email, password)
 }
 
 func ensureCloudreveOwnerDemoContent(ctx context.Context, client *http.Client, baseURL, token string) *cloudreveAPIError {
@@ -260,88 +305,19 @@ func cloudreveListFiles(ctx context.Context, client *http.Client, baseURL, token
 }
 
 func cloudreveJSON(ctx context.Context, client *http.Client, method, baseURL, path, token string, payload any) (json.RawMessage, *cloudreveAPIError) {
-	var body []byte
-	if payload != nil {
-		var err error
-		body, err = json.Marshal(payload)
-		if err != nil {
-			return nil, &cloudreveAPIError{Message: "failed to encode Cloudreve request", Cause: err}
-		}
-	}
-	return cloudreveRaw(ctx, client, method, baseURL, path, token, "application/json", body)
+	return appsetup.CloudreveJSON(ctx, client, method, baseURL, path, token, payload)
 }
 
 func cloudreveRaw(ctx context.Context, client *http.Client, method, baseURL, path, token, contentType string, body []byte) (json.RawMessage, *cloudreveAPIError) {
-	req, err := http.NewRequestWithContext(ctx, method, baseURL+"/api/v4"+path, bytes.NewReader(body))
-	if err != nil {
-		return nil, &cloudreveAPIError{Message: "invalid Cloudreve URL", Cause: err}
-	}
-	if len(body) > 0 && contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, &cloudreveAPIError{Message: "Cloudreve API is unreachable", Cause: err}
-	}
-	defer resp.Body.Close()
-	rawBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if readErr != nil {
-		return nil, &cloudreveAPIError{HTTPStatus: resp.StatusCode, Message: "failed to read Cloudreve response", Cause: readErr}
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		code, message := parseCloudreveErrorBody(rawBody)
-		return nil, &cloudreveAPIError{HTTPStatus: resp.StatusCode, Code: code, Message: message}
-	}
-	if len(rawBody) == 0 {
-		return nil, nil
-	}
-	var envelope struct {
-		Code int             `json:"code"`
-		Msg  string          `json:"msg"`
-		Data json.RawMessage `json:"data"`
-	}
-	if err := json.Unmarshal(rawBody, &envelope); err != nil {
-		return nil, &cloudreveAPIError{HTTPStatus: resp.StatusCode, Message: "failed to parse Cloudreve response", Cause: err}
-	}
-	if envelope.Code != 0 {
-		return nil, &cloudreveAPIError{HTTPStatus: resp.StatusCode, Code: envelope.Code, Message: envelope.Msg}
-	}
-	if len(envelope.Data) == 0 {
-		return json.RawMessage(`{}`), nil
-	}
-	return envelope.Data, nil
+	return appsetup.CloudreveRaw(ctx, client, method, baseURL, path, token, contentType, body)
 }
 
 func cloudreveAlreadyExists(err *cloudreveAPIError) bool {
-	if err == nil {
-		return false
-	}
-	if err.Code == 40032 {
-		return true
-	}
-	msg := strings.ToLower(err.Message)
-	return strings.Contains(msg, "already") || strings.Contains(msg, "exist") || strings.Contains(msg, "in use")
+	return appsetup.CloudreveAlreadyExists(err)
 }
 
 func parseCloudreveErrorBody(raw []byte) (int, string) {
-	text := strings.TrimSpace(string(raw))
-	if text == "" {
-		return 0, ""
-	}
-	var envelope struct {
-		Code int    `json:"code"`
-		Msg  string `json:"msg"`
-	}
-	if err := json.Unmarshal(raw, &envelope); err == nil {
-		message := strings.TrimSpace(envelope.Msg)
-		if message != "" || envelope.Code != 0 {
-			return envelope.Code, message
-		}
-	}
-	return 0, text
+	return appsetup.ParseCloudreveErrorBody(raw)
 }
 
 func cloudreveStackKitError(code, message string, err *cloudreveAPIError) *skerrors.StackKitError {
@@ -355,12 +331,9 @@ func cloudreveStackKitError(code, message string, err *cloudreveAPIError) *skerr
 	if err.Code != 0 {
 		fields = append(fields, skerrors.WithField("cloudreveCode", err.Code))
 	}
-	if strings.TrimSpace(err.Message) != "" {
-		fields = append(fields, skerrors.WithField("cloudreveMessage", truncateForField(err.Message)))
-	}
-	if err.Cause != nil {
-		fields = append(fields, skerrors.WithCause(err.Cause))
-	}
+	// Application bodies and transport causes can reflect session tokens or
+	// credentials. Keep legacy handoff errors within the same bounded public
+	// diagnostic contract as native owner setup.
 	return skerrors.NewDependencyError(code, message, fields...)
 }
 
@@ -370,18 +343,6 @@ func cloudreveDemoDataEnabled(baseDir string) bool {
 		return true
 	}
 	return boolTFVar(tfvars, "demo_data_enabled", true)
-}
-
-func jsonScalarString(raw json.RawMessage) string {
-	raw = bytes.TrimSpace(raw)
-	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
-		return ""
-	}
-	var text string
-	if err := json.Unmarshal(raw, &text); err == nil {
-		return strings.TrimSpace(text)
-	}
-	return strings.Trim(string(raw), `"`)
 }
 
 func renderCloudreveSessionBridgeHTML(login json.RawMessage, userID, nonce string) []byte {

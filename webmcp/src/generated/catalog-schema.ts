@@ -77,6 +77,53 @@ export const WEBMCP_CATALOG_SCHEMA = {
         }
       }
     },
+    "profileStorageFilesystemRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_ref",
+        "required_class",
+        "allowed_filesystem_types",
+        "require_ownership"
+      ],
+      "properties": {
+        "source_ref": {
+          "enum": [
+            "system.container.dataRoot",
+            "storage.dataRoot"
+          ]
+        },
+        "required_class": {
+          "const": "local-posix"
+        },
+        "allowed_filesystem_types": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/contractId"
+          }
+        },
+        "require_ownership": {
+          "const": true
+        }
+      }
+    },
+    "profileHostRequirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "description": "CUE-declared target requirements. These are not observed host facts.",
+      "properties": {
+        "min_amd64_microarchitecture_level": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "storage_filesystem": {
+          "$ref": "#/$defs/profileStorageFilesystemRequirement"
+        }
+      }
+    },
     "computeProfile": {
       "type": "object",
       "additionalProperties": false,
@@ -126,6 +173,9 @@ export const WEBMCP_CATALOG_SCHEMA = {
         },
         "host_floor": {
           "$ref": "#/$defs/resourceVector"
+        },
+        "host_requirements": {
+          "$ref": "#/$defs/profileHostRequirements"
         },
         "reservation": {
           "$ref": "#/$defs/resourceVector"

@@ -14,6 +14,7 @@ import (
 	"path"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -76,7 +77,8 @@ type Engine struct {
 // reuse Engine because the historical Executor contract permits credentials
 // in argv and must remain compatible until its callers migrate.
 type V2Engine struct {
-	Exec SecretExecutor
+	Exec      SecretExecutor
+	retention *localbackuppolicy.Retention
 }
 
 // NewV2Engine binds native-v2 operations to explicit persistent config and
@@ -103,6 +105,7 @@ type Snapshot struct {
 	SourceHost  string    `json:"sourceHost"`
 	Description string    `json:"description,omitempty"`
 	OperationID string    `json:"operationId,omitempty"`
+	Pins        []string  `json:"pins,omitempty"`
 	StartTime   time.Time `json:"startTime"`
 	EndTime     time.Time `json:"endTime"`
 	TotalSize   int64     `json:"totalSize"`
@@ -115,6 +118,9 @@ type SnapshotRequest struct {
 	Source      string
 	Description string
 	OperationID string
+	// Recovery protection is set before Kopia assigns the manifest ID. Pinning
+	// an existing manifest would replace that ID and invalidate signed anchors.
+	ProtectRecovery bool
 }
 
 // RestoreRequest is the closed native-v2 staged-restore input. StagingPath
@@ -315,6 +321,11 @@ func exactFilesystemRepository(status RepositoryStatus) bool {
 // ConfigureSourcePolicy applies the CUE-resolved exclusions to the exact
 // snapshot source using a closed argv construction.
 func (e V2Engine) ConfigureSourcePolicy(ctx context.Context, source string, excludePaths []string, password []byte) error {
+	if e.retention != nil {
+		if err := e.retention.Validate(); err != nil {
+			return err
+		}
+	}
 	relativeExcludes, err := governedRelativeExcludes(source, excludePaths)
 	if err != nil {
 		return err
@@ -333,6 +344,15 @@ func (e V2Engine) ConfigureSourcePolicy(ctx context.Context, source string, excl
 		"policy", "set",
 		"--inherit=false",
 		"--manual",
+	}
+	if e.retention != nil {
+		command = append(command,
+			"--keep-latest", "0", "--keep-hourly", "0",
+			"--keep-daily", strconv.Itoa(e.retention.KeepDaily),
+			"--keep-weekly", strconv.Itoa(e.retention.KeepWeekly),
+			"--keep-monthly", strconv.Itoa(e.retention.KeepMonthly),
+			"--keep-annual", strconv.Itoa(e.retention.KeepYearly),
+		)
 	}
 	for _, relative := range relativeExcludes {
 		command = append(command, "--add-ignore", relative)
@@ -359,8 +379,8 @@ func (e V2Engine) ConfigureSourcePolicy(ctx context.Context, source string, excl
 }
 
 // SourcePolicy reads back Kopia's complete effective source policy. Exact is
-// true only for the governed ignores plus manual-only scheduling. Every other
-// effective field is drift: inherited retention, dot-ignore files such as
+// true only for the governed ignores, explicit retention, and manual-only
+// scheduling. Every other effective field is drift: inherited retention, dot-ignore files such as
 // .kopiaignore, traversal/error filters, timers, actions, and future fields
 // all fail closed instead of changing selection or autonomous behavior.
 func (e V2Engine) SourcePolicy(ctx context.Context, source string, excludePaths []string, password []byte) (SourcePolicy, error) {
@@ -409,7 +429,7 @@ func (e V2Engine) SourcePolicy(ctx context.Context, source string, excludePaths 
 	}
 	slices.Sort(relative)
 	slices.Sort(expected)
-	exactShape := exactKopiaSourcePolicyShape(row) &&
+	exactShape := exactKopiaSourcePolicyShape(row, e.retention) &&
 		len(files) == 1 &&
 		len(scheduling) == 1 &&
 		manual
@@ -420,9 +440,8 @@ func (e V2Engine) SourcePolicy(ctx context.Context, source string, excludePaths 
 	}, nil
 }
 
-func exactKopiaSourcePolicyShape(row map[string]json.RawMessage) bool {
+func exactKopiaSourcePolicyShape(row map[string]json.RawMessage, retention *localbackuppolicy.Retention) bool {
 	emptyObjects := []string{
-		"retention",
 		"errorHandling",
 		"compression",
 		"metadataCompression",
@@ -430,7 +449,7 @@ func exactKopiaSourcePolicyShape(row map[string]json.RawMessage) bool {
 		"actions",
 		"upload",
 	}
-	if len(row) != len(emptyObjects)+4 {
+	if len(row) != len(emptyObjects)+5 || !exactKopiaRetention(row["retention"], retention) {
 		return false
 	}
 	for _, name := range emptyObjects {
@@ -457,6 +476,34 @@ func exactKopiaSourcePolicyShape(row map[string]json.RawMessage) bool {
 	for _, name := range []string{"directories", "entries"} {
 		var value map[string]json.RawMessage
 		if err := json.Unmarshal(logging[name], &value); err != nil || len(value) != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func exactKopiaRetention(raw json.RawMessage, expected *localbackuppolicy.Retention) bool {
+	var actual map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &actual); err != nil || actual == nil {
+		return false
+	}
+	if expected == nil {
+		return len(actual) == 0
+	}
+	if expected.Validate() != nil {
+		return false
+	}
+	values := map[string]int{
+		"keepLatest": 0, "keepHourly": 0,
+		"keepDaily": expected.KeepDaily, "keepWeekly": expected.KeepWeekly,
+		"keepMonthly": expected.KeepMonthly, "keepAnnual": expected.KeepYearly,
+	}
+	if len(actual) != len(values) {
+		return false
+	}
+	for name, wanted := range values {
+		var value *int
+		if err := json.Unmarshal(actual[name], &value); err != nil || value == nil || *value != wanted {
 			return false
 		}
 	}
@@ -556,12 +603,16 @@ func (e V2Engine) CreateSnapshot(ctx context.Context, request SnapshotRequest, p
 		return Snapshot{}, err
 	}
 	defer clear(input)
-	out, err := e.invoke(ctx, []string{
+	command := []string{
 		"snapshot", "create", request.Source,
 		"--description", request.Description,
 		"--tags", "stackkit.operation:" + request.OperationID,
 		"--json",
-	}, input)
+	}
+	if request.ProtectRecovery {
+		command = append(command, "--pin", snapshotRecoveryPin(request.OperationID))
+	}
+	out, err := e.invoke(ctx, command, input)
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("create kopia snapshot: %w", err)
 	}
@@ -580,6 +631,9 @@ func (e V2Engine) CreateSnapshot(ctx context.Context, request SnapshotRequest, p
 	}
 	if snapshot.OperationID != request.OperationID {
 		return Snapshot{}, fmt.Errorf("kopia snapshot operation tag does not match request")
+	}
+	if !snapshotProtectionMatches(snapshot, request) {
+		return Snapshot{}, fmt.Errorf("kopia snapshot recovery protection differs from the exact request")
 	}
 	return snapshot, nil
 }
@@ -621,6 +675,9 @@ func (e V2Engine) FindSnapshot(ctx context.Context, request SnapshotRequest, pas
 		return Snapshot{}, false, fmt.Errorf("snapshot operation %q has %d receipts", request.OperationID, len(matched))
 	}
 	snapshot := matched[0]
+	if !snapshotProtectionMatches(snapshot, request) {
+		return Snapshot{}, false, fmt.Errorf("kopia snapshot recovery protection differs from the exact request")
+	}
 	if snapshot.SourcePath != request.Source ||
 		snapshot.SourceHost != localbackuppolicy.Hostname ||
 		snapshot.Description != request.Description {
@@ -704,6 +761,15 @@ func validateSnapshotRequest(request SnapshotRequest) error {
 		return fmt.Errorf("snapshot operation id is invalid")
 	}
 	return nil
+}
+
+func snapshotRecoveryPin(operationID string) string { return "stackkit.recovery:" + operationID }
+
+func snapshotProtectionMatches(snapshot Snapshot, request SnapshotRequest) bool {
+	if request.ProtectRecovery {
+		return len(snapshot.Pins) == 1 && snapshot.Pins[0] == snapshotRecoveryPin(request.OperationID)
+	}
+	return len(snapshot.Pins) == 0
 }
 
 func validateRestoreRequest(request RestoreRequest) error {
@@ -899,8 +965,9 @@ func ParseSnapshotCreate(raw string) (Snapshot, error) {
 }
 
 type snapshotJSONRow struct {
-	ID          string `json:"id"`
-	Description string `json:"description"`
+	ID          string   `json:"id"`
+	Description string   `json:"description"`
+	Pins        []string `json:"pins"`
 	Source      struct {
 		Path string `json:"path"`
 		Host string `json:"host"`
@@ -932,6 +999,7 @@ func (row snapshotJSONRow) snapshot() (Snapshot, error) {
 		SourceHost:  row.Source.Host,
 		Description: row.Description,
 		OperationID: row.Tags["tag:stackkit.operation"],
+		Pins:        slices.Clone(row.Pins),
 		StartTime:   row.StartTime,
 		EndTime:     row.EndTime,
 		TotalSize:   totalSize,
