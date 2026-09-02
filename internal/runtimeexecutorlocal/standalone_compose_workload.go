@@ -415,7 +415,7 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 			if !standaloneComposeVolumeOwnsPath(component.Volumes, file.Path) {
 				continue
 			}
-			rel := standaloneComposeConfigRelPath(file.Path)
+			rel := architecturev2renderer.StandaloneComposeConfigRelPath(file.Path)
 			service.Volumes = append(service.Volumes, "./"+rel+":"+file.Path+":ro")
 			configFiles[rel] = []byte(file.Body)
 			assignedConfig[file.Path] = struct{}{}
@@ -476,10 +476,6 @@ func standaloneComposeVolumeOwnsPath(volumes []architecturev2renderer.Applicatio
 		}
 	}
 	return false
-}
-
-func standaloneComposeConfigRelPath(containerPath string) string {
-	return "files/" + strings.ReplaceAll(strings.TrimPrefix(containerPath, "/"), "/", "_")
 }
 
 func standaloneComposeRouteLabels(route architecturev2renderer.ApplicationDeliveryRouteDescriptor) map[string]string {

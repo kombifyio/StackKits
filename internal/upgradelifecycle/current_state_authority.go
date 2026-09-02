@@ -9,11 +9,13 @@ import (
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2"
+	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/restoreactivation"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
 )
 
@@ -309,6 +311,9 @@ func NewVerifiedExecutorStateCapture(input CurrentStateAuthorityInput) (Verified
 	if err != nil {
 		return VerifiedExecutorStateCapture{}, err
 	}
+	if err := appendStandaloneComposeRuntimeCustody(&input); err != nil {
+		return VerifiedExecutorStateCapture{}, err
+	}
 	input.Capture.CoreModuleRef = profile.ModuleRef
 	input.Capture.CoreComposeArtifactID = profile.ComposeArtifactID
 	input.Capture.CorePolicyArtifactID = profile.PolicyArtifactID
@@ -447,6 +452,62 @@ func verifyCurrentStateArtifacts(
 ) (string, error) {
 	_, policyDigest, err := verifyCurrentStateArtifactsForProfile(input, owner)
 	return policyDigest, err
+}
+
+func appendStandaloneComposeRuntimeCustody(input *CurrentStateAuthorityInput) error {
+	custody, err := restoreactivation.DeriveStandaloneComposeRuntimeCustody(
+		input.WorkspaceRoot, input.Plan, input.Manifest, input.Capture.OperationID,
+	)
+	if err != nil {
+		return fmt.Errorf("current state authority: derive standalone Application runtime custody: %w", err)
+	}
+	seenIDs := make(map[string]struct{}, len(input.Capture.Artifacts))
+	seenPaths := make(map[string]struct{}, len(input.Capture.Artifacts))
+	for _, artifact := range input.Capture.Artifacts {
+		seenIDs[artifact.ID] = struct{}{}
+		seenPaths[strings.ToLower(filepathToSlash(artifact.Path))] = struct{}{}
+	}
+	appendFile := func(id string, file restoreactivation.StandaloneComposeRuntimeFile) error {
+		canonicalPath := filepathToSlash(file.Path)
+		if !executorStateIDPattern.MatchString(id) {
+			return errors.New("current state authority: standalone Application runtime custody ID is not portable")
+		}
+		if _, err := confinedfs.ValidatePortablePath(canonicalPath); err != nil {
+			return fmt.Errorf("current state authority: standalone Application runtime custody path: %w", err)
+		}
+		if _, exists := seenIDs[id]; exists {
+			return errors.New("current state authority: standalone Application runtime custody ID collides with recovery artifact")
+		}
+		pathKey := strings.ToLower(canonicalPath)
+		for existing := range seenPaths {
+			if executorStatePathsCollide(existing, pathKey) {
+				return errors.New("current state authority: standalone Application runtime custody path collides with recovery artifact")
+			}
+		}
+		if len(file.Data) == 0 && !executorStateStandaloneEnvironmentBlob(id, canonicalPath, file.Mode) {
+			return errors.New("current state authority: only standalone Application environment custody may be empty")
+		}
+		seenIDs[id] = struct{}{}
+		seenPaths[pathKey] = struct{}{}
+		input.Capture.Artifacts = append(input.Capture.Artifacts, ExecutorStateBlobInput{
+			ID: id, Path: canonicalPath, Mode: file.Mode, Data: append([]byte(nil), file.Data...),
+		})
+		return nil
+	}
+	for _, runtime := range custody {
+		if err := appendFile(executorStateStandaloneComposeID(runtime.Project), runtime.Compose); err != nil {
+			return err
+		}
+		if err := appendFile(executorStateStandaloneEnvironmentID(runtime.Project), runtime.Environment); err != nil {
+			return err
+		}
+		for _, config := range runtime.ConfigFiles {
+			if err := appendFile(executorStateStandaloneConfigID(runtime.Project, config.Path), config); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func appendCurrentStateControlBlobs(

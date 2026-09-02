@@ -164,6 +164,7 @@ var fileFocusedTests = map[string][]string{
 	// back to the unrelated command suite. Shared recovery policy has its own
 	// lifecyclemutation behavior tests; compilation is not runtime evidence.
 	"cmd/stackkit/commands/upgrade_transaction.go": {},
+	"cmd/stackkit/commands/upgrade_checkpoint.go":  {},
 	"cmd/stackkit/commands/upgrade_recover.go":     {},
 	"cmd/stackkit/commands/lifecycle_mutation.go":  {},
 	"cmd/stackkit/commands/drift.go": {

@@ -636,7 +636,11 @@ matching, current PocketID Owner-binding verification, persisted Kopia-anchor
 verification, private atomic CAS objects, and a final operation commit marker.
 Its sealed capture entry point verifies the current StackSpec, Plan, generated
 artifacts, runtime Compose, Apply evidence, release and Owner custody before
-target mutation. The target runs `generate -> plan -> apply -> verify`.
+target mutation. It also retains selected standalone application Compose,
+environment and generated configuration files in owner-private storage;
+machine-readable results expose their identities and digests, never secret
+content. Retained files are not automatically activated by executor-only
+recovery. The target runs `generate -> plan -> apply -> verify`.
 Executor-only rollback is allowed before target Apply; after Apply admission,
 `data-activation-required,dataStaged` blocks old-runtime restart until verified
 prior-data activation exists. A completed target commit retains its success

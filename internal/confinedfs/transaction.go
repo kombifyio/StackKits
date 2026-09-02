@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"math"
 	"os"
 	"path"
 	"runtime"
@@ -281,6 +282,20 @@ func (t *Transaction) WriteFileExclusiveStream(relative string, mode os.FileMode
 // ReadStable reads one plain regular file and proves that both its held handle
 // and root-relative name remained bound to the same object for the read.
 func (t *Transaction) ReadStable(relative string) ([]byte, os.FileInfo, error) {
+	return t.readStable(relative, 0)
+}
+
+// ReadStableBounded preserves ReadStable's held-file identity checks while
+// rejecting files larger than maxBytes before reading their content. The read
+// itself is also bounded if an uncooperative writer grows the file after open.
+func (t *Transaction) ReadStableBounded(relative string, maxBytes int64) ([]byte, os.FileInfo, error) {
+	if maxBytes <= 0 || maxBytes == math.MaxInt64 {
+		return nil, nil, fail(ErrUnsafeEntry, "transaction-read-stable", relative, "read bound must be positive and permit overflow detection")
+	}
+	return t.readStable(relative, maxBytes)
+}
+
+func (t *Transaction) readStable(relative string, maxBytes int64) ([]byte, os.FileInfo, error) {
 	full, release, err := t.beginPath("transaction-read-stable", relative, false)
 	if err != nil {
 		return nil, nil, err
@@ -308,9 +323,19 @@ func (t *Transaction) ReadStable(relative string) ([]byte, os.FileInfo, error) {
 	if !isPlainRegular(opened) || !os.SameFile(before, opened) {
 		return nil, nil, fail(ErrRootChanged, "transaction-read-stable", full, "file changed between inspection and open")
 	}
-	data, err := io.ReadAll(file)
+	var reader io.Reader = file
+	if maxBytes > 0 {
+		if opened.Size() > maxBytes {
+			return nil, nil, fail(ErrUnsafeEntry, "transaction-read-stable", full, "file exceeds read bound")
+		}
+		reader = io.LimitReader(file, maxBytes+1)
+	}
+	data, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, nil, wrap(ErrIO, "transaction-read-stable", full, "read held file", err)
+	}
+	if maxBytes > 0 && int64(len(data)) > maxBytes {
+		return nil, nil, fail(ErrUnsafeEntry, "transaction-read-stable", full, "file exceeded read bound while being read")
 	}
 	afterRead, err := file.Stat()
 	if err != nil {

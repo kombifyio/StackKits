@@ -378,10 +378,11 @@ func withPreparedPublicUpgradeCapture(
 	if closer, ok := rawVerify.(interface{ Close() error }); ok {
 		defer func() { _ = closer.Close() }()
 	}
-	verifyService, ok := rawVerify.(*architecturev2.Service)
-	if !ok {
+	verifyAuthority, ok := rawVerify.(*architectureV2ProductRuntimeAuthority)
+	if !ok || verifyAuthority == nil || verifyAuthority.Service == nil {
 		return errors.New("current Apply verification service is unavailable")
 	}
+	verifyService := verifyAuthority.Service
 	applyResult, err := readCurrentArchitectureV2ApplyResult(workspace, plan.Binding(), func(data []byte) (architecturev2.VerifiedApplyResult, error) {
 		return verifyService.VerifyProductApplyResult(architecturev2.ProductApplyResultVerificationInput{
 			Plan: plan, Manifest: manifest, Receipt: receipt, Versions: gate.versions, Result: data,

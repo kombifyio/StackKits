@@ -230,7 +230,8 @@ func readExecutorStateRecoveryBlob(
 			"executor state: read recovery blob %s: %w", blob.ID, err,
 		)
 	}
-	if !info.Mode().IsRegular() || len(data) == 0 ||
+	if !info.Mode().IsRegular() ||
+		(len(data) == 0 && !executorStateStandaloneEnvironmentBlob(blob.ID, blob.Path, blob.Mode)) ||
 		executorStateDigest(data) != blob.SHA256 {
 		return nil, fmt.Errorf(
 			"executor state: recovery blob %s differs from its identity", blob.ID,

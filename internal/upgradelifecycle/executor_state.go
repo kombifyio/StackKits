@@ -25,11 +25,14 @@ import (
 )
 
 const (
-	ExecutorStateSnapshotAPIVersion  = "stackkit.executor-state-snapshot/v1"
-	executorStateOperationAPIVersion = "stackkit.executor-state-operation/v1"
-	executorStateRoot                = ".stackkit/upgrades/executor-state"
-	basementCoreComposeArtifactPath  = "platform/basement-core/compose.yaml"
-	basementCoreRuntimeComposePath   = ".stackkit/runtime/basement-core/compose.yaml"
+	ExecutorStateSnapshotAPIVersion            = "stackkit.executor-state-snapshot/v1"
+	executorStateOperationAPIVersion           = "stackkit.executor-state-operation/v1"
+	executorStateRoot                          = ".stackkit/upgrades/executor-state"
+	basementCoreComposeArtifactPath            = "platform/basement-core/compose.yaml"
+	basementCoreRuntimeComposePath             = ".stackkit/runtime/basement-core/compose.yaml"
+	executorStateStandaloneComposeIDPrefix     = "standalone-compose-"
+	executorStateStandaloneEnvironmentIDPrefix = "standalone-env-"
+	executorStateStandaloneConfigIDPrefix      = "standalone-config-"
 )
 
 var (
@@ -494,7 +497,7 @@ func prepareExecutorStateBlob(input ExecutorStateBlobInput) (executorStatePayloa
 	if !executorStateModePattern.MatchString(input.Mode) {
 		return executorStatePayload{}, errors.New("executor state: blob mode must be a four-digit portable mode")
 	}
-	if len(input.Data) == 0 || len(input.Data) > 512<<20 {
+	if (len(input.Data) == 0 && !executorStateStandaloneEnvironmentBlob(input.ID, canonicalPath, input.Mode)) || len(input.Data) > 512<<20 {
 		return executorStatePayload{}, errors.New("executor state: blob bytes must be non-empty and bounded")
 	}
 	sum := sha256.Sum256(input.Data)
@@ -879,6 +882,31 @@ func executorStateDigest(data []byte) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
+func executorStateStandaloneComposeID(project string) string {
+	return executorStateStandaloneComposeIDPrefix + project
+}
+
+func executorStateStandaloneEnvironmentID(project string) string {
+	return executorStateStandaloneEnvironmentIDPrefix + project
+}
+
+func executorStateStandaloneConfigID(project, relativePath string) string {
+	sum := sha256.Sum256([]byte(relativePath))
+	return executorStateStandaloneConfigIDPrefix + project + "-" + hex.EncodeToString(sum[:8])
+}
+
+func executorStateStandaloneEnvironmentBlob(id, relativePath, mode string) bool {
+	if !strings.HasPrefix(id, executorStateStandaloneEnvironmentIDPrefix) {
+		return false
+	}
+	project := strings.TrimPrefix(id, executorStateStandaloneEnvironmentIDPrefix)
+	if !executorStateIDPattern.MatchString(project) || strings.Contains(project, "/") || mode != "0600" || !executorStateIDPattern.MatchString(id) {
+		return false
+	}
+	wantPath := path.Join(".stackkit", "runtime", "applications", project, ".env")
+	return filepathToSlash(relativePath) == wantPath
+}
+
 func validExecutorStateDigest(value string) bool {
 	if !strings.HasPrefix(value, "sha256:") || len(value) != 71 {
 		return false
@@ -966,7 +994,9 @@ func verifyExecutorStateBlob(transaction *confinedfs.Transaction, blob ExecutorS
 		return err
 	}
 	raw, info, err := transaction.ReadStable(blobPath)
-	if err != nil || !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > 512<<20 {
+	if err != nil || !info.Mode().IsRegular() ||
+		(info.Size() == 0 && !executorStateStandaloneEnvironmentBlob(blob.ID, blob.Path, blob.Mode)) ||
+		info.Size() > 512<<20 {
 		return fmt.Errorf("executor state: read bounded blob: %w", err)
 	}
 	if executorStateDigest(raw) != blob.SHA256 {

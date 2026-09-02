@@ -42,6 +42,26 @@ type ComposeRuntime struct {
 	EnvironmentDigest string `json:"environmentDigest,omitempty"`
 }
 
+// StandaloneComposeRuntimeFile is one owner-local runtime file that belongs
+// to a selected standalone Compose application. The bytes are returned only
+// to the caller that is building an owner-signed recovery closure.
+type StandaloneComposeRuntimeFile struct {
+	Path string
+	Mode string
+	Data []byte
+}
+
+// StandaloneComposeRuntimeCustody contains the generated runtime files that
+// must travel with one standalone Compose application. Its contents are
+// derived from the same CUE-owned runtime graph used by restore activation.
+type StandaloneComposeRuntimeCustody struct {
+	Project     string
+	Runtime     ComposeRuntime
+	Compose     StandaloneComposeRuntimeFile
+	Environment StandaloneComposeRuntimeFile
+	ConfigFiles []StandaloneComposeRuntimeFile
+}
+
 // Volume is one exact persistent backup volume selected by the Basement core
 // runtime. LogicalName comes from the component graph; LiveName is the
 // Compose-qualified Docker volume name. RollbackName is deterministic for the
@@ -65,4 +85,17 @@ func DeriveAuthority(
 	operationID string,
 ) (Authority, error) {
 	return deriveAuthority(workspaceRoot, plan, manifest, restoreResult, operationID)
+}
+
+// DeriveStandaloneComposeRuntimeCustody reads and verifies the exact
+// owner-local standalone Compose runtime files selected by a verified plan.
+// It shares restore activation's CUE/runtime binding and is intended for
+// inclusion in another owner-signed recovery closure.
+func DeriveStandaloneComposeRuntimeCustody(
+	workspaceRoot string,
+	plan generationartifact.VerifiedPlan,
+	manifest generationartifact.ArtifactManifest,
+	operationID string,
+) ([]StandaloneComposeRuntimeCustody, error) {
+	return deriveStandaloneComposeRuntimeCustody(workspaceRoot, plan, manifest, operationID)
 }

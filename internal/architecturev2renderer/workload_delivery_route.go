@@ -142,6 +142,14 @@ type ApplicationDeliveryConfigFileDescriptor struct {
 	Body string
 }
 
+// StandaloneComposeConfigRelPath is the portable owner-workspace path used by
+// the standalone Compose adapter for one container-visible configuration file.
+// The naming rule belongs to the delivery contract so custody and execution
+// cannot derive different paths for the same generated file.
+func StandaloneComposeConfigRelPath(containerPath string) string {
+	return "files/" + strings.ReplaceAll(strings.TrimPrefix(containerPath, "/"), "/", "_")
+}
+
 // ParseApplicationDeliveryWorkloadBundle validates the common v2 envelope and
 // returns no secret material. Product executors perform their stricter
 // product/version graph validation before invoking an operations owner.
