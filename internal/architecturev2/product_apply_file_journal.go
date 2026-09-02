@@ -28,6 +28,10 @@ const (
 	productApplyJournalAPIVersion = "stackkits.product-runtime-apply-journal/v1alpha1"
 	productApplyJournalRoot       = ".stackkits-control/runtime-apply-journal"
 	productApplyJournalLockRoot   = "runtime-apply-journal-lock"
+	// Recovery capsules contain the complete apply request, including the
+	// evidence bundle and artifact snapshots. Keep their read and write bound
+	// so a damaged control file cannot turn a lookup into an unbounded read.
+	productApplyRecoveryMaxBytes = 64 << 20
 )
 
 // ProductApplyFileJournal is a provider-free durable runtimeapply Journal for
@@ -84,6 +88,13 @@ func validateExistingProductApplyJournalDirectories(root *confinedfs.Root) (retu
 		return fmt.Errorf("begin Product Apply journal workspace inspection: %w", err)
 	}
 	defer func() { returnErr = errors.Join(returnErr, transaction.Close()) }()
+	return validateProductApplyJournalDirectories(transaction)
+}
+
+func validateProductApplyJournalDirectories(transaction *confinedfs.Transaction) error {
+	if transaction == nil {
+		return errors.New("Product Apply journal workspace transaction is required")
+	}
 	for _, directory := range []string{".stackkits-control", productApplyJournalRoot} {
 		exists, info, err := transaction.Exists(directory)
 		if err != nil {
@@ -269,6 +280,9 @@ func (j *ProductApplyFileJournal) SaveApplyRecovery(ctx context.Context, request
 	if err := validateProductApplyJournalContext(ctx); err != nil {
 		return err
 	}
+	if err := validateProductApplyRecoveryCanonicalSize(canonical); err != nil {
+		return err
+	}
 	capsule, err := parseProductApplyRecoveryCapsule(canonical)
 	if err != nil {
 		return err
@@ -286,7 +300,7 @@ func (j *ProductApplyFileJournal) SaveApplyRecovery(ctx context.Context, request
 			return err
 		}
 		if exists {
-			stored, _, err := transaction.ReadStable(recoveryPath)
+			stored, _, err := transaction.ReadStableBounded(recoveryPath, productApplyRecoveryMaxBytes)
 			if err != nil {
 				return err
 			}
@@ -300,40 +314,76 @@ func (j *ProductApplyFileJournal) SaveApplyRecovery(ctx context.Context, request
 }
 
 func (j *ProductApplyFileJournal) LoadApplyRecovery(ctx context.Context, requestDigest string) ([]byte, error) {
-	if err := validateProductApplyJournalContext(ctx); err != nil {
-		return nil, err
-	}
-	var result []byte
-	err := j.withProductApplyOperation(ctx, requestDigest, func(transaction *confinedfs.Transaction, _ string) error {
-		recoveryPath, err := productApplyRecoveryPath(requestDigest)
-		if err != nil {
-			return err
-		}
-		exists, info, err := transaction.Exists(recoveryPath)
-		if err != nil {
-			return err
-		}
-		if !exists {
-			return errors.New("Product Apply recovery capsule does not exist")
-		}
-		if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
-			return errors.New("Product Apply recovery capsule is not private")
-		}
-		data, _, err := transaction.ReadStable(recoveryPath)
-		if err != nil {
-			return err
-		}
-		capsule, err := parseProductApplyRecoveryCapsule(data)
-		if err != nil {
-			return err
-		}
-		if capsule.Shared.RequestDigest != requestDigest {
-			return errors.New("Product Apply recovery capsule lookup is substituted")
-		}
-		result = append([]byte(nil), data...)
-		return nil
-	})
+	_, result, _, err := j.loadProductApplyRecovery(ctx, requestDigest)
 	return result, err
+}
+
+// LoadAppliedRuntimeRequest returns the validated shared request retained by
+// the apply capsule. The returned request is a defensive clone and is only a
+// read projection; it does not authorize a new mutation.
+func (j *ProductApplyFileJournal) LoadAppliedRuntimeRequest(ctx context.Context, requestDigest string) (runtimeexecutor.ExecutionRequest, error) {
+	_, _, capsule, err := j.loadProductApplyRecovery(ctx, requestDigest)
+	if err != nil {
+		return runtimeexecutor.ExecutionRequest{}, err
+	}
+	return runtimeexecutor.CloneExecutionRequest(capsule.Shared), nil
+}
+
+// loadProductApplyRecovery is the read-only journal boundary used by all
+// recovery projections. It deliberately avoids the mutation helper so a
+// missing or successful lookup cannot create directories or acquire a lock.
+func (j *ProductApplyFileJournal) loadProductApplyRecovery(ctx context.Context, requestDigest string) (recoveryPath string, result []byte, capsule productApplyRecoveryCapsule, returnErr error) {
+	if err := validateProductApplyJournalContext(ctx); err != nil {
+		return "", nil, productApplyRecoveryCapsule{}, err
+	}
+	recoveryPath, err := productApplyRecoveryPath(requestDigest)
+	if err != nil {
+		return "", nil, productApplyRecoveryCapsule{}, err
+	}
+	if j == nil {
+		return "", nil, productApplyRecoveryCapsule{}, errors.New("Product Apply journal is not initialized")
+	}
+	j.mu.RLock()
+	defer j.mu.RUnlock()
+	if j.root == nil {
+		return "", nil, productApplyRecoveryCapsule{}, errors.New("Product Apply journal is closed")
+	}
+	if err := ctx.Err(); err != nil {
+		return "", nil, productApplyRecoveryCapsule{}, fmt.Errorf("Product Apply journal context: %w", err)
+	}
+	transaction, err := j.root.BeginTransaction()
+	if err != nil {
+		return "", nil, productApplyRecoveryCapsule{}, fmt.Errorf("begin Product Apply recovery transaction: %w", err)
+	}
+	defer func() { returnErr = errors.Join(returnErr, transaction.Close()) }()
+	if err := validateProductApplyJournalDirectories(transaction); err != nil {
+		return "", nil, productApplyRecoveryCapsule{}, err
+	}
+	exists, _, err := transaction.Exists(recoveryPath)
+	if err != nil {
+		return "", nil, productApplyRecoveryCapsule{}, err
+	}
+	if !exists {
+		return "", nil, productApplyRecoveryCapsule{}, errors.New("Product Apply recovery capsule does not exist")
+	}
+	data, info, err := transaction.ReadStableBounded(recoveryPath, productApplyRecoveryMaxBytes)
+	if err != nil {
+		return "", nil, productApplyRecoveryCapsule{}, err
+	}
+	if info == nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
+		return "", nil, productApplyRecoveryCapsule{}, errors.New("Product Apply recovery capsule is not private")
+	}
+	if err := ctx.Err(); err != nil {
+		return "", nil, productApplyRecoveryCapsule{}, fmt.Errorf("Product Apply journal context: %w", err)
+	}
+	capsule, err = parseProductApplyRecoveryCapsule(data)
+	if err != nil {
+		return "", nil, productApplyRecoveryCapsule{}, err
+	}
+	if capsule.Shared.RequestDigest != requestDigest {
+		return "", nil, productApplyRecoveryCapsule{}, errors.New("Product Apply recovery capsule lookup is substituted")
+	}
+	return recoveryPath, append([]byte(nil), data...), capsule, nil
 }
 
 func (j *ProductApplyFileJournal) withProductApplyOperation(ctx context.Context, operationID string, action func(*confinedfs.Transaction, string) error) (returnErr error) {

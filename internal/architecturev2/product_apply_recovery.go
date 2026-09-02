@@ -26,6 +26,26 @@ const productApplyRecoveryAPIVersion = "stackkits.product-apply-recovery/v1alpha
 // the store owns only atomic persistence and exact-digest lookup.
 type ProductApplyRecoveryStore = runtimeapply.RecoveryStore
 
+// ProductAppliedRuntimeCustody is an immutable recovery capsule bound to a
+// verified Apply. Path and canonical bytes are projections
+// for later signed custody capture; neither projection grants a new mutation.
+type ProductAppliedRuntimeCustody struct {
+	path      string
+	canonical []byte
+	request   runtimeexecutor.ExecutionRequest
+}
+
+// Path returns the exact journal-relative capsule path.
+func (c ProductAppliedRuntimeCustody) Path() string { return c.path }
+
+// Canonical returns defensive copies of the exact canonical capsule bytes.
+func (c ProductAppliedRuntimeCustody) Canonical() []byte { return append([]byte(nil), c.canonical...) }
+
+// Request returns a defensive clone of the validated shared request.
+func (c ProductAppliedRuntimeCustody) Request() runtimeexecutor.ExecutionRequest {
+	return runtimeexecutor.CloneExecutionRequest(c.request)
+}
+
 type productApplyRecoveryCapsule struct {
 	APIVersion string                           `json:"api_version"`
 	OutputRoot string                           `json:"output_root"`
@@ -198,6 +218,97 @@ func validateProductApplyRecoveryCapsule(capsule productApplyRecoveryCapsule) er
 	return nil
 }
 
+func validateProductApplyRecoveryCanonicalSize(canonical []byte) error {
+	if len(canonical) > productApplyRecoveryMaxBytes {
+		return fmt.Errorf("Product Apply recovery capsule exceeds %d bytes", productApplyRecoveryMaxBytes)
+	}
+	return nil
+}
+
+// LoadVerifiedAppliedRuntimeCustody loads the exact capsule bound to the
+// verified plan and Apply result. The historical capsule expiry is deliberately
+// not consulted here: expiry controls fresh Apply authorization, while this
+// API only returns previously verified custody for recovery capture.
+func (j *ProductApplyFileJournal) LoadVerifiedAppliedRuntimeCustody(
+	ctx context.Context,
+	plan generationartifact.VerifiedPlan,
+	applied VerifiedApplyResult,
+) (ProductAppliedRuntimeCustody, error) {
+	if err := validateProductApplyJournalContext(ctx); err != nil {
+		return ProductAppliedRuntimeCustody{}, err
+	}
+	if len(plan.Canonical()) == 0 {
+		return ProductAppliedRuntimeCustody{}, errors.New("verified Apply plan is required for runtime custody")
+	}
+	if _, err := applied.Canonical(); err != nil {
+		return ProductAppliedRuntimeCustody{}, fmt.Errorf("verified Apply result is required for runtime custody: %w", err)
+	}
+	if strings.TrimSpace(applied.envelope.SharedRequestDigest) == "" || !validApplySHA256(applied.envelope.SharedRequestDigest) {
+		return ProductAppliedRuntimeCustody{}, errors.New("verified Apply result has no valid shared request digest")
+	}
+	recoveryPath, canonical, capsule, err := j.loadProductApplyRecovery(ctx, applied.envelope.SharedRequestDigest)
+	if err != nil {
+		return ProductAppliedRuntimeCustody{}, err
+	}
+	if err := validateProductAppliedRuntimeCustodyBinding(plan, applied, capsule); err != nil {
+		return ProductAppliedRuntimeCustody{}, err
+	}
+	return ProductAppliedRuntimeCustody{
+		path: recoveryPath, canonical: append([]byte(nil), canonical...),
+		request: runtimeexecutor.CloneExecutionRequest(capsule.Shared),
+	}, nil
+}
+
+func validateProductAppliedRuntimeCustodyBinding(
+	plan generationartifact.VerifiedPlan,
+	applied VerifiedApplyResult,
+	capsule productApplyRecoveryCapsule,
+) error {
+	envelope := applied.envelope
+	planBinding := plan.Binding()
+	if capsule.Request.Binding != planBinding || envelope.Binding != planBinding {
+		return errors.New("Product Apply recovery capsule is bound to a foreign plan")
+	}
+	if capsule.Request.ManifestHash != envelope.ManifestHash ||
+		capsule.Request.GenerationReceiptHash != envelope.GenerationReceiptHash ||
+		capsule.Request.RequirementsHash != envelope.RequirementsHash ||
+		capsule.Request.EvidenceBundleHash != envelope.EvidenceBundleHash ||
+		capsule.Request.ArtifactSetHash != envelope.ArtifactSetHash {
+		return errors.New("Product Apply recovery capsule does not match the verified Apply envelope")
+	}
+	if capsule.Shared.PlanHash != envelope.Binding.PlanHash ||
+		capsule.Shared.ManifestHash != envelope.ManifestHash ||
+		capsule.Shared.GenerationReceiptHash != envelope.GenerationReceiptHash ||
+		capsule.Shared.RequirementsHash != envelope.RequirementsHash ||
+		capsule.Shared.EvidenceBundleHash != envelope.EvidenceBundleHash ||
+		capsule.Shared.ArtifactSetHash != envelope.SharedArtifactSetHash ||
+		capsule.Shared.RequestDigest != envelope.SharedRequestDigest {
+		return errors.New("Product Apply recovery shared request does not match the verified Apply envelope")
+	}
+	if capsule.Request.Executor != envelope.Executor ||
+		capsule.Shared.Executor.ID != envelope.Executor.ID ||
+		capsule.Shared.Executor.Version != envelope.Executor.Version ||
+		capsule.Shared.Executor.Digest != envelope.Executor.Digest {
+		return errors.New("Product Apply recovery capsule executor does not match the verified Apply envelope")
+	}
+	rootEqual, err := confinedfs.OutputLockRootsEqual(capsule.OutputRoot, plan.OutputRoot())
+	if err != nil || !rootEqual || capsule.OutputRoot != plan.OutputRoot() {
+		return errors.New("Product Apply recovery capsule output root does not match the verified plan")
+	}
+	requirementsEqual, err := canonicalProductApplyRecoveryEqual(capsule.Request.Requirements, plan.ApplyRequirements())
+	if err != nil || !requirementsEqual {
+		return errors.New("Product Apply recovery capsule requirements do not match the verified plan")
+	}
+	appliedAt, err := time.Parse(time.RFC3339Nano, envelope.AppliedAt)
+	if err != nil || appliedAt.Location() != time.UTC || appliedAt.Format(time.RFC3339Nano) != envelope.AppliedAt ||
+		capsule.Request.ExecutionAt.Location() != time.UTC ||
+		capsule.Request.ExecutionAt.Format(time.RFC3339Nano) != envelope.AppliedAt ||
+		!capsule.Request.ExecutionAt.Equal(appliedAt) {
+		return errors.New("Product Apply recovery capsule execution time does not match the verified Apply envelope")
+	}
+	return nil
+}
+
 func safeSaveProductApplyRecovery(store ProductApplyRecoveryStore, ctx context.Context, digest string, canonical []byte) (err error) {
 	defer func() {
 		if recover() != nil {
@@ -206,6 +317,9 @@ func safeSaveProductApplyRecovery(store ProductApplyRecoveryStore, ctx context.C
 	}()
 	if nilProductRuntimeOwnerValue(store) {
 		return errors.New("Product Apply recovery store is missing")
+	}
+	if err := validateProductApplyRecoveryCanonicalSize(canonical); err != nil {
+		return err
 	}
 	if _, err := parseProductApplyRecoveryCapsule(canonical); err != nil {
 		return err
@@ -236,6 +350,9 @@ func safeLoadProductApplyRecovery(store ProductApplyRecoveryStore, ctx context.C
 	}
 	canonical, err = store.LoadApplyRecovery(ctx, digest)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateProductApplyRecoveryCanonicalSize(canonical); err != nil {
 		return nil, err
 	}
 	capsule, err := parseProductApplyRecoveryCapsule(canonical)

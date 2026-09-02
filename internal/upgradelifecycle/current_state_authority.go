@@ -2,6 +2,7 @@ package upgradelifecycle
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,8 +28,9 @@ const (
 )
 
 type verifiedCurrentApplyResult struct {
-	canonical  []byte
-	resultHash string
+	canonical      []byte
+	resultHash     string
+	runtimeCustody ExecutorStateBlobInput
 }
 
 // CurrentSourceVerifier re-resolves the exact recovery StackSpec and Inventory
@@ -58,9 +60,9 @@ type CurrentApplyResultVerifier struct {
 	verify func(architecturev2.ProductApplyResultVerificationInput) (verifiedCurrentApplyResult, error)
 }
 
-func NewCurrentApplyResultVerifier(service *architecturev2.Service) (CurrentApplyResultVerifier, error) {
-	if service == nil {
-		return CurrentApplyResultVerifier{}, errors.New("current state authority: Apply verifier service is required")
+func NewCurrentApplyResultVerifier(ctx context.Context, service *architecturev2.Service, journal *architecturev2.ProductApplyFileJournal) (CurrentApplyResultVerifier, error) {
+	if ctx == nil || service == nil || journal == nil {
+		return CurrentApplyResultVerifier{}, errors.New("current state authority: Apply verifier context, service, and runtime custody are required")
 	}
 	return CurrentApplyResultVerifier{
 		verify: func(input architecturev2.ProductApplyResultVerificationInput) (verifiedCurrentApplyResult, error) {
@@ -72,8 +74,15 @@ func NewCurrentApplyResultVerifier(service *architecturev2.Service) (CurrentAppl
 			if err != nil {
 				return verifiedCurrentApplyResult{}, err
 			}
+			custody, err := journal.LoadVerifiedAppliedRuntimeCustody(ctx, input.Plan, verified)
+			if err != nil {
+				return verifiedCurrentApplyResult{}, fmt.Errorf("current state authority: retain applied runtime custody: %w", err)
+			}
 			return verifiedCurrentApplyResult{
 				canonical: append([]byte(nil), canonical...), resultHash: verified.ResultHash(),
+				runtimeCustody: ExecutorStateBlobInput{
+					ID: "applied-runtime-custody", Path: custody.Path(), Mode: "0600", Data: custody.Canonical(),
+				},
 			}, nil
 		},
 	}, nil
@@ -333,7 +342,7 @@ func NewVerifiedExecutorStateCapture(input CurrentStateAuthorityInput) (Verified
 	if err != nil {
 		return VerifiedExecutorStateCapture{}, err
 	}
-	if err := appendCurrentStateControlBlobs(&input, runtimeBindingBytes); err != nil {
+	if err := appendCurrentStateControlBlobs(&input, runtimeBindingBytes, verifiedApply.runtimeCustody); err != nil {
 		return VerifiedExecutorStateCapture{}, err
 	}
 	input.Capture.Release = releaseindex.VerifiedInstallation{}
@@ -513,7 +522,11 @@ func appendStandaloneComposeRuntimeCustody(input *CurrentStateAuthorityInput) er
 func appendCurrentStateControlBlobs(
 	input *CurrentStateAuthorityInput,
 	runtimeBindingBytes []byte,
+	runtimeCustody ExecutorStateBlobInput,
 ) error {
+	if runtimeCustody.ID != "applied-runtime-custody" || runtimeCustody.Mode != "0600" || len(runtimeCustody.Data) == 0 {
+		return errors.New("current state authority: verified applied runtime custody is required")
+	}
 	_, manifestPath, receiptPath := input.Plan.MetadataPaths(input.WorkspaceRoot)
 	manifestBytes, err := input.Manifest.MarshalCanonical()
 	if err != nil {
@@ -529,6 +542,7 @@ func appendCurrentStateControlBlobs(
 		{ID: "apply-result", Path: ".stackkit/evidence/apply/results/" + strings.TrimPrefix(executorStateDigest(input.ApplyResult), "sha256:") + ".json", Mode: "0600", Data: append([]byte(nil), input.ApplyResult...)},
 		{ID: "apply-result-receipt", Path: ".stackkit/evidence/apply/receipts/" + strings.TrimPrefix(executorStateDigest(input.ApplyResult), "sha256:") + ".json", Mode: "0600", Data: append([]byte(nil), input.ApplyReceipt...)},
 		{ID: "owner-runtime-binding", Path: ".stackkit/evidence/owner-runtime-binding.json", Mode: "0600", Data: runtimeBindingBytes},
+		{ID: runtimeCustody.ID, Path: runtimeCustody.Path, Mode: runtimeCustody.Mode, Data: append([]byte(nil), runtimeCustody.Data...)},
 	}
 	for _, control := range controls {
 		for _, artifact := range input.Capture.Artifacts {

@@ -639,7 +639,10 @@ artifacts, runtime Compose, Apply evidence, release and Owner custody before
 target mutation. It also retains selected standalone application Compose,
 environment and generated configuration files in owner-private storage;
 machine-readable results expose their identities and digests, never secret
-content. Retained files are not automatically activated by executor-only
+content. The current native checkpoint requires the complete canonical runtime
+request capsule bound to the verified prior Apply. Custody reads are read-only;
+retaining an expired execution window does not renew execution permission.
+Retained files are not automatically activated by executor-only
 recovery. The target runs `generate -> plan -> apply -> verify`.
 Executor-only rollback is allowed before target Apply; after Apply admission,
 `data-activation-required,dataStaged` blocks old-runtime restart until verified

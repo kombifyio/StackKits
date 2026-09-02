@@ -3,7 +3,6 @@ package commands
 import (
 	"context"
 	"crypto/ed25519"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -39,25 +38,11 @@ func (a *architectureV2ProductRuntimeAuthority) LoadAppliedRuntimeRequest(ctx co
 	if a == nil || a.journal == nil {
 		return runtimeexecutor.ExecutionRequest{}, errors.New("Architecture v2 applied runtime custody is unavailable")
 	}
-	canonical, err := a.journal.LoadApplyRecovery(ctx, requestDigest)
+	request, err := a.journal.LoadAppliedRuntimeRequest(ctx, requestDigest)
 	if err != nil {
 		return runtimeexecutor.ExecutionRequest{}, fmt.Errorf("load applied runtime request: %w", err)
 	}
-	var capsule struct {
-		APIVersion string                           `json:"api_version"`
-		Shared     runtimeexecutor.ExecutionRequest `json:"shared_request"`
-	}
-	if err := json.Unmarshal(canonical, &capsule); err != nil {
-		return runtimeexecutor.ExecutionRequest{}, fmt.Errorf("decode validated applied runtime custody: %w", err)
-	}
-	if capsule.APIVersion != "stackkits.product-apply-recovery/v1alpha1" ||
-		capsule.Shared.RequestDigest != requestDigest {
-		return runtimeexecutor.ExecutionRequest{}, errors.New("applied runtime request custody returned a substituted identity")
-	}
-	if err := capsule.Shared.Validate(); err != nil {
-		return runtimeexecutor.ExecutionRequest{}, fmt.Errorf("validate applied runtime request custody: %w", err)
-	}
-	return runtimeexecutor.CloneExecutionRequest(capsule.Shared), nil
+	return request, nil
 }
 
 // newArchitectureV2ProductRuntimeAuthority is the production CLI composition
@@ -89,8 +74,8 @@ func newArchitectureV2ProductRuntimeAuthority(workspaceRoot string, options arch
 
 // newArchitectureV2ProductVerifyAuthority derives public verification trust
 // from the established local key custody and owns the immutable product
-// runtime identity. It constructs no journal, recovery store, collector
-// invocation, execution channel, or mutating runtime owner.
+// runtime identity. It opens existing runtime custody for read-only inspection
+// without constructing an execution channel or mutating runtime owner.
 func newArchitectureV2ProductVerifyAuthority(workspaceRoot string, _ architectureV2ExecutionCLIOptions) (architectureV2ExecutionAuthority, error) {
 	_, anchor, _, err := newLocalOwnerApplyEvidenceCollector(workspaceRoot)
 	if err != nil {

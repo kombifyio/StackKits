@@ -167,6 +167,10 @@ var fileFocusedTests = map[string][]string{
 	"cmd/stackkit/commands/upgrade_checkpoint.go":  {},
 	"cmd/stackkit/commands/upgrade_recover.go":     {},
 	"cmd/stackkit/commands/lifecycle_mutation.go":  {},
+	// This composition wrapper delegates capsule reads to Architecture-v2,
+	// whose changed public custody tests cover the behavior. Its command tests
+	// were retired; retain an explicit compile boundary for the thin adapter.
+	"cmd/stackkit/commands/architecture_v2_product_runtime.go": {},
 	"cmd/stackkit/commands/drift.go": {
 		"TestDriftReconcileModesDenyBeforeLifecycleSideEffects",
 	},

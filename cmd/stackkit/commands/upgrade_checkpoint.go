@@ -452,7 +452,7 @@ func withPreparedPublicUpgradeCapture(
 	if err != nil {
 		return err
 	}
-	applyVerifier, err := upgradelifecycle.NewCurrentApplyResultVerifier(verifyService)
+	applyVerifier, err := upgradelifecycle.NewCurrentApplyResultVerifier(ctx, verifyService, verifyAuthority.journal)
 	if err != nil {
 		return err
 	}
