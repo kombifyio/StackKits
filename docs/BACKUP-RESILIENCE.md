@@ -23,6 +23,19 @@ their own current evidence. The restore verifier checks Core and all selected
 local application runtimes, including their actual HTTP health result; this is
 not proof of database integrity, restored user content or client login.
 
+New snapshots from the Docker runtime retain the authenticated `restored`
+quiescence payload in both the signed snapshot anchor and completed journal.
+It binds the graph, exact container identities and mounts used by the stop/resume
+operation. Missing or unfinished quiescence prevents completion. Historical
+anchors without that optional payload remain readable but provide no writer
+quiescence evidence. The consistency classification remains `crash-consistent`.
+
+Fresh journals also retain `captureStartedAt` from before their first writer
+stop. The original timestamp survives retries and is authenticated with the
+completed snapshot anchor. Historical journals do not acquire a timestamp
+during recovery. `createdAt` remains the repository's snapshot completion time;
+it must not make a long backup appear to contain newer data.
+
 The source policy resolves `backupPolicy.retention` from CUE and explicitly
 sets and reads back the daily, weekly, monthly and yearly Kopia buckets.
 Hourly and latest buckets are zero, so inherited Kopia defaults cannot widen
@@ -42,6 +55,12 @@ it preserves the original recovery evidence, touches no repository or live data,
 and prevents reuse of that restore operation ID. Deleting the journal is not a
 supported recovery step.
 
+Restore staging and verification must finish inside the original signed Owner
+approval window. The final verifier must report an observation from the current
+invocation; replayed, future-dated or canceled verification cannot complete the
+operation. A fresh retry reuses already staged bytes. If approval has expired,
+authorize a new operation instead of extending the old grant.
+
 The [local schedule](../addons/backup/README.md#local-schedule) lowers the CUE
 cadence into an explicitly enabled systemd timer. It invokes the same CLI backup
 path under the existing lifecycle lock. `backup schedule status --json` shows
@@ -58,8 +77,15 @@ retaining the latest verifiable receipts. If the history directory cannot be
 verified, `history-could-not-be-authenticated` leaves both dates unverified.
 Neither condition turns repository readiness into protection. Future timestamps
 report `clock-skew` with no usable age. A staged
-restore is not an application activation or a client-access drill. These are
-historical receipts, not a fresh check that their data is still retained.
+restore is not an application activation or a client-access drill.
+
+The separate `history.availability` observation checks the latest snapshot
+against the currently authorized repository. `present` requires an exact
+fresh manifest lookup matching the signed receipt, source, policy and full
+Apply lineage. A removed snapshot reports `missing`; unavailable, substituted
+or historical authority reports `unverified`. The historical receipt remains
+visible in every case. A present manifest does not prove that every content
+blob can be restored or that the application is usable after recovery.
 
 ## Portable emergency archive
 
@@ -167,6 +193,38 @@ Evaluate RPO, RTO, retention, data growth and restore age per application. A
 successful snapshot does not prove those objectives. HA topology and quorum
 are separate concerns; three nodes or a configured backup policy alone are not
 live failover evidence.
+
+An existing application data binding can declare a recovery objective:
+
+```yaml
+data:
+  defaultAuthority: home
+  bindings:
+    photos:
+      classes: [personal]
+      primarySiteRef: home
+      recoveryObjective:
+        maxDataLossSeconds: 90000
+        recoveryTimeSeconds: 14400
+```
+
+This is a fragment to add to the binding already selected by the workload.
+Both values are seconds. Omission declares no objective. The binding must
+belong to selected, backup-enabled standalone Compose application volumes;
+the compiler rejects unmatched bindings and unsupported storage paths. Every
+node receives only objectives for its own selected application volumes. The
+objective cannot be shorter than the CUE backup schedule interval plus jitter;
+passing this check does not prove that a backup completed on time.
+
+`backup status --json` reports each objective under
+`history.recoveryObjectives`. Its data-loss check uses the conservative age
+from the signed `captureStartedAt`, and requires a fresh lookup of the exact
+retained snapshot manifest. `within-objective` describes only that age check,
+not complete data protection. Missing capture evidence, including historical
+snapshots, remains `unverified`. The capture start is not a database-consistent
+cutoff, and manifest presence does not verify content blobs or restored user
+data. Recovery-time compliance remains `unverified` until a functional
+application recovery supplies separate duration and client evidence.
 
 Managed/provider-native backups remain Techstack-owned. Configuration and
 receipts may be projected into StackKits, but must not become an account

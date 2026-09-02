@@ -11036,6 +11036,7 @@
           }
         }
       },
+      "defaultComputeProfile": "standard",
       "evidence": [
         "cloud-core-runtime-evidence"
       ],
@@ -11786,6 +11787,7 @@
           }
         }
       },
+      "defaultComputeProfile": "standard",
       "evidence": [
         "basement-core-runtime-evidence"
       ],
@@ -13168,6 +13170,7 @@
           }
         }
       },
+      "defaultComputeProfile": "low",
       "evidence": [
         "basement-core-runtime-evidence"
       ],
@@ -14324,6 +14327,7 @@
           }
         }
       },
+      "defaultComputeProfile": "standard",
       "evidence": [
         "SK-S1",
         "SK-S2",
@@ -14842,6 +14846,7 @@
           }
         }
       },
+      "defaultComputeProfile": "low",
       "evidence": [
         "SK-S1",
         "SK-S2",
@@ -15252,6 +15257,7 @@
           }
         }
       },
+      "defaultComputeProfile": "standard",
       "evidence": [
         "cloudreve-selected-paas-runtime-contract"
       ],
@@ -15536,6 +15542,7 @@
           }
         }
       },
+      "defaultComputeProfile": "standard",
       "evidence": [
         "vaultwarden-selected-paas-runtime-contract"
       ],
@@ -15817,6 +15824,7 @@
           }
         }
       },
+      "defaultComputeProfile": "standard",
       "evidence": [
         "jellyfin-selected-paas-runtime-contract"
       ],
@@ -16112,6 +16120,7 @@
           }
         }
       },
+      "defaultComputeProfile": "standard",
       "evidence": [
         "home-assistant-selected-paas-runtime-contract"
       ],

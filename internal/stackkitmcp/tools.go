@@ -802,6 +802,10 @@ func (a *App) stackkitBackupScheduleStatusV2(ctx context.Context, req *mcp.CallT
 	return a.runRegisteredReadOnlyTool(ctx, standaloneoperations.BackupScheduleStatus, in.commandInput(), nil, nil)
 }
 
+func (a *App) stackkitBackupStatusV2(ctx context.Context, req *mcp.CallToolRequest, in architectureV2CommandInput) (*mcp.CallToolResult, any, error) {
+	return a.runRegisteredReadOnlyTool(ctx, standaloneoperations.BackupStatus, in.commandInput(), nil, nil)
+}
+
 func (a *App) stackkitSetupV2(ctx context.Context, _ *mcp.CallToolRequest, in setupOperationInput) (*mcp.CallToolResult, any, error) {
 	workload := strings.TrimSpace(in.WorkloadRef)
 	if workload == "" || strings.HasPrefix(workload, "-") {

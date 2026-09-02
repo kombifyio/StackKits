@@ -360,6 +360,9 @@ export interface Module {
   required: boolean;
   use_case_ids: ContractId[];
   capabilities: ContractId[];
+  default_compute_profile?: ProfileId;
+  default_storage_profile?: ProfileId;
+  default_accelerator_profile?: ProfileId;
   compute_profiles: ComputeProfile[];
   storage_profiles: AxisProfile[];
   accelerator_profiles: AxisProfile[];
@@ -413,7 +416,10 @@ export interface AxisProfile {
 export interface UseCase {
   use_case_id: ContractId;
   title: string;
+  description?: string;
   required: boolean;
+  selected_by_default: boolean;
+  default_alternative_id?: ContractId;
   availability: "available" | "blocked";
   reason_code?: string;
   alternatives: UseCaseAlternative[];

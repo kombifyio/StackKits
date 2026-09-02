@@ -80,10 +80,8 @@ func (r localKopiaRuntimeRenderer) RenderUnit(ctx context.Context, unit RenderUn
 	return []UnitOutput{{Ref: outputRef, Bytes: output}}, nil
 }
 
-type localKopiaBackupSource = localbackuppolicy.Source
-
 type localKopiaRuntimeValues struct {
-	BackupSource localKopiaBackupSource `json:"backup-source"`
+	BackupSource localbackuppolicy.BackupSourceProjection `json:"backup-source"`
 }
 
 func localKopiaCoreProfile(moduleID string) (closedLocalCoreProfile, bool) {
@@ -193,20 +191,21 @@ func validateLocalKopiaRuntimeUnit(unit RenderUnit, contract RendererContract) (
 	if err := decodeStrict(unit.ValuesJSON(), &values); err != nil {
 		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".values", "decode typed local Kopia backup source", err)
 	}
-	if values.BackupSource.CoreModuleRef != "" && values.BackupSource.CoreModuleRef != profile.moduleID {
+	source := values.BackupSource.Source
+	if source.CoreModuleRef != "" && source.CoreModuleRef != profile.moduleID {
 		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".values.backup-source.coreModuleRef", "must bind the selected %s runtime", profile.displayName)
 	}
-	if profile.moduleID == basementCoreLiteModuleID && values.BackupSource.CoreModuleRef != profile.moduleID {
+	if profile.moduleID == basementCoreLiteModuleID && source.CoreModuleRef != profile.moduleID {
 		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".values.backup-source.coreModuleRef", "CoreLite source policy must carry its explicit module binding")
 	}
-	if err := localbackuppolicy.ValidateSourceProjection(values.BackupSource); err != nil {
+	if err := localbackuppolicy.ValidateSourceProjection(source); err != nil {
 		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".values.backup-source", "validate the compiler-owned read-only Docker volume source", err)
 	}
-	applications, err := localbackuppolicy.ApplicationVolumesForTarget(values.BackupSource.ApplicationVolumes, siteRef, nodeRef)
+	applications, err := localbackuppolicy.ApplicationVolumesForTarget(source.ApplicationVolumes, siteRef, nodeRef)
 	if err != nil {
 		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".values.backup-source.applicationVolumes", "select the exact node-local application volumes", err)
 	}
-	runtimes, err := localbackuppolicy.ApplicationRuntimesForTarget(values.BackupSource.ApplicationRuntimes, siteRef, nodeRef)
+	runtimes, err := localbackuppolicy.ApplicationRuntimesForTarget(source.ApplicationRuntimes, siteRef, nodeRef)
 	if err != nil {
 		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".values.backup-source.applicationRuntimes", "select the exact node-local application runtime graphs", err)
 	}
@@ -225,6 +224,11 @@ func validateLocalKopiaRuntimeUnit(unit RenderUnit, contract RendererContract) (
 		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".planInputs.backupPolicy.schedule", "validate resolved backup schedule", err)
 	}
 	policy.Schedule = &inputs.BackupPolicy.Schedule
+	objectives, err := localbackuppolicy.RecoveryObjectivesForTarget(values.BackupSource.RecoveryObjectiveProjection, source.ApplicationVolumes, siteRef, nodeRef)
+	if err != nil {
+		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".values.backup-source.recoveryObjectiveProjection", "select target-local recovery objectives", err)
+	}
+	policy.RecoveryObjectives = objectives
 	return policy, nil
 }
 

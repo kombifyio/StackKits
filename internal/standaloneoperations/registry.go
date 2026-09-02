@@ -23,6 +23,7 @@ const (
 	Setup                 ID = "stackkit.setup"
 	Logs                  ID = "stackkit.logs"
 	Backup                ID = "stackkit.backup"
+	BackupStatus          ID = "stackkit.backup.status"
 	BackupScheduleEnable  ID = "stackkit.backup.schedule.enable"
 	BackupScheduleDisable ID = "stackkit.backup.schedule.disable"
 	BackupScheduleStatus  ID = "stackkit.backup.schedule.status"
@@ -59,6 +60,7 @@ var catalog = []Contract{
 	{ID: Setup, ToolName: "stackkit_setup", Title: "Set up application", Description: "Set up and verify a Plan-declared app-local owner account on the existing application.", Command: []string{"setup", "--json"}, Mutation: true, Idempotent: true, OwnerApproval: true},
 	{ID: Logs, ToolName: "stackkit_logs", Title: "Logs", Description: "List local structured rollout logs.", Command: []string{"logs", "list", "--json"}, Idempotent: true},
 	{ID: Backup, ToolName: "stackkit_backup", Title: "Backup", Description: "Create a local owner-custodied backup snapshot.", Command: []string{"backup", "run", "--json"}, Mutation: true, Idempotent: true, OwnerApproval: true},
+	{ID: BackupStatus, ToolName: "stackkit_backup_status", Title: "Backup status", Description: "Read repository readiness, authenticated receipt history, current snapshot availability and declared recovery objectives.", Command: []string{"backup", "status", "--json"}, Idempotent: true},
 	{ID: BackupScheduleEnable, ToolName: "stackkit_backup_schedule_enable", Title: "Enable backup schedule", Description: "Enable the CUE-governed local backup timer after explicit local Owner approval.", Command: []string{"backup", "schedule", "enable", "--json", "--owner-approve"}, Mutation: true, Idempotent: true, OwnerApproval: true},
 	{ID: BackupScheduleDisable, ToolName: "stackkit_backup_schedule_disable", Title: "Disable backup schedule", Description: "Revoke the local backup timer after explicit local Owner approval.", Command: []string{"backup", "schedule", "disable", "--json", "--owner-approve"}, Mutation: true, Idempotent: true, OwnerApproval: true},
 	{ID: BackupScheduleStatus, ToolName: "stackkit_backup_schedule_status", Title: "Backup schedule status", Description: "Read the local backup timer and signed schedule authorization without changing either.", Command: []string{"backup", "schedule", "status", "--json"}, Idempotent: true},

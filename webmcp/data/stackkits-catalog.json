@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v1",
-  "source_sha": "bd9fe67c5bf78cb9ca07e6f856ca6a185db25b58",
-  "authority_bundle_sha256": "f6132a13c82f6c97a54edd991717db9897abb43eaaf8e020c3546302f0ffe53a",
+  "source_sha": "2ab4518f6e55783807c65883788d6dae55ad5711",
+  "authority_bundle_sha256": "bef8a0a91f2206b1e9133fd77b801196f812047aabe2aead1afbda0f19e53924",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -1318,6 +1318,21 @@
       "owner_approval": false
     },
     {
+      "id": "stackkit.backup.status",
+      "tool_name": "stackkit_backup_status",
+      "title": "Backup status",
+      "description": "Read repository readiness, authenticated receipt history, current snapshot availability and declared recovery objectives.",
+      "command": [
+        "backup",
+        "status",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
       "id": "stackkit.drift",
       "tool_name": "stackkit_drift",
       "title": "Drift",
@@ -1513,5 +1528,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "02823fece199b1c94d88b95701ea2fc40c6d71eff2ef545935b0cc55e0b7c5bd"
+  "catalog_sha256": "677c4df8d029c34aba997517a092acd77ed770e3e69778a21e377870bc95948a"
 }

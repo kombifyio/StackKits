@@ -314,6 +314,7 @@ func (a *App) addReadOnlyActions(server *mcp.Server) {
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Verify), a.stackkitVerifyV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Status), a.stackkitStatusV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.BackupScheduleStatus), a.stackkitBackupScheduleStatusV2)
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.BackupStatus), a.stackkitBackupStatusV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Logs), a.stackkitLogsV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Drift), a.stackkitDriftV2)
 }
@@ -366,6 +367,7 @@ var stateConsoleToolNames = map[string]bool{
 	"stackkit_verify":                  true,
 	"stackkit_verify_plan":             true,
 	"stackkit_backup":                  true,
+	"stackkit_backup_status":           true,
 	"stackkit_backup_schedule_enable":  true,
 	"stackkit_backup_schedule_disable": true,
 	"stackkit_backup_schedule_status":  true,

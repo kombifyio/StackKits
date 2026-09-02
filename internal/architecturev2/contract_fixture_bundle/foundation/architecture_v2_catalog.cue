@@ -3647,6 +3647,7 @@ _architectureV2Modules: list.Concat([[
 			minStorageGB: 20
 		}
 		computeProfiles: _architectureV2CloudCoreComputeProfiles
+		defaultComputeProfile: "standard"
 		runtime: {
 			kind:     "container"
 			delivery: "stackkit"
@@ -3796,6 +3797,7 @@ _architectureV2Modules: list.Concat([[
 			minStorageGB: 20
 		}
 		computeProfiles: _architectureV2BasementCoreComputeProfiles
+		defaultComputeProfile: "standard"
 		runtime: {
 			kind:     "container"
 			delivery: "stackkit"
@@ -4123,6 +4125,7 @@ _architectureV2Modules: list.Concat([[
 			minStorageGB: 10
 		}
 		computeProfiles: _architectureV2BasementCoreLiteComputeProfiles
+		defaultComputeProfile: "low"
 		runtime: {
 			kind:     "container"
 			delivery: "stackkit"
@@ -4383,6 +4386,7 @@ _architectureV2Modules: list.Concat([[
 			requiredRoles: ["worker"]
 		}
 		computeProfiles: _architectureV2ImmichComputeProfiles
+		defaultComputeProfile: "standard"
 		runtime: {
 			kind:     "container"
 			delivery: "application-adapter"
@@ -4559,6 +4563,7 @@ _architectureV2Modules: list.Concat([[
 			requiredRoles: ["worker"]
 		}
 		computeProfiles: _architectureV2ImmichLiteComputeProfiles
+		defaultComputeProfile: "low"
 		runtime: {
 			kind:     "container"
 			delivery: "application-adapter"
@@ -4704,6 +4709,7 @@ _architectureV2Modules: list.Concat([[
 			requiredRoles: ["worker"]
 		}
 		computeProfiles: _architectureV2CloudreveComputeProfiles
+		defaultComputeProfile: "standard"
 		runtime: {
 			kind:     "container"
 			delivery: "application-adapter"
@@ -4803,6 +4809,7 @@ _architectureV2Modules: list.Concat([[
 			requiredRoles: ["worker"]
 		}
 		computeProfiles: _architectureV2VaultwardenComputeProfiles
+		defaultComputeProfile: "standard"
 		runtime: {
 			kind:     "container"
 			delivery: "application-adapter"
@@ -4905,6 +4912,7 @@ _architectureV2Modules: list.Concat([[
 			requiredRoles: ["worker"]
 		}
 		computeProfiles: _architectureV2JellyfinComputeProfiles
+		defaultComputeProfile: "standard"
 		runtime: {
 			kind:     "container"
 			delivery: "application-adapter"
@@ -5004,6 +5012,7 @@ _architectureV2Modules: list.Concat([[
 			requiredRoles: ["worker"]
 		}
 		computeProfiles: _architectureV2HomeAssistantComputeProfiles
+		defaultComputeProfile: "standard"
 		runtime: {
 			kind:     "container"
 			delivery: "application-adapter"

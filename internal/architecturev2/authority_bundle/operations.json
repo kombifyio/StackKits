@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:7666f925e19a285bb5446ad29dfa80a0c93b4980e1892c9191798c86f721fc1e",
+  "contentDigest": "sha256:1d39365901dabf6e954b5f6cd400ce667bd9b89f927068f346f1de86cadb60a7",
   "operations": [
     {
       "command": [
@@ -79,6 +79,21 @@
       "ownerApproval": false,
       "title": "Backup schedule status",
       "toolName": "stackkit_backup_schedule_status"
+    },
+    {
+      "command": [
+        "backup",
+        "status",
+        "--json"
+      ],
+      "description": "Read repository readiness, authenticated receipt history, current snapshot availability and declared recovery objectives.",
+      "destructive": false,
+      "id": "stackkit.backup.status",
+      "idempotent": true,
+      "mutation": false,
+      "ownerApproval": false,
+      "title": "Backup status",
+      "toolName": "stackkit_backup_status"
     },
     {
       "command": [

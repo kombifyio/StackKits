@@ -33,7 +33,7 @@ func localKopiaRenderInputTarget(unit map[string]any, path string) (moduleRender
 // aggregate logical value to its exact node-local instance. Runtime graphs are
 // copied from the already-resolved module contracts; they are never inferred
 // from generated Compose output.
-func localKopiaBackupSourceProjection(nodes, workloads, modules []any, _ []string, _ []string, coreModuleRef string) (map[string]any, bool, error) {
+func localKopiaBackupSourceProjection(nodes, workloads, modules []any, _ []string, _ []string, coreModuleRef string, data map[string]any) (map[string]any, bool, error) {
 	nodeSites, err := localKopiaNodeSites(nodes)
 	if err != nil {
 		return nil, false, err
@@ -46,15 +46,26 @@ func localKopiaBackupSourceProjection(nodes, workloads, modules []any, _ []strin
 	if err != nil {
 		return nil, false, fmt.Errorf("build governed local Kopia source projection: %w", err)
 	}
-	encoded, err := json.Marshal(source)
+	objectives, err := ProjectRecoveryObjectives(data, applications)
+	if err != nil {
+		return nil, false, fmt.Errorf("project governed recovery objectives: %w", err)
+	}
+	projection := localbackuppolicy.BackupSourceProjection{Source: source}
+	if len(objectives) > 0 {
+		projection.RecoveryObjectiveProjection = &localbackuppolicy.RecoveryObjectiveProjection{
+			APIVersion: localbackuppolicy.RecoveryObjectiveProjectionAPIVersion,
+			Objectives: objectives,
+		}
+	}
+	encoded, err := json.Marshal(projection)
 	if err != nil {
 		return nil, false, fmt.Errorf("encode governed local Kopia source projection: %w", err)
 	}
-	var projection map[string]any
-	if err := json.Unmarshal(encoded, &projection); err != nil {
+	var value map[string]any
+	if err := json.Unmarshal(encoded, &value); err != nil {
 		return nil, false, fmt.Errorf("decode governed local Kopia source projection: %w", err)
 	}
-	return projection, true, nil
+	return value, true, nil
 }
 
 func localKopiaNodeSites(nodes []any) (map[string]string, error) {

@@ -12,26 +12,30 @@ import (
 )
 
 // History reports owner-authenticated receipts for the current source policy.
-// It describes recorded events, not continued repository content availability,
-// successful application activation, or compliance with a recovery objective.
+// Availability separately observes the latest current-authority snapshot
+// manifest. Neither observation proves complete blob integrity, successful
+// application activation, or compliance with a recovery-time objective.
 type History struct {
-	ObservedAt    time.Time   `json:"observedAt"`
-	Scope         string      `json:"scope"`
-	Issue         string      `json:"issue,omitempty"`
-	Snapshot      EvidenceAge `json:"snapshot"`
-	StagedRestore EvidenceAge `json:"stagedRestore"`
+	ObservedAt         time.Time                     `json:"observedAt"`
+	Scope              string                        `json:"scope"`
+	Issue              string                        `json:"issue,omitempty"`
+	Snapshot           EvidenceAge                   `json:"snapshot"`
+	StagedRestore      EvidenceAge                   `json:"stagedRestore"`
+	Availability       *SnapshotAvailability         `json:"availability,omitempty"`
+	RecoveryObjectives []RecoveryObjectiveAssessment `json:"recoveryObjectives,omitempty"`
 }
 
 type EvidenceAge struct {
-	State       string     `json:"state"`
-	EvidenceID  string     `json:"evidenceId,omitempty"`
-	PlanHash    string     `json:"planHash,omitempty"`
-	CurrentPlan bool       `json:"currentPlan"`
-	RecordedAt  *time.Time `json:"recordedAt,omitempty"`
-	AgeSeconds  *int64     `json:"ageSeconds,omitempty"`
+	State            string     `json:"state"`
+	EvidenceID       string     `json:"evidenceId,omitempty"`
+	PlanHash         string     `json:"planHash,omitempty"`
+	CurrentPlan      bool       `json:"currentPlan"`
+	RecordedAt       *time.Time `json:"recordedAt,omitempty"`
+	CaptureStartedAt *time.Time `json:"captureStartedAt,omitempty"`
+	AgeSeconds       *int64     `json:"ageSeconds,omitempty"`
 }
 
-func (s *Service) history(ctx context.Context, configuration Configuration, now time.Time) (History, error) {
+func (s *Service) history(ctx context.Context, configuration Configuration, now time.Time, repositoryReady bool) (History, error) {
 	result := History{
 		ObservedAt: now.UTC(), Scope: "current-source-policy-receipts",
 		Snapshot: EvidenceAge{State: "unverified"}, StagedRestore: EvidenceAge{State: "unverified"},
@@ -65,6 +69,10 @@ func (s *Service) history(ctx context.Context, configuration Configuration, now 
 					continue
 				}
 				result.Snapshot = newerEvidence(result.Snapshot, id, anchor.Lineage.Binding.PlanHash, anchor.Snapshot.CreatedAt, now)
+				if result.Snapshot.EvidenceID == id && anchor.Quiescence != nil && anchor.Quiescence.CaptureStartedAt != nil {
+					startedAt := *anchor.Quiescence.CaptureStartedAt
+					result.Snapshot.CaptureStartedAt = &startedAt
+				}
 				continue
 			}
 			restore, err := s.loadStoredRestoreResult(id)
@@ -92,6 +100,12 @@ func (s *Service) history(ctx context.Context, configuration Configuration, now 
 	}
 	result.Snapshot.CurrentPlan = result.Snapshot.PlanHash != "" && result.Snapshot.PlanHash == configuration.Lineage.Binding.PlanHash
 	result.StagedRestore.CurrentPlan = result.StagedRestore.PlanHash != "" && result.StagedRestore.PlanHash == configuration.Lineage.Binding.PlanHash
+	availability, err := s.snapshotAvailability(ctx, configuration, result.Snapshot, now, repositoryReady)
+	if err != nil {
+		return History{}, err
+	}
+	result.Availability = &availability
+	result.RecoveryObjectives = assessRecoveryObjectives(configuration.Policy.RecoveryObjectives, result)
 	return result, nil
 }
 

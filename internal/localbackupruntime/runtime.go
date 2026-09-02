@@ -454,7 +454,10 @@ func (r *Runtime) prepareQuiescence(ctx context.Context) (backuplifecycle.Snapsh
 	if err != nil {
 		return backuplifecycle.SnapshotQuiescence{}, fmt.Errorf("localbackupruntime: bind application graph to quiescence journal: %w", err)
 	}
-	journal := backuplifecycle.SnapshotQuiescence{Phase: "prepared", GraphDigest: graphDigest}
+	// Only a fresh journal receives a capture start. Retries retain their
+	// original value, including nil in legacy journals; they cannot refresh age.
+	startedAt := time.Now().UTC()
+	journal := backuplifecycle.SnapshotQuiescence{Phase: "prepared", GraphDigest: graphDigest, CaptureStartedAt: &startedAt}
 	for _, container := range observed {
 		if container.Paused || container.Restarting {
 			return backuplifecycle.SnapshotQuiescence{}, fmt.Errorf("localbackupruntime: managed Docker container %q is paused or restarting", container.ID)

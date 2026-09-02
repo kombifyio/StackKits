@@ -601,8 +601,28 @@ func emitNativeV2BackupResult(cmd *cobra.Command, operation nativeV2BackupOperat
 					return err
 				}
 			}
+			if availability := status.History.Availability; availability != nil {
+				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Snapshot manifest: %s", availability.State); err != nil {
+					return err
+				}
+				if availability.Reason != "" {
+					if _, err := fmt.Fprintf(cmd.OutOrStdout(), " (%s)", availability.Reason); err != nil {
+						return err
+					}
+				}
+				if _, err := fmt.Fprintln(cmd.OutOrStdout()); err != nil {
+					return err
+				}
+			}
+			for _, objective := range status.History.RecoveryObjectives {
+				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Recovery objective %s: snapshot age %s (limit %ds); application recovery %s (limit %ds)\n",
+					objective.BindingRef, objective.DataLoss.State, objective.DataLoss.LimitSeconds,
+					objective.RecoveryTime.State, objective.RecoveryTime.LimitSeconds); err != nil {
+					return err
+				}
+			}
 		}
-		_, err := fmt.Fprintln(cmd.OutOrStdout(), "Recorded receipts do not prove current backup content or successful application recovery.")
+		_, err := fmt.Fprintln(cmd.OutOrStdout(), "A recorded receipt or present manifest does not prove complete backup content or successful application recovery.")
 		return err
 	}
 	_, err := fmt.Fprintf(cmd.OutOrStdout(), "Native v2 backup %s completed\n", operation)

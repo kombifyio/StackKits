@@ -1637,6 +1637,30 @@ import (
 	requiredGiB:        projectedGiB * (1 + reservePercent / 100)
 })
 
+// #RecoveryObjectiveV1 is a per-binding recovery goal. It is declarative
+// intent only: the runtime must use fresh snapshot and restore evidence before
+// reporting either objective as met.
+#RecoveryObjectiveV1: close({
+	maxDataLossSeconds:  int & >=0
+	recoveryTimeSeconds: int & >0
+})
+
+// #RecoveryObjectiveProjectionV1 is the narrow compiler-owned extension
+// carried by the logical-unit local Kopia source projection. It is derived
+// from resolved data bindings and application volumes; the renderer narrows it
+// to its exact node-local target and it is not a second policy authority.
+#RecoveryObjectiveProjectionV1: close({
+	apiVersion: "stackkit.recovery-objective-projection/v1"
+	objectives: [...close({
+		bindingRef:          #ContractID
+		workloadRefs:        [...#ContractID] & list.MinItems(1)
+		maxDataLossSeconds:  int & >=0
+		recoveryTimeSeconds: int & >0
+	})] & list.MinItems(1)
+
+	_bindingRefsUnique: list.UniqueItems([for objective in objectives {objective.bindingRef}]) & true
+})
+
 #StorageFilesystemClassV2: "local-posix" | "network" | "non-posix" | "ephemeral" | "unknown"
 
 #StorageFilesystemTypeV2: string & =~"^[a-z0-9][a-z0-9._-]*$"
@@ -1679,6 +1703,7 @@ import (
 	cloudCopyAllowed: bool | *false
 	cloudCopyPolicy?: #CloudCopyPolicyV2
 	capacityDemand?: #DataCapacityDemandV2
+	recoveryObjective?: #RecoveryObjectiveV1
 
 	_classesUnique: list.UniqueItems(classes) & true
 }
@@ -3980,6 +4005,7 @@ _servicePublicationShape: {
 			matches: [for runtime in applicationRuntimes if volume.workloadRef == runtime.workloadRef && volume.siteRef == runtime.siteRef && volume.nodeRef == runtime.nodeRef && volume.composeProject == runtime.composeProject for component in runtime.components if component.componentRef == volume.componentRef {component.componentRef}] & list.MinItems(1) & list.MaxItems(1)
 		}]
 	}
+	recoveryObjectiveProjection?: #RecoveryObjectiveProjectionV1
 	excludePaths: [
 		"/source/docker-volumes/stackkit-basement-core_kopia-repository/_data",
 		"/source/docker-volumes/stackkit-basement-core_kopia-config/_data",
@@ -5190,6 +5216,13 @@ _servicePublicationShape: {
 	// v2alpha2 intent. The optional maps are deliberately closed to the three
 	// public profile IDs; absent means undeclared, never standard.
 	computeProfiles?:   #ModuleComputeProfilesV2
+	// A visible authoring starting point, never an implicit runtime selection.
+	// Every consumer must still send the selected module profile explicitly.
+	defaultComputeProfile?: "low" | "standard" | "high"
+	if defaultComputeProfile != _|_ {
+		computeProfiles: #ModuleComputeProfilesV2 & struct.MinFields(1)
+		_defaultComputeProfileExact: [for id, _ in computeProfiles if id == defaultComputeProfile {id}] & list.MinItems(1) & list.MaxItems(1)
+	}
 	storageProfiles?:   [string]: #ModuleAxisProfileV2
 	acceleratorProfiles?: [string]: #ModuleAxisProfileV2
 	// Resource-bearing executable workloads must publish module-local compute

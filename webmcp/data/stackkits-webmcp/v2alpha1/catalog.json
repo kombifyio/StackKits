@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "bd9fe67c5bf78cb9ca07e6f856ca6a185db25b58",
-  "authority_bundle_sha256": "f6132a13c82f6c97a54edd991717db9897abb43eaaf8e020c3546302f0ffe53a",
+  "source_sha": "2ab4518f6e55783807c65883788d6dae55ad5711",
+  "authority_bundle_sha256": "bef8a0a91f2206b1e9133fd77b801196f812047aabe2aead1afbda0f19e53924",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -21,6 +21,7 @@
           "capabilities": [
             "local-backup-runtime"
           ],
+          "default_compute_profile": "low",
           "compute_profiles": [
             {
               "id": "low",
@@ -69,6 +70,7 @@
           "capabilities": [
             "local-backup-runtime"
           ],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "standard",
@@ -152,6 +154,7 @@
             "files"
           ],
           "capabilities": [],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "low",
@@ -246,6 +249,7 @@
             "smart-home"
           ],
           "capabilities": [],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "low",
@@ -340,6 +344,7 @@
             "photos"
           ],
           "capabilities": [],
+          "default_compute_profile": "low",
           "compute_profiles": [
             {
               "id": "low",
@@ -396,6 +401,7 @@
             "photos"
           ],
           "capabilities": [],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "standard",
@@ -495,6 +501,7 @@
             "media"
           ],
           "capabilities": [],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "standard",
@@ -554,6 +561,7 @@
             "vault"
           ],
           "capabilities": [],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "low",
@@ -633,7 +641,10 @@
         {
           "use_case_id": "basement-core",
           "title": "basement-core",
+          "description": "Required standalone Basement control plane with local routing, owner identity, internal PKI, container management, and operator hub.",
           "required": true,
+          "selected_by_default": true,
+          "default_alternative_id": "standalone",
           "availability": "available",
           "alternatives": [
             {
@@ -675,7 +686,10 @@
         {
           "use_case_id": "files",
           "title": "File Storage and Documents",
+          "description": "Private file storage, sharing, collaboration, and document-management workflows.",
           "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "cloudreve",
           "availability": "available",
           "alternatives": [
             {
@@ -697,7 +711,10 @@
         {
           "use_case_id": "media",
           "title": "Media Library",
+          "description": "Private media library and streaming intent for household media collections.",
           "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "jellyfin",
           "availability": "available",
           "alternatives": [
             {
@@ -718,7 +735,10 @@
         {
           "use_case_id": "photos",
           "title": "Photos and Memories",
+          "description": "Family photo and video vault with mobile backup, search, and shared memories.",
           "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "immich",
           "availability": "available",
           "alternatives": [
             {
@@ -755,7 +775,10 @@
         {
           "use_case_id": "smart-home",
           "title": "Smart Home",
+          "description": "Home automation centered on Home Assistant, native product interfaces, and optional local device adjacency.",
           "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "home-assistant",
           "availability": "available",
           "alternatives": [
             {
@@ -776,7 +799,10 @@
         {
           "use_case_id": "vault",
           "title": "Password Vault",
+          "description": "Private password and secure-note vault with owner-controlled lifecycle and recovery.",
           "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "vaultwarden",
           "availability": "available",
           "alternatives": [
             {
@@ -845,6 +871,7 @@
           "capabilities": [
             "cloud-core-runtime"
           ],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "standard",
@@ -949,6 +976,7 @@
             "files"
           ],
           "capabilities": [],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "low",
@@ -1043,6 +1071,7 @@
             "smart-home"
           ],
           "capabilities": [],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "low",
@@ -1125,6 +1154,7 @@
             "photos"
           ],
           "capabilities": [],
+          "default_compute_profile": "low",
           "compute_profiles": [
             {
               "id": "low",
@@ -1181,6 +1211,7 @@
             "photos"
           ],
           "capabilities": [],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "standard",
@@ -1280,6 +1311,7 @@
             "media"
           ],
           "capabilities": [],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "standard",
@@ -1351,6 +1383,7 @@
             "vault"
           ],
           "capabilities": [],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "low",
@@ -1430,7 +1463,10 @@
         {
           "use_case_id": "cloud-core",
           "title": "cloud-core",
+          "description": "Required provider-neutral Cloud control plane installed on an externally supplied host; provider and server lifecycle remain outside StackKits.",
           "required": true,
+          "selected_by_default": true,
+          "default_alternative_id": "standalone",
           "availability": "available",
           "alternatives": [
             {
@@ -1454,7 +1490,10 @@
         {
           "use_case_id": "files",
           "title": "File Storage and Documents",
+          "description": "Private file storage, sharing, collaboration, and document-management workflows.",
           "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "cloudreve",
           "availability": "available",
           "alternatives": [
             {
@@ -1476,7 +1515,10 @@
         {
           "use_case_id": "media",
           "title": "Media Library",
+          "description": "Private media library and streaming intent for household media collections.",
           "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "jellyfin",
           "availability": "available",
           "alternatives": [
             {
@@ -1497,7 +1539,10 @@
         {
           "use_case_id": "photos",
           "title": "Photos and Memories",
+          "description": "Family photo and video vault with mobile backup, search, and shared memories.",
           "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "immich",
           "availability": "available",
           "alternatives": [
             {
@@ -1534,7 +1579,10 @@
         {
           "use_case_id": "smart-home",
           "title": "Smart Home",
+          "description": "Home automation centered on Home Assistant, native product interfaces, and optional local device adjacency.",
           "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "home-assistant",
           "availability": "available",
           "alternatives": [
             {
@@ -1555,7 +1603,10 @@
         {
           "use_case_id": "vault",
           "title": "Password Vault",
+          "description": "Private password and secure-note vault with owner-controlled lifecycle and recovery.",
           "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "vaultwarden",
           "availability": "available",
           "alternatives": [
             {
@@ -1609,6 +1660,7 @@
           "capabilities": [
             "local-backup-runtime"
           ],
+          "default_compute_profile": "low",
           "compute_profiles": [
             {
               "id": "low",
@@ -1657,6 +1709,7 @@
           "capabilities": [
             "local-backup-runtime"
           ],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "standard",
@@ -1740,6 +1793,7 @@
             "files"
           ],
           "capabilities": [],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "low",
@@ -1834,6 +1888,7 @@
             "smart-home"
           ],
           "capabilities": [],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "low",
@@ -1928,6 +1983,7 @@
             "photos"
           ],
           "capabilities": [],
+          "default_compute_profile": "low",
           "compute_profiles": [
             {
               "id": "low",
@@ -1984,6 +2040,7 @@
             "photos"
           ],
           "capabilities": [],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "standard",
@@ -2083,6 +2140,7 @@
             "media"
           ],
           "capabilities": [],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "standard",
@@ -2142,6 +2200,7 @@
             "vault"
           ],
           "capabilities": [],
+          "default_compute_profile": "standard",
           "compute_profiles": [
             {
               "id": "low",
@@ -2221,7 +2280,10 @@
         {
           "use_case_id": "basement-core",
           "title": "basement-core",
+          "description": "Required standalone Basement control plane with local routing, owner identity, internal PKI, container management, and operator hub.",
           "required": true,
+          "selected_by_default": true,
+          "default_alternative_id": "standalone",
           "availability": "available",
           "alternatives": [
             {
@@ -2263,7 +2325,10 @@
         {
           "use_case_id": "files",
           "title": "File Storage and Documents",
+          "description": "Private file storage, sharing, collaboration, and document-management workflows.",
           "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "cloudreve",
           "availability": "available",
           "alternatives": [
             {
@@ -2285,7 +2350,10 @@
         {
           "use_case_id": "media",
           "title": "Media Library",
+          "description": "Private media library and streaming intent for household media collections.",
           "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "jellyfin",
           "availability": "available",
           "alternatives": [
             {
@@ -2306,7 +2374,10 @@
         {
           "use_case_id": "photos",
           "title": "Photos and Memories",
+          "description": "Family photo and video vault with mobile backup, search, and shared memories.",
           "required": true,
+          "selected_by_default": true,
+          "default_alternative_id": "immich",
           "availability": "available",
           "alternatives": [
             {
@@ -2343,7 +2414,10 @@
         {
           "use_case_id": "smart-home",
           "title": "Smart Home",
+          "description": "Home automation centered on Home Assistant, native product interfaces, and optional local device adjacency.",
           "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "home-assistant",
           "availability": "available",
           "alternatives": [
             {
@@ -2364,7 +2438,10 @@
         {
           "use_case_id": "vault",
           "title": "Password Vault",
+          "description": "Private password and secure-note vault with owner-controlled lifecycle and recovery.",
           "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "vaultwarden",
           "availability": "available",
           "alternatives": [
             {
@@ -2473,6 +2550,21 @@
       "command": [
         "backup",
         "schedule",
+        "status",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.backup.status",
+      "tool_name": "stackkit_backup_status",
+      "title": "Backup status",
+      "description": "Read repository readiness, authenticated receipt history, current snapshot availability and declared recovery objectives.",
+      "command": [
+        "backup",
         "status",
         "--json"
       ],
@@ -2677,5 +2769,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "de4e61e4cce1ad295dce75c8db0b7eb2eaff038b4c94ad89049284a57fa7633d"
+  "catalog_sha256": "701eee018e2cfc89b5c428de3e7be558890db8f736a3add29fda66366d94255b"
 }

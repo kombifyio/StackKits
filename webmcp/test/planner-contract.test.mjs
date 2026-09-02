@@ -55,6 +55,14 @@ function schemaDescriptions(value) {
   ]
 }
 
+test('editing a selection preserves declared capacity and clears obsolete results', async () => {
+  const session = createPlannerSession(catalog)
+  await session.invoke('stackkits_prepare_handoff', { stackkit_id: 'basement-kit', module_profiles: [{ module_id: 'stackkits-basement-core-runtime', compute_profile: 'standard' }], use_cases: [{ use_case_id: 'basement-core', alternative_id: 'standalone' }], declared_capacity: { cpu_cores: 4, ram_gb: 4.5, storage_gb: 21 } })
+  session.setSelection({ stackkit_id: 'cloud-kit' })
+  assert.deepEqual(session.state.declared_capacity, { cpu_cores: 4, ram_gb: 4.5, storage_gb: 21 })
+  assert.deepEqual([session.state.capacity, session.state.handoff], [undefined, undefined])
+})
+
 test('profile discovery is complete through bounded pages and supports a direct module lookup', async () => {
   const session = createPlannerSession(catalog)
   const kit = catalog.kits.find(({ stackkit_id }) => stackkit_id === 'basement-kit')

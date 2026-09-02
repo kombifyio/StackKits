@@ -99,12 +99,13 @@ type Document struct {
 
 // Policy binds the governed local Kopia runtime to one resolved Stack target.
 type Policy struct {
-	StackID   string     `json:"stackId"`
-	Target    Target     `json:"target"`
-	Runtime   Runtime    `json:"runtime"`
-	Source    Source     `json:"source"`
-	Retention *Retention `json:"retention,omitempty"`
-	Schedule  *Schedule  `json:"schedule,omitempty"`
+	StackID            string              `json:"stackId"`
+	Target             Target              `json:"target"`
+	Runtime            Runtime             `json:"runtime"`
+	Source             Source              `json:"source"`
+	Retention          *Retention          `json:"retention,omitempty"`
+	Schedule           *Schedule           `json:"schedule,omitempty"`
+	RecoveryObjectives []RecoveryObjective `json:"recoveryObjectives,omitempty"`
 }
 
 // Schedule is the resolved foundation.#BackupScheduleV1 UTC intent. It grants
@@ -146,6 +147,22 @@ func (schedule Schedule) Validate() error {
 		return errors.New("backup schedule requires daily, hourly or weekly cadence")
 	}
 	return nil
+}
+
+// MaximumTriggerIntervalSeconds bounds adjacent scheduled UTC trigger slots,
+// including jitter. It does not include backup duration or prove an RPO.
+func (schedule Schedule) MaximumTriggerIntervalSeconds() (int, error) {
+	if err := schedule.Validate(); err != nil {
+		return 0, err
+	}
+	interval := 60 * 60
+	switch schedule.Cadence {
+	case "daily":
+		interval *= 24
+	case "weekly":
+		interval *= 24 * 7
+	}
+	return interval + schedule.JitterSeconds, nil
 }
 
 // Retention carries the resolved foundation.#BackupRetentionV1 contract.
@@ -530,6 +547,9 @@ func ValidateSnapshotPolicy(policy Policy) error {
 	if err := validateSource(source, policy.Target); err != nil {
 		return fmt.Errorf("local Kopia snapshot policy data topology is not recognized: %w", err)
 	}
+	if err := policy.validateRecoveryObjectives(); err != nil {
+		return err
+	}
 	runtime := policy.Runtime
 	imageName, imageDigest, imagePinned := strings.Cut(runtime.Image, "@")
 	if runtime.ServiceRef != ServiceRef ||
@@ -632,6 +652,9 @@ func (policy Policy) validate() error {
 		if err := policy.Retention.Validate(); err != nil {
 			return err
 		}
+	}
+	if err := policy.validateRecoveryObjectives(); err != nil {
+		return err
 	}
 	for _, field := range []struct {
 		name  string

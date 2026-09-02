@@ -330,6 +330,15 @@ export const WEBMCP_CATALOG_SCHEMA = {
             "$ref": "#/$defs/contractId"
           }
         },
+        "default_compute_profile": {
+          "$ref": "#/$defs/profileId"
+        },
+        "default_storage_profile": {
+          "$ref": "#/$defs/profileId"
+        },
+        "default_accelerator_profile": {
+          "$ref": "#/$defs/profileId"
+        },
         "compute_profiles": {
           "type": "array",
           "items": {
@@ -422,6 +431,7 @@ export const WEBMCP_CATALOG_SCHEMA = {
         "use_case_id",
         "title",
         "required",
+        "selected_by_default",
         "availability",
         "alternatives"
       ],
@@ -434,8 +444,19 @@ export const WEBMCP_CATALOG_SCHEMA = {
           "minLength": 1,
           "maxLength": 160
         },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
         "required": {
           "type": "boolean"
+        },
+        "selected_by_default": {
+          "type": "boolean"
+        },
+        "default_alternative_id": {
+          "$ref": "#/$defs/contractId"
         },
         "availability": {
           "type": "string",

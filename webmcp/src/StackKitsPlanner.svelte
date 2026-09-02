@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import CapacityInput from "./CapacityInput.svelte";
+  import UseCaseTile from "./UseCaseTile.svelte";
   import type { PlannerState, PlannerStateListener } from "./session.js";
   import type {
     Authoring,
@@ -49,6 +50,9 @@
   let cpuCores: number | undefined;
   let ramGb: number | undefined;
   let storageGb: number | undefined;
+  let cpuCapacityValid = true;
+  let ramCapacityValid = true;
+  let storageCapacityValid = true;
   let domainBase = "";
   let metadataName = "";
   let additionalAuthoring: Record<string, string> = {};
@@ -56,7 +60,6 @@
   let kit: CatalogKit | undefined;
   let activeModules: CatalogModule[] = [];
   let requiredUseCases: CatalogUseCase[] = [];
-  let selectedUseCaseIds: string[] = [];
   let selectedAlternativeByUseCase: Record<string, string> = {};
   let requiredUseCasesComplete = false;
   let activeProfilesComplete = false;
@@ -66,7 +69,6 @@
   $: kits = catalog?.kits ?? [];
   $: kit = kits.find((candidate) => candidate.stackkit_id === stackkitId);
   $: requiredUseCases = kit?.use_cases.filter((useCase) => useCase.required) ?? [];
-  $: selectedUseCaseIds = useCaseSelections.map((selection) => selection.use_case_id);
   $: selectedAlternativeByUseCase = Object.fromEntries(useCaseSelections.map((selection) => [selection.use_case_id, selection.alternative_id]));
   $: activeModules = kit
     ? kit.modules.filter((module) => {
@@ -82,6 +84,8 @@
   // inspect dependencies captured inside a helper called from markup.
   $: requiredUseCasesComplete = hasAllRequiredUseCases(requiredUseCases, useCaseSelections);
   $: activeProfilesComplete = hasAllActiveProfiles(activeModules, moduleProfileSelections);
+  $: capacityInputsValid = cpuCapacityValid && ramCapacityValid && storageCapacityValid;
+  $: selectionReady = Boolean(kit) && moduleProfileSelections.length > 0 && requiredUseCasesComplete && activeProfilesComplete;
   $: provenance = catalog ? {
     source_sha: catalog.source_sha,
     authority_bundle_sha256: catalog.authority_bundle_sha256,
@@ -100,8 +104,7 @@
       storageGb = next.declared_capacity?.storage_gb;
     });
     if (!stackkitId && preselectedStackkitId && kits.some((candidate) => candidate.stackkit_id === preselectedStackkitId)) {
-      stackkitId = preselectedStackkitId;
-      session.setSelection(currentSelection());
+      chooseKit(preselectedStackkitId);
     }
     return unsubscribe;
   });
@@ -124,8 +127,14 @@
 
   function chooseKit(value: string): void {
     stackkitId = value;
-    useCaseSelections = [];
-    moduleProfileSelections = [];
+    const chosenKit = kits.find((candidate) => candidate.stackkit_id === value);
+    useCaseSelections = (chosenKit?.use_cases ?? [])
+      .filter((useCase) => useCase.required || useCase.selected_by_default)
+      .flatMap((useCase) => {
+        const id = useCase.default_alternative_id ?? (useCase.alternatives.length === 1 ? useCase.alternatives[0].alternative_id : "");
+        return useCase.availability === "available" && id ? [{ use_case_id: useCase.use_case_id, alternative_id: id }] : [];
+      });
+    moduleProfileSelections = defaultProfiles(chosenKit, useCaseSelections);
     domainBase = "";
     metadataName = "";
     additionalAuthoring = {};
@@ -133,13 +142,36 @@
   }
 
   function chooseUseCase(useCaseId: string, alternativeId: string): void {
+    const useCase = kit?.use_cases.find((candidate) => candidate.use_case_id === useCaseId);
+    if (useCase?.required && !alternativeId) return;
     useCaseSelections = alternativeId
       ? [...useCaseSelections.filter((selection) => selection.use_case_id !== useCaseId), { use_case_id: useCaseId, alternative_id: alternativeId }]
           .sort((left, right) => left.use_case_id.localeCompare(right.use_case_id))
       : useCaseSelections.filter((selection) => selection.use_case_id !== useCaseId);
     const activeIds = activeModuleIds(useCaseSelections);
-    moduleProfileSelections = moduleProfileSelections.filter((selection) => activeIds.has(selection.module_id));
+    const kept = moduleProfileSelections.filter((selection) => activeIds.has(selection.module_id));
+    moduleProfileSelections = defaultProfiles(kit, useCaseSelections, kept);
     session.setSelection(currentSelection());
+  }
+
+  // Human interaction materializes catalog defaults as visible selections.
+  // Tool calls retain their explicit-input contract and never pass through here.
+  function defaultProfiles(chosenKit: CatalogKit | undefined, choices: UseCaseSelection[], existing: ModuleProfileSelection[] = []): ModuleProfileSelection[] {
+    if (!chosenKit) return [];
+    const activeIds = new Set(chosenKit.modules.filter((module) => module.required).map((module) => module.module_id));
+    for (const choice of choices) {
+      const alternative = chosenKit.use_cases.find((useCase) => useCase.use_case_id === choice.use_case_id)?.alternatives.find((entry) => entry.alternative_id === choice.alternative_id);
+      if (alternative) activeIds.add(alternative.module_id);
+    }
+    return chosenKit.modules.filter((module) => activeIds.has(module.module_id)).flatMap((module) => {
+      const previous = existing.find((entry) => entry.module_id === module.module_id);
+      if (previous) return [previous];
+      const compute = module.default_compute_profile ?? (module.compute_profiles.length === 1 ? module.compute_profiles[0].id : undefined);
+      if (!compute) return [];
+      const storage = module.default_storage_profile ?? (module.storage_profiles.length === 1 ? module.storage_profiles[0].id : undefined);
+      const accelerator = module.default_accelerator_profile ?? (module.accelerator_profiles.length === 1 ? module.accelerator_profiles[0].id : undefined);
+      return [{ module_id: module.module_id, compute_profile: compute, ...(storage ? { storage_profile: storage } : {}), ...(accelerator ? { accelerator_profile: accelerator } : {}) }];
+    });
   }
 
   function activeModuleIds(selections: UseCaseSelection[]): Set<string> {
@@ -177,21 +209,8 @@
     session.setCapacity(capacity());
   }
 
-  async function runProfiles(): Promise<void> {
-    if (!stackkitId) return;
-    busy = true;
-    try {
-      await session.invoke("stackkits_get_module_profiles", {
-        stackkit_id: stackkitId,
-        ...(selectedUseCaseIds.length > 0 ? { use_case_ids: [...selectedUseCaseIds] } : {}),
-      });
-    } finally {
-      busy = false;
-    }
-  }
-
   async function runAssessment(): Promise<void> {
-    if (!stackkitId || moduleProfileSelections.length === 0) return;
+    if (!selectionReady || !capacityInputsValid) return;
     busy = true;
     try {
       await session.invoke("stackkits_assess_capacity", {
@@ -206,7 +225,7 @@
   }
 
   async function runHandoff(): Promise<void> {
-    if (!stackkitId || moduleProfileSelections.length === 0) return;
+    if (!selectionReady || !capacityInputsValid) return;
     const authoring: Authoring = {
       ...(domainBase ? { domain_base: domainBase } : {}),
       ...(metadataName ? { name: metadataName } : {}),
@@ -304,7 +323,7 @@
     <div>
       <p class="eyebrow">StackKits WebMCP v2alpha1</p>
       <h1>Module profile planner</h1>
-      <p class="lede">Select each use-case alternative and every module-local profile explicitly. Compare your declared capacity with CUE facts, then prepare a reviewable CLI handoff. Nothing is installed from this page.</p>
+      <p class="lede">Start with your kit’s declared defaults, choose what you want to run, and adjust each module independently. Compare your available capacity, then review the CLI handoff. Nothing is installed from this page.</p>
     </div>
     <div class:available={webMcpStatus.code === "ready" && webMcpAvailable} class="agent-status" data-status={webMcpStatus.code} data-testid="webmcp-status">
       <span aria-hidden="true"></span>
@@ -331,8 +350,8 @@
   {:else}
     <div class="planner-grid">
       <article class="panel selection-panel">
-        <div class="step-heading"><span>1</span><div><h2>Choose the product graph</h2><p>Use-case alternatives and module profiles are explicit; no global compute tier is inferred.</p></div></div>
-        <label>
+        <div class="step-heading"><span>1</span><div><h2>What would you like to run?</h2><p>Choose a kit to load its declared starting configuration. Add the use cases you need.</p></div></div>
+        <label class="kit-select">
           <span>StackKit</span>
           <select value={stackkitId} onchange={(event) => chooseKit(readValue(event))} data-testid="stackkit-select">
             <option value="">Select a StackKit</option>
@@ -344,35 +363,14 @@
 
         {#if kit}
           <div class="use-cases" data-testid="use-case-list">
-            <div class="section-label"><span>Use-case alternatives</span><small>Required selections are marked</small></div>
-            {#each kit.use_cases as useCase (useCase.use_case_id)}
-              <div class="use-case-row" data-use-case-id={useCase.use_case_id} data-required={useCase.required}>
-                <div class="use-case-copy">
-                  <strong>{useCase.title}</strong>
-                  <small>{useCase.required ? "Required workload" : "Optional workload"} · {useCase.availability}</small>
-                </div>
-                {#if useCase.availability === "available" && useCase.alternatives.length > 0}
-                  {#key selectedAlternativeByUseCase[useCase.use_case_id] ?? ""}
-                    <select value={selectedAlternativeByUseCase[useCase.use_case_id] ?? ""} onchange={(event) => chooseUseCase(useCase.use_case_id, readValue(event))} data-testid={`use-case-${useCase.use_case_id}`}>
-                      <option value="">{useCase.required ? "Select an alternative" : "Not selected"}</option>
-                      {#each useCase.alternatives as alternative}
-                        <option value={alternative.alternative_id}>{alternative.alternative_id} · {alternative.module_id}</option>
-                      {/each}
-                    </select>
-                  {/key}
-                {:else}
-                  <span class="fit-pill excluded">{useCase.reason_code ?? "blocked"}</span>
-                {/if}
-              </div>
-            {/each}
+            <div class="section-label"><span>Your use cases</span><small>Required workloads stay included</small></div>
+            <div class="use-case-grid">
+              {#each kit.use_cases as useCase (useCase.use_case_id)}
+                <UseCaseTile {useCase} selected={selectedAlternativeByUseCase[useCase.use_case_id] ?? ""} onSelect={(id) => chooseUseCase(useCase.use_case_id, id)} />
+              {/each}
+            </div>
           </div>
 
-          <div class="selection-actions">
-            <button class="secondary-action" onclick={runProfiles} disabled={busy} data-testid="profile-button">{busy ? "Loading…" : "Show module profiles"}</button>
-            {#if state.module_profiles}
-              <small class="agent-sync">Agent/UI state synced · {state.module_profiles.modules.length} module profile records</small>
-            {/if}
-          </div>
         {/if}
       </article>
 
@@ -467,12 +465,12 @@
       <article class="panel capacity-panel">
         <div class="step-heading"><span>3</span><div><h2>Declare available capacity</h2><p>Enter values explicitly. Sliders mirror the numeric inputs and never supply hidden capacity.</p></div></div>
         <div class="capacity-inputs">
-          <CapacityInput id="capacity-cpu" label="CPU cores" unit="CPU cores" value={cpuCores} minimum={1} maximum={1024} wholeNumber onValue={(raw) => updateCapacityField("cpu_cores", raw)} />
-          <CapacityInput id="capacity-ram" label="RAM GiB" unit="GiB RAM" value={ramGb} minimum={0.0625} maximum={16384} onValue={(raw) => updateCapacityField("ram_gb", raw)} />
-          <CapacityInput id="capacity-storage" label="Free storage GiB" unit="GiB storage" value={storageGb} minimum={0.0625} maximum={1048576} onValue={(raw) => updateCapacityField("storage_gb", raw)} />
+          <CapacityInput id="capacity-cpu" label="CPU cores" unit="CPU cores" value={cpuCores} minimum={1} maximum={1024} step={1} bind:valid={cpuCapacityValid} onValue={(raw) => updateCapacityField("cpu_cores", raw)} />
+          <CapacityInput id="capacity-ram" label="RAM GiB" unit="GiB RAM" value={ramGb} minimum={0.5} maximum={16384} step={0.5} bind:valid={ramCapacityValid} onValue={(raw) => updateCapacityField("ram_gb", raw)} />
+          <CapacityInput id="capacity-storage" label="Free storage GiB" unit="GiB storage" value={storageGb} minimum={1} maximum={1048576} step={1} bind:valid={storageCapacityValid} onValue={(raw) => updateCapacityField("storage_gb", raw)} />
         </div>
         <p class="input-note">Blank means undeclared and produces an unverified result.</p>
-        <button class="primary-action" onclick={runAssessment} disabled={!kit || moduleProfileSelections.length === 0 || busy} data-testid="assess-button">{busy ? "Assessing…" : "Assess declared capacity"}</button>
+        <button class="primary-action" onclick={runAssessment} disabled={!selectionReady || !capacityInputsValid || busy} data-testid="assess-button">{busy ? "Assessing…" : "Assess declared capacity"}</button>
         {#if state.capacity}
           <div class="assessment" data-status={state.capacity.overall} data-testid="capacity-result">
             <div class="assessment-head"><span>Overall capacity status</span><strong data-status={state.capacity.overall}>{statusLabel(state.capacity.overall)}</strong></div>
@@ -499,7 +497,7 @@
           </div>
         {/if}
         <p class="input-note">Incomplete or partial CUE resource facts remain unverified; the handoff stays blocked until every selected resource axis is declared.</p>
-        <button class="primary-action" onclick={runHandoff} disabled={!kit || moduleProfileSelections.length === 0 || busy} data-testid="handoff-button">{busy ? "Preparing…" : "Prepare handoff"}</button>
+        <button class="primary-action" onclick={runHandoff} disabled={!selectionReady || !capacityInputsValid || busy} data-testid="handoff-button">{busy ? "Preparing…" : "Prepare handoff"}</button>
 
         {#if state.last_result?.notices.length}
           <div class="notices" aria-live="polite">
@@ -552,8 +550,7 @@
   .webmcp-diagnostic button { flex: 0 0 auto; margin-top: 0; }
   .planner-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 1rem; }
   .panel { border: 1px solid var(--outline); border-radius: 1rem; padding: 1.35rem; background: linear-gradient(145deg, color-mix(in srgb, var(--surface-high) 75%, transparent), var(--surface)); box-shadow: 0 24px 80px rgb(0 0 0 / .16); }
-  .selection-panel { grid-column: span 5; }
-  .modules-panel { grid-column: span 7; }
+  .selection-panel, .modules-panel { grid-column: 1 / -1; }
   .capacity-panel { grid-column: 1 / -1; }
   .handoff-panel { grid-column: 1 / -1; }
   .step-heading { display: flex; gap: .8rem; margin-bottom: 1.25rem; }
@@ -570,23 +567,21 @@
   .primary-action { background: var(--accent); color: #0a0a0a; }
   .secondary-action { border: 1px solid var(--outline); background: transparent; color: var(--text); }
   .use-cases, .module-list { display: flex; flex-direction: column; gap: .55rem; margin-top: 1rem; }
+  .kit-select { display: block; max-width: 28rem; }
+  .use-case-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: .75rem; }
+  .module-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 28rem), 1fr)); align-items: start; gap: .75rem; }
   .section-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: .2rem; }
   .section-label small { color: var(--muted); letter-spacing: 0; text-transform: none; }
-  .use-case-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(11rem, 15rem); align-items: center; gap: .7rem; padding: .7rem; border: 1px solid var(--outline); border-radius: .62rem; background: rgb(0 0 0 / .14); }
-  .use-case-copy strong, .use-case-copy small { display: block; }
-  .use-case-copy strong { font-size: .8rem; }
-  .use-case-copy small { margin-top: .15rem; color: var(--muted); font-size: .7rem; line-height: 1.4; }
   .fit-pill { display: inline-flex; align-items: center; justify-content: center; margin: 0; padding: .25rem .42rem; border-radius: 999px; background: rgb(74 222 128 / .1); color: #86efac; font: 700 .62rem/1.2 ui-monospace, monospace; }
-  .fit-pill.excluded, .fit-pill.neutral { background: rgb(163 163 163 / .1); color: var(--muted); }
-  .selection-actions { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
-  .agent-sync, .input-note { color: var(--muted); font-size: .68rem; }
+  .fit-pill.neutral { background: rgb(163 163 163 / .1); color: var(--muted); }
+  .input-note { color: var(--muted); font-size: .68rem; }
   .module-card { border: 1px solid var(--outline); border-radius: .7rem; padding: .8rem; background: rgb(0 0 0 / .16); }
   .module-head { display: flex; justify-content: space-between; align-items: flex-start; gap: .7rem; margin-bottom: .65rem; }
   .module-head strong, .module-head small { display: block; }
   .module-head strong { font: 700 .78rem/1.4 ui-monospace, monospace; }
   .module-head small { margin-top: .15rem; color: var(--muted); font-size: .68rem; }
   .axis-selectors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; margin-top: .65rem; }
-  .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .55rem; margin-top: .75rem; }
+  .facts { display: grid; grid-template-columns: 1fr; gap: .55rem; margin-top: .75rem; }
   .fact-group { border-top: 1px solid var(--outline); padding-top: .55rem; }
   .fact-group p { margin: .3rem 0 0; color: var(--muted); font-size: .68rem; line-height: 1.45; }
   .fact-group b { color: var(--text); font-weight: 650; }
@@ -617,6 +612,8 @@
   .provenance { display: grid; grid-template-columns: auto 1fr; gap: .35rem .8rem; margin-top: 1rem; padding: 1rem; border-top: 1px solid var(--outline); color: var(--muted); overflow: hidden; }
   .provenance span { grid-row: 1 / 4; color: var(--accent); font-size: .72rem; font-weight: 800; }
   .provenance code { color: var(--muted); font-size: .62rem; }
+  @media (max-width: 900px) { .use-case-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 540px) { .use-case-grid { grid-template-columns: 1fr; } }
   @media (max-width: 980px) { .selection-panel, .modules-panel { grid-column: 1 / -1; } .facts { grid-template-columns: 1fr; } }
-  @media (max-width: 680px) { .planner-shell { padding-top: 6.5rem; } .planner-hero { flex-direction: column; } .use-case-row, .axis-selectors, .capacity-inputs, .authoring-fields { grid-template-columns: 1fr; } .axis-row { grid-template-columns: 1fr auto; } .axis-row code { grid-column: 1 / -1; } .command-step { grid-template-columns: auto 1fr; } .command-step small { grid-column: 2; text-align: left; } .apply-boundary, .provenance { display: flex; flex-direction: column; } }
+  @media (max-width: 680px) { .planner-shell { padding-top: 6.5rem; } .planner-hero { flex-direction: column; } .axis-selectors, .capacity-inputs, .authoring-fields { grid-template-columns: 1fr; } .axis-row { grid-template-columns: 1fr auto; } .axis-row code { grid-column: 1 / -1; } .command-step { grid-template-columns: auto 1fr; } .command-step small { grid-column: 2; text-align: left; } .apply-boundary, .provenance { display: flex; flex-direction: column; } }
 </style>

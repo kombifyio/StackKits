@@ -145,6 +145,9 @@
         "required": { "type": "boolean" },
         "use_case_ids": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/contractId" } },
         "capabilities": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/contractId" } },
+        "default_compute_profile": { "$ref": "#/$defs/profileId" },
+        "default_storage_profile": { "$ref": "#/$defs/profileId" },
+        "default_accelerator_profile": { "$ref": "#/$defs/profileId" },
         "compute_profiles": { "type": "array", "items": { "$ref": "#/$defs/computeProfile" } },
         "storage_profiles": { "type": "array", "items": { "$ref": "#/$defs/axisProfile" } },
         "accelerator_profiles": { "type": "array", "items": { "$ref": "#/$defs/axisProfile" } }
@@ -174,11 +177,14 @@
     "useCase": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["use_case_id", "title", "required", "availability", "alternatives"],
+      "required": ["use_case_id", "title", "required", "selected_by_default", "availability", "alternatives"],
       "properties": {
         "use_case_id": { "$ref": "#/$defs/contractId" },
         "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 500 },
         "required": { "type": "boolean" },
+        "selected_by_default": { "type": "boolean" },
+        "default_alternative_id": { "$ref": "#/$defs/contractId" },
         "availability": { "type": "string", "enum": ["available", "blocked"] },
         "reason_code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,63}$" },
         "alternatives": { "type": "array", "items": { "$ref": "#/$defs/useCaseAlternative" } }

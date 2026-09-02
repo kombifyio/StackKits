@@ -129,13 +129,14 @@ async function projectNativeKit(profileId, definition, useCases, modules, worklo
   if (stackkitId !== profileId || !ID.test(stackkitId)) fail(`profile identity mismatch: ${profileId}`);
   const authoring = objectValue(definition.authoring, `${profileId}.authoring`);
   const graphTiers = objectValue(definition.computeTierGraphs, `${profileId}.computeTierGraphs`);
+  const initialModuleIntents = nativeInitialModuleIntents(definition);
   const moduleIds = nativeModuleClosure(definition, workloads, modules);
   const kitUseCases = nativeUseCasesForKit(definition, useCases, workloads, moduleIds);
   const projectedModules = [];
   for (const moduleId of [...moduleIds].sort()) {
     const module = modules.get(moduleId);
     if (!module) fail(`${profileId} references unknown module ${moduleId}`);
-    projectedModules.push(await projectNativeModule(module, moduleId, kitUseCases));
+    projectedModules.push(await projectNativeModule(module, moduleId, kitUseCases, initialModuleIntents));
   }
   const legacyTiers = ["low", "standard", "high"].filter((tier) => Object.prototype.hasOwnProperty.call(graphTiers, tier));
   return {
@@ -156,12 +157,13 @@ async function projectNativeKit(profileId, definition, useCases, modules, worklo
   };
 }
 
-async function projectNativeModule(module, moduleId, useCases) {
+async function projectNativeModule(module, moduleId, useCases, initialModuleIntents) {
   const role = module.role;
   if (!["foundation", "platform", "workload", "operations"].includes(role)) fail(`module ${moduleId} has an unsupported role`);
   const computeProfiles = await projectNativeProfileMap(module.computeProfiles ?? module.compute_profiles, `${moduleId}.computeProfiles`, true);
   const storageProfiles = await projectNativeProfileMap(module.storageProfiles ?? module.storage_profiles, `${moduleId}.storageProfiles`, false);
   const acceleratorProfiles = await projectNativeProfileMap(module.acceleratorProfiles ?? module.accelerator_profiles, `${moduleId}.acceleratorProfiles`, false);
+  const profileDefaults = nativeModuleProfileDefaults(module, moduleId, initialModuleIntents.get(moduleId), computeProfiles, storageProfiles, acceleratorProfiles);
   const capabilities = stringArray(module.provides ?? module.capabilities ?? [], `${moduleId}.provides`, false);
   const useCaseIds = useCases
     .filter((useCase) => useCase.alternatives.some((alternative) => alternative.module_id === moduleId))
@@ -173,6 +175,7 @@ async function projectNativeModule(module, moduleId, useCases) {
     required: false,
     use_case_ids: useCaseIds,
     capabilities,
+    ...profileDefaults,
     compute_profiles: computeProfiles,
     storage_profiles: storageProfiles,
     accelerator_profiles: acceleratorProfiles,
@@ -353,6 +356,7 @@ function nativeModuleClosure(definition, workloads, modules) {
       if (typeof alternative.moduleRef === "string" && SAFE_ID.test(alternative.moduleRef)) ids.add(alternative.moduleRef);
     }
   }
+  for (const moduleId of nativeInitialModuleIntents(definition).keys()) ids.add(moduleId);
   for (const graph of Object.values(definition.computeTierGraphs ?? {})) {
     if (!isObject(graph)) continue;
     for (const value of Object.values(graph.moduleSubstitutions ?? {})) if (typeof value === "string" && SAFE_ID.test(value)) ids.add(value);
@@ -385,7 +389,11 @@ function parseNativeUseCases(fitsSource, workloads) {
 
 function nativeUseCasesForKit(definition, useCases, workloads, moduleIds) {
   const ids = nativeWorkloadIds(definition, true);
+  // The native CLI also requires initial authoring workloads: dependent
+  // publications and data bindings cannot be removed by the browser.
   const requiredIds = nativeWorkloadIds(definition, false);
+  const defaultIds = new Set(stringArray(definition.workloads?.defaults ?? [], "definition.workloads.defaults", false));
+  const initialSelections = nativeInitialWorkloadSelections(definition);
   const rows = [];
   for (const id of [...ids].sort()) {
     const workload = workloads.get(id);
@@ -407,10 +415,23 @@ function nativeUseCasesForKit(definition, useCases, workloads, moduleIds) {
     const blockedReason = !included
       ? (fit ? Object.values(fit.tiers).find((entry) => entry.reason)?.reason : undefined)
       : undefined;
+    const initialAlternative = initialSelections.get(id);
+    const defaultAlternative = initialAlternative ?? workload?.defaultAlternative;
+    if (defaultAlternative !== undefined && typeof defaultAlternative !== "string") {
+      fail(`${id}.defaultAlternative must be a string`);
+    }
+    if (defaultAlternative !== undefined && !alternatives.some((alternative) => alternative.alternative_id === defaultAlternative)) {
+      fail(`${id}.defaultAlternative is not an available alternative`);
+    }
     rows.push({
       use_case_id: publicId(id, `${id}.id`),
       title: publicString(fit?.title ?? workload?.metadata?.displayName ?? id, `${id}.title`),
+      ...(typeof (fit?.description ?? workload?.metadata?.description) === "string"
+        ? { description: publicString(fit?.description ?? workload?.metadata?.description, `${id}.description`) }
+        : {}),
       required: requiredIds.has(id),
+      selected_by_default: requiredIds.has(id) || defaultIds.has(id) || initialSelections.has(id),
+      ...(defaultAlternative !== undefined ? { default_alternative_id: publicId(defaultAlternative, `${id}.defaultAlternative`) } : {}),
       availability: included && alternatives.length > 0 ? "available" : "blocked",
       ...(included && alternatives.length > 0 ? {} : { reason_code: reasonCode(blockedReason) }),
       alternatives,
@@ -438,10 +459,58 @@ function nativeWorkloadIds(definition, includeOptional) {
 }
 
 function nativeInitialWorkloadIds(definition) {
+  return [...nativeInitialWorkloadSelections(definition).keys()];
+}
+
+function nativeInitialWorkloadSelections(definition) {
   const workloads = definition.authoring?.initialSpec?.workloads;
-  if (workloads === undefined) return [];
+  if (workloads === undefined) return new Map();
   if (!isObject(workloads)) fail("definition.authoring.initialSpec.workloads must be an object");
-  return Object.keys(workloads).map((id) => publicId(id, `definition.authoring.initialSpec.workloads.${id}`));
+  const result = new Map();
+  for (const [id, selection] of Object.entries(workloads)) {
+    const publicWorkloadId = publicId(id, `definition.authoring.initialSpec.workloads.${id}`);
+    if (!isObject(selection)) fail(`definition.authoring.initialSpec.workloads.${id} must be an object`);
+    if (selection.alternative !== undefined && typeof selection.alternative !== "string") {
+      fail(`definition.authoring.initialSpec.workloads.${id}.alternative must be a string`);
+    }
+    result.set(publicWorkloadId, selection.alternative);
+  }
+  return result;
+}
+
+function nativeInitialModuleIntents(definition) {
+  const modules = definition.authoring?.initialSpec?.modules;
+  if (modules === undefined) return new Map();
+  if (!isObject(modules)) fail("definition.authoring.initialSpec.modules must be an object");
+  const result = new Map();
+  for (const [id, intent] of Object.entries(modules)) {
+    const publicModuleId = publicId(id, `definition.authoring.initialSpec.modules.${id}`);
+    if (!isObject(intent)) fail(`definition.authoring.initialSpec.modules.${id} must be an object`);
+    result.set(publicModuleId, intent);
+  }
+  return result;
+}
+
+function nativeModuleProfileDefaults(module, moduleId, initialIntent, computeProfiles, storageProfiles, acceleratorProfiles) {
+  const defaults = {};
+  const axes = [
+    ["compute_profile", "defaultComputeProfile", "computeProfile", computeProfiles],
+    ["storage_profile", "defaultStorageProfile", "storageProfile", storageProfiles],
+    ["accelerator_profile", "defaultAcceleratorProfile", "acceleratorProfile", acceleratorProfiles],
+  ];
+  for (const [outputKey, moduleSourceKey, intentSourceKey, profiles] of axes) {
+    const moduleDefault = module[moduleSourceKey];
+    const intentDefault = initialIntent?.[intentSourceKey];
+    const explicit = intentDefault !== undefined ? intentDefault : moduleDefault;
+    const profile = explicit === undefined
+      ? profiles.length === 1 ? profiles[0] : undefined
+      : profiles.find((candidate) => candidate.id === explicit);
+    if (explicit !== undefined && (typeof explicit !== "string" || !profile)) {
+      fail(`${intentDefault !== undefined ? `definition.authoring.initialSpec.modules.${moduleId}.${intentSourceKey}` : `${moduleId}.${moduleSourceKey}`} is not declared for the module`);
+    }
+    if (profile) defaults[`default_${outputKey}`] = profile.id;
+  }
+  return defaults;
 }
 
 function matchingFit(fit, alternativeId) {

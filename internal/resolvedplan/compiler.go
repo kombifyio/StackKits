@@ -376,6 +376,9 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	if err != nil {
 		return nil, err
 	}
+	if err := validateRecoveryObjectives(topology.data, backupPolicy, contracts.workloads); err != nil {
+		return nil, err
+	}
 	driftPolicy, err := cloneObject(spec.driftPolicy, true)
 	if err != nil {
 		return nil, err

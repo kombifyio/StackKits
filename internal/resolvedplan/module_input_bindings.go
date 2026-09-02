@@ -574,7 +574,7 @@ func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding, 
 		if _, err := localbackuppolicy.GovernedSourceForCoreModule(moduleID); err != nil {
 			return nil, false, fmt.Errorf("local Kopia backup source is not owned by a supported Basement core profile: %w", err)
 		}
-		return localKopiaBackupSourceProjection(source.nodes, source.workloads, source.modules, target.siteRefs, target.nodeRefs, moduleID)
+		return localKopiaBackupSourceProjection(source.nodes, source.workloads, source.modules, target.siteRefs, target.nodeRefs, moduleID, source.data)
 	default:
 		return nil, false, fmt.Errorf("unsupported resolved-plan input source %q", binding.sourceRef)
 	}

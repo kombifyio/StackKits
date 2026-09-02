@@ -67,7 +67,7 @@ export class PlannerSession {
     this.current = {
       selection: clone(selection),
       ...(same && this.current.module_profiles ? { module_profiles: clone(this.current.module_profiles) } : {}),
-      ...(same && this.current.declared_capacity ? { declared_capacity: clone(this.current.declared_capacity) } : {}),
+      ...(this.current.declared_capacity ? { declared_capacity: clone(this.current.declared_capacity) } : {}),
       ...(same && this.current.capacity ? { capacity: clone(this.current.capacity) } : {}),
     };
     this.emit();

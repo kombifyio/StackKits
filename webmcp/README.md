@@ -5,8 +5,18 @@ It contains the versioned JSON Schemas, generated TypeScript types, the pure
 module-profile planner, four read-only browser tools, a deterministic authority
 projection generator, and a small reference host.
 
-The package never selects a StackKit, use-case alternative, or module profile implicitly. It does not
-connect to a provider, inspect a host, execute a CLI command, or mutate a
+The tool contract never selects a StackKit, use-case alternative, or module
+profile implicitly. In the human planner, choosing a kit visibly loads its
+CUE-declared starting workloads and alternatives. Module-local defaults, or
+the only declared profile for a dimension, initialize editable selections;
+ambiguous dimensions without a declared default remain an explicit choice.
+Use-case tiles add or remove optional workloads without clearing the user's
+declared host capacity. A changed selection invalidates the previous assessment
+and handoff. Workloads fixed by the current CLI authoring contract stay included;
+for example, Modern Homelab's initial Photos workload carries dependent publication
+and data bindings. No capacity, host compatibility, or installation is inferred.
+
+The package does not connect to a provider, inspect a host, execute a CLI command, or mutate a
 target. Host facts are user declarations and remain separate from the full
 StackKits host preflight.
 

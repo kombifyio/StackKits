@@ -48,6 +48,21 @@ func (v *CUEContractValidator) validateBoundCatalogBodies(plan ResolvedPlan) err
 	if err != nil {
 		return err
 	}
+	data, err := objectField(map[string]any(plan), "resolvedPlan", "data")
+	if err != nil {
+		return err
+	}
+	backupPolicy, err := objectField(map[string]any(plan), "resolvedPlan", "backupPolicy")
+	if err != nil {
+		return err
+	}
+	workloads, err := objectListField(map[string]any(plan), "resolvedPlan", "workloads")
+	if err != nil {
+		return err
+	}
+	if err := validateRecoveryObjectives(data, backupPolicy, objectMapsAsAny(workloads)); err != nil {
+		return err
+	}
 	runtimeAdapterProviders, runtimeAdapterModules, err := resolvedWorkloadRuntimeAdapterOwners(plan)
 	if err != nil {
 		return err

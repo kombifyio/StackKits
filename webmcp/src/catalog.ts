@@ -243,6 +243,9 @@ function validateKits(rawKits: unknown[], issues: string[]): void {
           issues.push(`${kit.stackkit_id}.${useCase.use_case_id} references unknown module ${alternative.module_id}`);
         }
       }
+      if (useCase.default_alternative_id && !useCase.alternatives.some((alternative) => alternative.alternative_id === useCase.default_alternative_id)) {
+        issues.push(`${kit.stackkit_id}.${useCase.use_case_id} default alternative is not declared`);
+      }
     }
     const legacyOrder = kit.legacy_compute_tier_mappings.map((mapping) => mapping.compute_tier);
     if (!sameJson(legacyOrder, COMPUTE_PROFILE_ORDER.filter((id) => legacyOrder.includes(id)))) {
@@ -257,6 +260,15 @@ function validateModule(stackkitId: string, module: CatalogModule, useCaseIds: S
   uniqueSorted(module.accelerator_profiles.map((profile) => profile.id), `${stackkitId}.${module.module_id}.accelerator_profiles`, issues);
   for (const id of module.compute_profiles.map((profile) => profile.id)) {
     if (!PROFILE_IDS.has(id)) issues.push(`${stackkitId}.${module.module_id} has unsupported compute profile ${id}`);
+  }
+  if (module.default_compute_profile && !module.compute_profiles.some((profile) => profile.id === module.default_compute_profile)) {
+    issues.push(`${stackkitId}.${module.module_id} default compute profile is not declared`);
+  }
+  if (module.default_storage_profile && !module.storage_profiles.some((profile) => profile.id === module.default_storage_profile)) {
+    issues.push(`${stackkitId}.${module.module_id} default storage profile is not declared`);
+  }
+  if (module.default_accelerator_profile && !module.accelerator_profiles.some((profile) => profile.id === module.default_accelerator_profile)) {
+    issues.push(`${stackkitId}.${module.module_id} default accelerator profile is not declared`);
   }
   for (const useCaseId of module.use_case_ids) {
     if (!useCaseIds.has(useCaseId)) issues.push(`${stackkitId}.${module.module_id} references unknown use case ${useCaseId}`);

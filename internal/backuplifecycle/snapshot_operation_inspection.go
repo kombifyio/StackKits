@@ -88,7 +88,7 @@ func InspectSnapshotOperation(workspaceRoot, operationID string) (SnapshotOperat
 		if operation.Anchor == nil || operation.Anchor.OperationID != operationID {
 			return SnapshotOperationInspection{}, errors.New("backuplifecycle: completed snapshot operation lacks its exact anchor")
 		}
-		if !anchorMatchesOperation(*operation.Anchor, operation.Input) {
+		if !anchorMatchesOperation(*operation.Anchor, operation) {
 			return SnapshotOperationInspection{}, errors.New("backuplifecycle: completed snapshot anchor differs from its exact operation input")
 		}
 		if err := VerifySnapshotAnchor(absolute, *operation.Anchor); err != nil {

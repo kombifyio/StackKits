@@ -43,8 +43,13 @@ test('native v2 projection exposes explicit alternatives and local profiles', as
   assert.ok(basement)
   const core = basement.use_cases.find(({ use_case_id }) => use_case_id === 'basement-core')
   assert.deepEqual(core.alternatives.map(({ alternative_id }) => alternative_id), ['standalone', 'standalone-lite'])
+  assert.equal(core.default_alternative_id, 'standalone')
+  assert.equal(core.selected_by_default, true)
+  assert.equal(core.required, true)
 
   const coreModules = basement.modules.filter(({ module_id }) => module_id.includes('basement-core'))
+  assert.equal(basement.modules.find(({ module_id }) => module_id === 'stackkits-basement-core-runtime')?.default_compute_profile, 'standard')
+  assert.equal(basement.modules.find(({ module_id }) => module_id === 'stackkits-basement-core-lite-runtime')?.default_compute_profile, 'low')
   assert.ok(coreModules.some(({ module_id, compute_profiles }) => module_id.endsWith('lite-runtime') && compute_profiles.some(({ id }) => id === 'low')))
   assert.ok(coreModules.some(({ module_id, compute_profiles }) => module_id.endsWith('runtime') && !module_id.endsWith('lite-runtime') && compute_profiles.some(({ id }) => id === 'standard')))
   assert.ok(basement.modules.some(({ compute_profiles }) => compute_profiles.length === 0))
@@ -59,6 +64,8 @@ test('native v2 projection exposes explicit alternatives and local profiles', as
   const initialWorkload = modern.use_cases.find(({ use_case_id }) => use_case_id === 'photos')
   assert.ok(initialWorkload)
   assert.equal(initialWorkload.required, true)
+  assert.equal(initialWorkload.selected_by_default, true)
+  assert.equal(initialWorkload.default_alternative_id, 'immich')
   assert.ok(initialWorkload.alternatives.some(({ alternative_id }) => alternative_id === 'immich'))
 })
 
