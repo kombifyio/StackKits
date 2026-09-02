@@ -16,6 +16,7 @@ _architectureV2CoreComputeProfile: #ModuleComputeProfileV2 & {
 }
 
 _architectureV2CloudCoreComputeProfile: _architectureV2CoreComputeProfile & {
+	description: "Cloud routing, owner identity, application management and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability."
 	components: ["router", "socket-proxy", "pocketid", "tinyauth", "coolify", "coolify-postgres", "coolify-redis", "coolify-realtime", "hub"]
 }
 _architectureV2CloudCoreComputeProfiles: {
@@ -24,6 +25,7 @@ _architectureV2CloudCoreComputeProfiles: {
 }
 
 _architectureV2BasementCoreComputeProfile: _architectureV2CoreComputeProfile & {
+	description: "Local routing, owner identity, internal certificates, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability."
 	components: ["router", "socket-proxy", "pocketid", "tinyauth", "step-ca", "coolify", "coolify-postgres", "coolify-redis", "coolify-realtime", "kopia-agent", "hub"]
 }
 _architectureV2BasementCoreComputeProfiles: {
@@ -32,6 +34,7 @@ _architectureV2BasementCoreComputeProfiles: {
 }
 
 _architectureV2BasementCoreLiteComputeProfiles: low: #ModuleComputeProfileV2 & {
+	description: "Local routing, owner identity, internal certificates, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles."
 	maturity: "supported", executable: true, realization: "apply-ready"
 	platformManagement: "standalone"
 	hostFloor: {minCpuCores: 2, minRamGB: 2, minStorageGB: 10}
@@ -48,6 +51,7 @@ _architectureV2ImmichStorageFilesystemRequirement: #StorageFilesystemRequirement
 }
 
 _architectureV2ImmichComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Photo library and mobile backup with the machine-learning service, PostgreSQL and Valkey. Standard and high have the same declared resources and features; neither guarantees a user count or ingest rate. Photo-library growth needs a separate data budget."
 	maturity: "supported", executable: true, realization: "apply-ready"
 	// CPU/RAM: Immich v2.7.0 docs/install/requirements.md. Disk is the
 	// Kombify platform floor; it is not space reserved for the photo library.
@@ -67,6 +71,7 @@ _architectureV2ImmichComputeProfiles: {
 	high:     _architectureV2ImmichComputeProfile
 }
 _architectureV2ImmichLiteComputeProfiles: low: #ModuleComputeProfileV2 & {
+	description: "Photo library and mobile backup with PostgreSQL and Valkey. The machine-learning service and ML search are omitted to reduce resident memory. Photo-library growth needs a separate data budget."
 	maturity: "supported", executable: true, realization: "apply-ready"
 	// The upstream 4 GiB path requires the declared omission of ML.
 	hostFloor: {
@@ -82,6 +87,7 @@ _architectureV2ImmichLiteComputeProfiles: low: #ModuleComputeProfileV2 & {
 }
 
 _architectureV2CloudreveComputeProfile: #ModuleComputeProfileV2 & {
+	description: "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget."
 	maturity: "supported", executable: true, realization: "apply-ready"
 	reservation: ramGB: 0.125 // Existing 128 MiB component reservation.
 	components: ["cloudreve"]
@@ -93,6 +99,7 @@ _architectureV2CloudreveComputeProfiles: {
 }
 
 _architectureV2VaultwardenComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password."
 	maturity: "supported", executable: true, realization: "apply-ready"
 	reservation: ramGB: 0.0625 // Existing 64 MiB component reservation.
 	components: ["vaultwarden"]
@@ -104,6 +111,7 @@ _architectureV2VaultwardenComputeProfiles: {
 }
 
 _architectureV2JellyfinComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Media library and playback through Jellyfin. Standard and high have the same declared application and resources; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage."
 	maturity: "supported", executable: true, realization: "apply-ready"
 	// A hosting baseline, not a guarantee of any transcoding concurrency.
 	hostFloor: _architectureV2CoreComputeProfile.hostFloor
@@ -116,6 +124,7 @@ _architectureV2JellyfinComputeProfiles: {
 }
 
 _architectureV2HomeAssistantComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included."
 	maturity: "supported", executable: true, realization: "apply-ready"
 	reservation: ramGB: 0.5 // Existing 512 MiB component reservation.
 	components: ["home-assistant"]

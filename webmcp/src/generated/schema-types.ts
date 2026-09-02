@@ -145,6 +145,7 @@ export interface CompactModuleProfiles {
   module_id: ContractId;
   required: boolean;
   profiles: CompactProfile[];
+  profile_details?: ModuleProfileDetails;
   host_requirements?: {
     /**
      * @minItems 1
@@ -154,6 +155,29 @@ export interface CompactModuleProfiles {
   }[];
   storage_profiles: CompactAxisProfile[];
   accelerator_profiles: CompactAxisProfile[];
+}
+/**
+ * CUE-projected semantic details keyed by module-local dimension and profile ID.
+ */
+export interface ModuleProfileDetails {
+  compute?: ProfileDetailsById;
+  storage?: ProfileDetailsById;
+  accelerator?: ProfileDetailsById;
+}
+export interface ProfileDetailsById {
+  [k: string]: ProfileDetails;
+}
+/**
+ * CUE-projected semantic details for one module-local profile.
+ *
+ * This interface was referenced by `ProfileDetailsById`'s JSON-Schema definition
+ * via the `patternProperty` "^[a-z][a-z0-9-]{0,62}$".
+ */
+export interface ProfileDetails {
+  description?: string;
+  components?: ContractId[];
+  capabilities?: ContractId[];
+  degradations?: ContractId[];
 }
 /**
  * CUE-declared requirements that must be verified on the exact target before Apply.
@@ -374,6 +398,7 @@ export interface ComputeProfile {
   maturity: "experimental" | "beta" | "supported" | "deprecated";
   executable: boolean;
   realization: string;
+  description?: string;
   host_floor?: ResourceVector;
   host_requirements?: ProfileHostRequirements;
   reservation?: ResourceVector;
@@ -409,9 +434,11 @@ export interface AxisProfile {
   capacity_declaration: "declared" | "partial" | "not_declared";
   maturity: "experimental" | "beta" | "supported" | "deprecated";
   realization: string;
+  description?: string;
   reservation?: ResourceVector;
   components: ContractId[];
   capabilities: ContractId[];
+  degradations?: ContractId[];
 }
 export interface UseCase {
   use_case_id: ContractId;

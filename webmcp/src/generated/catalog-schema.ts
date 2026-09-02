@@ -171,6 +171,11 @@ export const WEBMCP_CATALOG_SCHEMA = {
           "type": "string",
           "maxLength": 80
         },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
         "host_floor": {
           "$ref": "#/$defs/resourceVector"
         },
@@ -268,6 +273,11 @@ export const WEBMCP_CATALOG_SCHEMA = {
           "type": "string",
           "maxLength": 80
         },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
         "reservation": {
           "$ref": "#/$defs/resourceVector"
         },
@@ -279,6 +289,13 @@ export const WEBMCP_CATALOG_SCHEMA = {
           }
         },
         "capabilities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/contractId"
+          }
+        },
+        "degradations": {
           "type": "array",
           "uniqueItems": true,
           "items": {

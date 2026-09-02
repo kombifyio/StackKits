@@ -3220,6 +3220,9 @@ _servicePublicationShape: {
 // selected by its map key (low|standard|high), while the body remains hashable
 // and independently describes realization, capabilities and resources.
 #ModuleComputeProfileV2: {
+	// Public explanation of the selected behavior and its limits. It is part
+	// of the same bound profile as the resource facts, never UI-owned policy.
+	description?: string & !="" & strings.MaxRunes(500)
 	profileHash?: #ContentHash
 	maturity:     "experimental" | "beta" | "supported" | "deprecated"
 	executable:   bool | *false
@@ -3248,14 +3251,17 @@ _servicePublicationShape: {
 // no implicit compute selection and are intentionally smaller than compute
 // profiles until a module publishes a richer governed contract.
 #ModuleAxisProfileV2: {
+	description?: string & !="" & strings.MaxRunes(500)
 	maturity:     "experimental" | "beta" | "supported" | "deprecated"
 	realization?: "contract-only" | "generation-ready" | "apply-ready"
 	reservation?: #ModuleResourceBudgetV2
 	components?: [...#ContractID] | *[]
 	capabilities?: [...#CapabilityID] | *[]
+	degradations?: [...#ContractID] | *[]
 	profileHash?: #ContentHash
 	_componentsUnique: list.UniqueItems(components) & true
 	_capabilitiesUnique: list.UniqueItems(capabilities) & true
+	_degradationsUnique: list.UniqueItems(degradations) & true
 }
 
 #ModuleComputeProfilesV2: {

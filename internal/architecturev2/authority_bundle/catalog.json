@@ -10993,6 +10993,7 @@
             "coolify-realtime",
             "hub"
           ],
+          "description": "Cloud routing, owner identity, application management and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -11020,6 +11021,7 @@
             "coolify-realtime",
             "hub"
           ],
+          "description": "Cloud routing, owner identity, application management and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -11742,6 +11744,7 @@
             "kopia-agent",
             "hub"
           ],
+          "description": "Local routing, owner identity, internal certificates, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -11771,6 +11774,7 @@
             "kopia-agent",
             "hub"
           ],
+          "description": "Local routing, owner identity, internal certificates, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -13154,6 +13158,7 @@
           "degradations": [
             "paas-management-omitted"
           ],
+          "description": "Local routing, owner identity, internal certificates, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -14266,6 +14271,7 @@
             "immich-postgres-init",
             "immich-valkey"
           ],
+          "description": "Photo library and mobile backup with the machine-learning service, PostgreSQL and Valkey. Standard and high have the same declared resources and features; neither guarantees a user count or ingest rate. Photo-library growth needs a separate data budget.",
           "executable": true,
           "hostFloor": {
             "minAMD64MicroarchitectureLevel": 2,
@@ -14300,6 +14306,7 @@
             "immich-postgres-init",
             "immich-valkey"
           ],
+          "description": "Photo library and mobile backup with the machine-learning service, PostgreSQL and Valkey. Standard and high have the same declared resources and features; neither guarantees a user count or ingest rate. Photo-library growth needs a separate data budget.",
           "executable": true,
           "hostFloor": {
             "minAMD64MicroarchitectureLevel": 2,
@@ -14820,6 +14827,7 @@
           "degradations": [
             "machine-learning-disabled"
           ],
+          "description": "Photo library and mobile backup with PostgreSQL and Valkey. The machine-learning service and ML search are omitted to reduce resident memory. Photo-library growth needs a separate data budget.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -15212,6 +15220,7 @@
           "components": [
             "cloudreve"
           ],
+          "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -15228,6 +15237,7 @@
           "components": [
             "cloudreve"
           ],
+          "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -15244,6 +15254,7 @@
           "components": [
             "cloudreve"
           ],
+          "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -15497,6 +15508,7 @@
           "components": [
             "vaultwarden"
           ],
+          "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -15513,6 +15525,7 @@
           "components": [
             "vaultwarden"
           ],
+          "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -15529,6 +15542,7 @@
           "components": [
             "vaultwarden"
           ],
+          "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -15795,6 +15809,7 @@
           "components": [
             "jellyfin"
           ],
+          "description": "Media library and playback through Jellyfin. Standard and high have the same declared application and resources; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -15811,6 +15826,7 @@
           "components": [
             "jellyfin"
           ],
+          "description": "Media library and playback through Jellyfin. Standard and high have the same declared application and resources; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -16075,6 +16091,7 @@
           "components": [
             "home-assistant"
           ],
+          "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -16091,6 +16108,7 @@
           "components": [
             "home-assistant"
           ],
+          "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -16107,6 +16125,7 @@
           "components": [
             "home-assistant"
           ],
+          "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,

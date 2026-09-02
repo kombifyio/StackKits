@@ -1,6 +1,6 @@
 # StackKit Options and Authoring Matrix
 
-> Last verified: 2026-09-01
+> Last verified: 2026-09-02
 
 This page is the compact contract for adding or promoting StackKit options. CUE
 is the technical source of truth. The canonical ResolvedPlan, local Owner
@@ -21,7 +21,7 @@ depend on them.
 | Concern | Release value |
 | --- | --- |
 | Selected-provider core realization | `coolify` is the existing default provider; the native core module profile and explicit platform intent must agree. |
-| Production PaaS alternative | `komodo` |
+| PaaS alternative | `komodo` is Beta in the native workload compatibility contract. It does not have native application backup/restore parity. |
 | Draft PaaS adapter | `dokploy` |
 | Invalid normal PaaS values | `dockge`, `none` |
 | Dockge status | Experimental/constrained Compose manager service only; not a normal Basement Kit PaaS. |
@@ -30,10 +30,41 @@ depend on them.
 | Media | Optional Architecture v2 Jellyfin with declared module-local `standard` and `high` profiles (`docker.io/jellyfin/jellyfin:10.10.7`, digest-pinned). Native Core Lite does not globally exclude Media. The old v2alpha1 `low` graph still excludes it. Library volume is owner-custodied and not a StackKits backup source. No `*arr` services. |
 | Smart Home | Optional Architecture v2 Home Assistant container (`ghcr.io/home-assistant/home-assistant:2026.7.2`, digest-pinned) on Basement/Cloud/Modern. Native product MCP is `/api/mcp` on `https://smart-home.<domain>`. Generate writes the reverse-proxy baseline and Homelab owner intent (`homelab`). No HA OS/Supervisor parity, no Zigbee/MQTT runtime in this slice. |
 
-When the PaaS contract for `standard`/`high` changes, update all of these together:
-`basement-kit/stackkit.yaml`, `cloud-kit/stackkit.yaml`, `base/defaults.cue`, the Go resolver/validator,
-`docs/stack-spec-reference.md`, `docs/CONCEPTS.md`, website installer copy, and
-release archive smoke expectations.
+The executable selection authority is the CUE workload catalog in
+`foundation/architecture_v2_catalog.cue`, combined with the selected kit's
+`Definition`. A use-case package can describe planned tools or integration
+profiles; that description does not make them selectable through native
+`init`, `resolve`, or `apply`. Unknown alternatives fail admission.
+Here, native means the StackSpec `workloads` path, including explicit v2alpha2
+selections and the retained v2alpha1 graph adapter. Older `application`-based
+compatibility composition can describe other tools; it does not establish
+their native rollout support.
+
+| Application | Native default alternative | Additional native alternative or limit |
+| --- | --- | --- |
+| Files | `cloudreve` | Nextcloud and DMS are planned product intent; no native rollout or migration parity is claimed. |
+| Photos | `immich` | `immich-lite` is an explicit alternative without ML search. Core Lite does not select it implicitly. |
+| Media | `jellyfin` | No bundled `*arr` stack; the owner supplies and retains custody of the media library. |
+| Smart Home | `home-assistant` | Container only; Home Assistant OS, Supervisor, Home Bridge, MQTT, and Zigbee provisioning are not native alternatives. Cloud placement grants no Home LAN access. |
+| Vault | `vaultwarden` | The owner creates the encrypted account through the official client; StackKits does not handle the master password. |
+
+These defaults identify the implementation to select for an enabled application;
+they do not enable every application. Native v2alpha2 records the selected
+alternative and module profile explicitly.
+
+The CUE compatibility map distinguishes the delivery adapters: standalone
+Compose declares support for the native application backup/restore path;
+Coolify declares support for deployment, routing/TLS, and status evidence, but has
+`backupRestore: false`; Komodo declares the same limit and is Beta. A rendered
+backup classification or a fallback adapter list does not establish recovery
+parity or authorize an automatic adapter switch. These declarations are not
+evidence of a successful live deployment or restore. Existing data stays with its
+recorded runtime owner until an explicit migration is supported and approved.
+
+Change native PaaS behavior in that CUE contract and the responsible resolver,
+renderer, or runtime owner, then regenerate the affected projections and update
+the user-facing documentation. Kit YAML is derived registry/migration metadata;
+do not use it to introduce a second native selection authority.
 
 Native profile changes start in the CUE module catalog and its
 `computeProfiles`, `storageProfiles`, or `acceleratorProfiles`. The compiler

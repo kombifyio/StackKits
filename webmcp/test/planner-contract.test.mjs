@@ -74,7 +74,7 @@ test('profile discovery is complete through bounded pages and supports a direct 
       ...(cursor === undefined ? {} : { cursor }),
     })
     assert.equal(result.outcome, 'success')
-    assert.ok(JSON.stringify(result).length < 1500, 'each current profile page must fit the public output budget')
+    assert.ok(JSON.stringify(result).length < 4096, 'each current profile page must fit the semantic profile output budget')
     for (const module of result.data.modules) {
       assert.equal(discovered.has(module.module_id), false, 'pages must not repeat a module')
       discovered.add(module.module_id)
@@ -328,6 +328,9 @@ test('axis profiles stay visible in projection and explicit handoff argv', async
     id === 'ssd' && declaration === 'declared' && reservation.some((value) => value !== null) &&
     realization === 'apply-ready' && typeof digest === 'string'))
   assert.ok(core.accelerator_profiles.some(([id]) => id === 'gpu'))
+  assert.equal(core.profile_details.storage.ssd.description, 'Synthetic CUE axis profile ssd.')
+  assert.deepEqual(core.profile_details.storage.ssd.degradations, ['storage-profile-degradation'])
+  assert.equal(core.profile_details.accelerator.gpu.description, 'Synthetic CUE axis profile gpu.')
 
   const selection = selectionFor('basement-kit', [{ use_case_id: 'basement-core', alternative_id: 'standalone' }], 'standard')
   selection.module_profiles[0].storage_profile = 'ssd'
@@ -524,8 +527,10 @@ function axisProfile(id, realization, reservation) {
     maturity: 'supported',
     realization,
     reservation,
+    description: `Synthetic CUE axis profile ${id}.`,
     components: [],
     capabilities: [],
+    degradations: [`${id === 'ssd' ? 'storage' : 'accelerator'}-profile-degradation`],
   }
 }
 

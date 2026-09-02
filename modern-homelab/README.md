@@ -94,9 +94,19 @@ The canonical preview input is
 Released archives can materialize a fresh native-v2 input with:
 
 ```bash
-stackkit init modern-homelab --non-interactive --name my-modern-homelab
+stackkit init modern-homelab --non-interactive --name my-modern-homelab \
+  --domain home.example.test --platform standalone-compose \
+  --use-case-alternative basement-core=standalone \
+  --use-case-alternative photos=immich \
+  --module-compute-profile stackkits-basement-core-runtime=standard \
+  --module-compute-profile stackkits-immich-runtime=standard
 stackkit validate stack-spec.yaml
 ```
+
+Replace the example domain with your intended domain. Native v2alpha2 records
+both workload alternatives and their independent module profiles explicitly.
+This command authors the preview Home/Cloud topology and policy; it does not
+provision the bridge or turn the preview into a complete-kit runtime.
 
 ## Contract validation
 

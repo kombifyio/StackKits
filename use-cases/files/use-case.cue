@@ -2,7 +2,7 @@
 //
 // Files is a default BaseKit use case. The release path stays self-hosted and
 // OSS-realized through Cloudreve, while heavier collaboration and DMS profiles
-// are modeled as alternatives or Control Plane handoffs.
+// remain product intent until their native workload and lifecycle contracts exist.
 package files
 
 import "github.com/kombifyio/stackkits/foundation"
@@ -33,7 +33,7 @@ Package: foundation.#UseCasePackage & {
 				moduleSlug: "nextcloud"
 				role:       "primary"
 				required:   false
-				rationale:  "Nextcloud is the heavier collaboration and WebDAV alternative for standard/high tiers."
+				rationale:  "Planned collaboration and WebDAV alternative. Native StackKits does not currently accept or deploy Nextcloud."
 				capabilities: ["files", "document-storage", "file-sharing", "collaboration", "webdav"]
 			},
 		]
@@ -52,13 +52,13 @@ Package: foundation.#UseCasePackage & {
 		}
 		"self-hosted-collaboration": {
 			displayName: "Self-hosted Collaboration Suite"
-			description: "StackKit deploys Nextcloud as the files provider for collaboration and WebDAV-heavy use."
+			description: "Planned Nextcloud files provider for collaboration and WebDAV-heavy use; not available through native StackKits init, resolve, or apply."
 			realization: "oss"
 			placementModes: ["local-only", "standard"]
 			managedServerlessEligible: false
 			requiresControlPlane:      false
 			requiresLocalBridge:       false
-			notes: ["Authoring alternative, not the default kit graph. Omit on low."]
+			notes: ["Product intent only. Cloudreve is the only native Files alternative. Nextcloud needs a workload, runtime adapter, owner setup, routing/auth, backup/restore, and migration contract before admission."]
 		}
 		"kombify-managed-files": {
 			displayName: "Kombify Managed Files"
@@ -96,21 +96,21 @@ Package: foundation.#UseCasePackage & {
 			moduleSlug: "cloudreve"
 			functions: ["files", "document-storage", "file-sharing"]
 			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
-			notes: ["Lightweight sharing. Nextcloud is not on low."]
+			notes: ["Lightweight sharing. Nextcloud is not a native workload on any profile."]
 		}
 		standard: {
 			included:   true
 			moduleSlug: "cloudreve"
 			functions: ["files", "document-storage", "file-sharing"]
 			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
-			notes: ["Nextcloud remains an authoring alternative, not the default standard graph."]
+			notes: ["Nextcloud remains planned product intent, not a selectable native alternative."]
 		}
 		high: {
 			included:   true
 			moduleSlug: "cloudreve"
 			functions: ["files", "document-storage", "file-sharing"]
 			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
-			notes: ["Collaboration/DMS extras need an explicit high-graph substitution before they become default."]
+			notes: ["A high profile does not add collaboration or DMS. Those need their own admitted workload and lifecycle contracts."]
 		}
 	}
 
@@ -126,7 +126,7 @@ Package: foundation.#UseCasePackage & {
 			moduleSlug: "nextcloud"
 			role:       "primary"
 			required:   false
-			rationale:  "Collaboration-oriented alternative with WebDAV and richer document workflows."
+			rationale:  "Planned collaboration alternative with WebDAV and richer document workflows; native rollout is unsupported."
 			capabilities: ["files", "document-storage", "file-sharing", "collaboration", "webdav"]
 		}
 	}

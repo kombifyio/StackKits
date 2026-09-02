@@ -29,6 +29,7 @@ import type {
   ModuleProfilesData,
   OperationMetadata,
   PartialDeclaredCapacity,
+  ProfileDetails,
   PrepareHandoffInput,
   ResourceVector,
   Selection,
@@ -162,16 +163,20 @@ export class PlannerService {
     if (cursor > 0 && cursor >= modules.length) return this.invalidInput(tool, "cursor");
     const page = modules.slice(cursor, cursor + 1);
     const data: ModuleProfilesData = {
-      modules: page.map((module) => ({
-        module_id: module.module_id,
-        required: module.required,
-        profiles: module.compute_profiles.map(compactProfile),
-        ...(module.compute_profiles.some((profile) => profile.host_requirements)
-          ? { host_requirements: groupHostRequirements(module.compute_profiles) }
-          : {}),
-        storage_profiles: module.storage_profiles.map(compactAxisProfile),
-        accelerator_profiles: module.accelerator_profiles.map(compactAxisProfile),
-      })),
+      modules: page.map((module) => {
+        const details = moduleProfileDetails(module);
+        return {
+          module_id: module.module_id,
+          required: module.required,
+          profiles: module.compute_profiles.map(compactProfile),
+          ...(Object.keys(details).length > 0 ? { profile_details: details } : {}),
+          ...(module.compute_profiles.some((profile) => profile.host_requirements)
+            ? { host_requirements: groupHostRequirements(module.compute_profiles) }
+            : {}),
+          storage_profiles: module.storage_profiles.map(compactAxisProfile),
+          accelerator_profiles: module.accelerator_profiles.map(compactAxisProfile),
+        };
+      }),
       use_case_alternatives: alternatives.filter((alternative) => page.some((module) => module.module_id === alternative[2])),
       legacy_global_tiers: kit.legacy_compute_tier_mappings.map((mapping) => mapping.compute_tier),
       ...(cursor + page.length < modules.length ? { next_cursor: cursor + page.length } : {}),
@@ -596,6 +601,29 @@ function compactProfile(profile: ModuleComputeProfile): ModuleProfilesData["modu
     profile.executable,
     profile.profile_sha256,
   ];
+}
+
+function moduleProfileDetails(module: CatalogModule): NonNullable<ModuleProfilesData["modules"][number]["profile_details"]> {
+  const details: NonNullable<ModuleProfilesData["modules"][number]["profile_details"]> = {};
+  const dimensions = [
+    ["compute", module.compute_profiles],
+    ["storage", module.storage_profiles],
+    ["accelerator", module.accelerator_profiles],
+  ] as const;
+  for (const [dimension, profiles] of dimensions) {
+    if (profiles.length === 0) continue;
+    details[dimension] = Object.fromEntries(profiles.map((profile) => [profile.id, profileDetails(profile)]));
+  }
+  return details;
+}
+
+function profileDetails(profile: ModuleComputeProfile | ModuleAxisProfile): ProfileDetails {
+  return {
+    ...(profile.description ? { description: profile.description } : {}),
+    components: profile.components,
+    capabilities: profile.capabilities,
+    ...("degradations" in profile && profile.degradations !== undefined ? { degradations: profile.degradations } : {}),
+  };
 }
 
 function compactAxisProfile(profile: ModuleAxisProfile): ModuleProfilesData["modules"][number]["storage_profiles"][number] {

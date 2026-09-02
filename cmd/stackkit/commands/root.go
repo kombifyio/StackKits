@@ -546,14 +546,12 @@ func getLogDir() string {
 	return filepath.Join(getWorkDir(), ".stackkit", "logs")
 }
 
-// getWorkDir returns the effective working directory
+// getWorkDir returns one absolute workspace root so downstream path resolvers
+// cannot interpret an already workspace-relative path against that root again.
 func getWorkDir() string {
-	if workDir != "." {
-		return workDir
-	}
-	wd, err := os.Getwd()
+	wd, err := filepath.Abs(workDir)
 	if err != nil {
-		return "."
+		return workDir
 	}
 	return wd
 }

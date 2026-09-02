@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "135c2274a1e1a3d1bc770bcc3a81623093a3372c",
-  "authority_bundle_sha256": "a61cac9a86316e2e8f8283607fdf6f04575b0275ffc31222a1491d139e8b56da",
+  "source_sha": "4a9ca47a6ca68f502cc594204a5304429216ee2d",
+  "authority_bundle_sha256": "2d7e90f5cf55276325ade41e3a5ce6df6c38048202ec306c4dca6be30f972dfe",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -29,6 +29,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Local routing, owner identity, internal certificates, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -54,7 +55,7 @@
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "9e35e9c2e78e63d725ba9f36cec4f856e3bb88c4ec25f100f4aef239e76ec852"
+              "profile_sha256": "a3d343f7bbc89c340e9e40bfcb934ab32ca376075a50f8411ad2c753f045ecc1"
             }
           ],
           "storage_profiles": [],
@@ -78,6 +79,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Local routing, owner identity, internal certificates, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -105,7 +107,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "f7fcdb7f3c81c5fe67dc233ea1c33e26dc12b222bc13979ff5710e8ec8c029cc"
+              "profile_sha256": "218d37afb570fb06213800ea61bcaa1299bb287c4a1275d40ec8a3d841bc114d"
             },
             {
               "id": "high",
@@ -113,6 +115,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Local routing, owner identity, internal certificates, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -140,7 +143,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "d33ce07e2622d8757ccfa3b051e1584a6f3682681604a72ca6fda0ed757d206c"
+              "profile_sha256": "aec73815b37db0a43281880b232aff56c2a39ad9e35a5d0112deee7945d25c92"
             }
           ],
           "storage_profiles": [],
@@ -162,6 +165,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -177,7 +181,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "037018f7e3a391beaaaf3e2b6e94df5eaaa57af9c55ef86f148e071e0428ca21"
+              "profile_sha256": "93a81e7f140657da9f1bc37ea810e276e31b1fadbca8411937c9d93fa77becc3"
             },
             {
               "id": "standard",
@@ -185,6 +189,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -200,7 +205,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "b6e88509966bf5f918f7637c298c47e6e71936a58adbb4af8209902b00a1332a"
+              "profile_sha256": "d9c22da7df310f27c187b57ffb24c35eb2e697ab0beb113e47eed384958edd46"
             },
             {
               "id": "high",
@@ -208,6 +213,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -223,7 +229,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "b272ee4439662c9b8ffceb5bf816661417a0e478e60778c30dc146b64001f1f7"
+              "profile_sha256": "a71282117a0b113a1007c23c55b391b6f0711c9600a2decaef856e6de89176e7"
             }
           ],
           "storage_profiles": [],
@@ -257,6 +263,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -272,7 +279,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "b6672f7068d7e402041233a7c1edfd54d224caf03443ac3cfbb4ee5989eced25"
+              "profile_sha256": "044d2b6ff612e4f2f286bc31ad5bbd1897b9ff1d41673e697b5ac4a488b12b91"
             },
             {
               "id": "standard",
@@ -280,6 +287,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -295,7 +303,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "892bceed9f29534e68e7f9c9f2866763561befbbefc831b1625c2c53c82cdcc5"
+              "profile_sha256": "fa47a2fda92bbda22353c3744efdacc2c34840933a8713d48ad3ed2bd28cf91b"
             },
             {
               "id": "high",
@@ -303,6 +311,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -318,7 +327,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "87d1db6a2b8ab5d90d31e5aecbbe7d646f94fbe7a96ea080b703f3bce5c21c65"
+              "profile_sha256": "1589959d448ee38a58c3ed34018cc202fc1d7158202eecfffb28329a39fe8c0a"
             }
           ],
           "storage_profiles": [],
@@ -352,6 +361,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Photo library and mobile backup with PostgreSQL and Valkey. The machine-learning service and ML search are omitted to reduce resident memory. Photo-library growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -387,7 +397,7 @@
               "degradations": [
                 "machine-learning-disabled"
               ],
-              "profile_sha256": "ebab0c7daf0da3d108031fcc702e54c821e8edd84f0377b2996a31a48c67b1b9"
+              "profile_sha256": "a02de99d453a5665b84cf113626148ca5aed32cec940f8e4ad55549b69aa9f1d"
             }
           ],
           "storage_profiles": [],
@@ -409,6 +419,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Photo library and mobile backup with the machine-learning service, PostgreSQL and Valkey. Standard and high have the same declared resources and features; neither guarantees a user count or ingest rate. Photo-library growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 6,
@@ -444,7 +455,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "14b4ef506e725f95130b83deadc4559f173bc0adc048a49d45ea5f13aa38c471"
+              "profile_sha256": "572fdc609065834785352c1db185c877df08feb4191f96bcd0cb8a91124ed969"
             },
             {
               "id": "high",
@@ -452,6 +463,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Photo library and mobile backup with the machine-learning service, PostgreSQL and Valkey. Standard and high have the same declared resources and features; neither guarantees a user count or ingest rate. Photo-library growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 6,
@@ -487,7 +499,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "e526eec24d63aa11de330930ec9fb3b6c303bc0c23faae396af6207b66baff92"
+              "profile_sha256": "c45e7b6ac7598c20bda0328d92730ffd4fde5e689b140405dbede02290bbe952"
             }
           ],
           "storage_profiles": [],
@@ -509,6 +521,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Media library and playback through Jellyfin. Standard and high have the same declared application and resources; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -524,7 +537,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "9d7451ab513c464335f36886b1a9e5e374cc8ad1f1247ec1c78bd449e1dc93ae"
+              "profile_sha256": "4710ada2f09cf5480040e4e969b88599cdeb5615a177f49ab2fc677f09621695"
             },
             {
               "id": "high",
@@ -532,6 +545,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Media library and playback through Jellyfin. Standard and high have the same declared application and resources; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -547,7 +561,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "24e80f29c9589e1f333c30856fe900ea082a79fbe06e5ee3a1aa2c6a08f73914"
+              "profile_sha256": "eef51aa6477a9ad116e6adf7d726b9ef658299e2d25992372740e8f45fe11c1c"
             }
           ],
           "storage_profiles": [],
@@ -569,6 +583,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -584,7 +599,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "df485ae538408be3b32f4f919606ade8208794e4902cdcf3c90e2ac2951a8f6a"
+              "profile_sha256": "e8287108e6bd4a97c12494770870104200b1ab74a63d0477d5648df59e4c72de"
             },
             {
               "id": "standard",
@@ -592,6 +607,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -607,7 +623,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "a348f0cdb6f26227d03f5cca26629579c4b76f5f5e33c06c10779f4551d69178"
+              "profile_sha256": "ed87d20643e283eeadbebe7ef6d14b959232f56b74e5917838620c9062b14d20"
             },
             {
               "id": "high",
@@ -615,6 +631,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -630,7 +647,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "99679f9d7e8856f7706053f96db55f0316caaaa0f55d5a3196e5d6a8da6e58b2"
+              "profile_sha256": "27bfcecf02ea8e6a47ecf0a810d8b217f5c20f8b142a41b2c19bfcdab2ff6ed0"
             }
           ],
           "storage_profiles": [],
@@ -879,6 +896,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Cloud routing, owner identity, application management and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -904,7 +922,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "d2c1533044f9ad369ba574b6a329a78e67ab51a042ace2610f0150c58c9de8ab"
+              "profile_sha256": "28030ce550cf82706713ccb312ac95c370eadbdd73374743c019fba31a17603e"
             },
             {
               "id": "high",
@@ -912,6 +930,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Cloud routing, owner identity, application management and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -937,7 +956,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "39eb0a9799824d1db7c78558c557275f2d0799fa6d8e16475ba7b785e2b97e62"
+              "profile_sha256": "dfe59a6ced2383b1cf47956b872c8f6da6b85fb9011ee4f26eb7554735b81b74"
             }
           ],
           "storage_profiles": [],
@@ -984,6 +1003,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -999,7 +1019,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "037018f7e3a391beaaaf3e2b6e94df5eaaa57af9c55ef86f148e071e0428ca21"
+              "profile_sha256": "93a81e7f140657da9f1bc37ea810e276e31b1fadbca8411937c9d93fa77becc3"
             },
             {
               "id": "standard",
@@ -1007,6 +1027,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1022,7 +1043,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "b6e88509966bf5f918f7637c298c47e6e71936a58adbb4af8209902b00a1332a"
+              "profile_sha256": "d9c22da7df310f27c187b57ffb24c35eb2e697ab0beb113e47eed384958edd46"
             },
             {
               "id": "high",
@@ -1030,6 +1051,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1045,7 +1067,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "b272ee4439662c9b8ffceb5bf816661417a0e478e60778c30dc146b64001f1f7"
+              "profile_sha256": "a71282117a0b113a1007c23c55b391b6f0711c9600a2decaef856e6de89176e7"
             }
           ],
           "storage_profiles": [],
@@ -1079,6 +1101,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -1094,7 +1117,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "b6672f7068d7e402041233a7c1edfd54d224caf03443ac3cfbb4ee5989eced25"
+              "profile_sha256": "044d2b6ff612e4f2f286bc31ad5bbd1897b9ff1d41673e697b5ac4a488b12b91"
             },
             {
               "id": "standard",
@@ -1102,6 +1125,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1117,7 +1141,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "892bceed9f29534e68e7f9c9f2866763561befbbefc831b1625c2c53c82cdcc5"
+              "profile_sha256": "fa47a2fda92bbda22353c3744efdacc2c34840933a8713d48ad3ed2bd28cf91b"
             },
             {
               "id": "high",
@@ -1125,6 +1149,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1140,7 +1165,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "87d1db6a2b8ab5d90d31e5aecbbe7d646f94fbe7a96ea080b703f3bce5c21c65"
+              "profile_sha256": "1589959d448ee38a58c3ed34018cc202fc1d7158202eecfffb28329a39fe8c0a"
             }
           ],
           "storage_profiles": [],
@@ -1162,6 +1187,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Photo library and mobile backup with PostgreSQL and Valkey. The machine-learning service and ML search are omitted to reduce resident memory. Photo-library growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1197,7 +1223,7 @@
               "degradations": [
                 "machine-learning-disabled"
               ],
-              "profile_sha256": "ebab0c7daf0da3d108031fcc702e54c821e8edd84f0377b2996a31a48c67b1b9"
+              "profile_sha256": "a02de99d453a5665b84cf113626148ca5aed32cec940f8e4ad55549b69aa9f1d"
             }
           ],
           "storage_profiles": [],
@@ -1219,6 +1245,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Photo library and mobile backup with the machine-learning service, PostgreSQL and Valkey. Standard and high have the same declared resources and features; neither guarantees a user count or ingest rate. Photo-library growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 6,
@@ -1254,7 +1281,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "14b4ef506e725f95130b83deadc4559f173bc0adc048a49d45ea5f13aa38c471"
+              "profile_sha256": "572fdc609065834785352c1db185c877df08feb4191f96bcd0cb8a91124ed969"
             },
             {
               "id": "high",
@@ -1262,6 +1289,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Photo library and mobile backup with the machine-learning service, PostgreSQL and Valkey. Standard and high have the same declared resources and features; neither guarantees a user count or ingest rate. Photo-library growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 6,
@@ -1297,7 +1325,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "e526eec24d63aa11de330930ec9fb3b6c303bc0c23faae396af6207b66baff92"
+              "profile_sha256": "c45e7b6ac7598c20bda0328d92730ffd4fde5e689b140405dbede02290bbe952"
             }
           ],
           "storage_profiles": [],
@@ -1319,6 +1347,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Media library and playback through Jellyfin. Standard and high have the same declared application and resources; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1334,7 +1363,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "9d7451ab513c464335f36886b1a9e5e374cc8ad1f1247ec1c78bd449e1dc93ae"
+              "profile_sha256": "4710ada2f09cf5480040e4e969b88599cdeb5615a177f49ab2fc677f09621695"
             },
             {
               "id": "high",
@@ -1342,6 +1371,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Media library and playback through Jellyfin. Standard and high have the same declared application and resources; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1357,7 +1387,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "24e80f29c9589e1f333c30856fe900ea082a79fbe06e5ee3a1aa2c6a08f73914"
+              "profile_sha256": "eef51aa6477a9ad116e6adf7d726b9ef658299e2d25992372740e8f45fe11c1c"
             }
           ],
           "storage_profiles": [],
@@ -1391,6 +1421,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -1406,7 +1437,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "df485ae538408be3b32f4f919606ade8208794e4902cdcf3c90e2ac2951a8f6a"
+              "profile_sha256": "e8287108e6bd4a97c12494770870104200b1ab74a63d0477d5648df59e4c72de"
             },
             {
               "id": "standard",
@@ -1414,6 +1445,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1429,7 +1461,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "a348f0cdb6f26227d03f5cca26629579c4b76f5f5e33c06c10779f4551d69178"
+              "profile_sha256": "ed87d20643e283eeadbebe7ef6d14b959232f56b74e5917838620c9062b14d20"
             },
             {
               "id": "high",
@@ -1437,6 +1469,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1452,7 +1485,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "99679f9d7e8856f7706053f96db55f0316caaaa0f55d5a3196e5d6a8da6e58b2"
+              "profile_sha256": "27bfcecf02ea8e6a47ecf0a810d8b217f5c20f8b142a41b2c19bfcdab2ff6ed0"
             }
           ],
           "storage_profiles": [],
@@ -1668,6 +1701,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Local routing, owner identity, internal certificates, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -1693,7 +1727,7 @@
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "9e35e9c2e78e63d725ba9f36cec4f856e3bb88c4ec25f100f4aef239e76ec852"
+              "profile_sha256": "a3d343f7bbc89c340e9e40bfcb934ab32ca376075a50f8411ad2c753f045ecc1"
             }
           ],
           "storage_profiles": [],
@@ -1717,6 +1751,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Local routing, owner identity, internal certificates, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1744,7 +1779,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "f7fcdb7f3c81c5fe67dc233ea1c33e26dc12b222bc13979ff5710e8ec8c029cc"
+              "profile_sha256": "218d37afb570fb06213800ea61bcaa1299bb287c4a1275d40ec8a3d841bc114d"
             },
             {
               "id": "high",
@@ -1752,6 +1787,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Local routing, owner identity, internal certificates, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1779,7 +1815,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "d33ce07e2622d8757ccfa3b051e1584a6f3682681604a72ca6fda0ed757d206c"
+              "profile_sha256": "aec73815b37db0a43281880b232aff56c2a39ad9e35a5d0112deee7945d25c92"
             }
           ],
           "storage_profiles": [],
@@ -1801,6 +1837,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -1816,7 +1853,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "037018f7e3a391beaaaf3e2b6e94df5eaaa57af9c55ef86f148e071e0428ca21"
+              "profile_sha256": "93a81e7f140657da9f1bc37ea810e276e31b1fadbca8411937c9d93fa77becc3"
             },
             {
               "id": "standard",
@@ -1824,6 +1861,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1839,7 +1877,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "b6e88509966bf5f918f7637c298c47e6e71936a58adbb4af8209902b00a1332a"
+              "profile_sha256": "d9c22da7df310f27c187b57ffb24c35eb2e697ab0beb113e47eed384958edd46"
             },
             {
               "id": "high",
@@ -1847,6 +1885,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1862,7 +1901,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "b272ee4439662c9b8ffceb5bf816661417a0e478e60778c30dc146b64001f1f7"
+              "profile_sha256": "a71282117a0b113a1007c23c55b391b6f0711c9600a2decaef856e6de89176e7"
             }
           ],
           "storage_profiles": [],
@@ -1896,6 +1935,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -1911,7 +1951,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "b6672f7068d7e402041233a7c1edfd54d224caf03443ac3cfbb4ee5989eced25"
+              "profile_sha256": "044d2b6ff612e4f2f286bc31ad5bbd1897b9ff1d41673e697b5ac4a488b12b91"
             },
             {
               "id": "standard",
@@ -1919,6 +1959,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1934,7 +1975,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "892bceed9f29534e68e7f9c9f2866763561befbbefc831b1625c2c53c82cdcc5"
+              "profile_sha256": "fa47a2fda92bbda22353c3744efdacc2c34840933a8713d48ad3ed2bd28cf91b"
             },
             {
               "id": "high",
@@ -1942,6 +1983,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1957,7 +1999,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "87d1db6a2b8ab5d90d31e5aecbbe7d646f94fbe7a96ea080b703f3bce5c21c65"
+              "profile_sha256": "1589959d448ee38a58c3ed34018cc202fc1d7158202eecfffb28329a39fe8c0a"
             }
           ],
           "storage_profiles": [],
@@ -1991,6 +2033,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Photo library and mobile backup with PostgreSQL and Valkey. The machine-learning service and ML search are omitted to reduce resident memory. Photo-library growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -2026,7 +2069,7 @@
               "degradations": [
                 "machine-learning-disabled"
               ],
-              "profile_sha256": "ebab0c7daf0da3d108031fcc702e54c821e8edd84f0377b2996a31a48c67b1b9"
+              "profile_sha256": "a02de99d453a5665b84cf113626148ca5aed32cec940f8e4ad55549b69aa9f1d"
             }
           ],
           "storage_profiles": [],
@@ -2048,6 +2091,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Photo library and mobile backup with the machine-learning service, PostgreSQL and Valkey. Standard and high have the same declared resources and features; neither guarantees a user count or ingest rate. Photo-library growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 6,
@@ -2083,7 +2127,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "14b4ef506e725f95130b83deadc4559f173bc0adc048a49d45ea5f13aa38c471"
+              "profile_sha256": "572fdc609065834785352c1db185c877df08feb4191f96bcd0cb8a91124ed969"
             },
             {
               "id": "high",
@@ -2091,6 +2135,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Photo library and mobile backup with the machine-learning service, PostgreSQL and Valkey. Standard and high have the same declared resources and features; neither guarantees a user count or ingest rate. Photo-library growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 6,
@@ -2126,7 +2171,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "e526eec24d63aa11de330930ec9fb3b6c303bc0c23faae396af6207b66baff92"
+              "profile_sha256": "c45e7b6ac7598c20bda0328d92730ffd4fde5e689b140405dbede02290bbe952"
             }
           ],
           "storage_profiles": [],
@@ -2148,6 +2193,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Media library and playback through Jellyfin. Standard and high have the same declared application and resources; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -2163,7 +2209,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "9d7451ab513c464335f36886b1a9e5e374cc8ad1f1247ec1c78bd449e1dc93ae"
+              "profile_sha256": "4710ada2f09cf5480040e4e969b88599cdeb5615a177f49ab2fc677f09621695"
             },
             {
               "id": "high",
@@ -2171,6 +2217,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Media library and playback through Jellyfin. Standard and high have the same declared application and resources; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -2186,7 +2233,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "24e80f29c9589e1f333c30856fe900ea082a79fbe06e5ee3a1aa2c6a08f73914"
+              "profile_sha256": "eef51aa6477a9ad116e6adf7d726b9ef658299e2d25992372740e8f45fe11c1c"
             }
           ],
           "storage_profiles": [],
@@ -2208,6 +2255,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -2223,7 +2271,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "df485ae538408be3b32f4f919606ade8208794e4902cdcf3c90e2ac2951a8f6a"
+              "profile_sha256": "e8287108e6bd4a97c12494770870104200b1ab74a63d0477d5648df59e4c72de"
             },
             {
               "id": "standard",
@@ -2231,6 +2279,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -2246,7 +2295,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "a348f0cdb6f26227d03f5cca26629579c4b76f5f5e33c06c10779f4551d69178"
+              "profile_sha256": "ed87d20643e283eeadbebe7ef6d14b959232f56b74e5917838620c9062b14d20"
             },
             {
               "id": "high",
@@ -2254,6 +2303,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -2269,7 +2319,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "99679f9d7e8856f7706053f96db55f0316caaaa0f55d5a3196e5d6a8da6e58b2"
+              "profile_sha256": "27bfcecf02ea8e6a47ecf0a810d8b217f5c20f8b142a41b2c19bfcdab2ff6ed0"
             }
           ],
           "storage_profiles": [],
@@ -2769,5 +2819,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "b291a07b6af17667d502ed3c816c4fdb8d974342fd50e387ef9a8e96d53efe18"
+  "catalog_sha256": "cec1418a74041c27f39dca619ba997bf64cb6a9f6a97106db1081d18f807c2fa"
 }

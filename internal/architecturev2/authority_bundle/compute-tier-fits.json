@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:3a449e36423bf78bc75f8a7552c775bc6ce0c597e88a82def696e72b896491f6",
+  "contentDigest": "sha256:45532676ab16244da51f7c2eec8717d29359ba48532a7e88772af29460f86460",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -93,7 +93,7 @@
           },
           "moduleSlug": "cloudreve",
           "notes": [
-            "Collaboration/DMS extras need an explicit high-graph substitution before they become default."
+            "A high profile does not add collaboration or DMS. Those need their own admitted workload and lifecycle contracts."
           ]
         },
         "low": {
@@ -110,7 +110,7 @@
           },
           "moduleSlug": "cloudreve",
           "notes": [
-            "Lightweight sharing. Nextcloud is not on low."
+            "Lightweight sharing. Nextcloud is not a native workload on any profile."
           ]
         },
         "standard": {
@@ -127,7 +127,7 @@
           },
           "moduleSlug": "cloudreve",
           "notes": [
-            "Nextcloud remains an authoring alternative, not the default standard graph."
+            "Nextcloud remains planned product intent, not a selectable native alternative."
           ]
         }
       },

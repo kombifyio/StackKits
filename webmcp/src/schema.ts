@@ -135,6 +135,7 @@ export function validateSchema(
   }
   if (isRecord(value)) {
     const properties = isRecord(schema.properties) ? schema.properties : {};
+    const patternProperties = isRecord(schema.patternProperties) ? schema.patternProperties : {};
     const required = Array.isArray(schema.required) ? schema.required.filter((entry): entry is string => typeof entry === "string") : [];
     if (typeof schema.minProperties === "number" && Object.keys(value).length < schema.minProperties) issues.push({ path, keyword: "minProperties" });
     if (typeof schema.maxProperties === "number" && Object.keys(value).length > schema.maxProperties) issues.push({ path, keyword: "maxProperties" });
@@ -143,7 +144,9 @@ export function validateSchema(
     }
     if (schema.additionalProperties === false) {
       for (const key of Object.keys(value)) {
-        if (!(key in properties)) issues.push({ path: `${path}.${key}`, keyword: "additionalProperties" });
+        if (!(key in properties) && matchingPatternSchemas(patternProperties, key).length === 0) {
+          issues.push({ path: `${path}.${key}`, keyword: "additionalProperties" });
+        }
       }
     }
     for (const [key, childSchema] of Object.entries(properties)) {
@@ -152,9 +155,14 @@ export function validateSchema(
         issues.push(...childResult.issues);
       }
     }
+    for (const [key, childValue] of Object.entries(value)) {
+      for (const childSchema of matchingPatternSchemas(patternProperties, key)) {
+        issues.push(...validateSchema(childSchema, childValue, `${path}.${key}`, seen, definitions).issues);
+      }
+    }
     if (isRecord(schema.additionalProperties)) {
       for (const [key, childValue] of Object.entries(value)) {
-        if (!(key in properties)) {
+        if (!(key in properties) && matchingPatternSchemas(patternProperties, key).length === 0) {
           const childResult = validateSchema(schema.additionalProperties, childValue, `${path}.${key}`, seen, definitions);
           issues.push(...childResult.issues);
         }
@@ -187,4 +195,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function sameJson(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function matchingPatternSchemas(patternProperties: Record<string, unknown>, key: string): Schema[] {
+  return Object.entries(patternProperties).flatMap(([pattern, childSchema]) => {
+    if (!isRecord(childSchema)) return [];
+    try {
+      return new RegExp(pattern).test(key) ? [childSchema] : [];
+    } catch {
+      return [];
+    }
+  });
 }

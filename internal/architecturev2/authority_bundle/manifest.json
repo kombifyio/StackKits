@@ -1,7 +1,7 @@
 {
   "documentHashes": {
-    "catalog.json": "sha256:6a2a6e4c78c2fe23d7f635537b60c2cc0e75dd82b2f819987b9a20d4b7e4cbc5",
-    "compute-tier-fits.json": "sha256:9fadc4977499bab3ae85553046473142b1cbe40e0f3d6d18cc65024811d96e75",
+    "catalog.json": "sha256:3340faf02125296096a8c56f40c7c8a4decd1f2552a6d1bc3008c981b30f69fd",
+    "compute-tier-fits.json": "sha256:3a0b79afd4e5b930191055dec01df936d4393bcac09ecf2cba561bdb2df6daa5",
     "definitions/basement-kit.json": "sha256:ec15c7922c6006f00ad21fe540a8ce1548fb98e2ee984793c2d7ec7c92521e7c",
     "definitions/cloud-kit.json": "sha256:352de06f4646437b6f119053b8c58580c23829242e2ea1ecb5c6c7eedd382aeb",
     "definitions/modern-homelab.json": "sha256:5e278f09ef390ee9660ca443404d28d2072d8573d6de7c348b735c0b690f1eb9",
@@ -23,12 +23,12 @@
   "sourceHashes": {
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee",
     "foundation/application_lifecycle.cue": "sha256:7befc7549306375ef5434a852ad31940fe4924698900db1ccff0c766c0e70cdd",
-    "foundation/architecture_v2.cue": "sha256:d28b26abf9ab5769b3611c5d77bcb874aeb6fff079a297e1c6d370983e5d9f87",
+    "foundation/architecture_v2.cue": "sha256:5be65ee36f9967816578f209992a573660c0605c073db2dad3deef36c6a420c4",
     "foundation/architecture_v2_backup.cue": "sha256:750b23662d20956156394cf61ad1466e651372a18aa06075883a2a70199c93e0",
     "foundation/architecture_v2_catalog.cue": "sha256:3a3b2d5e478a6ea595680e62303cfde654c78bbeef0dcebb254bc6268fe1cd3d",
     "foundation/architecture_v2_definition_binding.cue": "sha256:eb672ae095f461383f94d7212cc92a6a16a01f5abcd9722523015457bc3484a4",
     "foundation/architecture_v2_federation.cue": "sha256:6b8720e5ebd55f3d85661a43f16fb9781be983fb63f0e7e09a182ed414429e81",
-    "foundation/architecture_v2_module_profiles.cue": "sha256:96e58671c6c5215d3a4570a32148e68e1263cb711b20a76b80e957f6fae1d861",
+    "foundation/architecture_v2_module_profiles.cue": "sha256:6cdebeb106fb85defb0594a5a1630d0be811850ecb5b0afb8b56fc8e2c213719",
     "foundation/architecture_v2_profiles.cue": "sha256:1b80546a4156f4aeba80f8149f5847fbd2315f2269ed8128fe3cb8b36e7128f3",
     "foundation/architecture_v2_storage.cue": "sha256:299057ef61b0f600cb5eff5e3d9d0423613daffb295fd4f0ecd39ff3d9b53adf",
     "foundation/use_case_identity.cue": "sha256:69434bf7d383b41ae037fad46003b1196e219025895d81c603fd398cfc461b87"

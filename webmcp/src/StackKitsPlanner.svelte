@@ -430,11 +430,14 @@
                     {#if selectedCompute}
                       <div class="fact-group">
                         <span class="summary-label">Compute facts · {selectedCompute.id}</span>
+                        {#if selectedCompute.description}<p><b>Profile</b> {selectedCompute.description}</p>{/if}
                         <p><b>Host floor</b> {formatVector(selectedCompute.host_floor)}</p>
                         <p><b>Reservation</b> {formatVector(selectedCompute.reservation)}</p>
                         <p><b>CUE reference</b> {formatVector(selectedCompute.recommended)}</p>
                         <p><b>Status</b> {selectedCompute.capacity_declaration} · {selectedCompute.maturity} · {selectedCompute.executable ? "executable" : "contract-only"}</p>
                         <p><b>Realization</b> {selectedCompute.realization}</p>
+                        {#if selectedCompute.components.length > 0}<p><b>Components</b> {selectedCompute.components.join(" · ")}</p>{/if}
+                        {#if selectedCompute.capabilities.length > 0}<p><b>Capabilities</b> {selectedCompute.capabilities.join(" · ")}</p>{/if}
                         {#if selectedCompute.host_requirements?.min_amd64_microarchitecture_level}
                           <p><b>CPU requirement</b> On amd64, x86-64-v{selectedCompute.host_requirements.min_amd64_microarchitecture_level} or newer. This must be verified on the exact target before Apply.</p>
                         {/if}
@@ -445,10 +448,26 @@
                       </div>
                     {/if}
                     {#if selectedStorage}
-                      <div class="fact-group"><span class="summary-label">Storage facts · {selectedStorage.id}</span><p><b>Reservation</b> {formatVector(selectedStorage.reservation)}</p><p><b>Status</b> {profileSummary(selectedStorage)} </p></div>
+                      <div class="fact-group">
+                        <span class="summary-label">Storage facts · {selectedStorage.id}</span>
+                        {#if selectedStorage.description}<p><b>Profile</b> {selectedStorage.description}</p>{/if}
+                        <p><b>Reservation</b> {formatVector(selectedStorage.reservation)}</p>
+                        <p><b>Status</b> {profileSummary(selectedStorage)} </p>
+                        {#if selectedStorage.components.length > 0}<p><b>Components</b> {selectedStorage.components.join(" · ")}</p>{/if}
+                        {#if selectedStorage.capabilities.length > 0}<p><b>Capabilities</b> {selectedStorage.capabilities.join(" · ")}</p>{/if}
+                        {#if selectedStorage.degradations?.length}<p><b>Degradations</b> {selectedStorage.degradations.join(" · ")}</p>{/if}
+                      </div>
                     {/if}
                     {#if selectedAccelerator}
-                      <div class="fact-group"><span class="summary-label">Accelerator facts · {selectedAccelerator.id}</span><p><b>Reservation</b> {formatVector(selectedAccelerator.reservation)}</p><p><b>Status</b> {profileSummary(selectedAccelerator)} </p></div>
+                      <div class="fact-group">
+                        <span class="summary-label">Accelerator facts · {selectedAccelerator.id}</span>
+                        {#if selectedAccelerator.description}<p><b>Profile</b> {selectedAccelerator.description}</p>{/if}
+                        <p><b>Reservation</b> {formatVector(selectedAccelerator.reservation)}</p>
+                        <p><b>Status</b> {profileSummary(selectedAccelerator)} </p>
+                        {#if selectedAccelerator.components.length > 0}<p><b>Components</b> {selectedAccelerator.components.join(" · ")}</p>{/if}
+                        {#if selectedAccelerator.capabilities.length > 0}<p><b>Capabilities</b> {selectedAccelerator.capabilities.join(" · ")}</p>{/if}
+                        {#if selectedAccelerator.degradations?.length}<p><b>Degradations</b> {selectedAccelerator.degradations.join(" · ")}</p>{/if}
+                      </div>
                     {/if}
                   </div>
                 {:else if module.compute_profiles.length === 0}

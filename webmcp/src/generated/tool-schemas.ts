@@ -500,6 +500,67 @@ export const WEBMCP_SCHEMA_DEFINITIONS = {
       }
     }
   },
+  "profileDetails": {
+    "type": "object",
+    "additionalProperties": false,
+    "minProperties": 1,
+    "description": "CUE-projected semantic details for one module-local profile.",
+    "properties": {
+      "description": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500
+      },
+      "components": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "$ref": "#/$defs/contractId"
+        }
+      },
+      "capabilities": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "$ref": "#/$defs/contractId"
+        }
+      },
+      "degradations": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "$ref": "#/$defs/contractId"
+        }
+      }
+    }
+  },
+  "profileDetailsById": {
+    "type": "object",
+    "minProperties": 1,
+    "patternProperties": {
+      "^[a-z][a-z0-9-]{0,62}$": {
+        "$ref": "#/$defs/profileDetails"
+      }
+    },
+    "additionalProperties": false
+  },
+  "moduleProfileDetails": {
+    "type": "object",
+    "additionalProperties": false,
+    "minProperties": 1,
+    "description": "CUE-projected semantic details keyed by module-local dimension and profile ID.",
+    "properties": {
+      "compute": {
+        "$ref": "#/$defs/profileDetailsById"
+      },
+      "storage": {
+        "$ref": "#/$defs/profileDetailsById"
+      },
+      "accelerator": {
+        "$ref": "#/$defs/profileDetailsById"
+      }
+    }
+  },
   "compactModuleProfiles": {
     "type": "object",
     "additionalProperties": false,
@@ -522,6 +583,9 @@ export const WEBMCP_SCHEMA_DEFINITIONS = {
         "items": {
           "$ref": "#/$defs/compactProfile"
         }
+      },
+      "profile_details": {
+        "$ref": "#/$defs/moduleProfileDetails"
       },
       "host_requirements": {
         "type": "array",

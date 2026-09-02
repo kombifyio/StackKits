@@ -12,11 +12,11 @@
     "basement-kit/stackfile.cue": "sha256:eef95e21748852a1d955c1f292e67630d65e8fce757a06795982f2529c3b1a8f",
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee",
     "foundation/application_lifecycle.cue": "sha256:7befc7549306375ef5434a852ad31940fe4924698900db1ccff0c766c0e70cdd",
-    "foundation/architecture_v2.cue": "sha256:d28b26abf9ab5769b3611c5d77bcb874aeb6fff079a297e1c6d370983e5d9f87",
+    "foundation/architecture_v2.cue": "sha256:5be65ee36f9967816578f209992a573660c0605c073db2dad3deef36c6a420c4",
     "foundation/architecture_v2_backup.cue": "sha256:750b23662d20956156394cf61ad1466e651372a18aa06075883a2a70199c93e0",
     "foundation/architecture_v2_catalog.cue": "sha256:3a3b2d5e478a6ea595680e62303cfde654c78bbeef0dcebb254bc6268fe1cd3d",
     "foundation/architecture_v2_definition_binding.cue": "sha256:eb672ae095f461383f94d7212cc92a6a16a01f5abcd9722523015457bc3484a4",
-    "foundation/architecture_v2_module_profiles.cue": "sha256:96e58671c6c5215d3a4570a32148e68e1263cb711b20a76b80e957f6fae1d861",
+    "foundation/architecture_v2_module_profiles.cue": "sha256:6cdebeb106fb85defb0594a5a1630d0be811850ecb5b0afb8b56fc8e2c213719",
     "foundation/architecture_v2_profiles.cue": "sha256:1b80546a4156f4aeba80f8149f5847fbd2315f2269ed8128fe3cb8b36e7128f3",
     "foundation/architecture_v2_storage.cue": "sha256:299057ef61b0f600cb5eff5e3d9d0423613daffb295fd4f0ecd39ff3d9b53adf",
     "foundation/use_case_identity.cue": "sha256:69434bf7d383b41ae037fad46003b1196e219025895d81c603fd398cfc461b87"

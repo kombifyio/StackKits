@@ -110,8 +110,10 @@ All five operations are returned together. The validated `init` argv carries the
 complete selection, so a successful handoff does not echo those IDs again in the
 envelope. Capacity results likewise do not repeat the supplied profile IDs.
 The shared session preserves the full validated selection in the visible planner.
-The current representative catalog, profile pages, capacity checks, and handoffs
-are checked against the 1,500-character JSON output budget.
+The current representative catalog, capacity checks, and handoffs are checked
+against the 1,500-character JSON output budget. Module profile pages use a
+4,096-character budget because they also carry the CUE description and the
+component, capability, and degradation details for every available profile.
 
 For a bounded local latency diagnostic over the existing build, run:
 

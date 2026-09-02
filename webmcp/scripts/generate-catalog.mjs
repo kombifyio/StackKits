@@ -204,7 +204,7 @@ function profileOrder(left, right) {
 async function projectNativeComputeProfile(id, source, path) {
   rejectUnknownKeys(source, `${path}.${id}`, new Set([
     "profileHash", "profile_sha256", "capacityDeclaration", "capacity_declaration", "maturity", "executable", "realization",
-    "platformManagement", "platform_management", "hostFloor", "reservation", "recommended", "headroom", "architectures", "virtualization", "components", "capabilities", "degradations",
+    "platformManagement", "platform_management", "description", "hostFloor", "reservation", "recommended", "headroom", "architectures", "virtualization", "components", "capabilities", "degradations",
   ]));
   const hostFloor = isObject(source.hostFloor) ? source.hostFloor : undefined;
   const projected = {
@@ -213,6 +213,7 @@ async function projectNativeComputeProfile(id, source, path) {
     maturity: profileMaturity(source, `${path}.${id}`),
     executable: requiredBoolean(source.executable, undefined, `${path}.${id}.executable`),
     realization: profileRealization(source, `${path}.${id}`),
+    ...(source.description === undefined ? {} : { description: publicString(source.description, `${path}.${id}.description`) }),
     ...optionalResource("hostFloor", "host_floor", source, `${path}.${id}`),
     ...optionalResource("reservation", "reservation", source, `${path}.${id}`),
     ...optionalResource("headroom", "headroom", source, `${path}.${id}`),
@@ -229,16 +230,18 @@ async function projectNativeComputeProfile(id, source, path) {
 
 async function projectNativeAxisProfile(id, source, path) {
   rejectUnknownKeys(source, `${path}.${id}`, new Set([
-    "profileHash", "profile_sha256", "capacityDeclaration", "capacity_declaration", "maturity", "realization", "reservation", "components", "capabilities",
+    "profileHash", "profile_sha256", "capacityDeclaration", "capacity_declaration", "maturity", "realization", "description", "reservation", "components", "capabilities", "degradations",
   ]));
   const projected = {
     id: publicId(id, `${path}.${id}`),
     capacity_declaration: capacityDeclaration(source, false),
     maturity: profileMaturity(source, `${path}.${id}`),
     realization: profileRealization(source, `${path}.${id}`),
+    ...(source.description === undefined ? {} : { description: publicString(source.description, `${path}.${id}.description`) }),
     ...optionalResource("reservation", "reservation", source, `${path}.${id}`),
     components: publicIdArray(source.components ?? [], `${path}.${id}.components`),
     capabilities: publicIdArray(source.capabilities ?? [], `${path}.${id}.capabilities`),
+    ...(source.degradations === undefined ? {} : { degradations: publicIdArray(source.degradations, `${path}.${id}.degradations`) }),
   };
   return { ...projected, profile_sha256: profileHash(source, projected) };
 }

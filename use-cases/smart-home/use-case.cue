@@ -1,8 +1,8 @@
 // Package smart_home defines the Smart Home use case package.
 //
 // Home Assistant owns the product MCP surface via its native /api/mcp server.
-// StackKits owns lifecycle/evidence, and Kombify Control Plane realizes managed
-// stateful runtime profiles.
+// StackKits owns the admitted container lifecycle/evidence. Managed, external,
+// and local-bridge profiles below describe product intent, not native rollout.
 package smart_home
 
 import "github.com/kombifyio/stackkits/foundation"
@@ -41,7 +41,7 @@ Package: foundation.#UseCasePackage & {
 			managedServerlessEligible: true
 			requiresControlPlane:      true
 			requiresLocalBridge:       false
-			notes: ["Stateful managed application profile; not a stateless function runtime."]
+			notes: ["Managed product intent, not an admitted native workload alternative. Stateful application profile; not a stateless function runtime."]
 		}
 		"kombify-managed-hybrid": {
 			displayName: "Kombify Managed Home Assistant + Home Bridge"
@@ -51,17 +51,17 @@ Package: foundation.#UseCasePackage & {
 			managedServerlessEligible: true
 			requiresControlPlane:      true
 			requiresLocalBridge:       true
-			notes: ["Use when Zigbee, Z-Wave, Thread, Matter, Bluetooth, local MQTT, or mDNS discovery must stay near the home network."]
+			notes: ["Planned bridge profile for devices that must stay near the home network. Native StackKits does not provision the Home Bridge, MQTT broker, or radio integrations."]
 		}
 		"self-hosted-container": {
 			displayName: "Self-hosted Home Assistant Container"
-			description: "StackKit deploys Home Assistant as a selected-PaaS application on the user's own node."
+			description: "StackKits deploys Home Assistant Container through the explicitly selected standalone Compose or PaaS adapter."
 			realization: "oss"
 			placementModes: ["local-only", "standard"]
 			managedServerlessEligible: false
 			requiresControlPlane:      false
 			requiresLocalBridge:       false
-			notes: ["Container mode does not imply full Home Assistant OS or Supervisor parity."]
+			notes: ["Container mode does not imply Home Assistant OS, Supervisor, add-on store, MQTT, or radio/device integration parity. Cloud placement does not grant access to Home LAN devices."]
 		}
 		"self-hosted-ha-os": {
 			displayName: "Self-hosted Home Assistant OS"
@@ -71,6 +71,7 @@ Package: foundation.#UseCasePackage & {
 			managedServerlessEligible: false
 			requiresControlPlane:      false
 			requiresLocalBridge:       false
+			notes: ["External integration intent. Native StackKits does not install Home Assistant OS or admit this profile as a workload alternative."]
 		}
 		"bring-your-own-ha": {
 			displayName: "Bring Your Own Home Assistant"
@@ -80,6 +81,7 @@ Package: foundation.#UseCasePackage & {
 			managedServerlessEligible: true
 			requiresControlPlane:      false
 			requiresLocalBridge:       false
+			notes: ["External integration intent. Connecting an existing instance is not provided by the native Home Assistant Container rollout."]
 		}
 	}
 
@@ -118,21 +120,21 @@ Package: foundation.#UseCasePackage & {
 			moduleSlug: "kombify-home-bridge"
 			role:       "bridge"
 			required:   false
-			rationale:  "Optional local adjacency bridge for LAN discovery and radio/device integrations when Home Assistant itself is managed remotely."
+			rationale:  "Planned local adjacency bridge; native StackKits does not currently provision this component."
 			capabilities: ["lan-discovery", "matter-thread", "zigbee", "z-wave", "mqtt-bridge"]
 		}
 		mosquitto: {
 			moduleSlug: "mosquitto"
 			role:       "supporting"
 			required:   false
-			rationale:  "Optional MQTT broker for local device integrations."
+			rationale:  "Planned optional MQTT broker; not included in the native Home Assistant Container rollout."
 			capabilities: ["mqtt"]
 		}
 		zigbee2mqtt: {
 			moduleSlug: "zigbee2mqtt"
 			role:       "supporting"
 			required:   false
-			rationale:  "Optional Zigbee bridge when the deployment declares a coordinator device or Home Bridge capability."
+			rationale:  "Planned Zigbee bridge; declaring a device or Home Bridge intent does not install it through native StackKits."
 			capabilities: ["zigbee", "mqtt-bridge"]
 		}
 	}

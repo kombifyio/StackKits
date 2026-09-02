@@ -79,6 +79,7 @@
         "maturity": { "type": "string", "enum": ["experimental", "beta", "supported", "deprecated"] },
         "executable": { "type": "boolean" },
         "realization": { "type": "string", "maxLength": 80 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 500 },
         "host_floor": { "$ref": "#/$defs/resourceVector" },
         "host_requirements": { "$ref": "#/$defs/profileHostRequirements" },
         "reservation": { "$ref": "#/$defs/resourceVector" },
@@ -121,9 +122,11 @@
         "capacity_declaration": { "type": "string", "enum": ["declared", "partial", "not_declared"] },
         "maturity": { "type": "string", "enum": ["experimental", "beta", "supported", "deprecated"] },
         "realization": { "type": "string", "maxLength": 80 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 500 },
         "reservation": { "$ref": "#/$defs/resourceVector" },
         "components": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/contractId" } },
-        "capabilities": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/contractId" } }
+        "capabilities": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/contractId" } },
+        "degradations": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/contractId" } }
       }
     },
     "module": {
