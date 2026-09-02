@@ -8,7 +8,9 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
+	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/restoreactivation"
@@ -22,6 +24,14 @@ type MaterializedRuntimeCustody struct {
 	operationID string
 	graph       restoreactivation.RuntimeRecoveryGraph
 	paths       map[string]string
+	workspace   string
+	transaction *confinedfs.Transaction
+	context     context.Context
+	active      *atomic.Bool
+	blobs       map[string]ExecutorStateBlob
+	ownerRef    string
+	lineage     backuplifecycle.AuthorityLineage
+	anchor      backuplifecycle.SnapshotAnchor
 }
 
 func (custody MaterializedRuntimeCustody) SnapshotID() string  { return custody.snapshotID }
@@ -39,6 +49,9 @@ func (custody MaterializedRuntimeCustody) Graph() restoreactivation.RuntimeRecov
 // Path maps one recorded workspace-relative path to its private materialized
 // copy. Callers retain the original workspace as the owner-custody root.
 func (custody MaterializedRuntimeCustody) Path(original string) (string, error) {
+	if err := custody.validateActive(); err != nil {
+		return "", err
+	}
 	materialized, ok := custody.paths[original]
 	if !ok {
 		return "", errors.New("executor state: path is outside materialized runtime custody")
@@ -93,8 +106,12 @@ func (store ExecutorStateStore) WithRuntimeCustody(
 	defer func() { returnErr = errors.Join(returnErr, transaction.RemoveTree(directory)) }()
 	custody := MaterializedRuntimeCustody{
 		snapshotID: snapshot.ID, operationID: snapshot.OperationID, graph: graph,
-		paths: make(map[string]string, len(files)),
+		paths:     make(map[string]string, len(files)),
+		workspace: workspaceRoot, transaction: transaction, context: ctx, active: &atomic.Bool{},
+		blobs: make(map[string]ExecutorStateBlob, len(files)), ownerRef: snapshot.OwnerRef,
+		lineage: snapshot.Lineage, anchor: snapshot.KopiaSnapshotAnchor,
 	}
+	defer custody.active.Store(false)
 	for _, file := range files {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -115,6 +132,7 @@ func (store ExecutorStateStore) WithRuntimeCustody(
 			return fmt.Errorf("executor state: materialize runtime artifact %s: %w", file.blob.ID, err)
 		}
 		custody.paths[file.path] = target
+		custody.blobs[file.blob.ID] = file.blob
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -122,6 +140,7 @@ func (store ExecutorStateStore) WithRuntimeCustody(
 	if err := transaction.VerifyPathIdentity(); err != nil {
 		return err
 	}
+	custody.active.Store(true)
 	err = use(ctx, custody)
 	return errors.Join(err, ctx.Err())
 }

@@ -16,12 +16,10 @@ import (
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )
 
-// runtimeRecoveryGraphDerivation keeps the private plan authority alongside
-// its public, restore-result-free projection. Both are produced by the same
-// CUE-owned extraction so DeriveAuthority cannot drift from graph custody.
+// runtimeRecoveryGraphDerivation retains the result of the shared CUE-owned
+// extraction used by current restore activation and historical graph custody.
 type runtimeRecoveryGraphDerivation struct {
 	graph RuntimeRecoveryGraph
-	plan  planAuthority
 }
 
 func deriveRuntimeRecoveryGraph(
@@ -106,7 +104,7 @@ func deriveRuntimeRecoveryGraph(
 	if err := graph.validate(); err != nil {
 		return runtimeRecoveryGraphDerivation{}, err
 	}
-	return runtimeRecoveryGraphDerivation{graph: graph, plan: derived}, nil
+	return runtimeRecoveryGraphDerivation{graph: graph}, nil
 }
 
 func sortVolumesByLiveName(volumes []Volume) {

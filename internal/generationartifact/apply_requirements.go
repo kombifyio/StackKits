@@ -272,6 +272,11 @@ func (p VerifiedPlan) ApplyRequirements() ApplyRequirements {
 	return cloneApplyRequirements(p.applyRequirements)
 }
 
+// Clone returns independent inspection data without creating plan authority.
+func (requirements ApplyRequirements) Clone() ApplyRequirements {
+	return cloneApplyRequirements(requirements)
+}
+
 func applyRequirementsFromPlan(plan resolvedplan.ResolvedPlan, binding PlanBinding) (ApplyRequirements, error) {
 	result := ApplyRequirements{
 		Binding: binding, Workloads: []ApplyWorkloadRequirement{}, Secrets: []ApplySecretRequirement{},

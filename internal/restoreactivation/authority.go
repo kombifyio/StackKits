@@ -65,10 +65,20 @@ func deriveAuthority(
 	if err != nil {
 		return Authority{}, err
 	}
-	if err := bindRestoreResult(derived.graph.PlanBinding, derived.graph.ManifestHash, derived.plan, restoreResult); err != nil {
+	return BindRuntimeRecoveryGraph(derived.graph, restoreResult)
+}
+
+// BindRuntimeRecoveryGraph binds historical graph data to the exact staged
+// restore result. The lifecycle owner must verify custody of both inputs before
+// using the returned projection; this function grants no mutation permission.
+func BindRuntimeRecoveryGraph(graph RuntimeRecoveryGraph, restoreResult backuplifecycle.RestoreResult) (Authority, error) {
+	if err := graph.Validate(); err != nil {
 		return Authority{}, err
 	}
-	volumeDetails := append([]Volume(nil), derived.graph.VolumeDetails...)
+	if err := bindRestoreResult(graph, restoreResult); err != nil {
+		return Authority{}, err
+	}
+	volumeDetails := append([]Volume(nil), graph.VolumeDetails...)
 	for index := range volumeDetails {
 		volumeDetails[index].StagingPath = path.Join(
 			restoreResult.Request.StagingPath,
@@ -77,22 +87,22 @@ func deriveAuthority(
 		)
 	}
 	return Authority{
-		OperationID:          operationID,
+		OperationID:          graph.OperationID,
 		OwnerRef:             restoreResult.OwnerRef,
 		RestoreResultID:      restoreResult.ID,
-		PlanHash:             derived.graph.PlanHash,
-		ManifestHash:         derived.graph.ManifestHash,
+		PlanHash:             graph.PlanHash,
+		ManifestHash:         graph.ManifestHash,
 		ApplyResultHash:      restoreResult.AuthorizationLineage.ApplyResultHash,
-		ManagedVolumeSetHash: derived.graph.ManagedVolumeSetHash,
-		StackID:              derived.graph.StackID,
-		ComposeProject:       derived.graph.ComposeProject,
-		ComposePath:          derived.graph.ComposePath,
-		ComposeDigest:        derived.graph.ComposeDigest,
-		ComposeRuntimes:      append([]ComposeRuntime(nil), derived.graph.ComposeRuntimes...),
-		KopiaHelperImage:     derived.graph.KopiaHelperImage,
-		StagingVolume:        derived.graph.StagingVolume,
+		ManagedVolumeSetHash: graph.ManagedVolumeSetHash,
+		StackID:              graph.StackID,
+		ComposeProject:       graph.ComposeProject,
+		ComposePath:          graph.ComposePath,
+		ComposeDigest:        graph.ComposeDigest,
+		ComposeRuntimes:      append([]ComposeRuntime(nil), graph.ComposeRuntimes...),
+		KopiaHelperImage:     graph.KopiaHelperImage,
+		StagingVolume:        graph.StagingVolume,
 		StagingPath:          restoreResult.Request.StagingPath,
-		Volumes:              append([]string(nil), derived.graph.Volumes...),
+		Volumes:              append([]string(nil), graph.Volumes...),
 		VolumeDetails:        volumeDetails,
 	}, nil
 }
@@ -1046,11 +1056,10 @@ func bindManifest(
 }
 
 func bindRestoreResult(
-	binding generationartifact.PlanBinding,
-	manifestHash string,
-	derived planAuthority,
+	graph RuntimeRecoveryGraph,
 	result backuplifecycle.RestoreResult,
 ) error {
+	binding, manifestHash := graph.PlanBinding, graph.ManifestHash
 	if result.APIVersion != restoreResultAPIVersion ||
 		result.RecoveryAnchor.APIVersion != restoreRecoveryAPI ||
 		result.Receipt.APIVersion != repositoryRestoreAPI ||
@@ -1079,7 +1088,7 @@ func bindRestoreResult(
 		!result.Receipt.RepositoryContentVerified {
 		return errors.New("restoreactivation: restore result lacks one exact repository-verified staging result")
 	}
-	expectedPrefix := derived.stagingRoot + "/"
+	expectedPrefix := graph.StagingRoot + "/"
 	stagingLeaf := strings.TrimPrefix(result.Request.StagingPath, expectedPrefix)
 	if !strings.HasPrefix(result.Request.StagingPath, expectedPrefix) || !stagingLeafPattern.MatchString(stagingLeaf) {
 		return errors.New("restoreactivation: restore staging path is not the governed content-addressed path")
@@ -1088,7 +1097,7 @@ func bindRestoreResult(
 	if stagingLeaf != hex.EncodeToString(expectedLeaf[:]) {
 		return errors.New("restoreactivation: restore staging path does not derive from the signed restore operation")
 	}
-	if result.Request.PolicyArtifactDigest != derived.policyArtifact.SHA256 ||
+	if result.Request.PolicyArtifactDigest != graph.CorePolicyDigest ||
 		result.Request.PolicyArtifactDigest != result.RecoveryAnchor.PolicyArtifactDigest {
 		return errors.New("restoreactivation: restore result policy binding is incomplete")
 	}

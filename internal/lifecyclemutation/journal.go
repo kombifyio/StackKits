@@ -33,6 +33,7 @@ const (
 	activePath     = journalRoot + "/active.json"
 	operationsRoot = journalRoot + "/operations"
 	claimsRoot     = journalRoot + "/join-claims"
+	maxRecordBytes = 1 << 20
 
 	StatusActive    = "active"
 	StatusSucceeded = "succeeded"
@@ -123,22 +124,23 @@ type RestoreActivationState struct {
 }
 
 type Record struct {
-	APIVersion           string                                        `json:"apiVersion"`
-	OperationID          string                                        `json:"operationId"`
-	Kind                 string                                        `json:"kind"`
-	WorkspaceHash        string                                        `json:"workspaceHash"`
-	OwnerRef             string                                        `json:"ownerRef"`
-	Status               string                                        `json:"status"`
-	Phase                string                                        `json:"phase"`
-	Sequence             uint64                                        `json:"sequence"`
-	PreviousRecordDigest string                                        `json:"previousRecordDigest,omitempty"`
-	Checkpoint           CheckpointAuthority                           `json:"checkpoint"`
-	Target               ReleaseAuthority                              `json:"target"`
-	Prior                ReleaseAuthority                              `json:"prior"`
-	RestoreActivation    *RestoreActivationState                       `json:"restoreActivation,omitempty"`
-	Join                 *JoinAuthority                                `json:"join,omitempty"`
-	UpdatedAt            time.Time                                     `json:"updatedAt"`
-	Signature            localevidence.OwnerLifecycleMutationSignature `json:"signature"`
+	APIVersion            string                                        `json:"apiVersion"`
+	OperationID           string                                        `json:"operationId"`
+	Kind                  string                                        `json:"kind"`
+	WorkspaceHash         string                                        `json:"workspaceHash"`
+	OwnerRef              string                                        `json:"ownerRef"`
+	Status                string                                        `json:"status"`
+	Phase                 string                                        `json:"phase"`
+	Sequence              uint64                                        `json:"sequence"`
+	PreviousRecordDigest  string                                        `json:"previousRecordDigest,omitempty"`
+	Checkpoint            CheckpointAuthority                           `json:"checkpoint"`
+	Target                ReleaseAuthority                              `json:"target"`
+	Prior                 ReleaseAuthority                              `json:"prior"`
+	RestoreActivation     *RestoreActivationState                       `json:"restoreActivation,omitempty"`
+	UpgradeDataActivation *UpgradeDataActivationState                   `json:"upgradeDataActivation,omitempty"`
+	Join                  *JoinAuthority                                `json:"join,omitempty"`
+	UpdatedAt             time.Time                                     `json:"updatedAt"`
+	Signature             localevidence.OwnerLifecycleMutationSignature `json:"signature"`
 }
 
 type JoinAuthority struct {
@@ -711,6 +713,20 @@ func (session *Session) Record() Record {
 		}
 		record.RestoreActivation = &state
 	}
+	if session.record.UpgradeDataActivation != nil {
+		state := *session.record.UpgradeDataActivation
+		state.Authority = cloneUpgradeDataActivationAuthority(
+			session.record.UpgradeDataActivation.Authority,
+		)
+		state.CompletedPrefix = append(
+			[]string{}, session.record.UpgradeDataActivation.CompletedPrefix...,
+		)
+		if session.record.UpgradeDataActivation.InFlight != nil {
+			inFlight := *session.record.UpgradeDataActivation.InFlight
+			state.InFlight = &inFlight
+		}
+		record.UpgradeDataActivation = &state
+	}
 	return record
 }
 
@@ -791,6 +807,17 @@ func (session *Session) transition(
 	join *JoinAuthority,
 	restoreActivation *RestoreActivationState,
 ) error {
+	return session.transitionWithUpgradeData(
+		expected, next, join, restoreActivation, nil,
+	)
+}
+
+func (session *Session) transitionWithUpgradeData(
+	expected, next string,
+	join *JoinAuthority,
+	restoreActivation *RestoreActivationState,
+	upgradeDataActivation *UpgradeDataActivationState,
+) error {
 	if session == nil || session.transaction == nil ||
 		session.record.Status != StatusActive ||
 		session.record.Phase != expected ||
@@ -798,11 +825,23 @@ func (session *Session) transition(
 		return errors.New("lifecycle mutation transition is not authorized")
 	}
 	if session.record.Kind == KindRestoreActivation {
-		if join != nil || restoreActivation == nil {
+		if join != nil || restoreActivation == nil || upgradeDataActivation != nil {
 			return errors.New("restore activation transition state is required")
 		}
-	} else if restoreActivation != nil {
+	} else if restoreActivation != nil ||
+		(upgradeDataActivation != nil && session.record.Kind != KindUpgrade) {
 		return errors.New("restore activation state exists on an upgrade transition")
+	}
+	if session.record.UpgradeDataActivation != nil &&
+		upgradeDataActivation == nil {
+		return errors.New("upgrade data activation state must use its transition API")
+	}
+	if session.record.Kind == KindUpgrade && upgradeDataActivation == nil &&
+		upgradeDataActivationPhase(next) && next != PhaseRollbackSucceeded {
+		return errors.New("upgrade data activation phase requires its transition API")
+	}
+	if upgradeDataActivation != nil && join != nil {
+		return errors.New("upgrade data activation cannot grant a child join authority")
 	}
 	current, digest, exists, err := loadRecord(session.workspace, session.transaction)
 	if err != nil {
@@ -818,6 +857,10 @@ func (session *Session) transition(
 	session.record.Join = join
 	if restoreActivation != nil {
 		session.record.RestoreActivation = restoreActivation
+	}
+	if upgradeDataActivation != nil {
+		state := cloneUpgradeDataActivationState(*upgradeDataActivation)
+		session.record.UpgradeDataActivation = &state
 	}
 	session.record.Sequence++
 	session.record.UpdatedAt = time.Now().UTC()
@@ -1051,6 +1094,9 @@ func loadRecord(
 }
 
 func decodeRecord(workspace string, raw []byte) (Record, string, error) {
+	if len(raw) > maxRecordBytes {
+		return Record{}, "", errors.New("lifecycle mutation journal exceeds its storage budget")
+	}
 	var record Record
 	decoder := json.NewDecoder(strings.NewReader(string(raw)))
 	decoder.DisallowUnknownFields()
@@ -1128,7 +1174,7 @@ func latestHistoryRecord(
 		}
 		base := filepath.Base(filepath.FromSlash(entry.Path))
 		if strings.HasPrefix(base, ".stackkit-tmp-") {
-			if !entry.Info.Mode().IsRegular() || entry.Info.Size() > 1<<20 {
+			if !entry.Info.Mode().IsRegular() || entry.Info.Size() > maxRecordBytes {
 				return Record{}, "", errors.New(
 					"lifecycle mutation atomic temporary artifact is invalid",
 				)
@@ -1362,6 +1408,9 @@ func persistRecord(
 	if err != nil {
 		return "", err
 	}
+	if len(encoded) > maxRecordBytes {
+		return "", errors.New("lifecycle mutation journal exceeds its storage budget")
+	}
 	sum := sha256.Sum256(encoded)
 	digest := "sha256:" + hex.EncodeToString(sum[:])
 	operationRoot := operationsRoot + "/" + record.OperationID
@@ -1462,6 +1511,14 @@ func validateRecord(record Record) error {
 			record.RestoreActivation != nil {
 			return errors.New("lifecycle mutation journal is incomplete")
 		}
+		if record.UpgradeDataActivation != nil {
+			if err := validateUpgradeDataActivationState(record); err != nil {
+				return err
+			}
+		} else if upgradeDataActivationPhase(record.Phase) &&
+			record.Phase != PhaseRollbackSucceeded {
+			return errors.New("upgrade data activation phase lacks its authority")
+		}
 	} else if err := validateRestoreActivationState(record); err != nil {
 		return err
 	}
@@ -1548,6 +1605,13 @@ func knownPhase(kind, phase string) bool {
 		PhaseRollbackApplyStarted, PhaseRollbackApplyDone,
 		PhaseRollbackVerifyStarted, PhaseRollbackVerifyDone,
 		PhaseRollbackSucceeded,
+		PhaseRollbackDataQuiesceStarted, PhaseRollbackDataQuiesced,
+		PhaseRollbackDataCopyStarted, PhaseRollbackDataCopySucceeded,
+		PhaseRollbackDataActivationSucceeded,
+		PhaseRollbackPriorRuntimeStartStarted,
+		PhaseRollbackPriorRuntimeStartSucceeded,
+		PhaseRollbackPriorRuntimeVerifyStarted,
+		PhaseRollbackPriorRuntimeVerifySucceeded,
 	} {
 		if phase == candidate {
 			return true
@@ -1559,6 +1623,9 @@ func knownPhase(kind, phase string) bool {
 func allowedTransition(kind, current, next string) bool {
 	if kind == KindRestoreActivation {
 		return allowedRestoreActivationTransition(current, next)
+	}
+	if next == PhaseRollbackDataQuiesceStarted {
+		return upgradeDataActivationStartPhase(current)
 	}
 	allowed := map[string][]string{
 		PhasePrepared:                {PhaseTargetGenerateStarted, PhaseRollbackStarted},
@@ -1576,6 +1643,32 @@ func allowedTransition(kind, current, next string) bool {
 		PhaseRollbackApplyDone:       {PhaseRollbackVerifyStarted},
 		PhaseRollbackVerifyStarted:   {PhaseRollbackVerifyDone},
 		PhaseRollbackVerifyDone:      {PhaseRollbackSucceeded},
+		PhaseRollbackDataQuiesceStarted: {
+			PhaseRollbackDataQuiesced,
+		},
+		PhaseRollbackDataQuiesced: {
+			PhaseRollbackDataCopyStarted,
+		},
+		PhaseRollbackDataCopyStarted: {
+			PhaseRollbackDataCopySucceeded,
+		},
+		PhaseRollbackDataCopySucceeded: {
+			PhaseRollbackDataCopyStarted,
+			PhaseRollbackDataActivationSucceeded,
+		},
+		PhaseRollbackDataActivationSucceeded: {
+			PhaseRollbackPriorRuntimeStartStarted,
+		},
+		PhaseRollbackPriorRuntimeStartStarted: {
+			PhaseRollbackPriorRuntimeStartSucceeded,
+		},
+		PhaseRollbackPriorRuntimeStartSucceeded: {
+			PhaseRollbackPriorRuntimeVerifyStarted,
+		},
+		PhaseRollbackPriorRuntimeVerifyStarted: {
+			PhaseRollbackPriorRuntimeVerifySucceeded,
+		},
+		PhaseRollbackPriorRuntimeVerifySucceeded: {PhaseRollbackSucceeded},
 	}
 	for _, candidate := range allowed[current] {
 		if candidate == next {
@@ -1633,6 +1726,7 @@ func allowedRestoreActivationTransition(current, next string) bool {
 func validateRestoreActivationState(record Record) error {
 	state := record.RestoreActivation
 	if state == nil ||
+		record.UpgradeDataActivation != nil ||
 		record.Checkpoint != (CheckpointAuthority{}) ||
 		record.Target != (ReleaseAuthority{}) ||
 		record.Prior != (ReleaseAuthority{}) {
