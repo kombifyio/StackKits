@@ -152,55 +152,10 @@ package foundation
 // #BackupDestination is defined once in observability.cue — the canonical
 // definition shared by #BackupConfig and #BackupDecision.
 
-// =============================================================================
-// ALERTING DECISION TREE
-// =============================================================================
-
-// #AlertingDecision provides alerting configuration with channel-specific fields
-#AlertingDecision: {
-	enabled: bool | *false
-
-	// When enabled, at least one channel must be configured
-	if enabled == true {
-		channels: [...#NotificationChannel] & [_, ...]
-	}
-}
-
-// #NotificationChannel defines a notification target with type-specific fields
-#NotificationChannel: {
-	type: "email" | "slack" | "discord" | "telegram" | "webhook" | "gotify"
-	name: string | *type
-
-	if type == "email" {
-		smtp: {
-			host: string
-			port: uint16 | *587
-			from: string
-			to: [...string] & [_, ...]
-		}
-	}
-	if type == "slack" {
-		webhookUrl: string
-		channel?:   string
-	}
-	if type == "discord" {
-		webhookUrl: string
-	}
-	if type == "telegram" {
-		botToken: string
-		chatId:   string
-	}
-	if type == "gotify" {
-		url:      string
-		token:    string
-		priority: int & >=1 & <=10 | *5
-	}
-	if type == "webhook" {
-		url:    string
-		method: "POST" | "PUT" | *"POST"
-		headers?: [string]: string
-	}
-}
+// Notification channels are defined once in observability.cue
+// (#NotificationChannelV1, consumed by #AlertingConfig receivers).
+// The former #AlertingDecision/#NotificationChannel pair
+// duplicated that vocabulary with plaintext tokens and had no consumer.
 
 // =============================================================================
 // STORAGE CONFIGURATION

@@ -420,19 +420,37 @@ package foundation
 	rules?: [...#AlertRule]
 }
 
-// #AlertReceiver defines an alert destination
-#AlertReceiver: {
-	// Receiver name
-	name: string
+// #NotificationChannelV1 defines typed alerting channels. Dedicated credential
+// fields require opaque secret:// references (Golden Rules §4.5).
+// Legacy backup channels retain their existing format until their consumers
+// migrate; this schema does not establish runtime notification delivery.
+#NotificationChannelV1: {
+	// Channel name; defaults to the type so a single channel needs no name.
+	name: string | *type
 
-	// Receiver type
-	type: "email" | "slack" | "discord" | "telegram" | "webhook" | "pagerduty"
+	type: "email" | "ntfy" | "gotify" | "slack" | "discord" | "telegram" | "webhook" | "pagerduty"
 
 	// Email configuration
 	email?: {
-		to: [...string]
+		to: [...string] & [_, ...]
 		from?:     string
 		smarthost: string
+		password?: =~"^secret://"
+	}
+
+	// ntfy configuration (self-hosted or ntfy.sh topic)
+	ntfy?: {
+		serverUrl: string | *"https://ntfy.sh"
+		topic:     string
+		token?:    =~"^secret://"
+		priority:  int & >=1 & <=5 | *3
+	}
+
+	// Gotify configuration
+	gotify?: {
+		url:      string
+		token:    =~"^secret://"
+		priority: int & >=1 & <=10 | *5
 	}
 
 	// Slack configuration
@@ -458,8 +476,28 @@ package foundation
 		url:    string
 		method: "POST" | "PUT" | *"POST"
 		headers?: [string]: string
+		// Authorization material travels as a secret reference, never inline.
+		authorization?: =~"^secret://"
 	}
+
+	// PagerDuty configuration
+	pagerduty?: {
+		routingKey: =~"^secret://"
+	}
+
+	// The type-specific block for the selected type is required.
+	if type == "email" {email: _}
+	if type == "ntfy" {ntfy: _}
+	if type == "gotify" {gotify: _}
+	if type == "slack" {slack: _}
+	if type == "discord" {discord: _}
+	if type == "telegram" {telegram: _}
+	if type == "webhook" {webhook: _}
+	if type == "pagerduty" {pagerduty: _}
 }
+
+// #AlertReceiver is an alert destination; it is the shared channel contract.
+#AlertReceiver: #NotificationChannelV1
 
 // #AlertRule defines an alerting rule
 #AlertRule: {
