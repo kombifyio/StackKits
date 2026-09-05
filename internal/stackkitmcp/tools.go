@@ -277,7 +277,7 @@ func (a *App) installPlan(ctx context.Context, req *mcp.CallToolRequest, _ struc
 }
 
 func (a *App) selfCheckPlan(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
-	serverURL := firstNonEmpty(a.opts.ServerURL, "http://localhost:8082")
+	serverURL := firstNonEmpty(a.opts.ServerURL, DefaultLocalServerURL)
 	out := map[string]any{
 		"server_url":     serverURL,
 		"status_purpose": "spec-only status; resolve-required must not be treated as operational readiness",
@@ -862,7 +862,7 @@ func (a *App) stackkitDriftV2(ctx context.Context, req *mcp.CallToolRequest, in 
 }
 
 func (a *App) serverRequest(ctx context.Context, method, path string, payload any) (*mcp.CallToolResult, any, error) {
-	base := strings.TrimRight(firstNonEmpty(a.opts.ServerURL, "http://localhost:8082"), "/")
+	base := strings.TrimRight(firstNonEmpty(a.opts.ServerURL, DefaultLocalServerURL), "/")
 	var body io.Reader
 	if payload != nil {
 		raw, _ := json.Marshal(payload)

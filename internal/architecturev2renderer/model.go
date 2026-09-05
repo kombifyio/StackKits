@@ -218,6 +218,7 @@ type rawModuleServiceEndpoint struct {
 	UpstreamProtocol        string          `json:"upstreamProtocol"`
 	TargetPort              int             `json:"targetPort"`
 	RequiredPrivilege       string          `json:"requiredPrivilege"`
+	IngressAuth             string          `json:"ingressAuth,omitempty"`
 	AllowedIngressProtocols []string        `json:"allowedIngressProtocols"`
 	AllowedExposures        []string        `json:"allowedExposures"`
 	OriginSelector          string          `json:"originSelector"`
@@ -2124,6 +2125,12 @@ func parseServiceEndpoints(values []json.RawMessage, placement rawRenderUnitPlac
 		}
 		if !oneOf(endpoint.RequiredPrivilege, "user", "admin", "identity", "secrets", "vault", "recovery") {
 			return nil, nil, fail(ErrInvalidPlan, endpointPath+".requiredPrivilege", "unsupported service privilege %q", endpoint.RequiredPrivilege)
+		}
+		if endpoint.IngressAuth == "" {
+			endpoint.IngressAuth = "native"
+		}
+		if !oneOf(endpoint.IngressAuth, "none", "native", "forward-auth") {
+			return nil, nil, fail(ErrInvalidPlan, endpointPath+".ingressAuth", "unsupported ingress auth mode %q", endpoint.IngressAuth)
 		}
 		if err := validateUniqueEnumList(endpoint.AllowedIngressProtocols, []string{"tcp", "udp", "http", "https"}, endpointPath+".allowedIngressProtocols"); err != nil {
 			return nil, nil, err

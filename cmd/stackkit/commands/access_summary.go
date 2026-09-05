@@ -1,7 +1,11 @@
 package commands
 
 import (
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +13,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/config"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/servicecatalog"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
@@ -27,7 +32,25 @@ type accessSummary struct {
 	Services        []accessService        `json:"services"`
 	RuntimeServices []accessRuntimeService `json:"runtime_services,omitempty"`
 	SetupActions    []string               `json:"setupActions,omitempty"`
-	GeneratedAt     time.Time              `json:"generatedAt"`
+	// ClientTrust carries the workspace step-ca root identity LAN devices need
+	// to open the printed https links: the CA fingerprint to verify before
+	// trusting it, the workspace-relative certificate path to copy, per-OS
+	// enrollment guidance, and the resolver state. It is advisory manifest
+	// content, never runtime enforcement evidence, and stays absent when no
+	// local custody anchor exists.
+	ClientTrust *accessClientTrust `json:"clientTrust,omitempty"`
+	GeneratedAt time.Time          `json:"generatedAt"`
+}
+
+// accessClientTrust is the I2 client-trust handoff for one workspace.
+type accessClientTrust struct {
+	Authority       string   `json:"authority"`
+	CAFingerprint   string   `json:"caFingerprint"`
+	CAWorkspacePath string   `json:"caWorkspacePath"`
+	EnrollmentSteps []string `json:"enrollmentSteps"`
+	// Resolver stays pending until the lan-dns realization epic lands; a LAN
+	// device reaches the node only after that step plus CA enrollment.
+	Resolver string `json:"resolver"`
 }
 
 type accessRuntimeService struct {
@@ -289,6 +312,49 @@ func attachObservedSetupActions(summary *accessSummary, state *models.Deployment
 		return
 	}
 	summary.SetupActions = observedSetupActionsFromState(state)
+}
+
+// attachAccessClientTrust fills the advisory client-trust handoff from the
+// workspace step-ca root: fingerprint, certificate path, per-OS enrollment
+// guidance, and the resolver state. It never fails the manifest: without a
+// local custody anchor the section stays absent, which is the honest pending
+// state, never a pass.
+func attachAccessClientTrust(wd string, summary *accessSummary) {
+	if summary == nil {
+		return
+	}
+	raw, relPath, err := localevidence.BasementStepCARootCAPEM(wd)
+	if err != nil || len(raw) == 0 {
+		return
+	}
+	block, _ := pem.Decode(raw)
+	if block == nil || block.Type != "CERTIFICATE" {
+		return
+	}
+	certificate, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return
+	}
+	digest := sha256.Sum256(certificate.Raw)
+	groups := make([]string, 0, len(digest))
+	for _, b := range digest {
+		groups = append(groups, strings.ToUpper(hex.EncodeToString([]byte{b})))
+	}
+	summary.ClientTrust = &accessClientTrust{
+		Authority:       "step-ca basement root",
+		CAFingerprint:   "SHA256:" + strings.Join(groups, ":"),
+		CAWorkspacePath: relPath,
+		EnrollmentSteps: []string{
+			"Copy " + relPath + " to the device, then compare its SHA-256 fingerprint with the one above before trusting it.",
+			"Windows: install the certificate into Trusted Root Certification Authorities for the current user.",
+			"macOS: add it to the login keychain and set it to Always Trust.",
+			"Linux: place it under /usr/local/share/ca-certificates and run update-ca-certificates (paths vary by distribution).",
+			"iOS: install the profile, then enable full trust for it under Certificate Trust Settings.",
+			"Android: install the CA certificate, then enable it for apps under trusted credentials.",
+			"After enrollment open the printed https links; passkey registration requires that trusted secure context.",
+		},
+		Resolver: "pending:lan-dns-realization",
+	}
 }
 
 func observedSetupActionsFromState(state *models.DeploymentState) []string {

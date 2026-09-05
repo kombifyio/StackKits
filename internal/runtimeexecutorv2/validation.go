@@ -24,7 +24,7 @@ const (
 	ErrorInvalidResult    ErrorCode = "invalid_result"
 	ErrorIdentityMismatch ErrorCode = "identity_mismatch"
 	ErrorSetMismatch      ErrorCode = "set_mismatch"
-	ErrorCancelled        ErrorCode = "cancelled"
+	ErrorCancelled        ErrorCode = "cancelled" //nolint:misspell // Published error-code wire value.
 	ErrorExecutorFailed   ErrorCode = "executor_failed"
 	ErrorExecutorPanic    ErrorCode = "executor_panic"
 )

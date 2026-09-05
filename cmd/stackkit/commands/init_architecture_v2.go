@@ -146,7 +146,9 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 				}
 				printSuccess("Established owner-bound Cloud runtime custody: %s", runtimeCustody.KeyID)
 			} else {
-				runtimeCustody, err := localevidence.EstablishBasementRuntimeCustody(wd, runtimeDomain)
+				// 0 selects the kit human-issuer default from the CUE authority
+				// (basement-kit/stackfile.cue sessionTTLSeconds, currently 900).
+				runtimeCustody, err := localevidence.EstablishBasementRuntimeCustody(wd, runtimeDomain, 0)
 				if err != nil {
 					return fmt.Errorf("establish Basement runtime custody: %w", err)
 				}

@@ -197,7 +197,7 @@ func validateCloudreveRuntimeComponents(components []selectedPaaSRuntimeComponen
 func validateCloudreveServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path string) error {
 	if endpoint.ServiceRef != "files" || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != 5212 ||
 		endpoint.RequiredPrivilege != "user" || endpoint.OriginSelector != "control-authority-site" ||
-		endpoint.HealthRef != "cloudreve-http" || endpoint.Data.BindingRef != "files" ||
+		endpoint.HealthRef != "cloudreve-http" || !validBundleIngressAuthNative(endpoint.IngressAuth) || endpoint.Data.BindingRef != "files" ||
 		endpoint.Data.Locality != "primary-site" || !exactStringList(endpoint.Data.RequiredClasses, []string{"personal"}) ||
 		!exactStringList(endpoint.AllowedIngressProtocols, []string{"http", "https"}) ||
 		!sameStringSet(endpoint.AllowedExposures, []string{"local", "remote-private", "public"}) {

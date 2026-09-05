@@ -397,7 +397,7 @@ func stateConsoleResourceMeta() mcp.Meta {
 		"ui": map[string]any{
 			"prefersBorder": true,
 			"csp": map[string]any{
-				"connectDomains":  []string{"http://localhost:8082"},
+				"connectDomains":  []string{DefaultLocalServerURL},
 				"resourceDomains": []string{"https://stackkit.cc"},
 			},
 		},
@@ -406,7 +406,7 @@ func stateConsoleResourceMeta() mcp.Meta {
 		"openai/widgetAccessible":       true,
 		"openai/resultCanProduceWidget": true,
 		"openai/widgetCSP": map[string]any{
-			"connect_domains":  []string{"http://localhost:8082"},
+			"connect_domains":  []string{DefaultLocalServerURL},
 			"resource_domains": []string{"https://stackkit.cc"},
 		},
 		"openai/outputTemplate": stateConsoleResourceURI,

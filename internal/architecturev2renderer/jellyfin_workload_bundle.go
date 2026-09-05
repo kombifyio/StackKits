@@ -214,7 +214,7 @@ func validateJellyfinRuntimeComponents(components []selectedPaaSRuntimeComponent
 func validateJellyfinServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path string) error {
 	if endpoint.ServiceRef != "media" || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != 8096 ||
 		endpoint.RequiredPrivilege != "user" || endpoint.OriginSelector != "control-authority-site" ||
-		endpoint.HealthRef != "jellyfin-http" || endpoint.Data.BindingRef != "media" ||
+		endpoint.HealthRef != "jellyfin-http" || !validBundleIngressAuthNative(endpoint.IngressAuth) || endpoint.Data.BindingRef != "media" ||
 		endpoint.Data.Locality != "primary-site" || !exactStringList(endpoint.Data.RequiredClasses, []string{"personal"}) ||
 		!exactStringList(endpoint.AllowedIngressProtocols, []string{"http", "https"}) ||
 		!sameStringSet(endpoint.AllowedExposures, []string{"local", "remote-private", "public"}) {

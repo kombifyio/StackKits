@@ -14,6 +14,11 @@ import (
 //go:embed templates/*.tmpl
 var templatesFS embed.FS
 
+const (
+	scaffoldReferenceRoutedBaseURL = "http://localhost:8899"
+	scaffoldReferenceTraefikAPI    = "http://localhost:19099"
+)
+
 // Render turns validated facts into the module's artifacts, keyed by path
 // relative to the module directory. Output is deterministic: same facts →
 // byte-identical files (gate G0).
@@ -268,8 +273,8 @@ func buildRenderModel(f *Facts) *renderModel {
 	rm.SecurityContainers = strings.Join(security, " ")
 	rm.ReadonlyContainers = strings.Join(readonly, " ")
 	rm.Isolated = strings.Join(isolated, " ")
-	rm.RoutedBaseURL = "http://localhost:8899"
-	rm.TraefikAPI = "http://localhost:19099"
+	rm.RoutedBaseURL = scaffoldReferenceRoutedBaseURL
+	rm.TraefikAPI = scaffoldReferenceTraefikAPI
 
 	deriveComposeFields(rm)
 	return rm

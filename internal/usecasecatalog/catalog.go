@@ -48,12 +48,37 @@ type UseCaseComputeTierFit struct {
 	Notes      []string     `json:"notes,omitempty"`
 }
 
+// SettingOption is one choice of a choice-kind setting.
+type SettingOption struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Note string `json:"note,omitempty"`
+}
+
+// Setting is a decision an operator makes about a use case before install;
+// the projection of foundation.#UseCaseSetting. `Default` is a string for
+// choice and text settings and a bool for toggles, exactly as declared.
+type Setting struct {
+	ID          string          `json:"id"`
+	Name        string          `json:"name"`
+	Kind        string          `json:"kind"`
+	Group       string          `json:"group"`
+	Depth       string          `json:"depth"`
+	Help        string          `json:"help,omitempty"`
+	Options     []SettingOption `json:"options,omitempty"`
+	Default     any             `json:"default"`
+	Placeholder string          `json:"placeholder,omitempty"`
+	Realization string          `json:"realization"`
+}
+
 type UseCase struct {
 	ID           string                           `json:"id"`
 	Title        string                           `json:"title"`
 	Description  string                           `json:"description"`
 	Components   []Component                      `json:"components"`
 	ComputeTiers map[string]UseCaseComputeTierFit `json:"computeTiers,omitempty"`
+	Settings     []Setting                        `json:"settings,omitempty"`
+	Docs         string                           `json:"docs,omitempty"`
 }
 
 type ReleaseIdentity struct {
@@ -340,6 +365,8 @@ func loadSource(root string, release ReleaseIdentity) (sourceCatalog, error) {
 			NotApplicable map[string]struct {
 				Reason string `json:"reason"`
 			} `json:"notApplicable"`
+			Settings []Setting `json:"settings"`
+			Docs     string    `json:"docs"`
 		} `json:"entries"`
 	}
 	if err := loadCUE(root, "foundation", "UseCaseCatalog", &registry); err != nil {
@@ -365,7 +392,15 @@ func loadSource(root string, release ReleaseIdentity) (sourceCatalog, error) {
 			components = append(components, component)
 		}
 		sort.Slice(components, func(i, j int) bool { return components[i].ID < components[j].ID })
-		result.UseCases = append(result.UseCases, UseCase{ID: key, Title: entry.DisplayName, Description: entry.Description, Components: components})
+		settings := append([]Setting(nil), entry.Settings...)
+		seenSettings := map[string]bool{}
+		for _, setting := range settings {
+			if seenSettings[setting.ID] {
+				return sourceCatalog{}, fmt.Errorf("use case %s declares setting %q twice", key, setting.ID)
+			}
+			seenSettings[setting.ID] = true
+		}
+		result.UseCases = append(result.UseCases, UseCase{ID: key, Title: entry.DisplayName, Description: entry.Description, Components: components, Settings: settings, Docs: entry.Docs})
 		if len(entry.NotApplicable) > 0 {
 			result.NotApplicable[key] = map[string]string{}
 			for gateID, exception := range entry.NotApplicable {

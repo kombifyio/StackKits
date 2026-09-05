@@ -209,7 +209,7 @@ func (o *osStandaloneComposeWorkloadOperations) prepare(
 	if bundle.WorkloadRef != deployment.WorkloadRef || bundle.ModuleRef != deployment.ModuleRef ||
 		bundle.Release != deployment.Release || bundle.SiteRef != deployment.SiteRef ||
 		bundle.NodeRef != deployment.NodeRef || bundle.InstanceRef != deployment.InstanceRef ||
-		bundle.Route != deployment.Route {
+		normalizeApplicationDeliveryRoute(bundle.Route) != normalizeApplicationDeliveryRoute(deployment.Route) {
 		return standaloneComposeProject{}, errors.New("standalone workload bundle differs from the authorized deployment")
 	}
 	entry, ok := standaloneComposeComponent(bundle.Components, bundle.EntryComponent)
@@ -523,7 +523,17 @@ func standaloneComposeRouteLabels(route architecturev2renderer.ApplicationDelive
 			labels["traefik.http.routers."+router+".tls.certresolver"] = route.TLSIssuerRef
 		}
 	}
+	if route.IngressAuth == "forward-auth" {
+		labels["traefik.http.routers."+router+".middlewares"] = "stackkit-forward-auth@docker"
+	}
 	return labels
+}
+
+func normalizeApplicationDeliveryRoute(route architecturev2renderer.ApplicationDeliveryRouteDescriptor) architecturev2renderer.ApplicationDeliveryRouteDescriptor {
+	if route.IngressAuth == "" {
+		route.IngressAuth = "native"
+	}
+	return route
 }
 
 func standaloneComposeSecretVariable(componentID, environmentName string) string {

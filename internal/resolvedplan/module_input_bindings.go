@@ -1398,6 +1398,14 @@ func projectPublicRoute(route, pool, probe map[string]any, path string, withAuth
 		}
 		result[field] = value
 	}
+	ingressAuth, hasIngressAuth, err := optionalStringField(route, path, "ingressAuth")
+	if err != nil {
+		return nil, err
+	}
+	if !hasIngressAuth {
+		ingressAuth = "native"
+	}
+	result["ingressAuth"] = ingressAuth
 	for _, field := range []string{"host", "path"} {
 		if value, exists, err := optionalStringField(route, path, field); err != nil {
 			return nil, err

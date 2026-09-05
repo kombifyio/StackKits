@@ -172,7 +172,7 @@ func (s *Service) Realize(ctx context.Context) (Result, error) {
 		s.workspaceRoot,
 		localevidence.PocketIDOwnerEnrollment{
 			OwnerRef: owner.OwnerRef, PocketIDSubject: subject,
-			SetupURL:  "http://id." + runtimeCustody.Domain + "/setup-account?token=" + url.QueryEscape(token),
+			SetupURL:  "https://id." + runtimeCustody.Domain + "/setup-account?token=" + url.QueryEscape(token),
 			ExpiresAt: expiresAt,
 		},
 	)

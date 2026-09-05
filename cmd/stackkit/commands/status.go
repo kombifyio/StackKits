@@ -158,6 +158,7 @@ func runStatus(cmd *cobra.Command, args []string) (retErr error) {
 		printWarning("Could not build access summary: %v", accessErr)
 	} else {
 		attachObservedSetupActions(access, state)
+		attachAccessClientTrust(wd, access)
 		if err := writeAccessSummary(wd, access); err != nil {
 			printWarning("Could not write access summary: %v", err)
 		}
@@ -451,6 +452,7 @@ func populateArchitectureV2StatusRuntime(
 		FallbackChannelRef: custody.Binding.ChannelRef, AccessEvidence: access != nil,
 		RolloutEvidence: rolloutRecorder != nil || deployLog != nil,
 		Context:         options.context, HTTPProbe: options.httpProbe,
+		HTTPClient: httpProbeClientForWorkspace(wd),
 	})
 	if err != nil {
 		return err

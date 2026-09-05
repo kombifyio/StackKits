@@ -11,14 +11,13 @@ import (
 	"strings"
 )
 
-const (
-	cloudCoreProject = "stackkit-cloud-core"
-	cloudCoreService = "router"
+var (
+	dockerObjectID = regexp.MustCompile(`^[a-f0-9]{12,64}$`)
+	composeProject = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,62}$`)
+	composeService = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$`)
 )
 
-var dockerObjectID = regexp.MustCompile(`^[a-f0-9]{12,64}$`)
-
-type inspectedCloudCoreContainer struct {
+type inspectedRuntimeContainer struct {
 	Config struct {
 		Labels map[string]string `json:"Labels"`
 	} `json:"Config"`
@@ -33,26 +32,53 @@ type inspectedCloudCoreContainer struct {
 	} `json:"State"`
 }
 
-// currentCloudCoreOwnsPort admits an occupied listener only when Docker proves
-// that the exact Compose definition in this workspace created the running
-// Cloud Core router and published that port. Any missing, foreign, stale, or
-// unparseable evidence remains false and therefore fail-closed.
-func currentCloudCoreOwnsPort(ctx context.Context, workspace string, port int) bool {
+// coreRuntimeDirectories lists the private per-kit core runtime directories this
+// workspace has rendered — `.stackkit/runtime/cloud-core` for the Cloud kit,
+// `.stackkit/runtime/basement-core` for Basement, and whatever a later kit core
+// renders under the same root. The set is read from disk rather than named, so a
+// new kit core is admitted without editing this file; that is deliberate, because
+// naming one core here is what previously blocked every other kit's second Apply.
+// Application bundles under `.stackkit/runtime/applications/<name>` are not core
+// runtimes and are deliberately excluded: `applications` itself holds no
+// compose.yaml, so it never matches.
+func coreRuntimeDirectories(root string) []string {
+	entries, err := os.ReadDir(filepath.Join(root, ".stackkit", "runtime"))
+	if err != nil {
+		return nil
+	}
+	directories := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		// ReadDir reports symlinks as links rather than directories, so a
+		// symlinked runtime directory is skipped instead of followed.
+		if !entry.IsDir() {
+			continue
+		}
+		directory := filepath.Join(root, ".stackkit", "runtime", entry.Name())
+		info, err := os.Lstat(filepath.Join(directory, "compose.yaml"))
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		directories = append(directories, directory)
+	}
+	return directories
+}
+
+// currentWorkspaceOwnsPort admits an occupied listener only when Docker proves
+// that a Compose definition rendered into this workspace created the running
+// container and published that port. Ownership is derived from the container's
+// own Compose labels and then re-verified against the workspace's Compose file,
+// so no kit, project or service name is hard-coded. Any missing, foreign, stale,
+// or unparseable evidence remains false and therefore fail-closed.
+func currentWorkspaceOwnsPort(ctx context.Context, workspace string, port int) bool {
 	root, err := filepath.Abs(strings.TrimSpace(workspace))
 	if err != nil || root == "" || port < 1 || port > 65535 {
 		return false
 	}
-	runtimeDir := filepath.Join(root, ".stackkit", "runtime", "cloud-core")
-	composePath := filepath.Join(runtimeDir, "compose.yaml")
-	info, err := os.Lstat(composePath)
-	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+	directories := coreRuntimeDirectories(root)
+	if len(directories) == 0 {
 		return false
 	}
-	expectedHash, ok := currentCloudCoreConfigHash(ctx, root, runtimeDir, composePath)
-	if !ok {
-		return false
-	}
-	ids, ok := boundedDockerOutput(ctx, runtimeDir, nil, "ps", "--filter", "publish="+strconv.Itoa(port), "--format", "{{.ID}}")
+	ids, ok := boundedDockerOutput(ctx, root, nil, "ps", "--filter", "publish="+strconv.Itoa(port), "--format", "{{.ID}}")
 	if !ok {
 		return false
 	}
@@ -60,34 +86,86 @@ func currentCloudCoreOwnsPort(ctx context.Context, workspace string, port int) b
 	if len(fields) != 1 || !dockerObjectID.MatchString(fields[0]) {
 		return false
 	}
-	raw, ok := boundedDockerOutput(ctx, runtimeDir, nil, "inspect", fields[0])
+	raw, ok := boundedDockerOutput(ctx, root, nil, "inspect", fields[0])
 	if !ok {
 		return false
 	}
-	var containers []inspectedCloudCoreContainer
+	var containers []inspectedRuntimeContainer
 	if json.Unmarshal(raw, &containers) != nil || len(containers) != 1 {
 		return false
 	}
 	container := containers[0]
-	labels := container.Config.Labels
-	if !container.State.Running || labels["com.docker.compose.project"] != cloudCoreProject ||
-		labels["com.docker.compose.service"] != cloudCoreService ||
-		labels["com.docker.compose.config-hash"] != expectedHash ||
-		filepath.Clean(labels["com.docker.compose.project.config_files"]) != composePath ||
-		filepath.Clean(labels["com.docker.compose.project.working_dir"]) != runtimeDir {
+	if !container.State.Running {
 		return false
 	}
-	bindings := container.HostConfig.PortBindings[strconv.Itoa(port)+"/tcp"]
-	return len(bindings) == 1 && bindings[0].HostPort == strconv.Itoa(port) &&
-		(bindings[0].HostIP == "" || bindings[0].HostIP == "0.0.0.0")
+	labels := container.Config.Labels
+	project := labels["com.docker.compose.project"]
+	service := labels["com.docker.compose.service"]
+	if !composeProject.MatchString(project) || !composeService.MatchString(service) {
+		return false
+	}
+	runtimeDir, ok := claimedRuntimeDirectory(labels, directories)
+	if !ok {
+		return false
+	}
+	// The labels above are the container's own claim. Recomputing the hash from
+	// this workspace's Compose file for the claimed service is what turns that
+	// claim into proof: a container that did not come from this definition
+	// cannot reproduce its config hash.
+	expectedHash, ok := runtimeConfigHash(ctx, root, runtimeDir, project, service)
+	if !ok || labels["com.docker.compose.config-hash"] != expectedHash {
+		return false
+	}
+	return publishesHostPort(container, port)
 }
 
-func currentCloudCoreConfigHash(ctx context.Context, root, runtimeDir, composePath string) (string, bool) {
+// publishesHostPort proves the container publishes exactly this host port on a
+// host-wide address. PortBindings is keyed by CONTAINER port, so the host port
+// has to be read out of the binding rather than used as the lookup key —
+// matching on the key only happens to work while a service maps a port onto
+// itself, and fails closed the moment one does not.
+func publishesHostPort(container inspectedRuntimeContainer, port int) bool {
+	wanted := strconv.Itoa(port)
+	matches := 0
+	for containerPort, bindings := range container.HostConfig.PortBindings {
+		if !strings.HasSuffix(containerPort, "/tcp") {
+			continue
+		}
+		for _, binding := range bindings {
+			if binding.HostPort != wanted {
+				continue
+			}
+			if binding.HostIP != "" && binding.HostIP != "0.0.0.0" {
+				return false
+			}
+			matches++
+		}
+	}
+	return matches == 1
+}
+
+// claimedRuntimeDirectory binds the container to one of this workspace's own
+// core runtime directories. Both the working directory and the Compose file path
+// must match, so a container started from an identically named project outside
+// this workspace is rejected.
+func claimedRuntimeDirectory(labels map[string]string, directories []string) (string, bool) {
+	workingDir := filepath.Clean(labels["com.docker.compose.project.working_dir"])
+	configFiles := filepath.Clean(labels["com.docker.compose.project.config_files"])
+	for _, directory := range directories {
+		if workingDir == directory && configFiles == filepath.Join(directory, "compose.yaml") {
+			return directory, true
+		}
+	}
+	return "", false
+}
+
+func runtimeConfigHash(ctx context.Context, root, runtimeDir, project, service string) (string, bool) {
+	composePath := filepath.Join(runtimeDir, "compose.yaml")
 	environment := append(os.Environ(), "STACKKIT_CUSTODY_DIR="+filepath.Join(root, ".stackkit", "custody"))
 	raw, ok := boundedDockerOutput(ctx, runtimeDir, environment,
-		"compose", "--project-name", cloudCoreProject, "-f", composePath, "config", "--hash", cloudCoreService)
+		"compose", "--project-name", project, "-f", composePath, "config", "--hash", service)
 	fields := strings.Fields(string(raw))
-	if !ok || len(fields) != 2 || fields[0] != cloudCoreService || len(fields[1]) != 64 {
+	if !ok || len(fields) != 2 || fields[0] != service || len(fields[1]) != 64 {
 		return "", false
 	}
 	for _, value := range fields[1] {

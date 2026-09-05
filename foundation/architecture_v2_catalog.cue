@@ -1099,8 +1099,10 @@ _architectureV2Providers: list.Concat([[
 		provides: _architectureV2HomeLANDNSCapabilities
 		requires: [{id: "site-local"}, {id: "service-catalog"}]
 		supportedSiteKinds: ["home"]
-		realization: {kind: "contract"}
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-home-lan-dns-manifest"], optional: []}}
 		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "home-lan-dns-policy-contract", kind: "contract"}]
+		evidence: ["home-lan-dns-policy-contract"]
 	},
 	{
 		metadata: {id: "stackkits-home-private-remote-access", version: "1.0.0"}
@@ -2009,6 +2011,40 @@ _architectureV2HomeLANDiscoverySupport: #ModuleRealizationSupportV2 & {
 	evidence: requiredRefs: []
 }
 
+_architectureV2HomeLANDNSSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {
+		contractComplete: true
+		requiredRefs: []
+	}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit", "sites"]
+	}
+	artifacts: {
+		requiredRefs: ["home-lan-dns-policy"]
+		outputBindings: [{
+			artifactRef: "home-lan-dns-policy"
+			unitRef:     "policy-bundle"
+			outputRef:   "local/network/lan-dns-policy.json"
+		}]
+		contracts: [{
+			id:       "home-lan-dns-policy"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "policy-bundle"
+			outputRef: "local/network/lan-dns-policy.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
 _architectureV2HomeDeviceAuthoritySupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
@@ -2452,6 +2488,8 @@ _architectureV2PhotosLiteInfrastructure: #WorkloadInfrastructureV1 & {
 _basementCoreServiceEndpoints: [
 	{
 		serviceRef: "basement-hub", upstreamProtocol: "http", targetPort: 80
+		requiredPrivilege: "admin"
+		ingressAuth:       "forward-auth"
 		allowedIngressProtocols: ["http", "https"]
 		allowedExposures: ["local", "remote-private"]
 		originSelector: "control-authority-site"
@@ -2459,6 +2497,8 @@ _basementCoreServiceEndpoints: [
 	},
 	{
 		serviceRef: "id", upstreamProtocol: "http", targetPort: 1411
+		requiredPrivilege: "identity"
+		ingressAuth:       "none"
 		allowedIngressProtocols: ["http", "https"]
 		allowedExposures: ["local", "remote-private"]
 		originSelector: "control-authority-site"
@@ -2466,6 +2506,8 @@ _basementCoreServiceEndpoints: [
 	},
 	{
 		serviceRef: "auth", upstreamProtocol: "http", targetPort: 3000
+		requiredPrivilege: "identity"
+		ingressAuth:       "none"
 		allowedIngressProtocols: ["http", "https"]
 		allowedExposures: ["local", "remote-private"]
 		originSelector: "control-authority-site"
@@ -2473,6 +2515,8 @@ _basementCoreServiceEndpoints: [
 	},
 	{
 		serviceRef: "coolify", upstreamProtocol: "http", targetPort: 8080
+		requiredPrivilege: "admin"
+		ingressAuth:       "forward-auth"
 		allowedIngressProtocols: ["http", "https"]
 		allowedExposures: ["local", "remote-private"]
 		originSelector: "control-authority-site"
@@ -2511,13 +2555,17 @@ _cloudCoreServiceEndpoints: [
 	},
 ]
 
+// The router is the only host listener reachable from outside the node. Every
+// direct component listener binds to loopback: node-local consumers (Owner
+// custody, Coolify platform config, Verify probes) already address 127.0.0.1,
+// and a LAN or Internet client must traverse the router and its route policy.
 _cloudCoreRuntimeListeners: [
 	{id: "web-http", componentRef: "router", transport: "tcp", bindAddress: "0.0.0.0", port: 80, targetPort: 80, sharing: "virtual-host", listenerGroupRef: "public-web", exposure: "public", sourceServiceRefs: []},
 	{id: "web-https", componentRef: "router", transport: "tcp", bindAddress: "0.0.0.0", port: 443, targetPort: 443, sharing: "virtual-host", listenerGroupRef: "public-web", exposure: "public", sourceServiceRefs: []},
 	{id: "router-admin", componentRef: "router", transport: "tcp", bindAddress: "127.0.0.1", port: 8080, targetPort: 8080, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
-	{id: "pocketid-direct", componentRef: "pocketid", transport: "tcp", bindAddress: "0.0.0.0", port: 1411, targetPort: 1411, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
-	{id: "tinyauth-direct", componentRef: "tinyauth", transport: "tcp", bindAddress: "0.0.0.0", port: 4000, targetPort: 3000, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
-	{id: "coolify-direct", componentRef: "coolify", transport: "tcp", bindAddress: "0.0.0.0", port: 8000, targetPort: 8080, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+	{id: "pocketid-direct", componentRef: "pocketid", transport: "tcp", bindAddress: "127.0.0.1", port: 1411, targetPort: 1411, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+	{id: "tinyauth-direct", componentRef: "tinyauth", transport: "tcp", bindAddress: "127.0.0.1", port: 4000, targetPort: 3000, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+	{id: "coolify-direct", componentRef: "coolify", transport: "tcp", bindAddress: "127.0.0.1", port: 8000, targetPort: 8080, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
 ]
 
 _cloudCoreVerificationRuntimeListeners: list.Concat([_cloudCoreRuntimeListeners, [
@@ -2525,8 +2573,16 @@ _cloudCoreVerificationRuntimeListeners: list.Concat([_cloudCoreRuntimeListeners,
 ]])
 
 _basementCoreRuntimeListeners: list.Concat([_cloudCoreRuntimeListeners, [
-	{id: "step-ca-direct", componentRef: "step-ca", transport: "tcp", bindAddress: "0.0.0.0", port: 9000, targetPort: 9000, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+	{id: "step-ca-direct", componentRef: "step-ca", transport: "tcp", bindAddress: "127.0.0.1", port: 9000, targetPort: 9000, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
 ]])
+
+// Only the router may bind a host listener that another device can reach.
+// Every other core component stays on loopback; the Basement list is a
+// superset of the Cloud list, so one check covers both cores.
+_coreDirectListenersLoopbackOnly: [...("127.0.0.1")] & [
+	for listener in _basementCoreRuntimeListeners
+	if listener.componentRef != "router" {listener.bindAddress},
+]
 
 _sharedCoreServiceControls: [
 	{key: "auth", serviceRef: "auth", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["tinyauth"], allowedActions: ["start", "restart", "logs"], critical: true},
@@ -3216,7 +3272,7 @@ _architectureV2Modules: list.Concat([[
 			rendererRef:  "stackkit"
 			templateRef:  "builtin://home/access/v1.json"
 			version:      "1.0.0"
-			contractHash: "sha256:22afca6d222abf93e1454ce97ce4b1dc74326a1b6f120796da5b8ea2fbd80f76"
+			contractHash: "sha256:e1b1ce9e91127bc3ddee758fba419f77d82d48e013df151836823b4d9fafeb88"
 			publicInputRefs: ["home-access-policy"]
 			secretInputRefs: []
 			planInputRefs: []
@@ -3262,6 +3318,38 @@ _architectureV2Modules: list.Concat([[
 		realizationSupport: _architectureV2HomeLANDiscoverySupport
 		health: [{id: "home-lan-discovery-policy-contract", kind: "contract"}]
 		evidence: ["home-lan-discovery-policy-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-home-lan-dns-manifest"
+			version:     "1.0.0"
+			description: "Generation-only Home LAN DNS resolver policy; Unbound is the declared resolver with a pinned image, the executor stays pending until its own slice."
+		}
+		role:        "platform"
+		providerRef: "stackkits-home-lan-dns-contract"
+		provides:    _architectureV2HomeLANDNSCapabilities
+		supportedSiteKinds: ["home"]
+		nodeSelection: {authority: "any", controlPlaneMembers: "any"}
+		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		renderUnits: [{
+			id:           "policy-bundle"
+			kind:         "native-config"
+			rendererRef:  "stackkit"
+			templateRef:  "builtin://home/lan-dns/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:3f573cc4312c1c9f14c1bad366642d2c600298dbebf1b88fab5890f2286b596e"
+			publicInputRefs: []
+			secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "sites"]
+			outputs: ["local/network/lan-dns-policy.json"]
+			placement: {
+				scope:       "module"
+				cardinality: "single"
+			}
+		}]
+		realizationSupport: _architectureV2HomeLANDNSSupport
+		health: [{id: "home-lan-dns-policy-contract", kind: "contract"}]
+		evidence: ["home-lan-dns-policy-contract"]
 	},
 	{
 		metadata: {
@@ -3738,7 +3826,7 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "compose", kind:                                 "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core/compose/v1.yaml", version: "1.0.0"
-			contractHash: "sha256:2362c3e483760093eeebc6f1f75162cef5cd4e4292e257536651560a7c028609"
+			contractHash: "sha256:c8668463c26e91b092b5886ed77b1130d41207422f0d16f6c891399f52eb81dd"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/cloud-core/compose.yaml"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -3747,7 +3835,7 @@ _architectureV2Modules: list.Concat([[
 		}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
-			contractHash: "sha256:2362c3e483760093eeebc6f1f75162cef5cd4e4292e257536651560a7c028609"
+			contractHash: "sha256:c8668463c26e91b092b5886ed77b1130d41207422f0d16f6c891399f52eb81dd"
 			unitRefs: ["compose"], artifactRefs: ["cloud-core-compose"]
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 		}]
@@ -3950,7 +4038,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "compose", kind:                                    "compose", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash: "sha256:519e5585e2d04245781c8967733819428917e11588e2391687fe5b886e71aae4"
+				contractHash: "sha256:3a71b592b043738799233137f3bcdd15f86e4626c5b22a963e366d490d17b3fe"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/compose.yaml"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -3960,7 +4048,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:60547d2c38a46af404cf1372e28aa8230613f2884b338b6b7793308f0f71d1a3"
+				contractHash: "sha256:8ba6842fb79159aa938f1504a8f4490a1bce847689caa28f8a0b17607a1abb5a"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -3970,7 +4058,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "terramate", kind:                               "terramate", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/terramate/v1", version: "1.0.0"
-				contractHash: "sha256:6cac9e11984dca63a715d9eb886afbf96cd4bb2d210cce737468e7f2205c16d7"
+				contractHash: "sha256:da824e9d69b644f9948c40a6298056487331b077fdb626fbd0d54a4af9b800cf"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: [
 					"platform/basement-core/main.tf",
@@ -4222,7 +4310,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "compose", kind:                                         "compose", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core-lite/compose/v1.yaml", version: "1.0.0"
-				contractHash: "sha256:ad87a08fc59a84686db9160045e2e6a158b4107ff17bc9cb769e89afc00c356e"
+				contractHash: "sha256:69e4a1721d924f9b2e6c77cbfe906f9d9ce71ab183fdd3b6aaf0f2def9d1fb82"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core-lite/compose.yaml"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -4232,7 +4320,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "opentofu", kind:                                       "opentofu", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core-lite/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:b7e11c232677a50c30569345a4ded35ea52cc3cdf60c9874f0fc513ed31b6d36"
+				contractHash: "sha256:96825f0e47b33aa8a1395ea113d62f25fb5d18d96eb7701cd9a9f6253d77fd03"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core-lite/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -4242,7 +4330,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "terramate", kind:                                    "terramate", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core-lite/terramate/v1", version: "1.0.0"
-				contractHash: "sha256:6282b30a8232c76a74c562d6d7eae310e131226f8c74c846c138f3c48a2f3fc2"
+				contractHash: "sha256:2948df78f60fbafe27587f52f4f4c953c57742f525d59f5314f2da50f9263e6f"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: [
 					"platform/basement-core-lite/main.tf",
@@ -4258,21 +4346,21 @@ _architectureV2Modules: list.Concat([[
 		renderVariants: [
 			{
 				id:           "compose", target: "compose", rendererRef: "stackkit"
-				contractHash: "sha256:ad87a08fc59a84686db9160045e2e6a158b4107ff17bc9cb769e89afc00c356e"
+				contractHash: "sha256:69e4a1721d924f9b2e6c77cbfe906f9d9ce71ab183fdd3b6aaf0f2def9d1fb82"
 				unitRefs: ["compose", "source-policy"], artifactRefs: ["basement-core-lite-compose", "local-kopia-backup-source-policy-lite"]
 				publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: []
 				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
-				contractHash: "sha256:b7e11c232677a50c30569345a4ded35ea52cc3cdf60c9874f0fc513ed31b6d36"
+				contractHash: "sha256:96825f0e47b33aa8a1395ea113d62f25fb5d18d96eb7701cd9a9f6253d77fd03"
 				unitRefs: ["opentofu", "source-policy"], artifactRefs: ["basement-core-lite-opentofu", "local-kopia-backup-source-policy-lite"]
 				publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: []
 				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
-				contractHash: "sha256:6282b30a8232c76a74c562d6d7eae310e131226f8c74c846c138f3c48a2f3fc2"
+				contractHash: "sha256:2948df78f60fbafe27587f52f4f4c953c57742f525d59f5314f2da50f9263e6f"
 				unitRefs: ["terramate", "source-policy"]
 				artifactRefs: [
 					"basement-core-lite-terramate-opentofu",

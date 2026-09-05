@@ -18,7 +18,7 @@ const (
 	cloudCoreComposeOutputRef = "platform/cloud-core/compose.yaml"
 	cloudCoreRendererRef      = "stackkit"
 	cloudCoreVersion          = "1.0.0"
-	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:8|resolved-network-domain:required|resolved-subdomain-prefix:optional|runtime-listeners:catalog-bound|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-http-01|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
+	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:9|resolved-network-domain:required|resolved-subdomain-prefix:optional|runtime-listeners:catalog-bound,direct-loopback-only|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-http-01|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
 )
 
 const cloudCoreComponentsJSON = `[
@@ -85,7 +85,7 @@ services:
     mem_limit: 512m
     env_file: ["${STACKKIT_CUSTODY_DIR:?}/cloud-runtime/pocketid.env"]
     volumes: [pocketid-data:/app/data]
-    ports: ["0.0.0.0:1411:1411"]
+    ports: ["127.0.0.1:1411:1411"]
     healthcheck: {test: ["CMD", "/app/pocket-id", "healthcheck"], interval: 10s, timeout: 5s, retries: 12, start_period: 10s}
     labels:
       - traefik.enable=true
@@ -108,7 +108,7 @@ services:
     depends_on: [pocketid]
     env_file: ["${STACKKIT_CUSTODY_DIR:?}/cloud-runtime/tinyauth.env"]
     volumes: [tinyauth-data:/data]
-    ports: ["0.0.0.0:4000:3000"]
+    ports: ["127.0.0.1:4000:3000"]
     healthcheck: {test: ["CMD", "tinyauth", "healthcheck"], interval: 10s, timeout: 5s, retries: 12, start_period: 10s}
     labels:
       - traefik.enable=true
@@ -183,7 +183,7 @@ services:
       - coolify-databases:/var/www/html/storage/app/databases
       - coolify-services:/var/www/html/storage/app/services
       - coolify-backups:/var/www/html/storage/app/backups
-    ports: ["0.0.0.0:8000:8080"]
+    ports: ["127.0.0.1:8000:8080"]
     healthcheck: {test: ["CMD-SHELL", "curl --fail http://127.0.0.1:8080/api/health"], interval: 5s, timeout: 2s, retries: 12, start_period: 10s}
     labels:
       - traefik.enable=true
@@ -362,8 +362,13 @@ func (r cloudCoreRenderer) RenderUnit(ctx context.Context, unit RenderUnit) ([]U
 		"auth": {3000, "cloud-tinyauth-http"}, "coolify": {8080, "cloud-coolify-http"},
 	}
 	for _, endpoint := range endpoints {
+		ingressAuth := endpoint.IngressAuth
+		if ingressAuth == "" {
+			ingressAuth = "native"
+		}
 		want, ok := expected[endpoint.ServiceRef]
 		if !ok || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != want.port || endpoint.RequiredPrivilege != "user" ||
+			ingressAuth != "native" ||
 			endpoint.OriginSelector != "control-authority-site" || endpoint.HealthRef != want.health ||
 			!exactStringList(endpoint.AllowedIngressProtocols, []string{"http", "https"}) ||
 			!exactStringList(endpoint.AllowedExposures, []string{"public", "remote-private"}) {

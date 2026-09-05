@@ -209,7 +209,7 @@ func validateVaultwardenRuntimeComponents(components []selectedPaaSRuntimeCompon
 func validateVaultwardenServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path string) error {
 	if endpoint.ServiceRef != "vault" || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != 80 ||
 		endpoint.RequiredPrivilege != "vault" || endpoint.OriginSelector != "control-authority-site" ||
-		endpoint.HealthRef != "vaultwarden-http" || endpoint.Data.BindingRef != "vault" ||
+		endpoint.HealthRef != "vaultwarden-http" || !validBundleIngressAuthNative(endpoint.IngressAuth) || endpoint.Data.BindingRef != "vault" ||
 		endpoint.Data.Locality != "primary-site" || !exactStringList(endpoint.Data.RequiredClasses, []string{"secret"}) ||
 		!exactStringList(endpoint.AllowedIngressProtocols, []string{"http", "https"}) ||
 		!sameStringSet(endpoint.AllowedExposures, []string{"local", "remote-private", "public"}) {

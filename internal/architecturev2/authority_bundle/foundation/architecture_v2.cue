@@ -1795,6 +1795,11 @@ import (
 
 #ServiceExposureV2: "local" | "remote-private" | "public"
 
+// #IngressAuthModeV2 distinguishes browser forward-auth gating from app-native
+// client authentication. Native workloads (Photos, Vault, Media, Files) keep
+// their own login flows; platform and admin surfaces use TinyAuth forwardAuth.
+#IngressAuthModeV2: "none" | "native" | "forward-auth"
+
 #ServiceEndpointOriginSelectionV2: {
 	siteKinds: [...#SiteKind] & list.MinItems(1)
 	minSites:                int & >=1
@@ -1833,6 +1838,7 @@ import (
 	// ordinary user access. Vault and recovery surfaces therefore retain their
 	// mandatory device-bound owner step-up through compilation and publication.
 	requiredPrivilege: *"user" | "admin" | "identity" | "secrets" | "vault" | "recovery"
+	ingressAuth: *"native" | #IngressAuthModeV2
 	allowedIngressProtocols: [...#NetworkProtocol] & list.MinItems(1)
 	allowedExposures: [...#ServiceExposureV2] & list.MinItems(1)
 	originSelector:   *"single-site" | "control-authority-site" | "multi-zone" | "edge-pool"
@@ -1864,6 +1870,12 @@ import (
 	}
 	if originSelector == "single-site" || originSelector == "control-authority-site" {
 		originSelection?: _|_
+	}
+	if requiredPrivilege == "identity" {
+		ingressAuth: "none"
+	}
+	if requiredPrivilege == "admin" {
+		ingressAuth: "forward-auth"
 	}
 }
 
@@ -2086,6 +2098,7 @@ import (
 	upstreamProtocol: #NetworkProtocol
 	port:             int & >=1 & <=65535
 	targetPort:       int & >=1 & <=65535
+	ingressAuth:      *"native" | #IngressAuthModeV2
 	host?:            string & =~"^.+$"
 	path?:            string & =~"^/"
 	access: #ResolvedAccessDecisionV2 & {exposure: exposure}
@@ -4065,6 +4078,7 @@ _servicePublicationShape: {
 	upstreamProtocol: #NetworkProtocol
 	port:             int & >=1 & <=65535
 	targetPort:       int & >=1 & <=65535
+	ingressAuth:      *"native" | #IngressAuthModeV2
 	host?:            string & =~"^.+$"
 	path?:            string & =~"^/"
 	access:           #ResolvedAccessDecisionV2
@@ -4156,6 +4170,7 @@ _servicePublicationShape: {
 	upstreamProtocol: #NetworkProtocol
 	port:             int & >=1 & <=65535
 	targetPort:       int & >=1 & <=65535
+	ingressAuth:      *"native" | #IngressAuthModeV2
 	host?:            string & =~"^.+$"
 	path?:            string & =~"^/"
 	access:           #ResolvedAccessDecisionV2

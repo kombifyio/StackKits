@@ -50,6 +50,7 @@ type applicationDeliveryRoute struct {
 	HealthProbe           json.RawMessage        `json:"healthProbe"`
 	CapabilityAuthorities json.RawMessage        `json:"capabilityAuthorities"`
 	Access                json.RawMessage        `json:"access"`
+	IngressAuth           string                 `json:"ingressAuth,omitempty"`
 	TLS                   applicationDeliveryTLS `json:"tls"`
 }
 
@@ -74,6 +75,7 @@ type ApplicationDeliveryRouteDescriptor struct {
 	TLSProfileRef         string
 	TLSIssuerRef          string
 	TLSOwnerCapabilityRef string
+	IngressAuth           string
 }
 
 // ApplicationDeliveryComponentDescriptor is the complete non-secret
@@ -268,6 +270,10 @@ func validateApplicationDeliveryConfigFiles(files []selectedPaaSConfigFile, path
 }
 
 func (route applicationDeliveryRoute) descriptor() ApplicationDeliveryRouteDescriptor {
+	ingressAuth := route.IngressAuth
+	if ingressAuth == "" {
+		ingressAuth = "native"
+	}
 	return ApplicationDeliveryRouteDescriptor{
 		ID: route.ID, ServiceRef: route.ServiceRef, ModuleRef: route.ModuleRef,
 		Exposure: route.Exposure, Protocol: route.Protocol, UpstreamProtocol: route.UpstreamProtocol,
@@ -276,6 +282,7 @@ func (route applicationDeliveryRoute) descriptor() ApplicationDeliveryRouteDescr
 		TLSRequired: route.TLS.Required, TLSMode: route.TLS.Mode, TLSMinVersion: route.TLS.MinVersion,
 		TLSProfileRef: route.TLS.ProfileRef, TLSIssuerRef: route.TLS.IssuerRef,
 		TLSOwnerCapabilityRef: route.TLS.OwnerCapabilityRef,
+		IngressAuth:           ingressAuth,
 	}
 }
 
@@ -340,6 +347,13 @@ func validateParsedApplicationDeliveryRoute(
 	}
 	if route.Protocol == "https" && (!route.TLS.Required || route.TLS.Mode == "disabled") {
 		return fail(ErrInvalidPlan, path+".tls", "HTTPS route requires an enabled TLS contract")
+	}
+	ingressAuth := route.IngressAuth
+	if ingressAuth == "" {
+		ingressAuth = "native"
+	}
+	if !containsStringValue([]string{"none", "native", "forward-auth"}, ingressAuth) {
+		return fail(ErrInvalidPlan, path+".ingressAuth", "ingress auth mode is not supported")
 	}
 	for field, raw := range map[string]json.RawMessage{
 		"backendPool": route.BackendPool, "healthProbe": route.HealthProbe,

@@ -71,6 +71,7 @@ type selectedPaaSServiceEndpoint struct {
 	UpstreamProtocol        string   `json:"upstreamProtocol"`
 	TargetPort              int      `json:"targetPort"`
 	RequiredPrivilege       string   `json:"requiredPrivilege"`
+	IngressAuth             string   `json:"ingressAuth,omitempty"`
 	AllowedIngressProtocols []string `json:"allowedIngressProtocols"`
 	AllowedExposures        []string `json:"allowedExposures"`
 	OriginSelector          string   `json:"originSelector"`
@@ -334,7 +335,7 @@ func validateImmichLiteComponents(components []selectedPaaSRuntimeComponent, pat
 }
 
 func validateImmichServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path string) error {
-	if endpoint.ServiceRef != "photos" || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != 2283 || endpoint.RequiredPrivilege != "user" || endpoint.OriginSelector != "control-authority-site" || endpoint.HealthRef != "immich-http" || endpoint.Data.BindingRef != "photos" || endpoint.Data.Locality != "primary-site" || !exactStringList(endpoint.Data.RequiredClasses, []string{"personal"}) || !exactStringList(endpoint.AllowedIngressProtocols, []string{"http", "https"}) || !sameStringSet(endpoint.AllowedExposures, []string{"local", "remote-private", "public"}) {
+	if endpoint.ServiceRef != "photos" || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != 2283 || endpoint.RequiredPrivilege != "user" || endpoint.OriginSelector != "control-authority-site" || endpoint.HealthRef != "immich-http" || !validBundleIngressAuthNative(endpoint.IngressAuth) || endpoint.Data.BindingRef != "photos" || endpoint.Data.Locality != "primary-site" || !exactStringList(endpoint.Data.RequiredClasses, []string{"personal"}) || !exactStringList(endpoint.AllowedIngressProtocols, []string{"http", "https"}) || !sameStringSet(endpoint.AllowedExposures, []string{"local", "remote-private", "public"}) {
 		return fail(ErrInvalidPlan, path, "photos route authority differs from the governed Immich endpoint")
 	}
 	return nil
@@ -378,4 +379,13 @@ func sameStringSet(left, right []string) bool {
 	sort.Strings(left)
 	sort.Strings(right)
 	return reflect.DeepEqual(left, right)
+}
+
+// validBundleIngressAuthNative admits the governed application ingress mode:
+// every catalog application endpoint (photos, files, vault, media,
+// smart-home) keeps app-native authentication for native clients, so the
+// bundle route is native or carries the CUE default. Platform and admin
+// surfaces use forward-auth through the delivery route instead.
+func validBundleIngressAuthNative(value string) bool {
+	return value == "" || value == "native"
 }

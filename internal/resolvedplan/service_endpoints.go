@@ -18,6 +18,7 @@ type resolvedServiceEndpoint struct {
 	upstreamProtocol        string
 	targetPort              int
 	requiredPrivilege       string
+	ingressAuth             string
 	allowedIngressProtocols []string
 	allowedExposures        []string
 	originSelector          string
@@ -132,6 +133,16 @@ func indexResolvedServiceEndpoints(modules []any) (resolvedServiceEndpointIndex,
 				if !hasRequiredPrivilege {
 					requiredPrivilege = "user"
 				}
+				ingressAuth, hasIngressAuth, err := optionalStringField(endpoint, endpointPath, "ingressAuth")
+				if err != nil {
+					return nil, err
+				}
+				if !hasIngressAuth {
+					ingressAuth = "native"
+				}
+				if !contains([]string{"none", "native", "forward-auth"}, ingressAuth) {
+					return nil, fail(ErrContractConflict, endpointPath+".ingressAuth", "ingress auth mode %q is not supported", ingressAuth)
+				}
 				allowedExposures, err := stringListField(endpoint, endpointPath, "allowedExposures", true)
 				if err != nil {
 					return nil, err
@@ -170,7 +181,7 @@ func indexResolvedServiceEndpoints(modules []any) (resolvedServiceEndpointIndex,
 				}
 				result[moduleID][serviceRef] = resolvedServiceEndpoint{
 					moduleRef: moduleID, unitRef: unitID, serviceRef: serviceRef,
-					upstreamProtocol: upstreamProtocol, targetPort: targetPort, requiredPrivilege: requiredPrivilege,
+					upstreamProtocol: upstreamProtocol, targetPort: targetPort, requiredPrivilege: requiredPrivilege, ingressAuth: ingressAuth,
 					allowedIngressProtocols: sortStringsUnique(allowedIngressProtocols), allowedExposures: sortStringsUnique(allowedExposures),
 					originSelector: originSelector, originSelection: originSelection, healthRef: healthRef, data: dataRequirement,
 					siteRefs: sortStringsUnique(siteRefs), nodeRefs: sortStringsUnique(nodeRefs), instanceRefs: sortStringsUnique(instanceRefs), instanceSites: instanceSites, instanceNodes: instanceNodes,
@@ -575,8 +586,17 @@ func validateResolvedRouteEndpoint(route map[string]any, routePath string, endpo
 	if err != nil {
 		return err
 	}
-	if upstreamProtocol != endpoint.upstreamProtocol || !contains(endpoint.allowedIngressProtocols, protocol) || targetPort != endpoint.targetPort || !contains(endpoint.allowedExposures, exposure) {
-		return fmt.Errorf("%s is not the exact catalog-owned service endpoint protocol, target port, and exposure projection", routePath)
+	ingressAuth, hasIngressAuth, err := optionalStringField(route, routePath, "ingressAuth")
+	if err != nil {
+		return err
+	}
+	if !hasIngressAuth {
+		ingressAuth = "native"
+	}
+	if upstreamProtocol != endpoint.upstreamProtocol || !contains(endpoint.allowedIngressProtocols, protocol) ||
+		targetPort != endpoint.targetPort || !contains(endpoint.allowedExposures, exposure) ||
+		ingressAuth != endpoint.ingressAuth {
+		return fmt.Errorf("%s is not the exact catalog-owned service endpoint protocol, target port, exposure, and ingress auth projection", routePath)
 	}
 	access, err := objectField(route, routePath, "access")
 	if err != nil {

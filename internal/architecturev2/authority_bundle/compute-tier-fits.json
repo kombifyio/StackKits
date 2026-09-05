@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:45532676ab16244da51f7c2eec8717d29359ba48532a7e88772af29460f86460",
+  "contentDigest": "sha256:840cbedbfdba0ea92b661557cb8b0cc815f067df115a63878daa319f471e308a",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -34,6 +34,62 @@
       },
       "description": "Private AI workloads, local model serving, and user-facing AI workbench intent.",
       "id": "ai",
+      "settings": [
+        {
+          "default": "cpu",
+          "depth": "summary",
+          "group": "hardware",
+          "help": "Local models run far faster on a GPU.",
+          "id": "accelerator",
+          "kind": "choice",
+          "name": "Accelerator",
+          "options": [
+            {
+              "id": "cpu",
+              "name": "CPU only",
+              "note": "Works everywhere; small models only"
+            },
+            {
+              "id": "nvidia",
+              "name": "NVIDIA GPU",
+              "note": "Needs the NVIDIA container runtime on the Node"
+            },
+            {
+              "id": "amd",
+              "name": "AMD GPU",
+              "note": "ROCm-capable card required"
+            }
+          ],
+          "realization": "recorded"
+        },
+        {
+          "default": "small",
+          "depth": "advanced",
+          "group": "features",
+          "help": "Larger models answer better and need more memory.",
+          "id": "model-size",
+          "kind": "choice",
+          "name": "Model size",
+          "options": [
+            {
+              "id": "small",
+              "name": "Small",
+              "note": "Around 4 GB of memory"
+            },
+            {
+              "id": "medium",
+              "name": "Medium",
+              "note": "Around 8 GB of memory"
+            },
+            {
+              "id": "large",
+              "name": "Large",
+              "note": "16 GB of memory or more"
+            }
+          ],
+          "realization": "recorded"
+        }
+      ],
       "title": "Private AI"
     },
     {
@@ -61,6 +117,18 @@
       },
       "description": "Private source control, developer collaboration, and delivery-platform intent.",
       "id": "dev",
+      "settings": [
+        {
+          "default": false,
+          "depth": "summary",
+          "group": "features",
+          "help": "Run build and test pipelines on this Node.",
+          "id": "ci-runners",
+          "kind": "toggle",
+          "name": "CI runners",
+          "realization": "recorded"
+        }
+      ],
       "title": "Developer Platform"
     },
     {
@@ -132,7 +200,32 @@
         }
       },
       "description": "Private file storage, sharing, collaboration, and document-management workflows.",
+      "docs": "/guides/stackkits/use-cases/private-file-library",
       "id": "files",
+      "settings": [
+        {
+          "default": "kit-storage",
+          "depth": "advanced",
+          "group": "storage",
+          "help": "A dedicated disk keeps your files off the system disk.",
+          "id": "library-volume",
+          "kind": "choice",
+          "name": "Where files are stored",
+          "options": [
+            {
+              "id": "kit-storage",
+              "name": "Kit storage",
+              "note": "Shared data volume of this StackKit"
+            },
+            {
+              "id": "dedicated-disk",
+              "name": "Dedicated disk",
+              "note": "An extra disk on the Node, just for files"
+            }
+          ],
+          "realization": "recorded"
+        }
+      ],
       "title": "File Storage and Documents"
     },
     {
@@ -187,6 +280,19 @@
       },
       "description": "Private mail delivery, mailbox, and communication intent.",
       "id": "mail",
+      "settings": [
+        {
+          "default": "",
+          "depth": "summary",
+          "group": "access",
+          "help": "The domain your addresses end in, e.g. example.com. You need to own it.",
+          "id": "mail-domain",
+          "kind": "text",
+          "name": "Mail domain",
+          "placeholder": "example.com",
+          "realization": "recorded"
+        }
+      ],
       "title": "Private Mail"
     },
     {
@@ -238,6 +344,57 @@
       },
       "description": "Private media library and streaming intent for household media collections.",
       "id": "media",
+      "settings": [
+        {
+          "default": "auto",
+          "depth": "summary",
+          "group": "hardware",
+          "help": "Use the Node's GPU to convert video for phones and TVs.",
+          "id": "hardware-transcoding",
+          "kind": "choice",
+          "name": "Hardware transcoding",
+          "options": [
+            {
+              "id": "auto",
+              "name": "Automatic",
+              "note": "Use a GPU when the Node has one"
+            },
+            {
+              "id": "off",
+              "name": "Off",
+              "note": "Software only; fine for one stream at a time"
+            },
+            {
+              "id": "on",
+              "name": "Always",
+              "note": "Requires a supported GPU"
+            }
+          ],
+          "realization": "recorded"
+        },
+        {
+          "default": "kit-storage",
+          "depth": "advanced",
+          "group": "storage",
+          "help": "A dedicated disk keeps a large library off the system disk.",
+          "id": "library-volume",
+          "kind": "choice",
+          "name": "Where media is stored",
+          "options": [
+            {
+              "id": "kit-storage",
+              "name": "Kit storage",
+              "note": "Shared data volume of this StackKit"
+            },
+            {
+              "id": "dedicated-disk",
+              "name": "Dedicated disk",
+              "note": "An extra disk on the Node, just for media"
+            }
+          ],
+          "realization": "recorded"
+        }
+      ],
       "title": "Media Library"
     },
     {
@@ -305,7 +462,42 @@
         }
       },
       "description": "Family photo and video vault with mobile backup, search, and shared memories.",
+      "docs": "/guides/stackkits/use-cases/family-photo-vault",
       "id": "photos",
+      "settings": [
+        {
+          "default": true,
+          "depth": "summary",
+          "group": "features",
+          "help": "Recognise faces and search photos by what is in them. Needs more memory on the Node.",
+          "id": "machine-learning",
+          "kind": "toggle",
+          "name": "Smart search and faces",
+          "realization": "recorded"
+        },
+        {
+          "default": "kit-storage",
+          "depth": "advanced",
+          "group": "storage",
+          "help": "A dedicated disk keeps a growing library off the system disk.",
+          "id": "library-volume",
+          "kind": "choice",
+          "name": "Where photos are stored",
+          "options": [
+            {
+              "id": "kit-storage",
+              "name": "Kit storage",
+              "note": "Shared data volume of this StackKit"
+            },
+            {
+              "id": "dedicated-disk",
+              "name": "Dedicated disk",
+              "note": "An extra disk on the Node, just for photos"
+            }
+          ],
+          "realization": "recorded"
+        }
+      ],
       "title": "Photos and Memories"
     },
     {
@@ -397,6 +589,28 @@
       },
       "description": "Home automation centered on Home Assistant, native product interfaces, and optional local device adjacency.",
       "id": "smart-home",
+      "settings": [
+        {
+          "default": true,
+          "depth": "summary",
+          "group": "hardware",
+          "help": "Let Home Assistant use a Zigbee, Z-Wave or other USB stick plugged into this Node.",
+          "id": "device-passthrough",
+          "kind": "toggle",
+          "name": "USB devices",
+          "realization": "recorded"
+        },
+        {
+          "default": true,
+          "depth": "advanced",
+          "group": "access",
+          "help": "Discover lights, speakers and hubs on the home network automatically.",
+          "id": "network-discovery",
+          "kind": "toggle",
+          "name": "Find devices on your network",
+          "realization": "recorded"
+        }
+      ],
       "title": "Smart Home"
     },
     {
@@ -460,6 +674,18 @@
       },
       "description": "Private password and secure-note vault with owner-controlled lifecycle and recovery.",
       "id": "vault",
+      "settings": [
+        {
+          "default": false,
+          "depth": "advanced",
+          "group": "access",
+          "help": "Let people create their own vault account. Off means the owner invites them.",
+          "id": "open-signups",
+          "kind": "toggle",
+          "name": "Open sign-ups",
+          "realization": "recorded"
+        }
+      ],
       "title": "Password Vault"
     }
   ]

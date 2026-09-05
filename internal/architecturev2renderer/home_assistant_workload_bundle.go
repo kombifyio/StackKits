@@ -262,7 +262,7 @@ func validateHomeAssistantConfigFiles(files []selectedPaaSConfigFile, path strin
 func validateHomeAssistantServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path string) error {
 	if endpoint.ServiceRef != "smart-home" || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != 8123 ||
 		endpoint.RequiredPrivilege != "user" || endpoint.OriginSelector != "control-authority-site" ||
-		endpoint.HealthRef != "home-assistant-http" || endpoint.Data.BindingRef != "smart-home" ||
+		endpoint.HealthRef != "home-assistant-http" || !validBundleIngressAuthNative(endpoint.IngressAuth) || endpoint.Data.BindingRef != "smart-home" ||
 		endpoint.Data.Locality != "primary-site" || !exactStringList(endpoint.Data.RequiredClasses, []string{"personal"}) ||
 		!exactStringList(endpoint.AllowedIngressProtocols, []string{"http", "https"}) ||
 		!sameStringSet(endpoint.AllowedExposures, []string{"local", "remote-private", "public"}) {

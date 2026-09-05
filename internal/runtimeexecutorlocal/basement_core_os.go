@@ -140,7 +140,11 @@ func (o *osBasementCoreOperations) ApplyProject(ctx context.Context, project Bas
 	if err != nil {
 		return BasementCoreApplyObservation{}, err
 	}
-	if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), o.environment()); err != nil {
+	environment, err := o.environment()
+	if err != nil {
+		return BasementCoreApplyObservation{}, err
+	}
+	if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), environment); err != nil {
 		return BasementCoreApplyObservation{}, fmt.Errorf("local Docker Compose Apply did not complete: %w", err)
 	}
 	binding, err := o.ownerIdentity.Realize(ctx)
@@ -150,7 +154,7 @@ func (o *osBasementCoreOperations) ApplyProject(ctx context.Context, project Bas
 	// Owner realization creates the exact PocketID OIDC client and installs its
 	// one-time secret as a private optional env override. Reconcile Compose once
 	// more so TinyAuth runs with that bound credential before Apply can succeed.
-	if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), o.environment()); err != nil {
+	if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), environment); err != nil {
 		return BasementCoreApplyObservation{}, fmt.Errorf("local TinyAuth PocketID binding did not complete: %w", err)
 	}
 	return BasementCoreApplyObservation{
@@ -180,7 +184,11 @@ func (o *osBasementCoreOperations) VerifyProject(ctx context.Context, project Ba
 			project.ProjectRef, "runtime-compose-changed", nil,
 		)
 	}
-	raw, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "ps"), filepath.Dir(composePath), o.environment())
+	environment, err := o.environment()
+	if err != nil {
+		return BasementCoreVerifyObservation{}, err
+	}
+	raw, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "ps"), filepath.Dir(composePath), environment)
 	if err != nil {
 		if isBasementCoreContextTermination(err) {
 			return BasementCoreVerifyObservation{}, err
@@ -330,11 +338,20 @@ func (o *osBasementCoreOperations) persistCompose(project BasementCoreProject) (
 	return target, nil
 }
 
-func (o *osBasementCoreOperations) environment() []string {
+func (o *osBasementCoreOperations) environment() ([]string, error) {
+	owner, err := localevidence.LoadOwnerCustody(o.workspaceRoot)
+	if err != nil {
+		return nil, fmt.Errorf("resolve stackkit owner email for Compose interpolation: %w", err)
+	}
+	email := strings.TrimSpace(owner.PocketID.Email)
+	if email == "" {
+		return nil, errors.New("owner custody carries no contact email for Compose interpolation")
+	}
 	return []string{
 		"LANG=C", "LC_ALL=C",
 		"STACKKIT_CUSTODY_DIR=" + filepath.Join(o.workspaceRoot, ".stackkit", "custody"),
-	}
+		"STACKKIT_OWNER_EMAIL=" + email,
+	}, nil
 }
 
 func basementCoreComposeArgs(composePath, operation string) []string {

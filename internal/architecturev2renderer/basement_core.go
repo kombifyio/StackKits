@@ -29,8 +29,8 @@ const (
 	basementCoreVersion     = "1.0.0"
 )
 
-const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:17|resolved-network-domain:required|runtime-listeners:catalog-bound|services:router,socket-proxy,pocketid,tinyauth,step-ca,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
-const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:17|resolved-network-domain:required|runtime-listeners:catalog-bound|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
+const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:21|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only|services:router,socket-proxy,pocketid,tinyauth,step-ca,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
+const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:21|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
 
 // basementCoreComponentsJSON is the closed component graph accepted by both
 // target-specific renderers. It mirrors the CUE catalog and intentionally
@@ -89,6 +89,18 @@ services:
       - --providers.docker.exposedbydefault=false
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --certificatesresolvers.stackkits.acme.caserver=https://step-ca:9000/acme/acme/directory
+      # Resolved from owner custody by the runtime executor; never a placeholder.
+      - --certificatesresolvers.stackkits.acme.email=${STACKKIT_OWNER_EMAIL:?}
+      - --certificatesresolvers.stackkits.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.stackkits.acme.httpchallenge=true
+      - --certificatesresolvers.stackkits.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.stackkits.acme.caCertificates=/step-ca/root.crt
+    volumes:
+      - ${STACKKIT_CUSTODY_DIR:?}/basement-runtime/step-ca/certs/root_ca.crt:/step-ca/root.crt:ro
+      - basement-tls-acme:/letsencrypt
     ports: ["0.0.0.0:80:80", "0.0.0.0:443:443", "127.0.0.1:8080:8080"]
     healthcheck:
       test: ["CMD", "traefik", "healthcheck", "--ping"]
@@ -109,7 +121,7 @@ services:
     mem_limit: 512m
     env_file: ["${STACKKIT_CUSTODY_DIR:?}/basement-runtime/pocketid.env"]
     volumes: [pocketid-data:/app/data]
-    ports: ["0.0.0.0:1411:1411"]
+    ports: ["127.0.0.1:1411:1411"]
     healthcheck:
       test: ["CMD", "/app/pocket-id", "healthcheck"]
       interval: 10s
@@ -119,6 +131,9 @@ services:
     labels:
       - traefik.enable=true
       - traefik.http.routers.pocketid.rule=Host(` + "`id.{{STACKKIT_DOMAIN}}`" + `)
+      - traefik.http.routers.pocketid.entrypoints=websecure
+      - traefik.http.routers.pocketid.tls=true
+      - traefik.http.routers.pocketid.tls.certresolver=stackkits
       - traefik.http.services.pocketid.loadbalancer.server.port=1411
     networks: [basement-core]
   tinyauth:
@@ -136,8 +151,14 @@ services:
       - path: "${STACKKIT_CUSTODY_DIR:?}/basement-runtime/tinyauth.env"
       - path: "${STACKKIT_CUSTODY_DIR:?}/tinyauth-pocketid/tinyauth.env"
         required: false
-    volumes: [tinyauth-data:/data]
-    ports: ["0.0.0.0:4000:3000"]
+    environment:
+      # Go honors SSL_CERT_FILE, so provider TLS verifies against the kit
+      # step-ca root alongside the system pool.
+      - SSL_CERT_FILE=/step-ca/root.crt
+    volumes:
+      - tinyauth-data:/data
+      - ${STACKKIT_CUSTODY_DIR:?}/basement-runtime/step-ca/certs/root_ca.crt:/step-ca/root.crt:ro
+    ports: ["127.0.0.1:4000:3000"]
     healthcheck:
       test: ["CMD", "tinyauth", "healthcheck"]
       interval: 10s
@@ -147,7 +168,13 @@ services:
     labels:
       - traefik.enable=true
       - traefik.http.routers.tinyauth.rule=Host(` + "`auth.{{STACKKIT_DOMAIN}}`" + `)
+      - traefik.http.routers.tinyauth.entrypoints=websecure
+      - traefik.http.routers.tinyauth.tls=true
+      - traefik.http.routers.tinyauth.tls.certresolver=stackkits
       - traefik.http.services.tinyauth.loadbalancer.server.port=3000
+      - traefik.http.middlewares.stackkit-forward-auth.forwardauth.address=http://tinyauth:3000/api/auth/traefik
+      - traefik.http.middlewares.stackkit-forward-auth.forwardauth.trustForwardHeader=true
+      - traefik.http.middlewares.stackkit-forward-auth.forwardauth.authResponseHeaders=remote-user,remote-sub,remote-name,remote-email,remote-groups
     networks: [basement-core]
   step-ca:
     image: smallstep/step-ca:0.30.2@sha256:a2b17872915c193259b75a5474c398326f41bd199f0842093e52cf4182bc8270
@@ -164,7 +191,7 @@ services:
     volumes:
       - ${STACKKIT_CUSTODY_DIR:?}/basement-runtime/step-ca:/home/step:ro
       - step-ca-db:/home/step/db
-    ports: ["0.0.0.0:9000:9000"]
+    ports: ["127.0.0.1:9000:9000"]
     healthcheck:
       test: ["CMD", "step-ca", "version"]
       interval: 10s
@@ -262,7 +289,7 @@ services:
       - coolify-databases:/var/www/html/storage/app/databases
       - coolify-services:/var/www/html/storage/app/services
       - coolify-backups:/var/www/html/storage/app/backups
-    ports: ["0.0.0.0:8000:8080"]
+    ports: ["127.0.0.1:8000:8080"]
     healthcheck:
       test: ["CMD-SHELL", "curl --fail http://127.0.0.1:8080/api/health"]
       interval: 5s
@@ -272,6 +299,10 @@ services:
     labels:
       - traefik.enable=true
       - traefik.http.routers.coolify.rule=Host(` + "`coolify.{{STACKKIT_DOMAIN}}`" + `)
+      - traefik.http.routers.coolify.entrypoints=websecure
+      - traefik.http.routers.coolify.tls=true
+      - traefik.http.routers.coolify.tls.certresolver=stackkits
+      - traefik.http.routers.coolify.middlewares=stackkit-forward-auth@docker
       - traefik.http.services.coolify.loadbalancer.server.port=8080
     networks: [basement-core, basement-control]
   kopia-agent:
@@ -325,7 +356,7 @@ services:
       - /bin/sh
       - -ec
       - |
-        printf '%s\n' '<!doctype html><title>StackKit Basement Hub</title><h1>StackKit Basement</h1><ul><li><a href="http://id.{{STACKKIT_DOMAIN}}">PocketID</a></li><li><a href="http://auth.{{STACKKIT_DOMAIN}}">TinyAuth</a></li><li><a href="http://coolify.{{STACKKIT_DOMAIN}}">Coolify</a></li></ul>' > /usr/share/nginx/html/index.html
+        printf '%s\n' '<!doctype html><title>StackKit Basement Hub</title><h1>StackKit Basement</h1><ul><li><a href="https://id.{{STACKKIT_DOMAIN}}">PocketID</a></li><li><a href="https://auth.{{STACKKIT_DOMAIN}}">TinyAuth</a></li><li><a href="https://coolify.{{STACKKIT_DOMAIN}}">Coolify</a></li></ul>' > /usr/share/nginx/html/index.html
         printf '%s\n' '{"status":"ok","service":"basement-hub"}' > /usr/share/nginx/html/healthz
         printf '%s\n' '{"apiVersion":"stackkit.service-verification/v1","status":"pending","authority":"stackkit verify"}' > /usr/share/nginx/html/verification
         exec nginx -g 'daemon off;'
@@ -333,6 +364,10 @@ services:
       - traefik.enable=true
       - traefik.http.routers.hub.rule=PathPrefix(` + "`/`" + `)
       - traefik.http.routers.hub.priority=1
+      - traefik.http.routers.hub.entrypoints=websecure
+      - traefik.http.routers.hub.tls=true
+      - traefik.http.routers.hub.tls.certresolver=stackkits
+      - traefik.http.routers.hub.middlewares=stackkit-forward-auth@docker
       - traefik.http.services.hub.loadbalancer.server.port=80
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz | grep '\"status\":\"ok\"'"]
@@ -366,6 +401,7 @@ volumes:
   kopia-config: {}
   kopia-cache: {}
   kopia-restore-staging: {}
+  basement-tls-acme: {}
 `
 
 type basementCoreRenderer struct {
@@ -376,8 +412,10 @@ type basementCoreRenderer struct {
 }
 
 type closedLocalCoreEndpoint struct {
-	port      int
-	healthRef string
+	port        int
+	healthRef   string
+	privilege   string
+	ingressAuth string
 }
 
 type closedLocalCoreProfile struct {
@@ -399,10 +437,10 @@ func basementClosedLocalCoreProfile() closedLocalCoreProfile {
 		imageDigest:    "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f",
 		entryComponent: "coolify", componentsJSON: basementCoreComponentsJSON,
 		serviceEndpoints: map[string]closedLocalCoreEndpoint{
-			"basement-hub": {port: 80, healthRef: "basement-hub-http"},
-			"id":           {port: 1411, healthRef: "pocketid-http"},
-			"auth":         {port: 3000, healthRef: "tinyauth-http"},
-			"coolify":      {port: 8080, healthRef: "coolify-http"},
+			"basement-hub": {port: 80, healthRef: "basement-hub-http", privilege: "admin", ingressAuth: "forward-auth"},
+			"id":           {port: 1411, healthRef: "pocketid-http", privilege: "identity", ingressAuth: "none"},
+			"auth":         {port: 3000, healthRef: "tinyauth-http", privilege: "identity", ingressAuth: "none"},
+			"coolify":      {port: 8080, healthRef: "coolify-http", privilege: "admin", ingressAuth: "forward-auth"},
 		},
 		renderCompose: func(domain string) []byte { return RenderBasementCoreComposeForDomain(domain) },
 	}
@@ -603,9 +641,14 @@ func validateClosedLocalCoreUnitOutputs(unit RenderUnit, contract RendererContra
 		expectedEndpoints[ref] = endpoint
 	}
 	for _, endpoint := range endpoints {
+		ingressAuth := endpoint.IngressAuth
+		if ingressAuth == "" {
+			ingressAuth = "native"
+		}
 		expected, ok := expectedEndpoints[endpoint.ServiceRef]
 		if !ok || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != expected.port ||
-			endpoint.RequiredPrivilege != "user" || endpoint.OriginSelector != "control-authority-site" ||
+			endpoint.RequiredPrivilege != expected.privilege || ingressAuth != expected.ingressAuth ||
+			endpoint.OriginSelector != "control-authority-site" ||
 			endpoint.HealthRef != expected.healthRef ||
 			!exactStringList(endpoint.AllowedIngressProtocols, []string{"http", "https"}) ||
 			!exactStringList(endpoint.AllowedExposures, []string{"local", "remote-private"}) {

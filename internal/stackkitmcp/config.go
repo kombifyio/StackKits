@@ -20,7 +20,7 @@ func (o Options) normalized() Options {
 	if len(o.Modes) == 0 {
 		o.Modes = ParseModes("docs")
 	}
-	o.ServerURL = strings.TrimRight(FirstNonEmpty(o.ServerURL, "http://localhost:8082"), "/")
+	o.ServerURL = strings.TrimRight(FirstNonEmpty(o.ServerURL, DefaultLocalServerURL), "/")
 	o.Transport = strings.ToLower(strings.TrimSpace(FirstNonEmpty(o.Transport, "stdio")))
 	o.MCPToken = strings.TrimSpace(o.MCPToken)
 	o.APIKey = strings.TrimSpace(o.APIKey)

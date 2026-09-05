@@ -108,7 +108,6 @@
     ],
     "optional": [
       "lan-discovery",
-      "lan-dns",
       "internal-pki",
       "private-remote-access",
       "public-publish-egress",
@@ -136,6 +135,7 @@
       "site-local",
       "local-ingress",
       "lan-access-policy",
+      "lan-dns",
       "device-enrollment-home",
       "local-control-authority",
       "offline-autonomy",

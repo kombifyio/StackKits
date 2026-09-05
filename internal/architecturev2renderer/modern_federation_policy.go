@@ -63,6 +63,21 @@ func init() {
 		}
 		return validateHomeLANDiscoveryPlanInputsForKit(inputs, raw, path, true)
 	})
+	registerHomeLANDNSKitPlanValidator("modern-homelab", func(inputs homeLANDNSPlanInputs, raw []byte, path string) ([]string, error) {
+		homeSites, cloudSites := 0, 0
+		for _, site := range inputs.Sites {
+			if site.Kind == "home" {
+				homeSites++
+			}
+			if site.Kind == "cloud" {
+				cloudSites++
+			}
+		}
+		if homeSites == 0 || cloudSites == 0 {
+			return nil, fail(ErrInvalidPlan, path+".sites", "private hybrid LAN-DNS composition requires explicit Home and Cloud Sites")
+		}
+		return validateHomeLANDNSPlanInputsForKit(inputs, raw, path, true)
+	})
 	registerProductRegistryExtension(func(registry *Registry) error {
 		renderer := newModernFederationPolicyRenderer()
 		return registry.Register(renderer.contract, renderer)

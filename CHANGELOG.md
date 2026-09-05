@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Use-case catalog: `#UseCaseSetting` declares what an operator decides per
+  use case before install (kind, group, depth, help, options, default,
+  realization), and `docs` names the guide on docs.kombify.io. The release
+  projection `stackkits-use-case-catalog-v1.json` carries both; consumers
+  derive the backend alternative and compute profile from `components` and
+  `computeTiers` as before.
+
 - StackKits WebMCP v2alpha1 and `https://stackkit.cc/planner`: four read-only,
   schema-first module-profile/catalog/capacity/handoff tools share one visible
   Planner state and CUE-derived public catalog. The handoff projects
@@ -42,6 +49,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Basement and Cloud core runtimes declare minimum attested CPU/RAM/disk; empty inventory no longer silently admits Product Apply.
 - Failed Product Apply (human and `--json`) ends with retry/`status`/`logs` guidance and the Run-ID when a local run exists.
 - `base-install.sh` and `cloud-install.sh` resume apply on an existing workspace instead of dying.
+
+### Fixed
+
+- Public release lane: the governed go-common projection now pins v0.4.49
+  (sum, origin hash and the three projected files that changed since
+  v0.4.40), matching `go.mod` since #865. Every public sync since that bump
+  had failed at "source go.mod does not contain the governed go-common pin".
+
 
 ## [0.24.2](https://github.com/kombifyio/stackKits/compare/v0.23.0...v0.24.2) (2026-09-02)
 

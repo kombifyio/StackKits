@@ -158,7 +158,12 @@ func buildArchitectureV2AccessSummaryFromCanonical(canonical []byte, binding arc
 	}
 
 	protocol := "http"
-	if projection.Network.Configuration.TLS.DefaultMode == "public" || models.IsKombifyMeDomain(domain) {
+	// Post-I1 the router serves application routes websecure-only (web
+	// redirects to websecure) with step-ca certificates for the internal TLS
+	// mode and a public CA for the public mode, so printed links must be the
+	// secure-context URLs: WebAuthn/passkey registration refuses plain http
+	// from another LAN device. Only an explicit TLS-off plan stays http.
+	if mode := strings.TrimSpace(projection.Network.Configuration.TLS.DefaultMode); mode == "internal" || mode == "public" || models.IsKombifyMeDomain(domain) {
 		protocol = "https"
 	}
 	summary := &accessSummary{

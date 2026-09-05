@@ -37,6 +37,10 @@ const (
 	initialAccessCredentialBoundary = "Bootstrap/service setup credentials; Owner login stays PocketID passkey."
 
 	immichPocketIDClientID = "stackkit-immich"
+
+	// baseHubHostNetworkTraefikAuthURL is loopback-only forwardAuth for Base Hub
+	// when TinyAuth runs on the host network stack (not bridge).
+	baseHubHostNetworkTraefikAuthURL = "http://127.0.0.1:3004/api/auth/traefik"
 )
 
 type pocketIDUser struct {
@@ -763,7 +767,7 @@ func baseHubProtectionDynamicConfig(networkMode string, protected bool) string {
 	}
 	address := "http://tinyauth:3000/api/auth/traefik"
 	if strings.EqualFold(strings.TrimSpace(networkMode), "host") {
-		address = "http://127.0.0.1:3004/api/auth/traefik"
+		address = baseHubHostNetworkTraefikAuthURL
 	}
 	return fmt.Sprintf(`http:
   middlewares:

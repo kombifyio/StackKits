@@ -104,6 +104,7 @@ Definition: foundation.#ProductKitDefinition & {
 			"site-local",
 			"local-ingress",
 			"lan-access-policy",
+			"lan-dns",
 			"device-enrollment-home",
 			"local-control-authority",
 			"offline-autonomy",
@@ -113,7 +114,6 @@ Definition: foundation.#ProductKitDefinition & {
 		defaults: []
 		optional: [
 			"lan-discovery",
-			"lan-dns",
 			"internal-pki",
 			"private-remote-access",
 			"public-publish-egress",
@@ -349,6 +349,13 @@ Definition: foundation.#ProductKitDefinition & {
 				localIdentityAuthorityAvailable: true
 				maxStaleVerificationSeconds:     0
 				denyNewCrossSiteSessions:        true
+			}
+			access: {
+				"home-private": {
+					exposure:       "private"
+					authentication: "human"
+					privilege:      "user"
+				}
 			}
 			data: defaultAuthority: "home"
 		}

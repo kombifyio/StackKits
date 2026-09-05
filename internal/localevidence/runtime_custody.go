@@ -27,6 +27,7 @@ import (
 
 const (
 	BasementRuntimeCustodyAPIVersion = "stackkit.basement-runtime-custody/v3"
+	defaultBasementSessionTTLSeconds = 900
 	basementRuntimeCustodyRelDir     = ".stackkit/custody/basement-runtime"
 	basementRuntimeManifestRelPath   = "manifest.json"
 )
@@ -72,7 +73,18 @@ type BasementRuntimeCustody struct {
 // EstablishBasementRuntimeCustody creates the service runtime bundle exactly
 // once. A complete bundle is installed by one directory rename; a preexisting
 // incomplete or modified bundle is rejected instead of repaired or rotated.
-func EstablishBasementRuntimeCustody(workspaceRoot, domain string) (BasementRuntimeCustody, error) {
+// sessionTTLSeconds selects TinyAuth session expiry; non-positive values use
+// the Basement kit human-issuer default (900 in
+// basement-kit/stackfile.cue home-human-credential-issuer sessionTTLSeconds).
+// The 60..86400 range is owned by foundation/architecture_v2.cue
+// sessionTTLSeconds; this default must stay in sync with the CUE authority.
+func EstablishBasementRuntimeCustody(workspaceRoot, domain string, sessionTTLSeconds int) (BasementRuntimeCustody, error) {
+	if sessionTTLSeconds <= 0 {
+		sessionTTLSeconds = defaultBasementSessionTTLSeconds
+	}
+	if sessionTTLSeconds < 60 || sessionTTLSeconds > 86400 {
+		return BasementRuntimeCustody{}, errors.New("localevidence: Basement runtime custody requires a session TTL between 60 and 86400 seconds")
+	}
 	domain = strings.TrimSpace(strings.ToLower(domain))
 	if !validBasementRuntimeDomain(domain) {
 		return BasementRuntimeCustody{}, errors.New("localevidence: Basement runtime custody requires a canonical domain")
@@ -119,7 +131,7 @@ func EstablishBasementRuntimeCustody(workspaceRoot, domain string) (BasementRunt
 		return BasementRuntimeCustody{}, fmt.Errorf("localevidence: restrict Basement runtime custody transaction: %w", err)
 	}
 
-	files, err := buildBasementRuntimeFiles(workspaceRoot, owner, domain)
+	files, err := buildBasementRuntimeFiles(workspaceRoot, owner, domain, sessionTTLSeconds)
 	if err != nil {
 		return BasementRuntimeCustody{}, err
 	}
@@ -229,7 +241,30 @@ func LoadBasementRuntimeCustody(workspaceRoot string) (BasementRuntimeCustody, e
 	return record, nil
 }
 
-func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain string) (map[string][]byte, error) {
+// BasementStepCARootCAPEM loads the established step-ca root certificate PEM
+// from Basement runtime custody for use as a trust anchor only: TLS client
+// verification and enrollment fingerprint display. The private root key never
+// leaves custody. It also returns the workspace-relative certificate path for
+// user-facing client enrollment guidance.
+func BasementStepCARootCAPEM(workspaceRoot string) (certificate []byte, relPath string, err error) {
+	path, err := confinedCustodyPath(workspaceRoot, basementRuntimeCustodyRelDir+"/step-ca/certs/root_ca.crt")
+	if err != nil {
+		return nil, "", err
+	}
+	raw, err := os.ReadFile(path) //nolint:gosec // fixed path below explicit workspace
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, "", ErrBasementRuntimeCustodyMissing
+	}
+	if err != nil {
+		return nil, "", fmt.Errorf("localevidence: read step-ca root certificate: %w", err)
+	}
+	if _, err := parseCertificatePEM(string(raw), "step-ca root"); err != nil {
+		return nil, "", err
+	}
+	return raw, filepath.ToSlash(filepath.Join(basementRuntimeCustodyRelDir, "step-ca", "certs", "root_ca.crt")), nil
+}
+
+func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain string, sessionTTLSeconds int) (map[string][]byte, error) {
 	rootPrivate, err := loadStepCARootKey(workspaceRoot)
 	if err != nil {
 		return nil, fmt.Errorf("localevidence: load established step-ca root key for runtime intermediate: %w", err)
@@ -281,7 +316,7 @@ func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain 
 	if err != nil {
 		return nil, fmt.Errorf("localevidence: encrypt step-ca runtime intermediate key: %w", err)
 	}
-	environments, err := basementRuntimeEnvironments(owner, domain)
+	environments, err := basementRuntimeEnvironments(owner, domain, sessionTTLSeconds)
 	if err != nil {
 		return nil, err
 	}
@@ -313,7 +348,7 @@ func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain 
 	return files, nil
 }
 
-func basementRuntimeEnvironments(owner OwnerCustody, domain string) (map[string][]byte, error) {
+func basementRuntimeEnvironments(owner OwnerCustody, domain string, sessionTTLSeconds int) (map[string][]byte, error) {
 	encryptionKey, err := randomRuntimeSecret(32, base64.StdEncoding)
 	if err != nil {
 		return nil, err
@@ -350,7 +385,7 @@ func basementRuntimeEnvironments(owner OwnerCustody, domain string) (map[string]
 	}
 	return map[string][]byte{
 		"pocketid.env": encode(
-			"APP_URL=http://id."+domain,
+			"APP_URL=https://id."+domain,
 			"ENCRYPTION_KEY="+encryptionKey,
 			"STATIC_API_KEY="+staticAPIKey,
 			"TRUST_PROXY=true",
@@ -358,19 +393,26 @@ func basementRuntimeEnvironments(owner OwnerCustody, domain string) (map[string]
 			"ANALYTICS_DISABLED=true",
 		),
 		"tinyauth.env": encode(
-			"TINYAUTH_APPURL=http://auth."+domain,
+			"TINYAUTH_APPURL=https://auth."+domain,
+			"TINYAUTH_AUTH_SESSIONEXPIRY="+fmt.Sprintf("%d", sessionTTLSeconds),
+			// The router serves application routes websecure-only and redirects
+			// web to websecure, so the browser session cookie must carry the
+			// Secure flag; container-internal service traffic is unaffected.
+			"TINYAUTH_AUTH_SECURECOOKIE=true",
 			"TINYAUTH_DATABASE_PATH=/data/tinyauth.db",
-			"TINYAUTH_AUTH_SECURECOOKIE=false",
 			"TINYAUTH_ANALYTICS_ENABLED=false",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTID=stackkit-tinyauth",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTSECRET="+tinyAuthBootstrapSecret,
-			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL=http://id."+domain+"/authorize",
+			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL=https://id."+domain+"/authorize",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_TOKENURL=http://pocketid:1411/api/oidc/token",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_USERINFOURL=http://pocketid:1411/api/oidc/userinfo",
-			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_REDIRECTURL=http://auth."+domain+"/api/oauth/callback/pocketid",
+			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_REDIRECTURL=https://auth."+domain+"/api/oauth/callback/pocketid",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_SCOPES=openid email profile groups",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_NAME=Pocket ID",
-			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_INSECURE=true",
+			// Provider TLS is verified: server-side provider endpoints are
+			// container-local http (no TLS to skip), and the step-ca root is
+			// mounted into TinyAuth with SSL_CERT_FILE for any TLS endpoint.
+			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_INSECURE=false",
 			"TINYAUTH_OAUTH_AUTOREDIRECT=pocketid",
 			"TINYAUTH_OAUTH_WHITELIST="+owner.PocketID.Email,
 		),

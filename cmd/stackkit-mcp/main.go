@@ -22,7 +22,7 @@ var (
 
 func main() {
 	modeFlag := flag.String("mode", "docs", "comma-separated modes: docs,local,server,actions")
-	serverURL := flag.String("server-url", stackkitmcp.FirstNonEmpty(os.Getenv("STACKKITS_SERVER_URL"), "http://localhost:8082"), "stackkit-server URL")
+	serverURL := flag.String("server-url", stackkitmcp.FirstNonEmpty(os.Getenv("STACKKITS_SERVER_URL"), stackkitmcp.DefaultLocalServerURL), "stackkit-server URL")
 	apiKey := flag.String("api-key", "", "stackkit-server API key")
 	transport := flag.String("transport", "stdio", "transport: stdio or http")
 	addr := flag.String("addr", "127.0.0.1:8091", "HTTP listen address when --transport=http")

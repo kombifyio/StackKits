@@ -837,6 +837,7 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 			CloudVerify:        cloudVerify,
 			Context:            verifyContext,
 			HTTPProbe:          options.httpProbe,
+			HTTPClient:         httpProbeClientForWorkspace(wd),
 		})
 		if observationErr != nil {
 			return observationErr
@@ -929,6 +930,7 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 			persistedResult.ResultPath, now().UTC(), err,
 		)
 	}
+	attachAccessClientTrust(wd, access)
 	if err := writeAccessSummary(wd, access); err != nil {
 		return requireArchitectureV2ApplicationLifecycleRecovery(
 			wd, lifecycleRuns, "Product Apply completed but its service access manifest could not be persisted",

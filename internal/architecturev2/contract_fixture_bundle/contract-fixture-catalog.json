@@ -358,6 +358,20 @@
         "resolved-plan-contract"
       ],
       "metadata": {
+        "description": "Home-site Architecture v2 contract for lan-dns.",
+        "id": "lan-dns",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home"
+      ]
+    },
+    {
+      "evidence": [
+        "resolved-plan-contract"
+      ],
+      "metadata": {
         "description": "Basement-owned Compose rollout contract; it is not inferred from a home site or legacy context.",
         "id": "basement-compose-runtime",
         "layer": "platform",
@@ -676,6 +690,18 @@
         "siteKind": "cloud"
       },
       {
+        "capability": "lan-dns",
+        "matches": [
+          "fixture-basement-provider"
+        ],
+        "siteKind": "home"
+      },
+      {
+        "capability": "lan-dns",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
         "capability": "basement-compose-runtime",
         "matches": [
           "fixture-basement-provider"
@@ -823,6 +849,13 @@
         "module": "fixture-http-consumer"
       },
       {
+        "capability": "lan-dns",
+        "matches": [
+          "lan-dns"
+        ],
+        "module": "fixture-http-consumer"
+      },
+      {
         "capability": "device-enrollment-home",
         "matches": [
           "device-enrollment-home"
@@ -919,6 +952,7 @@
             "lan-discovery",
             "local-ingress",
             "lan-access-policy",
+            "lan-dns",
             "device-enrollment-home",
             "local-control-authority",
             "offline-autonomy",
@@ -1061,6 +1095,13 @@
         "capability": "lan-access-policy",
         "matches": [
           "lan-access-policy"
+        ],
+        "provider": "fixture-basement-provider"
+      },
+      {
+        "capability": "lan-dns",
+        "matches": [
+          "lan-dns"
         ],
         "provider": "fixture-basement-provider"
       },
@@ -1378,6 +1419,7 @@
         "lan-discovery",
         "local-ingress",
         "lan-access-policy",
+        "lan-dns",
         "device-enrollment-home",
         "local-control-authority",
         "offline-autonomy",
@@ -1486,6 +1528,7 @@
                 "http"
               ],
               "healthRef": "fixture-http-consumer-contract",
+              "ingressAuth": "native",
               "originSelector": "single-site",
               "requiredPrivilege": "user",
               "serviceRef": "fixture-dashboard",
@@ -1581,6 +1624,7 @@
         "lan-discovery",
         "local-ingress",
         "lan-access-policy",
+        "lan-dns",
         "device-enrollment-home",
         "local-control-authority",
         "offline-autonomy",

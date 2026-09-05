@@ -86,6 +86,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(homeLANDiscovery.contract, homeLANDiscovery); err != nil {
 		return nil, err
 	}
+	homeLANDNS := newHomeLANDNSPolicyRenderer()
+	if err := registry.Register(homeLANDNS.contract, homeLANDNS); err != nil {
+		return nil, err
+	}
 	homeDeviceAuthority := newHomeDeviceAuthorityPolicyRenderer()
 	if err := registry.Register(homeDeviceAuthority.contract, homeDeviceAuthority); err != nil {
 		return nil, err

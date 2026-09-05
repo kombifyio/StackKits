@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/stackkitmcp"
 	"github.com/kombifyio/stackkits/internal/standaloneoperations"
 	"github.com/spf13/cobra"
 )
@@ -244,14 +245,14 @@ func init() {
 	agentInstallPlanCmd.Flags().StringVar(&agentWorkspace, "dir", "my-homelab", "Workspace directory")
 
 	agentSelfCheckCmd.Flags().BoolVar(&agentSelfCheckJSON, "json", false, "Emit JSON")
-	agentSelfCheckCmd.Flags().StringVar(&agentServerURL, "server-url", "http://localhost:8082", "stackkit-server URL")
+	agentSelfCheckCmd.Flags().StringVar(&agentServerURL, "server-url", stackkitmcp.DefaultLocalServerURL, "stackkit-server URL")
 
 	agentPromptCmd.Flags().BoolVar(&agentPromptJSON, "json", false, "Emit JSON")
 	agentPromptCmd.Flags().BoolVar(&agentPromptList, "list", false, "List available prompt scenarios")
 
 	agentMCPConfigCmd.Flags().StringVar(&agentClient, "client", "generic", "Client format: generic, codex, or claude")
 	agentMCPConfigCmd.Flags().StringVar(&agentMode, "mode", "docs,local,server", "MCP modes")
-	agentMCPConfigCmd.Flags().StringVar(&agentServerURL, "server-url", "http://localhost:8082", "stackkit-server URL")
+	agentMCPConfigCmd.Flags().StringVar(&agentServerURL, "server-url", stackkitmcp.DefaultLocalServerURL, "stackkit-server URL")
 }
 
 func buildAgentInstallPlan(kit, target, workspace string) agentInstallPlan {

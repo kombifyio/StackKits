@@ -22,7 +22,7 @@ const (
 	homeAccessPolicyToken       = "@@POLICY@@"
 )
 
-const homeAccessPolicyTemplate = `{"apiVersion":"stackkit.home-access-policy/v1","kind":"HomeAccessPolicy","contract":{"capabilities":["lan-access-policy","local-ingress"],"defaultDecision":"deny","discovery":"not-included","ingressEnforcement":"unverified","runtimeEnforcement":"unverified","scope":"generation-only"},"policy":@@POLICY@@}
+const homeAccessPolicyTemplate = `{"apiVersion":"stackkit.home-access-policy/v1","kind":"HomeAccessPolicy","contract":{"capabilities":["lan-access-policy","local-ingress"],"defaultDecision":"deny","discovery":"not-included","ingressEnforcement":"bound","runtimeEnforcement":"bound","scope":"generation-only"},"policy":@@POLICY@@}
 `
 
 var (
@@ -201,8 +201,11 @@ type homeAccessPolicyArtifact struct {
 
 // ValidateHomeAccessPolicyArtifact validates the exact generated policy bytes
 // before they cross into a runtime adapter and returns a defensive projection.
-// The generation-only markers are required: the artifact is policy input, not
-// evidence that an enforcer already exists or ran.
+// bound/bound with scope generation-only means compiler-bound generation from
+// the CUE-owned localReachability projection: the policy is fail-closed and
+// derived, not hand-authored. It is not live target proof; the SK-S1 producer
+// run (anonymous 302, LAN 80/443 only, phone passkey) is still required to
+// close the v0.25.0 exit gate.
 func ValidateHomeAccessPolicyArtifact(raw []byte) (HomeAccessEnforcementPolicy, error) {
 	var document homeAccessPolicyArtifact
 	if err := decodeStrict(raw, &document); err != nil {
@@ -211,7 +214,7 @@ func ValidateHomeAccessPolicyArtifact(raw []byte) (HomeAccessEnforcementPolicy, 
 	if document.APIVersion != "stackkit.home-access-policy/v1" || document.Kind != "HomeAccessPolicy" ||
 		!slices.Equal(document.Contract.Capabilities, []string{"lan-access-policy", "local-ingress"}) ||
 		document.Contract.DefaultDecision != "deny" || document.Contract.Discovery != "not-included" ||
-		document.Contract.IngressEnforcement != "unverified" || document.Contract.RuntimeEnforcement != "unverified" ||
+		document.Contract.IngressEnforcement != "bound" || document.Contract.RuntimeEnforcement != "bound" ||
 		document.Contract.Scope != "generation-only" {
 		return HomeAccessEnforcementPolicy{}, fail(ErrInvalidPlan, "homeAccessPolicy.contract", "artifact widens or fabricates the generation-only Home access contract")
 	}

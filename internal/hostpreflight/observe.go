@@ -321,7 +321,7 @@ func observePorts(ctx context.Context, workspace string, ports []int) []PortFact
 		if err != nil {
 			fact.InUse = true
 			fact.Detail = boundedDiagnostic(err.Error())
-			fact.OwnedByCurrentRuntime = currentCloudCoreOwnsPort(ctx, workspace, port)
+			fact.OwnedByCurrentRuntime = currentWorkspaceOwnsPort(ctx, workspace, port)
 		} else {
 			_ = listener.Close()
 		}

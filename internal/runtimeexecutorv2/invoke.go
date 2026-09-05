@@ -29,7 +29,7 @@ func InvokeAt(ctx context.Context, executor Executor, request ExecutionRequest, 
 		return ExecutionResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return ExecutionResult{}, wrapError(ErrorCancelled, "context", "cancelled before execution", err)
+		return ExecutionResult{}, wrapError(ErrorCancelled, "context", "canceled before execution", err)
 	}
 	identity, err := safeIdentity(executor)
 	if err != nil {
@@ -46,7 +46,7 @@ func InvokeAt(ctx context.Context, executor Executor, request ExecutionRequest, 
 		return ExecutionResult{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return ExecutionResult{}, wrapError(ErrorCancelled, "context", "cancelled during execution", err)
+		return ExecutionResult{}, wrapError(ErrorCancelled, "context", "canceled during execution", err)
 	}
 	if err := validateExactOutcome(request, outcome); err != nil {
 		return ExecutionResult{}, err

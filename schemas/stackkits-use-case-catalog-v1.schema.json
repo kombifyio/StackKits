@@ -70,6 +70,33 @@
         "notes": { "type": "array", "items": { "type": "string", "minLength": 1 } }
       }
     },
+    "useCaseSettingOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+        "name": { "type": "string", "minLength": 1 },
+        "note": { "type": "string", "minLength": 1 }
+      }
+    },
+    "useCaseSetting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "kind", "group", "depth", "default", "realization"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+        "name": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "enum": ["choice", "toggle", "text"] },
+        "group": { "type": "string", "enum": ["backend", "profile", "storage", "hardware", "access", "features"] },
+        "depth": { "type": "string", "enum": ["summary", "advanced"] },
+        "help": { "type": "string", "minLength": 1 },
+        "options": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/useCaseSettingOption" } },
+        "default": { "type": ["string", "boolean"] },
+        "placeholder": { "type": "string" },
+        "realization": { "type": "string", "enum": ["install", "recorded"] }
+      }
+    },
     "useCase": {
       "type": "object",
       "additionalProperties": false,
@@ -88,7 +115,9 @@
             "standard": { "$ref": "#/$defs/useCaseComputeTierFit" },
             "high": { "$ref": "#/$defs/useCaseComputeTierFit" }
           }
-        }
+        },
+        "settings": { "type": "array", "items": { "$ref": "#/$defs/useCaseSetting" } },
+        "docs": { "type": "string", "pattern": "^/[a-z0-9/-]+$" }
       }
     }
   }

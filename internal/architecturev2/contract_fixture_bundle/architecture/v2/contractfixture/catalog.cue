@@ -113,6 +113,7 @@ _architectureV2ContractFixtureRequiredCapabilities: list.Concat([foundation.#Com
 	"lan-discovery",
 	"local-ingress",
 	"lan-access-policy",
+	"lan-dns",
 	"device-enrollment-home",
 	"local-control-authority",
 	"offline-autonomy",

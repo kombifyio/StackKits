@@ -100,7 +100,7 @@ type FailureCode string
 
 const (
 	FailureExecutorFailed     FailureCode = "executor-failed"
-	FailureCancelled          FailureCode = "cancelled"
+	FailureCancelled          FailureCode = "cancelled" //nolint:misspell // Published failure-code wire value.
 	FailureVerificationFailed FailureCode = "verification-failed"
 )
 

@@ -82,7 +82,10 @@ func EstablishCloudRuntimeCustody(workspaceRoot, domain string) (CloudRuntimeCus
 		return CloudRuntimeCustody{}, fmt.Errorf("localevidence: restrict Cloud runtime custody transaction: %w", err)
 	}
 
-	files, err := basementRuntimeEnvironments(owner, domain)
+	// The shared default matches both kit human-issuer authorities
+	// (basement-kit and cloud-kit stackfile.cue sessionTTLSeconds 900); a
+	// future per-kit TTL resolution threads the exact issuer value through.
+	files, err := basementRuntimeEnvironments(owner, domain, defaultBasementSessionTTLSeconds)
 	if err != nil {
 		return CloudRuntimeCustody{}, err
 	}

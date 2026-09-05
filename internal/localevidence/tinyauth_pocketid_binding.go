@@ -25,7 +25,7 @@ const (
 )
 
 func TinyAuthPocketIDCallbackURL(domain string) string {
-	return "http://auth." + domain + "/api/oauth/callback/pocketid"
+	return "https://auth." + domain + "/api/oauth/callback/pocketid"
 }
 
 var ErrTinyAuthPocketIDBindingMissing = errors.New("localevidence: no TinyAuth PocketID binding")
@@ -234,13 +234,14 @@ func renderTinyAuthPocketIDEnvironment(domain, email, clientID, clientSecret str
 	return []byte(strings.Join([]string{
 		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTID=" + clientID,
 		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTSECRET=" + clientSecret,
-		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL=http://id." + domain + "/authorize",
+		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL=https://id." + domain + "/authorize",
 		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_TOKENURL=http://pocketid:1411/api/oidc/token",
 		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_USERINFOURL=http://pocketid:1411/api/oidc/userinfo",
 		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_REDIRECTURL=" + TinyAuthPocketIDCallbackURL(domain),
 		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_SCOPES=openid email profile groups",
 		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_NAME=Pocket ID",
-		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_INSECURE=true",
+		// See runtime_custody.go: provider TLS is verified, never skipped.
+		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_INSECURE=false",
 		"TINYAUTH_OAUTH_AUTOREDIRECT=pocketid",
 		"TINYAUTH_OAUTH_WHITELIST=" + email,
 	}, "\n") + "\n")
