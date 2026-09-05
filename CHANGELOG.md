@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Fixed
+
+- Cloud public-edge executor contracts preserve the canonical `ingressAuth`
+  route policy through strict decoding and the runtime policy digest. Native
+  application authentication no longer blocks Cloud Kit generation; unknown
+  modes remain invalid and omitted modes retain the CUE `native` default.
+
 ### Added
 
 - Use-case catalog: `#UseCaseSetting` declares what an operator decides per
@@ -51,6 +58,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `base-install.sh` and `cloud-install.sh` resume apply on an existing workspace instead of dying.
 
 ### Fixed
+
+- Basement mode verification now reports standard placement, bootstrapped
+  install, and local context as awaiting current runtime evidence. The historical
+  SK-S1 citation no longer implies current-line support proof; the implemented
+  paths remain available with the existing mode-matrix warnings.
 
 - Public release lane: the governed go-common projection now pins v0.4.49
   (sum, origin hash and the three projected files that changed since

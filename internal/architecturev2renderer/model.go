@@ -305,6 +305,7 @@ type rawServiceEndpointOriginSelectionV2 struct {
 }
 
 type rawPublicServiceRouteV4 struct {
+	IngressAuth           string                                `json:"ingressAuth"`
 	ID                    string                                `json:"id"`
 	ServiceRef            string                                `json:"serviceRef"`
 	ModuleRef             string                                `json:"moduleRef"`
@@ -1885,6 +1886,9 @@ func validatePublicServiceRouteListV4(raw json.RawMessage, valuePath string) err
 		var route rawPublicServiceRouteV4
 		if err := decodeStrict(value, &route); err != nil {
 			return wrap(ErrInvalidPlan, path, "decode public service route v4", err)
+		}
+		if route.IngressAuth != "" && !oneOf(route.IngressAuth, "none", "native", "forward-auth") {
+			return fail(ErrInvalidPlan, path+".ingressAuth", "unsupported ingress auth mode %q", route.IngressAuth)
 		}
 		if _, duplicate := seenRoutes[route.ID]; duplicate {
 			return fail(ErrDuplicate, path+".id", "duplicate public route %q", route.ID)

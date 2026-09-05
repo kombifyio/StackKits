@@ -1099,6 +1099,7 @@ type cloudPublicEdgeExecutorPlan struct {
 func (cloudPublicEdgeExecutorPlan) executorContractPlanMarker() {}
 
 type CloudPublicEdgeRoute struct {
+	IngressAuth           string                               `json:"ingressAuth"`
 	ID                    string                               `json:"id"`
 	ServiceRef            string                               `json:"serviceRef"`
 	ModuleRef             string                               `json:"moduleRef"`
@@ -2626,6 +2627,11 @@ func decodeCloudRuntimeExecutorPlan(raw []byte, path string, spec executorContra
 		var exact cloudPublicEdgeExecutorPlan
 		if err := decodeStrict(raw, &exact); err != nil {
 			return nil, wrap(ErrInvalidPlan, path, "decode exact Cloud public-edge executor contract", err)
+		}
+		for index := range exact.PublicEdge.Routes {
+			if exact.PublicEdge.Routes[index].IngressAuth == "" {
+				exact.PublicEdge.Routes[index].IngressAuth = "native"
+			}
 		}
 		if err := validateExecutorContractPlanCommon(exact.StackID, exact.Kit, exact.Sites, exact.ModuleTargets, exact.ModuleCapabilities, exact.ControlPlane, spec, path); err != nil {
 			return nil, err

@@ -16,22 +16,23 @@ modeMatrix: foundation.#KitModeSupport & {
 		// Resolver + capability bindings are live (sqlite/local-fs/...), but the
 		// local-only Tier-3 E2E cell is still open (kombify-StackKits-vwe.12).
 		"local-only": "scaffolding"
-		// SK-S1 browser-evidence gate passed 2026-06-12 (standard+cloudless).
-		standard: "supported"
+		// The historical SK-S1 run predates the current runtime. Current-line
+		// evidence from the external producer remains pending.
+		standard: "scaffolding"
 	}
 
 	install: {
 		// Composes and generates; no automated verification cell yet.
 		bare: "scaffolding"
-		// SK-S1 runs the bootstrapped path end-to-end.
-		bootstrapped: "supported"
+		// Implemented; the current released-archive lifecycle is not yet proven.
+		bootstrapped: "scaffolding"
 		// Advanced now means the Terramate Plus lifecycle contract, but the
 		// full Advanced E2E cell is still open.
 		advanced: "scaffolding"
 	}
 
 	context: {
-		local: "supported"
+		local: "scaffolding"
 		// SK-S2/SK-S3 live infrastructure is open (kombify-StackKits-4c3).
 		cloud: "unsupported"
 		pi:    "scaffolding"
@@ -44,5 +45,5 @@ modeMatrix: foundation.#KitModeSupport & {
 		dockge:  "experimental"
 	}
 
-	evidence: ["SK-S1"]
+	evidence: []
 }
