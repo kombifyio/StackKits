@@ -88,7 +88,7 @@ Examples:
   stackkit init basement-kit --use-case-alternative basement-core=standalone-lite --module-compute-profile stackkits-basement-core-lite-runtime=low
   stackkit init basement-kit --api-version stackkit/v2alpha1 --compute-tier standard
   stackkit init ./basement-kit          v0.6 compatibility only: local definition path
-  stackkit init --non-interactive       Initialize basement-kit with CUE defaults`,
+  stackkit init basement-kit --use-case-alternative basement-core=standalone --module-compute-profile stackkits-basement-core-runtime=standard --owner-source=local --non-interactive`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runInit,
 }
