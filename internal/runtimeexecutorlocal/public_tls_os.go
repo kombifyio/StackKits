@@ -502,13 +502,16 @@ func (p *traefikPublicTLSProbe) verifyHTTPS(ctx context.Context, route architect
 	}
 	defer func() { _ = response.Body.Close() }()
 	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 64<<10))
-	if response.StatusCode >= http.StatusInternalServerError || response.TLS == nil || len(response.TLS.PeerCertificates) == 0 {
-		return publicTLSRouteObservation{}, errors.New("declared HTTPS route did not return a healthy TLS certificate")
+	if response.StatusCode >= http.StatusInternalServerError {
+		return publicTLSRouteObservation{}, fmt.Errorf("declared HTTPS route %q at https://%s returned HTTP %d", route.ID, address, response.StatusCode)
+	}
+	if response.TLS == nil || len(response.TLS.PeerCertificates) == 0 {
+		return publicTLSRouteObservation{}, fmt.Errorf("declared HTTPS route %q at https://%s returned no TLS certificate", route.ID, address)
 	}
 	certificate := response.TLS.PeerCertificates[0]
 	now := p.now().UTC()
 	if now.IsZero() || certificate.NotBefore.After(now) || !certificate.NotAfter.After(now) {
-		return publicTLSRouteObservation{}, errors.New("declared HTTPS route certificate is not currently valid")
+		return publicTLSRouteObservation{}, fmt.Errorf("declared HTTPS route %q at https://%s certificate is not currently valid", route.ID, address)
 	}
 	fingerprint := sha256.Sum256(certificate.Raw)
 	return publicTLSRouteObservation{RouteRef: route.ID, ValidUntil: certificate.NotAfter.UTC(), CertificateID: "sha256:" + hex.EncodeToString(fingerprint[:])}, nil
