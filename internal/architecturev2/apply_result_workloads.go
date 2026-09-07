@@ -1,10 +1,11 @@
 package architecturev2
 
 import (
-	"reflect"
+	"bytes"
 	"sort"
 
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )
 
 func projectAppliedWorkloadIdentities(requirements generationartifact.ApplyRequirements, artifactDigests map[string]string) ([]AppliedWorkloadIdentity, error) {
@@ -125,5 +126,12 @@ func cloneAppliedWorkloadIdentities(input []AppliedWorkloadIdentity) []AppliedWo
 }
 
 func equalAppliedWorkloadIdentities(left, right []AppliedWorkloadIdentity) bool {
-	return reflect.DeepEqual(left, right)
+	// Persistence canonicalizes artifact sets independently of projection order.
+	// Compare the same canonical identities without discarding any binding fields.
+	leftCanonical, err := resolvedplan.CanonicalJSON(left)
+	if err != nil {
+		return false
+	}
+	rightCanonical, err := resolvedplan.CanonicalJSON(right)
+	return err == nil && bytes.Equal(leftCanonical, rightCanonical)
 }
