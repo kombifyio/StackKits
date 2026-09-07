@@ -1,12 +1,20 @@
 # StackKits
 
 StackKits is an open-source infrastructure blueprint system for self-hosted
-homelab and small-server deployments. The `stackkit` CLI turns a declarative
-`stack-spec.yaml` into validated Docker/OpenTofu deployment output.
+homelab and small-server deployments. **Standalone Docker Compose is the
+complete primary experience, including applications.** Standard Mode runs
+independently, without a Kombify account, Techstack, Coolify, or Komodo.
+
+The CLI is an optional user-facing interface to the same governed lifecycle,
+not a separate full edition. Komodo and Coolify are explicit opt-in
+integrations. Development proceeds from complete standalone Compose to Komodo,
+then Coolify; Dokploy remains draft. Existing explicit platform selections are
+preserved. See [the standalone decision](docs/ADR/ADR-0042-standalone-default-and-optional-platforms.md)
+for the contract and the separate runtime-evidence requirements.
 
 ## Install
 
-Basement Kit — local / homelab (stable):
+Basement Kit — local / homelab:
 
 ```sh
 curl -sSL https://base.stackkit.cc | sh
