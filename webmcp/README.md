@@ -59,7 +59,7 @@ to its same-origin public path and injects that catalog's exact `source_sha`. In
 full private checkout it can materialize a missing local v2 catalog from the OSS
 authority bundle first. The exported v1 compatibility source is
 `../data/stackkits-catalog.json` and is copied to the original v1 endpoint as
-well. It does not fetch private website source or depend on kombify Sites/Cubi.
+well. It does not fetch private website source or depend on kombify Sites or kombify Sites Framework.
 
 ## Browser integration
 

@@ -463,6 +463,9 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 				if err != nil {
 					return err
 				}
+				// Recovery must re-resolve the same generated input identity.
+				// Fresh host admission still uses the independently observed plan.
+				options.inventoryData = append([]byte(nil), stableInventory...)
 			}
 		}
 		if err := persisted.VerifyCurrentResolution(resolved.CanonicalPlan); err != nil {
