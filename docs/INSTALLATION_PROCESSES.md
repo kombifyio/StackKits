@@ -4,6 +4,12 @@
 
 This specification defines the supported ways a user or agent can install and roll out a StackKit. It separates discovery, installation, execution authority, and post-install management so agents do not confuse a read-only website surface with a target-server control surface.
 
+Standalone Compose is the complete primary experience, including applications.
+The CLI is an optional user-facing interface to the shared lifecycle, not a
+full edition. New native stacks use the CUE standalone defaults; Komodo and
+Coolify require explicit selection. See
+[ADR-0042](ADR/ADR-0042-standalone-default-and-optional-platforms.md).
+
 ## Scope
 
 This document covers StackKits OSS/S1 installation and rollout paths:
@@ -49,7 +55,8 @@ Source-of-truth rules:
 - `stack-spec.yaml` and CUE contracts are the editable contract.
 - Generated `deploy/`, OpenTofu state, `.stackkit/state.yaml`, logs, run evidence, and snapshots are outputs.
 - Agents must not hand-edit generated rollout artifacts.
-- Basement Kit is the verified beta one-click path.
+- Basement Kit is the primary standalone path; full current-release target
+  lifecycle evidence remains pending as recorded in STATUS.md.
 - Unreleased kit definitions stay outside the public beta install surface until their rollout matrices graduate.
 
 Minimum user intent:
@@ -57,7 +64,7 @@ Minimum user intent:
 | Input | Purpose | Default or current stance |
 | --- | --- | --- |
 | Owner/admin email | Bootstrap identity and technical admin material | Required for production-like or cloud/custom-domain paths; local-only can synthesize `admin@example.com` where supported |
-| StackKit | Which kit to install | `basement-kit` for verified beta |
+| StackKit | Which kit to install | `basement-kit` for the primary standalone path |
 | Install mode | Product bootstrap depth | `bootstrapped`; valid values are `bare`, `bootstrapped`, `advanced` |
 | Context | Target environment | `local`, `cloud`, or `pi` |
 | Domain strategy | Routing and user links | `home.localhost`, `kombify.me`, custom domain, or LAN DNS |
@@ -90,7 +97,7 @@ Every StackKits installation path should collect the same small set of decisions
 | Target context | Selects environment defaults, not a private-network assumption | `local`, `cloud`, `pi` |
 | Domain strategy | Determines routing, access links, and DNS/TLS evidence | browser-native `.localhost`, `kombify.me`, custom domain, LAN DNS |
 | Owner/admin email | Seeds identity, platform setup, and technical bootstrap material | operator email, tenant-provided owner, synthetic local-only email for tests |
-| PaaS/platform | Determines where StackKit-owned apps are registered | Coolify default, Komodo beta-supported, Dokploy draft |
+| Workload execution | Determines the selected workload's execution owner | Standalone Compose by default; explicit Komodo/Coolify integrations; Dokploy draft |
 | Service profile | Controls how much of the default application surface is enabled | `default`, `admin-only` |
 | Apply approval | Separates preview from mutation | explicit shell approval or MCP write gate |
 
@@ -100,16 +107,23 @@ The most important rule for agents: do not treat `P0` website/Web-MCP discovery 
 
 StackKits configuration is intentionally broad enough to support a guided agent workflow without hand-editing generated rollout files. The user-facing inputs map to `stack-spec.yaml`, CLI flags, environment variables, or `stackkit-server` settings.
 
+For new installations, use the native v2alpha2 fields and flags in
+[CONFIGURATION.md](CONFIGURATION.md#stack-spec). The older unversioned fields
+and retired v0.6 knobs below describe compatibility only: `context`, global
+`compute.tier`, `paas`, and legacy bootstrap fields must not be copied into new
+native intent. Native workload selection and resource profiles are described
+in [OPTIONS_AND_AUTHORING.md](OPTIONS_AND_AUTHORING.md).
+
 | Capability | Config surface | Notes |
 | --- | --- | --- |
 | Owner and admin intent | `adminEmail`, `owner.*`, CLI `--admin-email`, owner bootstrap flags | `adminEmail` is compatibility input; Owner fields are the stronger identity contract when present. |
-| Kit selection | `stackkit`, installer argument, `stackkit init <kit>` | `basement-kit` is the verified beta path. |
-| Install mode | retired v0.6 knob (`STACKKIT_MODE` warn-and-ignore) | `bare` is minimal/manual, `bootstrapped` is default and the only mode with full E2E evidence. `advanced` is **scaffolding** (mode matrix status in every kit): it renders a static Terramate template (traefik/dockge/monitoring) without composition rendering — the Terramate-Plus lifecycle (drift/rollback/restore-drill surfaces, Runtime/Frontend Intelligence, managed TechStack handoff) is the target contract, not current behavior (`kombify-StackKits-b0xy`). |
+| Kit selection | `stackkit`, installer argument, `stackkit init <kit>` | `basement-kit` is the primary standalone path; current full runtime proof remains pending. |
+| Install mode | retired v0.6 knob (`STACKKIT_MODE` warn-and-ignore) | `bare` is minimal/manual, `bootstrapped` was the legacy default; this does not establish current native runtime evidence. `advanced` is **scaffolding** (mode matrix status in every kit): it renders a static Terramate template (traefik/dockge/monitoring) without composition rendering — the Terramate-Plus lifecycle (drift/rollback/restore-drill surfaces, Runtime/Frontend Intelligence, managed TechStack handoff) is the target contract, not current behavior (`kombify-StackKits-b0xy`). |
 | Target context | `context`, `--context`, `KOMBIFY_CONTEXT` | `local` means local/default runtime assumptions, not a dependency on a home network. |
 | Domain strategy | `domain`, `localDns`, `DOMAIN`, `STACKKIT_LOCAL_DOMAIN`, DNS provider env | Default local links use browser-native `.localhost`; public/custom domains require DNS/TLS proof. |
 | Service profile | retired v0.6 knob; select use cases instead (`--use-case`, `STACKKIT_USE_CASES`) | `admin-only` keeps platform/admin services while deferring L3 application setup. |
 | Compute and topology | `compute.tier`, `nodes[]`, `node.role` | Used by CUE to select resources and placement constraints. |
-| PaaS selection | `paas`, `STACKKIT_PLATFORM`, `STACKKIT_PAAS`, platform credential env | Coolify is default; Komodo is beta-supported; Dokploy remains draft. |
+| Native execution selection | Workload alternative plus module-local profile; `--catalog-defaults` during init | Standalone Compose is default. Komodo/Coolify are explicit integrations. Legacy `paas` and platform env knobs do not define native defaults. |
 | Setup policy | `bootstrap.*`, `application.*.setup.policy`, `services.*.setup.policy` | Valid values are `manual`, `on_demand`, `automatic`. |
 | Demo data | `demoData.enabled` | Explicit opt-in only. |
 | MCP write mode | `STACKKIT_MCP_ALLOW_WRITE`, `--mcp-allow-write` | Read-only tools stay available; mutating tools require explicit write mode. |

@@ -19,12 +19,15 @@ Nobody installs a StackKit for infrastructure. They install it because they want
 - A smart home (Home Assistant)
 - ...and more
 
-**A StackKit delivers a complete, pre-configured Homelab platform.** The
-standalone CLI installs the single-node Basement core: host/Docker baseline,
-router, PocketID, TinyAuth, step-ca, Coolify, Hub, and verification endpoints.
-Photos, Vault, Files, and the broader application catalog remain explicit
-opt-ins and graduate after that core. The platform is owned by the local
-PocketID/TinyAuth Owner bound to StackKits `ownerRef`/step-ca custody.
+**Standalone Compose is the complete primary StackKits experience, including
+applications.** The Basement core retains host/Docker setup, router, PocketID,
+TinyAuth, step-ca, Kopia, Hub, and verification without a platform manager.
+Selected Photos, Files, Vault, and other supported workloads use the same
+standalone lifecycle. The CLI is an optional user-facing interface, not a
+full edition. Komodo and Coolify require explicit selection; their parity and
+the full standalone runtime proof remain separate evidence obligations.
+The local PocketID/TinyAuth Owner retains `ownerRef`/step-ca custody. See
+[ADR-0042](ADR/ADR-0042-standalone-default-and-optional-platforms.md).
 
 ---
 
@@ -84,7 +87,17 @@ Native v2 init rejects `--context`. The v1 migration maps it into typed
 Sites and hardware; new contracts must not use it to choose a KitProfile,
 compute tier, or architecture.
 
-### 3. Compute Tier = declared product graph
+### 3. Native module profiles and legacy compute graphs
+
+New `stackkit/v2alpha2` intent selects workload alternatives and each module's
+`computeProfile`. Standalone Compose is the default for new Basement and Cloud
+cores and application delivery. A resource profile does not select a product
+edition or enable a platform manager. `--catalog-defaults` accepts the CUE
+defaults and persists explicit selections; explicit choices take precedence.
+See [OPTIONS_AND_AUTHORING.md](OPTIONS_AND_AUTHORING.md) and ADR-0039.
+
+The following global graph model applies only to retained **v2alpha1** intent.
+Its Coolify-bearing graphs do not define defaults for new native stacks.
 
 `install.computeTier` (`low` | `standard` | `high`) is explicit intent. Init
 (`--compute-tier`) and the Techstack Unifier write it. Apply executes the
@@ -111,7 +124,8 @@ which graph was selected.
   drills. Techstack can present these through its optional Orchestrator UI only
   with a short-lived offline-verifiable capability.
 
-**Product graph** (`install.computeTier`): see section 3. `--mode` is never this.
+**Module resources**: v2alpha2 uses module-local profiles; the v2alpha1
+`install.computeTier` compatibility graph is described in section 3.
 
 **Device class** (`nodes[].hardware.profile`):
 - `standard` = typical homelab/server node
@@ -164,12 +178,14 @@ The compact authoring and promotion matrix lives in [OPTIONS_AND_AUTHORING.md](O
 
 | Role | Meaning | Example |
 |------|---------|---------|
-| `default` | Ships enabled, pre-configured, immediately usable | Coolify in Basement Kit |
+| `default` | Selected by the CUE catalog for new intent | Standalone Compose core in Basement Kit |
 | `alternative` | Curated swap for a default (same category) | Komodo as explicit PaaS alternative |
 | `optional` | Available but off by default, user enables | Game Server |
 
-User swaps defaults: `stackkit generate --paas komodo --monitoring beszel`
-User enables optionals: `stackkit generate --enable smart-home`
+Native authoring uses explicit workload alternatives and module profiles.
+For example, `stackkit init basement-kit --catalog-defaults --use-case photos,files,vault`
+accepts the release defaults for those workloads. It does not migrate existing
+intent or silently transfer execution ownership to another adapter.
 
 ### 6. Use Case vs Optional Module
 

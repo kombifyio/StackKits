@@ -20,12 +20,13 @@ depend on them.
 
 | Concern | Release value |
 | --- | --- |
-| Selected-provider core realization | `coolify` is the existing default provider; the native core module profile and explicit platform intent must agree. |
+| Default core and application realization | Standalone Compose is the complete primary experience. New Basement and Cloud core choices resolve to `standalone-compose`; application delivery defaults to Compose. No Coolify or Komodo services are installed by the default core. |
+| Optional platform integration | Coolify and Komodo require explicit intent and retain exactly one execution and routing owner per workload. The CLI is an optional interface, not a full edition. See ADR-0042. |
 | PaaS alternative | `komodo` is Beta in the native workload compatibility contract. It does not have native application backup/restore parity. |
 | Draft PaaS adapter | `dokploy` |
-| Invalid normal PaaS values | `dockge`, `none` |
+| Legacy PaaS values | Historical `paas: none` is not the native `standalone-compose` alternative. `dockge` is not a native platform alternative. |
 | Dockge status | Experimental/constrained Compose manager service only; not a normal Basement Kit PaaS. |
-| Native module profiles | `stackkit/v2alpha2` selects each module's `computeProfile` explicitly. Core Lite `low` means standalone Compose without Coolify, but does not force Photos or Media to the same profile. Immich Lite is a separate workload alternative, not an implicit consequence of selecting Core Lite. See ADR-0039. |
+| Native module profiles | `stackkit/v2alpha2` selects each module's `computeProfile` explicitly. The default standalone core supports its declared profiles without becoming a reduced edition. Historical `lite` module IDs remain stable; they do not force Photos or Media to the same profile. Immich Lite is a separate workload alternative. See ADR-0039 and ADR-0042. |
 | Legacy low compute tier | Explicit `stackkit/v2alpha1` retains `install.computeTier: low` and CUE `computeTierGraphs.low` for compatibility. Cloud and Modern do not publish that legacy graph. It is not a native module-profile default. |
 | Media | Optional Architecture v2 Jellyfin with declared module-local `standard` and `high` profiles (`docker.io/jellyfin/jellyfin:10.10.7`, digest-pinned). Native Core Lite does not globally exclude Media. The old v2alpha1 `low` graph still excludes it. Library volume is owner-custodied and not a StackKits backup source. No `*arr` services. |
 | Smart Home | Optional Architecture v2 Home Assistant container (`ghcr.io/home-assistant/home-assistant:2026.7.2`, digest-pinned) on Basement/Cloud/Modern. Native product MCP is `/api/mcp` on `https://smart-home.<domain>`. Generate writes the reverse-proxy baseline and Homelab owner intent (`homelab`). No HA OS/Supervisor parity, no Zigbee/MQTT runtime in this slice. |
