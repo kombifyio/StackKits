@@ -1793,7 +1793,12 @@ import (
 	}
 }
 
-#ServiceExposureV2: "local" | "remote-private" | "public"
+// #ServiceExposureV2 names who can reach a listener. "lan" is narrower than
+// "public" and wider than "local": the listener answers other devices on the
+// site network but never the Internet. A LAN resolver is the case that needs
+// it — it has no function on loopback, and calling it "public" would overstate
+// what the router publishes.
+#ServiceExposureV2: "local" | "lan" | "remote-private" | "public"
 
 // #IngressAuthModeV2 distinguishes browser forward-auth gating from app-native
 // client authentication. Native workloads (Photos, Vault, Media, Files) keep

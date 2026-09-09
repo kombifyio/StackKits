@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -691,6 +692,13 @@ func (osStandaloneComposeProcessRunner) Run(
 	command := exec.CommandContext(ctx, executable, args...)
 	command.Dir = directory
 	command.Env = []string{"LANG=C", "LC_ALL=C"}
+	// Docker discovers system-wide Windows plugins below ProgramFiles. Keep
+	// user profiles/config and transport overrides out of this local runner.
+	if runtime.GOOS == "windows" {
+		if directory := os.Getenv("ProgramFiles"); directory != "" {
+			command.Env = append(command.Env, "ProgramFiles="+directory)
+		}
+	}
 	output := &standaloneComposeBoundedBuffer{remaining: standaloneComposeOutputMax}
 	command.Stdout, command.Stderr = output, output
 	if err := command.Run(); err != nil {

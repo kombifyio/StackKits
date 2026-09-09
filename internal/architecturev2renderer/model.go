@@ -2091,7 +2091,7 @@ func parseRuntimeListeners(values []json.RawMessage, placement rawRenderUnitPlac
 				return nil, fail(ErrInvalidPlan, listenerPath+".listenerGroupRef", "virtual-host listener requires listenerGroupRef")
 			}
 		}
-		if !oneOf(listener.Exposure, "local", "remote-private", "public") {
+		if !oneOf(listener.Exposure, "local", "lan", "remote-private", "public") {
 			return nil, fail(ErrInvalidPlan, listenerPath+".exposure", "unsupported listener exposure %q", listener.Exposure)
 		}
 		if listener.SourceServiceRefs == nil {

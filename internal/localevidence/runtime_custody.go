@@ -37,6 +37,7 @@ var (
 	basementRuntimeDomainPattern     = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
 	basementRuntimeFilePaths         = []string{
 		"coolify.env",
+		"lan-dns/a-records.conf",
 		"pocketid.env",
 		"step-ca/certs/intermediate_ca.crt",
 		"step-ca/certs/root_ca.crt",
@@ -335,7 +336,16 @@ func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain 
 	if err != nil {
 		return nil, fmt.Errorf("localevidence: encode step-ca runtime config: %w", err)
 	}
+	siteAddress, err := discoverSiteAddress()
+	if err != nil {
+		return nil, err
+	}
+	lanDNSRecords, err := buildLANDNSRecords(domain, siteAddress)
+	if err != nil {
+		return nil, err
+	}
 	files := map[string][]byte{
+		lanDNSRecordsPath:                     lanDNSRecords,
 		"step-ca/certs/root_ca.crt":           []byte(owner.StepCARootCertificatePEM),
 		"step-ca/certs/intermediate_ca.crt":   []byte(certificatePEM(intermediateDER)),
 		"step-ca/config/ca.json":              append(config, '\n'),
@@ -557,8 +567,8 @@ func validateBasementRuntimeDiskTree(directory string) error {
 		allowedFiles[relative] = struct{}{}
 	}
 	allowedDirectories := map[string]struct{}{
-		".": {}, "step-ca": {}, "step-ca/certs": {}, "step-ca/config": {},
-		"step-ca/secrets": {}, "step-ca/db": {},
+		".": {}, "lan-dns": {}, "step-ca": {}, "step-ca/certs": {},
+		"step-ca/config": {}, "step-ca/secrets": {}, "step-ca/db": {},
 	}
 	return filepath.WalkDir(directory, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {

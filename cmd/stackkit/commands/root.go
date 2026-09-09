@@ -65,6 +65,7 @@ var (
 	lifecycleJoinOperation string
 	lifecycleJoinPhase     string
 	lifecycleJoinNonce     string
+	applyTenantDeployment  string
 )
 
 // deployLog is the structured deploy logger for the current CLI run.
@@ -528,12 +529,13 @@ func captureSentryFailureEvidence(summary rollout.Summary) string {
 		failureClass = rollout.ClassifyFailure(summary.Message)
 	}
 	path, runtime, err := telemetry.CaptureSentryFailure(rolloutRecorder.Root(), telemetry.SentryConfig{
-		RunID:        rolloutRecorder.RunID(),
-		StackKit:     firstEnv("STACKKIT_STACKKIT", "STACKKIT_KIT"),
-		Environment:  firstEnv("STACKKIT_ENVIRONMENT", "GO_ENV"),
-		Phase:        phase,
-		FailureClass: failureClass,
-		RolloutMode:  "cli",
+		RunID:              rolloutRecorder.RunID(),
+		StackKit:           firstEnv("STACKKIT_STACKKIT", "STACKKIT_KIT"),
+		Environment:        firstEnv("STACKKIT_ENVIRONMENT", "GO_ENV"),
+		Phase:              phase,
+		FailureClass:       failureClass,
+		RolloutMode:        "cli",
+		TenantDeploymentID: applyTenantDeployment,
 	}, summary.Message, nil)
 	if err != nil {
 		printVerbose("sentry failure evidence unavailable: %v", err)

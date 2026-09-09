@@ -29,8 +29,8 @@ const (
 	basementCoreVersion     = "1.0.0"
 )
 
-const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:21|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only|services:router,socket-proxy,pocketid,tinyauth,step-ca,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
-const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:21|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
+const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:22|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|services:router,socket-proxy,pocketid,tinyauth,step-ca,lan-dns,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
+const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:22|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
 
 // basementCoreComponentsJSON is the closed component graph accepted by both
 // target-specific renderers. It mirrors the CUE catalog and intentionally
@@ -41,6 +41,7 @@ const basementCoreComponentsJSON = `[
 {"id":"pocketid","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/pocket-id/pocket-id:v2.7.0","digest":"sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e"},"dependsOn":[],"networkRefs":["basement-core"],"volumes":[{"id":"pocketid-data","target":"/app/data","class":"persistent","backup":true}],"health":{"kind":"http","path":"/health","port":1411},"resources":{"memoryLimit":"512m"}},
 {"id":"tinyauth","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/steveiliop56/tinyauth:v5.0.7","digest":"sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6"},"dependsOn":["pocketid"],"networkRefs":["basement-core"],"volumes":[{"id":"tinyauth-data","target":"/data","class":"persistent","backup":true}],"health":{"kind":"command","command":["tinyauth","healthcheck"]},"resources":{"memoryLimit":"256m"}},
 {"id":"step-ca","role":"application","lifecycle":"daemon","image":{"ref":"smallstep/step-ca:0.30.2","digest":"sha256:a2b17872915c193259b75a5474c398326f41bd199f0842093e52cf4182bc8270"},"dependsOn":[],"networkRefs":["basement-core"],"volumes":[{"id":"step-ca-db","target":"/home/step/db","class":"persistent","backup":true}],"health":{"kind":"http","path":"/health","port":9000},"resources":{"memoryLimit":"256m"}},
+{"id":"lan-dns","role":"application","lifecycle":"daemon","image":{"ref":"docker.io/mvance/unbound:1.22.0","digest":"sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90"},"dependsOn":[],"networkRefs":["basement-core"],"volumes":[{"id":"lan-dns-data","target":"/opt/unbound/etc/unbound","class":"persistent","backup":false}],"health":{"kind":"command","command":["drill","@127.0.0.1","localhost","A"]},"resources":{"memoryLimit":"256m"}},
 {"id":"coolify","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/coollabsio/coolify:4.1.2","digest":"sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f"},"dependsOn":["coolify-postgres","coolify-redis","coolify-realtime"],"networkRefs":["basement-core","basement-control"],"environment":{"AUTOUPDATE":"false","CDN_URL":"http://hub/.stackkit/offline/coolify/cdn","VERSIONS_URL":"http://hub/.stackkit/offline/coolify/versions.json","UPGRADE_SCRIPT_URL":"http://hub/.stackkit/offline/coolify/upgrade.sh","RELEASES_URL":"http://hub/.stackkit/offline/coolify/releases.json"},"volumes":[{"id":"coolify-data","target":"/var/www/html/storage","class":"persistent","backup":true},{"id":"coolify-ssh","target":"/var/www/html/storage/app/ssh","class":"persistent","backup":true},{"id":"coolify-applications","target":"/var/www/html/storage/app/applications","class":"persistent","backup":true},{"id":"coolify-databases","target":"/var/www/html/storage/app/databases","class":"persistent","backup":true},{"id":"coolify-services","target":"/var/www/html/storage/app/services","class":"persistent","backup":true},{"id":"coolify-backups","target":"/var/www/html/storage/app/backups","class":"persistent","backup":true}],"health":{"kind":"http","path":"/api/health","port":8080},"resources":{"memoryLimit":"1g"}},
 {"id":"coolify-postgres","role":"database","lifecycle":"daemon","image":{"ref":"docker.io/library/postgres:15-alpine","digest":"sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f"},"dependsOn":[],"networkRefs":["basement-control"],"volumes":[{"id":"coolify-postgres-data","target":"/var/lib/postgresql/data","class":"persistent","backup":true}],"health":{"kind":"command","command":["pg_isready","-U","coolify"]},"resources":{"memoryLimit":"512m"}},
 {"id":"coolify-redis","role":"cache","lifecycle":"daemon","image":{"ref":"docker.io/library/redis:7-alpine","digest":"sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99"},"dependsOn":[],"networkRefs":["basement-control"],"volumes":[{"id":"coolify-redis-data","target":"/data","class":"persistent","backup":true}],"health":{"kind":"command","command":["redis-cli","ping"]},"resources":{"memoryLimit":"256m"}},
@@ -197,6 +198,27 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+      start_period: 10s
+    networks: [basement-core]
+  lan-dns:
+    image: docker.io/mvance/unbound:1.22.0@sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -700
+    mem_limit: 256m
+    volumes:
+      - ${STACKKIT_CUSTODY_DIR:?}/basement-runtime/lan-dns/a-records.conf:/opt/unbound/etc/unbound/a-records.conf:ro
+      - lan-dns-data:/opt/unbound/etc/unbound
+    ports: ["0.0.0.0:53:53/udp", "0.0.0.0:53:53"]
+    healthcheck:
+      test: ["CMD", "drill", "@127.0.0.1", "localhost", "A"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
       start_period: 10s
     networks: [basement-core]
   coolify-postgres:
@@ -389,6 +411,7 @@ volumes:
   pocketid-data: {}
   tinyauth-data: {}
   step-ca-db: {}
+  lan-dns-data: {}
   coolify-data: {}
   coolify-ssh: {}
   coolify-applications: {}

@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "cb55ee2ee5af37fd7695a971f7358a9170339e3d",
-  "authority_bundle_sha256": "98d1d4f22fa25dffae659902d39e4a9edbeb725652837227b8b3d48108b1c612",
+  "source_sha": "5d37eb0f3ec6c67c82d4b29a4a9893b40399b855",
+  "authority_bundle_sha256": "13b7f2dda8272fc53c3b4b4609e03996522d073063e4247a3c54182b74590abb",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -29,7 +29,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -45,6 +45,7 @@
               "components": [
                 "hub",
                 "kopia-agent",
+                "lan-dns",
                 "pocketid",
                 "router",
                 "socket-proxy",
@@ -55,7 +56,7 @@
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "a3d343f7bbc89c340e9e40bfcb934ab32ca376075a50f8411ad2c753f045ecc1"
+              "profile_sha256": "2ab670d92f50464fd1b09a9488ddd42934f7a94dcab94ac6f9684cd6cf7dc1ff"
             },
             {
               "id": "standard",
@@ -63,7 +64,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -79,6 +80,7 @@
               "components": [
                 "hub",
                 "kopia-agent",
+                "lan-dns",
                 "pocketid",
                 "router",
                 "socket-proxy",
@@ -89,7 +91,7 @@
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "ae13b3a47e98e16a9777909d8225eb35cedef35848d90656abbd0373e3128740"
+              "profile_sha256": "c981d2ec760cd4bb2cd9319ede8819f526a8c1c6589f62a681504cd7ddae0a3c"
             },
             {
               "id": "high",
@@ -97,7 +99,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -113,6 +115,7 @@
               "components": [
                 "hub",
                 "kopia-agent",
+                "lan-dns",
                 "pocketid",
                 "router",
                 "socket-proxy",
@@ -123,7 +126,7 @@
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "4a311020f7f42a8fbf2fba3f93670db9c24178023ffed4aa722d7688d2a01110"
+              "profile_sha256": "edcd3410f052ca1c2ae37d5654509a95ac38257b42c15720a8a33f5934f0a4ea"
             }
           ],
           "storage_profiles": [],
@@ -147,7 +150,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -167,6 +170,7 @@
                 "coolify-redis",
                 "hub",
                 "kopia-agent",
+                "lan-dns",
                 "pocketid",
                 "router",
                 "socket-proxy",
@@ -175,7 +179,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "218d37afb570fb06213800ea61bcaa1299bb287c4a1275d40ec8a3d841bc114d"
+              "profile_sha256": "970655524705f95579e2f7ac8533cf03a697fe5a899630452de2f9f53bfda139"
             },
             {
               "id": "high",
@@ -183,7 +187,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -203,6 +207,7 @@
                 "coolify-redis",
                 "hub",
                 "kopia-agent",
+                "lan-dns",
                 "pocketid",
                 "router",
                 "socket-proxy",
@@ -211,7 +216,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "aec73815b37db0a43281880b232aff56c2a39ad9e35a5d0112deee7945d25c92"
+              "profile_sha256": "23178dd4d2ddb4f2bee85fe582606173784a451212b940c9d4a3e692642f3b43"
             }
           ],
           "storage_profiles": [],
@@ -1882,7 +1887,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -1898,6 +1903,7 @@
               "components": [
                 "hub",
                 "kopia-agent",
+                "lan-dns",
                 "pocketid",
                 "router",
                 "socket-proxy",
@@ -1908,7 +1914,7 @@
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "a3d343f7bbc89c340e9e40bfcb934ab32ca376075a50f8411ad2c753f045ecc1"
+              "profile_sha256": "2ab670d92f50464fd1b09a9488ddd42934f7a94dcab94ac6f9684cd6cf7dc1ff"
             },
             {
               "id": "standard",
@@ -1916,7 +1922,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -1932,6 +1938,7 @@
               "components": [
                 "hub",
                 "kopia-agent",
+                "lan-dns",
                 "pocketid",
                 "router",
                 "socket-proxy",
@@ -1942,7 +1949,7 @@
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "ae13b3a47e98e16a9777909d8225eb35cedef35848d90656abbd0373e3128740"
+              "profile_sha256": "c981d2ec760cd4bb2cd9319ede8819f526a8c1c6589f62a681504cd7ddae0a3c"
             },
             {
               "id": "high",
@@ -1950,7 +1957,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -1966,6 +1973,7 @@
               "components": [
                 "hub",
                 "kopia-agent",
+                "lan-dns",
                 "pocketid",
                 "router",
                 "socket-proxy",
@@ -1976,7 +1984,7 @@
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "4a311020f7f42a8fbf2fba3f93670db9c24178023ffed4aa722d7688d2a01110"
+              "profile_sha256": "edcd3410f052ca1c2ae37d5654509a95ac38257b42c15720a8a33f5934f0a4ea"
             }
           ],
           "storage_profiles": [],
@@ -2000,7 +2008,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -2020,6 +2028,7 @@
                 "coolify-redis",
                 "hub",
                 "kopia-agent",
+                "lan-dns",
                 "pocketid",
                 "router",
                 "socket-proxy",
@@ -2028,7 +2037,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "218d37afb570fb06213800ea61bcaa1299bb287c4a1275d40ec8a3d841bc114d"
+              "profile_sha256": "970655524705f95579e2f7ac8533cf03a697fe5a899630452de2f9f53bfda139"
             },
             {
               "id": "high",
@@ -2036,7 +2045,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -2056,6 +2065,7 @@
                 "coolify-redis",
                 "hub",
                 "kopia-agent",
+                "lan-dns",
                 "pocketid",
                 "router",
                 "socket-proxy",
@@ -2064,7 +2074,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "aec73815b37db0a43281880b232aff56c2a39ad9e35a5d0112deee7945d25c92"
+              "profile_sha256": "23178dd4d2ddb4f2bee85fe582606173784a451212b940c9d4a3e692642f3b43"
             }
           ],
           "storage_profiles": [],
@@ -3085,5 +3095,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "506dd1a5ae2c06e4baef244b11c0964bb63d1f4b966d9800e7d8bd4ac2229dc8"
+  "catalog_sha256": "1f2b6ce2a4237108a49fd19182e41412928a8cea048e830094885bbe23d02ba9"
 }

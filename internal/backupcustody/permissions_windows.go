@@ -72,8 +72,14 @@ func requirePrivatePath(path string, directory bool) error {
 		return errors.New("backupcustody: inspect Windows custody ACL: empty security descriptor")
 	}
 	owner, _, err := descriptor.Owner()
-	if err != nil || owner == nil || !owner.Equals(currentOwner) {
-		return errors.New("backupcustody: Windows custody owner differs from the process token owner")
+	if err != nil {
+		return fmt.Errorf("backupcustody: inspect Windows custody owner for %q: %w", path, err)
+	}
+	if owner == nil {
+		return fmt.Errorf("backupcustody: Windows custody owner is absent for %q", path)
+	}
+	if !owner.Equals(currentOwner) {
+		return fmt.Errorf("backupcustody: Windows custody owner differs from the process token owner for %q: actual=%s expected=%s", path, owner.String(), currentOwner.String())
 	}
 	control, _, err := descriptor.Control()
 	if err != nil ||

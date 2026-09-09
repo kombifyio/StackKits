@@ -2608,14 +2608,28 @@ _cloudCoreVerificationRuntimeListeners: list.Concat([_cloudCoreRuntimeListeners,
 
 _basementCoreRuntimeListeners: list.Concat([_cloudCoreRuntimeListeners, [
 	{id: "step-ca-direct", componentRef: "step-ca", transport: "tcp", bindAddress: "127.0.0.1", port: 9000, targetPort: 9000, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+	{id: "lan-dns-udp", componentRef: "lan-dns", transport: "udp", bindAddress: "0.0.0.0", port: 53, targetPort: 53, sharing: "exclusive", exposure: "lan", sourceServiceRefs: []},
+	{id: "lan-dns-tcp", componentRef: "lan-dns", transport: "tcp", bindAddress: "0.0.0.0", port: 53, targetPort: 53, sharing: "exclusive", exposure: "lan", sourceServiceRefs: []},
 ]])
 
-// Only the router may bind a host listener that another device can reach.
-// Every other core component stays on loopback; the Basement list is a
-// superset of the Cloud list, so one check covers both cores.
+// Two core components may bind a host listener another device can reach, and
+// for opposite reasons: the router publishes the site, and the resolver answers
+// it. A resolver on loopback resolves nothing, so LAN binding is its function
+// rather than an exception to tolerate. Everything else stays on loopback. The
+// Basement list is a superset of the Cloud list, so one check covers both.
+_coreLANReachableComponents: ["router", "lan-dns"]
+
 _coreDirectListenersLoopbackOnly: [...("127.0.0.1")] & [
 	for listener in _basementCoreRuntimeListeners
-	if listener.componentRef != "router" {listener.bindAddress},
+	if !list.Contains(_coreLANReachableComponents, listener.componentRef) {listener.bindAddress},
+]
+
+// The carve-out is not a hole: the resolver may bind port 53 and nothing else,
+// and it must say "lan" rather than borrow the router's "public". A widened
+// port, transport, or exposure fails here instead of shipping.
+_coreLANDNSListenersAreResolverOnly: [...({port: 53, exposure: "lan"})] & [
+	for listener in _basementCoreRuntimeListeners
+	if listener.componentRef == "lan-dns" {{port: listener.port, exposure: listener.exposure}},
 ]
 
 _sharedCoreServiceControls: [
@@ -2629,7 +2643,7 @@ _cloudCoreServiceControls: list.Concat([_sharedCoreServiceControls, [
 ]])
 
 _basementCoreServiceControls: list.Concat([_sharedCoreServiceControls, [
-	{key: "base", serviceRef: "basement-hub", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["router", "socket-proxy", "step-ca", "kopia-agent", "hub"], allowedActions: ["start", "restart", "logs"], critical: true},
+	{key: "base", serviceRef: "basement-hub", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["router", "socket-proxy", "step-ca", "kopia-agent", "hub", "lan-dns"], allowedActions: ["start", "restart", "logs"], critical: true},
 ]])
 
 _architectureV2LocalKopiaSourceRenderUnit: {
@@ -3357,21 +3371,21 @@ _architectureV2Modules: list.Concat([[
 		metadata: {
 			id:          "stackkits-home-lan-dns-manifest"
 			version:     "1.0.0"
-			description: "Generation-only Home LAN DNS resolver policy; Unbound is the declared resolver with a pinned image, the executor stays pending until its own slice."
+			description: "Home LAN DNS resolver policy; Unbound is the declared resolver with a pinned image, owned at runtime by the Basement core compose runtime."
 		}
 		role:        "platform"
 		providerRef: "stackkits-home-lan-dns-contract"
 		provides:    _architectureV2HomeLANDNSCapabilities
 		supportedSiteKinds: ["home"]
 		nodeSelection: {authority: "any", controlPlaneMembers: "any"}
-		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
 		renderUnits: [{
 			id:           "policy-bundle"
 			kind:         "native-config"
 			rendererRef:  "stackkit"
 			templateRef:  "builtin://home/lan-dns/v1.json"
 			version:      "1.0.0"
-			contractHash: "sha256:3f573cc4312c1c9f14c1bad366642d2c600298dbebf1b88fab5890f2286b596e"
+			contractHash: "sha256:f8f0e8ee1989dcd48a2430740abc1f397cb06af3b6f716625d00727bb80e9575"
 			publicInputRefs: []
 			secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "sites"]
@@ -3972,6 +3986,28 @@ _architectureV2Modules: list.Concat([[
 					resources: {memoryLimit: "256m"}
 				},
 				{
+					// The resolver that makes the site's own names answer on the
+					// LAN. Pin and architecture match the lan-dns policy manifest
+					// exactly, so the declared contract and the running container
+					// cannot drift apart. Health defers to the image's own check
+					// rather than assuming which tools it ships.
+					id: "lan-dns", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/mvance/unbound:1.22.0"
+						digest: "sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90"
+					}
+					dependsOn: [], networkRefs: ["basement-core"]
+					volumes: [{id: "lan-dns-data", target: "/opt/unbound/etc/unbound", class: "persistent", backup: false}]
+					// Deliberately not the image's own HEALTHCHECK: that one runs
+					// "drill @127.0.0.1 cloudflare.com", which makes core health
+					// depend on reaching the Internet. A site that is healthy
+					// while offline must not report otherwise, so this asks the
+					// resolver for a name it answers from its built-in local
+					// zone. Site names are proven by verify, not by liveness.
+					health: {kind: "command", command: ["drill", "@127.0.0.1", "localhost", "A"]}
+					resources: {memoryLimit: "256m"}
+				},
+				{
 					id: "coolify", role: "application", lifecycle: "daemon"
 					image: {
 						ref:    "ghcr.io/coollabsio/coolify:4.1.2"
@@ -4060,7 +4096,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "compose", kind:                                    "compose", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash: "sha256:3a71b592b043738799233137f3bcdd15f86e4626c5b22a963e366d490d17b3fe"
+				contractHash: "sha256:e26289ea5ed17d81eeb802ab00a706e06e5df62710a055c6e873a7e828cefabd"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/compose.yaml"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -4070,7 +4106,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:8ba6842fb79159aa938f1504a8f4490a1bce847689caa28f8a0b17607a1abb5a"
+				contractHash: "sha256:9bf25da54e5eb0ed27a134abd3481c510efc04046beebf179a66283e6d0ed035"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -4297,6 +4333,28 @@ _architectureV2Modules: list.Concat([[
 					dependsOn: [], networkRefs: ["basement-core"]
 					volumes: [{id: "step-ca-db", target: "/home/step/db", class: "persistent", backup: true}]
 					health: {kind: "http", path: "/health", port: 9000}
+					resources: {memoryLimit: "256m"}
+				},
+				{
+					// The resolver that makes the site's own names answer on the
+					// LAN. Pin and architecture match the lan-dns policy manifest
+					// exactly, so the declared contract and the running container
+					// cannot drift apart. Health defers to the image's own check
+					// rather than assuming which tools it ships.
+					id: "lan-dns", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/mvance/unbound:1.22.0"
+						digest: "sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90"
+					}
+					dependsOn: [], networkRefs: ["basement-core"]
+					volumes: [{id: "lan-dns-data", target: "/opt/unbound/etc/unbound", class: "persistent", backup: false}]
+					// Deliberately not the image's own HEALTHCHECK: that one runs
+					// "drill @127.0.0.1 cloudflare.com", which makes core health
+					// depend on reaching the Internet. A site that is healthy
+					// while offline must not report otherwise, so this asks the
+					// resolver for a name it answers from its built-in local
+					// zone. Site names are proven by verify, not by liveness.
+					health: {kind: "command", command: ["drill", "@127.0.0.1", "localhost", "A"]}
 					resources: {memoryLimit: "256m"}
 				},
 				{

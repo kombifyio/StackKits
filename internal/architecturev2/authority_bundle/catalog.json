@@ -9851,7 +9851,7 @@
         }
       ],
       "metadata": {
-        "description": "Generation-only Home LAN DNS resolver policy; Unbound is the declared resolver with a pinned image, the executor stays pending until its own slice.",
+        "description": "Home LAN DNS resolver policy; Unbound is the declared resolver with a pinned image, owned at runtime by the Basement core compose runtime.",
         "id": "stackkits-home-lan-dns-manifest",
         "version": "1.0.0"
       },
@@ -9920,7 +9920,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:3f573cc4312c1c9f14c1bad366642d2c600298dbebf1b88fab5890f2286b596e",
+          "contractHash": "sha256:f8f0e8ee1989dcd48a2430740abc1f397cb06af3b6f716625d00727bb80e9575",
           "id": "policy-bundle",
           "inputBindings": [],
           "kind": "native-config",
@@ -9953,7 +9953,7 @@
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "contract-handoff",
+        "execution": "executable",
         "kind": "native"
       },
       "serviceControls": [],
@@ -12588,6 +12588,7 @@
             "pocketid",
             "tinyauth",
             "step-ca",
+            "lan-dns",
             "coolify",
             "coolify-postgres",
             "coolify-redis",
@@ -12595,7 +12596,7 @@
             "kopia-agent",
             "hub"
           ],
-          "description": "Local routing, owner identity, internal certificates, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
+          "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -12618,6 +12619,7 @@
             "pocketid",
             "tinyauth",
             "step-ca",
+            "lan-dns",
             "coolify",
             "coolify-postgres",
             "coolify-redis",
@@ -12625,7 +12627,7 @@
             "kopia-agent",
             "hub"
           ],
-          "description": "Local routing, owner identity, internal certificates, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
+          "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -12891,7 +12893,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:3a71b592b043738799233137f3bcdd15f86e4626c5b22a963e366d490d17b3fe",
+          "contractHash": "sha256:e26289ea5ed17d81eeb802ab00a706e06e5df62710a055c6e873a7e828cefabd",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -12986,6 +12988,28 @@
               "sourceServiceRefs": [],
               "targetPort": 9000,
               "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "lan-dns",
+              "exposure": "lan",
+              "id": "lan-dns-udp",
+              "port": 53,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 53,
+              "transport": "udp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "lan-dns",
+              "exposure": "lan",
+              "id": "lan-dns-tcp",
+              "port": 53,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 53,
+              "transport": "tcp"
             }
           ],
           "secretInputBindings": {},
@@ -13068,7 +13092,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:8ba6842fb79159aa938f1504a8f4490a1bce847689caa28f8a0b17607a1abb5a",
+          "contractHash": "sha256:9bf25da54e5eb0ed27a134abd3481c510efc04046beebf179a66283e6d0ed035",
           "id": "opentofu",
           "inputBindings": [],
           "kind": "opentofu",
@@ -13162,6 +13186,28 @@
               "sharing": "exclusive",
               "sourceServiceRefs": [],
               "targetPort": 9000,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "lan-dns",
+              "exposure": "lan",
+              "id": "lan-dns-udp",
+              "port": 53,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 53,
+              "transport": "udp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "lan-dns",
+              "exposure": "lan",
+              "id": "lan-dns-tcp",
+              "port": 53,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 53,
               "transport": "tcp"
             }
           ],
@@ -13341,6 +13387,28 @@
               "sharing": "exclusive",
               "sourceServiceRefs": [],
               "targetPort": 9000,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "lan-dns",
+              "exposure": "lan",
+              "id": "lan-dns-udp",
+              "port": 53,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 53,
+              "transport": "udp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "lan-dns",
+              "exposure": "lan",
+              "id": "lan-dns-tcp",
+              "port": 53,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 53,
               "transport": "tcp"
             }
           ],
@@ -13691,6 +13759,39 @@
             ]
           },
           {
+            "dependsOn": [],
+            "health": {
+              "command": [
+                "drill",
+                "@127.0.0.1",
+                "localhost",
+                "A"
+              ],
+              "kind": "command"
+            },
+            "id": "lan-dns",
+            "image": {
+              "digest": "sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90",
+              "ref": "docker.io/mvance/unbound:1.22.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "application",
+            "volumes": [
+              {
+                "backup": false,
+                "class": "persistent",
+                "id": "lan-dns-data",
+                "target": "/opt/unbound/etc/unbound"
+              }
+            ]
+          },
+          {
             "dependsOn": [
               "coolify-postgres",
               "coolify-redis",
@@ -13994,7 +14095,8 @@
             "socket-proxy",
             "step-ca",
             "kopia-agent",
-            "hub"
+            "hub",
+            "lan-dns"
           ],
           "critical": true,
           "key": "base",
@@ -14015,13 +14117,14 @@
             "pocketid",
             "tinyauth",
             "step-ca",
+            "lan-dns",
             "kopia-agent",
             "hub"
           ],
           "degradations": [
             "paas-management-omitted"
           ],
-          "description": "Local routing, owner identity, internal certificates, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+          "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -14044,13 +14147,14 @@
             "pocketid",
             "tinyauth",
             "step-ca",
+            "lan-dns",
             "kopia-agent",
             "hub"
           ],
           "degradations": [
             "paas-management-omitted"
           ],
-          "description": "Local routing, owner identity, internal certificates, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+          "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -14073,13 +14177,14 @@
             "pocketid",
             "tinyauth",
             "step-ca",
+            "lan-dns",
             "kopia-agent",
             "hub"
           ],
           "degradations": [
             "paas-management-omitted"
           ],
-          "description": "Local routing, owner identity, internal certificates, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+          "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -14417,6 +14522,28 @@
               "sourceServiceRefs": [],
               "targetPort": 9000,
               "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "lan-dns",
+              "exposure": "lan",
+              "id": "lan-dns-udp",
+              "port": 53,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 53,
+              "transport": "udp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "lan-dns",
+              "exposure": "lan",
+              "id": "lan-dns-tcp",
+              "port": 53,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 53,
+              "transport": "tcp"
             }
           ],
           "secretInputBindings": {},
@@ -14565,6 +14692,28 @@
               "sharing": "exclusive",
               "sourceServiceRefs": [],
               "targetPort": 9000,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "lan-dns",
+              "exposure": "lan",
+              "id": "lan-dns-udp",
+              "port": 53,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 53,
+              "transport": "udp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "lan-dns",
+              "exposure": "lan",
+              "id": "lan-dns-tcp",
+              "port": 53,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 53,
               "transport": "tcp"
             }
           ],
@@ -14716,6 +14865,28 @@
               "sharing": "exclusive",
               "sourceServiceRefs": [],
               "targetPort": 9000,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "lan-dns",
+              "exposure": "lan",
+              "id": "lan-dns-udp",
+              "port": 53,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 53,
+              "transport": "udp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "lan-dns",
+              "exposure": "lan",
+              "id": "lan-dns-tcp",
+              "port": 53,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 53,
               "transport": "tcp"
             }
           ],
@@ -15052,6 +15223,39 @@
             "dependsOn": [],
             "health": {
               "command": [
+                "drill",
+                "@127.0.0.1",
+                "localhost",
+                "A"
+              ],
+              "kind": "command"
+            },
+            "id": "lan-dns",
+            "image": {
+              "digest": "sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90",
+              "ref": "docker.io/mvance/unbound:1.22.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "application",
+            "volumes": [
+              {
+                "backup": false,
+                "class": "persistent",
+                "id": "lan-dns-data",
+                "target": "/opt/unbound/etc/unbound"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "command": [
                 "kopia",
                 "--version"
               ],
@@ -15179,7 +15383,8 @@
             "socket-proxy",
             "step-ca",
             "kopia-agent",
-            "hub"
+            "hub",
+            "lan-dns"
           ],
           "critical": true,
           "key": "base",

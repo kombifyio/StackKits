@@ -39,8 +39,8 @@ _architectureV2CloudStandaloneCoreComputeProfiles: {
 }
 
 _architectureV2BasementCoreComputeProfile: _architectureV2CoreComputeProfile & {
-	description: "Local routing, owner identity, internal certificates, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability."
-	components: ["router", "socket-proxy", "pocketid", "tinyauth", "step-ca", "coolify", "coolify-postgres", "coolify-redis", "coolify-realtime", "kopia-agent", "hub"]
+	description: "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability."
+	components: ["router", "socket-proxy", "pocketid", "tinyauth", "step-ca", "lan-dns", "coolify", "coolify-postgres", "coolify-redis", "coolify-realtime", "kopia-agent", "hub"]
 }
 _architectureV2BasementCoreComputeProfiles: {
 	standard: _architectureV2BasementCoreComputeProfile
@@ -48,12 +48,12 @@ _architectureV2BasementCoreComputeProfiles: {
 }
 
 _architectureV2BasementStandaloneCoreComputeProfile: #ModuleComputeProfileV2 & {
-	description: "Local routing, owner identity, internal certificates, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles."
+	description: "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles."
 	maturity: "supported", executable: true, realization: "apply-ready"
 	platformManagement: "standalone"
 	hostFloor: {minCpuCores: 2, minRamGB: 2, minStorageGB: 10}
 	recommended: {cpuCores: 2, ramGB: 2, storageGB: 10}
-	components: ["router", "socket-proxy", "pocketid", "tinyauth", "step-ca", "kopia-agent", "hub"]
+	components: ["router", "socket-proxy", "pocketid", "tinyauth", "step-ca", "lan-dns", "kopia-agent", "hub"]
 	degradations: ["paas-management-omitted"]
 }
 

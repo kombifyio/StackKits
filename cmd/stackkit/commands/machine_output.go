@@ -8,6 +8,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/applyoutcome"
 	"github.com/kombifyio/stackkits/internal/logging"
+	"github.com/kombifyio/stackkits/internal/managedentitlement"
 	"github.com/spf13/cobra"
 )
 
@@ -62,6 +63,13 @@ func machineCommandFailureReason(cmd *cobra.Command, status string) string {
 
 func writeMachineCommandFailure(cmd *cobra.Command, err error, guidance ...string) error {
 	if cmd == nil || err == nil {
+		return err
+	}
+	var entitlementDenial *managedentitlement.Denial
+	if errors.As(err, &entitlementDenial) {
+		if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), "denied", entitlementDenial.Envelope()); writeErr != nil {
+			return errors.Join(err, fmt.Errorf("write machine-readable command failure: %w", writeErr))
+		}
 		return err
 	}
 	status := machineCommandFailureStatus(err)

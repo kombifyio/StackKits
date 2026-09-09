@@ -1,6 +1,6 @@
 {
   "documentHashes": {
-    "catalog.json": "sha256:38edff2af39af6b3158814d83dc00ca331b6000f18fb98d30f5c5a6117087100",
+    "catalog.json": "sha256:7c9447535b40dcba8893f1ec954c2178b8ab0d9dbf52e36eca0e1008e3831ea0",
     "compute-tier-fits.json": "sha256:eeb67e6290c5ce804b063f9da94becea8b6e9c49f289f003fae660b6216f2ab0",
     "definitions/basement-kit.json": "sha256:4f64fa9a47d6c8360e9daa914b26baba25d5d70fa3a993cd53b849ae74b7f1d0",
     "definitions/cloud-kit.json": "sha256:f7a8e7500d1b05c6b45da7cfaeb30322afc765d2a1d819cea803917545be6595",
@@ -23,13 +23,13 @@
   "sourceHashes": {
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee",
     "foundation/application_lifecycle.cue": "sha256:7befc7549306375ef5434a852ad31940fe4924698900db1ccff0c766c0e70cdd",
-    "foundation/architecture_v2.cue": "sha256:1f885c25c32d0c8eda85f71c289aa7f7bea076fed16bbe078431f1ad1487e029",
+    "foundation/architecture_v2.cue": "sha256:2d54ab7bfb7501f177f034e3458730eb758fdadd9491f71004bea7d9eff8079d",
     "foundation/architecture_v2_backup.cue": "sha256:750b23662d20956156394cf61ad1466e651372a18aa06075883a2a70199c93e0",
-    "foundation/architecture_v2_catalog.cue": "sha256:f6c0547c28160d34d88f6f3e183f696884616a72c3c004ceea7260150831fd0f",
+    "foundation/architecture_v2_catalog.cue": "sha256:6e93cdd6534c711a89586d54af9f893b0022996efcb09fd04197f611ae7e777a",
     "foundation/architecture_v2_cloud_core.cue": "sha256:aea0006846bfc485cf776061a2add324db7b7d6d86801bd96e4bbb2a1d3908a0",
     "foundation/architecture_v2_definition_binding.cue": "sha256:eb672ae095f461383f94d7212cc92a6a16a01f5abcd9722523015457bc3484a4",
     "foundation/architecture_v2_federation.cue": "sha256:6b8720e5ebd55f3d85661a43f16fb9781be983fb63f0e7e09a182ed414429e81",
-    "foundation/architecture_v2_module_profiles.cue": "sha256:411b274b492cd31731704e2244b538616d74db74ed7562e0373387cfdc46b8c3",
+    "foundation/architecture_v2_module_profiles.cue": "sha256:037506048754ee38e364963e57b58a4c98a5ccbf106620b24a7d4aa4a1bd0947",
     "foundation/architecture_v2_profiles.cue": "sha256:1b80546a4156f4aeba80f8149f5847fbd2315f2269ed8128fe3cb8b36e7128f3",
     "foundation/architecture_v2_storage.cue": "sha256:299057ef61b0f600cb5eff5e3d9d0423613daffb295fd4f0ecd39ff3d9b53adf",
     "foundation/use_case_identity.cue": "sha256:69434bf7d383b41ae037fad46003b1196e219025895d81c603fd398cfc461b87"

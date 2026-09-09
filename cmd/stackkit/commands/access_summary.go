@@ -48,9 +48,14 @@ type accessClientTrust struct {
 	CAFingerprint   string   `json:"caFingerprint"`
 	CAWorkspacePath string   `json:"caWorkspacePath"`
 	EnrollmentSteps []string `json:"enrollmentSteps"`
-	// Resolver stays pending until the lan-dns realization epic lands; a LAN
-	// device reaches the node only after that step plus CA enrollment.
+	// Resolver names the realization the kit installs. A LAN device reaches
+	// the node's names once it points at that resolver and trusts the CA;
+	// neither step alone is enough.
 	Resolver string `json:"resolver"`
+	// ResolverSteps is what the operator has to do on the network for the
+	// printed links to open from other devices. Without it the resolver runs
+	// and nothing asks it anything.
+	ResolverSteps []string `json:"resolverSteps"`
 }
 
 type accessRuntimeService struct {
@@ -353,7 +358,14 @@ func attachAccessClientTrust(wd string, summary *accessSummary) {
 			"Android: install the CA certificate, then enable it for apps under trusted credentials.",
 			"After enrollment open the printed https links; passkey registration requires that trusted secure context.",
 		},
-		Resolver: "pending:lan-dns-realization",
+		Resolver: "lan-dns:unbound",
+		ResolverSteps: []string{
+			"The kit runs the site resolver on this node, answering DNS on port 53 for LAN devices.",
+			"Point the LAN at it: set this node's address as the DNS server in the router's DHCP settings, so every device picks it up on renewal.",
+			"Per device instead: set this node's address as the manual DNS server on the device.",
+			"Verify from another device: a lookup of any printed link's hostname must answer with this node's address.",
+			"The site's names resolve only through this resolver; a device still on the router's default DNS gets no answer for them.",
+		},
 	}
 }
 

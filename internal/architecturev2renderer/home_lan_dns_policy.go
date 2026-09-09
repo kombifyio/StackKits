@@ -19,13 +19,14 @@ const (
 	homeLANDNSPolicyInputsToken = "@@PLAN_INPUTS@@"
 )
 
-// homeLANDNSPolicyTemplate is the immutable generation-only LAN DNS resolver
-// policy. It declares the governed resolver contract (Unbound, pinned image,
-// LAN-scoped port 53, mandatory DNSSEC) for the plan domain without claiming
-// runtime enforcement: no container runs and no LAN client resolves until the
-// slice-2 runtime owner lands. The image pin is amd64-only; arm/arm64 support
+// homeLANDNSPolicyTemplate is the LAN DNS resolver policy. It declares the
+// governed resolver contract (Unbound, pinned image, LAN-scoped port 53,
+// mandatory DNSSEC) for the plan domain. The Basement core compose runtime owns
+// the container: the same pin appears in the core component graph, the listener
+// inventory carries the port 53 binding, and Basement runtime custody writes the
+// zone that answers site names. The image pin is amd64-only; arm/arm64 support
 // is an explicit follow-up, never silent breakage.
-const homeLANDNSPolicyTemplate = `{"apiVersion":"stackkit.home-lan-dns-policy/v1","kind":"HomeLANDNSPolicy","contract":{"capability":"lan-dns","resolver":"unbound","image":{"ref":"docker.io/mvance/unbound:1.22.0","digest":"sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90"},"architectures":["amd64"],"listen":{"port":53,"protocols":["udp","tcp"],"scope":"lan"},"dnssec":{"required":true},"zone":"@@DOMAIN@@","runtimeEnforcement":"unverified","executor":"pending","scope":"generation-only"},"planInputs":@@PLAN_INPUTS@@}
+const homeLANDNSPolicyTemplate = `{"apiVersion":"stackkit.home-lan-dns-policy/v1","kind":"HomeLANDNSPolicy","contract":{"capability":"lan-dns","resolver":"unbound","image":{"ref":"docker.io/mvance/unbound:1.22.0","digest":"sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90"},"architectures":["amd64"],"listen":{"port":53,"protocols":["udp","tcp"],"scope":"lan"},"dnssec":{"required":true},"zone":"@@DOMAIN@@","runtimeEnforcement":"adapter-verified","executor":"basement-core-compose","scope":"home-control-plane-node"},"planInputs":@@PLAN_INPUTS@@}
 `
 
 var homeLANDNSPolicyPlanInputRefs = []string{"kit", "sites", "stackId"}
