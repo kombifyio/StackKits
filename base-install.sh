@@ -32,9 +32,9 @@
 #   STACKKIT_ADMIN_EMAIL   Admin/owner email (KOMBIFY_USER_EMAIL fallback)
 #   STACKKIT_BOOTSTRAP_OWNER  true|false: preconfigure PocketID owner account
 #   STACKKIT_OWNER_USERNAME   Owner username (default: derived from email)
-#   STACKKIT_USE_CASES     Comma-separated optional workloads: photos,files,vault
+#   STACKKIT_USE_CASES     Comma-separated optional workloads: photos,files,vault; empty or none = core only
 #   STACKKIT_PLATFORM / STACKKIT_PAAS
-#                          Workload runtime adapter: coolify | komodo
+#                          Workload runtime adapter: standalone-compose (default) | komodo | coolify
 #                          (applies to the selected use cases)
 #   STACKKIT_SERVER_IMAGE  Optional stackkit-server image override
 #   STACKKIT_INSTALL_URL   Release installer (default: https://install.stackkit.cc)
@@ -135,7 +135,7 @@ if [ -z "$INSTALL_MODE" ]; then
   fi
 fi
 if [ "$INSTALL_MODE" != "auto" ] && ! can_prompt; then
-  die "STACKKIT_INSTALL_MODE=$INSTALL_MODE needs an interactive terminal. Without one, run the auto mode or drive the CLI directly: stackkit init basement-kit --api-version stackkit/v2alpha1 --compute-tier standard --non-interactive --owner-source=local && stackkit generate && stackkit apply --auto-approve"
+  die "STACKKIT_INSTALL_MODE=$INSTALL_MODE needs an interactive terminal. Without one, run the auto mode or drive the CLI directly: stackkit init basement-kit --catalog-defaults --non-interactive --owner-source=local && stackkit generate && stackkit apply --auto-approve"
 fi
 info "Install mode: $INSTALL_MODE"
 
@@ -193,20 +193,20 @@ if [ "$INSTALL_MODE" = "expert" ]; then
     STACK_NAME=$(prompt_default "Stack name (deployment contract ID)" "$_default_name")
     [ "$STACK_NAME" = "$_default_name" ] && STACK_NAME=""
   fi
-  if [ -z "${STACKKIT_USE_CASES:-}" ]; then
+  if [ "${STACKKIT_USE_CASES+x}" != "x" ]; then
     USE_CASES=$(prompt_default "Use cases to enable (photos,files,vault; Enter = all, 'none' = none)" "photos,files,vault")
-    [ "$USE_CASES" = "none" ] && USE_CASES=""
   fi
-  if [ -n "$USE_CASES" ] && [ -z "$PLATFORM_SELECTION" ]; then
-    PLATFORM_SELECTION=$(prompt_default "Platform adapter for the use cases (coolify|komodo)" "coolify")
-    [ "$PLATFORM_SELECTION" = "coolify" ] && PLATFORM_SELECTION=""
+  if [ -n "$USE_CASES" ] && [ "$USE_CASES" != "none" ] && [ -z "$PLATFORM_SELECTION" ]; then
+    PLATFORM_SELECTION=$(prompt_default "Platform adapter for the use cases (standalone-compose|komodo|coolify)" "standalone-compose")
   fi
 fi
+
+[ "$USE_CASES" = "none" ] && USE_CASES=""
 
 case "$PLATFORM_SELECTION" in
   ""|coolify|komodo|standalone-compose) ;;
   dokploy) die "Platform 'dokploy' is draft-only and not installable through this installer." ;;
-  *) die "Unsupported platform '$PLATFORM_SELECTION'. Expected coolify or komodo." ;;
+  *) die "Unsupported platform '$PLATFORM_SELECTION'. Expected standalone-compose, komodo or coolify." ;;
 esac
 if [ -n "$PLATFORM_SELECTION" ] && [ -z "$USE_CASES" ]; then
   warn "STACKKIT_PLATFORM=$PLATFORM_SELECTION applies to selected use cases; none are selected, so the platform choice is recorded for the external-PaaS override only."
@@ -436,9 +436,9 @@ if [ "$RESUME_EXISTING" = "1" ]; then
   stackkit validate
   ok "  existing workspace validated in $HOMELAB_DIR"
 else
-  # This guided recipe retains its declared standard graph through the explicit
-  # v2alpha1 adapter. Native v2alpha2 requires the caller's per-module selections.
-  set -- init basement-kit --api-version stackkit/v2alpha1 --compute-tier standard --non-interactive --owner-source=local
+  # Materialize the release catalog defaults as explicit native intent.
+  # Existing workspaces above keep their persisted alternatives and adapters.
+  set -- init basement-kit --catalog-defaults --non-interactive --owner-source=local
   if [ -n "$DOMAIN_VALUE" ]; then
     set -- "$@" --domain "$DOMAIN_VALUE"
   fi
@@ -694,7 +694,7 @@ if [ -f "$HOMELAB_DIR/stack-spec.yaml" ]; then
 fi
 
 TFVARS="$HOMELAB_DIR/deploy/terraform.tfvars.json"
-PAAS="coolify"
+PAAS=""
 ENABLE_HTTPS="false"
 ADMIN_PASSWORD=""
 # tfvars_value KEY: exact-key extraction that stays correct on single-line JSON.
@@ -702,6 +702,7 @@ tfvars_value() {
   grep -o "\"$1\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" "$TFVARS" 2>/dev/null | head -1 | sed -E 's/.*"([^"]*)"$/\1/' || true
 }
 if [ -f "$TFVARS" ]; then
+  PAAS="coolify" # Legacy tfvars use the historical default.
   _paas=$(tfvars_value paas)
   [ -n "$_paas" ] && PAAS="$_paas"
   if grep -q '"enable_https"[[:space:]]*:[[:space:]]*true' "$TFVARS"; then ENABLE_HTTPS="true"; fi
@@ -713,7 +714,8 @@ fi
 case "$PAAS" in
   komodo) PAAS_ROUTE="komodo"; PAAS_LABEL="Komodo" ;;
   dokploy) PAAS_ROUTE="dokploy"; PAAS_LABEL="Dokploy" ;;
-  *) PAAS_ROUTE="coolify"; PAAS_LABEL="Coolify" ;;
+  coolify) PAAS_ROUTE="coolify"; PAAS_LABEL="Coolify" ;;
+  *) PAAS_ROUTE=""; PAAS_LABEL="" ;;
 esac
 
 PROTO="http"
@@ -726,7 +728,7 @@ ID_URL="${PROTO}://id.${DOMAIN_EFFECTIVE}"
 ACCESS_JSON="$HOMELAB_DIR/.stackkit/access.json"
 HUB_URL=""
 if [ -f "$ACCESS_JSON" ]; then
-  HUB_URL=$(grep -o '"hubUrl":"[^"]*"' "$ACCESS_JSON" | head -1 | sed -E 's/.*:"([^"]+)"/\1/' || true)
+  HUB_URL=$(grep -o '"hubUrl"[[:space:]]*:[[:space:]]*"[^"]*"' "$ACCESS_JSON" | head -1 | sed -E 's/.*:[[:space:]]*"([^"]+)"/\1/' || true)
 fi
 
 SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "YOUR_SERVER_IP")
@@ -740,7 +742,9 @@ printf '\033[0m'
 echo ""
 echo "  Core services:"
 echo "    ${HUB_URL:-$DASH_URL}    Base hub"
-echo "    ${PAAS_URL}    ${PAAS_LABEL} controller"
+if [ -n "$PAAS_ROUTE" ]; then
+  echo "    ${PAAS_URL}    ${PAAS_LABEL} controller"
+fi
 echo "    ${AUTH_URL}    Authentication"
 echo "    ${ID_URL}    Identity (PocketID)"
 echo ""
@@ -779,7 +783,7 @@ case "$DOMAIN_EFFECTIVE" in
   *.local|*.lab|*.lan|*.home|*.internal|*.test|home|homelab)
     echo "  Local DNS: resolve *.${DOMAIN_EFFECTIVE} to this host inside your network."
     echo "  Temporary workstation hosts entries:"
-    echo "    ${SERVER_IP}  base.${DOMAIN_EFFECTIVE} auth.${DOMAIN_EFFECTIVE} id.${DOMAIN_EFFECTIVE} ${PAAS_ROUTE}.${DOMAIN_EFFECTIVE}"
+    echo "    ${SERVER_IP}  base.${DOMAIN_EFFECTIVE} auth.${DOMAIN_EFFECTIVE} id.${DOMAIN_EFFECTIVE}${PAAS_ROUTE:+ ${PAAS_ROUTE}.${DOMAIN_EFFECTIVE}}"
     echo ""
     ;;
 esac

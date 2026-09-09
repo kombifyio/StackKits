@@ -84,6 +84,11 @@ nul
 dist/
 build/
 
+# Website installer routes are materialized from the root installers.
+/website/public/install
+/website/public/base
+/website/public/cloud
+
 # Playwright
 website-v2/test-results/
 website-v2/playwright-report/

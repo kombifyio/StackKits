@@ -308,12 +308,6 @@ Definition: foundation.#ProductKitDefinition & {
 				hardware: {}
 				failureDomain: "node-home-main"
 			}, {
-				id:      "home-standby"
-				siteRef: "home"
-				roles: ["controller", "worker"]
-				hardware: {}
-				failureDomain: "node-home-standby"
-			}, {
 				id:      "cloud-edge"
 				siteRef: "cloud"
 				roles: ["edge", "worker"]
@@ -321,9 +315,9 @@ Definition: foundation.#ProductKitDefinition & {
 				failureDomain: "node-cloud-edge"
 			}]
 			controlPlane: {
-				mode:             "warm-standby"
+				mode:             "single"
 				authoritySiteRef: "home"
-				members: ["home-main", "home-standby"]
+				members: ["home-main"]
 			}
 			capabilities: {enable: [], disable: []}
 			workloads: photos: {
@@ -334,15 +328,7 @@ Definition: foundation.#ProductKitDefinition & {
 					nodeRefs: ["home-main"]
 				}
 			}
-			addons: ha: enabled: true
-			availability: {
-				enabled:             true
-				mode:                "warm-standby"
-				rpoSeconds:          120
-				rtoSeconds:          600
-				failureDomainSpread: 2
-				fencing:             "automatic"
-			}
+			availability: {}
 			deviceEnrollment: {
 				mode:                      "local-only"
 				authoritySiteRef:          "home"

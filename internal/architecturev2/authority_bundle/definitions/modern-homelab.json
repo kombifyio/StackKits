@@ -24,19 +24,11 @@
           "privilege": "user"
         }
       },
-      "addons": {
-        "ha": {
-          "enabled": true
-        }
-      },
       "apiVersion": "stackkit/v2alpha1",
       "availability": {
-        "enabled": true,
-        "failureDomainSpread": 2,
-        "fencing": "automatic",
-        "mode": "warm-standby",
-        "rpoSeconds": 120,
-        "rtoSeconds": 600
+        "enabled": false,
+        "fencing": "none",
+        "mode": "single"
       },
       "backupPolicy": {
         "apiVersion": "stackkit.backup-policy/v1",
@@ -155,10 +147,9 @@
       "controlPlane": {
         "authoritySiteRef": "home",
         "members": [
-          "home-main",
-          "home-standby"
+          "home-main"
         ],
-        "mode": "warm-standby"
+        "mode": "single"
       },
       "data": {
         "bindings": {
@@ -246,20 +237,6 @@
             "profile": "standard"
           },
           "id": "home-main",
-          "roles": [
-            "controller",
-            "worker"
-          ],
-          "siteRef": "home"
-        },
-        {
-          "enabled": true,
-          "failureDomain": "node-home-standby",
-          "hardware": {
-            "arch": "amd64",
-            "profile": "standard"
-          },
-          "id": "home-standby",
           "roles": [
             "controller",
             "worker"

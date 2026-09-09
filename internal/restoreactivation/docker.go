@@ -20,8 +20,15 @@ const (
 	copyScript        = `src=$1
 dst=$2
 test -d "$src"
-find "$dst" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} \;
-find "$src" -mindepth 1 -maxdepth 1 -exec cp -a -- {} "$dst"/ \;`
+test -d "$dst"
+for entry in "$dst"/* "$dst"/.[!.]* "$dst"/..?*; do
+  test -e "$entry" || test -L "$entry" || continue
+  rm -rf -- "$entry" || exit $?
+done
+for entry in "$src"/* "$src"/.[!.]* "$src"/..?*; do
+  test -e "$entry" || test -L "$entry" || continue
+  cp -a -- "$entry" "$dst"/ || exit $?
+done`
 	stagingValidationScript = `root=$1
 shift
 for path do
@@ -168,6 +175,9 @@ func (runtime *dockerRuntime) PrepareRollback(
 	); err != nil {
 		return wrapDocker("create rollback volume", err)
 	}
+	if err := runtime.inspectRollback(ctx, authority, volume); err != nil {
+		return err
+	}
 	return runtime.copyVolume(
 		ctx, authority, volume, volume.LiveName, "/", volume.RollbackName,
 	)
@@ -215,6 +225,9 @@ func (runtime *dockerRuntime) RestoreVolume(
 	if err := requireAuthorityVolume(authority, volume); err != nil {
 		return err
 	}
+	if err := runtime.inspectRollback(ctx, authority, volume); err != nil {
+		return err
+	}
 	return runtime.copyVolume(
 		ctx, authority, volume, volume.RollbackName, "/", volume.LiveName,
 	)
@@ -247,8 +260,57 @@ func (runtime *dockerRuntime) CleanupRollback(
 	if err := requireAuthorityVolume(authority, volume); err != nil {
 		return err
 	}
+	if err := runtime.inspectRollback(ctx, authority, volume); err != nil {
+		if runtime.volumeGone(ctx, volume.RollbackName) {
+			return nil
+		}
+		return err
+	}
 	_, err := runtime.docker(ctx, "volume", "rm", volume.RollbackName)
+	if err != nil && runtime.volumeGone(ctx, volume.RollbackName) {
+		return nil
+	}
 	return wrapDocker("remove rollback volume", err)
+}
+
+// Docker volume create reuses an existing name without updating its labels.
+// Verify custody before either copying rollback data or removing the volume.
+func (runtime *dockerRuntime) inspectRollback(ctx context.Context, authority Authority, volume Volume) error {
+	output, err := runtime.docker(ctx, "volume", "inspect", volume.RollbackName)
+	if err != nil {
+		return wrapDocker("inspect rollback volume", err)
+	}
+	var inspected []struct {
+		Name   string            `json:"Name"`
+		Driver string            `json:"Driver"`
+		Labels map[string]string `json:"Labels"`
+	}
+	if err := json.Unmarshal(output, &inspected); err != nil || len(inspected) != 1 {
+		return errors.New("restoreactivation: rollback volume inspection is invalid")
+	}
+	actual := inspected[0]
+	if actual.Name != volume.RollbackName || actual.Driver != "local" ||
+		actual.Labels["io.stackkit.restore.operation"] != authority.OperationID ||
+		actual.Labels["io.stackkit.restore.source"] != volume.LiveName ||
+		actual.Labels["io.stackkit.restore.role"] != "rollback" {
+		return errors.New("restoreactivation: rollback volume differs from the verified operation")
+	}
+	return nil
+}
+
+func (runtime *dockerRuntime) volumeGone(ctx context.Context, name string) bool {
+	// A failed inspect or removal is not proof of absence: require a successful
+	// daemon listing and compare exact names, including after a partial cleanup.
+	output, err := runtime.docker(ctx, "volume", "ls", "--format", "{{.Name}}")
+	if err != nil {
+		return false
+	}
+	for _, actual := range strings.Fields(string(output)) {
+		if actual == name {
+			return false
+		}
+	}
+	return true
 }
 
 func (runtime *dockerRuntime) copyVolume(

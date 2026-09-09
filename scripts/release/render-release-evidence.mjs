@@ -53,7 +53,7 @@ const LEGACY_V04_DEFAULT_KNOWN_LIMITATIONS = [
 ];
 
 const CURRENT_DEFAULT_KNOWN_LIMITATIONS = [
-  'Architecture v2 is a governed contract checkpoint; product v2 generation and apply remain fail-closed until concrete typed renderers and kit-specific owner/module realizations are complete.',
+  'Architecture v2 generation and apply capabilities are defined per kit and runtime owner; implemented operations do not establish application usability or recovery without matching runtime evidence.',
   'Modern Homelab is included as a public Preview definition but remains excluded from the supported live runtime until its concrete federation bridge, edge/verifier, TLS, health, and multi-site evidence exist.',
   'Dokploy remains draft/non-beta until its full bootstrap path has evidence.',
 ];

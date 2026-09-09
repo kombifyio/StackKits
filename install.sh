@@ -349,7 +349,7 @@ print_cli_chain() {
     cloud-kit|modern-homelab) domain_arg=" --domain <your-domain>" ;;
     *) domain_arg="" ;;
   esac
-  echo "    stackkit init $kit --api-version stackkit/v2alpha1 --compute-tier standard --non-interactive --owner-source=local$domain_arg"
+  echo "    stackkit init $kit --catalog-defaults --non-interactive --owner-source=local$domain_arg"
   echo "    stackkit generate                            # resolve + render artifacts"
   echo "    stackkit apply --auto-approve                # deploy (installs Docker on demand)"
 }

@@ -370,9 +370,15 @@ func buildPlan(input plannerInput) testPlan {
 		commands = append(commands,
 			testCommand{
 				Kind:   "website",
+				Scope:  "dependencies",
+				Argv:   []string{"node", "scripts/ensure-website-deps.mjs"},
+				Reason: "prepare locked website and linked WebMCP dependencies when absent or changed",
+			},
+			testCommand{
+				Kind:   "website",
 				Scope:  "source",
 				Argv:   []string{"npm", "--prefix", "website", "run", "check"},
-				Reason: "type-check and validate website source without reinstalling or building",
+				Reason: "type-check and validate website source without building",
 			},
 			testCommand{
 				Kind:   "website",
@@ -544,6 +550,9 @@ func classifyFiles(files []string) classification {
 
 		if file == "api/openapi/stackkits-v1.yaml" || file == "website/public/api/openapi.v1.yaml" {
 			result.OpenAPIProjection = true
+			known = true
+		} else if file == "install.sh" || file == "base-install.sh" || file == "cloud-install.sh" {
+			result.Website = true
 			known = true
 		} else if top == "website" {
 			result.Website = true
