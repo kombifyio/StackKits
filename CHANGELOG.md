@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.27.2](https://github.com/kombifyio/stackKits/compare/v0.27.1...v0.27.2) (2026-09-12)
+
+
+### Fixed
+
+* **runtime:** bind Basement PKI to existing owner and ingress ([#1027](https://github.com/kombifyio/stackKits/issues/1027)) ([ddc022b](https://github.com/kombifyio/stackKits/commit/ddc022bcc330b4552d83753dd9e89179016ee4bf))
+
 ## [0.27.1](https://github.com/kombifyio/stackKits/compare/v0.27.0...v0.27.1) (2026-09-12)
 
 

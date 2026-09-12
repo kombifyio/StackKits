@@ -256,6 +256,13 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return architecturev2.NewProductHomeBackupTargetRegistration(runtimeVersion, runtimeexecutorlocal.NewOSHomeBackupTargetOperations())
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			operations, err := runtimeexecutorlocal.NewOSInternalPKIOperations(workspaceRoot)
+			if err != nil {
+				return architecturev2.ProductRuntimeOwnerRegistration{}, err
+			}
+			return architecturev2.NewProductInternalPKIRegistration(runtimeVersion, operations, operations, operations, operations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductBasementCoreRegistration(runtimeVersion, basementCoreOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {

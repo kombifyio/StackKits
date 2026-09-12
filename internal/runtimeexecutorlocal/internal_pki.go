@@ -329,7 +329,7 @@ func validInternalPKIRootObservation(observation InternalPKIRootObservation, pol
 	continuityUntil, continuityErr := time.Parse(time.RFC3339Nano, observation.ContinuityValidUntil)
 	return beforeErr == nil && afterErr == nil && evaluatedErr == nil && continuityErr == nil &&
 		!notBefore.After(evaluatedAt) && notAfter.After(evaluatedAt.Add(time.Duration(policy.RenewBeforeSeconds)*time.Second)) &&
-		!notAfter.After(evaluatedAt.Add(time.Duration(policy.ValiditySeconds)*time.Second)) &&
+		// The custodied CA lifetime is independent of the issued leaf TTL.
 		continuityUntil.After(evaluatedAt.Add(time.Duration(policy.RenewBeforeSeconds)*time.Second))
 }
 

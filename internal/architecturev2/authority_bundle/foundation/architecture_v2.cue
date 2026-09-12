@@ -2779,7 +2779,7 @@ _servicePublicationShape: {
 #TLSCatalogOwnerV2: {
 	providerRef:            #ContractID
 	moduleRef:              #ContractID
-	materializationSupport: "contract-only"
+	materializationSupport: "contract-only" | "native-local"
 }
 
 #TLSMaterialSlotV2: {
@@ -4482,14 +4482,15 @@ _servicePublicationShape: {
 		nodeRef:        #NodeID
 		trustDomainRef: #ContractID
 		subjectRef:     "stackkits-home-root-ca"
-		keyAlgorithm:   "ecdsa-p256"
+		keyAlgorithm:   "ed25519"
 		basicConstraints: {
 			ca:      true
-			pathLen: 0
+			pathLen: -1
 		}
-		keyUsage: ["cert-sign", "crl-sign"]
+		keyUsage: ["cert-sign", "crl-sign", "digital-signature"]
 	}
 	trustDistribution: {
+		scope: "product-local-owner-root"
 		targets: [...{
 			siteRef: #SiteID
 			nodeRef: #NodeID
@@ -4506,9 +4507,9 @@ _servicePublicationShape: {
 		subjectAuthority: "compiler-derived-service"
 		sanAuthority:     "compiler-derived-route"
 		ca:               false
-		keyAlgorithm:     "ecdsa-p256"
-		keyUsage: ["digital-signature", "key-agreement"]
-		extendedKeyUsage: ["server-auth", "client-auth"]
+		keyAlgorithm:     "acme-owner-selected"
+		keyUsage: ["digital-signature"]
+		extendedKeyUsage: ["server-auth"]
 		requiredObservationFields: [
 			"certificate-fingerprint",
 			"public-key-fingerprint",
@@ -5710,7 +5711,7 @@ _servicePublicationShape: {
 	}]
 	_tlsIssuerOwnersExact: [for providerContract in providers for issuerContract in providerContract.certificateIssuers {
 		issuer:                 issuerContract.id
-		materializationSupport: issuerContract.owner.materializationSupport & "contract-only"
+		materializationSupport: issuerContract.owner.materializationSupport & ("contract-only" | "native-local")
 		moduleMatches: [for module in modules if module.metadata.id == issuerContract.owner.moduleRef && module.providerRef == providerContract.metadata.id for healthContract in module.health if healthContract.id == issuerContract.renewal.healthGateRef {module.metadata.id}] & list.MinItems(1) & list.MaxItems(1)
 		providerSiteKinds: [for issuerSiteKind in issuerContract.supportedSiteKinds {
 			kind: issuerSiteKind

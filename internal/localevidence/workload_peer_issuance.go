@@ -25,14 +25,17 @@ func basementWorkloadProvisioners(root string) ([]basementStepCAProvisioner, err
 	if err != nil {
 		return nil, err
 	}
-	return []basementStepCAProvisioner{origin, peer}, nil
+	return []basementStepCAProvisioner{origin, peer, basementACMEProvisioner()}, nil
 }
 
 func requireBasementWorkloadProvisioners(root string) error {
 	if err := requireBasementOriginProvisioner(root); err != nil {
 		return err
 	}
-	return requireBasementWorkloadProvisioner(root, basementPeerProvisionerName, x509.ExtKeyUsageClientAuth)
+	if err := requireBasementWorkloadProvisioner(root, basementPeerProvisionerName, x509.ExtKeyUsageClientAuth); err != nil {
+		return err
+	}
+	return requireBasementProvisioner(root, basementACMEProvisioner())
 }
 
 // IssueWorkloadPeerCertificate is a local Owner capability, never an HTTP

@@ -71,6 +71,7 @@ type internalPKIAuthority struct {
 }
 
 type internalPKITrustDistribution struct {
+	Scope        string                        `json:"scope"`
 	Targets      []internalPKITrustTarget      `json:"targets"`
 	MaterialSlot publicTLSExecutorMaterialSlot `json:"materialSlot"`
 }
@@ -176,10 +177,13 @@ func validateInternalPKIPlanInputs(raw []byte, path string) ([]string, error) {
 	authority := pki.Authority
 	if authority.ID != "stackkits-home-root-ca" || authority.Role != "root-ca" ||
 		authority.TrustDomainRef != plan.StackID || authority.SubjectRef != "stackkits-home-root-ca" ||
-		authority.KeyAlgorithm != "ecdsa-p256" || !authority.BasicConstraints.CA ||
-		authority.BasicConstraints.PathLen != 0 ||
-		!exactStringList(authority.KeyUsage, []string{"cert-sign", "crl-sign"}) {
+		authority.KeyAlgorithm != "ed25519" || !authority.BasicConstraints.CA ||
+		authority.BasicConstraints.PathLen != -1 ||
+		!exactStringList(authority.KeyUsage, []string{"cert-sign", "crl-sign", "digital-signature"}) {
 		return nil, fail(ErrInvalidPlan, path+".internalPKI.authority", "root CA authority is ambiguous or widened")
+	}
+	if pki.TrustDistribution.Scope != "product-local-owner-root" {
+		return nil, fail(ErrInvalidPlan, path+".internalPKI.trustDistribution.scope", "requires product-local owner-root consumption")
 	}
 	targets := pki.TrustDistribution.Targets
 	if len(targets) == 0 {
@@ -210,9 +214,9 @@ func validateInternalPKIPlanInputs(raw []byte, path string) ([]string, error) {
 	leaf := pki.LeafIssuance
 	if leaf.Status != "bound" || leaf.SubjectAuthority != "compiler-derived-service" ||
 		leaf.SANAuthority != "compiler-derived-route" || leaf.CA ||
-		leaf.KeyAlgorithm != "ecdsa-p256" ||
-		!exactStringList(leaf.KeyUsage, []string{"digital-signature", "key-agreement"}) ||
-		!exactStringList(leaf.ExtendedKeyUsage, []string{"server-auth", "client-auth"}) ||
+		leaf.KeyAlgorithm != "acme-owner-selected" ||
+		!exactStringList(leaf.KeyUsage, []string{"digital-signature"}) ||
+		!exactStringList(leaf.ExtendedKeyUsage, []string{"server-auth"}) ||
 		!exactStringList(leaf.RequiredObservationFields, []string{
 			"certificate-fingerprint", "public-key-fingerprint", "trust-root-fingerprint",
 			"serial", "not-before", "not-after", "observed-at",

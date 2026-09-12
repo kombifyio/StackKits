@@ -270,6 +270,10 @@ func requireBasementWorkloadProvisioner(workspaceRoot, name string, usage x509.E
 	if err != nil {
 		return err
 	}
+	return requireBasementProvisioner(workspaceRoot, expected)
+}
+
+func requireBasementProvisioner(workspaceRoot string, expected basementStepCAProvisioner) error {
 	path, err := confinedCustodyPath(workspaceRoot, filepath.ToSlash(filepath.Join(basementRuntimeCustodyRelDir, "step-ca/config/ca.json")))
 	if err != nil {
 		return err

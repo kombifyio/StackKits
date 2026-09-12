@@ -367,7 +367,7 @@ func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain 
 		Logger:   basementStepCALogger{Format: "text"},
 		DB:       basementStepCADatabase{Type: "badgerV2", DataSource: "/home/step/db"},
 		Authority: basementStepCAAuthority{
-			Provisioners: []basementStepCAProvisioner{{Type: "ACME", Name: "acme"}, workloadProvisioner, peerProvisioner},
+			Provisioners: []basementStepCAProvisioner{basementACMEProvisioner(), workloadProvisioner, peerProvisioner},
 		},
 	}, "", "  ")
 	if err != nil {
@@ -749,4 +749,9 @@ type basementStepCAProvisioner struct {
 	Key     map[string]string `json:"key,omitempty"`
 	Claims  map[string]any    `json:"claims,omitempty"`
 	Options map[string]any    `json:"options,omitempty"`
+}
+
+// The node-local ACME owner and governed ingress agree on one-day leaves.
+func basementACMEProvisioner() basementStepCAProvisioner {
+	return basementStepCAProvisioner{Type: "ACME", Name: "acme", Claims: map[string]any{"minTLSCertDuration": "5m", "maxTLSCertDuration": "24h", "defaultTLSCertDuration": "24h"}}
 }

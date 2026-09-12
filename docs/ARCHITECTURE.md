@@ -2004,3 +2004,24 @@ The implemented top-level command groups are documented in [CLI.md](CLI.md):
 | Roadmap read-view | `ROADMAP.md` |
 
 Historical V5/V6 and CUE-audit planning content has been folded into ADRs, Beads, the architecture manifest, and this overview. Do not reintroduce standalone architecture-version or task-tracker Markdown files.
+
+
+### Basement internal PKI runtime ownership
+
+The native local internal-PKI adapter uses the existing owner-custodied Ed25519
+root and online step-ca intermediate. Traefik owns ACME leaf keys, issuance and
+renewal. The issuer and ingress explicitly use 24-hour leaves with the native six-hour
+renewal window and ten-minute polling interval. The health check requires more
+than five hours fifty minutes remaining (21,000 seconds), allowing one polling
+interval without accepting an expired certificate; CA lifetime is independent of leaf lifetime. Existing legacy
+ACME configuration upgrades through the signed runtime-custody journal without
+replacing established CA material or custom provisioner claims.
+
+Apply observes actual ingress certificates using the compiler DNS identity and
+regular TLS verification against the custodied root. Exact SANs and acceptable
+public-key strength are required. `product-local-owner-root` trust distribution
+means verified consumption by the local product using the existing mounted root.
+It does not assert OS trust-store installation, remote-node distribution or trust
+on a second LAN client. Remote trust targets remain unsupported by this local
+adapter. Catalog `native-local` describes this implementation boundary; it is not
+live acceptance evidence.

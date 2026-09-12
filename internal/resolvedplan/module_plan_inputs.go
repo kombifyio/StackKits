@@ -1264,11 +1264,12 @@ func safeModuleInternalPKI(moduleID string, module map[string]any, source module
 			"id": "stackkits-home-root-ca", "role": "root-ca",
 			"siteRef": authoritySiteRef, "nodeRef": authorityNodeRef,
 			"trustDomainRef": source.stackID, "subjectRef": "stackkits-home-root-ca",
-			"keyAlgorithm":     "ecdsa-p256",
-			"basicConstraints": map[string]any{"ca": true, "pathLen": 0},
-			"keyUsage":         []any{"cert-sign", "crl-sign"},
+			"keyAlgorithm":     "ed25519",
+			"basicConstraints": map[string]any{"ca": true, "pathLen": -1},
+			"keyUsage":         []any{"cert-sign", "crl-sign", "digital-signature"},
 		},
 		"trustDistribution": map[string]any{
+			"scope":   "product-local-owner-root",
 			"targets": targets,
 			"materialSlot": map[string]any{
 				"id": "trust-root", "purpose": "trust-root", "sensitivity": "public",
@@ -1276,9 +1277,9 @@ func safeModuleInternalPKI(moduleID string, module map[string]any, source module
 		},
 		"leafIssuance": map[string]any{
 			"status": "bound", "subjectAuthority": "compiler-derived-service",
-			"sanAuthority": "compiler-derived-route", "ca": false, "keyAlgorithm": "ecdsa-p256",
-			"keyUsage":         []any{"digital-signature", "key-agreement"},
-			"extendedKeyUsage": []any{"server-auth", "client-auth"},
+			"sanAuthority": "compiler-derived-route", "ca": false, "keyAlgorithm": "acme-owner-selected",
+			"keyUsage":         []any{"digital-signature"},
+			"extendedKeyUsage": []any{"server-auth"},
 			"requiredObservationFields": []any{
 				"certificate-fingerprint", "public-key-fingerprint", "trust-root-fingerprint",
 				"serial", "not-before", "not-after", "observed-at",

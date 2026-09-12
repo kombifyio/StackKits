@@ -173,12 +173,23 @@ func prepareOriginUpgrade(workspaceRoot string, tx *confinedfs.Transaction) (bas
 	}
 	for _, wanted := range expected {
 		found := false
-		for _, raw := range provisioners {
+		for index, raw := range provisioners {
 			var value basementStepCAProvisioner
 			if err := json.Unmarshal(raw, &value); err != nil {
 				return journal, err
 			}
 			if value.Name != wanted.Name {
+				continue
+			}
+			// Upgrade only the exact legacy owner ACME configuration. Custom
+			// claims remain a conflict; the existing custody journal preserves
+			// the old configuration and root throughout this transition.
+			if !found && wanted.Name == "acme" && reflect.DeepEqual(value, basementStepCAProvisioner{Type: "ACME", Name: "acme"}) {
+				provisioners[index], err = json.Marshal(wanted)
+				if err != nil {
+					return journal, err
+				}
+				found = true
 				continue
 			}
 			if found || !reflect.DeepEqual(value, wanted) {

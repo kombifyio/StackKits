@@ -6898,7 +6898,7 @@
             }
           ],
           "issuer": "stackkits-internal-ca",
-          "materializationSupport": "contract-only",
+          "materializationSupport": "native-local",
           "moduleMatches": [
             "stackkits-internal-pki-contract"
           ],
@@ -14353,7 +14353,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:81dcca80a6eaf1978077ef928e88f420c55bb130024290a12bbf453fa0bfe4af",
+          "contractHash": "sha256:4bc2e5fe20147c0525064c1518b26aaaead8872c549d4abc137399e52961e392",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -14554,7 +14554,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:e872d49abbac54f03ba6214e65d9acc0c39bd77ca601a0095e386f5a728c7667",
+          "contractHash": "sha256:466a99cac426644ff9238ea3802ca9cb21ef95425e862eb151218d9b47da02de",
           "id": "opentofu",
           "inputBindings": [],
           "kind": "opentofu",
@@ -14755,7 +14755,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:f238ac4f8e2ade106694f2b6005ef818402bfbedca838f34ee279e35ec54558e",
+          "contractHash": "sha256:7172781cc7d5457a00f865636c67d8d61f9550f77c85f053e4ee3280e02db166",
           "id": "terramate",
           "inputBindings": [],
           "kind": "terramate",
@@ -15904,7 +15904,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:d5bf8b337e0ccc678aedb38f29747260ca1d8db5bdc05387ec3e86e37300fb94",
+          "contractHash": "sha256:01285f8be5db5c502de2ee4b53337ff4a46d8466e11ee14bfa43e8bb49702848",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -16077,7 +16077,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:e92aaafd81218eaf023744dea9e802d462163a4eb0f69411610bceee0729bc9d",
+          "contractHash": "sha256:bf2e7666c7d2b3b994e82cf64a5469323521a4a4070d9bafc6a73b179029c6a7",
           "id": "opentofu",
           "inputBindings": [],
           "kind": "opentofu",
@@ -16250,7 +16250,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:95119b44e1b657e95a5c6bb5710f7fde226e9599e9359865dd9e46664c80426c",
+          "contractHash": "sha256:5edd783ac3d1d6628066ecce4ffc7c942fbba46b060e6475dfed5adb079db6a2",
           "id": "terramate",
           "inputBindings": [],
           "kind": "terramate",
@@ -16474,7 +16474,7 @@
             "basement-core-lite-compose",
             "local-kopia-backup-source-policy-lite"
           ],
-          "contractHash": "sha256:d5bf8b337e0ccc678aedb38f29747260ca1d8db5bdc05387ec3e86e37300fb94",
+          "contractHash": "sha256:01285f8be5db5c502de2ee4b53337ff4a46d8466e11ee14bfa43e8bb49702848",
           "id": "compose",
           "planInputRefs": [
             "stackId",
@@ -16500,7 +16500,7 @@
             "basement-core-lite-opentofu",
             "local-kopia-backup-source-policy-lite"
           ],
-          "contractHash": "sha256:e92aaafd81218eaf023744dea9e802d462163a4eb0f69411610bceee0729bc9d",
+          "contractHash": "sha256:bf2e7666c7d2b3b994e82cf64a5469323521a4a4070d9bafc6a73b179029c6a7",
           "id": "opentofu",
           "planInputRefs": [
             "stackId",
@@ -16528,7 +16528,7 @@
             "basement-core-lite-terramate-stack",
             "local-kopia-backup-source-policy-lite"
           ],
-          "contractHash": "sha256:95119b44e1b657e95a5c6bb5710f7fde226e9599e9359865dd9e46664c80426c",
+          "contractHash": "sha256:5edd783ac3d1d6628066ecce4ffc7c942fbba46b060e6475dfed5adb079db6a2",
           "id": "terramate",
           "planInputRefs": [
             "stackId",
@@ -24426,20 +24426,20 @@
             }
           ],
           "owner": {
-            "materializationSupport": "contract-only",
+            "materializationSupport": "native-local",
             "moduleRef": "stackkits-internal-pki-contract",
             "providerRef": "stackkits-internal-pki"
           },
           "renewal": {
             "healthGateRef": "internal-pki-renewal-contract",
-            "renewBeforeSeconds": 2592000,
+            "renewBeforeSeconds": 21000,
             "required": true
           },
           "requiredInputSlotIDs": [],
           "supportedSiteKinds": [
             "home"
           ],
-          "validitySeconds": 7776000
+          "validitySeconds": 86400
         }
       ],
       "evidence": [
