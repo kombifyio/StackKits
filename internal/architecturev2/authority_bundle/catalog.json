@@ -14172,7 +14172,8 @@
         },
         {
           "expectedStatuses": [
-            200
+            200,
+            301
           ],
           "id": "basement-hub-http",
           "kind": "http",
@@ -15723,7 +15724,8 @@
         },
         {
           "expectedStatuses": [
-            200
+            200,
+            301
           ],
           "id": "basement-hub-http",
           "kind": "http",

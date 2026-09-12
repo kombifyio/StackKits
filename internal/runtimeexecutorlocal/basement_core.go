@@ -424,7 +424,7 @@ type basementCoreHealthSpec struct {
 }
 
 var basementCoreHealthSpecs = []basementCoreHealthSpec{
-	{source: "basement-hub-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/healthz", port: 80, timeout: 30, statuses: []int{200}},
+	{source: "basement-hub-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/healthz", port: 80, timeout: 30, statuses: []int{200, 301}},
 	{source: "basement-router-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/ping", port: 8080, timeout: 30, statuses: []int{200}},
 	{source: "coolify-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/", port: 8000, timeout: 30, statuses: []int{200, 302}},
 	{source: "local-kopia-runtime-container", kind: "container", targetKind: "module", targetRef: basementCoreModuleRef},

@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.28.1](https://github.com/kombifyio/stackKits/compare/v0.28.0...v0.28.1) (2026-09-12)
+
+
+### Fixed
+
+* **runtime:** complete local Basement apply ([#1033](https://github.com/kombifyio/stackKits/issues/1033)) ([d3f6dd3](https://github.com/kombifyio/stackKits/commit/d3f6dd33548c1f51c58e12ab370c662612dd3229))
+
 ## [0.28.0](https://github.com/kombifyio/stackKits/compare/d3ae3ec51edc20c8addbcf5e74448616fdaee744...eab3f1934fcb3da0ca0dc7af745598e863730b97) (2026-09-12)
 
 

@@ -232,8 +232,8 @@ func (e *InternalPKIExecutor) Execute(ctx context.Context, request runtimeexecut
 
 func validateInternalPKIRequest(request runtimeexecutor.ExecutionRequest, binding LocalTargetBinding, authority InternalPKIAuthority, evaluatedAt time.Time) (runtimeexecutor.RuntimeTarget, runtimeexecutor.HealthTarget, InternalPKIPolicy, error) {
 	emptyTarget, emptyHealth := runtimeexecutor.RuntimeTarget{}, runtimeexecutor.HealthTarget{}
-	if len(request.RuntimeTargets) != 1 || len(request.HealthTargets) != 1 || len(request.AccessBindings) != 0 || len(request.Artifacts) != 1 {
-		return emptyTarget, emptyHealth, InternalPKIPolicy{}, errors.New("internal PKI executor requires one runtime, one health target, one artifact, and no access binding")
+	if len(request.RuntimeTargets) != 1 || len(request.HealthTargets) != 1 || len(request.AccessBindings) != 0 {
+		return emptyTarget, emptyHealth, InternalPKIPolicy{}, errors.New("internal PKI executor requires one runtime, one health target, and no access binding")
 	}
 	if !validCoreHostBootstrapDigest(request.RequestDigest) {
 		return emptyTarget, emptyHealth, InternalPKIPolicy{}, errors.New("internal PKI executor requires a sealed request digest")
@@ -264,7 +264,10 @@ func validateInternalPKIRequest(request runtimeexecutor.ExecutionRequest, bindin
 		!slices.Equal(health.SiteRefs, target.SiteRefs) || !slices.Equal(health.NodeRefs, target.NodeRefs) {
 		return emptyTarget, emptyHealth, InternalPKIPolicy{}, errors.New("health target is not the exact internal PKI renewal postcondition")
 	}
-	artifact := request.Artifacts[0]
+	artifact, err := exactOwnedArtifactWithPlanMetadata(request.Artifacts, wantArtifactID)
+	if err != nil {
+		return emptyTarget, emptyHealth, InternalPKIPolicy{}, fmt.Errorf("select exact internal PKI artifact: %w", err)
+	}
 	if artifact.ID != wantArtifactID || artifact.Kind != "native-config" || artifact.Format != "json" ||
 		artifact.Mode != "0640" || artifact.OwnerKind != "render-instance" || artifact.OwnerRef != wantInstance ||
 		artifact.OwnerContractHash != target.UnitContractHash || artifact.ProviderRef != internalPKIProviderRef ||

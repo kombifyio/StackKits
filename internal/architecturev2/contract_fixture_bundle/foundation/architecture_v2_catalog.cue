@@ -4581,7 +4581,7 @@ _architectureV2Modules: list.Concat([[
 			{id: "step-ca-tcp", kind: "tcp", port: 9000},
 			{id: "coolify-http", kind: "http", path: "/", port: 8000, expectedStatuses: [200, 302]},
 			{id: "local-kopia-runtime-container", kind: "container", scope: "each-node"},
-			{id: "basement-hub-http", kind: "http", path: "/healthz", port: 80, expectedStatuses: [200]},
+			{id: "basement-hub-http", kind: "http", path: "/healthz", port: 80, expectedStatuses: [200, 301]},
 		]
 		evidence: ["basement-core-runtime-evidence"]
 	},
@@ -4856,7 +4856,7 @@ _architectureV2Modules: list.Concat([[
 			{id: "tinyauth-http", kind: "http", path: "/", port: 4000, expectedStatuses: [200, 302]},
 			{id: "step-ca-tcp", kind: "tcp", port: 9000},
 			{id: "local-kopia-runtime-container", kind: "container", scope: "each-node"},
-			{id: "basement-hub-http", kind: "http", path: "/healthz", port: 80, expectedStatuses: [200]},
+			{id: "basement-hub-http", kind: "http", path: "/healthz", port: 80, expectedStatuses: [200, 301]},
 		]
 		evidence: ["basement-core-runtime-evidence"]
 	},

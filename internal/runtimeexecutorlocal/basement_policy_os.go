@@ -133,7 +133,8 @@ func (o *osBasementPolicyOperations) verifyRuntimeAuthority() error {
 	}
 	composePath := filepath.Join(o.workspaceRoot, ".stackkit", "runtime", "basement-core", "compose.yaml")
 	content, err := os.ReadFile(composePath) //nolint:gosec // fixed construction-owned path
-	if err != nil || !architecturev2renderer.ValidateBasementCoreComposeArtifact(content) {
+	if err != nil || (!architecturev2renderer.ValidateBasementCoreComposeArtifact(content) &&
+		!architecturev2renderer.ValidateBasementCoreLiteComposeArtifact(content)) {
 		return errors.New("local Basement core runtime is not the exact owner-bound platform")
 	}
 	return nil
