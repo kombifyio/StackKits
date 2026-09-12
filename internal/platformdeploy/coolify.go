@@ -231,9 +231,6 @@ func (a *CoolifyAdapter) observeCoolifyDeploymentTick(ctx context.Context, obser
 	status, err := a.serviceStatus(ctx, ref)
 	if err != nil {
 		state.lastErrors[index] = err
-		if a.observeCoolifyDockerRuntimeFallbackTick(ctx, observed, index, state, startReconcileInterval, ref, err) {
-			return true
-		}
 		delete(state.runtimeRunningSince, index)
 		return false
 	}
@@ -245,25 +242,6 @@ func (a *CoolifyAdapter) observeCoolifyDeploymentTick(ctx context.Context, obser
 		return a.coolifyObservedStatusReady(ctx, &observed[index], status, state, index, startReconcileInterval)
 	}
 	a.reconcileCoolifyDeploymentStart(ctx, &observed[index], status, state, index, startReconcileInterval)
-	return false
-}
-
-func (a *CoolifyAdapter) observeCoolifyDockerRuntimeFallbackTick(ctx context.Context, observed []DeploymentRef, index int, state *coolifyObserveLoopState, startReconcileInterval time.Duration, ref DeploymentRef, apiErr error) bool {
-	status, runtimeErr, ok := a.coolifyDockerRuntimeObservedStatus(ctx, ref)
-	if runtimeErr != nil {
-		state.lastErrors[index] = fmt.Errorf("%w; docker runtime observe: %v", apiErr, runtimeErr)
-	}
-	if !ok {
-		return false
-	}
-	state.lastStatuses[index] = status
-	observed[index].ObservedStatus = status.Status
-	observed[index].ObservedAt = status.ObservedAt
-	a.trackCoolifyRuntimeStability(index, status, state)
-	if status.running() {
-		return a.coolifyObservedStatusReady(ctx, &observed[index], status, state, index, startReconcileInterval)
-	}
-	a.reconcileCoolifyDockerRuntimeStart(ctx, &observed[index], status, state, index, startReconcileInterval)
 	return false
 }
 
@@ -498,16 +476,23 @@ type coolifyObservedStatus struct {
 
 func (status coolifyObservedStatus) running() bool {
 	normalized := strings.ToLower(strings.TrimSpace(status.Status))
-	if normalized == "docker:running" {
-		return true
-	}
-	if !strings.HasPrefix(normalized, "running") {
+	parts := strings.Split(normalized, ":")
+	if parts[0] != "running" {
 		return false
+	}
+	for _, part := range parts[1:] {
+		if part == "unhealthy" {
+			return false
+		}
 	}
 	return !status.ServerStatusKnown || status.ServerStatus
 }
 
 func (status coolifyObservedStatus) shouldReconcileStart() bool {
+	lifecycle, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(status.Status)), ":")
+	if lifecycle == "running" || lifecycle == "starting" {
+		return false
+	}
 	if !status.RuntimeKnown {
 		return true
 	}
@@ -518,31 +503,6 @@ func (status coolifyObservedStatus) shouldStartDockerRuntime() bool {
 	return status.RuntimeKnown && !status.RuntimeRunning && !status.RuntimeActive
 }
 
-func (a *CoolifyAdapter) coolifyDockerRuntimeObservedStatus(ctx context.Context, ref DeploymentRef) (coolifyObservedStatus, error, bool) {
-	if a.cfg.LegacyDockerComposeAPI || a.cfg.DisableDockerRuntimeObserve {
-		return coolifyObservedStatus{}, nil, false
-	}
-	runtimeStatus, err := coolifyDockerRuntimeStatus(ctx, ref, a.cfg.DockerEnv)
-	if err != nil {
-		return coolifyObservedStatus{}, err, false
-	}
-	if !runtimeStatus.Known {
-		return coolifyObservedStatus{}, nil, false
-	}
-	status := strings.TrimSpace(runtimeStatus.Status)
-	if status == "" {
-		status = "docker:unknown"
-	}
-	return coolifyObservedStatus{
-		Status:         status,
-		RuntimeKnown:   true,
-		RuntimeRunning: runtimeStatus.Running,
-		RuntimeActive:  runtimeStatus.Active,
-		RuntimeStatus:  status,
-		ObservedAt:     time.Now().UTC(),
-	}, nil, true
-}
-
 func (a *CoolifyAdapter) serviceStatus(ctx context.Context, ref DeploymentRef) (coolifyObservedStatus, error) {
 	path := "/api/v1/services/" + url.PathEscape(ref.ExternalID)
 	if a.cfg.LegacyDockerComposeAPI {
@@ -551,6 +511,9 @@ func (a *CoolifyAdapter) serviceStatus(ctx context.Context, ref DeploymentRef) (
 	var payload map[string]any
 	if _, _, err := a.client.getJSON(ctx, path, &payload); err != nil {
 		return coolifyObservedStatus{}, fmt.Errorf("coolify status %q: %w", ref.AppName, err)
+	}
+	if upstreamID := firstString(payload, "uuid", "id"); upstreamID == "" || upstreamID != ref.ExternalID {
+		return coolifyObservedStatus{}, fmt.Errorf("coolify status %q returned identity %q for external id %q", ref.AppName, upstreamID, ref.ExternalID)
 	}
 	status := firstString(payload, "status", "application_status", "human_status")
 	serverStatus, serverStatusKnown := payload["server_status"].(bool)

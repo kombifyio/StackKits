@@ -493,6 +493,7 @@ func (m *pocketIDMutator) Apply(
 		return "", nil, errors.New("identityprojection: local PocketID is unavailable")
 	}
 	groupIDs := make([]string, 0, len(projection.Groups))
+	requestedGroups := make(map[string]string, len(projection.Groups))
 	for _, name := range projection.Groups {
 		id, err := m.client.GetGroupIDByName(ctx, name)
 		if err != nil {
@@ -515,6 +516,7 @@ func (m *pocketIDMutator) Apply(
 			}
 		}
 		groupIDs = append(groupIDs, id)
+		requestedGroups[name] = id
 	}
 	users, err := m.client.FindUsersByUsername(ctx, projection.Profile.Username)
 	if err != nil || len(users) > 1 {
@@ -549,17 +551,30 @@ func (m *pocketIDMutator) Apply(
 	}
 	slices.Sort(groupIDs)
 	groupIDs = slices.Compact(groupIDs)
-	user, err = m.client.UpdateUserGroups(ctx, user.ID, groupIDs)
-	if err != nil || user == nil || user.IsAdmin || user.Disabled {
+	subject := user.ID
+	user, err = m.client.UpdateUserGroups(ctx, subject, groupIDs)
+	if err != nil || user == nil || user.ID != subject || user.IsAdmin || user.Disabled {
 		return "", nil, errors.New("identityprojection: PocketID group mutation failed")
 	}
-	readback, err := m.client.GetUser(ctx, user.ID)
-	if err != nil || readback == nil ||
+	readback, err := m.client.GetUser(ctx, subject)
+	if err != nil || readback == nil || readback.ID != subject ||
 		readback.Username != projection.Profile.Username ||
 		readback.Email != projection.Profile.Email ||
 		effectiveDisplayName(*readback) != projection.Profile.DisplayName ||
 		readback.IsAdmin || readback.Disabled {
 		return "", nil, errors.New("identityprojection: PocketID readback differs from approved projection")
+	}
+	observedGroupIDs := make([]string, 0, len(readback.UserGroups))
+	for _, group := range readback.UserGroups {
+		observedGroupIDs = append(observedGroupIDs, group.ID)
+		if requestedGroups[group.Name] == group.ID {
+			delete(requestedGroups, group.Name)
+		}
+	}
+	slices.Sort(observedGroupIDs)
+	observedGroupIDs = slices.Compact(observedGroupIDs)
+	if len(requestedGroups) != 0 || !slices.Equal(observedGroupIDs, groupIDs) {
+		return "", nil, errors.New("identityprojection: PocketID group readback differs from intended membership")
 	}
 	return readback.ID, slices.Clone(projection.Groups), nil
 }

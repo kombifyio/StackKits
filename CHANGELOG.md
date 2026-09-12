@@ -4,6 +4,15 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.26.4](https://github.com/kombifyio/stackKits/compare/v0.26.3...v0.26.4) (2026-09-12)
+
+
+### Fixed
+
+* **coolify:** require upstream status identity ([#1011](https://github.com/kombifyio/stackKits/issues/1011)) ([f99efe8](https://github.com/kombifyio/stackKits/commit/f99efe8bff9c2b8282759291cd1c07721bb37b21))
+* **identity:** verify projected subject and group readback ([#1010](https://github.com/kombifyio/stackKits/issues/1010)) ([f92899a](https://github.com/kombifyio/stackKits/commit/f92899ade082af54b7b952aa267308958f4f0356))
+* **komodo:** read upstream stack state ([#1008](https://github.com/kombifyio/stackKits/issues/1008)) ([40a1b48](https://github.com/kombifyio/stackKits/commit/40a1b487ee17a159d6fa8baa3f45547e9cff40d0))
+
 ## [0.26.3](https://github.com/kombifyio/stackKits/compare/v0.26.2...v0.26.3) (2026-09-12)
 
 
