@@ -1132,7 +1132,8 @@
       "media",
       "smart-home",
       "ai",
-      "dev"
+      "dev",
+      "documents"
     ],
     "required": [
       "basement-core"

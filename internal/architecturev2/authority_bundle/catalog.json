@@ -405,6 +405,197 @@
         }
       },
       "metadata": {
+        "description": "Owner-controlled Paperless-ngx document lifecycle using the shared application operations.",
+        "id": "documents",
+        "version": "1.0.0"
+      },
+      "packageRef": "documents",
+      "useCaseRef": "documents",
+      "workloadRef": "documents"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
         "description": "Owner-controlled Private AI lifecycle; model download is an explicit owner operation.",
         "id": "ai",
         "version": "1.0.0"
@@ -3792,6 +3983,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-paperless-runtime"
+        ],
+        "matches": [
+          "stackkits-paperless-ngx"
+        ],
+        "module": "stackkits-paperless-runtime",
+        "provider": "stackkits-paperless-ngx"
+      },
+      {
+        "governanceMatches": [
           "stackkits-jellyfin-runtime"
         ],
         "matches": [
@@ -4596,6 +4797,12 @@
             "dev"
           ],
           "providerID": "stackkits-gitea"
+        },
+        {
+          "contracts": [
+            "documents"
+          ],
+          "providerID": "stackkits-paperless-ngx"
         },
         {
           "contracts": [
@@ -5466,6 +5673,13 @@
       },
       {
         "matches": [
+          "stackkits-paperless-runtime"
+        ],
+        "module": "stackkits-paperless-runtime",
+        "provider": "stackkits-paperless-ngx"
+      },
+      {
+        "matches": [
           "stackkits-jellyfin-runtime"
         ],
         "module": "stackkits-jellyfin-runtime",
@@ -6283,6 +6497,34 @@
         "matches": [
           "runtime-paas"
         ],
+        "provider": "stackkits-paperless-ngx"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-paperless-ngx"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-paperless-ngx"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-paperless-ngx"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
         "provider": "stackkits-jellyfin"
       },
       {
@@ -6994,6 +7236,12 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-gitea"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-paperless-ngx"
         },
         {
           "capabilityBindings": [],
@@ -8032,6 +8280,112 @@
             }
           ],
           "workloadID": "dev"
+        },
+        {
+          "alternativeID": "paperless-ngx",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-paperless-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "paperless"
+                  ],
+                  "ref": "database-password"
+                },
+                {
+                  "matches": [
+                    "paperless"
+                  ],
+                  "ref": "owner-password"
+                },
+                {
+                  "matches": [
+                    "paperless"
+                  ],
+                  "ref": "session-key"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "documents",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "paperless",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-paperless-ngx",
+              "workloadOwnership": [
+                "documents"
+              ]
+            }
+          ],
+          "workloadID": "documents"
         },
         {
           "alternativeID": "jellyfin",
@@ -18710,6 +19064,411 @@
       "computeProfiles": {
         "high": {
           "components": [
+            "paperless",
+            "paperless-postgres",
+            "paperless-valkey"
+          ],
+          "description": "Document ingestion, OCR, indexing and search through Paperless-ngx with PostgreSQL and Valkey. StackKits configures and operates the upstream services; document features remain owned by Paperless-ngx. Document growth needs a separate data budget.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 1.25
+          }
+        },
+        "standard": {
+          "components": [
+            "paperless",
+            "paperless-postgres",
+            "paperless-valkey"
+          ],
+          "description": "Document ingestion, OCR, indexing and search through Paperless-ngx with PostgreSQL and Valkey. StackKits configures and operates the upstream services; document features remain owned by Paperless-ngx. Document growth needs a separate data budget.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 1.25
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "paperless-generated-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200,
+            302
+          ],
+          "id": "paperless-http",
+          "kind": "http",
+          "path": "/",
+          "phase": "continuous",
+          "port": 8000,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Paperless-ngx document service with upstream PostgreSQL and Valkey dependencies on one owner-selected node.",
+        "id": "stackkits-paperless-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-paperless-ngx",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "paperless-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/paperless-ngx/bundle.json",
+              "required": true,
+              "unitRef": "paperless"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "paperless-workload-bundle",
+              "outputRef": "workloads/paperless-ngx/bundle.json",
+              "unitRef": "paperless"
+            }
+          ],
+          "requiredRefs": [
+            "paperless-workload-bundle"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "paperless-generated-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "database-password",
+            "owner-password",
+            "session-key"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:34f3ee240b967ba9939d5fe76e25b278992371cea9d16e5ae585ec3f2d5e62bb",
+          "id": "paperless",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/paperless-ngx/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "database-password",
+            "owner-password",
+            "session-key"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "documents",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "paperless-http",
+              "ingressAuth": "native",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "documents",
+              "targetPort": 8000,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/paperless-ngx/bundle/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "paperless-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "owner-password",
+            "session-key"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "paperless"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "paperless-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "owner-password",
+            "session-key"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "paperless"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [
+              "paperless-postgres",
+              "paperless-valkey"
+            ],
+            "environment": {
+              "PAPERLESS_ADMIN_USER": "owner",
+              "PAPERLESS_DBENGINE": "postgresql",
+              "PAPERLESS_DBHOST": "paperless-postgres",
+              "PAPERLESS_DBNAME": "paperless",
+              "PAPERLESS_DBUSER": "paperless",
+              "PAPERLESS_REDIS": "redis://paperless-valkey:6379"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/",
+              "port": 8000
+            },
+            "id": "paperless",
+            "image": {
+              "digest": "sha256:aa810a36942c63d4ee70d00eda7236cd3d6acfb7eb3f7987fb568ed14df8817a",
+              "ref": "ghcr.io/paperless-ngx/paperless-ngx:3.1.3"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "paperless-internal"
+            ],
+            "ownerEnvironment": {
+              "PAPERLESS_ADMIN_MAIL": "email"
+            },
+            "resources": {
+              "memoryLimit": "2g",
+              "memoryReservation": "768m"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "PAPERLESS_ADMIN_PASSWORD": "owner-password",
+              "PAPERLESS_DBPASS": "database-password",
+              "PAPERLESS_SECRET_KEY": "session-key"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "target": "/usr/src/paperless/data"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "media",
+                "target": "/usr/src/paperless/media"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "consume",
+                "target": "/usr/src/paperless/consume"
+              },
+              {
+                "backup": false,
+                "class": "persistent",
+                "id": "export",
+                "target": "/usr/src/paperless/export"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "environment": {
+              "POSTGRES_DB": "paperless",
+              "POSTGRES_USER": "paperless"
+            },
+            "health": {
+              "command": [
+                "pg_isready",
+                "-U",
+                "paperless",
+                "-d",
+                "paperless"
+              ],
+              "kind": "command"
+            },
+            "id": "paperless-postgres",
+            "image": {
+              "digest": "sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280",
+              "ref": "docker.io/library/postgres:18"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "paperless-internal"
+            ],
+            "resources": {
+              "memoryLimit": "1g",
+              "memoryReservation": "384m"
+            },
+            "role": "database",
+            "secretEnvironment": {
+              "POSTGRES_PASSWORD": "database-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "database",
+                "target": "/var/lib/postgresql"
+              }
+            ]
+          },
+          {
+            "command": [
+              "valkey-server"
+            ],
+            "dependsOn": [],
+            "health": {
+              "command": [
+                "valkey-cli",
+                "ping"
+              ],
+              "kind": "command"
+            },
+            "id": "paperless-valkey",
+            "image": {
+              "digest": "sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b",
+              "ref": "docker.io/valkey/valkey:9-alpine"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "paperless-internal"
+            ],
+            "resources": {
+              "memoryLimit": "512m",
+              "memoryReservation": "128m"
+            },
+            "role": "cache",
+            "volumes": [
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "cache",
+                "target": "/data"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "paperless",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:aa810a36942c63d4ee70d00eda7236cd3d6acfb7eb3f7987fb568ed14df8817a",
+          "ref": "ghcr.io/paperless-ngx/paperless-ngx:3.1.3"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
             "jellyfin"
           ],
           "description": "Media library and playback through Jellyfin. Standard and high have the same declared application and resources; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
@@ -24774,6 +25533,54 @@
     {
       "certificateIssuers": [],
       "evidence": [
+        "paperless-generated-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-paperless-ngx",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-paperless-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "documents"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
         "jellyfin-selected-paas-runtime-contract"
       ],
       "metadata": {
@@ -27777,6 +28584,222 @@
         "cloud"
       ],
       "useCaseRef": "dev"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "paperless-ngx",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "paperless",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "data"
+                },
+                {
+                  "componentRef": "paperless",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "media"
+                },
+                {
+                  "componentRef": "paperless",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "consume"
+                },
+                {
+                  "componentRef": "paperless-postgres",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "database"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "documents",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "paperless",
+                  "dataBindingRef": "documents",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/usr/src/paperless/data",
+                  "volumeRef": "data"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "paperless",
+                  "dataBindingRef": "documents",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/usr/src/paperless/media",
+                  "volumeRef": "media"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "paperless",
+                  "dataBindingRef": "documents",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/usr/src/paperless/consume",
+                  "volumeRef": "consume"
+                },
+                {
+                  "backup": false,
+                  "class": "persistent",
+                  "componentRef": "paperless",
+                  "dataBindingRef": "documents",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/usr/src/paperless/export",
+                  "volumeRef": "export"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "paperless-postgres",
+                  "dataBindingRef": "documents",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/var/lib/postgresql",
+                  "volumeRef": "database"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "paperless-valkey",
+                  "dataClasses": [],
+                  "target": "/data",
+                  "volumeRef": "cache"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "database-password",
+                "owner-password",
+                "session-key"
+              ],
+              "requiredRefs": [
+                "database-password",
+                "owner-password",
+                "session-key"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-paperless-runtime",
+          "providerRef": "stackkits-paperless-ngx",
+          "route": {
+            "healthRef": "paperless-http",
+            "serviceRef": "documents"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "alternativeID": "paperless-ngx",
+          "included": true
+        },
+        "low": {
+          "included": false,
+          "reason": "The first Paperless-ngx path uses the standard profile and a separate data budget."
+        },
+        "standard": {
+          "alternativeID": "paperless-ngx",
+          "included": true
+        }
+      },
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "paperless-ngx",
+      "functionalCapabilities": [
+        "document-ingestion",
+        "ocr",
+        "document-search",
+        "document-management"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Self-hosted document management through upstream Paperless-ngx, selected independently from kit architecture capabilities.",
+        "id": "documents",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "documents"
     },
     {
       "alternatives": [

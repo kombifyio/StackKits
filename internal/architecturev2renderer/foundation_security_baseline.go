@@ -144,6 +144,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(giteaWorkload.contract, giteaWorkload); err != nil {
 		return nil, err
 	}
+	paperlessWorkload := newPaperlessWorkloadBundleRenderer()
+	if err := registry.Register(paperlessWorkload.contract, paperlessWorkload); err != nil {
+		return nil, err
+	}
 	privateAIWorkload := newPrivateAIWorkloadBundleRenderer()
 	if err := registry.Register(privateAIWorkload.contract, privateAIWorkload); err != nil {
 		return nil, err

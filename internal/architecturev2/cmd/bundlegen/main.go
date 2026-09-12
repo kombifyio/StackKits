@@ -181,6 +181,9 @@ var rendererWorkloadImages = []struct{ moduleID, goPrefix, componentRef string }
 	{moduleID: "stackkits-vaultwarden-runtime", goPrefix: "vaultwarden"},
 	{moduleID: "stackkits-private-ai-runtime", goPrefix: "privateAI"},
 	{moduleID: "stackkits-gitea-runtime", goPrefix: "gitea"},
+	{moduleID: "stackkits-paperless-runtime", goPrefix: "paperless"},
+	{moduleID: "stackkits-paperless-runtime", goPrefix: "paperlessPostgres", componentRef: "paperless-postgres"},
+	{moduleID: "stackkits-paperless-runtime", goPrefix: "paperlessValkey", componentRef: "paperless-valkey"},
 	{moduleID: "stackkits-private-ai-runtime", goPrefix: "ollama", componentRef: "ollama"},
 }
 

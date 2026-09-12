@@ -19,6 +19,7 @@ type SelectedPaaSApplication string
 
 const (
 	SelectedPaaSApplicationGitea         SelectedPaaSApplication = "gitea"
+	SelectedPaaSApplicationPaperless     SelectedPaaSApplication = "paperless-ngx"
 	SelectedPaaSApplicationJellyfin      SelectedPaaSApplication = "jellyfin"
 	SelectedPaaSApplicationHomeAssistant SelectedPaaSApplication = "home-assistant"
 )
@@ -62,6 +63,20 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
 				descriptor, err := architecturev2renderer.ParseGiteaWorkloadBundle(content)
 				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationPaperless:
+		return selectedPaaSApplicationSpec{
+			name: "Paperless-ngx", providerRef: "stackkits-paperless-ngx", moduleRef: "stackkits-paperless-runtime",
+			unitRef: "paperless", workloadRef: "documents", artifactRef: "paperless-workload-bundle",
+			outputRef: "workloads/paperless-ngx/bundle.json", healthRef: "paperless-http", expectedStatuses: []int{200, 302},
+			rendererContract: architecturev2renderer.PaperlessWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParsePaperlessWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{
+					workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef,
+					siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef,
+				}, err
 			},
 		}, true
 

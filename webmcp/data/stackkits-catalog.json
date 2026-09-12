@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v1",
-  "source_sha": "32a3e9b35e915365d1fea4a6cac23db858c2c2b5",
-  "authority_bundle_sha256": "285771c8be83e975d035d37a425740d65a6eb399802561c7ea8b8bdcdab8313a",
+  "source_sha": "22c35ec004cda5579a66b73558afca1f9c0a6742",
+  "authority_bundle_sha256": "6e27a523f720ea70e023e6413757f42def5eb48f1cfe138c42c9e2a246efdbe7",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -71,6 +71,12 @@
               "title": "Developer Platform",
               "included": false,
               "reason": "The first Git hosting path uses the standard profile."
+            },
+            {
+              "use_case_id": "documents",
+              "title": "Documents",
+              "included": false,
+              "reason": "The first Paperless-ngx path uses the standard profile."
             },
             {
               "use_case_id": "files",
@@ -217,6 +223,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-paperless-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-private-ai-runtime",
               "declaration": "not_declared"
             },
@@ -262,6 +272,26 @@
               "module_slug": "gitea",
               "notes": [
                 "Repository growth requires a separate disk budget. No CI runner is included."
+              ]
+            },
+            {
+              "use_case_id": "documents",
+              "title": "Documents",
+              "included": true,
+              "functions": [
+                "document-ingestion",
+                "document-management",
+                "document-search",
+                "ocr"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "ingest"
+              },
+              "module_slug": "paperless-ngx",
+              "notes": [
+                "Document and database growth require a separate storage budget."
               ]
             },
             {
@@ -420,6 +450,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-paperless-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-private-ai-runtime",
               "declaration": "not_declared"
             },
@@ -465,6 +499,26 @@
               "module_slug": "gitea",
               "notes": [
                 "Same Git hosting runtime as standard."
+              ]
+            },
+            {
+              "use_case_id": "documents",
+              "title": "Documents",
+              "included": true,
+              "functions": [
+                "document-ingestion",
+                "document-management",
+                "document-search",
+                "ocr"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "ingest"
+              },
+              "module_slug": "paperless-ngx",
+              "notes": [
+                "Same upstream service graph as standard."
               ]
             },
             {
@@ -642,6 +696,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-paperless-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-private-ai-runtime",
               "declaration": "not_declared"
             },
@@ -687,6 +745,26 @@
               "module_slug": "gitea",
               "notes": [
                 "Repository growth requires a separate disk budget. No CI runner is included."
+              ]
+            },
+            {
+              "use_case_id": "documents",
+              "title": "Documents",
+              "included": true,
+              "functions": [
+                "document-ingestion",
+                "document-management",
+                "document-search",
+                "ocr"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "ingest"
+              },
+              "module_slug": "paperless-ngx",
+              "notes": [
+                "Document and database growth require a separate storage budget."
               ]
             },
             {
@@ -845,6 +923,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-paperless-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-private-ai-runtime",
               "declaration": "not_declared"
             },
@@ -890,6 +972,26 @@
               "module_slug": "gitea",
               "notes": [
                 "Same Git hosting runtime as standard."
+              ]
+            },
+            {
+              "use_case_id": "documents",
+              "title": "Documents",
+              "included": true,
+              "functions": [
+                "document-ingestion",
+                "document-management",
+                "document-search",
+                "ocr"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "ingest"
+              },
+              "module_slug": "paperless-ngx",
+              "notes": [
+                "Same upstream service graph as standard."
               ]
             },
             {
@@ -1069,6 +1171,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-paperless-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-private-ai-runtime",
               "declaration": "not_declared"
             },
@@ -1114,6 +1220,26 @@
               "module_slug": "gitea",
               "notes": [
                 "Repository growth requires a separate disk budget. No CI runner is included."
+              ]
+            },
+            {
+              "use_case_id": "documents",
+              "title": "Documents",
+              "included": true,
+              "functions": [
+                "document-ingestion",
+                "document-management",
+                "document-search",
+                "ocr"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "ingest"
+              },
+              "module_slug": "paperless-ngx",
+              "notes": [
+                "Document and database growth require a separate storage budget."
               ]
             },
             {
@@ -1272,6 +1398,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-paperless-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-private-ai-runtime",
               "declaration": "not_declared"
             },
@@ -1317,6 +1447,26 @@
               "module_slug": "gitea",
               "notes": [
                 "Same Git hosting runtime as standard."
+              ]
+            },
+            {
+              "use_case_id": "documents",
+              "title": "Documents",
+              "included": true,
+              "functions": [
+                "document-ingestion",
+                "document-management",
+                "document-search",
+                "ocr"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "ingest"
+              },
+              "module_slug": "paperless-ngx",
+              "notes": [
+                "Same upstream service graph as standard."
               ]
             },
             {
@@ -1732,5 +1882,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "916cc0c3c38c802b476f3503c9ab707cbec6766a9f629627fac040004308ce03"
+  "catalog_sha256": "a56f2043d8745e9616ed98ea73277c8fb9b7f38666ae9daf01edd8cd56b6a4bb"
 }

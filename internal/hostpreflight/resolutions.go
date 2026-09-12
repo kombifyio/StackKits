@@ -115,21 +115,13 @@ func Resolutions() []Resolution {
 			RequiresRoot: true, Reversible: true, AutoInstallerEligible: true,
 		},
 		{
-			ID: "resolved-stub-listener", Title: "Free port 53 from the systemd-resolved stub",
-			AppliesTo: "host-ports", Mode: ModeApply,
-			Summary: "systemd-resolved holds 127.0.0.53:53, which a DNS module on this host needs.",
-			Files: []FileChange{{
-				Path: "/etc/systemd/resolved.conf.d/stackkit.conf", Mode: 0o644,
-				Content: "# Written by StackKits so a DNS module can bind port 53.\n" +
-					"# Remove this file and restart systemd-resolved to undo.\n" +
-					"[Resolve]\nDNSStubListener=no\n",
-			}},
-			Commands: [][]string{{"systemctl", "restart", "systemd-resolved"}},
+			ID: "resolved-stub-listener", Title: "Preserve the existing DNS listener",
+			AppliesTo: "host-ports", Mode: ModeHint,
+			Summary: "An occupied listener belongs to its existing owner until a reviewed change transfers it.",
 			Guidance: []string{
-				"Apply this only when a selected module actually needs port 53; otherwise leave the stub listener alone.",
-				"Undo by removing the drop-in and restarting systemd-resolved.",
+				"Keep systemd-resolved and other existing services running.",
+				"Choose a module-supported binding or another target and regenerate the plan, or review an explicit migration with the existing owner.",
 			},
-			RequiresRoot: true, Reversible: true, AutoInstallerEligible: false,
 		},
 		{
 			ID: "pi-cgroup-memory", Title: "Enable the kernel memory controller",

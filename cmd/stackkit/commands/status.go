@@ -342,7 +342,7 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 		encoder.SetIndent("", "  ")
 		return encoder.Encode(output)
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Stack: %v\nPlan: %v\nApply: %s\n", plan["stackId"], verified.Binding().PlanHash, output.ApplyState)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deployment: %v\nPlan: %v\nApply: %s\n", plan["stackId"], verified.Binding().PlanHash, output.ApplyState)
 	if output.Runtime != nil {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Runtime: %s (%s, live=%t)\n", output.Runtime.Status, output.Runtime.ExecutionMode, output.Runtime.Live)
 	}
@@ -372,9 +372,7 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 	if len(output.Applications) > 0 {
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Application experience:")
 		for _, application := range output.Applications {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s: installed=%s reachable=%s setup=%s usable=%s recoverable=%s\n",
-				application.WorkloadRef, application.Installed.Status, application.Reachable.Status,
-				application.Setup.Status, application.Usable.Status, application.Recoverable.Status)
+			printApplicationGuidance(cmd.OutOrStdout(), application)
 		}
 	}
 	return nil

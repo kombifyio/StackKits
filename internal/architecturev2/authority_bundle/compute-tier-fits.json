@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:8e113162efd5095e44dda8fb602f0e99868d6ee983804731c8c13c49d1c61ddd",
+  "contentDigest": "sha256:ab0bac1e17cc5588be5bb47e46fd3124b8ae1166092e17b288ac5cdbe373b80f",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -182,6 +182,61 @@
         }
       ],
       "title": "Developer Platform"
+    },
+    {
+      "components": [
+        {
+          "id": "paperless-ngx",
+          "kind": "application",
+          "name": "Paperless-ngx",
+          "role": "primary"
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "functions": [
+            "document-ingestion",
+            "ocr",
+            "document-search",
+            "document-management"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "ingest",
+            "residency": "always-on"
+          },
+          "moduleSlug": "paperless-ngx",
+          "notes": [
+            "Same upstream service graph as standard."
+          ]
+        },
+        "low": {
+          "included": false,
+          "reason": "The first Paperless-ngx path uses the standard profile."
+        },
+        "standard": {
+          "functions": [
+            "document-ingestion",
+            "ocr",
+            "document-search",
+            "document-management"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "ingest",
+            "residency": "always-on"
+          },
+          "moduleSlug": "paperless-ngx",
+          "notes": [
+            "Document and database growth require a separate storage budget."
+          ]
+        }
+      },
+      "description": "Private document ingestion, OCR, indexing and search through Paperless-ngx.",
+      "id": "documents",
+      "title": "Documents"
     },
     {
       "components": [

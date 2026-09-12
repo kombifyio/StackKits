@@ -3,8 +3,6 @@ package hostpreflight
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"runtime"
@@ -26,8 +24,11 @@ const osReleaseQuotes = "\"" + "\x27"
 // ObserveRequest names the paths and ports this Apply will actually use, so the
 // probe measures the host the rollout touches rather than a generic machine.
 type ObserveRequest struct {
-	WorkspacePath string
-	RequiredPorts []int
+	WorkspacePath     string
+	RequiredPorts     []int // Legacy diagnostic callers only; Apply uses compiler listeners.
+	RequiredListeners []ListenerRequirement
+	PlanHash          string
+	NodeRef           string
 }
 
 // Observe measures the host. It never returns an error for an unobservable
@@ -58,7 +59,13 @@ func Observe(ctx context.Context, request ObserveRequest) Facts {
 	facts.CPUBaseline = observeCPUBaseline(facts.Architecture)
 	facts.Docker = observeDocker(ctx)
 	facts.Disks = observeDisks(request.WorkspacePath, facts.Docker.RootDir)
-	facts.Ports = observePorts(ctx, request.WorkspacePath, request.RequiredPorts)
+	facts.Baseline = observeBaseline(ctx, request)
+	if request.RequiredListeners != nil {
+		facts.Ports = ObserveListeners(ctx, request.WorkspacePath, request.RequiredListeners)
+	}
+	if request.RequiredListeners == nil && len(request.RequiredPorts) > 0 {
+		facts.Ports = observePorts(ctx, request.WorkspacePath, request.RequiredPorts)
+	}
 	return facts
 }
 
@@ -311,21 +318,4 @@ func observeDisks(workspace, dockerRoot string) []DiskFact {
 		disks = append(disks, fact)
 	}
 	return disks
-}
-
-func observePorts(ctx context.Context, workspace string, ports []int) []PortFact {
-	facts := make([]PortFact, 0, len(ports))
-	for _, port := range ports {
-		fact := PortFact{Port: port}
-		listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
-		if err != nil {
-			fact.InUse = true
-			fact.Detail = boundedDiagnostic(err.Error())
-			fact.OwnedByCurrentRuntime = currentWorkspaceOwnsPort(ctx, workspace, port)
-		} else {
-			_ = listener.Close()
-		}
-		facts = append(facts, fact)
-	}
-	return facts
 }

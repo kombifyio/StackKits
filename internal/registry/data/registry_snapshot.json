@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-09-12T11:10:47Z",
+  "generated_at": "2026-09-12T12:20:59Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -1004,6 +1004,19 @@
       "layer": "L3-application",
       "description": "Open WebUI for owner-controlled private AI. Models require an explicit owner download.",
       "contract_hash": "f30c950655170884d839c7114043468db69b1564a3baf583705f19bf7f1915ea",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
+      "slug": "paperless-ngx",
+      "display_name": "Paperless-ngx",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Paperless-ngx upstream application and dependency catalog. The native-v2 documents workload owns executable configuration and owner bootstrap.",
+      "contract_hash": "2bf21f28c9a4f06c41b8c9d7a00170e0083362a9826241ba44f4256a78899d1f",
       "supported_contexts": [
         "local",
         "cloud",

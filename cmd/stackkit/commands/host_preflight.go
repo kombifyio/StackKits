@@ -2,9 +2,13 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -44,11 +48,6 @@ func ExitCode(err error) int {
 	return 1
 }
 
-// applyPublishedPorts are the host ports every StackKit edge router binds. A
-// rollout cannot share them, which is why the installer refuses to install over
-// a workspace that already runs one.
-var applyPublishedPorts = []int{80, 443}
-
 // resolveHostPreflightPolicy reads the requested admission policy, preferring an
 // explicit flag over the environment.
 func resolveHostPreflightPolicy(requested string) (hostpreflight.Policy, error) {
@@ -70,8 +69,15 @@ func resolveHostPreflightPolicy(requested string) (hostpreflight.Policy, error) 
 // v2alpha1 surface. Native v2alpha2 module demand stays out of this general
 // report; an unknown kit still yields the runtime checks.
 func evaluateHostPreflight(ctx context.Context, workspace, kitSlug string, policy hostpreflight.Policy) hostpreflight.Report {
+	return evaluateHostPreflightForRequest(ctx, workspace, kitSlug, policy, hostpreflight.ObserveRequest{WorkspacePath: workspace})
+}
+
+func evaluateHostPreflightForRequest(ctx context.Context, workspace, kitSlug string, policy hostpreflight.Policy, request hostpreflight.ObserveRequest) hostpreflight.Report {
 	if policy == hostpreflight.PolicySkip {
-		return hostpreflight.Evaluate(hostpreflight.Facts{}, hostpreflight.Requirements{}, kitSlug, policy)
+		if request.RequiredListeners == nil {
+			return hostpreflight.Evaluate(hostpreflight.Facts{}, hostpreflight.Requirements{}, kitSlug, policy)
+		}
+		return hostpreflight.EvaluateListenerAdmission(ctx, request, kitSlug)
 	}
 	requirements := hostpreflight.Requirements{}
 	nativeModuleProfiles := hostPreflightUsesNativeModuleProfiles(workspace)
@@ -80,10 +86,7 @@ func evaluateHostPreflight(ctx context.Context, workspace, kitSlug string, polic
 			requirements = hostpreflight.RequirementsFromDefinitionForTier(definition, hostPreflightComputeTier(workspace))
 		}
 	}
-	facts := hostpreflight.Observe(ctx, hostpreflight.ObserveRequest{
-		WorkspacePath: workspace,
-		RequiredPorts: applyPublishedPorts,
-	})
+	facts := hostpreflight.Observe(ctx, request)
 	return hostpreflight.Evaluate(facts, requirements, kitSlug, policy)
 }
 
@@ -213,6 +216,8 @@ func printHostPreflightReport(report hostpreflight.Report) {
 
 var hostPreflightJSON bool
 var hostPreflightPolicyFlag string
+var hostPreflightPlanPath string
+var hostPreflightNodeRef string
 
 func newHostPreflightCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -229,7 +234,16 @@ configures anything. Apply runs the same admission before it mutates the host.`,
 				return err
 			}
 			workspace := getWorkDir()
-			report := evaluateNativeV2HostPreflight(cmd.Context(), workspace, workspaceKitSlug(workspace), policy)
+			report := hostpreflight.Report{}
+			if hostPreflightPlanPath == "" {
+				report = evaluateNativeV2HostPreflight(cmd.Context(), workspace, workspaceKitSlug(workspace), policy)
+			} else {
+				request, kitSlug, err := hostPreflightPlanRequest(workspace, hostPreflightPlanPath, hostPreflightNodeRef)
+				if err != nil {
+					return err
+				}
+				report = evaluateHostPreflightForRequest(cmd.Context(), workspace, kitSlug, policy, request)
+			}
 			if hostPreflightJSON {
 				status := "success"
 				if !report.Admitted {
@@ -258,6 +272,8 @@ configures anything. Apply runs the same admission before it mutates the host.`,
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&hostPreflightPlanPath, "resolved-plan", "", "Verified canonical ResolvedPlan whose host listeners to check")
+	cmd.Flags().StringVar(&hostPreflightNodeRef, "local-node", "", "Exact local Node in the supplied ResolvedPlan")
 	cmd.Flags().BoolVar(&hostPreflightJSON, "json", false, "Emit the versioned preflight report as machine-readable JSON")
 	cmd.Flags().StringVar(&hostPreflightPolicyFlag, "policy", "", "Admission policy: strict, warn (default), or skip")
 	return cmd
@@ -280,4 +296,54 @@ func workspaceKitSlug(workspace string) string {
 		return ""
 	}
 	return string(document.V2.KitProfile)
+}
+
+func hostPreflightPlanRequest(workspace, path, nodeRef string) (hostpreflight.ObserveRequest, string, error) {
+	request := hostpreflight.ObserveRequest{WorkspacePath: workspace, NodeRef: nodeRef}
+	file, err := os.Open(resolvePathFromWorkDir(workspace, path))
+	if err != nil {
+		return request, "", err
+	}
+	defer file.Close()
+	raw, err := io.ReadAll(io.LimitReader(file, (32<<20)+1))
+	if err != nil || len(raw) > 32<<20 {
+		return request, "", fmt.Errorf("canonical plan is unreadable or exceeds the evidence limit")
+	}
+	service, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(version))
+	if err != nil {
+		return request, "", err
+	}
+	verified, err := service.VerifyCanonicalPlan(raw)
+	if err != nil {
+		return request, "", err
+	}
+	plan, err := resolvedplan.DecodeCanonicalPlan(verified.Canonical())
+	if err != nil {
+		return request, "", err
+	}
+	request.RequiredListeners, err = hostpreflight.ListenersFromPlan(plan, nodeRef)
+	request.PlanHash = verified.Binding().PlanHash
+	return request, canonicalPlanKitSlug(plan), err
+}
+
+func recordHostPreflight(report hostpreflight.Report) error {
+	if rolloutRecorder == nil || rolloutRecorder.Root() == "" {
+		return nil
+	}
+	raw, err := json.Marshal(report)
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(rolloutRecorder.Root(), "host-preflight.json")
+	if err := os.WriteFile(path, append(raw, '\n'), 0600); err != nil {
+		return fmt.Errorf("retain host baseline before mutation: %w", err)
+	}
+	if report.Facts.Baseline != nil {
+		rolloutEvent("preflight", "observed", "Host baseline retained before mutation", map[string]string{
+			"schema_version": report.Facts.Baseline.SchemaVersion, "revision": report.Facts.Baseline.Revision,
+			"node_ref": report.Facts.Baseline.NodeRef, "resolved_plan_hash": report.Facts.Baseline.PlanHash,
+			"evidence_path": path,
+		})
+	}
+	return nil
 }

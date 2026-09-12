@@ -114,6 +114,11 @@ type DiskFact struct {
 
 // PortFact records whether a port Apply must publish is already bound.
 type PortFact struct {
+	ListenerID            string `json:"listenerId,omitempty"`
+	Transport             string `json:"transport,omitempty"`
+	BindAddress           string `json:"bindAddress,omitempty"`
+	Namespace             string `json:"namespace,omitempty"`
+	Observed              bool   `json:"observed"`
 	Port                  int    `json:"port"`
 	InUse                 bool   `json:"inUse"`
 	OwnedByCurrentRuntime bool   `json:"ownedByCurrentRuntime,omitempty"`
@@ -140,6 +145,7 @@ type Facts struct {
 	Docker         DockerFacts                     `json:"docker"`
 	Disks          []DiskFact                      `json:"disks,omitempty"`
 	Ports          []PortFact                      `json:"ports,omitempty"`
+	Baseline       *Baseline                       `json:"baseline,omitempty"`
 }
 
 // Check is one performed admission check.

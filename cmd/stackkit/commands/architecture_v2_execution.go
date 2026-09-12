@@ -513,7 +513,7 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 			// device that cannot run the kit is refused while the workspace is
 			// still untouched.
 			if err := admitApplyHost(
-				options, canonicalPlanKitSlug(canonicalPlan), wd,
+				options, canonicalPlan, wd,
 				persisted.ApplyRequirements(), persisted.Binding().PlanHash, now().UTC(),
 			); err != nil {
 				return err
@@ -1496,7 +1496,7 @@ func canonicalPlanKitSlug(plan resolvedplan.ResolvedPlan) string {
 // blocking condition stops Apply; a degraded host installs and says so.
 func admitApplyHost(
 	options architectureV2ExecutionCLIOptions,
-	kitSlug, workspace string,
+	plan resolvedplan.ResolvedPlan, workspace string,
 	requirements generationartifact.ApplyRequirements,
 	planHash string,
 	observedAt time.Time,
@@ -1505,15 +1505,25 @@ func admitApplyHost(
 	if err != nil {
 		return err
 	}
-	if policy == hostpreflight.PolicySkip {
-		printWarning("Host preflight skipped; this Apply may mutate a host that cannot run the kit")
-		return nil
+	// Resource diagnostics may be skipped; collision-critical evidence may not.
+	nodeRef, _, err := localInventoryNode(workspace, options.stackSpecData, options)
+	if err != nil {
+		return err
+	}
+	listeners, err := hostpreflight.ListenersFromPlan(plan, nodeRef)
+	if err != nil {
+		return err
 	}
 	executionContext := options.context
 	if executionContext == nil {
 		executionContext = context.Background()
 	}
-	report := evaluateHostPreflight(executionContext, workspace, kitSlug, policy)
+	report := evaluateHostPreflightForRequest(executionContext, workspace, canonicalPlanKitSlug(plan), policy, hostpreflight.ObserveRequest{
+		WorkspacePath: workspace, RequiredListeners: listeners, NodeRef: nodeRef, PlanHash: planHash,
+	})
+	if err := recordHostPreflight(report); err != nil {
+		return err
+	}
 	printHostPreflightReport(report)
 	if !report.Admitted {
 		refusal := hostPreflightRefusal(report)

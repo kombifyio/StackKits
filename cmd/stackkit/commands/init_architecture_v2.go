@@ -357,9 +357,9 @@ func containsString(values []string, wanted string) bool {
 
 func printArchitectureV2InitSummary(specPath string) {
 	fmt.Println()
-	printInfo("Next steps:")
-	fmt.Printf("  1. Review desired intent:  %s\n", cyan("cat "+specPath))
-	fmt.Printf("  2. Validate desired intent: %s\n", cyan("stackkit validate --spec "+specPath))
-	fmt.Printf("  3. Resolve and generate:  %s\n", cyan("stackkit generate --spec "+specPath))
-	printInfo("Init makes no generation or apply-readiness claim; readiness is decided by the resolved plan.")
+	printSuccess("Configuration saved: %s", specPath)
+	printInfo("No services have been installed. Review this file before continuing.")
+	printInfo("Next: validate your choices with stackkit validate --spec %s", shellArgument(specPath))
+	printInfo("Then prepare the deployment with stackkit generate --spec %s", shellArgument(specPath))
+	printInfo("Keep this directory: it holds your configuration and local lifecycle evidence.")
 }

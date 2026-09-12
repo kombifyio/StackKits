@@ -14,6 +14,13 @@ _architectureV2ImmichServerImage: {ref: "ghcr.io/immich-app/immich-server:v2.7.0
 
 _architectureV2PrivateAIImage: {ref: "ghcr.io/open-webui/open-webui:v0.11.3", digest: "sha256:41daa0cf2561a5d4c8d1ff31ee2a98d93ab4d3ac2605cac69366ff6a3374a933"}
 
+// Paperless-ngx is the single application-version authority for every derived
+// module and runtime projection. PostgreSQL and Valkey follow the compatible
+// versions in the upstream v3.1.3 Compose example and are pinned independently.
+_architectureV2PaperlessImage: {ref: "ghcr.io/paperless-ngx/paperless-ngx:3.1.3", digest: "sha256:aa810a36942c63d4ee70d00eda7236cd3d6acfb7eb3f7987fb568ed14df8817a"}
+_architectureV2PaperlessPostgresImage: {ref: "docker.io/library/postgres:18", digest: "sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280"}
+_architectureV2PaperlessValkeyImage: {ref: "docker.io/valkey/valkey:9-alpine", digest: "sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b"}
+
 _architectureV2CoreCapabilities: [
 	"topology-core",
 	"host-bootstrap",
@@ -163,6 +170,24 @@ _architectureV2DevInfrastructure: #WorkloadInfrastructureV1 & {
 	// The existing compiler-owned applicationRuntimes quiesces the sole writer
 	// before both allocations are captured: SQLite, repositories, LFS and keys.
 	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2DocumentsInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "documents", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "paperless", volumeRef: "data", target: "/usr/src/paperless/data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "documents"},
+		{componentRef: "paperless", volumeRef: "media", target: "/usr/src/paperless/media", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "documents"},
+		{componentRef: "paperless", volumeRef: "consume", target: "/usr/src/paperless/consume", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "documents"},
+		{componentRef: "paperless", volumeRef: "export", target: "/usr/src/paperless/export", class: "persistent", backup: false, dataClasses: ["personal"], dataBindingRef: "documents"},
+		{componentRef: "paperless-postgres", volumeRef: "database", target: "/var/lib/postgresql", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "documents"},
+		{componentRef: "paperless-valkey", volumeRef: "cache", target: "/data", class: "cache", backup: false, dataClasses: []},
+	]}
+	// The existing application-runtime snapshot owner quiesces the complete
+	// workload, including PostgreSQL, before copying these related allocations.
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
 	snapshot: moduleRef: "stackkits-snapshot"
 	restore: moduleRef:  "stackkits-restore"
 	recovery: moduleRef: "stackkits-recovery"
@@ -745,6 +770,51 @@ _architectureV2WorkloadContracts: [
 	},
 	#WorkloadContractV2 & {
 		metadata: {
+			id:          "documents"
+			version:     "1.0.0"
+			description: "Self-hosted document management through upstream Paperless-ngx, selected independently from kit architecture capabilities."
+		}
+		kind:       "application"
+		useCaseRef: "documents"
+		functionalCapabilities: ["document-ingestion", "ocr", "document-search", "document-management"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "paperless-ngx"
+		computeTiers: {
+			low: {included: false, reason: "The first Paperless-ngx path uses the standard profile and a separate data budget."}
+			standard: {included: true, alternativeID: "paperless-ngx"}
+			high: {included: true, alternativeID: "paperless-ngx"}
+		}
+		alternatives: [{
+			id:          "paperless-ngx"
+			providerRef: "stackkits-paperless-ngx"
+			moduleRef:   "stackkits-paperless-runtime"
+			route: {serviceRef: "documents", healthRef: "paperless-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// Paperless performs its idempotent owner bootstrap from the official
+			// PAPERLESS_ADMIN_* environment at application start.
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["database-password", "owner-password", "session-key"]
+					requiredRefs: ["database-password", "owner-password", "session-key"]
+				}
+			}
+			infrastructure: _architectureV2DocumentsInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
 			id:          "media"
 			version:     "1.0.0"
 			description: "Self-hosted media library selected independently from kit architecture capabilities."
@@ -831,10 +901,11 @@ _architectureV2WorkloadContracts: [
 
 _architectureV2ApplicationLifecycleContracts: [
 	#ApplicationLifecycleContractV1 & {metadata: {id: "dev", version: "1.0.0", description: "Private Git lifecycle; CI runners are a separate selection."}, workloadRef: "dev", useCaseRef: "dev", packageRef: "dev", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "documents", version: "1.0.0", description: "Owner-controlled Paperless-ngx document lifecycle using the shared application operations."}, workloadRef: "documents", useCaseRef: "documents", packageRef: "documents", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {
 		metadata: {id: "ai", version: "1.0.0", description: "Owner-controlled Private AI lifecycle; model download is an explicit owner operation."}
 		workloadRef: "ai", useCaseRef: "ai", packageRef: "ai"
-		lifecycle: #StandardUseCaseLifecycle
+		lifecycle:   #StandardUseCaseLifecycle
 	},
 	#ApplicationLifecycleContractV1 & {
 		metadata: {
@@ -1619,6 +1690,23 @@ _architectureV2Providers: list.Concat([[
 			}
 		}
 		evidence: ["gitea-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-paperless-ngx", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["documents"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {required: [], optional: ["stackkits-paperless-runtime"]}
+		}
+		evidence: ["paperless-generated-runtime-contract"]
 	},
 	{
 		metadata: {id: "stackkits-jellyfin", version: "1.0.0"}
@@ -2535,6 +2623,25 @@ _architectureV2GiteaSupport: #ModuleRealizationSupportV2 & {
 	evidence: requiredRefs: ["gitea-selected-paas-runtime-contract"]
 }
 
+_architectureV2PaperlessSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["database-password", "owner-password", "session-key"]}
+	artifacts: {
+		requiredRefs: ["paperless-workload-bundle"]
+		outputBindings: [{artifactRef: "paperless-workload-bundle", unitRef: "paperless", outputRef: "workloads/paperless-ngx/bundle.json"}]
+		contracts: [{
+			id: "paperless-workload-bundle", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"], unitRef: "paperless", outputRef: "workloads/paperless-ngx/bundle.json"
+		}]
+	}
+	// This proves a renderable runtime contract only. Application and restore
+	// use remain pending until exercised against the pinned upstream services.
+	evidence: requiredRefs: ["paperless-generated-runtime-contract"]
+}
+
 // Jellyfin is the Media Library vertical. Config is a StackKits backup source;
 // the library volume is owner-custodied and excluded from backup.
 _architectureV2JellyfinSupport: #ModuleRealizationSupportV2 & {
@@ -2745,7 +2852,7 @@ _architectureV2PhotosLiteInfrastructure: #WorkloadInfrastructureV1 & {
 
 _basementCoreServiceEndpoints: [
 	{
-		serviceRef: "basement-hub", upstreamProtocol: "http", targetPort: 80
+		serviceRef:        "basement-hub", upstreamProtocol: "http", targetPort: 80
 		requiredPrivilege: "admin"
 		ingressAuth:       "forward-auth"
 		allowedIngressProtocols: ["http", "https"]
@@ -2754,7 +2861,7 @@ _basementCoreServiceEndpoints: [
 		healthRef:      "basement-hub-http"
 	},
 	{
-		serviceRef: "id", upstreamProtocol: "http", targetPort: 1411
+		serviceRef:        "id", upstreamProtocol: "http", targetPort: 1411
 		requiredPrivilege: "identity"
 		ingressAuth:       "none"
 		allowedIngressProtocols: ["http", "https"]
@@ -2763,7 +2870,7 @@ _basementCoreServiceEndpoints: [
 		healthRef:      "pocketid-http"
 	},
 	{
-		serviceRef: "auth", upstreamProtocol: "http", targetPort: 3000
+		serviceRef:        "auth", upstreamProtocol: "http", targetPort: 3000
 		requiredPrivilege: "identity"
 		ingressAuth:       "none"
 		allowedIngressProtocols: ["http", "https"]
@@ -2772,7 +2879,7 @@ _basementCoreServiceEndpoints: [
 		healthRef:      "tinyauth-http"
 	},
 	{
-		serviceRef: "coolify", upstreamProtocol: "http", targetPort: 8080
+		serviceRef:        "coolify", upstreamProtocol: "http", targetPort: 8080
 		requiredPrivilege: "admin"
 		ingressAuth:       "forward-auth"
 		allowedIngressProtocols: ["http", "https"]
@@ -4026,7 +4133,7 @@ _architectureV2Modules: list.Concat([[
 			minRamGB:     4
 			minStorageGB: 20
 		}
-		computeProfiles: _architectureV2CloudCoreComputeProfiles
+		computeProfiles:       _architectureV2CloudCoreComputeProfiles
 		defaultComputeProfile: "standard"
 		runtime: {
 			kind:     "container"
@@ -4037,7 +4144,7 @@ _architectureV2Modules: list.Concat([[
 				digest: "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f"
 			}
 			entryComponentRef: "coolify"
-			components: _architectureV2CloudCoreFullComponents
+			components:        _architectureV2CloudCoreFullComponents
 		}
 		serviceControls: _cloudCoreServiceControls
 		renderUnits: [{
@@ -4095,7 +4202,7 @@ _architectureV2Modules: list.Concat([[
 			minRamGB:     4
 			minStorageGB: 20
 		}
-		computeProfiles: _architectureV2CloudStandaloneCoreComputeProfiles
+		computeProfiles:       _architectureV2CloudStandaloneCoreComputeProfiles
 		defaultComputeProfile: "standard"
 		runtime: {
 			kind:     "container"
@@ -4106,11 +4213,11 @@ _architectureV2Modules: list.Concat([[
 				digest: "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"
 			}
 			entryComponentRef: "hub"
-			components: _architectureV2CloudCoreStandaloneComponents
+			components:        _architectureV2CloudCoreStandaloneComponents
 		}
 		serviceControls: _architectureV2CloudStandaloneServiceControls
 		renderUnits: [{
-			id:           "compose", kind: "compose", rendererRef: "stackkit"
+			id:           "compose", kind:                                            "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core-standalone/compose/v1.yaml", version: "1.0.0"
 			contractHash: "sha256:d2923b089113e10f2958c9c61a1f085114367c15e38e4bb92bc38b074e55a249"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
@@ -4164,7 +4271,7 @@ _architectureV2Modules: list.Concat([[
 			minRamGB:     4
 			minStorageGB: 20
 		}
-		computeProfiles: _architectureV2BasementCoreComputeProfiles
+		computeProfiles:       _architectureV2BasementCoreComputeProfiles
 		defaultComputeProfile: "standard"
 		runtime: {
 			kind:     "container"
@@ -4499,7 +4606,7 @@ _architectureV2Modules: list.Concat([[
 			minRamGB:     2
 			minStorageGB: 10
 		}
-		computeProfiles: _architectureV2BasementCoreLiteComputeProfiles
+		computeProfiles:       _architectureV2BasementCoreLiteComputeProfiles
 		defaultComputeProfile: "low"
 		runtime: {
 			kind:     "container"
@@ -4767,7 +4874,7 @@ _architectureV2Modules: list.Concat([[
 			authority: "control-authority-site"
 			requiredRoles: ["worker"]
 		}
-		computeProfiles: _architectureV2ImmichComputeProfiles
+		computeProfiles:       _architectureV2ImmichComputeProfiles
 		defaultComputeProfile: "standard"
 		runtime: {
 			kind:     "container"
@@ -4777,7 +4884,7 @@ _architectureV2Modules: list.Concat([[
 			entryComponentRef: "immich-server"
 			components: [
 				{
-					id: "immich-server", role: "application", lifecycle: "daemon"
+					id:    "immich-server", role: "application", lifecycle: "daemon"
 					image: _architectureV2ImmichServerImage
 					dependsOn: ["immich-machine-learning", "immich-postgres-init", "immich-valkey"]
 					networkRefs: ["immich-internal"]
@@ -4938,23 +5045,23 @@ _architectureV2Modules: list.Concat([[
 			authority: "control-authority-site"
 			requiredRoles: ["worker"]
 		}
-		computeProfiles: _architectureV2ImmichLiteComputeProfiles
+		computeProfiles:       _architectureV2ImmichLiteComputeProfiles
 		defaultComputeProfile: "low"
 		runtime: {
-			kind:     "container"
-			delivery: "application-adapter"
-			engine:   "docker"
-			image: _architectureV2ImmichServerImage
+			kind:              "container"
+			delivery:          "application-adapter"
+			engine:            "docker"
+			image:             _architectureV2ImmichServerImage
 			entryComponentRef: "immich-server"
 			components: [
 				{
-					id: "immich-server", role: "application", lifecycle: "daemon"
+					id:    "immich-server", role: "application", lifecycle: "daemon"
 					image: _architectureV2ImmichServerImage
 					dependsOn: ["immich-postgres-init", "immich-valkey"]
 					networkRefs: ["immich-internal"]
 					environment: {
-						DB_HOSTNAME:    "immich-postgres", DB_PORT:  "5432", DB_USERNAME: "immich", DB_DATABASE_NAME: "immich"
-						REDIS_HOSTNAME: "immich-valkey", REDIS_PORT: "6379"
+						DB_HOSTNAME:                     "immich-postgres", DB_PORT:  "5432", DB_USERNAME: "immich", DB_DATABASE_NAME: "immich"
+						REDIS_HOSTNAME:                  "immich-valkey", REDIS_PORT: "6379"
 						IMMICH_MACHINE_LEARNING_ENABLED: "false"
 					}
 					secretEnvironment: DB_PASSWORD: "database-password"
@@ -5079,7 +5186,7 @@ _architectureV2Modules: list.Concat([[
 			authority: "control-authority-site"
 			requiredRoles: ["worker"]
 		}
-		computeProfiles: _architectureV2CloudreveComputeProfiles
+		computeProfiles:       _architectureV2CloudreveComputeProfiles
 		defaultComputeProfile: "standard"
 		runtime: {
 			kind:     "container"
@@ -5176,7 +5283,7 @@ _architectureV2Modules: list.Concat([[
 			authority: "control-authority-site"
 			requiredRoles: ["worker"]
 		}
-		computeProfiles: _architectureV2VaultwardenComputeProfiles
+		computeProfiles:       _architectureV2VaultwardenComputeProfiles
 		defaultComputeProfile: "standard"
 		runtime: {
 			kind:     "container"
@@ -5279,13 +5386,13 @@ _architectureV2Modules: list.Concat([[
 		computeProfiles:       _architectureV2PrivateAIComputeProfiles
 		defaultComputeProfile: "standard"
 		runtime: {
-			kind:     "container"
-			delivery: "application-adapter"
-			engine:   "docker"
-			image: _architectureV2PrivateAIImage
+			kind:              "container"
+			delivery:          "application-adapter"
+			engine:            "docker"
+			image:             _architectureV2PrivateAIImage
 			entryComponentRef: "open-webui"
 			components: [{
-				id: "open-webui", role: "application", lifecycle: "daemon"
+				id:    "open-webui", role: "application", lifecycle: "daemon"
 				image: _architectureV2PrivateAIImage
 				dependsOn: ["ollama"]
 				networkRefs: ["private-ai-internal"]
@@ -5302,7 +5409,7 @@ _architectureV2Modules: list.Concat([[
 				networkRefs: ["private-ai-internal"]
 				environment: {OLLAMA_KEEP_ALIVE: "5m"}
 				volumes: [{id: "models", target: "/root/.ollama", class: "persistent", backup: false}]
-				health: {kind: "command", command: ["ollama",	"list"]}
+				health: {kind: "command", command: ["ollama", "list"]}
 				resources: {memoryLimit: "6g", memoryReservation: "1g"}
 			}]
 		}
@@ -5514,6 +5621,100 @@ _architectureV2Modules: list.Concat([[
 	},
 	{
 		metadata: {
+			id:          "stackkits-paperless-runtime"
+			version:     "1.0.0"
+			description: "Paperless-ngx document service with upstream PostgreSQL and Valkey dependencies on one owner-selected node."
+		}
+		role:        "workload"
+		providerRef: "stackkits-paperless-ngx"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {authority: "control-authority-site", requiredRoles: ["worker"]}
+		computeProfiles:       _architectureV2PaperlessComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:              "container", delivery: "application-adapter", engine: "docker"
+			image:             _architectureV2PaperlessImage
+			entryComponentRef: "paperless"
+			components: [
+				{
+					id:    "paperless", role: "application", lifecycle: "daemon"
+					image: _architectureV2PaperlessImage
+					dependsOn: ["paperless-postgres", "paperless-valkey"]
+					networkRefs: ["paperless-internal"]
+					environment: {
+						PAPERLESS_REDIS:      "redis://paperless-valkey:6379"
+						PAPERLESS_DBHOST:     "paperless-postgres"
+						PAPERLESS_DBENGINE:   "postgresql"
+						PAPERLESS_DBNAME:     "paperless"
+						PAPERLESS_DBUSER:     "paperless"
+						PAPERLESS_ADMIN_USER: "owner"
+					}
+					ownerEnvironment: {PAPERLESS_ADMIN_MAIL: "email"}
+					secretEnvironment: {
+						PAPERLESS_DBPASS:         "database-password"
+						PAPERLESS_ADMIN_PASSWORD: "owner-password"
+						PAPERLESS_SECRET_KEY:     "session-key"
+					}
+					volumes: [for allocation in _architectureV2DocumentsInfrastructure.storageAllocation.allocations if allocation.componentRef == "paperless" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "http", path: "/", port: 8000}
+					resources: {memoryLimit: "2g", memoryReservation: "768m"}
+				},
+				{
+					id:    "paperless-postgres", role: "database", lifecycle: "daemon"
+					image: _architectureV2PaperlessPostgresImage
+					dependsOn: [], networkRefs: ["paperless-internal"]
+					environment: {POSTGRES_DB: "paperless", POSTGRES_USER: "paperless"}
+					secretEnvironment: POSTGRES_PASSWORD: "database-password"
+					volumes: [for allocation in _architectureV2DocumentsInfrastructure.storageAllocation.allocations if allocation.componentRef == "paperless-postgres" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "command", command: ["pg_isready", "-U", "paperless", "-d", "paperless"]}
+					resources: {memoryLimit: "1g", memoryReservation: "384m"}
+				},
+				{
+					id:    "paperless-valkey", role: "cache", lifecycle: "daemon"
+					image: _architectureV2PaperlessValkeyImage
+					dependsOn: [], networkRefs: ["paperless-internal"]
+					command: ["valkey-server"]
+					volumes: [for allocation in _architectureV2DocumentsInfrastructure.storageAllocation.allocations if allocation.componentRef == "paperless-valkey" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "command", command: ["valkey-cli", "ping"]}
+					resources: {memoryLimit: "512m", memoryReservation: "128m"}
+				},
+			]
+		}
+		renderUnits: [{
+			id: "paperless", kind: "native-config", rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/paperless-ngx/bundle/v1.json", version: "1.0.0"
+			contractHash: "sha256:34f3ee240b967ba9939d5fe76e25b278992371cea9d16e5ae585ec3f2d5e62bb"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
+			secretInputRefs: ["database-password", "owner-password", "session-key"]
+			outputs: ["workloads/paperless-ngx/bundle.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: [{
+				serviceRef:        "documents", upstreamProtocol: "http", targetPort: 8000
+				requiredPrivilege: "user", allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site", healthRef: "paperless-http"
+				data: {bindingRef: _architectureV2DocumentsInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2DocumentsInfrastructure.dataBinding.classes, locality: _architectureV2DocumentsInfrastructure.dataBinding.locality}
+			}]
+		}]
+		renderVariants: [
+			{id: "compose", target: "compose", rendererRef: "stackkit", contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56", unitRefs: ["paperless"], artifactRefs: ["paperless-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "owner-password", "session-key"], planInputRefs: []},
+			{id: "opentofu", target: "opentofu", rendererRef: "stackkit", contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430", unitRefs: ["paperless"], artifactRefs: ["paperless-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "owner-password", "session-key"], planInputRefs: []},
+		]
+		realizationSupport: _architectureV2PaperlessSupport
+		health: [{id: "paperless-http", phase: "continuous", kind: "http", path: "/", port: 8000, timeoutSeconds: 10, expectedStatuses: [200, 302]}]
+		evidence: ["paperless-generated-runtime-contract"]
+	},
+	{
+		metadata: {
 			id:          "stackkits-jellyfin-runtime"
 			version:     "1.0.0"
 			description: "Jellyfin media-library contract bound to one selected site; the media library volume is owner-custodied and not a StackKits backup source."
@@ -5526,7 +5727,7 @@ _architectureV2Modules: list.Concat([[
 			authority: "control-authority-site"
 			requiredRoles: ["worker"]
 		}
-		computeProfiles: _architectureV2JellyfinComputeProfiles
+		computeProfiles:       _architectureV2JellyfinComputeProfiles
 		defaultComputeProfile: "standard"
 		runtime: {
 			kind:     "container"
@@ -5624,7 +5825,7 @@ _architectureV2Modules: list.Concat([[
 			authority: "control-authority-site"
 			requiredRoles: ["worker"]
 		}
-		computeProfiles: _architectureV2HomeAssistantComputeProfiles
+		computeProfiles:       _architectureV2HomeAssistantComputeProfiles
 		defaultComputeProfile: "standard"
 		runtime: {
 			kind:     "container"
@@ -6137,7 +6338,7 @@ ArchitectureV2ModuleImages: {
 				(component.id): {
 					let parts = strings.Split(component.image.ref, ":")
 					image: strings.Join(parts[:len(parts)-1], ":")
-					tag: "\(parts[len(parts)-1])@\(component.image.digest)"
+					tag:   "\(parts[len(parts)-1])@\(component.image.digest)"
 				}
 			}
 		}

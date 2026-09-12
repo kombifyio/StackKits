@@ -331,6 +331,11 @@ func checkStorage(facts Facts, requirements Requirements) Check {
 
 func checkPorts(facts Facts) Check {
 	check := Check{ID: "host-ports"}
+	if facts.Ports == nil {
+		check.Status = StatusUnknown
+		check.Summary = "No compiler listener requirements were supplied; host inventory is diagnostic only"
+		return check
+	}
 	if len(facts.Ports) == 0 {
 		check.Status = StatusSkipped
 		check.Summary = "No published ports were declared for this Apply"
@@ -338,6 +343,13 @@ func checkPorts(facts Facts) Check {
 	}
 	owned := false
 	for _, port := range facts.Ports {
+		if port.Transport != "" && !port.Observed {
+			check.Status = StatusBlocked
+			check.Summary = fmt.Sprintf("Cannot verify %s %s:%d before mutation", port.Transport, port.BindAddress, port.Port)
+			check.FailureClass = string(applyoutcome.ClassPortConflict)
+			check.Remediation = []string{"Refresh the affected host evidence with sufficient access; preserve existing services until the binding can be verified."}
+			return check
+		}
 		if !port.InUse {
 			continue
 		}
@@ -349,8 +361,9 @@ func checkPorts(facts Facts) Check {
 		check.Summary = fmt.Sprintf("Port %d is already bound by another process", port.Port)
 		check.FailureClass = string(applyoutcome.ClassPortConflict)
 		check.Remediation = []string{
-			fmt.Sprintf("Stop whatever is listening on port %d, then retry.", port.Port),
-			"On a host running systemd-resolved, port 53 is held by its stub listener.",
+			"Preserve the existing service. Reuse is admitted only with exact current-workspace ownership evidence.",
+			"Choose another target, or a binding supported by the selected module, then regenerate and review the plan and its endpoints.",
+			"Changing an existing owner requires a separate reviewed migration; this check never stops a daemon or changes DNS/firewall configuration.",
 		}
 		return check
 	}

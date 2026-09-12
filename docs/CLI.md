@@ -795,15 +795,41 @@ x86-64-v2 baseline, total/available/swap memory, cgroup version and memory
 controller, container namespace availability, clock synchronization, one
 `docker info` (server version, Compose plugin, storage driver, memory-limit
 support, rootless mode, root directory), free space where Apply writes, and the
-ports Apply publishes.
+compiler-declared host listener bindings. The versioned baseline also reports
+loaded services (including inactive units), socket activation intents, containers
+(including stopped containers), and Docker volume names. Each scope identifies
+its source and coverage; this is not a complete software or dependency catalog.
 
-Apply runs the same admission before mutating the host, so this command answers
-"will it install?" without installing anything.
+Apply uses the exact verified plan and local Node under its lifecycle lock,
+retains `host-preflight.json` beside the rollout evidence, and rechecks bindings
+before any executor runs. A diagnostic without a plan cannot claim port admission.
 
 - `--policy strict|warn|skip` selects the admission policy (default `warn`,
   overridable through `STACKKIT_PREFLIGHT`).
+- `--resolved-plan <path> --local-node <node-ref>` checks the exact compiler
+  listeners in a CUE-verified plan. It never guesses host ports from URLs or
+  container target ports.
 - `--json` returns `stackkit.host-preflight/v1` inside
-  `stackkit.command-result/v1`.
+  `stackkit.command-result/v1`, with an additive
+  `facts.baseline.schemaVersion: stackkit.host-baseline/v1`, revision, Node/plan
+  identity, boot/network namespace, observation/expiry and per-scope coverage.
+
+`skip` skips optional resource diagnostics; it cannot bypass collision checks
+when a plan is supplied or Apply executes. Missing container/socket evidence,
+permission errors and unsupported bindings refuse the dependent mutation.
+TCP and UDP are separate. Wildcards include their overlapping bindings; IPv6
+wildcard admission conservatively includes dual-stack occupancy. Existing
+container publications are checked even without a userspace listener, and
+stopped-container bindings and loaded systemd socket intents remain protected.
+Ports alone do not identify applications or prove external reachability.
+
+Keep existing DNS/web/SSH services running. Choose another Node or a binding
+supported by the selected module, regenerate, and review the endpoints. No
+random replacement port or automatic resolver reconfiguration is performed.
+Bindings can change after the probe; a later executor failure remains a failure
+and never authorizes killing the foreign listener. Unloaded unit files, other
+network namespaces and external dependencies need their owning adapters and
+remain outside the measured scope.
 
 A fact that could not be observed is reported `unknown`, never `pass`. Exit `3`
 means the host was refused.

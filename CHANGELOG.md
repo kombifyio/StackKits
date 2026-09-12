@@ -4,6 +4,56 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.26.0](https://github.com/kombifyio/stackKits/compare/5873d56efb664908c49cc8077b4aa35eb9a017c6...22ae1a6b133cb2e15936bd64bbdb914e150dd4b4) (2026-09-12)
+
+
+### Added
+
+* admit Home-signed Modern remote plan and verify ([#969](https://github.com/kombifyio/stackKits/issues/969)) ([5788300](https://github.com/kombifyio/stackKits/commit/578830009dde39338cdcb5727d2855e5869b16c2))
+* **ai:** add owner-bound local inference with CUE-owned image versions ([#955](https://github.com/kombifyio/stackKits/issues/955)) ([654b105](https://github.com/kombifyio/stackKits/commit/654b105a39ad70b45d7462d2f1876792a9fc6f3d))
+* **backup:** execute isolated Cloud offsite snapshots and restoration ([#954](https://github.com/kombifyio/stackKits/issues/954)) ([0fa0589](https://github.com/kombifyio/stackKits/commit/0fa058959cdebbc950e6152e863fb6896263f05f))
+* **cli:** guide first use and expose application next actions ([#993](https://github.com/kombifyio/stackKits/issues/993)) ([7df1ba0](https://github.com/kombifyio/stackKits/commit/7df1ba0084a3eee70b65664ea27c6053e30cced8))
+* **dev:** add owner-custodied private Git with Gitea ([#966](https://github.com/kombifyio/stackKits/issues/966)) ([cad1fad](https://github.com/kombifyio/stackKits/commit/cad1fadf637b0ab0935a33251e51934773128da6))
+* **documents:** integrate optional Paperless standalone workload ([#992](https://github.com/kombifyio/stackKits/issues/992)) ([52a5c1f](https://github.com/kombifyio/stackKits/commit/52a5c1f1c6cb9ebf1172a85bfa2260bec2db4a38))
+* **host:** preserve existing bindings with scoped pre-Apply evidence ([#995](https://github.com/kombifyio/stackKits/issues/995)) ([22ae1a6](https://github.com/kombifyio/stackKits/commit/22ae1a6b133cb2e15936bd64bbdb914e150dd4b4))
+* **identity:** bind local owner approval to exact remote actions ([#965](https://github.com/kombifyio/stackKits/issues/965)) ([05c26b9](https://github.com/kombifyio/stackKits/commit/05c26b93339026c2d32fadfa6bb3617c861e7b18))
+* **modern:** execute owner-bound WireGuard federation links ([#957](https://github.com/kombifyio/stackKits/issues/957)) ([608ab3a](https://github.com/kombifyio/stackKits/commit/608ab3ada2a0bd09848474192bfcb8ce39b8b1bf))
+* **modern:** execute owner-issued peers and origin lifecycle ([#945](https://github.com/kombifyio/stackKits/issues/945)) ([30d2637](https://github.com/kombifyio/stackKits/commit/30d2637ce8d27331a682f8787783668a2be5e1d7))
+* **modern:** forward bounded application WebSockets ([#950](https://github.com/kombifyio/stackKits/issues/950)) ([f647cad](https://github.com/kombifyio/stackKits/commit/f647cadf5ad30abe785a56f47059a269d873ed63))
+* **runtime:** execute Media and Home Assistant through standalone owners ([#962](https://github.com/kombifyio/stackKits/issues/962)) ([0497ec0](https://github.com/kombifyio/stackKits/commit/0497ec0811e14e5650435323b08e0f7d0301e688))
+* **support:** export redacted rollout diagnostics despite partial logs ([#953](https://github.com/kombifyio/stackKits/issues/953)) ([8d2a822](https://github.com/kombifyio/stackKits/commit/8d2a822d2b55353297bc7aa62e05164174150de8))
+
+
+### Fixed
+
+* **backup:** preserve data ownership during snapshot restore ([#944](https://github.com/kombifyio/stackKits/issues/944)) ([45875c2](https://github.com/kombifyio/stackKits/commit/45875c200032af509b15ed9daa254ddf6cebb487))
+* **catalog:** derive legacy core application pins from CUE authority ([#959](https://github.com/kombifyio/stackKits/issues/959)) ([5085f15](https://github.com/kombifyio/stackKits/commit/5085f15a79894ecf009e71b4b81540265d7a0680))
+* **catalog:** keep use cases on upstream application integrations ([#972](https://github.com/kombifyio/stackKits/issues/972)) ([76ab94d](https://github.com/kombifyio/stackKits/commit/76ab94dd89837c82a9a0448dfe3e42da4a610d4e))
+* **cli:** make module scaffolding available to public contributors ([#980](https://github.com/kombifyio/stackKits/issues/980)) ([a6e76d0](https://github.com/kombifyio/stackKits/commit/a6e76d05cf693e6adb784306dd34c25490356438))
+* **cli:** preserve typed product failure reasons safely ([#985](https://github.com/kombifyio/stackKits/issues/985)) ([82988df](https://github.com/kombifyio/stackKits/commit/82988dfebcdf357a6521843548e44bffaae3f70f))
+* **delivery:** authenticate website publication plan authority ([#986](https://github.com/kombifyio/stackKits/issues/986)) ([34fdfdf](https://github.com/kombifyio/stackKits/commit/34fdfdf7eb44f5224da5cc10a427cd72f96df227))
+* **delivery:** sync authenticated plan handoff runtime ([#988](https://github.com/kombifyio/stackKits/issues/988)) ([7418439](https://github.com/kombifyio/stackKits/commit/7418439e14d6f06bff2d4ccbfc4646a49303e402))
+* **dev:** focus implicit kit parity test selection ([#956](https://github.com/kombifyio/stackKits/issues/956)) ([addeb05](https://github.com/kombifyio/stackKits/commit/addeb0580cbc8167b7163a4633bbda5f44a53288))
+* **docs:** link public authoring to exported CUE contracts ([#989](https://github.com/kombifyio/stackKits/issues/989)) ([4a88200](https://github.com/kombifyio/stackKits/commit/4a882008983f4af6065737adb07a561137a3fee0))
+* **execution:** clean rollback staging through the held workspace root ([#967](https://github.com/kombifyio/stackKits/issues/967)) ([791d521](https://github.com/kombifyio/stackKits/commit/791d521cc0cca28b4acb0b975c60973bcff47af6))
+* **files:** bind Cloudreve download origin to declared HTTPS route ([#970](https://github.com/kombifyio/stackKits/issues/970)) ([77f642e](https://github.com/kombifyio/stackKits/commit/77f642e990eb0a5bd5c1dbaed8577734985e7c10))
+* **files:** unblock explicitly authorized first Cloudreve owner ([#968](https://github.com/kombifyio/stackKits/issues/968)) ([3f565f1](https://github.com/kombifyio/stackKits/commit/3f565f1f8235dd609074a5d90cb603786ae558a3))
+* **fixtures:** align canonical plans with embedded authority ([#987](https://github.com/kombifyio/stackKits/issues/987)) ([c571b80](https://github.com/kombifyio/stackKits/commit/c571b80b6cd617c6f97d2b719ed490ebcb23edd9))
+* **init:** bind custom candidate owner to selected node ([#983](https://github.com/kombifyio/stackKits/issues/983)) ([bfa3c54](https://github.com/kombifyio/stackKits/commit/bfa3c540f753f240a67ac3e145dcfb4ddc7b8d5a))
+* **lan:** print exact resolver address ([#978](https://github.com/kombifyio/stackKits/issues/978)) ([7485dc9](https://github.com/kombifyio/stackKits/commit/7485dc9749db1ae6994b884d7774872079efdf80))
+* **release:** adopt central prepared package workflow ([#946](https://github.com/kombifyio/stackKits/issues/946)) ([1872ba9](https://github.com/kombifyio/stackKits/commit/1872ba91df3047a41d3c2ef3c0ea7deb7b9c5811))
+* **release:** clarify sole prepared version authority ([#976](https://github.com/kombifyio/stackKits/issues/976)) ([1208a97](https://github.com/kombifyio/stackKits/commit/1208a973749fc32e99e66b0567e3a44150b78d67))
+* **release:** finalize OSS packages from authenticated plans ([#981](https://github.com/kombifyio/stackKits/issues/981)) ([e9f605c](https://github.com/kombifyio/stackKits/commit/e9f605cb5d14e3af460ba865feebee4adf5277db))
+* restore Basement LAN DNS policy ownership ([#961](https://github.com/kombifyio/stackKits/issues/961)) ([47aac98](https://github.com/kombifyio/stackKits/commit/47aac987db5a968101479700aee6c49a186a8350))
+* **runtime:** preserve Compose literals and full container identities ([#960](https://github.com/kombifyio/stackKits/issues/960)) ([f5ed0aa](https://github.com/kombifyio/stackKits/commit/f5ed0aa90c666d1deae5c3cb9764016236301f9f))
+* **status:** distinguish activated restores from pending data readback ([#984](https://github.com/kombifyio/stackKits/issues/984)) ([22aef2f](https://github.com/kombifyio/stackKits/commit/22aef2f2bfa66971ad97890febec05e60853fd95))
+* **testing:** compile-check generator metadata without broad suites ([#943](https://github.com/kombifyio/stackKits/issues/943)) ([e6d40d9](https://github.com/kombifyio/stackKits/commit/e6d40d94a226ae0948053884dedd1ee66abffa55))
+* **trust:** authenticate client CA handoff against custody ([#982](https://github.com/kombifyio/stackKits/issues/982)) ([6eefae1](https://github.com/kombifyio/stackKits/commit/6eefae1ce5abfb15d01ebd08a5f61e47775c257e))
+* **vault:** support current Bitwarden clients with one version source ([#952](https://github.com/kombifyio/stackKits/issues/952)) ([ea9dc47](https://github.com/kombifyio/stackKits/commit/ea9dc4723f17cf46ec0629dd37679b47e65ac9b6))
+* **website:** align launch claims with current evidence ([#977](https://github.com/kombifyio/stackKits/issues/977)) ([ab9c543](https://github.com/kombifyio/stackKits/commit/ab9c543d0ea3a5d3cde990e4504e3aa5b2674dea))
+
+Notes cover changes after VERSION 0.25.0 (5873d56efb664908c49cc8077b4aa35eb9a017c6), the earliest available contiguous 0.25.x VERSION anchor, through selected source 22ae1a6b133cb2e15936bd64bbdb914e150dd4b4.
+
 ## [0.25.1](https://github.com/kombifyio/StackKits/compare/v0.24.92...v0.25.1) (2026-09-12)
 
 This is the first public release of the 0.25 line. It includes the complete

@@ -84,24 +84,28 @@ var (
 // rootCmd represents the base command
 var rootCmd = &cobra.Command{
 	Use:   "stackkit",
-	Short: "StackKit CLI - Infrastructure deployment from declarative blueprints",
-	Long: `StackKit CLI enables infrastructure deployment directly from the terminal.
+	Short: "Set up and care for your own services with portable StackKits",
+	Long: `Run your own services from a portable StackKit definition.
+The standalone local path needs no kombify account or Techstack.
 
-It handles:
-  • StackKit discovery and selection
-  • Configuration validation (CUE)
-  • OpenTofu execution
-  • Drift detection and updates
-  • System prerequisites (Docker, OpenTofu)
+Start in a dedicated deployment directory:
+  stackkit init basement-kit --catalog-defaults --owner-source=local
 
-Examples:
-  stackkit init basement-kit           Initialize a new deployment
-  stackkit prepare --spec spec.yaml    Prepare system and validate spec
-  stackkit plan                        Preview infrastructure changes
-  stackkit apply                       Apply infrastructure changes
-  stackkit verify                      Run post-deployment verification checks
-  stackkit status                      Check deployment status
-  stackkit remove                      Tear down deployment`,
+Then review your saved choices and follow the next step printed by init.
+Nothing is installed by init. Catalog defaults come from the selected Kit;
+explicit flags let you change its choices.
+
+Your local workflow:
+  init       Save your desired configuration
+  validate   Check the configuration
+  generate   Prepare the deployment artifacts
+  plan       Review infrastructure changes
+  apply      Execute the admitted changes
+  verify     Check the result
+  status     Find what is usable and what needs attention
+
+Returning to an existing deployment? Run stackkit status in its directory.
+Use stackkit <command> --help for examples and detailed options.`,
 	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		machineOutputCommandActive = commandRequestsMachineOutput(cmd)
@@ -148,6 +152,7 @@ Examples:
 
 // Execute runs the root command
 func Execute() error {
+	configureCommandGroups()
 	defer func() {
 		closeRolloutRecorder(rollout.Summary{Status: "success"})
 		if deployLog != nil {

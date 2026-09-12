@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "32a3e9b35e915365d1fea4a6cac23db858c2c2b5",
-  "authority_bundle_sha256": "285771c8be83e975d035d37a425740d65a6eb399802561c7ea8b8bdcdab8313a",
+  "source_sha": "22c35ec004cda5579a66b73558afca1f9c0a6742",
+  "authority_bundle_sha256": "6e27a523f720ea70e023e6413757f42def5eb48f1cfe138c42c9e2a246efdbe7",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -787,6 +787,72 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-paperless-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "documents"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Document ingestion, OCR, indexing and search through Paperless-ngx with PostgreSQL and Valkey. StackKits configures and operates the upstream services; document features remain owned by Paperless-ngx. Document growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "paperless",
+                "paperless-postgres",
+                "paperless-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "b333349ba92457b0857c89b2fa9140e8974f418244e056f1fd5a58b3b36df983"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Document ingestion, OCR, indexing and search through Paperless-ngx with PostgreSQL and Valkey. StackKits configures and operates the upstream services; document features remain owned by Paperless-ngx. Document growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "paperless",
+                "paperless-postgres",
+                "paperless-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "0d5fba68eb583397e2c29703590622467b8336238c059e529cb6915a52a24fc8"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-private-ai-runtime",
           "role": "workload",
           "required": false,
@@ -1056,6 +1122,32 @@
                 "residency": "always-on",
                 "baseline": "idle-resident",
                 "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "documents",
+          "title": "Documents",
+          "description": "Private document ingestion, OCR, indexing and search through Paperless-ngx.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "paperless-ngx",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "paperless-ngx",
+              "module_id": "stackkits-paperless-runtime",
+              "functions": [
+                "document-ingestion",
+                "document-management",
+                "document-search",
+                "ocr"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "ingest"
               }
             }
           ]
@@ -2021,6 +2113,72 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-paperless-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "documents"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Document ingestion, OCR, indexing and search through Paperless-ngx with PostgreSQL and Valkey. StackKits configures and operates the upstream services; document features remain owned by Paperless-ngx. Document growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "paperless",
+                "paperless-postgres",
+                "paperless-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "b333349ba92457b0857c89b2fa9140e8974f418244e056f1fd5a58b3b36df983"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Document ingestion, OCR, indexing and search through Paperless-ngx with PostgreSQL and Valkey. StackKits configures and operates the upstream services; document features remain owned by Paperless-ngx. Document growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "paperless",
+                "paperless-postgres",
+                "paperless-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "0d5fba68eb583397e2c29703590622467b8336238c059e529cb6915a52a24fc8"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-private-ai-runtime",
           "role": "workload",
           "required": false,
@@ -2283,6 +2441,32 @@
                 "residency": "always-on",
                 "baseline": "idle-resident",
                 "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "documents",
+          "title": "Documents",
+          "description": "Private document ingestion, OCR, indexing and search through Paperless-ngx.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "paperless-ngx",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "paperless-ngx",
+              "module_id": "stackkits-paperless-runtime",
+              "functions": [
+                "document-ingestion",
+                "document-management",
+                "document-search",
+                "ocr"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "ingest"
               }
             }
           ]
@@ -3265,6 +3449,72 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-paperless-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "documents"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Document ingestion, OCR, indexing and search through Paperless-ngx with PostgreSQL and Valkey. StackKits configures and operates the upstream services; document features remain owned by Paperless-ngx. Document growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "paperless",
+                "paperless-postgres",
+                "paperless-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "b333349ba92457b0857c89b2fa9140e8974f418244e056f1fd5a58b3b36df983"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Document ingestion, OCR, indexing and search through Paperless-ngx with PostgreSQL and Valkey. StackKits configures and operates the upstream services; document features remain owned by Paperless-ngx. Document growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "paperless",
+                "paperless-postgres",
+                "paperless-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "0d5fba68eb583397e2c29703590622467b8336238c059e529cb6915a52a24fc8"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-private-ai-runtime",
           "role": "workload",
           "required": false,
@@ -3534,6 +3784,32 @@
                 "residency": "always-on",
                 "baseline": "idle-resident",
                 "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "documents",
+          "title": "Documents",
+          "description": "Private document ingestion, OCR, indexing and search through Paperless-ngx.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "paperless-ngx",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "paperless-ngx",
+              "module_id": "stackkits-paperless-runtime",
+              "functions": [
+                "document-ingestion",
+                "document-management",
+                "document-search",
+                "ocr"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "ingest"
               }
             }
           ]
@@ -4024,5 +4300,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "2cd9b3aa770bd8b4949d3b211c8db309c9080bb94a33261e6d722d5a74ca20f5"
+  "catalog_sha256": "1f1a50e6c906106814a460896cfceba68e250c75999920280ba109492c68c93d"
 }

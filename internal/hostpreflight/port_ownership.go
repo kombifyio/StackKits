@@ -3,6 +3,7 @@ package hostpreflight
 import (
 	"context"
 	"encoding/json"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +19,8 @@ var (
 )
 
 type inspectedRuntimeContainer struct {
+	ID     string `json:"Id"`
+	Name   string `json:"Name"`
 	Config struct {
 		Labels map[string]string `json:"Labels"`
 	} `json:"Config"`
@@ -30,6 +33,69 @@ type inspectedRuntimeContainer struct {
 	State struct {
 		Running bool `json:"Running"`
 	} `json:"State"`
+}
+
+func inspectHostContainers(ctx context.Context, workspace string) ([]inspectedRuntimeContainer, bool) {
+	ids, ok := boundedProbeOutput(ctx, workspace, "docker", "ps", "--all", "--quiet", "--no-trunc")
+	if !ok {
+		return nil, false
+	}
+	fields := strings.Fields(string(ids))
+	if len(fields) == 0 {
+		return []inspectedRuntimeContainer{}, true
+	}
+	if len(fields) > 4096 {
+		return nil, false
+	}
+	for _, id := range fields {
+		if !dockerObjectID.MatchString(id) {
+			return nil, false
+		}
+	}
+	containers := make([]inspectedRuntimeContainer, 0, len(fields))
+	for start := 0; start < len(fields); start += 32 {
+		end := start + 32
+		if end > len(fields) {
+			end = len(fields)
+		}
+		data, ok := boundedProbeOutput(ctx, workspace, "docker", append([]string{"inspect"}, fields[start:end]...)...)
+		var batch []inspectedRuntimeContainer
+		if !ok || json.Unmarshal(data, &batch) != nil || len(batch) != end-start {
+			return nil, false
+		}
+		containers = append(containers, batch...)
+	}
+	return containers, true
+}
+
+func containerBindingOverlaps(container inspectedRuntimeContainer, listener ListenerRequirement) bool {
+	wanted, err := netip.ParseAddr(listener.BindAddress)
+	if err != nil {
+		return true
+	}
+	for target, bindings := range container.HostConfig.PortBindings {
+		if !strings.HasSuffix(target, "/"+listener.Transport) {
+			continue
+		}
+		for _, binding := range bindings {
+			if binding.HostPort != strconv.Itoa(listener.Port) {
+				continue
+			}
+			address := binding.HostIP
+			if address == "" {
+				address = "0.0.0.0"
+			}
+			bound, err := netip.ParseAddr(address)
+			if err != nil {
+				return true
+			}
+			bound, wanted = bound.Unmap(), wanted.Unmap()
+			if bound == wanted || (bound.Is4() == wanted.Is4() && (bound.IsUnspecified() || wanted.IsUnspecified())) || bound == netip.IPv6Unspecified() || wanted == netip.IPv6Unspecified() {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // coreRuntimeDirectories lists the private per-kit core runtime directories this
@@ -70,6 +136,11 @@ func coreRuntimeDirectories(root string) []string {
 // so no kit, project or service name is hard-coded. Any missing, foreign, stale,
 // or unparseable evidence remains false and therefore fail-closed.
 func currentWorkspaceOwnsPort(ctx context.Context, workspace string, port int) bool {
+	return currentWorkspaceOwnsListener(ctx, workspace, ListenerRequirement{Transport: "tcp", BindAddress: "0.0.0.0", Port: port})
+}
+
+func currentWorkspaceOwnsListener(ctx context.Context, workspace string, listener ListenerRequirement) bool {
+	port := listener.Port
 	root, err := filepath.Abs(strings.TrimSpace(workspace))
 	if err != nil || root == "" || port < 1 || port > 65535 {
 		return false
@@ -116,7 +187,7 @@ func currentWorkspaceOwnsPort(ctx context.Context, workspace string, port int) b
 	if !ok || labels["com.docker.compose.config-hash"] != expectedHash {
 		return false
 	}
-	return publishesHostPort(container, port)
+	return publishesHostListener(container, listener)
 }
 
 // publishesHostPort proves the container publishes exactly this host port on a
@@ -125,20 +196,36 @@ func currentWorkspaceOwnsPort(ctx context.Context, workspace string, port int) b
 // matching on the key only happens to work while a service maps a port onto
 // itself, and fails closed the moment one does not.
 func publishesHostPort(container inspectedRuntimeContainer, port int) bool {
-	wanted := strconv.Itoa(port)
+	return publishesHostListener(container, ListenerRequirement{Transport: "tcp", BindAddress: "0.0.0.0", Port: port})
+}
+
+func publishesHostListener(container inspectedRuntimeContainer, listener ListenerRequirement) bool {
+	wanted := strconv.Itoa(listener.Port)
+	address, err := netip.ParseAddr(listener.BindAddress)
+	if err != nil {
+		return false
+	}
 	matches := 0
 	for containerPort, bindings := range container.HostConfig.PortBindings {
-		if !strings.HasSuffix(containerPort, "/tcp") {
+		if !strings.HasSuffix(containerPort, "/"+listener.Transport) {
 			continue
 		}
 		for _, binding := range bindings {
 			if binding.HostPort != wanted {
 				continue
 			}
-			if binding.HostIP != "" && binding.HostIP != "0.0.0.0" {
+			hostIP := binding.HostIP
+			if hostIP == "" {
+				hostIP = "0.0.0.0"
+			}
+			bound, err := netip.ParseAddr(hostIP)
+			if err != nil {
 				return false
 			}
-			matches++
+			// Ownership of another address or protocol cannot admit this bind.
+			if bound.Unmap() == address.Unmap() {
+				matches++
+			}
 		}
 	}
 	return matches == 1

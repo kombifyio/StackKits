@@ -70,27 +70,26 @@ type initDefaults struct {
 var initCmd = &cobra.Command{
 	Use:   "init [stackkit]",
 	Short: "Initialize a new deployment from a StackKit",
-	Long: `Initialize a new deployment from a StackKit.
+	Long: `Create a stack-spec.yaml in your deployment directory.
+This saves your choices; it does not install services or change the host.
+The standalone local path works without a kombify account or Techstack.
 
-This command creates a new stack-spec.yaml file and sets up the deployment
-directory structure based on the selected StackKit.
+Start with the selected Kit's catalog defaults:
+  stackkit init basement-kit --catalog-defaults --owner-source=local
 
-Native Architecture v2 init is CUE-owned. Without a Kit argument it selects
-basement-kit. --owner-source=local establishes local owner custody plus the
-CUE-owned PocketID/step-ca and Site/node/execution-channel projection.
+Add a workload declared by the Kit:
+  stackkit init basement-kit --catalog-defaults --owner-source=local --use-case photos
 
-Native v2alpha2 selects each module's compute profile independently. Required
-and optional workloads use explicit --use-case-alternative selections. The
---compute-tier flag is available only with --api-version stackkit/v2alpha1,
-the explicitly marked legacy graph adapter. Mode, local-path, local-DNS, service, cluster, cloud-owner, and
-output switches remain available only to an explicitly versioned v0.6
-compatibility binary and are rejected by development and v0.7+ builds.
+Review the saved configuration before generating or applying it. Defaults
+are recorded as explicit intent and validated by the Kit's CUE contract.
+Required information, such as a domain, is requested when the Kit needs it.
+Use --non-interactive in scripts to fail instead of prompting.
 
-Examples:
-  stackkit init basement-kit --use-case-alternative basement-core=standalone-compose --module-compute-profile stackkits-basement-core-lite-runtime=standard
-  stackkit init basement-kit --api-version stackkit/v2alpha1 --compute-tier standard
-  stackkit init ./basement-kit          v0.6 compatibility only: local definition path
-  stackkit init basement-kit --use-case-alternative basement-core=standalone-compose --module-compute-profile stackkits-basement-core-lite-runtime=standard --owner-source=local --non-interactive`,
+For precise control, use --use-case-alternative and --module-compute-profile
+instead of --catalog-defaults. These selections come from the chosen Kit.
+Native authoring uses stackkit/v2alpha2; --api-version stackkit/v2alpha1
+selects the explicit legacy graph adapter. Flags marked v0.6 compatibility
+are accepted only by an explicitly versioned v0.6 binary.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runInit,
 }

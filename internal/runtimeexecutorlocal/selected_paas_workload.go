@@ -151,6 +151,7 @@ type SelectedPaaSWorkloadObservationValidator interface {
 
 const (
 	jellyfinWorkloadModuleRef      = "stackkits-jellyfin-runtime"
+	paperlessWorkloadModuleRef     = "stackkits-paperless-runtime"
 	homeAssistantWorkloadModuleRef = "stackkits-home-assistant-runtime"
 )
 
@@ -185,6 +186,8 @@ func ValidateSelectedPaaSWorkloadObservation(
 		return validateVaultwardenObservation(observation, deployment, descriptor)
 	case jellyfinWorkloadModuleRef:
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationJellyfin, deployment, observation)
+	case paperlessWorkloadModuleRef:
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationPaperless, deployment, observation)
 	case "stackkits-private-ai-runtime":
 		if _, err := architecturev2renderer.ParsePrivateAIWorkloadBundle(deployment.Bundle); err != nil {
 			return err

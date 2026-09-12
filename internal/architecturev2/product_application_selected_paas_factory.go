@@ -29,6 +29,17 @@ func NewProductJellyfinSelectedPaaSRegistration(
 	)
 }
 
+// NewProductPaperlessSelectedPaaSRegistration binds the Documents workload to
+// the existing standalone application adapter and lifecycle owner.
+func NewProductPaperlessSelectedPaaSRegistration(
+	runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef string,
+	operations runtimeexecutorlocal.SelectedPaaSWorkloadOperations,
+) (ProductRuntimeOwnerRegistration, error) {
+	return newProductApplicationSelectedPaaSRegistration(
+		runtimeexecutorlocal.SelectedPaaSApplicationPaperless, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations,
+	)
+}
+
 // NewProductHomeAssistantSelectedPaaSRegistration binds the self-hosted Home
 // Assistant container workload to one explicitly selected application
 // adapter implementation. External HAOS or imported instances are not

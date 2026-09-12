@@ -350,6 +350,13 @@ UseCaseCatalog: #UseCaseCatalog & {
 				},
 			]
 		}
+		documents: {
+			slug:        "documents"
+			displayName: "Documents"
+			description: "Private document ingestion, OCR, indexing and search through Paperless-ngx."
+			owner:       "stackkits"
+			components: "paperless-ngx": {id: "paperless-ngx", name: "Paperless-ngx", role: "primary", kind: "application"}
+		}
 		mail: {
 			slug:        "mail"
 			displayName: "Private Mail"

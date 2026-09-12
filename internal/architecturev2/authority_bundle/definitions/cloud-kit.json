@@ -806,7 +806,8 @@
       "media",
       "smart-home",
       "ai",
-      "dev"
+      "dev",
+      "documents"
     ],
     "required": [
       "cloud-core"
