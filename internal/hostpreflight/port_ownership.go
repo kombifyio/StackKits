@@ -18,6 +18,11 @@ var (
 	composeService = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$`)
 )
 
+type hostPortBinding struct {
+	HostIP   string `json:"HostIp"`
+	HostPort string `json:"HostPort"`
+}
+
 type inspectedRuntimeContainer struct {
 	ID     string `json:"Id"`
 	Name   string `json:"Name"`
@@ -25,11 +30,11 @@ type inspectedRuntimeContainer struct {
 		Labels map[string]string `json:"Labels"`
 	} `json:"Config"`
 	HostConfig struct {
-		PortBindings map[string][]struct {
-			HostIP   string `json:"HostIp"`
-			HostPort string `json:"HostPort"`
-		} `json:"PortBindings"`
+		PortBindings map[string][]hostPortBinding `json:"PortBindings"`
 	} `json:"HostConfig"`
+	NetworkSettings struct {
+		Ports map[string][]hostPortBinding `json:"Ports"`
+	} `json:"NetworkSettings"`
 	State struct {
 		Running bool `json:"Running"`
 	} `json:"State"`
@@ -73,25 +78,27 @@ func containerBindingOverlaps(container inspectedRuntimeContainer, listener List
 	if err != nil {
 		return true
 	}
-	for target, bindings := range container.HostConfig.PortBindings {
-		if !strings.HasSuffix(target, "/"+listener.Transport) {
-			continue
-		}
-		for _, binding := range bindings {
-			if binding.HostPort != strconv.Itoa(listener.Port) {
+	for _, publications := range []map[string][]hostPortBinding{container.HostConfig.PortBindings, container.NetworkSettings.Ports} {
+		for target, bindings := range publications {
+			if !strings.HasSuffix(target, "/"+listener.Transport) {
 				continue
 			}
-			address := binding.HostIP
-			if address == "" {
-				address = "0.0.0.0"
-			}
-			bound, err := netip.ParseAddr(address)
-			if err != nil {
-				return true
-			}
-			bound, wanted = bound.Unmap(), wanted.Unmap()
-			if bound == wanted || (bound.Is4() == wanted.Is4() && (bound.IsUnspecified() || wanted.IsUnspecified())) || bound == netip.IPv6Unspecified() || wanted == netip.IPv6Unspecified() {
-				return true
+			for _, binding := range bindings {
+				if binding.HostPort != strconv.Itoa(listener.Port) {
+					continue
+				}
+				address := binding.HostIP
+				if address == "" {
+					address = "0.0.0.0"
+				}
+				bound, err := netip.ParseAddr(address)
+				if err != nil {
+					return true
+				}
+				bound, wanted = bound.Unmap(), wanted.Unmap()
+				if bound == wanted || (bound.Is4() == wanted.Is4() && (bound.IsUnspecified() || wanted.IsUnspecified())) || bound == netip.IPv6Unspecified() || wanted == netip.IPv6Unspecified() {
+					return true
+				}
 			}
 		}
 	}

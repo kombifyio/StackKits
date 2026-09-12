@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.26.1](https://github.com/kombifyio/stackKits/compare/v0.26.0...v0.26.1) (2026-09-12)
+
+
+### Fixed
+
+* **host:** protect Docker-assigned host publications ([#996](https://github.com/kombifyio/stackKits/issues/996)) ([59630d9](https://github.com/kombifyio/stackKits/commit/59630d91002d769cfdf2762a8efe2ba8abc8fac1))
+
 ## [0.26.0](https://github.com/kombifyio/stackKits/compare/5873d56efb664908c49cc8077b4aa35eb9a017c6...22ae1a6b133cb2e15936bd64bbdb914e150dd4b4) (2026-09-12)
 
 
