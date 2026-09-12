@@ -12,10 +12,13 @@ import (
 )
 
 const (
-	APIVersion         = public.APIVersion
-	ResultAPIVersion   = public.ResultAPIVersion
-	EvidenceAPIVersion = public.EvidenceAPIVersion
-	StatusRemoved      = public.StatusRemoved
+	APIVersion            = public.APIVersion
+	ResultAPIVersion      = public.ResultAPIVersion
+	EvidenceAPIVersion    = public.EvidenceAPIVersion
+	StatusRemoved         = public.StatusRemoved
+	ObservedStateAbsent   = public.ObservedStateAbsent
+	DataDispositionRetain = public.DataDispositionRetain
+	DataDispositionDelete = public.DataDispositionDelete
 )
 
 type OwnerAuthorization = public.OwnerAuthorization
@@ -35,20 +38,20 @@ func SelectAppliedWorkloadPlacement(applied runtimeexecutor.ExecutionRequest, pl
 	return public.SelectAppliedWorkloadPlacement(applied, placement)
 }
 
-func AuthorizationBytes(applied runtimeexecutor.ExecutionRequest, workloadRef string, requestedAt, validUntil time.Time) ([]byte, error) {
-	return public.AuthorizationBytes(applied, workloadRef, requestedAt, validUntil)
+func AuthorizationBytes(applied runtimeexecutor.ExecutionRequest, workloadRef, dataDisposition string, requestedAt, validUntil time.Time) ([]byte, error) {
+	return public.AuthorizationBytes(applied, workloadRef, dataDisposition, requestedAt, validUntil)
 }
 
-func AuthorizationBytesForPlacement(applied runtimeexecutor.ExecutionRequest, placement AppliedPlacement, requestedAt, validUntil time.Time) ([]byte, error) {
-	return public.AuthorizationBytesForPlacement(applied, placement, requestedAt, validUntil)
+func AuthorizationBytesForPlacement(applied runtimeexecutor.ExecutionRequest, placement AppliedPlacement, dataDisposition string, requestedAt, validUntil time.Time) ([]byte, error) {
+	return public.AuthorizationBytesForPlacement(applied, placement, dataDisposition, requestedAt, validUntil)
 }
 
-func SealRequest(applied runtimeexecutor.ExecutionRequest, workloadRef string, requestedAt, validUntil time.Time, authorization OwnerAuthorization) (Request, error) {
-	return public.SealRequest(applied, workloadRef, requestedAt, validUntil, authorization)
+func SealRequest(applied runtimeexecutor.ExecutionRequest, workloadRef, dataDisposition string, requestedAt, validUntil time.Time, authorization OwnerAuthorization) (Request, error) {
+	return public.SealRequest(applied, workloadRef, dataDisposition, requestedAt, validUntil, authorization)
 }
 
-func SealRequestForPlacement(applied runtimeexecutor.ExecutionRequest, placement AppliedPlacement, requestedAt, validUntil time.Time, authorization OwnerAuthorization) (Request, error) {
-	return public.SealRequestForPlacement(applied, placement, requestedAt, validUntil, authorization)
+func SealRequestForPlacement(applied runtimeexecutor.ExecutionRequest, placement AppliedPlacement, dataDisposition string, requestedAt, validUntil time.Time, authorization OwnerAuthorization) (Request, error) {
+	return public.SealRequestForPlacement(applied, placement, dataDisposition, requestedAt, validUntil, authorization)
 }
 
 func NewResult(request Request, removedAt time.Time, outcome Outcome) (Result, error) {

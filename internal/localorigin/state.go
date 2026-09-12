@@ -75,6 +75,77 @@ func RecordBackend(workspaceRoot string, backend Backend) error {
 	return writeState(workspaceRoot, stateRef("backend", backend.InstanceRef), "backend", backend)
 }
 
+// WithdrawBackend removes the exact signed origin backend record for the
+// removed container. Missing exact state may converge. A replaced directory,
+// a non-regular occupancy of the hashed path, or a newer ContainerID is left
+// untouched.
+func WithdrawBackend(workspaceRoot string, backend Backend) error {
+	if backend.InstanceRef == "" || backend.ModuleRef == "" || backend.UnitRef == "" || backend.NodeRef == "" || backend.ServiceRef == "" || !validContainerID(backend.ContainerID) {
+		return errors.New("localorigin: backend withdrawal requires exact observed container identity")
+	}
+	path := stateRef("backend", backend.InstanceRef)
+	root, err := confinedfs.Open(workspaceRoot)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Close() }()
+	tx, err := root.BeginTransaction()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Close() }()
+	info, err := tx.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return errors.New("localorigin: backend path is not the signed regular record")
+	}
+	raw, readInfo, err := tx.ReadStableBounded(path, 256<<10)
+	if err != nil {
+		return err
+	}
+	if !os.SameFile(info, readInfo) || !readInfo.Mode().IsRegular() {
+		return errors.New("localorigin: backend record changed during withdrawal")
+	}
+	var record signedState
+	if err := json.Unmarshal(raw, &record); err != nil {
+		return err
+	}
+	signature := record.Signature
+	record.Signature = localevidence.OwnerPolicyStateSignature{}
+	unsigned, err := json.Marshal(record)
+	if err != nil {
+		return err
+	}
+	if record.Kind != "backend" {
+		return errors.New("localorigin: state kind mismatch")
+	}
+	if err := localevidence.VerifyOwnerPolicyState(workspaceRoot, unsigned, signature); err != nil {
+		return err
+	}
+	var existing Backend
+	if err := json.Unmarshal(record.Payload, &existing); err != nil {
+		return err
+	}
+	if existing.InstanceRef != backend.InstanceRef || existing.ModuleRef != backend.ModuleRef ||
+		existing.UnitRef != backend.UnitRef || existing.NodeRef != backend.NodeRef ||
+		existing.ServiceRef != backend.ServiceRef {
+		return errors.New("localorigin: backend identity differs from the removed workload")
+	}
+	if existing.ContainerID != backend.ContainerID {
+		return errors.New("localorigin: backend container was replaced; recorded identity was not withdrawn")
+	}
+	if err := tx.RemoveRegularFile(path, readInfo); err != nil {
+		return err
+	}
+	_, err = tx.SyncDirectory(stateDirectory)
+	return err
+}
+
 func validContainerID(id string) bool {
 	if len(id) != 64 {
 		return false

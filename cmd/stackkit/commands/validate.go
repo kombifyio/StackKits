@@ -111,22 +111,17 @@ func validateArchitectureV2Spec(wd, targetFile string) (bool, error) {
 		}
 		return true, gate.rejectV1Execution(rawSpec, architectureV2Validate)
 	}
-	if gate.newAuthority == nil {
-		return true, fmt.Errorf("validate: Architecture v2 authority is not configured")
-	}
-	authority, err := gate.newAuthority()
+	// Validation is desired-intent evidence. Target inventory is resolved by
+	// prepare/generate, not replaced with an empty document here.
+	authority, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(version))
 	if err != nil {
 		return true, err
 	}
-	current, err := authority.ResolveCurrent(architecturev2.ResolveInput{StackSpec: rawSpec})
+	result, err := authority.ValidateStackSpec(rawSpec)
 	if err != nil {
 		return true, err
 	}
-	result, err := current.Result()
-	if err != nil {
-		return true, err
-	}
-	printSuccess("StackSpec v2 is valid (plan %s)", result.PlanHash)
+	printSuccess("StackSpec v2 is valid (spec %s)", result.SpecHash)
 	return true, nil
 }
 

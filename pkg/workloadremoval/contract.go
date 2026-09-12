@@ -20,11 +20,21 @@ import (
 )
 
 const (
-	APIVersion         = "stackkit.workload-removal/v1"
-	ResultAPIVersion   = "stackkit.workload-removal-result/v1"
-	EvidenceAPIVersion = "stackkit.workload-removal-evidence/v1"
-	StatusRemoved      = "removed"
-	maxValidity        = 5 * time.Minute
+	// APIVersion is the current owner-signed removal request. v1 remains the
+	// published absence-only wire; this v2 admits an explicit data disposition
+	// and must not be parsed as compatible with v1 canonical bytes.
+	APIVersion          = "stackkit.workload-removal/v2"
+	ResultAPIVersion    = "stackkit.workload-removal-result/v2"
+	EvidenceAPIVersion  = "stackkit.workload-removal-evidence/v2"
+	StatusRemoved       = "removed"
+	ObservedStateAbsent = "absent"
+	// DataDispositionRetain keeps declared application data volumes after the
+	// workload containers are absent. It is the native default.
+	DataDispositionRetain = "retain"
+	// DataDispositionDelete removes only named volumes owned by this exact
+	// applied workload after its containers are absent.
+	DataDispositionDelete = "delete"
+	maxValidity           = 5 * time.Minute
 )
 
 // OwnerAuthorization binds the destructive request to established local
@@ -44,6 +54,7 @@ type AuthorizationPayload struct {
 	WorkloadRef          string `json:"workloadRef"`
 	RequirementID        string `json:"requirementId"`
 	InstanceRef          string `json:"instanceRef"`
+	DataDisposition      string `json:"dataDisposition"`
 	RequestedAt          string `json:"requestedAt"`
 	ValidUntil           string `json:"validUntil"`
 }
@@ -56,6 +67,7 @@ type Request struct {
 	AppliedRequestDigest string                           `json:"appliedRequestDigest"`
 	Applied              runtimeexecutor.ExecutionRequest `json:"applied"`
 	WorkloadRef          string                           `json:"workloadRef"`
+	DataDisposition      string                           `json:"dataDisposition"`
 	RequestedAt          string                           `json:"requestedAt"`
 	ValidUntil           string                           `json:"validUntil"`
 	Authorization        OwnerAuthorization               `json:"authorization"`
@@ -68,6 +80,7 @@ type Outcome struct {
 	InstanceRef       string `json:"instanceRef"`
 	RuntimeOwnerRef   string `json:"runtimeOwnerRef"`
 	ArtifactDigest    string `json:"artifactDigest"`
+	DataDisposition   string `json:"dataDisposition"`
 	Status            string `json:"status"`
 	ObservedState     string `json:"observedState"`
 	ObservationRef    string `json:"observationRef"`
@@ -94,6 +107,7 @@ type EvidenceAuthority struct {
 	InstanceRef          string             `json:"instanceRef"`
 	RuntimeOwnerRef      string             `json:"runtimeOwnerRef"`
 	ArtifactDigest       string             `json:"artifactDigest"`
+	DataDisposition      string             `json:"dataDisposition"`
 	SiteRef              string             `json:"siteRef"`
 	NodeRef              string             `json:"nodeRef"`
 	ExecutionChannelRef  string             `json:"executionChannelRef"`
@@ -237,26 +251,26 @@ func containsString(values []string, candidate string) bool {
 	return false
 }
 
-func AuthorizationBytes(applied runtimeexecutor.ExecutionRequest, workloadRef string, requestedAt, validUntil time.Time) ([]byte, error) {
-	payload, err := authorizationPayload(applied, applied.RequestDigest, workloadRef, requestedAt, validUntil)
+func AuthorizationBytes(applied runtimeexecutor.ExecutionRequest, workloadRef, dataDisposition string, requestedAt, validUntil time.Time) ([]byte, error) {
+	payload, err := authorizationPayload(applied, applied.RequestDigest, workloadRef, dataDisposition, requestedAt, validUntil)
 	if err != nil {
 		return nil, err
 	}
 	return resolvedplan.CanonicalJSON(payload)
 }
 
-func SealRequest(applied runtimeexecutor.ExecutionRequest, workloadRef string, requestedAt, validUntil time.Time, authorization OwnerAuthorization) (Request, error) {
-	return sealRequest(applied, applied.RequestDigest, workloadRef, requestedAt, validUntil, authorization)
+func SealRequest(applied runtimeexecutor.ExecutionRequest, workloadRef, dataDisposition string, requestedAt, validUntil time.Time, authorization OwnerAuthorization) (Request, error) {
+	return sealRequest(applied, applied.RequestDigest, workloadRef, dataDisposition, requestedAt, validUntil, authorization)
 }
 
 // AuthorizationBytesForPlacement binds Owner approval to the original shared
 // Apply receipt while authorizing only one exact verified placement below it.
-func AuthorizationBytesForPlacement(applied runtimeexecutor.ExecutionRequest, placement AppliedPlacement, requestedAt, validUntil time.Time) ([]byte, error) {
+func AuthorizationBytesForPlacement(applied runtimeexecutor.ExecutionRequest, placement AppliedPlacement, dataDisposition string, requestedAt, validUntil time.Time) ([]byte, error) {
 	selected, err := SelectAppliedWorkloadPlacement(applied, placement)
 	if err != nil {
 		return nil, err
 	}
-	payload, err := authorizationPayload(selected, applied.RequestDigest, placement.WorkloadRef, requestedAt, validUntil)
+	payload, err := authorizationPayload(selected, applied.RequestDigest, placement.WorkloadRef, dataDisposition, requestedAt, validUntil)
 	if err != nil {
 		return nil, err
 	}
@@ -265,22 +279,23 @@ func AuthorizationBytesForPlacement(applied runtimeexecutor.ExecutionRequest, pl
 
 // SealRequestForPlacement preserves the original shared Apply digest as
 // lineage while sealing the exact narrowed child request used for removal.
-func SealRequestForPlacement(applied runtimeexecutor.ExecutionRequest, placement AppliedPlacement, requestedAt, validUntil time.Time, authorization OwnerAuthorization) (Request, error) {
+func SealRequestForPlacement(applied runtimeexecutor.ExecutionRequest, placement AppliedPlacement, dataDisposition string, requestedAt, validUntil time.Time, authorization OwnerAuthorization) (Request, error) {
 	selected, err := SelectAppliedWorkloadPlacement(applied, placement)
 	if err != nil {
 		return Request{}, err
 	}
-	return sealRequest(selected, applied.RequestDigest, placement.WorkloadRef, requestedAt, validUntil, authorization)
+	return sealRequest(selected, applied.RequestDigest, placement.WorkloadRef, dataDisposition, requestedAt, validUntil, authorization)
 }
 
-func sealRequest(applied runtimeexecutor.ExecutionRequest, appliedRequestDigest, workloadRef string, requestedAt, validUntil time.Time, authorization OwnerAuthorization) (Request, error) {
-	payload, err := authorizationPayload(applied, appliedRequestDigest, workloadRef, requestedAt, validUntil)
+func sealRequest(applied runtimeexecutor.ExecutionRequest, appliedRequestDigest, workloadRef, dataDisposition string, requestedAt, validUntil time.Time, authorization OwnerAuthorization) (Request, error) {
+	payload, err := authorizationPayload(applied, appliedRequestDigest, workloadRef, dataDisposition, requestedAt, validUntil)
 	if err != nil {
 		return Request{}, err
 	}
 	request := Request{
 		APIVersion: APIVersion, AppliedRequestDigest: appliedRequestDigest, Applied: runtimeexecutor.CloneExecutionRequest(applied),
-		WorkloadRef: workloadRef, RequestedAt: payload.RequestedAt, ValidUntil: payload.ValidUntil,
+		WorkloadRef: workloadRef, DataDisposition: payload.DataDisposition,
+		RequestedAt: payload.RequestedAt, ValidUntil: payload.ValidUntil,
 		Authorization: authorization,
 	}
 	digest, err := requestHash(request)
@@ -303,6 +318,9 @@ func (request Request) ValidateAt(now time.Time) error {
 	}
 	if len(request.Applied.RuntimeTargets) != 1 || request.Applied.RuntimeTargets[0].WorkloadRef != request.WorkloadRef {
 		return errors.New("workload removal request is not bound to exactly one applied workload")
+	}
+	if err := validateDataDisposition(request.DataDisposition); err != nil {
+		return err
 	}
 	if !validDigest(appliedArtifactDigest(request.Applied, request.Applied.RuntimeTargets[0])) {
 		return errors.New("workload removal request must bind exactly one applied executable artifact")
@@ -346,9 +364,10 @@ func NewResult(request Request, removedAt time.Time, outcome Outcome) (Result, e
 	if outcome.RequirementID != target.RequirementID || outcome.WorkloadRef != request.WorkloadRef ||
 		outcome.InstanceRef != target.InstanceRef || outcome.RuntimeOwnerRef != runtimeOwnerRef(target) ||
 		outcome.ArtifactDigest != appliedArtifactDigest(request.Applied, target) ||
-		outcome.Status != StatusRemoved || outcome.ObservedState != "absent" ||
+		outcome.DataDisposition != request.DataDisposition ||
+		outcome.Status != StatusRemoved || outcome.ObservedState != ObservedStateAbsent ||
 		!strings.HasPrefix(outcome.ObservationRef, "removal-observation://") || !validDigest(outcome.ObservationDigest) {
-		return Result{}, errors.New("workload removal outcome does not prove the exact target is absent")
+		return Result{}, errors.New("workload removal outcome does not prove the exact target is absent under the signed data disposition")
 	}
 	result := Result{
 		APIVersion: ResultAPIVersion, RequestDigest: request.RequestDigest,
@@ -374,8 +393,9 @@ func (result Result) Validate(request Request) error {
 	return validateResult(result, EvidenceAuthority{
 		WorkloadRef: request.WorkloadRef, RequirementID: target.RequirementID,
 		InstanceRef: target.InstanceRef, RuntimeOwnerRef: runtimeOwnerRef(target),
-		ArtifactDigest: appliedArtifactDigest(request.Applied, target),
-		RequestedAt:    request.RequestedAt, ValidUntil: request.ValidUntil,
+		ArtifactDigest:  appliedArtifactDigest(request.Applied, target),
+		DataDisposition: request.DataDisposition,
+		RequestedAt:     request.RequestedAt, ValidUntil: request.ValidUntil,
 		RequestDigest: request.RequestDigest,
 	})
 }
@@ -424,7 +444,8 @@ func NewEvidence(request Request, result Result) (Evidence, error) {
 			AppliedRequestDigest: request.AppliedRequestDigest, PlanHash: request.Applied.PlanHash,
 			WorkloadRef: request.WorkloadRef, RequirementID: target.RequirementID,
 			InstanceRef: target.InstanceRef, RuntimeOwnerRef: runtimeOwnerRef(target),
-			ArtifactDigest: appliedArtifactDigest(request.Applied, target), SiteRef: target.SiteRefs[0],
+			ArtifactDigest:  appliedArtifactDigest(request.Applied, target),
+			DataDisposition: request.DataDisposition, SiteRef: target.SiteRefs[0],
 			NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
 			RequestedAt: request.RequestedAt, ValidUntil: request.ValidUntil,
 			Authorization: request.Authorization, RequestDigest: request.RequestDigest,
@@ -461,6 +482,9 @@ func (evidence Evidence) Validate() error {
 	if authority.WorkloadRef == "" || authority.WorkloadRef != strings.ToLower(authority.WorkloadRef) ||
 		authority.WorkloadRef != strings.TrimSpace(authority.WorkloadRef) {
 		return errors.New("workload removal evidence workload ref is not canonical")
+	}
+	if err := validateDataDisposition(authority.DataDisposition); err != nil {
+		return err
 	}
 	signature, err := base64.RawStdEncoding.DecodeString(authority.Authorization.Value)
 	if err != nil || len(signature) != 64 {
@@ -520,7 +544,25 @@ func (evidence Evidence) AuthorizationBytes() ([]byte, error) {
 		APIVersion: APIVersion, AppliedRequestDigest: authority.AppliedRequestDigest,
 		PlanHash: authority.PlanHash, WorkloadRef: authority.WorkloadRef,
 		RequirementID: authority.RequirementID, InstanceRef: authority.InstanceRef,
-		RequestedAt: authority.RequestedAt, ValidUntil: authority.ValidUntil,
+		DataDisposition: authority.DataDisposition,
+		RequestedAt:     authority.RequestedAt, ValidUntil: authority.ValidUntil,
+	})
+}
+
+// AuthorizationBytes returns the Owner-signed payload for this request so a
+// local executor can authenticate the data disposition before side effects.
+func (request Request) AuthorizationBytes() ([]byte, error) {
+	if len(request.Applied.RuntimeTargets) != 1 {
+		return nil, errors.New("Owner authorization must bind exactly one selected workload")
+	}
+	if err := validateDataDisposition(request.DataDisposition); err != nil {
+		return nil, err
+	}
+	target := request.Applied.RuntimeTargets[0]
+	return resolvedplan.CanonicalJSON(AuthorizationPayload{
+		APIVersion: APIVersion, AppliedRequestDigest: request.AppliedRequestDigest, PlanHash: request.Applied.PlanHash,
+		WorkloadRef: request.WorkloadRef, RequirementID: target.RequirementID, InstanceRef: target.InstanceRef,
+		DataDisposition: request.DataDisposition, RequestedAt: request.RequestedAt, ValidUntil: request.ValidUntil,
 	})
 }
 
@@ -538,10 +580,11 @@ func validateResult(result Result, authority EvidenceAuthority) error {
 	}
 	if result.Outcome.RequirementID != authority.RequirementID || result.Outcome.WorkloadRef != authority.WorkloadRef ||
 		result.Outcome.InstanceRef != authority.InstanceRef || result.Outcome.RuntimeOwnerRef != authority.RuntimeOwnerRef ||
-		result.Outcome.ArtifactDigest != authority.ArtifactDigest || result.Outcome.Status != StatusRemoved ||
-		result.Outcome.ObservedState != "absent" || !strings.HasPrefix(result.Outcome.ObservationRef, "removal-observation://") ||
+		result.Outcome.ArtifactDigest != authority.ArtifactDigest || result.Outcome.DataDisposition != authority.DataDisposition ||
+		result.Outcome.Status != StatusRemoved || result.Outcome.ObservedState != ObservedStateAbsent ||
+		!strings.HasPrefix(result.Outcome.ObservationRef, "removal-observation://") ||
 		!validDigest(result.Outcome.ObservationDigest) {
-		return errors.New("workload removal result is not exact absence evidence")
+		return errors.New("workload removal result is not exact absence evidence under the signed data disposition")
 	}
 	digest, err := resultHash(result)
 	if err != nil {
@@ -553,12 +596,15 @@ func validateResult(result Result, authority EvidenceAuthority) error {
 	return nil
 }
 
-func authorizationPayload(applied runtimeexecutor.ExecutionRequest, appliedRequestDigest, workloadRef string, requestedAt, validUntil time.Time) (AuthorizationPayload, error) {
+func authorizationPayload(applied runtimeexecutor.ExecutionRequest, appliedRequestDigest, workloadRef, dataDisposition string, requestedAt, validUntil time.Time) (AuthorizationPayload, error) {
 	if err := applied.Validate(); err != nil {
 		return AuthorizationPayload{}, fmt.Errorf("validate selected applied workload: %w", err)
 	}
 	if !validDigest(appliedRequestDigest) || len(applied.RuntimeTargets) != 1 || applied.RuntimeTargets[0].WorkloadRef != workloadRef {
 		return AuthorizationPayload{}, errors.New("Owner authorization must bind exactly one selected workload")
+	}
+	if err := validateDataDisposition(dataDisposition); err != nil {
+		return AuthorizationPayload{}, err
 	}
 	if requestedAt.IsZero() || validUntil.IsZero() || requestedAt.Location() != time.UTC || validUntil.Location() != time.UTC ||
 		!requestedAt.Before(validUntil) || validUntil.Sub(requestedAt) > maxValidity {
@@ -568,8 +614,18 @@ func authorizationPayload(applied runtimeexecutor.ExecutionRequest, appliedReque
 	return AuthorizationPayload{
 		APIVersion: APIVersion, AppliedRequestDigest: appliedRequestDigest, PlanHash: applied.PlanHash,
 		WorkloadRef: workloadRef, RequirementID: target.RequirementID, InstanceRef: target.InstanceRef,
-		RequestedAt: requestedAt.Format(time.RFC3339Nano), ValidUntil: validUntil.Format(time.RFC3339Nano),
+		DataDisposition: dataDisposition,
+		RequestedAt:     requestedAt.Format(time.RFC3339Nano), ValidUntil: validUntil.Format(time.RFC3339Nano),
 	}, nil
+}
+
+func validateDataDisposition(value string) error {
+	switch value {
+	case DataDispositionRetain, DataDispositionDelete:
+		return nil
+	default:
+		return errors.New("workload removal requires an exact retain or delete data disposition")
+	}
 }
 
 func parseValidity(requested, valid string) (time.Time, time.Time, error) {

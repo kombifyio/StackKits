@@ -25,7 +25,6 @@ import (
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorprocess"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/kombifyio/stackkits/internal/runtimeobservation"
 	"github.com/kombifyio/stackkits/internal/servicecontrol"
@@ -82,6 +81,7 @@ type architectureV2ExecutionCLIOptions struct {
 	driftObservation    bool
 	legacyPlanFile      string
 	workloadRef         string
+	dataDisposition     string
 	removalJSON         bool
 	removalSink         func(workloadremoval.Result) error
 	removalEvidenceJSON bool
@@ -119,6 +119,7 @@ type architectureV2ExecutionGate struct {
 	versions           generationartifact.ComponentVersions
 	rejectV1           bool
 	now                func() time.Time
+	removeCompose      func(context.Context, string, workloadremoval.Request) (workloadremoval.Result, error)
 }
 
 func newArchitectureV2ExecutionGate() architectureV2ExecutionGate {
@@ -1117,40 +1118,57 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 	if err != nil {
 		return err
 	}
-	configured, active, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
+	configured, _, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
 	if err != nil {
 		return err
-	}
-	if !active {
-		return errors.New("selected-PaaS workload removal requires the exact configured Standard execution channel from Inventory")
 	}
 	placement, err := appliedWorkloadRemovalPlacement(applied, rootRequest.RequestDigest, workloadRef, options)
 	if err != nil {
 		return err
 	}
+	return g.executeNativeWorkloadRemoval(wd, options, plan, transaction, rootRequest, placement, configured)
+}
+
+type architectureV2WorkloadRemovalKind string
+
+const architectureV2WorkloadRemovalStandaloneCompose architectureV2WorkloadRemovalKind = "standalone-compose"
+
+func (g architectureV2ExecutionGate) executeNativeWorkloadRemoval(
+	wd string,
+	options architectureV2ExecutionCLIOptions,
+	plan generationartifact.VerifiedPlan,
+	transaction *confinedfs.Transaction,
+	rootRequest runtimeexecutor.ExecutionRequest,
+	placement workloadremoval.AppliedPlacement,
+	configured *architectureV2ConfiguredStandardRuntime,
+) error {
 	selected, err := workloadremoval.SelectAppliedWorkloadPlacement(rootRequest, placement)
 	if err != nil {
 		return err
 	}
 	target := selected.RuntimeTargets[0]
-	var processBinding *runtimeexecutorprocess.Binding
-	for _, binding := range configured.bindings {
-		if binding.ChannelRef == target.ExecutionChannelRef &&
-			binding.SiteRef == target.SiteRefs[0] && binding.NodeRef == target.NodeRefs[0] {
-			candidate := runtimeexecutorprocess.Binding{
-				ChannelRef: binding.ChannelRef, SiteRef: binding.SiteRef, NodeRef: binding.NodeRef,
-				Executable: binding.Executable, ExecutableSHA256: binding.ExecutableSHA256,
-			}
-			processBinding = &candidate
-			break
+	if err := requireArchitectureV2RemovalCapability(plan, target); err != nil {
+		return err
+	}
+	processChannel := architectureV2TargetUsesProcessChannel(target, configured)
+	if _, err := architectureV2WorkloadRemovalDispatch(target, processChannel); err != nil {
+		if options.dataDisposition == workloadremoval.DataDispositionDelete {
+			return fmt.Errorf("--delete-data requires canonical native standalone Compose removal: %w", err)
 		}
+		return err
 	}
-	if processBinding == nil {
-		return fmt.Errorf("applied workload %q has no exact configured Standard execution channel", workloadRef)
-	}
-	executor, err := runtimeexecutorprocess.New(architectureV2ComponentVersion(version), *processBinding)
+	owner, err := localevidence.LoadOwnerCustody(wd)
 	if err != nil {
-		return fmt.Errorf("construct exact workload-removal execution channel: %w", err)
+		return fmt.Errorf("load native removal owner placement: %w", err)
+	}
+	if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 ||
+		target.SiteRefs[0] != owner.Binding.SiteRef || target.NodeRefs[0] != owner.Binding.NodeRef ||
+		target.ExecutionChannelRef != owner.Binding.ChannelRef {
+		return errors.New("native removal target differs from this workspace's local owner placement")
+	}
+	disposition := strings.TrimSpace(options.dataDisposition)
+	if disposition == "" {
+		disposition = workloadremoval.DataDispositionRetain
 	}
 	now := time.Now
 	if g.now != nil {
@@ -1158,7 +1176,7 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 	}
 	requestedAt := now().UTC()
 	validUntil := requestedAt.Add(5 * time.Minute)
-	authorizationBytes, err := workloadremoval.AuthorizationBytesForPlacement(rootRequest, placement, requestedAt, validUntil)
+	authorizationBytes, err := workloadremoval.AuthorizationBytesForPlacement(rootRequest, placement, disposition, requestedAt, validUntil)
 	if err != nil {
 		return err
 	}
@@ -1170,7 +1188,7 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 		return fmt.Errorf("verify workload-removal Owner authorization: %w", err)
 	}
 	request, err := workloadremoval.SealRequestForPlacement(
-		rootRequest, placement, requestedAt, validUntil,
+		rootRequest, placement, disposition, requestedAt, validUntil,
 		workloadremoval.OwnerAuthorization{
 			OwnerRef: signature.OwnerRef, KeyID: signature.KeyID, Value: signature.Value,
 		},
@@ -1178,14 +1196,28 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 	if err != nil {
 		return err
 	}
-	lifecycleRuns, err := beginArchitectureV2ApplicationLifecycles(
-		wd, plan, "remove", "stackkit.remove", workloadRef, requestedAt,
-	)
+	lifecycleRuns, resumed, err := beginOrResumeArchitectureV2Removal(wd, plan, request.WorkloadRef, requestedAt)
 	if err != nil {
 		return err
 	}
-	result, err := executor.RemoveWorkload(ctx, request)
+	ctx := options.context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	remove := g.removeCompose
+	if remove == nil {
+		remove = runtimeexecutorlocal.RemoveStandaloneComposeWorkload
+	}
+	result, err := remove(ctx, wd, request)
 	if err != nil {
+		var progress *runtimeexecutorlocal.RemovalProgressError
+		if resumed || (errors.As(err, &progress) && progress.Progressed) {
+			return requireArchitectureV2ApplicationLifecycleRecovery(
+				wd, lifecycleRuns,
+				"workload removal mutated runtime state but did not finish",
+				"urn:stackkit:removal-progress:"+request.RequestDigest, now().UTC(), err,
+			)
+		}
 		return failArchitectureV2ApplicationLifecycles(
 			wd, lifecycleRuns, "workload removal failed before owner evidence was persisted", now().UTC(), err,
 		)
@@ -1233,14 +1265,50 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 		canonical, _ := result.Canonical()
 		fmt.Fprintln(os.Stdout, string(canonical))
 	} else {
-		printSuccess("Architecture v2 workload %s removed: %s", workloadRef, result.ResultDigest)
+		printSuccess("Architecture v2 workload %s removed (%s): %s", request.WorkloadRef, request.DataDisposition, result.ResultDigest)
 	}
 	rolloutEvent("architecture_v2.remove", "succeeded", "native Architecture v2 workload removal result persisted", map[string]string{
-		"workload_ref": workloadRef, "request_path": requestPath, "result_path": resultPath,
+		"workload_ref": request.WorkloadRef, "request_path": requestPath, "result_path": resultPath,
 		"evidence_path": evidencePath,
 		"result_hash":   result.ResultDigest,
 	})
 	return nil
+}
+
+func architectureV2TargetUsesProcessChannel(target runtimeexecutor.RuntimeTarget, configured *architectureV2ConfiguredStandardRuntime) bool {
+	if configured == nil || target.ExecutionChannelRef == "" || len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 {
+		return false
+	}
+	for _, binding := range configured.bindings {
+		if binding.ChannelRef == target.ExecutionChannelRef && binding.SiteRef == target.SiteRefs[0] && binding.NodeRef == target.NodeRefs[0] {
+			return true
+		}
+	}
+	return false
+}
+
+func architectureV2WorkloadRemovalDispatch(
+	target runtimeexecutor.RuntimeTarget,
+	processChannel bool,
+) (architectureV2WorkloadRemovalKind, error) {
+	adapterID, moduleRef := "", ""
+	if target.RuntimeAdapter != nil {
+		adapterID = target.RuntimeAdapter.ID
+		moduleRef = target.RuntimeAdapter.ModuleRef
+	}
+	if processChannel {
+		if adapterID == "" {
+			adapterID = target.ExecutionChannelRef
+		}
+		return "", fmt.Errorf("applied execution channel %q does not admit data-disposition-aware workload removal; keep or delete was not sent", adapterID)
+	}
+	if adapterID == "standalone-compose" && moduleRef == "stackkits-standalone-compose-runtime" {
+		return architectureV2WorkloadRemovalStandaloneCompose, nil
+	}
+	if adapterID != "" {
+		return "", fmt.Errorf("applied runtime owner %q does not admit data-disposition-aware workload removal; keep or delete was not sent", adapterID)
+	}
+	return "", errors.New("applied workload has no local standalone Compose removal owner")
 }
 
 func appliedWorkloadRemovalPlacement(applied architecturev2.VerifiedApplyResult, appliedRequestDigest, workloadRef string, options architectureV2ExecutionCLIOptions) (workloadremoval.AppliedPlacement, error) {

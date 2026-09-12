@@ -5299,7 +5299,7 @@ _servicePublicationShape: {
 		id: #ContractID
 		supportedKinds: [...("container" | "native" | "host" | "external" | "control-plane")] & list.MinItems(1)
 		supportedDeliveries: [...("stackkit" | "application-adapter" | "selected-paas" | "external-control-plane")] & list.MinItems(1)
-		operations: [...("apply" | "observe" | "rollback" | "backup" | "restore")] & list.MinItems(1)
+		operations: [...("apply" | "observe" | "rollback" | "backup" | "restore" | "remove")] & list.MinItems(1)
 		agentRefs: [...#ContractID] | *[]
 		credentialCustody: "external-owner" | "local-owner"
 		providerLifecycle: "not-owned"
@@ -6911,7 +6911,7 @@ _servicePublicationShape: {
 		id: #ContractID
 		supportedKinds: [...("container" | "native" | "host" | "external" | "control-plane")] & list.MinItems(1)
 		supportedDeliveries: [...("stackkit" | "application-adapter" | "selected-paas" | "external-control-plane")] & list.MinItems(1)
-		operations: [...("apply" | "observe" | "rollback" | "backup" | "restore")] & list.MinItems(1)
+		operations: [...("apply" | "observe" | "rollback" | "backup" | "restore" | "remove")] & list.MinItems(1)
 		agentRefs: [...#ContractID] | *[]
 		credentialCustody: "external-owner" | "local-owner"
 		providerLifecycle: "not-owned"

@@ -543,6 +543,38 @@ func (t *Transaction) walkDirectory(full string, info os.FileInfo, entries *[]Tr
 	return nil
 }
 
+// RemoveRegularFile removes one previously observed regular entry. It never
+// recursively removes a replacement directory. Callers serialize governed
+// writers with the existing output lock; this observation is not a lock
+// against arbitrary filesystem writers.
+func (t *Transaction) RemoveRegularFile(relative string, expected os.FileInfo) error {
+	full, release, err := t.beginPath("transaction-remove-file", relative, false)
+	if err != nil {
+		return err
+	}
+	defer release()
+	if expected == nil || !isPlainRegular(expected) {
+		return fail(ErrUnsafeEntry, "transaction-remove-file", full, "expected identity must be a regular file")
+	}
+	if err := t.requirePlainParents(full); err != nil {
+		return err
+	}
+	current, err := t.root.fs.Lstat(nativePath(full))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return wrap(ErrIO, "transaction-remove-file", full, "inspect file before removal", err)
+	}
+	if !isPlainRegular(current) || !os.SameFile(expected, current) {
+		return fail(ErrRootChanged, "transaction-remove-file", full, "observed regular file was replaced")
+	}
+	if err := t.root.fs.Remove(nativePath(full)); err != nil {
+		return wrap(ErrIO, "transaction-remove-file", full, "remove observed regular file", err)
+	}
+	return nil
+}
+
 // RemoveTree removes a private plain tree beneath the held root. It never
 // follows links and verifies each directory handle against its name before
 // removing that name. The root itself (.) cannot be removed.

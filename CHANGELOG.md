@@ -4,6 +4,37 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.27.0](https://github.com/kombifyio/stackKits/compare/22c35ec004cda5579a66b73558afca1f9c0a6742...1a50d0f13b0e2c813e8cb0fc0883f1dde41c3e67) (2026-09-12)
+
+
+### Added
+
+* **remove:** retain or explicitly delete standalone workload data ([#1021](https://github.com/kombifyio/stackKits/issues/1021)) ([1a50d0f](https://github.com/kombifyio/stackKits/commit/1a50d0f13b0e2c813e8cb0fc0883f1dde41c3e67))
+
+
+### Fixed
+
+* **catalog:** align platform posture and publish agent handoff ([#1000](https://github.com/kombifyio/stackKits/issues/1000)) ([0cda664](https://github.com/kombifyio/stackKits/commit/0cda6643f19ec5bebf25ae61575bdbd09b629383))
+* **cli:** validate initialized specs without target inventory ([#1020](https://github.com/kombifyio/stackKits/issues/1020)) ([ff29e26](https://github.com/kombifyio/stackKits/commit/ff29e26bc9d79bc8a4ce6e46d660d227b7c07808))
+* **cloud:** declare protected HTTPS access for selected applications ([#1007](https://github.com/kombifyio/stackKits/issues/1007)) ([48408cf](https://github.com/kombifyio/stackKits/commit/48408cf426cf896d9d4ace9c4aeee9c33aa4385a))
+* **coolify:** require upstream status identity ([#1011](https://github.com/kombifyio/stackKits/issues/1011)) ([f99efe8](https://github.com/kombifyio/stackKits/commit/f99efe8bff9c2b8282759291cd1c07721bb37b21))
+* **host:** protect Docker-assigned host publications ([#996](https://github.com/kombifyio/stackKits/issues/996)) ([59630d9](https://github.com/kombifyio/stackKits/commit/59630d91002d769cfdf2762a8efe2ba8abc8fac1))
+* **identity:** verify projected subject and group readback ([#1010](https://github.com/kombifyio/stackKits/issues/1010)) ([f92899a](https://github.com/kombifyio/stackKits/commit/f92899ade082af54b7b952aa267308958f4f0356))
+* **init:** bind selected Basement apps to HTTPS and data authority ([#1003](https://github.com/kombifyio/stackKits/issues/1003)) ([be31f8e](https://github.com/kombifyio/stackKits/commit/be31f8e639afbaa4a46ceee676fbe4ffdb75cc82))
+* **init:** preserve established owner identity during resume ([#1014](https://github.com/kombifyio/stackKits/issues/1014)) ([0ca6e05](https://github.com/kombifyio/stackKits/commit/0ca6e058941c2a4de8598cbfec87596e9653dc64))
+* **komodo:** read upstream stack state ([#1008](https://github.com/kombifyio/stackKits/issues/1008)) ([40a1b48](https://github.com/kombifyio/stackKits/commit/40a1b487ee17a159d6fa8baa3f45547e9cff40d0))
+* **release:** clarify unclaimed HA recovery evidence ([#1006](https://github.com/kombifyio/stackKits/issues/1006)) ([1c80b60](https://github.com/kombifyio/stackKits/commit/1c80b605d450fc6c02f1e09cf5ad543611903b06))
+* **runtime:** preserve host DNS with target-bound LAN listeners ([#1016](https://github.com/kombifyio/stackKits/issues/1016)) ([c58c27a](https://github.com/kombifyio/stackKits/commit/c58c27a06710b2d5e03f63376986aee2b5ca4fd8))
+* **state-console:** retain application evidence on status failure ([#1004](https://github.com/kombifyio/stackKits/issues/1004)) ([93a17f6](https://github.com/kombifyio/stackKits/commit/93a17f692b2912802316aa75559189590590ce84))
+* **webmcp:** remove obsolete v1 contract and publication ([#1012](https://github.com/kombifyio/stackKits/issues/1012)) ([c29faf3](https://github.com/kombifyio/stackKits/commit/c29faf34f5466b9a4a1789f11fc9358fa45fabbb))
+
+
+### Changed
+
+* **delivery:** adopt consolidated source runner ([#1017](https://github.com/kombifyio/stackKits/issues/1017)) ([7ca5dc1](https://github.com/kombifyio/stackKits/commit/7ca5dc1fbec6fa85da643b2217327f965f76d718))
+
+Notes cover changes after VERSION 0.26.0 (22c35ec004cda5579a66b73558afca1f9c0a6742), the earliest available contiguous 0.26.x VERSION anchor, through selected source 1a50d0f13b0e2c813e8cb0fc0883f1dde41c3e67.
+
 ## [0.26.7](https://github.com/kombifyio/stackKits/compare/v0.26.6...v0.26.7) (2026-09-12)
 
 

@@ -5983,7 +5983,7 @@ _architectureV2Modules: list.Concat([[
 			id: "standalone-compose"
 			supportedKinds: ["container"]
 			supportedDeliveries: ["application-adapter"]
-			operations: ["apply", "observe"]
+			operations: ["apply", "observe", "remove"]
 			credentialCustody: "local-owner"
 			providerLifecycle: "not-owned"
 			evidenceRequired:  true
@@ -5996,7 +5996,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://platform/standalone-compose/runtime-adapter/v1.json"
 			version:      "1.0.0"
-			contractHash: "sha256:552389b0d9c11503754d264e39654aebece5251fa92cdd38d6f59b9790734e05"
+			contractHash: "sha256:89e663f95a086364872e6ac2273422513bbeac1ffc2d56cba9b46e611101d031"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/standalone-compose/runtime-adapter.json"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}

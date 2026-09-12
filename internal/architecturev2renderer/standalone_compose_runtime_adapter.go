@@ -16,7 +16,7 @@ const (
 	standaloneComposeRuntimeAdapterOutputRef   = "platform/standalone-compose/runtime-adapter.json"
 )
 
-const standaloneComposeRuntimeAdapterRendererSchema = `stackkit.runtime-adapter/v1|WorkloadRuntimeAdapter|standalone-compose|container:application-adapter|operations:apply,observe|provider-lifecycle:not-owned|credentials:local-owner|routes:artifact-bound|evidence:required`
+const standaloneComposeRuntimeAdapterRendererSchema = `stackkit.runtime-adapter/v1|WorkloadRuntimeAdapter|standalone-compose|container:application-adapter|operations:apply,observe,remove|provider-lifecycle:not-owned|credentials:local-owner|routes:artifact-bound|evidence:required`
 
 // StandaloneComposeRuntimeAdapterRendererContract returns the immutable
 // implementation identity of the StackKits-owned no-PaaS adapter.
@@ -113,7 +113,7 @@ func validateStandaloneComposeRuntimeAdapterUnit(unit RenderUnit, contract Rende
 	bundle.Adapter.Version = "1.0.0"
 	bundle.Adapter.SupportedKinds = []string{"container"}
 	bundle.Adapter.SupportedDeliveries = []string{"application-adapter"}
-	bundle.Adapter.Operations = []string{"apply", "observe"}
+	bundle.Adapter.Operations = []string{"apply", "observe", "remove"}
 	bundle.Target.SiteRef, bundle.Target.NodeRef, bundle.Target.InstanceRef = siteRef, nodeRef, unit.InstanceID()
 	bundle.Inputs.ArtifactAPIVersions = []string{"stackkit.workload-bundle/v2"}
 	bundle.Inputs.PublicValues = "artifact-bound-only"

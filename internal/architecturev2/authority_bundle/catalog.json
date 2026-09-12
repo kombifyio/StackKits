@@ -20310,7 +20310,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:552389b0d9c11503754d264e39654aebece5251fa92cdd38d6f59b9790734e05",
+          "contractHash": "sha256:89e663f95a086364872e6ac2273422513bbeac1ffc2d56cba9b46e611101d031",
           "id": "standalone-compose-adapter",
           "inputBindings": [],
           "kind": "native-config",
@@ -20380,7 +20380,8 @@
         "id": "standalone-compose",
         "operations": [
           "apply",
-          "observe"
+          "observe",
+          "remove"
         ],
         "providerLifecycle": "not-owned",
         "supportedDeliveries": [

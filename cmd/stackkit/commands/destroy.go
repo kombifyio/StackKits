@@ -24,6 +24,7 @@ var (
 	removePurge                bool
 	removeJSON                 bool
 	removeTerminalEvidenceJSON bool
+	removeDeleteData           bool
 	removeWorkloadRef          string
 	removeV2ExecutionOptions   architectureV2ExecutionCLIOptions
 )
@@ -36,18 +37,20 @@ var removeCmd = &cobra.Command{
 	Long: `Remove all resources created by the deployment.
 
 For canonical Architecture v2, --workload removes one exact workload through
-its applied runtime owner and persists Owner-signed absence evidence. Exact
-v0.6 compatibility builds retain the historical whole-deployment OpenTofu
-destroy and Docker fallback.
+its applied runtime owner and persists Owner-signed absence evidence. Application
+data volumes are kept by default. --delete-data deletes only named volumes owned
+by that exact applied workload. Exact v0.6 compatibility builds retain the
+historical whole-deployment OpenTofu destroy and Docker fallback.
 
 Use --purge for a full factory reset (removes images, state, deploy dir).
 
-WARNING: This will permanently delete all resources and data.
+WARNING: Canonical v2 removal keeps application data unless --delete-data is set.
 
 Examples:
   stackkit remove                 Remove with confirmation
   stackkit remove --auto-approve  Remove without confirmation
-  stackkit remove --workload photos --json
+  stackkit remove --workload files --json
+  stackkit remove --workload files --delete-data
   stackkit remove --force         Force remove even with errors
   stackkit remove --purge         Full factory reset`,
 	RunE: runRemove,
@@ -59,6 +62,7 @@ func init() {
 	removeCmd.Flags().BoolVar(&removePurge, "purge", false, "Remove all StackKit data including images, state, and deploy directory")
 	removeCmd.Flags().BoolVar(&removeJSON, "json", false, "Emit the canonical Architecture v2 removal result as JSON")
 	removeCmd.Flags().BoolVar(&removeTerminalEvidenceJSON, "terminal-evidence-json", false, "Emit bounded canonical Architecture v2 terminal evidence as JSON")
+	removeCmd.Flags().BoolVar(&removeDeleteData, "delete-data", false, "Delete named volumes owned by this exact applied workload (default keeps application data)")
 	removeCmd.Flags().StringVar(&removeWorkloadRef, "workload", "", "Exact Architecture v2 ResolvedPlan workload ref to remove")
 	removeCmd.Flags().StringVar(&removeV2ExecutionOptions.localSiteRef, "local-site", "", "Exact applied Site placement owned by this removal process")
 	removeCmd.Flags().StringVar(&removeV2ExecutionOptions.localNodeRef, "local-node", "", "Exact applied node placement owned by this removal process")
@@ -79,7 +83,11 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	if !removeAutoApprove {
 		fmt.Println()
 		if strings.TrimSpace(removeWorkloadRef) != "" {
-			printError("WARNING: This will permanently remove workload %q and its runtime data!", strings.TrimSpace(removeWorkloadRef))
+			if removeDeleteData {
+				printError("WARNING: This will remove workload %q and delete only its owned data volumes!", strings.TrimSpace(removeWorkloadRef))
+			} else {
+				printError("WARNING: This will remove workload %q and keep its application data volumes.", strings.TrimSpace(removeWorkloadRef))
+			}
 		} else if removePurge {
 			printError("WARNING: This will permanently remove all resources AND all StackKit data!")
 		} else {
@@ -97,6 +105,11 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 	removeV2ExecutionOptions.context = ctx
 	removeV2ExecutionOptions.workloadRef = strings.TrimSpace(removeWorkloadRef)
+	if removeDeleteData {
+		removeV2ExecutionOptions.dataDisposition = workloadremoval.DataDispositionDelete
+	} else {
+		removeV2ExecutionOptions.dataDisposition = workloadremoval.DataDispositionRetain
+	}
 	removeV2ExecutionOptions.removalJSON = removeJSON
 	removeV2ExecutionOptions.removalEvidenceJSON = removeTerminalEvidenceJSON
 	if removeJSON && removeTerminalEvidenceJSON {
@@ -129,6 +142,9 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	_, sourceVersion, classified, classifyErr := classifyArchitectureV2ExecutionSpec(wd, specFile)
 	if classifyErr != nil {
 		return classifyErr
+	}
+	if removeDeleteData && !(classified && sourceVersion.IsV2()) {
+		return errors.New("--delete-data requires canonical Architecture v2 native workload removal")
 	}
 	if classified && sourceVersion.IsV2() && (removePurge || removeForce) {
 		return errors.New("canonical Architecture v2 workload removal does not accept legacy --purge or --force authority")
