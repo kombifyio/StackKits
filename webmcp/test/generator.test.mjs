@@ -1,18 +1,18 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { execFile } from 'node:child_process'
-import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import test from 'node:test'
-import { projectAuthorityBundle, projectAuthorityBundleV2 } from '../scripts/generate-catalog.mjs'
+import { projectAuthorityBundle } from '../scripts/generate-catalog.mjs'
 
 const authorityRoot = new URL('../../internal/architecturev2/authority_bundle/', import.meta.url)
 const sourceSha = '1111111111111111111111111111111111111111'
 
-test('catalog CLI defaults to the native contract, with v1 only by explicit selection', async (context) => {
+test('catalog CLI emits the native module-profile contract', async (context) => {
   const root = await mkdtemp(join(tmpdir(), 'stackkits-webmcp-cli-'))
   context.after(() => rm(root, { recursive: true, force: true }))
   const output = join(root, 'catalog.json')
@@ -21,29 +21,29 @@ test('catalog CLI defaults to the native contract, with v1 only by explicit sele
     '--authority-bundle', fileURLToPath(authorityRoot), '--source-sha', sourceSha, '--out', output,
   ])
   assert.equal(JSON.parse(await readFile(output, 'utf8')).schema_version, 'stackkits-webmcp/v2alpha1')
+
+  const retiredOutput = join(root, 'retired-catalog.json')
+  await assert.rejects(promisify(execFile)(process.execPath, [
+    fileURLToPath(new URL('../scripts/generate-catalog.mjs', import.meta.url)),
+    '--authority-bundle', fileURLToPath(authorityRoot), '--source-sha', sourceSha, '--schema', 'v1', '--out', retiredOutput,
+  ]))
+  await assert.rejects(access(retiredOutput))
 })
 
-test('authority projection is deterministic and source-bound', async () => {
+test('authority projection is deterministic and exposes explicit local profiles', async () => {
   const first = await projectAuthorityBundle(fileURLToPath(authorityRoot), sourceSha)
   const second = await projectAuthorityBundle(fileURLToPath(authorityRoot), sourceSha)
   assert.deepEqual(first, second)
+  assert.equal(first.schema_version, 'stackkits-webmcp/v2alpha1')
   assert.equal(first.source_sha, sourceSha)
   assert.match(first.catalog_sha256, /^[a-f0-9]{64}$/)
   assert.deepEqual(first.kits.map(({ stackkit_id }) => stackkit_id), [...first.kits.map(({ stackkit_id }) => stackkit_id)].sort())
-})
-
-test('native v2 projection exposes explicit alternatives and local profiles', async () => {
-  const first = await projectAuthorityBundleV2(fileURLToPath(authorityRoot), sourceSha)
-  const second = await projectAuthorityBundleV2(fileURLToPath(authorityRoot), sourceSha)
-  assert.deepEqual(first, second)
-  assert.equal(first.schema_version, 'stackkits-webmcp/v2alpha1')
-  assert.match(first.catalog_sha256, /^[a-f0-9]{64}$/)
 
   const basement = first.kits.find(({ stackkit_id }) => stackkit_id === 'basement-kit')
   assert.ok(basement)
   const core = basement.use_cases.find(({ use_case_id }) => use_case_id === 'basement-core')
-  assert.deepEqual(core.alternatives.map(({ alternative_id }) => alternative_id), ['standalone', 'standalone-lite'])
-  assert.equal(core.default_alternative_id, 'standalone')
+  assert.deepEqual(core.alternatives.map(({ alternative_id }) => alternative_id), ['standalone', 'standalone-compose', 'standalone-lite'])
+  assert.equal(core.default_alternative_id, 'standalone-compose')
   assert.equal(core.selected_by_default, true)
   assert.equal(core.required, true)
 

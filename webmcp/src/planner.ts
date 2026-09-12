@@ -178,7 +178,6 @@ export class PlannerService {
         };
       }),
       use_case_alternatives: alternatives.filter((alternative) => page.some((module) => module.module_id === alternative[2])),
-      legacy_global_tiers: kit.legacy_compute_tier_mappings.map((mapping) => mapping.compute_tier),
       ...(cursor + page.length < modules.length ? { next_cursor: cursor + page.length } : {}),
     };
     return makeResult(tool, "success", data, this.catalog, [], { stackkit_id: kit.stackkit_id });

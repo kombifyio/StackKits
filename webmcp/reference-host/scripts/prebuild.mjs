@@ -1,14 +1,13 @@
 import { execFile } from 'node:child_process'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const source = join(root, '..', 'data', 'stackkits-webmcp', 'v2alpha1', 'catalog.json')
-const legacySource = join(root, '..', 'data', 'stackkits-catalog.json')
 const target = join(root, 'public', 'data', 'stackkits-webmcp', 'v2alpha1', 'catalog.json')
-const legacyTarget = join(root, 'public', 'data', 'stackkits-webmcp', 'catalog.json')
+const removedV1Target = join(root, 'public', 'data', 'stackkits-webmcp', 'catalog.json')
 const execFileAsync = promisify(execFile)
 const repositoryRoot = join(root, '..', '..')
 
@@ -31,23 +30,11 @@ try {
     '--source-sha', sourceSha,
     '--schema', 'v2alpha1',
   ])
-  await execFileAsync(process.execPath, [
-    join(root, '..', 'scripts', 'generate-catalog.mjs'),
-    '--authority-bundle', join(repositoryRoot, 'internal', 'architecturev2', 'authority_bundle'),
-    '--out', legacySource,
-    '--source-sha', sourceSha,
-    '--schema', 'v1',
-  ])
   bytes = await readFile(source)
 }
 const catalog = JSON.parse(bytes.toString('utf8'))
 if (!/^[a-f0-9]{40}$/.test(catalog.source_sha ?? '')) throw new Error('generated catalog source_sha is invalid')
 await mkdir(dirname(target), { recursive: true })
 await writeFile(target, bytes)
-try {
-  await mkdir(dirname(legacyTarget), { recursive: true })
-  await writeFile(legacyTarget, await readFile(legacySource))
-} catch (error) {
-  if (error?.code !== 'ENOENT') throw error
-}
+await rm(removedV1Target, { force: true })
 process.stdout.write(`[prebuild] reference catalog source ${catalog.source_sha}\n`)

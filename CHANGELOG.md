@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.26.5](https://github.com/kombifyio/stackKits/compare/v0.26.4...v0.26.5) (2026-09-12)
+
+
+### Fixed
+
+* **webmcp:** remove obsolete v1 contract and publication ([#1012](https://github.com/kombifyio/stackKits/issues/1012)) ([c29faf3](https://github.com/kombifyio/stackKits/commit/c29faf34f5466b9a4a1789f11fc9358fa45fabbb))
+
 ## [0.26.4](https://github.com/kombifyio/stackKits/compare/v0.26.3...v0.26.4) (2026-09-12)
 
 

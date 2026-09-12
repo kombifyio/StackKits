@@ -646,8 +646,7 @@ export const WEBMCP_SCHEMA_DEFINITIONS = {
     "additionalProperties": false,
     "required": [
       "modules",
-      "use_case_alternatives",
-      "legacy_global_tiers"
+      "use_case_alternatives"
     ],
     "properties": {
       "modules": {
@@ -660,18 +659,6 @@ export const WEBMCP_SCHEMA_DEFINITIONS = {
         "type": "array",
         "items": {
           "$ref": "#/$defs/compactUseCaseAlternative"
-        }
-      },
-      "legacy_global_tiers": {
-        "type": "array",
-        "uniqueItems": true,
-        "items": {
-          "type": "string",
-          "enum": [
-            "low",
-            "standard",
-            "high"
-          ]
         }
       },
       "next_cursor": {

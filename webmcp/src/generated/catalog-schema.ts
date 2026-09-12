@@ -494,31 +494,6 @@ export const WEBMCP_CATALOG_SCHEMA = {
         }
       }
     },
-    "legacyMapping": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "compute_tier",
-        "status",
-        "reason_code"
-      ],
-      "properties": {
-        "compute_tier": {
-          "type": "string",
-          "enum": [
-            "low",
-            "standard",
-            "high"
-          ]
-        },
-        "status": {
-          "const": "migration_only"
-        },
-        "reason_code": {
-          "const": "LEGACY_GLOBAL_COMPUTE_TIER"
-        }
-      }
-    },
     "kit": {
       "type": "object",
       "additionalProperties": false,
@@ -531,7 +506,6 @@ export const WEBMCP_CATALOG_SCHEMA = {
         "planner_link",
         "modules",
         "use_cases",
-        "legacy_compute_tier_mappings",
         "required_authoring_inputs"
       ],
       "properties": {
@@ -571,12 +545,6 @@ export const WEBMCP_CATALOG_SCHEMA = {
           "type": "array",
           "items": {
             "$ref": "#/$defs/useCase"
-          }
-        },
-        "legacy_compute_tier_mappings": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/legacyMapping"
           }
         },
         "required_authoring_inputs": {

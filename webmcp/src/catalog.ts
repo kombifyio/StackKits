@@ -11,7 +11,6 @@ import type {
 import { SCHEMA_VERSION } from "./types.js";
 
 export const CATALOG_PATH = "/data/stackkits-webmcp/v2alpha1/catalog.json" as const;
-export const LEGACY_CATALOG_PATH = "/data/stackkits-webmcp/catalog.json" as const;
 export const COMPUTE_PROFILE_ORDER = ["low", "standard", "high"] as const;
 export const REQUIRED_OPERATION_IDS = [
   "stackkit.init",
@@ -246,10 +245,6 @@ function validateKits(rawKits: unknown[], issues: string[]): void {
       if (useCase.default_alternative_id && !useCase.alternatives.some((alternative) => alternative.alternative_id === useCase.default_alternative_id)) {
         issues.push(`${kit.stackkit_id}.${useCase.use_case_id} default alternative is not declared`);
       }
-    }
-    const legacyOrder = kit.legacy_compute_tier_mappings.map((mapping) => mapping.compute_tier);
-    if (!sameJson(legacyOrder, COMPUTE_PROFILE_ORDER.filter((id) => legacyOrder.includes(id)))) {
-      issues.push(`${kit.stackkit_id}.legacy_compute_tier_mappings is not in stable order`);
     }
   }
 }

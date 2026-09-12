@@ -1,6 +1,6 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "dc0ba2bd65c7016a4e45bdb7522fe9d48c74a999",
+  "source_sha": "afa0663ea9b3a40b61021d38cef43c9c1c8cf44d",
   "authority_bundle_sha256": "f1f3622cb9e0e59f8ab3800084bcca270ddf9ad06ab843e3885193e8e7f46122",
   "kits": [
     {
@@ -1049,8 +1049,8 @@
           "availability": "available",
           "alternatives": [
             {
-              "alternative_id": "standalone-compose",
-              "module_id": "stackkits-basement-core-lite-runtime",
+              "alternative_id": "standalone",
+              "module_id": "stackkits-basement-core-runtime",
               "functions": [
                 "container-platform",
                 "forward-auth",
@@ -1066,8 +1066,8 @@
               }
             },
             {
-              "alternative_id": "standalone",
-              "module_id": "stackkits-basement-core-runtime",
+              "alternative_id": "standalone-compose",
+              "module_id": "stackkits-basement-core-lite-runtime",
               "functions": [
                 "container-platform",
                 "forward-auth",
@@ -1264,8 +1264,8 @@
               }
             },
             {
-              "alternative_id": "home-assistant-haos",
-              "module_id": "stackkits-home-assistant-haos-runtime",
+              "alternative_id": "home-assistant-existing",
+              "module_id": "stackkits-home-assistant-existing-runtime",
               "functions": [
                 "automation",
                 "smart-home-hub"
@@ -1277,8 +1277,8 @@
               }
             },
             {
-              "alternative_id": "home-assistant-existing",
-              "module_id": "stackkits-home-assistant-existing-runtime",
+              "alternative_id": "home-assistant-haos",
+              "module_id": "stackkits-home-assistant-haos-runtime",
               "functions": [
                 "automation",
                 "smart-home-hub"
@@ -1328,23 +1328,6 @@
               }
             }
           ]
-        }
-      ],
-      "legacy_compute_tier_mappings": [
-        {
-          "compute_tier": "low",
-          "status": "migration_only",
-          "reason_code": "LEGACY_GLOBAL_COMPUTE_TIER"
-        },
-        {
-          "compute_tier": "standard",
-          "status": "migration_only",
-          "reason_code": "LEGACY_GLOBAL_COMPUTE_TIER"
-        },
-        {
-          "compute_tier": "high",
-          "status": "migration_only",
-          "reason_code": "LEGACY_GLOBAL_COMPUTE_TIER"
         }
       ],
       "required_authoring_inputs": []
@@ -2387,8 +2370,8 @@
           "availability": "available",
           "alternatives": [
             {
-              "alternative_id": "standalone-compose",
-              "module_id": "stackkits-cloud-core-standalone-runtime",
+              "alternative_id": "standalone",
+              "module_id": "stackkits-cloud-core-runtime",
               "functions": [
                 "container-platform",
                 "forward-auth",
@@ -2403,8 +2386,8 @@
               }
             },
             {
-              "alternative_id": "standalone",
-              "module_id": "stackkits-cloud-core-runtime",
+              "alternative_id": "standalone-compose",
+              "module_id": "stackkits-cloud-core-standalone-runtime",
               "functions": [
                 "container-platform",
                 "forward-auth",
@@ -2583,8 +2566,8 @@
               }
             },
             {
-              "alternative_id": "home-assistant-haos",
-              "module_id": "stackkits-home-assistant-haos-runtime",
+              "alternative_id": "home-assistant-existing",
+              "module_id": "stackkits-home-assistant-existing-runtime",
               "functions": [
                 "automation",
                 "smart-home-hub"
@@ -2596,8 +2579,8 @@
               }
             },
             {
-              "alternative_id": "home-assistant-existing",
-              "module_id": "stackkits-home-assistant-existing-runtime",
+              "alternative_id": "home-assistant-haos",
+              "module_id": "stackkits-home-assistant-haos-runtime",
               "functions": [
                 "automation",
                 "smart-home-hub"
@@ -2647,18 +2630,6 @@
               }
             }
           ]
-        }
-      ],
-      "legacy_compute_tier_mappings": [
-        {
-          "compute_tier": "standard",
-          "status": "migration_only",
-          "reason_code": "LEGACY_GLOBAL_COMPUTE_TIER"
-        },
-        {
-          "compute_tier": "high",
-          "status": "migration_only",
-          "reason_code": "LEGACY_GLOBAL_COMPUTE_TIER"
         }
       ],
       "required_authoring_inputs": [
@@ -3711,8 +3682,8 @@
           "availability": "available",
           "alternatives": [
             {
-              "alternative_id": "standalone-compose",
-              "module_id": "stackkits-basement-core-lite-runtime",
+              "alternative_id": "standalone",
+              "module_id": "stackkits-basement-core-runtime",
               "functions": [
                 "container-platform",
                 "forward-auth",
@@ -3728,8 +3699,8 @@
               }
             },
             {
-              "alternative_id": "standalone",
-              "module_id": "stackkits-basement-core-runtime",
+              "alternative_id": "standalone-compose",
+              "module_id": "stackkits-basement-core-lite-runtime",
               "functions": [
                 "container-platform",
                 "forward-auth",
@@ -3926,8 +3897,8 @@
               }
             },
             {
-              "alternative_id": "home-assistant-haos",
-              "module_id": "stackkits-home-assistant-haos-runtime",
+              "alternative_id": "home-assistant-existing",
+              "module_id": "stackkits-home-assistant-existing-runtime",
               "functions": [
                 "automation",
                 "smart-home-hub"
@@ -3939,8 +3910,8 @@
               }
             },
             {
-              "alternative_id": "home-assistant-existing",
-              "module_id": "stackkits-home-assistant-existing-runtime",
+              "alternative_id": "home-assistant-haos",
+              "module_id": "stackkits-home-assistant-haos-runtime",
               "functions": [
                 "automation",
                 "smart-home-hub"
@@ -3990,18 +3961,6 @@
               }
             }
           ]
-        }
-      ],
-      "legacy_compute_tier_mappings": [
-        {
-          "compute_tier": "standard",
-          "status": "migration_only",
-          "reason_code": "LEGACY_GLOBAL_COMPUTE_TIER"
-        },
-        {
-          "compute_tier": "high",
-          "status": "migration_only",
-          "reason_code": "LEGACY_GLOBAL_COMPUTE_TIER"
         }
       ],
       "required_authoring_inputs": [
@@ -4300,5 +4259,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "e85132aee526fd8417318c1a8133b818ea860ee84a61166fca1562c602d7c55c"
+  "catalog_sha256": "522390bbfaba670137bfa7a08e8d8e4dab14dd83b8ef83f754b36b77d0934407"
 }

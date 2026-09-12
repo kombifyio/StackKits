@@ -1,7 +1,6 @@
 export {
   CATALOG_PATH,
   COMPUTE_PROFILE_ORDER,
-  LEGACY_CATALOG_PATH,
   REQUIRED_OPERATION_IDS,
   canonicalJson,
   catalogDigestPayload,

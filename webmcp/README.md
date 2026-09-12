@@ -29,8 +29,6 @@ npm ci
 npm run build
 npm test
 npm run generate:catalog -- --authority-bundle /path/to/authority_bundle --schema v2alpha1 --out data/stackkits-webmcp/v2alpha1/catalog.json --source-sha <40-char-sha>
-# Generate the v1 compatibility projection when a legacy consumer needs it.
-npm run generate:catalog -- --authority-bundle /path/to/authority_bundle --schema v1 --out data/stackkits-catalog.json --source-sha <40-char-sha>
 ```
 
 The generator accepts only an OSS StackKits authority bundle. It requires the
@@ -57,9 +55,8 @@ npm run build
 The build copies the exported `../data/stackkits-webmcp/v2alpha1/catalog.json`
 to its same-origin public path and injects that catalog's exact `source_sha`. In a
 full private checkout it can materialize a missing local v2 catalog from the OSS
-authority bundle first. The exported v1 compatibility source is
-`../data/stackkits-catalog.json` and is copied to the original v1 endpoint as
-well. It does not fetch private website source or depend on kombify Sites or kombify Sites Framework.
+authority bundle first. It does not fetch private website source or depend on
+kombify Sites or kombify Sites Framework.
 
 ## Browser integration
 

@@ -193,16 +193,6 @@
         "alternatives": { "type": "array", "items": { "$ref": "#/$defs/useCaseAlternative" } }
       }
     },
-    "legacyMapping": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["compute_tier", "status", "reason_code"],
-      "properties": {
-        "compute_tier": { "type": "string", "enum": ["low", "standard", "high"] },
-        "status": { "const": "migration_only" },
-        "reason_code": { "const": "LEGACY_GLOBAL_COMPUTE_TIER" }
-      }
-    },
     "kit": {
       "type": "object",
       "additionalProperties": false,
@@ -215,7 +205,6 @@
         "planner_link",
         "modules",
         "use_cases",
-        "legacy_compute_tier_mappings",
         "required_authoring_inputs"
       ],
       "properties": {
@@ -227,7 +216,6 @@
         "planner_link": { "type": "string", "pattern": "^/planner\\?stackkit_id=[a-z][a-z0-9-]{0,62}$" },
         "modules": { "type": "array", "items": { "$ref": "#/$defs/module" } },
         "use_cases": { "type": "array", "items": { "$ref": "#/$defs/useCase" } },
-        "legacy_compute_tier_mappings": { "type": "array", "items": { "$ref": "#/$defs/legacyMapping" } },
         "required_authoring_inputs": { "type": "array", "items": { "type": "string", "maxLength": 160 } }
       }
     },

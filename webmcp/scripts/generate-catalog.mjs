@@ -14,20 +14,10 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
-const SCHEMA_VERSION = "stackkits-webmcp/v1";
-const SCHEMA_VERSION_V2 = "stackkits-webmcp/v2alpha1";
+const SCHEMA_VERSION = "stackkits-webmcp/v2alpha1";
 const AUTHORITY_SCHEMA_VERSION = "stackkit.architecture-authority-bundle/v2";
-const FIT_SCHEMA_VERSIONS = new Set([
-  "stackkits-use-case-catalog/v1",
-  "stackkits-use-case-compute-tier-fits/v1",
-  "stackkits-compute-tier-fits/v1",
-  "stackkits-webmcp-compute-tier-fits/v1",
-]);
-const OPERATIONS_SCHEMA_VERSIONS = new Set([
-  "stackkits-standalone-operations/v1",
-  "stackkits-operations/v1",
-  "stackkits-webmcp-operations/v1",
-]);
+const FIT_SCHEMA_VERSIONS = new Set(["stackkits-webmcp-compute-tier-fits/v1"]);
+const OPERATIONS_SCHEMA_VERSIONS = new Set(["stackkits-webmcp-operations/v1"]);
 const TIERS = ["low", "standard", "high"];
 const REQUIRED_OPERATIONS = ["stackkit.init", "stackkit.validate", "stackkit.resolve", "stackkit.generate", "stackkit.plan", "stackkit.apply"];
 const SOURCE_SHA = /^[a-f0-9]{40}$/;
@@ -37,28 +27,6 @@ const SAFE_ID = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
 const PRIVATE_KEY = /^(?:provider|secret|credential|password|token|endpoint|socket|private|internal|accesskey|clientsecret)(?:[-_ ]?(?:ref|reference|url|uri|id|name|address|host))?$/i;
 const URL_VALUE = /(?:https?|ssh|git|file):\/\//i;
 const SENSITIVE_REFERENCE = /(?:\b(?:secret(?:s)?|credential(?:s)?|password|token|endpoint|socket|access[-_ ]?key|client[-_ ]?secret|private|internal|provider)[-_ ]?(?:ref(?:s|erence|erences)?|url|uri|id|name|address|host)\b|(?:https?|wss?|ssh|git|file|secret|doppler|vault|credential|provider):\/\/)/i;
-const HOST_REQUIREMENT_KEYS = new Set([
-  "headroomFactor",
-  "minCpuCores",
-  "minRamGB",
-  "minStorageGB",
-  "recommendedCpuCores",
-  "recommendedRamGB",
-  "recommendedStorageGB",
-  "architectures",
-  "allowedArchitectures",
-  "virtualization",
-  "allowedVirtualization",
-]);
-const RUNTIME_REQUIREMENT_KEYS = new Set([
-  "minCpuCores",
-  "minRamGB",
-  "minStorageGB",
-  "recommendedCpuCores",
-  "recommendedRamGB",
-  "recommendedStorageGB",
-]);
-
 const scriptRoot = dirname(fileURLToPath(import.meta.url));
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) await main();
@@ -67,25 +35,17 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const authorityRoot = resolve(args["authority-bundle"] ?? join(scriptRoot, "..", "..", "internal", "architecturev2", "authority_bundle"));
   const schema = args.schema ?? "v2alpha1";
-  if (schema !== "v1" && schema !== "v2alpha1") fail(`unknown catalog schema: ${schema}`);
-  const outputPath = resolve(args.out ?? (schema === "v1"
-    ? join(scriptRoot, "..", "data", "stackkits-catalog.json")
-    : join(scriptRoot, "..", "data", "stackkits-webmcp", "v2alpha1", "catalog.json")));
+  if (schema !== "v2alpha1") fail(`unknown catalog schema: ${schema}`);
+  const outputPath = resolve(args.out ?? join(scriptRoot, "..", "data", "stackkits-webmcp", "v2alpha1", "catalog.json"));
   const sourceSha = await resolveSourceSha(args["source-sha"]);
-  const catalog = schema === "v1"
-    ? await projectAuthorityBundle(authorityRoot, sourceSha, args["planner-path"] ?? "/planner")
-    : await projectAuthorityBundleV2(authorityRoot, sourceSha, args["planner-path"] ?? "/planner");
+  const catalog = await projectAuthorityBundle(authorityRoot, sourceSha, args["planner-path"] ?? "/planner");
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(catalog, null, 2)}\n`, "utf8");
   process.stdout.write(`${outputPath}\n`);
 }
 
-/**
- * Project the native module-local profile contract. The v1 function above is
- * intentionally retained as a compatibility adapter for existing consumers;
- * v2 never reads a kit-wide host requirement as a module profile.
- */
-export async function projectAuthorityBundleV2(authorityRootPath, exactSourceSha, plannerPath = "/planner") {
+/** Project the native module-local profile contract. */
+export async function projectAuthorityBundle(authorityRootPath, exactSourceSha, plannerPath = "/planner") {
   const root = resolve(authorityRootPath);
   if (!SOURCE_SHA.test(exactSourceSha ?? "")) fail("source SHA must be a full lowercase 40-character commit SHA");
   if (!/^\/planner$/.test(plannerPath)) fail("planner path must be /planner");
@@ -113,7 +73,7 @@ export async function projectAuthorityBundleV2(authorityRootPath, exactSourceSha
   }
   kits.sort((left, right) => left.stackkit_id.localeCompare(right.stackkit_id));
   const payload = {
-    schema_version: SCHEMA_VERSION_V2,
+    schema_version: SCHEMA_VERSION,
     source_sha: exactSourceSha,
     authority_bundle_sha256: authorityBundleSha,
     kits,
@@ -128,7 +88,6 @@ async function projectNativeKit(profileId, definition, useCases, modules, worklo
   const stackkitId = stringValue(metadata.slug, `${profileId}.metadata.slug`);
   if (stackkitId !== profileId || !ID.test(stackkitId)) fail(`profile identity mismatch: ${profileId}`);
   const authoring = objectValue(definition.authoring, `${profileId}.authoring`);
-  const graphTiers = objectValue(definition.computeTierGraphs, `${profileId}.computeTierGraphs`);
   const initialModuleIntents = nativeInitialModuleIntents(definition);
   const moduleIds = nativeModuleClosure(definition, workloads, modules);
   const kitUseCases = nativeUseCasesForKit(definition, useCases, workloads, moduleIds);
@@ -138,7 +97,6 @@ async function projectNativeKit(profileId, definition, useCases, modules, worklo
     if (!module) fail(`${profileId} references unknown module ${moduleId}`);
     projectedModules.push(await projectNativeModule(module, moduleId, kitUseCases, initialModuleIntents));
   }
-  const legacyTiers = ["low", "standard", "high"].filter((tier) => Object.prototype.hasOwnProperty.call(graphTiers, tier));
   return {
     stackkit_id: stackkitId,
     display_name: publicString(metadata.displayName, `${profileId}.metadata.displayName`),
@@ -148,11 +106,6 @@ async function projectNativeKit(profileId, definition, useCases, modules, worklo
     planner_link: `${plannerPath}?stackkit_id=${stackkitId}`,
     modules: projectedModules,
     use_cases: kitUseCases,
-    legacy_compute_tier_mappings: legacyTiers.map((compute_tier) => ({
-      compute_tier,
-      status: "migration_only",
-      reason_code: "LEGACY_GLOBAL_COMPUTE_TIER",
-    })),
     required_authoring_inputs: stringArray(authoring.requiredOverrides ?? [], `${profileId}.authoring.requiredOverrides`, false).sort(),
   };
 }
@@ -410,6 +363,7 @@ function nativeUseCasesForKit(definition, useCases, workloads, moduleIds) {
       const load = fitForAlternative?.load ?? { residency: "always-on", baseline: "idle-resident", burst: "interactive" };
       alternatives.push({ alternative_id: publicId(alternative.id, `${id}.alternative`), module_id: publicId(alternative.moduleRef, `${id}.moduleRef`), functions: stringArray(functions, `${id}.${alternative.id}.functions`), load });
     }
+    alternatives.sort((left, right) => left.alternative_id.localeCompare(right.alternative_id));
     // Native v2 alternatives are selected explicitly and are not gated by the
     // legacy kit-wide compute-tier fit table. The fit document remains useful
     // for functions/load metadata, but a required/default workload such as
@@ -529,44 +483,6 @@ function reasonCode(reason) {
   return /^[A-Z][A-Z0-9_]{1,63}$/.test(words) ? words : "USE_CASE_NOT_AVAILABLE";
 }
 
-export async function projectAuthorityBundle(authorityRootPath, exactSourceSha, plannerPath = "/planner") {
-  const root = resolve(authorityRootPath);
-  if (!SOURCE_SHA.test(exactSourceSha ?? "")) fail("source SHA must be a full lowercase 40-character commit SHA");
-  if (!/^\/planner$/.test(plannerPath)) fail("planner path must be /planner");
-  const files = await requiredAuthorityFiles(root);
-  const manifest = await readJson(files.manifest);
-  await validateManifest(manifest, files, root);
-  const catalogSource = await readJson(files.catalog);
-  const fitsSource = await readJson(files.computeTierFits);
-  const operationsSource = await readJson(files.operations);
-  validateDocument(fitsSource, FIT_SCHEMA_VERSIONS, "compute-tier-fits.json");
-  validateDocument(operationsSource, OPERATIONS_SCHEMA_VERSIONS, "operations.json");
-  verifyContentDigest(fitsSource, "compute-tier-fits.json");
-  verifyContentDigest(operationsSource, "operations.json");
-
-  const authorityBundleSha = await authorityBundleDigest(root);
-  const modules = indexById(arrayValue(catalogSource.modules), "metadata.id");
-  const workloads = indexById(arrayValue(catalogSource.workloads), "metadata.id");
-  const useCases = parseUseCases(fitsSource);
-  const operations = parseOperations(operationsSource);
-  const profiles = [];
-  for (const [profileId, profilePath] of Object.entries(manifest.profiles ?? {}).sort(([left], [right]) => left.localeCompare(right))) {
-    if (!ID.test(profileId) || typeof profilePath !== "string") fail(`invalid profile identity: ${profileId}`);
-    const definition = await readJson(safeBundlePath(root, profilePath));
-    profiles.push(projectKit(profileId, definition, useCases, modules, workloads, plannerPath));
-  }
-  profiles.sort((left, right) => left.stackkit_id.localeCompare(right.stackkit_id));
-  const payload = {
-    schema_version: SCHEMA_VERSION,
-    source_sha: exactSourceSha,
-    authority_bundle_sha256: authorityBundleSha,
-    kits: profiles,
-    operations: operations.sort((left, right) => left.id.localeCompare(right.id)),
-  };
-  const catalogSha = sha256Hex(Buffer.from(canonicalJson(payload), "utf8"));
-  return { ...payload, catalog_sha256: catalogSha };
-}
-
 async function requiredAuthorityFiles(root) {
   const manifest = join(root, "manifest.json");
   const catalog = join(root, "catalog.json");
@@ -622,121 +538,9 @@ async function validateManifest(manifest, files, root) {
   }
 }
 
-function projectKit(profileId, definition, useCases, modules, workloads, plannerPath) {
-  if (definition.kind !== "KitDefinition") fail(`profile is not a KitDefinition: ${profileId}`);
-  const metadata = objectValue(definition.metadata, `definition metadata for ${profileId}`);
-  const stackkitId = stringValue(metadata.slug, `${profileId}.metadata.slug`);
-  if (stackkitId !== profileId || !ID.test(stackkitId)) fail(`profile identity mismatch: ${profileId}`);
-  const displayName = publicString(metadata.displayName, `${profileId}.metadata.displayName`);
-  const version = publicString(metadata.version, `${profileId}.metadata.version`);
-  const description = publicString(metadata.description, `${profileId}.metadata.description`);
-  const authoring = objectValue(definition.authoring, `${profileId}.authoring`);
-  const status = publicString(authoring.initialSpecStatus ?? metadata.status, `${profileId}.status`);
-  const graphs = objectValue(definition.computeTierGraphs, `${profileId}.computeTierGraphs`);
-  const computeTiers = TIERS.filter((tier) => Object.prototype.hasOwnProperty.call(graphs, tier));
-  if (computeTiers.length === 0) fail(`profile declares no compute tiers: ${profileId}`);
-  const tiers = {};
-  for (const tier of computeTiers) {
-    tiers[tier] = projectTier(profileId, tier, objectValue(graphs[tier], `${profileId}.${tier}`), useCases, modules, workloads, definition);
-  }
-  const requiredAuthoringInputs = stringArray(authoring.requiredOverrides ?? [], `${profileId}.authoring.requiredOverrides`, false).sort();
-  return {
-    stackkit_id: stackkitId,
-    display_name: displayName,
-    version,
-    description,
-    status,
-    planner_link: `${plannerPath}?stackkit_id=${stackkitId}`,
-    compute_tiers: computeTiers,
-    tiers,
-    required_authoring_inputs: requiredAuthoringInputs,
-  };
-}
-
 function stringValue(value, path) {
   if (typeof value !== "string" || value.length === 0) fail(`${path} must be a non-empty string`);
   return value;
-}
-
-function projectTier(profileId, tier, graph, useCases, modules, workloads, definition) {
-  const sourceRequirements = objectValue(graph.hostRequirements, `${profileId}.${tier}.hostRequirements`);
-  const hostRequirements = projectRequirements(sourceRequirements, `${profileId}.${tier}.hostRequirements`);
-  const moduleSubstitutions = projectStringMap(graph.moduleSubstitutions ?? {}, `${profileId}.${tier}.moduleSubstitutions`);
-  const enableCapabilities = stringArray(graph.enableCapabilities ?? [], `${profileId}.${tier}.enableCapabilities`, false).sort();
-  const platformManagement = publicString(graph.platformManagement, `${profileId}.${tier}.platformManagement`);
-  const fits = useCases.map((useCase) => projectFit(useCase, tier));
-  const moduleIds = moduleClosure(definition, tier, moduleSubstitutions, fits, workloads);
-  const moduleRuntimeRequirements = [...moduleIds].sort().map((moduleId) => {
-    const module = modules.get(moduleId);
-    const rawRequirements = module?.runtimeRequirements;
-    if (!rawRequirements || typeof rawRequirements !== "object") return { module_id: moduleId, declaration: "not_declared" };
-    return { module_id: moduleId, declaration: "declared", runtime_requirements: projectRuntimeRequirements(rawRequirements, `${profileId}.${tier}.${moduleId}`) };
-  });
-  return {
-    compute_tier: tier,
-    host_requirements: hostRequirements,
-    platform_management: platformManagement,
-    enable_capabilities: enableCapabilities,
-    module_substitutions: moduleSubstitutions,
-    module_runtime_requirements: moduleRuntimeRequirements,
-    use_case_fits: fits,
-  };
-}
-
-function projectRequirements(source, path) {
-  rejectUnknownKeys(source, path, HOST_REQUIREMENT_KEYS);
-  const result = {};
-  for (const [sourceKey, outputKey] of [["minCpuCores", "min_cpu_cores"], ["minRamGB", "min_ram_gb"], ["minStorageGB", "min_storage_gb"], ["recommendedCpuCores", "recommended_cpu_cores"], ["recommendedRamGB", "recommended_ram_gb"], ["recommendedStorageGB", "recommended_storage_gb"]]) {
-    if (source[sourceKey] !== undefined) {
-      if (typeof source[sourceKey] !== "number" || !Number.isFinite(source[sourceKey]) || source[sourceKey] <= 0) fail(`${path}.${sourceKey} is not a positive number`);
-      result[outputKey] = source[sourceKey];
-    }
-  }
-  if (source.headroomFactor !== undefined && (typeof source.headroomFactor !== "number" || !Number.isFinite(source.headroomFactor) || source.headroomFactor <= 0)) {
-    fail(`${path}.headroomFactor is not a positive number`);
-  }
-  for (const [sourceKey, outputKey] of [["architectures", "architectures"], ["allowedArchitectures", "architectures"], ["virtualization", "virtualization"], ["allowedVirtualization", "virtualization"]]) {
-    if (source[sourceKey] !== undefined) {
-      const values = stringArray(Array.isArray(source[sourceKey]) ? source[sourceKey] : [source[sourceKey]], `${path}.${sourceKey}`);
-      result[outputKey] = [...new Set([...(result[outputKey] ?? []), ...values])].sort();
-    }
-  }
-  if (typeof result.min_cpu_cores !== "number" || typeof result.min_ram_gb !== "number" || typeof result.min_storage_gb !== "number") fail(`${path} omits a required capacity minimum`);
-  return result;
-}
-
-function projectRuntimeRequirements(source, path) {
-  rejectUnknownKeys(source, path, RUNTIME_REQUIREMENT_KEYS);
-  const result = {};
-  for (const [sourceKey, outputKey] of [["minCpuCores", "min_cpu_cores"], ["minRamGB", "min_ram_gb"], ["minStorageGB", "min_storage_gb"], ["recommendedCpuCores", "recommended_cpu_cores"], ["recommendedRamGB", "recommended_ram_gb"], ["recommendedStorageGB", "recommended_storage_gb"]]) {
-    if (source[sourceKey] === undefined) continue;
-    if (typeof source[sourceKey] !== "number" || !Number.isFinite(source[sourceKey]) || source[sourceKey] <= 0) fail(`${path}.${sourceKey} is not a positive number`);
-    result[outputKey] = source[sourceKey];
-  }
-  return result;
-}
-
-function moduleClosure(definition, tier, substitutions, fits, workloads) {
-  const ids = new Set(Object.values(substitutions));
-  const declaredWorkloads = new Set(
-    stringArray(definition.workloads?.required ?? [], "definition.workloads.required", false),
-  );
-  for (const fit of fits) {
-    if (!fit.included) continue;
-    declaredWorkloads.add(fit.use_case_id);
-  }
-  for (const workloadId of declaredWorkloads) {
-    const workload = workloads.get(workloadId);
-    if (!workload) continue;
-    const tierFit = workload.computeTiers?.[tier];
-    const alternativeId = tierFit?.alternativeID;
-    const alternatives = arrayValue(workload.alternatives);
-    const alternative = alternatives.find((candidate) => candidate.id === alternativeId) ?? alternatives[0];
-    if (typeof alternative?.moduleRef === "string" && SAFE_ID.test(alternative.moduleRef)) {
-      ids.add(substitutions[alternative.moduleRef] ?? alternative.moduleRef);
-    }
-  }
-  return ids;
 }
 
 function parseUseCases(source) {
@@ -785,21 +589,6 @@ function projectUseCaseFit(source, id, tier) {
     ...(typeof source.alternativeID === "string" ? { alternative_id: publicId(source.alternativeID, `use-case ${id}.${tier}.alternativeID`) } : {}),
     ...(typeof source.alternative_id === "string" ? { alternative_id: publicId(source.alternative_id, `use-case ${id}.${tier}.alternative_id`) } : {}),
     ...(Array.isArray(source.notes) ? { notes: stringArray(source.notes, `use-case ${id}.${tier}.notes`) } : {}),
-  };
-}
-
-function projectFit(useCase, tier) {
-  const fit = useCase.tiers[tier];
-  return {
-    use_case_id: useCase.id,
-    ...(useCase.title ? { title: useCase.title } : {}),
-    included: fit.included,
-    ...(fit.functions ? { functions: [...fit.functions] } : {}),
-    ...(fit.load ? { load: { ...fit.load } } : {}),
-    ...(fit.module_slug ? { module_slug: fit.module_slug } : {}),
-    ...(fit.alternative_id ? { alternative_id: fit.alternative_id } : {}),
-    ...(fit.reason ? { reason: fit.reason } : {}),
-    ...(fit.notes ? { notes: [...fit.notes] } : {}),
   };
 }
 
@@ -906,16 +695,6 @@ function stringArray(value, path, requireValues = true) {
   const result = value.map((entry) => publicString(entry, path));
   if (requireValues && result.length === 0) fail(`${path} must not be empty`);
   return [...new Set(result)].sort();
-}
-
-function projectStringMap(value, path) {
-  if (!isObject(value)) fail(`${path} must be an object`);
-  const result = {};
-  for (const [key, target] of Object.entries(value)) {
-    publicId(key, `${path}.${key}`);
-    result[key] = publicId(target, `${path}.${key}`);
-  }
-  return Object.fromEntries(Object.entries(result).sort(([left], [right]) => left.localeCompare(right)));
 }
 
 function publicId(value, path) {

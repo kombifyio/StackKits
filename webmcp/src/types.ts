@@ -23,7 +23,6 @@ export type {
   HandoffData,
   HandoffFollowUp,
   HandoffStep,
-  LegacyMapping,
   ListCatalogData,
   ListCatalogInput,
   ModuleAxisProfile,

@@ -1,3 +1,3 @@
 declare module "*.mjs" {
-  export function projectAuthorityBundle(root: string, sourceSha: string, plannerPath?: string): Promise<unknown>;
+  export function projectAuthorityBundle(root: string, sourceSha: string, plannerPath?: string): Promise<import("./types.js").WebMcpCatalog>;
 }

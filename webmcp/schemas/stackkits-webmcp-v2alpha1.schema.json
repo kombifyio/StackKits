@@ -327,15 +327,10 @@
     "moduleProfilesData": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["modules", "use_case_alternatives", "legacy_global_tiers"],
+      "required": ["modules", "use_case_alternatives"],
       "properties": {
         "modules": { "type": "array", "items": { "$ref": "#/$defs/compactModuleProfiles" } },
         "use_case_alternatives": { "type": "array", "items": { "$ref": "#/$defs/compactUseCaseAlternative" } },
-        "legacy_global_tiers": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": { "type": "string", "enum": ["low", "standard", "high"] }
-        },
         "next_cursor": { "type": "integer", "minimum": 1, "description": "Next module offset; absent when this filtered catalog is complete." }
       }
     },
