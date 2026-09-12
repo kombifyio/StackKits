@@ -167,7 +167,7 @@ func renderCloudCoreUnit(ctx context.Context, unit RenderUnit, contract Renderer
 		return nil, fail(ErrInvalidPlan, path+".serviceEndpoints", "%s service endpoint set is incomplete", profile.displayName)
 	}
 	prefix, _ := unit.NetworkSubdomainPrefix()
-	output := profile.renderCompose(domain, prefix)
+	output := renderSiteListenerBindings(unit, profile.renderCompose(domain, prefix))
 	if err := validateRuntimeListenerComposeParity(unit.RuntimeListenersJSON(), output, path+".runtimeListeners"); err != nil {
 		return nil, err
 	}

@@ -164,7 +164,7 @@ func buildNetwork(profile *profileView, spec *specView, resolved *resolution, mo
 	if err != nil {
 		return nil, nil, err
 	}
-	runtimeListeners, err := buildRuntimeListeners(modules, routes)
+	runtimeListeners, err := buildRuntimeListeners(modules, routes, spec.originalInventory)
 	if err != nil {
 		return nil, nil, err
 	}

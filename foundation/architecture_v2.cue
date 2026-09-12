@@ -1907,6 +1907,7 @@ import (
 	componentRef:      #ContractID
 	transport:         "tcp" | "udp"
 	bindAddress:       #NetworkAddressV2
+	bindAddressSource?: "node-site"
 	port:              int & >=1 & <=65535
 	targetPort:        int & >=1 & <=65535
 	sharing:           "exclusive" | "virtual-host"
@@ -6485,6 +6486,7 @@ _servicePublicationShape: {
 		capability: capabilityRef & binding.capabilityRef
 	}]
 	nodes: [#NodeID]: {
+		siteAddress?: #NetworkAddressV2
 		observedSiteKind?:       #SiteKind
 		arch?:                   "amd64" | "arm64"
 		amd64MicroarchitectureLevel?: int & >=1 & <=4
@@ -10067,8 +10069,14 @@ _servicePublicationShape: {
 			for instance in unit.instances
 			if instance.id == listener.instanceRef && instance.nodeRef == listener.nodeRef
 			for declaration in unit.runtimeListeners
-			if listener.id == "\(module.id)/\(unit.id)/\(instance.id)/\(declaration.id)" && declaration.componentRef == listener.componentRef && declaration.transport == listener.transport && declaration.bindAddress == listener.bindAddress && declaration.port == listener.port && declaration.targetPort == listener.targetPort && declaration.sharing == listener.sharing && declaration.exposure == listener.exposure {
+			if listener.id == "\(module.id)/\(unit.id)/\(instance.id)/\(declaration.id)" && declaration.componentRef == listener.componentRef && declaration.transport == listener.transport && declaration.port == listener.port && declaration.targetPort == listener.targetPort && declaration.sharing == listener.sharing && declaration.exposure == listener.exposure {
 				id: declaration.id
+				if declaration.bindAddressSource != _|_ {
+					address: listener.bindAddress & source.inventory.document.nodes[listener.nodeRef].siteAddress
+				}
+				if declaration.bindAddressSource == _|_ {
+					address: listener.bindAddress & declaration.bindAddress
+				}
 			},
 		] & list.MinItems(1) & list.MaxItems(1)
 	}]

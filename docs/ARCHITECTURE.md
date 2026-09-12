@@ -114,6 +114,18 @@ The v2 boundary is:
    `plan`, `apply`, `verify`, or the legacy remote verifier; v1 remains readable
    only for validation and explicit migration.
 
+### Target-bound LAN DNS listeners
+
+LAN DNS declares `bindAddressSource: "node-site"` in the CUE module contract.
+The compiler resolves it to `inventory.nodes.<nodeRef>.siteAddress` before
+hashing the plan. The listener projection, generated Compose and admission
+use that same concrete target IP. Local attestation reuses the kernel route
+observation without sending traffic; external inventories supply the target
+address. Missing, loopback, wildcard and non-unicast addresses fail closed when
+this binding is required. The optional field does not reinterpret old plans.
+Binding LAN DNS to the target interface preserves the host's loopback resolver;
+StackKits does not stop or reconfigure it.
+
 ### Provider-free external-host boundary
 
 StackKits never owns a server-provider resource. TechStack selects and

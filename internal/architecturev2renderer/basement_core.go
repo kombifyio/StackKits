@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"gopkg.in/yaml.v3"
+	"net/netip"
 	"regexp"
 	"sort"
 	"strings"
@@ -29,8 +31,8 @@ const (
 	basementCoreVersion     = "1.0.0"
 )
 
-const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:22|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|services:router,socket-proxy,pocketid,tinyauth,step-ca,lan-dns,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
-const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:22|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
+const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:22|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|services:router,socket-proxy,pocketid,tinyauth,step-ca,lan-dns,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound`
+const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:22|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound`
 
 // basementCoreComponentsJSON is the closed component graph accepted by both
 // target-specific renderers. It mirrors the CUE catalog and intentionally
@@ -510,7 +512,27 @@ func ValidateBasementCoreLiteComposeArtifact(content []byte) bool {
 
 func validateBasementCoreComposeArtifact(content []byte, render func(string) []byte) bool {
 	match := regexp.MustCompile("id\\.([a-z0-9.-]+)`").FindSubmatch(content)
-	return len(match) == 2 && bytes.Equal(content, render(string(match[1])))
+	if len(match) != 2 {
+		return false
+	}
+	expected := render(string(match[1]))
+	var document struct {
+		Services map[string]struct {
+			Ports []string `yaml:"ports"`
+		} `yaml:"services"`
+	}
+	if yaml.Unmarshal(content, &document) != nil {
+		return false
+	}
+	for _, binding := range document.Services["lan-dns"].Ports {
+		value := strings.TrimSuffix(strings.TrimSuffix(binding, "/udp"), ":53:53")
+		address, err := netip.ParseAddr(strings.Trim(value, "[]"))
+		if err != nil || (!address.IsUnspecified() && (!address.Unmap().IsGlobalUnicast() || address.Unmap().IsLoopback())) {
+			return false
+		}
+		expected = bytes.ReplaceAll(expected, []byte("0.0.0.0:53:53"), []byte(value+":53:53"))
+	}
+	return bytes.Equal(content, expected)
 }
 
 // BasementCoreServiceContract is the secret-free, pinned service identity
@@ -588,7 +610,7 @@ func (r basementCoreRenderer) RenderUnit(ctx context.Context, unit RenderUnit) (
 	if err := validateBasementCoreUnit(unit, r.contract, r.unitID, r.outputRef); err != nil {
 		return nil, err
 	}
-	return []UnitOutput{{Ref: r.outputRef, Bytes: r.render(unit)}}, nil
+	return []UnitOutput{{Ref: r.outputRef, Bytes: renderSiteListenerBindings(unit, r.render(unit))}}, nil
 }
 
 func validateBasementCoreUnit(unit RenderUnit, contract RendererContract, unitID, outputRef string) error {
@@ -682,7 +704,7 @@ func validateClosedLocalCoreUnitOutputs(unit RenderUnit, contract RendererContra
 	if len(expectedEndpoints) != 0 {
 		return fail(ErrInvalidPlan, path+".serviceEndpoints", "%s service endpoint set is incomplete", profile.displayName)
 	}
-	if err := validateRuntimeListenerComposeParity(unit.RuntimeListenersJSON(), profile.renderCompose(domain), path+".runtimeListeners"); err != nil {
+	if err := validateRuntimeListenerComposeParity(unit.RuntimeListenersJSON(), renderSiteListenerBindings(unit, profile.renderCompose(domain)), path+".runtimeListeners"); err != nil {
 		return err
 	}
 	return nil

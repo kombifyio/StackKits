@@ -27,6 +27,7 @@ const dockerSocketPathSourceDaemonBinding = "daemon-binding"
 const maxDockerSocketPathBytes = 107
 
 type renderPlan struct {
+	listenerAddresses      map[string]string
 	outputRoot             string
 	networkDomainBase      string
 	networkSubdomainPrefix string
@@ -238,6 +239,7 @@ type rawModuleRuntimeListener struct {
 	ComponentRef      string              `json:"componentRef"`
 	Transport         string              `json:"transport"`
 	BindAddress       string              `json:"bindAddress"`
+	BindAddressSource string              `json:"bindAddressSource,omitempty"`
 	Port              int                 `json:"port"`
 	TargetPort        int                 `json:"targetPort"`
 	Sharing           string              `json:"sharing"`
@@ -603,8 +605,24 @@ func parsePlanCanonical(canonical []byte) (renderPlan, error) {
 		return renderPlan{}, fail(ErrInvalidPlan, "resolvedPlan.modules", "at least one renderable module is required")
 	}
 
+	var network struct {
+		RuntimeListeners []struct {
+			ID          string `json:"id"`
+			BindAddress string `json:"bindAddress"`
+		} `json:"runtimeListeners"`
+	}
+	if raw, ok := top["network"]; ok {
+		if err := json.Unmarshal(raw, &network); err != nil {
+			return renderPlan{}, err
+		}
+	}
+	addresses := map[string]string{}
+	for _, listener := range network.RuntimeListeners {
+		addresses[listener.ID] = listener.BindAddress
+	}
 	result := renderPlan{
-		outputRoot: outputRoot, networkDomainBase: networkDomainBase, networkSubdomainPrefix: networkSubdomainPrefix,
+		listenerAddresses: addresses,
+		outputRoot:        outputRoot, networkDomainBase: networkDomainBase, networkSubdomainPrefix: networkSubdomainPrefix,
 		artifacts: artifacts,
 		bindings:  make(map[instanceOutputKey]outputBinding),
 	}

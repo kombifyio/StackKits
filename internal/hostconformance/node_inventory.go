@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/siteaddress"
 )
 
 const (
@@ -22,6 +23,7 @@ const (
 // NodeInventoryFacts are the attested host facts written onto one Inventory
 // node. They are compiler input, not a HostConformanceReceipt.
 type NodeInventoryFacts struct {
+	SiteAddress                 string
 	Architecture                string
 	AMD64MicroarchitectureLevel int
 	CPUCores                    int
@@ -93,7 +95,15 @@ func ObserveNodeInventory(ctx context.Context, probe LocalProbe) (NodeInventoryF
 	if !allowedValue(virtualization, "bare-metal", "kvm", "openvz", "lxc", "vmware", "hyperv", "xen", "oracle", "microsoft", "none") {
 		return NodeInventoryFacts{}, fmt.Errorf("host virtualization class %q is invalid", virtualization)
 	}
+	address := ""
+	if _, local := source.(osLocalSource); local {
+		siteIP, _ := siteaddress.DiscoverSiteAddress()
+		if siteIP.IsValid() {
+			address = siteIP.String()
+		}
+	}
 	return NodeInventoryFacts{
+		SiteAddress:                 address,
 		Architecture:                architecture,
 		AMD64MicroarchitectureLevel: observeAMD64MicroarchitectureLevel(source, architecture),
 		CPUCores:                    cpuCores,
@@ -134,6 +144,10 @@ func MergeNodeInventoryFacts(inventory resolvedplan.InventoryFacts, nodeRef stri
 		}
 		node = map[string]any{}
 		nodes[nodeRef] = node
+	}
+	delete(node, "siteAddress")
+	if facts.SiteAddress != "" {
+		node["siteAddress"] = facts.SiteAddress
 	}
 	node["arch"] = facts.Architecture
 	delete(node, "amd64MicroarchitectureLevel")

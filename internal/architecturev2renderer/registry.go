@@ -346,6 +346,9 @@ func renderProjection(ctx context.Context, projection renderPlan, canonical []by
 			}
 			for _, instance := range contract.instances {
 				unit := newRenderUnit(module.id, contract, instance, projection.networkDomainBase, projection.networkSubdomainPrefix)
+				if err := unit.bindSiteListeners(projection.listenerAddresses); err != nil {
+					return RenderResult{}, err
+				}
 				outputs, err := renderUnit(ctx, renderer, unit)
 				if err != nil {
 					return RenderResult{}, err

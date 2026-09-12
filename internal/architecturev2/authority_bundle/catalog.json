@@ -14353,7 +14353,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:e26289ea5ed17d81eeb802ab00a706e06e5df62710a055c6e873a7e828cefabd",
+          "contractHash": "sha256:81dcca80a6eaf1978077ef928e88f420c55bb130024290a12bbf453fa0bfe4af",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -14451,6 +14451,7 @@
             },
             {
               "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
               "componentRef": "lan-dns",
               "exposure": "lan",
               "id": "lan-dns-udp",
@@ -14462,6 +14463,7 @@
             },
             {
               "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
               "componentRef": "lan-dns",
               "exposure": "lan",
               "id": "lan-dns-tcp",
@@ -14552,7 +14554,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:9bf25da54e5eb0ed27a134abd3481c510efc04046beebf179a66283e6d0ed035",
+          "contractHash": "sha256:e872d49abbac54f03ba6214e65d9acc0c39bd77ca601a0095e386f5a728c7667",
           "id": "opentofu",
           "inputBindings": [],
           "kind": "opentofu",
@@ -14650,6 +14652,7 @@
             },
             {
               "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
               "componentRef": "lan-dns",
               "exposure": "lan",
               "id": "lan-dns-udp",
@@ -14661,6 +14664,7 @@
             },
             {
               "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
               "componentRef": "lan-dns",
               "exposure": "lan",
               "id": "lan-dns-tcp",
@@ -14751,7 +14755,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:da824e9d69b644f9948c40a6298056487331b077fdb626fbd0d54a4af9b800cf",
+          "contractHash": "sha256:f238ac4f8e2ade106694f2b6005ef818402bfbedca838f34ee279e35ec54558e",
           "id": "terramate",
           "inputBindings": [],
           "kind": "terramate",
@@ -14851,6 +14855,7 @@
             },
             {
               "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
               "componentRef": "lan-dns",
               "exposure": "lan",
               "id": "lan-dns-udp",
@@ -14862,6 +14867,7 @@
             },
             {
               "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
               "componentRef": "lan-dns",
               "exposure": "lan",
               "id": "lan-dns-tcp",
@@ -15898,7 +15904,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:69e4a1721d924f9b2e6c77cbfe906f9d9ce71ab183fdd3b6aaf0f2def9d1fb82",
+          "contractHash": "sha256:d5bf8b337e0ccc678aedb38f29747260ca1d8db5bdc05387ec3e86e37300fb94",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -15985,6 +15991,7 @@
             },
             {
               "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
               "componentRef": "lan-dns",
               "exposure": "lan",
               "id": "lan-dns-udp",
@@ -15996,6 +16003,7 @@
             },
             {
               "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
               "componentRef": "lan-dns",
               "exposure": "lan",
               "id": "lan-dns-tcp",
@@ -16069,7 +16077,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:96825f0e47b33aa8a1395ea113d62f25fb5d18d96eb7701cd9a9f6253d77fd03",
+          "contractHash": "sha256:e92aaafd81218eaf023744dea9e802d462163a4eb0f69411610bceee0729bc9d",
           "id": "opentofu",
           "inputBindings": [],
           "kind": "opentofu",
@@ -16156,6 +16164,7 @@
             },
             {
               "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
               "componentRef": "lan-dns",
               "exposure": "lan",
               "id": "lan-dns-udp",
@@ -16167,6 +16176,7 @@
             },
             {
               "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
               "componentRef": "lan-dns",
               "exposure": "lan",
               "id": "lan-dns-tcp",
@@ -16240,7 +16250,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:2948df78f60fbafe27587f52f4f4c953c57742f525d59f5314f2da50f9263e6f",
+          "contractHash": "sha256:95119b44e1b657e95a5c6bb5710f7fde226e9599e9359865dd9e46664c80426c",
           "id": "terramate",
           "inputBindings": [],
           "kind": "terramate",
@@ -16329,6 +16339,7 @@
             },
             {
               "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
               "componentRef": "lan-dns",
               "exposure": "lan",
               "id": "lan-dns-udp",
@@ -16340,6 +16351,7 @@
             },
             {
               "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
               "componentRef": "lan-dns",
               "exposure": "lan",
               "id": "lan-dns-tcp",
@@ -16462,7 +16474,7 @@
             "basement-core-lite-compose",
             "local-kopia-backup-source-policy-lite"
           ],
-          "contractHash": "sha256:69e4a1721d924f9b2e6c77cbfe906f9d9ce71ab183fdd3b6aaf0f2def9d1fb82",
+          "contractHash": "sha256:d5bf8b337e0ccc678aedb38f29747260ca1d8db5bdc05387ec3e86e37300fb94",
           "id": "compose",
           "planInputRefs": [
             "stackId",
@@ -16488,7 +16500,7 @@
             "basement-core-lite-opentofu",
             "local-kopia-backup-source-policy-lite"
           ],
-          "contractHash": "sha256:96825f0e47b33aa8a1395ea113d62f25fb5d18d96eb7701cd9a9f6253d77fd03",
+          "contractHash": "sha256:e92aaafd81218eaf023744dea9e802d462163a4eb0f69411610bceee0729bc9d",
           "id": "opentofu",
           "planInputRefs": [
             "stackId",
@@ -16516,7 +16528,7 @@
             "basement-core-lite-terramate-stack",
             "local-kopia-backup-source-policy-lite"
           ],
-          "contractHash": "sha256:2948df78f60fbafe27587f52f4f4c953c57742f525d59f5314f2da50f9263e6f",
+          "contractHash": "sha256:95119b44e1b657e95a5c6bb5710f7fde226e9599e9359865dd9e46664c80426c",
           "id": "terramate",
           "planInputRefs": [
             "stackId",

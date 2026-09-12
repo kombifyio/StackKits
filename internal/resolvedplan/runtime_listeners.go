@@ -63,7 +63,7 @@ func normalizeRuntimeListenerContracts(unit map[string]any, path string) error {
 	return nil
 }
 
-func buildRuntimeListeners(modules, routes []any) ([]any, error) {
+func buildRuntimeListeners(modules, routes []any, inventory map[string]any) ([]any, error) {
 	routeRefs, err := indexRuntimeListenerRouteRefs(routes)
 	if err != nil {
 		return nil, err
@@ -119,6 +119,19 @@ func buildRuntimeListeners(modules, routes []any) ([]any, error) {
 					listener, err := resolveRuntimeListener(moduleRef, unitRef, instanceRef, nodeRef, declaration, declarationPath, routeRefs)
 					if err != nil {
 						return nil, err
+					}
+					if source, _ := declaration["bindAddressSource"].(string); source != "" {
+						if source != "node-site" {
+							return nil, fail(ErrContractConflict, declarationPath, "unsupported listener address source")
+						}
+						nodes, _ := inventory["nodes"].(map[string]any)
+						node, _ := nodes[nodeRef].(map[string]any)
+						value, _ := node["siteAddress"].(string)
+						siteAddress, parseErr := netip.ParseAddr(value)
+						if parseErr != nil || !siteAddress.Unmap().IsGlobalUnicast() || siteAddress.Unmap().IsLoopback() {
+							return nil, fail(ErrContractConflict, "inventory.nodes."+nodeRef+".siteAddress", "a concrete non-loopback unicast target IP is required for the node-site listener")
+						}
+						listener.bindAddress = value
 					}
 					address, err := netip.ParseAddr(listener.bindAddress)
 					if err != nil {
@@ -253,7 +266,19 @@ func validateRuntimeListenerProjection(plan ResolvedPlan) error {
 	if err != nil {
 		return err
 	}
-	want, err := buildRuntimeListeners(objectMapsAsAny(modules), objectMapsAsAny(routes))
+	source, err := objectField(map[string]any(plan), "resolvedPlan", "source")
+	if err != nil {
+		return err
+	}
+	inventory, err := objectField(source, "resolvedPlan.source", "inventory")
+	if err != nil {
+		return err
+	}
+	document, err := objectField(inventory, "resolvedPlan.source.inventory", "document")
+	if err != nil {
+		return err
+	}
+	want, err := buildRuntimeListeners(objectMapsAsAny(modules), objectMapsAsAny(routes), document)
 	if err != nil {
 		return fmt.Errorf("recompute resolvedPlan.network.runtimeListeners: %w", err)
 	}

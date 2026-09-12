@@ -4,6 +4,18 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.26.7](https://github.com/kombifyio/stackKits/compare/v0.26.6...v0.26.7) (2026-09-12)
+
+
+### Fixed
+
+* **runtime:** preserve host DNS with target-bound LAN listeners ([#1016](https://github.com/kombifyio/stackKits/issues/1016)) ([c58c27a](https://github.com/kombifyio/stackKits/commit/c58c27a06710b2d5e03f63376986aee2b5ca4fd8))
+
+
+### Changed
+
+* **delivery:** adopt consolidated source runner ([#1017](https://github.com/kombifyio/stackKits/issues/1017)) ([7ca5dc1](https://github.com/kombifyio/stackKits/commit/7ca5dc1fbec6fa85da643b2217327f965f76d718))
+
 ## [0.26.6](https://github.com/kombifyio/stackKits/compare/v0.26.5...v0.26.6) (2026-09-12)
 
 
