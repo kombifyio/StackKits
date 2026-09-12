@@ -19,7 +19,7 @@ As of 2026-06-10 the release default is the slice exercised by the fresh Ubuntu 
 |------|---------|--------|
 | Docker API isolation | Docker socket via target daemon | generated |
 | Reverse proxy | Coolify Traefik/proxy | the selected PaaS router owns the traffic path (default `paas: coolify`); a StackKit-owned Traefik runs only for explicit `paas: komodo` |
-| Local access | browser-native `.localhost` names | enabled default for `*.home.localhost` |
+| Local access | scoped LAN DNS + Owner-CA HTTPS | canonical `*.home` URLs on enrolled devices; no router/DHCP change |
 | PaaS | `coolify` | enabled default for local/kombify.me/custom-domain routing; `komodo` is the beta-supported alternative; `dokploy` remains draft |
 | Passkey identity | `pocketid` | mandatory default |
 | Login gateway | `tinyauth` | generated with PocketID OIDC provider config |
@@ -40,7 +40,7 @@ The production-readiness path builds a fresh Ubuntu target inside Docker Desktop
 - expected default L3 apps are recorded in `.platform-apps-manifest.json` with `ownership: "stackkit"` and delivered through the selected PaaS, not started by direct Docker Compose fallback
 - disabled services such as `komodo`, `dokploy`, `dockge`, and `jellyfin` must not appear as enabled dashboard actions, how-to rows, or active outputs
 - TinyAuth is inspected for the v5 `TINYAUTH_OAUTH_PROVIDERS_POCKETID_*` contract and `TINYAUTH_OAUTH_AUTOREDIRECT=pocketid`
-- Traefik probes use `*.home.localhost` over HTTP for the local default. Public/custom domains still use real HTTPS certificates. Kombify Point and Step-CA are explicit LAN-DNS options, not the default local user path.
+- Local probes use the canonical `*.home` routes over Owner-CA HTTPS. The StackKits LAN resolver and Step-CA are part of the local default; device enrollment installs only this zone and public root with explicit OS approval. Public/custom domains continue through the selected router and their declared certificate provider.
 
 If Docker Hub rate-limits anonymous image pulls, the VM smoke is externally inconclusive. Seed the Ubuntu target with Docker auth via `STACKKIT_FRESH_VM_DOCKER_CONFIG` or `STACKKIT_FRESH_VM_DOCKER_CONFIG_JSON` and rerun.
 
@@ -79,23 +79,23 @@ stackkit --chdir build/basement-local generate
 
 ## Access
 
-For the default local spec, use the links exactly as generated. They must not require hosts-file edits, manual DNS setup, trust-store setup, or port suffixes:
+For the default local spec, enroll the device once and then use the links exactly as generated. Enrollment installs scoped DNS and the public Owner-CA root with explicit OS approval; it does not require router, DHCP, hosts-file, or per-link changes:
 
 ```text
-http://base.home.localhost
-http://home.home.localhost
-http://id.home.localhost
-http://auth.home.localhost
-http://kuma.home.localhost
-http://whoami.home.localhost
-http://vault.home.localhost
-http://photos.home.localhost
-http://files.home.localhost
+https://base.home
+https://home.home
+https://id.home
+https://auth.home
+https://kuma.home
+https://whoami.home
+https://vault.home
+https://photos.home
+https://files.home
 ```
 
-Open Node Hub first. `http://base.home.localhost` is the local first-setup entrypoint and is intentionally anonymous during bootstrap, because no PocketID owner may exist yet. The Hub must show `This page is currently unprotected.` while bootstrap-open. The dashboard onboarding starts with PocketID Owner/passkey setup, then offers `Protect Base Hub`, then the protected one-time technical bootstrap credential reveal, and finally app-specific setup actions or How-to links. StackKit persists the protection setting and switches the local router so Base and the node-local API move behind TinyAuth without manual variable edits. Public/non-local Base routes remain protected when TinyAuth is enabled. On subsequent page loads, the onboarding panel is hidden after the one-time technical bootstrap credentials have been revealed. Other protected default routes and L3 application routes must reject anonymous access unless the StackSpec/module access policy explicitly configures public unauthenticated exposure.
+Open Node Hub first. `https://base.home` is the canonical local first-setup entrypoint. Device enrollment is Home-authority scoped: connect on the LAN, authenticate as a Homelab user, approve the scoped DNS and Owner-CA profile, and register or confirm the device passkey. Root trust does not authorize a service session. The Hub is bootstrap-open only until the PocketID Owner exists, then `Protect Base Hub` moves Base and the node-local API behind TinyAuth. Optional remote enrollment adds a private split tunnel with the same URLs; it does not publish services or install a second namespace.
 
-For named LAN zones, initialize with `stackkit init basement-kit --local-dns --local-name family` only when you explicitly want a managed LAN resolver path. Those names are not the default and must not be presented as ready-to-open links unless StackKit owns or verifies the resolver.
+Custom domains remain explicit configuration. They do not create a second local alias: the selected domain becomes the one canonical service URL set and is routed by the selected Coolify/Traefik or Komodo/Traefik path.
 
 TinyAuth receives a generated local break-glass password from the composition engine and is also preconfigured for PocketID OIDC. There is no static `admin/admin123` credential. During local generation the generated values are written to `terraform.tfvars.json`; treat that file as sensitive build output and do not commit it.
 
@@ -120,21 +120,24 @@ These are deliberate scope boundaries, not hidden defaults:
 ## Architecture
 
 ```text
-LAN / browser
+enrolled LAN device
       |
       v
-Coolify Traefik/proxy :80        (PaaS router = StackKit router; Golden Rules §3/§5.6)
+scoped DNS (*.home -> Home node) + Owner-CA HTTPS
       |
-      +--> Coolify        coolify.home.localhost   (platform management)
-      +--> PocketID       id.home.localhost
-      +--> TinyAuth       auth.home.localhost
-      +--> Node Hub       base.home.localhost
-      +--> Homepage       home.home.localhost
-      +--> Whoami         whoami.home.localhost
-      +--> Uptime Kuma    kuma.home.localhost
-      +--> Vaultwarden    vault.home.localhost
-      +--> Immich         photos.home.localhost
-      +--> Files          files.home.localhost     (Cloudreve default)
+      v
+Coolify Traefik/proxy :443       (PaaS router = StackKit router; Golden Rules §3/§5.6)
+      |
+      +--> Coolify        coolify.home   (platform management)
+      +--> PocketID       id.home
+      +--> TinyAuth       auth.home
+      +--> Node Hub       base.home
+      +--> Homepage       home.home
+      +--> Whoami         whoami.home
+      +--> Uptime Kuma    kuma.home
+      +--> Vaultwarden    vault.home
+      +--> Immich         photos.home
+      +--> Files          files.home     (Cloudreve default)
       |
       +--> socket-proxy   internal Docker API, never public
 

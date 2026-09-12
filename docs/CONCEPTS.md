@@ -291,7 +291,7 @@ Service placement rules:
 - **ADR-0031 defines the standalone lifecycle boundary; ADR-0029 defines kit topology.** The v1/v5 shapes are compatibility inputs during the bounded migration, not authorities for new design.
 - **CUE and the canonical local lifecycle are authoritative; hosted databases are optional mirrors.** Never edit generated files.
 - **OpenTofu, never Terraform.** Licensing violation.
-- **Access claims include the client context.** A `.localhost` link is local to the device opening it; `home.test` alone does not create DNS. Guide required resolver, trust and device setup, and keep reachability unverified until the relevant client-side path is checked. See [ADR-0040](ADR/ADR-0040-scoped-application-readiness.md).
+- **Access claims include the client context.** The canonical `*.home` route is ready only after device enrollment has applied its scoped resolver and Owner-CA trust profile. Keep reachability unverified until the relevant enrolled client path is checked. See [ADR-0040](ADR/ADR-0040-scoped-application-readiness.md).
 - **CUE contracts define tool roles; embedded registries and private databases
   are derived mirrors.**
 - **Native resource profiles express explicit intent per module.** Inventory admits or rejects that selection; it never silently changes it. `--compute-tier` belongs to the explicitly selected v2alpha1 compatibility adapter.

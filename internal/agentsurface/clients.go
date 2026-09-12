@@ -92,7 +92,7 @@ func productMCPURL(id, endpoint, domain string) string {
 
 func productUIURL(id, domain string) string {
 	if domain == "" {
-		domain = "home.localhost"
+		domain = "home"
 	}
 	host := id
 	if id == "home-assistant" {

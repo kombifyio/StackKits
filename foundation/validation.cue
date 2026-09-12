@@ -21,8 +21,9 @@ package foundation
 	// Fully qualified domain name (e.g., "app.example.com")
 	fqdn: =~"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$"
 
-	// Local domain suffixes (e.g., "home.localhost", "mylab.local", "home.lan")
-	localDomain: =~"(^localhost|\\.(localhost|local|lan|home|internal|test))$"
+	// Local domains. "home" is the canonical device-enrolled zone; the
+	// suffixes remain compatibility inputs, not generated aliases.
+	localDomain: =~"(^home$|^localhost|\\.(localhost|local|lan|home|internal|test))$"
 
 	// Email address
 	email: =~"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
@@ -80,13 +81,12 @@ package foundation
 	domain: string
 
 	// Computed: is this a local-only domain?
-	// Includes browser-native .localhost names (the local default,
-	// Golden Rules §1.11) alongside the opt-in LAN DNS zones.
+	// Includes the canonical device-enrolled home zone and compatibility inputs.
 	_isLocal: bool
-	if domain =~ "(^localhost|\\.(localhost|local|lan|home|internal|test))$" {
+	if domain =~ "(^home$|^localhost|\\.(localhost|local|lan|home|internal|test))$" {
 		_isLocal: true
 	}
-	if domain !~ "(^localhost|\\.(localhost|local|lan|home|internal|test))$" {
+	if domain !~ "(^home$|^localhost|\\.(localhost|local|lan|home|internal|test))$" {
 		_isLocal: false
 	}
 }

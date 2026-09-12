@@ -37,11 +37,13 @@ env STACKKIT_RELEASE_VERSION=v0.17.0-beta.1 sh -c 'curl -sSL https://base.stackk
 
 For local-server beta tests, run the command in the shell of the target server
 itself, for example through SSH, the server console, or an on-server agent. The
-default generated URLs use browser-native `*.home.localhost` names. They are
-intended for the target server/local host context and do not create LAN-wide DNS
-records. If testers need to open the services from another device, choose an
-explicit domain/LAN-DNS path before treating the printed URLs as shared network
-links.
+default generated URLs are Owner-CA HTTPS at `*.home`. The access manifest gives
+a compatible device client the exact scoped resolver and public Owner-CA root;
+the client applies them after explicit OS approval. The user is never asked to
+edit router/DHCP DNS, a hosts file, or a parallel `.local`/`.localhost` alias.
+Optional remote access uses the same URLs through the governed
+`private-remote-access` split-tunnel capability. Manifest presence alone does
+not prove that another device completed enrollment.
 
 For the full process taxonomy, including website prompting, one-line install,
 direct CLI, on-server agents, SSH agents, local MCP fallback, protected remote

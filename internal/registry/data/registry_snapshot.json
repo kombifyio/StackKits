@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-09-12T20:25:16Z",
+  "generated_at": "2026-09-12T22:07:52Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -1332,7 +1332,7 @@
           "kind": "default",
           "is_default": true,
           "spec_hash": "23424987f6fd7dc188d7f5e8e834b4ffe3c8d05751b72b8fecd4ee2cce1a79c6",
-          "kit_definition_hash": "b8755e22aa3e498a69e53c983eb4ca3e92efa413fb0e4d7aee8edd01e278dce9",
+          "kit_definition_hash": "709551c8290f30c9cfad2b04f204e06ff101259d7422134178760b45d806b010",
           "module_contract_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
         }
       ]

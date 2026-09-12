@@ -10,26 +10,21 @@
 # =============================================================================
 
 # =============================================================================
-# ACCESS (Zero-config by default)
+# ACCESS (device-enrolled by default)
 # =============================================================================
 
-# Access Mode:
-# - "ports" (default): expose each service on HOSTNAME.local:<port> (works without domains)
-# - "proxy": expose services via Traefik hostnames (optionally with HTTPS/Let's Encrypt)
-access_mode = "ports"
-
-# Printed links use mDNS by default: <hostname>.local
-# If your clients don't resolve .local, set this to your server IP/hostname:
-# advertise_host = "192.168.1.100"
+# The canonical local URLs are https://<service>.home. Device enrollment
+# installs scoped DNS resolution and the Owner-CA root with explicit OS
+# approval. It does not change router/DHCP settings and publishes no .local,
+# .localhost, or hosts-file alias.
+domain       = "home"
+enable_https = true
 
 # Optional proxy settings (only used when access_mode = "proxy")
 # domain = "homelab.example.com"
 # enable_https = true
 # enable_letsencrypt = true
 # acme_email = "admin@example.com"
-
-# Tip: you can also use a wildcard-DNS helper domain to avoid manual DNS setup
-# domain = "192.168.1.100.nip.io"  # deploy.192.168.1.100.nip.io, etc.
 
 # =============================================================================
 # VARIANT SELECTION

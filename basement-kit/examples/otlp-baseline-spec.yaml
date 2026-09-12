@@ -2,7 +2,7 @@ name: otlp-baseline-lab
 stackkit: basement-kit
 mode: bootstrapped
 context: local
-domain: home.localhost
+domain: home
 email: admin
 
 network:

@@ -482,7 +482,7 @@ changelog:
       - "NEW: Platform baseline: Coolify (default PaaS), PocketID (passkey IdP), TinyAuth gateway, Node Hub, Homepage, Uptime Kuma, Whoami"
       - "NEW: Default L3 use cases: Vault (Vaultwarden), Photos (Immich), Files (Cloudreve default, Nextcloud alternative)"
       - "NEW: Setup drops with retry-safe SetupRun evidence; demo data strictly opt-in"
-      - "CHANGED: Local default links use browser-native *.home.localhost"
+      - "CHANGED: Local default links use device-enrolled Owner-CA HTTPS at *.home"
       - "CHANGED: Komodo is the beta-supported PaaS alternative; Dokploy remains draft"
   - version: "2.0.0"
     date: "2025-01-27"

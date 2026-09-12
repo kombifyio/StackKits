@@ -3,10 +3,9 @@ package foundation
 
 // #NetworkDefaults defines default network settings
 #NetworkDefaults: {
-	// Primary domain for the homelab. The local default MUST be a
-	// browser-native portless name (Golden Rules §1.10/§1.11); LAN zones
-	// like .local/.lan/.home are explicit opt-in modes.
-	domain: string | *"home.localhost"
+	// Primary domain for the homelab. The local default is the single
+	// device-enrolled, resolver-backed zone; it has no .localhost or mDNS alias.
+	domain: string | *"home"
 
 	// Subnet for internal services
 	subnet: string | *"172.20.0.0/16"

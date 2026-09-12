@@ -255,10 +255,10 @@ Definition: foundation.#ProductKitDefinition & {
 	network: {
 		mode:           "private"
 		domainRequired: false
-		// Target-local browser compatibility only (Golden Rules §1.11).
-		// Native authoring below preserves explicit network intent; neither
-		// default establishes LAN DNS or client reachability.
-		defaultDomain:  "home.localhost"
+		// One canonical local zone. The kit owns its resolver runtime; enrolled
+		// devices install scoped resolution and Owner-CA trust without router
+		// configuration or a parallel compatibility URL.
+		defaultDomain:  "home"
 		defaultTLSMode: "internal"
 	}
 	authoring: {
@@ -317,7 +317,7 @@ Definition: foundation.#ProductKitDefinition & {
 			container: {}
 			network: {
 				mode: "private"
-				domain: base: "home.test"
+				domain: base: "home"
 				transport: {}
 				dns: {}
 				tls: defaultMode: "internal"

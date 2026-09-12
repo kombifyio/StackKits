@@ -4,6 +4,23 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.28.0](https://github.com/kombifyio/stackKits/compare/d3ae3ec51edc20c8addbcf5e74448616fdaee744...eab3f1934fcb3da0ca0dc7af745598e863730b97) (2026-09-12)
+
+
+### Added
+
+* make .home device enrollment the local default ([#1031](https://github.com/kombifyio/stackKits/issues/1031)) ([eab3f19](https://github.com/kombifyio/stackKits/commit/eab3f1934fcb3da0ca0dc7af745598e863730b97))
+
+
+### Fixed
+
+* **cli:** preserve safe executor failure diagnostics in progress ([#1024](https://github.com/kombifyio/stackKits/issues/1024)) ([e691c6e](https://github.com/kombifyio/stackKits/commit/e691c6ed4b30ee39d39465afcca35e916a663ecc))
+* **mcp:** preserve explicit workload data removal policy ([#1025](https://github.com/kombifyio/stackKits/issues/1025)) ([7964ad1](https://github.com/kombifyio/stackKits/commit/7964ad1184db586eaf8ccc6682ceee58ea100f04))
+* **runtime:** align internal PKI issuer lifetime ([#1029](https://github.com/kombifyio/stackKits/issues/1029)) ([1f2e6f2](https://github.com/kombifyio/stackKits/commit/1f2e6f20db6fdc2956ae6a27c5a1e34052800a9e))
+* **runtime:** bind Basement PKI to existing owner and ingress ([#1027](https://github.com/kombifyio/stackKits/issues/1027)) ([ddc022b](https://github.com/kombifyio/stackKits/commit/ddc022bcc330b4552d83753dd9e89179016ee4bf))
+
+Notes cover changes after VERSION 0.27.0 (d3ae3ec51edc20c8addbcf5e74448616fdaee744), the earliest available contiguous 0.27.x VERSION anchor, through selected source eab3f1934fcb3da0ca0dc7af745598e863730b97.
+
 ## [0.27.3](https://github.com/kombifyio/stackKits/compare/v0.27.2...v0.27.3) (2026-09-12)
 
 

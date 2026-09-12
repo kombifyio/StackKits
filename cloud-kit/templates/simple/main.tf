@@ -44,7 +44,7 @@ terraform {
 variable "domain" {
   type        = string
   description = "Base domain for services"
-  default     = "home.localhost"
+  default     = "home"
 }
 
 variable "network_name" {
@@ -448,7 +448,7 @@ variable "tinyauth_session_expiry" {
 variable "tinyauth_app_url" {
   type        = string
   description = "TinyAuth application URL"
-  default     = "http://auth.home.localhost"
+  default     = "https://auth.home"
 }
 
 variable "tinyauth_oidc_enabled" {
@@ -673,7 +673,7 @@ variable "enable_dnsmasq" {
 
 variable "enable_kombify_point" {
   type        = bool
-  description = "Enable Kombify Point local DNS for *.home or *.<name>.home LAN resolution"
+  description = "Enable the StackKits LAN resolver for the canonical private service zone"
   default     = false
 }
 
@@ -720,7 +720,7 @@ variable "platform_fallback_mode" {
 
 variable "server_lan_ip" {
   type        = string
-  description = "Server LAN IP address for Kombify Point DNS resolution"
+  description = "Server LAN address used by the StackKits resolver and device-enrollment profile"
   default     = ""
 }
 
@@ -790,7 +790,8 @@ locals {
     data.docker_network.paas_traefik[0].name
   )
 
-  # Protocol and entrypoint: local-only StackKits use HTTP; kombify.me is HTTPS at the Cloudflare edge.
+  # Protocol and entrypoint: the enrolled local zone uses Owner-CA HTTPS;
+  # kombify.me is HTTPS at the Cloudflare edge.
   # Coolify's managed Traefik uses http/https entrypoints; StackKit/Dokploy Traefik uses web/websecure.
   proto                    = var.enable_https || local.is_kombify_me ? "https" : "http"
   traefik_http_entrypoint  = local.rp_coolify ? "http" : "web"
@@ -2831,11 +2832,11 @@ resource "null_resource" "step_ca_local_certificate" {
 }
 
 # =============================================================================
-# LOCAL DNS - Kombify Point (LAN DNS mode only)
+# LOCAL DNS - StackKits resolver (private service zone)
 # =============================================================================
 # Resolves the local StackKit zone to the server LAN IP. This is local-only and
-# unrelated to public kombify.me routing. The legacy *.home.localhost mode does
-# not start Kombify Point.
+# unrelated to public kombify.me routing. Device enrollment installs scoped
+# resolution for this zone; router and DHCP configuration are not prerequisites.
 
 resource "null_resource" "check_kombify_point_port" {
   count = local.enable_kombify_point_effective ? 1 : 0
@@ -7152,7 +7153,7 @@ output "step_ca_root_certificate_command" {
 }
 
 output "kombify_point_dns_server" {
-  description = "LAN DNS server IP for router DHCP DNS settings"
+  description = "LAN resolver address consumed by the device-enrollment profile"
   value       = local.enable_kombify_point_effective ? local.kombify_point_target_ip : null
 }
 
@@ -7336,9 +7337,9 @@ output "architecture_summary" {
     ║  2. Passkey: ${local.proto}://${local.domains.id}/setup               ║
     ${(var.enable_dokploy || var.enable_komodo || var.enable_coolify) ? format("║  3. PaaS: %s://%s                          ║", local.proto, var.enable_dokploy ? local.domains.dokploy : (var.enable_komodo ? local.domains.komodo : local.domains.coolify)) : ""}
     ║                                                                   ║
-    ${var.subdomain_prefix != "" ? "║  DNS: Managed by kombify.me (Cloudflare wildcard)                   ║" : (local.enable_kombify_point_effective ? "║  DNS: *.${var.domain} -> ${local.kombify_point_target_ip} via Kombify Point       ║" : "║  DNS: direct host resolution; no LAN resolver started              ║")}
-${local.enable_kombify_point_effective ? "║  Local DNS: Kombify Point running on port 53                       ║" : "║  Local DNS: not enabled                                             ║"}
-    ${local.enable_kombify_point_effective ? "║  Set router DHCP DNS to ${local.kombify_point_target_ip} for auto-resolve       ║" : "║  Localhost legacy mode uses device-local HTTP only                 ║"}
+    ${var.subdomain_prefix != "" ? "║  DNS: Managed by kombify.me (Cloudflare wildcard)                   ║" : (local.enable_kombify_point_effective ? "║  DNS: *.${var.domain} -> ${local.kombify_point_target_ip} via StackKits resolver ║" : "║  DNS: resolver evidence is not available                           ║")}
+${local.enable_kombify_point_effective ? "║  Device enrollment: scoped DNS + Owner CA (OS approval required)  ║" : "║  Device enrollment: blocked until resolver evidence exists         ║"}
+    ${local.enable_kombify_point_effective ? "║  Router/DHCP changes: none                                         ║" : "║  No alternate local URL is generated                               ║"}
     ╚═══════════════════════════════════════════════════════════════════╝
   EOT
 }

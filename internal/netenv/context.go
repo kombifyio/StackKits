@@ -84,8 +84,8 @@ func NodeContextIsCloud(ctx models.NodeContext) bool {
 }
 
 // DefaultLocalDomain returns the local-only domain suffix used when no explicit
-// domain was provided. STACKKIT_LOCAL_DOMAIN lets local test runs switch between
-// DNS-backed names like stack.home and browser-native names like home.localhost.
+// domain was provided. STACKKIT_LOCAL_DOMAIN remains a compatibility override;
+// the shipped default is the device-enrolled, resolver-backed home zone.
 func DefaultLocalDomain() string {
 	domain := strings.ToLower(strings.Trim(strings.TrimSpace(os.Getenv(localDomainEnv)), "."))
 	if domain == "" {

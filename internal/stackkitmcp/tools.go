@@ -443,14 +443,13 @@ func (a *App) stateConsole(ctx context.Context, req *mcp.CallToolRequest, _ stru
 			"mode":            "bootstrapped",
 			"context":         "local",
 			"domain_strategy": "local",
-			"domain":          "home.localhost",
+			"domain":          "home",
 			"compute_tier":    "standard",
 		},
 		"domain_options": []map[string]string{
-			{"id": "local", "domain": "home.localhost"},
+			{"id": "local", "domain": "home"},
 			{"id": "managed", "domain": "kombify.me"},
 			{"id": "custom", "domain": "<custom-domain>"},
-			{"id": "local_dns", "domain": "<local-name>.home"},
 		},
 		"stackkits": []map[string]string{
 			{"id": "basement-kit", "status": "beta"},

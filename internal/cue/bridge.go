@@ -50,9 +50,8 @@ type TFVars struct {
 	// Deprecated alias kept for older generated templates and external tests.
 	EnableDNSMasq bool `json:"enable_dnsmasq"`
 
-	// EnableMDNS turns on the Basement-Kit mDNS responder that advertises flat
-	// <service>.local names for zero-config LAN reachability. Independent of the
-	// primary domain; on for local deployments, off for cloud/kombify.me.
+	// EnableMDNS is a deprecated compatibility field. The canonical local path
+	// never advertises a parallel .local namespace.
 	EnableMDNS bool `json:"enable_mdns"`
 
 	EnableHTTPS   bool   `json:"enable_https"`
@@ -220,15 +219,9 @@ func (b *TerraformBridge) specToTFVars(spec *models.StackSpec) (*TFVars, error) 
 			tfvars.EnableDNSMasq = true
 			tfvars.ServerLANIP = serverLANIPForLocalDNS(spec, caps)
 		}
-		// Basement-Kit mDNS: on for every local deployment (incl. the
-		// home.localhost default, which kombify-point excludes) so <svc>.local
-		// works zero-config on the LAN. Needs the box LAN IP to advertise.
-		if models.RequiresMDNS(tfvars.Domain) {
-			tfvars.EnableMDNS = true
-			if tfvars.ServerLANIP == "" {
-				tfvars.ServerLANIP = serverLANIPForLocalDNS(spec, caps)
-			}
-		}
+		// The product has one canonical local URL set. Do not advertise a
+		// parallel .local/mDNS namespace. Enrolled devices receive scoped DNS
+		// for this exact zone without changing router DHCP settings.
 	}
 
 	b.configureHTTPS(spec, tfvars, isLocalMode, isKombifyMe)

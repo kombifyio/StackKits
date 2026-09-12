@@ -67,7 +67,7 @@ Minimum user intent:
 | StackKit | Which kit to install | `basement-kit` for the primary standalone path |
 | Install mode | Product bootstrap depth | `bootstrapped`; valid values are `bare`, `bootstrapped`, `advanced` |
 | Context | Target environment | `local`, `cloud`, or `pi` |
-| Domain strategy | Routing and user links | `home.localhost`, `kombify.me`, custom domain, or LAN DNS |
+| Domain strategy | Routing and user links | device-enrolled `home`, `kombify.me`, or one custom domain |
 | Workspace/spec path | Where the deployment contract lives | `./stack-spec.yaml` in the selected workspace |
 | Target access | Local shell, SSH, or MCP endpoint | Depends on process variant |
 | Write approval | Permission to mutate the target | Explicit operator approval; MCP write tools also require `STACKKIT_MCP_ALLOW_WRITE=true` |
@@ -81,7 +81,7 @@ Common evidence:
   only that verifier host; LAN, mobile, VPN and public clients need their own
   explicitly scoped evidence;
 - relevant `stackkit logs` output;
-- final Hub URL for local Basement Kit: `http://base.home.localhost`;
+- final Hub URL for local Basement Kit: `https://base.home` from an enrolled device;
 - confirmation that generated artifacts were not hand-edited.
 
 ## Core Decisions Before Install
@@ -154,7 +154,7 @@ Automation does not remove approval. Mutating operations still require either sh
 
 | Level | Name | User choices | Typical examples |
 | --- | --- | --- | --- |
-| `I0` | Default Basement Kit | No meaningful choices beyond accepting defaults | Local `home.localhost`, Basement Kit, default profile |
+| `I0` | Default Basement Kit | No meaningful choices beyond accepting defaults | Device-enrolled local `home`, Basement Kit, default profile |
 | `I1` | Identity and workspace | Email, stack name, workspace/spec path | `--admin-email`, `HOMELAB_DIR`, `stack-spec.yaml` |
 | `I2` | Core rollout profile | Kit, install mode, context, compute tier, service profile | `basement-kit` (context `local`) or `cloud-kit` (context `cloud`), `bootstrapped`, `admin-only` |
 | `I3` | Network/platform target | Domain strategy, SSH target, custom DNS/TLS, selected PaaS | `kombify.me`, custom domain, Cloudflare token, Coolify/Komodo |
@@ -296,7 +296,7 @@ Use when the operator wants the product default:
 
 - Basement Kit;
 - `bootstrapped`;
-- local `home.localhost`;
+- device-enrolled local `home`;
 - default service profile;
 - default selected PaaS.
 
@@ -401,11 +401,10 @@ curl -sSL https://base.stackkit.cc | sh
 
 For local-server tester rollouts, execute this in the target server shell
 itself: SSH session, physical/VM console, or an agent already running on that
-server. The default `home.localhost` URLs are local to that target/browser
-context and are not LAN DNS records. A laptop browser will resolve
-`base.home.localhost` to the laptop, not automatically to the server. Use an
-explicit `DOMAIN`/LAN-DNS path when services must be opened from other devices
-on the network.
+server. The default URLs use `*.home` with Owner-CA HTTPS. Each client enrolls
+once on the LAN so its OS-approved profile scopes `home` lookups to the
+StackKits resolver and trusts the public Owner-CA root. Router/DHCP changes,
+hosts entries and alternate local names are not part of the flow.
 
 Beta validation should pin the tested release explicitly:
 
@@ -470,7 +469,7 @@ Important environment variables (each pre-seeds one decision):
 | --- | --- |
 | `STACKKIT_INSTALL_MODE` | `auto`, `guided`, or `expert`; non-TTY always `auto`. |
 | `HOMELAB_DIR` | Workspace; defaults to `$HOME/my-homelab`. |
-| `DOMAIN` | Own domain; the standalone installer explicitly selects `home.localhost` for target-local browser access. Other devices require a configured LAN domain and DNS. Native CLI authoring retains `home.test` as network intent (Golden Rules §1.11). |
+| `DOMAIN` | Canonical service domain. The standalone default is `home`; a custom value replaces it rather than adding an alias. Local devices consume the scoped resolver/Owner-CA enrollment profile. |
 | `STACKKIT_NAME` | Deployment contract ID; default derives from the workspace name. |
 | `STACKKIT_ADMIN_EMAIL` | Admin/owner email (`KOMBIFY_USER_EMAIL` fallback). |
 | `STACKKIT_BOOTSTRAP_OWNER` | `true` preconfigures the PocketID owner account. |

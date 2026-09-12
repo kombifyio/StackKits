@@ -125,10 +125,10 @@ const (
 	DomainKombifyMe = "kombify.me"
 	DomainHomelab   = "homelab"
 	// DomainHomeLab keeps the historical constant name for compatibility. The
-	// default local deployment domain uses the browser-reserved .localhost
-	// namespace, so generated links resolve without hosts-file edits, LAN DNS,
-	// random host ports, or manual workstation setup.
-	DomainHomeLab             = "home.localhost"
+	// canonical local deployment zone is resolved by the scoped device profile
+	// installed during Home device enrollment. It never relies on .localhost,
+	// mDNS, a hosts file, or router DHCP configuration.
+	DomainHomeLab             = "home"
 	DomainHomeLocalhost       = "home.localhost"
 	DomainStackHome           = "stack.home"
 	DomainHomeKombifyLegacy   = "home.kombify"
@@ -305,21 +305,6 @@ func RequiresKombifyPoint(domain string) bool {
 		return false
 	}
 	return IsLocalDomain(domain)
-}
-
-// RequiresMDNS returns true when a deployment should advertise flat
-// <service>.local names over multicast DNS for zero-config LAN reachability.
-// This is a Basement-Kit (local) concern and is intentionally WIDER than
-// RequiresKombifyPoint: it stays on for the browser-loopback home.localhost /
-// .localhost default too, because the published .local names are independent of
-// the primary domain. It is off for the managed kombify.me domain and any
-// public/cloud domain (mDNS is a LAN-only multicast feature).
-func RequiresMDNS(domain string) bool {
-	domain = strings.ToLower(strings.TrimSpace(domain))
-	if IsKombifyMeDomain(domain) {
-		return false
-	}
-	return IsLocalDomain(domain) || IsLocalhostDomain(domain)
 }
 
 // LocalDNSDomain returns the domain suffix for Kombify Point local DNS mode.

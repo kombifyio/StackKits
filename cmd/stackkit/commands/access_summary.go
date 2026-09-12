@@ -32,33 +32,48 @@ type accessSummary struct {
 	Services        []accessService        `json:"services"`
 	RuntimeServices []accessRuntimeService `json:"runtime_services,omitempty"`
 	SetupActions    []string               `json:"setupActions,omitempty"`
-	// ClientTrust carries the workspace step-ca root identity LAN devices need
-	// to open the printed https links: the CA fingerprint to verify before
-	// trusting it, the workspace-relative certificate path to copy, per-OS
-	// enrollment guidance, and the resolver state. It is advisory manifest
-	// content, never runtime enforcement evidence, and stays absent when no
-	// local custody anchor exists.
+	// ClientTrust carries the device-enrollment handoff for the canonical local
+	// URLs. A device client consumes it to install scoped DNS and the public CA
+	// root with OS approval; it is not an instruction to reconfigure the router.
 	ClientTrust *accessClientTrust `json:"clientTrust,omitempty"`
-	GeneratedAt time.Time          `json:"generatedAt"`
+	// privateRemoteAccessEnabled is derived only from a verified, successfully
+	// applied native plan. It controls the enrollment handoff and is never
+	// serialized as a second authority.
+	privateRemoteAccessEnabled bool
+	GeneratedAt                time.Time `json:"generatedAt"`
 }
 
 // accessClientTrust is the I2 client-trust handoff for one workspace.
 type accessClientTrust struct {
-	Authority       string   `json:"authority"`
-	CAFingerprint   string   `json:"caFingerprint"`
-	CAWorkspacePath string   `json:"caWorkspacePath"`
-	EnrollmentSteps []string `json:"enrollmentSteps"`
-	// Resolver names the realization the kit installs. A LAN device reaches
-	// the node's names once it points at that resolver and trusts the CA;
-	// neither step alone is enough.
+	Authority                   string             `json:"authority"`
+	CAFingerprint               string             `json:"caFingerprint"`
+	CAWorkspacePath             string             `json:"caWorkspacePath"`
+	EnrollmentMode              string             `json:"enrollmentMode"`
+	CanonicalZone               string             `json:"canonicalZone"`
+	OSApprovalRequired          bool               `json:"osApprovalRequired"`
+	RouterConfigurationRequired bool               `json:"routerConfigurationRequired"`
+	InstalledScopes             []string           `json:"installedScopes"`
+	EnrollmentSteps             []string           `json:"enrollmentSteps"`
+	RemoteAccess                accessRemoteAccess `json:"remoteAccess"`
+	// Resolver names the realization the kit installs. Enrollment scopes the
+	// device resolver to CanonicalZone; it does not replace global DNS.
 	Resolver string `json:"resolver"`
-	// ResolverAddress is the exact site address configured in the signed
-	// Unbound zone and therefore the value to enter in router DHCP or a device.
+	// ResolverAddress is the exact site address configured in the signed Unbound
+	// zone and consumed by the device-enrollment profile.
 	ResolverAddress string `json:"resolverAddress,omitempty"`
-	// ResolverSteps is what the operator has to do on the network for the
-	// printed links to open from other devices. Without it the resolver runs
-	// and nothing asks it anything.
+	// ResolverSteps describe verification after the device client has applied
+	// the profile. They never ask the owner to edit router or device DNS.
 	ResolverSteps []string `json:"resolverSteps"`
+}
+
+type accessRemoteAccess struct {
+	Selection            string `json:"selection"`
+	Status               string `json:"status"`
+	CapabilityRef        string `json:"capabilityRef"`
+	TrafficMode          string `json:"trafficMode"`
+	PreservesServiceURLs bool   `json:"preservesServiceUrls"`
+	PublicExposure       bool   `json:"publicExposure"`
+	ReachabilityRule     string `json:"reachabilityRule"`
 }
 
 type accessRuntimeService struct {
@@ -323,12 +338,12 @@ func attachObservedSetupActions(summary *accessSummary, state *models.Deployment
 }
 
 // attachAccessClientTrust fills the advisory client-trust handoff from the
-// workspace step-ca root: fingerprint, certificate path, per-OS enrollment
-// guidance, and the resolver state. It never fails the manifest: without a
-// local custody anchor the section stays absent, which is the honest pending
-// state, never a pass.
+// workspace step-ca root: fingerprint, certificate path, enrollment guidance,
+// and the exact resolver state. It never fails the manifest: outside the
+// canonical private zone, or without complete local custody, the section stays
+// absent. That is the honest pending state, never a pass.
 func attachAccessClientTrust(wd string, summary *accessSummary) {
-	if summary == nil {
+	if summary == nil || strings.TrimSpace(strings.ToLower(summary.Domain)) != models.DomainHomeLab {
 		return
 	}
 	raw, relPath, err := localevidence.BasementStepCARootCAPEM(wd)
@@ -348,32 +363,39 @@ func attachAccessClientTrust(wd string, summary *accessSummary) {
 	for _, b := range digest {
 		groups = append(groups, strings.ToUpper(hex.EncodeToString([]byte{b})))
 	}
-	resolverAddress, _ := localevidence.BasementLANDNSResolverAddress(wd)
-	resolverLabel := "this node's address"
-	if resolverAddress != "" {
-		resolverLabel = resolverAddress
+	resolverAddress, err := localevidence.BasementLANDNSResolverAddress(wd)
+	if err != nil || strings.TrimSpace(resolverAddress) == "" {
+		return
+	}
+	remoteStatus := "not-requested"
+	if summary.privateRemoteAccessEnabled {
+		remoteStatus = "active"
 	}
 	summary.ClientTrust = &accessClientTrust{
-		Authority:       "step-ca basement root",
-		CAFingerprint:   "SHA256:" + strings.Join(groups, ":"),
-		CAWorkspacePath: relPath,
+		Authority:                   "step-ca basement root",
+		CAFingerprint:               "SHA256:" + strings.Join(groups, ":"),
+		CAWorkspacePath:             relPath,
+		EnrollmentMode:              "device-managed",
+		CanonicalZone:               summary.Domain,
+		OSApprovalRequired:          true,
+		RouterConfigurationRequired: false,
+		InstalledScopes:             []string{"dns-zone:" + summary.Domain, "owner-ca"},
 		EnrollmentSteps: []string{
-			"Copy " + relPath + " to the device, then compare its SHA-256 fingerprint with the one above before trusting it.",
-			"Windows: install the certificate into Trusted Root Certification Authorities for the current user.",
-			"macOS: add it to the login keychain and set it to Always Trust.",
-			"Linux: place it under /usr/local/share/ca-certificates and run update-ca-certificates (paths vary by distribution).",
-			"iOS: install the profile, then enable full trust for it under Certificate Trust Settings.",
-			"Android: install the CA certificate, then enable it for apps under trusted credentials.",
-			"After enrollment open the printed https links; passkey registration requires that trusted secure context.",
+			"Connect the device to this Homelab's LAN and start device enrollment from the Base Hub or a Kombify device client.",
+			"Authenticate as a Homelab user and approve the OS profile that installs scoped DNS for " + summary.Domain + " and this Owner CA.",
+			"Register or confirm the device-bound passkey, then open the same printed https service URLs.",
+		},
+		RemoteAccess: accessRemoteAccess{
+			Selection: "optional", Status: remoteStatus, CapabilityRef: "private-remote-access",
+			TrafficMode: "split-tunnel", PreservesServiceURLs: true, PublicExposure: false,
+			ReachabilityRule: "requires an authenticated reachable coordination or relay path",
 		},
 		Resolver:        "lan-dns:unbound",
 		ResolverAddress: resolverAddress,
 		ResolverSteps: []string{
-			"The kit runs the site resolver on this node, answering DNS on port 53 for LAN devices.",
-			"Point the LAN at it: set " + resolverLabel + " as the DNS server in the router's DHCP settings, so every device picks it up on renewal.",
-			"Per device instead: set " + resolverLabel + " as the manual DNS server on the device.",
-			"Verify from another device: a lookup of any printed link's hostname must answer with this node's address.",
-			"The site's names resolve only through this resolver; a device still on the router's default DNS gets no answer for them.",
+			"The kit runs the site resolver on this node and the enrollment profile sends only " + summary.Domain + " lookups to it.",
+			"Verify from the enrolled device that a printed hostname resolves to " + resolverAddress + " and that regular DNS remains unchanged.",
+			"A device without this Homelab's enrollment profile must not resolve or trust the private service URLs.",
 		},
 	}
 }

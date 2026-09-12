@@ -27,7 +27,7 @@
 # Environment variables (all optional; each pre-seeds one decision):
 #   STACKKIT_INSTALL_MODE  auto | guided | expert
 #   HOMELAB_DIR            Workspace (default: $HOME/my-homelab)
-#   DOMAIN                 Own domain (default: target-local home.localhost)
+#   DOMAIN                 Own domain (default: device-enrolled home zone)
 #   STACKKIT_NAME          Deployment contract ID (default: workspace name)
 #   STACKKIT_ADMIN_EMAIL   Admin/owner email (KOMBIFY_USER_EMAIL fallback)
 #   STACKKIT_BOOTSTRAP_OWNER  true|false: preconfigure PocketID owner account
@@ -150,13 +150,13 @@ fi
 
 DOMAIN_VALUE="${DOMAIN:-}"
 if [ -z "$DOMAIN_VALUE" ] && [ "$INSTALL_MODE" != "auto" ]; then
-  if prompt_yn "Use your own domain (instead of the local default home.localhost)?" "n"; then
-    DOMAIN_VALUE=$(prompt_default "Domain" "home.localhost")
+  if prompt_yn "Use your own domain (instead of the local default home)?" "n"; then
+    DOMAIN_VALUE=$(prompt_default "Domain" "home")
   fi
 fi
-# The standalone installer explicitly selects target-local browser access.
-# Native CLI authoring keeps its CUE-owned network intent default.
-DOMAIN_VALUE="${DOMAIN_VALUE:-home.localhost}"
+# The standalone installer and native authoring select the same canonical
+# device-enrolled zone.
+DOMAIN_VALUE="${DOMAIN_VALUE:-home}"
 
 ADMIN_EMAIL="${STACKKIT_ADMIN_EMAIL:-${KOMBIFY_USER_EMAIL:-}}"
 if [ -z "$ADMIN_EMAIL" ] && [ "$INSTALL_MODE" != "auto" ]; then
@@ -687,7 +687,7 @@ fi
 
 # --- Done: print access summary -----------------------------------------------
 
-DOMAIN_EFFECTIVE="home.localhost"
+DOMAIN_EFFECTIVE="home"
 if [ -f "$HOMELAB_DIR/stack-spec.yaml" ]; then
   _d=$(grep -o '"domain":{"base":"[^"]*"' "$HOMELAB_DIR/stack-spec.yaml" | head -1 | sed -E 's/.*"base":"([^"]+)".*/\1/' || true)
   [ -n "$_d" ] && DOMAIN_EFFECTIVE="$_d"

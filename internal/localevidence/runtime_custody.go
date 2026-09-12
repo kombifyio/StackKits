@@ -34,7 +34,7 @@ const (
 
 var (
 	ErrBasementRuntimeCustodyMissing = errors.New("localevidence: no Basement runtime custody")
-	basementRuntimeDomainPattern     = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
+	basementRuntimeDomainPattern     = regexp.MustCompile(`^(?:home|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$`)
 	basementRuntimeFilePaths         = []string{
 		"coolify.env",
 		"lan-dns/a-records.conf",

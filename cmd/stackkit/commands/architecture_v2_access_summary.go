@@ -41,6 +41,9 @@ type architectureV2AccessPlan struct {
 		} `json:"configuration"`
 		Routes []architectureV2AccessRoute `json:"routes"`
 	} `json:"network"`
+	Capabilities []struct {
+		ID string `json:"id"`
+	} `json:"capabilities"`
 	Modules []architectureV2AccessModule `json:"modules"`
 }
 
@@ -171,6 +174,12 @@ func buildArchitectureV2AccessSummaryFromCanonical(canonical []byte, binding arc
 		PlanHash: binding.PlanHash, ApplyResultHash: binding.ApplyResultHash,
 		StackKit: projection.Kit.Slug, StackKitVersion: projection.Kit.Version, Mode: "native-v2", Domain: domain,
 		GeneratedAt: binding.AppliedAt.UTC(),
+	}
+	for _, capability := range projection.Capabilities {
+		if capability.ID == "private-remote-access" {
+			summary.privateRemoteAccessEnabled = true
+			break
+		}
 	}
 
 	catalog := servicecatalog.Default()

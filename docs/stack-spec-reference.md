@@ -197,32 +197,31 @@ owner:
   orchestrator identity envelopes are available solely to the non-public
   Publisher/migration build.
 
-### Mode 3: Local Default (Browser-Native)
+### Mode 3: Local Default (Device-Enrolled)
 
 ```yaml
 context: local
-domain: home.localhost
-# or omit domain entirely (defaults to home.localhost)
+domain: home
+# or omit domain entirely (defaults to home)
 ```
 
-- **Service URLs:** `service.home.localhost` (e.g. `auth.home.localhost`, `whoami.home.localhost`)
+- **Service URLs:** `https://service.home` (for example `https://auth.home`, `https://whoami.home`)
 - **Default PAAS:** `coolify` for v1 local-only/no-domain local and pi StackKits. Native v2 Basement `install.computeTier: low` is standalone Compose and does not keep Coolify.
-- **TLS:** HTTP in local-only mode. Use a public/custom domain for real certificates.
-- **DNS:** Browser/OS `.localhost` handling resolves names to loopback.
+- **TLS:** HTTPS from the existing Owner CA; enrollment installs only its public root after OS approval.
+- **DNS:** StackKits-owned resolver; enrollment sends only the `home` zone to it.
 
 > Note: "local-only" here means the informal deployment context (no domain, no pi). The CUE axis `placementMode: "local-only"` carries its own semantics (exposure=private, coupling=cloudless) and is a different thing — see `docs/placement/`.
-- **Requires:** no hosts-file edits, no router/client DNS setup, no trust-store setup, and no port suffixes in generated user links.
+- **Requires:** one Home-authority device enrollment. No router/DHCP/hosts-file edits, parallel alias, TLS bypass, or port suffix.
 
-### Mode 4: Explicit Named Local DNS
+### Mode 4: Custom Domain
 
 ```yaml
 context: local
-domain: family.home
+domain: family.example.com
 ```
 
-- **Service URLs:** `service.family.home`
-- **TLS:** HTTP for local-only names; real certs require routable public/custom domains.
-- **DNS:** Kombify Point for explicit LAN zones only. Do not present these as ready-to-open links unless StackKit owns or verifies the resolver path.
+- **Service URLs:** `https://service.family.example.com`
+- **TLS/DNS:** The selected Coolify/Traefik or Komodo/Traefik path owns the declared public/custom certificate and DNS integration. No `*.home` alias is added.
 
 ## TLS Challenge Types
 
@@ -394,7 +393,7 @@ name: homelab
 stackkit: basement-kit
 mode: bootstrapped
 context: local
-domain: home.localhost
+domain: home
 compute:
   tier: low
 ssh:
@@ -450,7 +449,7 @@ nodes:
     ip: 10.0.0.5
 ```
 
-Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) and StackKit-owned L3 app bundles are registered through Coolify and route through Coolify's Traefik, with no separate StackKit Traefik in the default path. Files is enabled by default at `http(s)://files.<domain>` with Cloudreve as the standard provider; Nextcloud is the explicit standard/high-tier alternative and must not run in parallel with Cloudreve. Uptime Kuma is automatically bootstrapped with monitors for enabled default services, including Node Hub, StackKit API, Homepage, PocketID, TinyAuth, Coolify, Whoami, Vaultwarden, Immich, and Files. In the Coolify path, those monitors target `coolify-proxy` with the service `Host` header so they validate the real router path without depending on `*.home.localhost` DNS inside the Kuma container. The fallback path must be explicitly enabled and records fallback state rather than managed Coolify evidence.
+Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) and StackKit-owned L3 app bundles are registered through Coolify and route through Coolify's Traefik, with no separate StackKit Traefik in the default path. Files is enabled by default at `http(s)://files.<domain>` with Cloudreve as the standard provider; Nextcloud is the explicit standard/high-tier alternative and must not run in parallel with Cloudreve. Uptime Kuma is automatically bootstrapped with monitors for enabled default services, including Node Hub, StackKit API, Homepage, PocketID, TinyAuth, Coolify, Whoami, Vaultwarden, Immich, and Files. In the Coolify path, those monitors target `coolify-proxy` with the service `Host` header so they validate the real router path without depending on client-side `*.home` DNS inside the Kuma container. The fallback path must be explicitly enabled and records fallback state rather than managed Coolify evidence.
 
 ## Validation Rules
 
@@ -465,8 +464,8 @@ Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami)
 - `application.smart-home.connectors.home-assistant.endpoint` refers to Home Assistant's native product MCP endpoint (`/api/mcp`), not a second StackKits-owned Home Assistant connector.
 - `nextcloud` is valid only for `standard` and `high` compute tiers; low-tier Basement Kit keeps Cloudreve when Files is enabled
 - `tls.provider` auto-selects `challenge: dns` if set
-- `domain: home.localhost` is the local default and must generate portless links that open without hosts-file edits, DNS setup, or trust-store setup
-- `domain: stack.home` is explicit LAN-DNS mode and may enable Kombify Point only when StackKit owns or verifies the resolver path
+- `domain: home` is the local default and must generate Owner-CA HTTPS links consumed by the device-managed scoped DNS/trust enrollment profile
+- local enrollment must not require router/DHCP/hosts-file changes or generate `.local`, `.localhost`, or `.arpa` aliases
 - `domain: kombify.me` requires `subdomainPrefix` plus domain provisioning by an external orchestrator; the public CLI has no Kombify credential or registration path
 - `owner.bootstrapMode: auto` requires `source: cloud` and recovery material by reference or hash, but not `owner.email` or `owner.username`
 - `owner.bootstrapMode: custom` requires `source: local`, `owner.email`, `owner.username`, and an argon2id `recoveryPassphraseHash`

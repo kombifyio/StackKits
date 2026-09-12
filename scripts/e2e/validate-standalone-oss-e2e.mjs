@@ -88,7 +88,7 @@ function isSuffix(host, suffix) {
 }
 
 function isLocalHost(host) {
-  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.home.test') || host === '::1') return true
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.home') || host.endsWith('.home.test') || host === '::1') return true
   if (isIP(host) === 0) return false
   if (/^127(?:\.\d{1,3}){3}$/u.test(host)) return true
   if (/^10(?:\.\d{1,3}){3}$/u.test(host)) return true

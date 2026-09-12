@@ -67,11 +67,11 @@ const REQUIRED_BROWSER_EVIDENCE_CHECKS = [
 ];
 
 const REQUIRED_BROWSER_CHECK_ROUTES = {
-  'pocketid-owner-passkey': { host: 'id.home.localhost', paths: ['/setup', '/settings/account'] },
-  'tinyauth-owner-session': { host: 'auth.home.localhost', paths: ['/', '/logout'] },
-  'photos-demo-content': { host: 'photos.home.localhost', paths: ['/photos'] },
-  'files-demo-content': { host: 'files.home.localhost', paths: ['/stackkit/files/session', '/home'] },
-  'vault-auth-boundary': { host: 'vault.home.localhost', paths: ['/'] },
+  'pocketid-owner-passkey': { host: 'id.home', paths: ['/setup', '/settings/account'] },
+  'tinyauth-owner-session': { host: 'auth.home', paths: ['/', '/logout'] },
+  'photos-demo-content': { host: 'photos.home', paths: ['/photos'] },
+  'files-demo-content': { host: 'files.home', paths: ['/stackkit/files/session', '/home'] },
+  'vault-auth-boundary': { host: 'vault.home', paths: ['/'] },
 };
 
 const MAX_BROWSER_CHECK_DURATION_SECONDS = 15 * 60;
@@ -1365,8 +1365,8 @@ function validateBaseKitBrowserURL(raw) {
   if (parsed.protocol !== 'http:') {
     return `scheme is ${parsed.protocol.replace(/:$/, '') || 'missing'}, want http for SK-S1 local Base Hub`;
   }
-  if (parsed.hostname !== 'base.home.localhost') {
-    return `host is ${parsed.hostname || 'missing'}, want base.home.localhost`;
+  if (parsed.hostname !== 'base.home') {
+    return `host is ${parsed.hostname || 'missing'}, want base.home`;
   }
   if (parsed.pathname && parsed.pathname !== '/') {
     return `path is ${parsed.pathname}, want /`;

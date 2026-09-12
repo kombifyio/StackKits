@@ -22,7 +22,7 @@ Basement, Cloud, and Modern Homelab kits.
 1. Keep all three kits installable from release archives without a private checkout.
 2. Keep public installer endpoints returning executable shell, not website HTML.
 3. Keep generated local links browser-native and portless under
-   `*.home.localhost`.
+   enrolled `*.home`.
 4. Keep default/protected services closed to anonymous `2xx`; public L3
    exposure is allowed only when explicitly configured in access policy.
 

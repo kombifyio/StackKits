@@ -84,6 +84,24 @@ func applicationDeliveryCompatibilityEntries(
 			if !ok {
 				return nil, fmt.Errorf("workload %q alternative %q runtime must be an object", workloadRef, alternativeRef)
 			}
+			deliveries, ok := runtime["allowedDeliveries"].([]any)
+			if !ok || len(deliveries) == 0 {
+				return nil, fmt.Errorf("workload %q alternative %q allowedDeliveries must be a non-empty list", workloadRef, alternativeRef)
+			}
+			applicationAdapter := false
+			for _, delivery := range deliveries {
+				if value, valid := delivery.(string); !valid || value == "" {
+					return nil, fmt.Errorf("workload %q alternative %q has an invalid delivery", workloadRef, alternativeRef)
+				} else if value == "application-adapter" {
+					applicationAdapter = true
+				}
+			}
+			// External-control-plane alternatives are applications, but they are
+			// not delivered by the application adapters represented by this
+			// matrix. Their empty compatibility list is intentional.
+			if !applicationAdapter {
+				continue
+			}
 			compatibility, ok := runtime["compatibility"].([]any)
 			if !ok || len(compatibility) == 0 {
 				return nil, fmt.Errorf("application workload %q has no delivery compatibility rows", workloadRef)

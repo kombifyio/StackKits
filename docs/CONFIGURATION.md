@@ -69,7 +69,7 @@ storage:
 network:
   mode: private
   domain:
-    base: home.test
+    base: home
   tls:
     defaultMode: internal
 sites:
@@ -87,15 +87,13 @@ controlPlane:
   members: [main]
 ```
 
-The seed's `home.test` value is a CUE-owned local-domain setting; it does not
-create DNS, map names to loopback, or enable LAN discovery. A client resolves
-`*.home.test` only when that client's resolver path is configured. The separate
-browser-native `*.home.localhost` convention remains a compatibility/runtime
-path and resolves to the loopback interface of the client opening the link, so
-it is target-local and does not provide access from another LAN device. LAN
-access requires an explicitly enabled and realized LAN capability (for example
-the CUE-declared `lan-dns` capability) together with its resolver path. This
-documentation change does not alter either runtime default.
+The seed's `home` value is the one canonical local service zone. Apply realizes
+the StackKit-owned LAN resolver and Owner-CA HTTPS path. The access manifest
+hands a compatible device client the exact scoped DNS and public Owner-CA root;
+the client applies both after explicit OS approval. It never asks the owner to
+configure router DHCP, a hosts file, or a parallel `.local`, `.localhost`, or
+`.arpa` name. Optional remote access binds the same URLs to a private split
+tunnel. The manifest is a handoff, not proof that a client applied it.
 
 `stackkit init` with `--owner-source=local` derives platform-appropriate absolute
 storage paths and persists Owner custody separately under `.stackkit/custody/`.
@@ -160,7 +158,7 @@ Layer rules are part of the public service contract:
 
 - The Base Node Hub is the bootstrap entrypoint. Local `.localhost` and managed LAN-DNS Base routes are open by default so first setup is reachable before a PocketID user exists. They must show `This page is currently unprotected.` while bootstrap-open; after owner setup, use the `Protect Base Hub` button in the Hub to persist the protection setting and move local Base behind TinyAuth. Public/non-local Base routes remain protected when TinyAuth is enabled. The onboarding panel is hidden on later page loads once the one-time technical bootstrap credentials have been revealed.
 - Other L1/L2 platform services must be complete after rollout. The user must not land in a required upstream setup wizard for the identity layer, reverse proxy, selected PaaS, Uptime Kuma, or routing diagnostics.
-- Uptime Kuma and Whoami are L2 platform services, not L3 apps. Uptime Kuma is bootstrapped automatically and registers monitors for enabled L1/L2/L3 services. Kuma v2 bootstraps use SQLite explicitly, create the local `admin` app account only for setup, disable app auth behind TinyAuth/PocketID, and upsert monitors by name instead of duplicating them. In the Coolify router path, Kuma checks the router-internal endpoint (`coolify-proxy`) with the public service `Host` header instead of relying on container DNS for `*.home.localhost`.
+- Uptime Kuma and Whoami are L2 platform services, not L3 apps. Uptime Kuma is bootstrapped automatically and registers monitors for enabled L1/L2/L3 services. Kuma v2 bootstraps use SQLite explicitly, create the local `admin` app account only for setup, disable app auth behind TinyAuth/PocketID, and upsert monitors by name instead of duplicating them. In the Coolify router path, Kuma checks the router-internal endpoint (`coolify-proxy`) with the service `Host` header instead of relying on client-side DNS for `*.home`.
 - On the exact-v0.6 compatibility line, StackKit-owned L3 application tools are
   PaaS-intended and may expose legacy `on_demand` setup actions. Native v0.8
   does not select, render, or expose Photos, Vault, or Files by default; these
@@ -350,7 +348,7 @@ If this dev helper is enabled, `stackkit apply` writes the handoff into `.stackk
 
 | Variable | Purpose |
 | --- | --- |
-| `STACKKIT_LOCAL_DOMAIN` | Compatibility/local-path override when no explicit `--domain` or `domain:` is set. Its existing helper default remains `home.localhost`; native-v2 authoring uses the CUE seed `home.test` or an explicit `--domain`. This variable does not provision DNS or make a name LAN-wide. |
+| `STACKKIT_LOCAL_DOMAIN` | Compatibility override when no explicit `--domain` or `domain:` is set. The default is `home`; an explicit custom domain becomes the one canonical URL set. The local default is realized by the StackKits resolver and device-enrollment profile. |
 
 ## Retired production-test configuration
 

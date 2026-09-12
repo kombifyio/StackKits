@@ -487,11 +487,11 @@ func ExpectedBasementCoreComposeArtifact() []byte {
 	return RenderBasementCoreComposeForDomain(basementDefaultDomain)
 }
 
-// basementDefaultDomain mirrors basement-kit/stackfile.cue
-// network.defaultDomain (Golden Rules §1.11: browser-native .localhost).
-const basementDefaultDomain = "home.localhost"
+// basementDefaultDomain mirrors basement-kit/stackfile.cue. Enrolled devices
+// resolve this private single-label zone through the scoped LAN-DNS profile.
+const basementDefaultDomain = "home"
 
-var basementDomainPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
+var basementDomainPattern = regexp.MustCompile(`^(?:home|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$`)
 
 func RenderBasementCoreComposeForDomain(domain string) []byte {
 	if !basementDomainPattern.MatchString(domain) {

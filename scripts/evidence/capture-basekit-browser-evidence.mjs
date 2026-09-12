@@ -68,8 +68,8 @@ const REQUIRED_CHECKS = [
 ];
 
 function defaultConfig({ env = process.env, cwd = process.cwd() } = {}) {
-  const domain = env.STACKKIT_BROWSER_DOMAIN || 'home.localhost';
-  const scheme = env.STACKKIT_BROWSER_SCHEME || 'http';
+  const domain = env.STACKKIT_BROWSER_DOMAIN || 'home';
+  const scheme = env.STACKKIT_BROWSER_SCHEME || 'https';
   const serviceURL = (subdomain, suffix = '') => `${scheme}://${subdomain}.${domain}${suffix}`;
   const evidenceRoot = path.resolve(cwd);
   const screenshotDir = path.join(evidenceRoot, 'artifacts', 'scenarios', SCENARIO_ID, 'screenshots');
@@ -389,8 +389,8 @@ Options:
   --owner-email <email>              PocketID Owner email
   --owner-username <username>        PocketID Owner username, default email local-part
   --owner-display-name <name>        PocketID Owner display name
-  --browser-url <url>                Base Hub URL, default http://base.home.localhost
-  --owner-setup-url <url>            PocketID setup URL, default http://id.home.localhost/setup
+  --browser-url <url>                Base Hub URL, default https://base.home
+  --owner-setup-url <url>            PocketID setup URL, default https://id.home/setup
   --auth-url <url>                   TinyAuth URL
   --photos-url <url>                 Photos URL
   --files-url <url>                  Files session bridge URL
@@ -623,7 +623,7 @@ function cookieFromSetCookieHeader(headerValue, browserOrigin) {
     // Playwright addCookies only matches subdomains when the domain is
     // dot-prefixed; without it Chromium stores a host-only cookie and never
     // sends it to app subdomains (e.g. the TinyAuth OAuth state cookie with
-    // Domain=home.localhost must reach auth.home.localhost).
+    // Domain=home must reach auth.home through the enrolled client profile).
     cookie.domain = `.${domain}`;
     cookie.path = cookiePath;
   } else {
