@@ -133,7 +133,8 @@ func (o *osBasementCoreOperations) ApplyProject(ctx context.Context, project Bas
 	if _, ok := basementCoreProjectProfile(project); !ok {
 		return BasementCoreApplyObservation{}, errors.New("Basement core operations do not support the selected local profile")
 	}
-	if _, err := localevidence.LoadBasementRuntimeCustody(o.workspaceRoot); err != nil {
+	originReload, err := localevidence.UpgradeBasementOriginProvisioner(o.workspaceRoot)
+	if err != nil {
 		return BasementCoreApplyObservation{}, fmt.Errorf("verify local Basement runtime custody before Apply: %w", err)
 	}
 	composePath, err := o.persistCompose(project)
@@ -146,6 +147,18 @@ func (o *osBasementCoreOperations) ApplyProject(ctx context.Context, project Bas
 	}
 	if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), environment); err != nil {
 		return BasementCoreApplyObservation{}, fmt.Errorf("local Docker Compose Apply did not complete: %w", err)
+	}
+	if originReload {
+		args := []string{"compose", "--project-name", "stackkit-basement-core", "-f", composePath, "up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "600", "step-ca"}
+		if _, err := o.runner.Run(ctx, args, filepath.Dir(composePath), environment); err != nil {
+			return BasementCoreApplyObservation{}, fmt.Errorf("reload upgraded local step-ca: %w", err)
+		}
+		if err := localevidence.VerifyBasementOriginProvisioner(ctx, o.workspaceRoot); err != nil {
+			return BasementCoreApplyObservation{}, fmt.Errorf("observe reloaded local step-ca: %w", err)
+		}
+		if err := localevidence.CompleteBasementOriginProvisionerUpgrade(o.workspaceRoot); err != nil {
+			return BasementCoreApplyObservation{}, err
+		}
 	}
 	binding, err := o.ownerIdentity.Realize(ctx)
 	if err != nil {

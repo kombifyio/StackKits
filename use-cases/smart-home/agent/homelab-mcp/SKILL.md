@@ -5,7 +5,51 @@ description: Set up the Home Assistant owner and connect agents to its native MC
 
 # Homelab Home Assistant MCP
 
-StackKits generate writes `.stackkit/agent/home-assistant.mcp.json` with `https://smart-home.<domain>/api/mcp`. The UI is `https://smart-home.<domain>`. Auth is Home Assistant OAuth/IndieAuth or a long-lived token the Homelab owner creates. Generate never writes the token.
+## Installation and configuration ownership
+
+Use the recorded installation method, instance origin and management scope.
+Home Assistant's name alone does not establish Container, HAOS, Supervisor or
+permission to change the installation. Existing instances start observed.
+Connecting or disconnecting them must not create an owner, apply defaults,
+replace configuration, or remove the original installation.
+
+New HAOS instances use the versioned baseline through their admitted runtime
+owner. Apply it only to a fresh instance. Imported backups and existing
+instances retain accounts, templates, automations, integrations and personal
+settings. Repeated baseline reconciliation preserves subsequent user changes.
+HAOS and Core versions are separate facts; do not upgrade an existing system
+merely because a catalog pin differs. Container instructions below remain
+specific to the native Container installation.
+
+The Companion helps explore use cases, brainstorm possibilities and perform
+authorized actions through the actual connected capabilities. Inspect the
+available tools and APIs before promising an action. A loaded MCP integration
+does not establish authenticated MCP access, automation editing, Supervisor
+access, backup capability or entity exposure. Report missing capabilities
+explicitly. Do not create an additional guided use-case onboarding flow.
+
+Home Assistant owns native authentication and product setup. Enable MCP only
+after authorization and preserve entity exposure choices. MQTT, Zigbee2MQTT
+and radio forwarding are optional and require an explicit need; they are not
+part of the automatic baseline.
+
+## Recovery
+
+Keep an encrypted backup outside the instance and its recovery key in separate
+secure custody. Verify restoration before treating recovery as available.
+Before updates, create and verify a backup and check the intended HAOS/Core
+version independently. Native backups may omit external databases, MQTT
+services or radio state; account for those dependencies explicitly.
+
+Migration restores into an isolated target and preserves the source and its
+initial backup. Stop the source before transferring devices and activating the
+target; two instances must never control the same installation concurrently.
+Before returning to the source, preserve the new target state, stop the target
+and reactivate the original. Do not merge configurations or delete migration
+backups automatically. Provider operations belong to the authorized runtime
+owner, never to an inferred Home Assistant MCP tool.
+
+For the native Container installation, StackKits generate writes `.stackkit/agent/home-assistant.mcp.json` with `https://smart-home.<domain>/api/mcp`. The UI is `https://smart-home.<domain>`. External instances use the authenticated runtime owner's bound address; do not reuse the Container route for a separate HAOS VM. Auth is Home Assistant OAuth/IndieAuth or a long-lived token the Homelab owner creates. Generate never writes the token.
 
 The Home Assistant MCP Server integration is product-owned config-flow; enable it after the owner exists so `/api/mcp` answers.
 

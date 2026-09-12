@@ -77,14 +77,48 @@ type Engine struct {
 // reuse Engine because the historical Executor contract permits credentials
 // in argv and must remain compatible until its callers migrate.
 type V2Engine struct {
-	Exec      SecretExecutor
-	retention *localbackuppolicy.Retention
+	Exec          SecretExecutor
+	retention     *localbackuppolicy.Retention
+	hostname      string
+	offsite       bool
+	coreModuleRef string
 }
 
 // NewV2Engine binds native-v2 operations to explicit persistent config and
 // cache locations in the local Kopia runtime.
 func NewV2Engine(exec SecretExecutor) V2Engine {
-	return V2Engine{Exec: exec}
+	return V2Engine{Exec: exec, hostname: localbackuppolicy.Hostname}
+}
+
+// NewV2OffsiteEngineForPolicy uses a separate fixed Kopia configuration in the existing
+// governed config volume. Connecting S3 never replaces the local repository.
+func NewV2OffsiteEngineForPolicy(exec SecretExecutor, policy localbackuppolicy.Policy) (V2Engine, error) {
+	raw, err := localbackuppolicy.ArtifactBytes(policy)
+	if err != nil {
+		return V2Engine{}, err
+	}
+	policy, err = localbackuppolicy.Decode(raw)
+	if err != nil {
+		return V2Engine{}, err
+	}
+	if policy.Source.CoreModuleRef != localbackuppolicy.CloudCoreModuleRef || policy.Runtime.NetworkMode != "outbound-no-peer" {
+		return V2Engine{}, fmt.Errorf("offsite Kopia requires the governed Cloud outbound profile")
+	}
+	engine := NewV2Engine(exec)
+	engine.offsite = true
+	engine.hostname = policy.Runtime.Hostname
+	engine.retention = policy.Retention
+	engine.coreModuleRef = policy.Source.CoreModuleRef
+	return engine, nil
+}
+
+const OffsiteConfigFile = localbackuppolicy.ConfigPath + "/offsite-repository.config"
+
+func (e V2Engine) configFile() string {
+	if e.offsite {
+		return OffsiteConfigFile
+	}
+	return DefaultConfigFile
 }
 
 // S3Repository describes an S3-compatible repository target (kombify-managed
@@ -145,6 +179,11 @@ type RepositoryStatus struct {
 	ConfigFile  string `json:"configFile"`
 	Storage     string `json:"storage"`
 	StoragePath string `json:"storagePath"`
+	S3Endpoint  string `json:"s3Endpoint,omitempty"`
+	S3Bucket    string `json:"s3Bucket,omitempty"`
+	S3Prefix    string `json:"s3Prefix,omitempty"`
+	S3Region    string `json:"s3Region,omitempty"`
+	InsecureTLS bool   `json:"insecureTLS,omitempty"`
 }
 
 // SourcePolicy is the typed effective-policy verdict for the governed source.
@@ -189,6 +228,9 @@ func (e V2Engine) CreateFilesystemRepository(ctx context.Context, repositoryPath
 }
 
 func (e V2Engine) createFilesystemRepository(ctx context.Context, repositoryPath string, password []byte) (string, error) {
+	if e.offsite {
+		return "", fmt.Errorf("offsite engine cannot create a filesystem repository")
+	}
 	if repositoryPath != DefaultRepositoryPath {
 		return "", fmt.Errorf("repository path must be %q", DefaultRepositoryPath)
 	}
@@ -212,6 +254,9 @@ func (e V2Engine) ConnectFilesystemRepository(ctx context.Context, repositoryPat
 }
 
 func (e V2Engine) connectFilesystemRepository(ctx context.Context, repositoryPath string, password []byte) (string, error) {
+	if e.offsite {
+		return "", fmt.Errorf("offsite engine cannot connect a filesystem repository")
+	}
 	if repositoryPath != DefaultRepositoryPath {
 		return "", fmt.Errorf("repository path must be %q", DefaultRepositoryPath)
 	}
@@ -258,7 +303,13 @@ func (e V2Engine) RepositoryStatus(ctx context.Context, password []byte) (Reposi
 		var storage struct {
 			Type   string `json:"type"`
 			Config struct {
-				Path string `json:"path"`
+				Path           string `json:"path"`
+				Endpoint       string `json:"endpoint"`
+				Bucket         string `json:"bucket"`
+				Prefix         string `json:"prefix"`
+				Region         string `json:"region"`
+				DoNotUseTLS    bool   `json:"doNotUseTLS"`
+				DoNotVerifyTLS bool   `json:"doNotVerifyTLS"`
 			} `json:"config"`
 		}
 		if err := json.Unmarshal(row.Storage, &storage); err != nil {
@@ -266,6 +317,9 @@ func (e V2Engine) RepositoryStatus(ctx context.Context, password []byte) (Reposi
 		}
 		status.Storage = storage.Type
 		status.StoragePath = storage.Config.Path
+		status.S3Endpoint, status.S3Bucket = storage.Config.Endpoint, storage.Config.Bucket
+		status.S3Prefix, status.S3Region = storage.Config.Prefix, storage.Config.Region
+		status.InsecureTLS = storage.Config.DoNotUseTLS || storage.Config.DoNotVerifyTLS
 	}
 	status.Configured = status.Configured || strings.TrimSpace(status.ConfigFile) != ""
 	return status, nil
@@ -326,7 +380,7 @@ func (e V2Engine) ConfigureSourcePolicy(ctx context.Context, source string, excl
 			return err
 		}
 	}
-	relativeExcludes, err := governedRelativeExcludes(source, excludePaths)
+	relativeExcludes, err := e.governedRelativeExcludes(source, excludePaths)
 	if err != nil {
 		return err
 	}
@@ -384,7 +438,7 @@ func (e V2Engine) ConfigureSourcePolicy(ctx context.Context, source string, excl
 // .kopiaignore, traversal/error filters, timers, actions, and future fields
 // all fail closed instead of changing selection or autonomous behavior.
 func (e V2Engine) SourcePolicy(ctx context.Context, source string, excludePaths []string, password []byte) (SourcePolicy, error) {
-	expected, err := governedRelativeExcludes(source, excludePaths)
+	expected, err := e.governedRelativeExcludes(source, excludePaths)
 	if err != nil {
 		return SourcePolicy{}, err
 	}
@@ -510,12 +564,12 @@ func exactKopiaRetention(raw json.RawMessage, expected *localbackuppolicy.Retent
 	return true
 }
 
-func governedRelativeExcludes(source string, excludePaths []string) ([]string, error) {
+func (e V2Engine) governedRelativeExcludes(source string, excludePaths []string) ([]string, error) {
 	governed := localbackuppolicy.GovernedSource()
 	if source != governed.ContainerPath {
 		return nil, fmt.Errorf("snapshot source must be %q", governed.ContainerPath)
 	}
-	if !localbackuppolicy.IsRecognizedSnapshotSelection(source, excludePaths) {
+	if !localbackuppolicy.IsRecognizedSnapshotSelectionForCoreModule(e.coreModuleRef, source, excludePaths) {
 		return nil, fmt.Errorf("snapshot exclusions must equal the governed local backup policy")
 	}
 	source, err := cleanAbsoluteContainerPath(source)
@@ -623,7 +677,7 @@ func (e V2Engine) CreateSnapshot(ctx context.Context, request SnapshotRequest, p
 	if snapshot.SourcePath != request.Source {
 		return Snapshot{}, fmt.Errorf("kopia snapshot source %q does not match requested source %q", snapshot.SourcePath, request.Source)
 	}
-	if snapshot.SourceHost != localbackuppolicy.Hostname {
+	if snapshot.SourceHost != e.hostname {
 		return Snapshot{}, fmt.Errorf("kopia snapshot host does not match the governed local backup runtime")
 	}
 	if snapshot.Description != request.Description {
@@ -679,7 +733,7 @@ func (e V2Engine) FindSnapshot(ctx context.Context, request SnapshotRequest, pas
 		return Snapshot{}, false, fmt.Errorf("kopia snapshot recovery protection differs from the exact request")
 	}
 	if snapshot.SourcePath != request.Source ||
-		snapshot.SourceHost != localbackuppolicy.Hostname ||
+		snapshot.SourceHost != e.hostname ||
 		snapshot.Description != request.Description {
 		return Snapshot{}, false, fmt.Errorf("snapshot operation %q conflicts with requested source or description", request.OperationID)
 	}
@@ -710,7 +764,7 @@ func (e V2Engine) RestoreSnapshot(
 		"--write-files-atomically",
 		"--no-ignore-permission-errors",
 		"--no-ignore-errors",
-		"--skip-owners",
+		"--no-skip-owners",
 	}, input)
 	clear(input)
 	if restoreErr != nil {
@@ -795,7 +849,7 @@ func (e V2Engine) invoke(ctx context.Context, command []string, sensitiveInput [
 	}
 	argv := append([]string{
 		"kopia",
-		"--config-file", DefaultConfigFile,
+		"--config-file", e.configFile(),
 	}, command...)
 	out, err := e.Exec(ctx, argv, sensitiveInput)
 	if err == nil {

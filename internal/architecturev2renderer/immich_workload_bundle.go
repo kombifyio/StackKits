@@ -30,10 +30,12 @@ type selectedPaaSRuntimeImage struct {
 }
 
 type selectedPaaSRuntimeVolume struct {
-	ID     string `json:"id"`
-	Target string `json:"target"`
-	Class  string `json:"class"`
-	Backup bool   `json:"backup"`
+	HostPath string `json:"hostPath,omitempty"`
+	ID       string `json:"id"`
+	Target   string `json:"target"`
+	Class    string `json:"class"`
+	Backup   bool   `json:"backup"`
+	ReadOnly bool   `json:"readOnly,omitempty"`
 }
 
 type selectedPaaSRuntimeHealth struct {
@@ -50,7 +52,10 @@ type selectedPaaSRuntimeComponent struct {
 	Image             selectedPaaSRuntimeImage    `json:"image"`
 	DependsOn         []string                    `json:"dependsOn"`
 	NetworkRefs       []string                    `json:"networkRefs"`
+	Egress            bool                        `json:"egress,omitempty"`
+	OwnerEnvironment  map[string]string           `json:"ownerEnvironment,omitempty"`
 	Command           []string                    `json:"command,omitempty"`
+	Entrypoint        []string                    `json:"entrypoint,omitempty"`
 	Environment       map[string]string           `json:"environment,omitempty"`
 	SecretEnvironment map[string]string           `json:"secretEnvironment,omitempty"`
 	Volumes           []selectedPaaSRuntimeVolume `json:"volumes,omitempty"`
@@ -319,6 +324,9 @@ func validateImmichWorkloadUnit(unit RenderUnit, contract RendererContract, modu
 
 func validateImmichLiteComponents(components []selectedPaaSRuntimeComponent, path string) error {
 	for _, component := range components {
+		if component.ID == "immich-server" && component.Environment["IMMICH_MACHINE_LEARNING_ENABLED"] != "false" {
+			return fail(ErrInvalidPlan, path, "lite Immich must disable machine-learning work on the server")
+		}
 		if component.ID == "immich-machine-learning" || component.Role == "machine-learning" {
 			return fail(ErrInvalidPlan, path, "lite Immich omits machine-learning")
 		}

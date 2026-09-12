@@ -7,11 +7,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
 )
 
 const (
-	JellyfinPinnedVersion              = "10.10.7"
+	JellyfinPinnedVersion              = architecturev2renderer.JellyfinRelease
 	jellyfinOwnerSessionCleanupTimeout = 5 * time.Second
 )
 
@@ -82,8 +83,8 @@ type jellyfinUserPolicy struct {
 // BootstrapJellyfinOwner performs the bounded Jellyfin owner sequence:
 // version/startup readback, explicit first-user preparation when startup is
 // incomplete, optional startup completion, password login, administrator and
-// startup readback, and caller-owned bounded cleanup. It never reads the
-// FirstUser endpoint or invents default credentials.
+// startup readback, and caller-owned bounded cleanup. The required first-run
+// initialization response is discarded; only explicit owner credentials are used.
 func BootstrapJellyfinOwner(
 	ctx context.Context,
 	client *http.Client,
@@ -162,6 +163,17 @@ func BootstrapJellyfinOwner(
 		)
 	}
 	if !*initialInfo.StartupWizardCompleted {
+		// Jellyfin initializes its first user in GET /Startup/User. The POST
+		// endpoint assumes that user already exists and returns 500 otherwise.
+		// Never decode or use the credential-bearing initialization response.
+		if err := jellyfinJSONRequest(ctx, client, normalizedBaseURL, http.MethodGet, "/Startup/User", "", nil, nil); err != nil {
+			return JellyfinOwnerResult{}, jellyfinDependencyError(
+				"jellyfin_owner_initialization_failed",
+				"failed to initialize the Jellyfin startup user",
+				"GET /Startup/User",
+				err,
+			)
+		}
 		if err := jellyfinJSONRequest(ctx, client, normalizedBaseURL, http.MethodPost, "/Startup/User", "", jellyfinStartupUser{Name: username, Password: password}, nil); err != nil {
 			return JellyfinOwnerResult{}, jellyfinDependencyError(
 				"jellyfin_owner_prepare_failed",
@@ -239,11 +251,11 @@ func BootstrapJellyfinOwner(
 	}
 
 	var finalInfo jellyfinSystemInfo
-	if err := jellyfinJSONRequest(ctx, client, normalizedBaseURL, http.MethodGet, "/System/Info", token, nil, &finalInfo); err != nil {
+	if err := jellyfinJSONRequest(ctx, client, normalizedBaseURL, http.MethodGet, "/System/Info/Public", token, nil, &finalInfo); err != nil {
 		return JellyfinOwnerResult{}, jellyfinDependencyError(
 			"jellyfin_startup_readback_failed",
 			"failed to read back the Jellyfin startup state",
-			"GET /System/Info",
+			"GET /System/Info/Public",
 			err,
 		)
 	}
@@ -258,14 +270,14 @@ func BootstrapJellyfinOwner(
 		return JellyfinOwnerResult{}, skerrors.NewDependencyError(
 			"jellyfin_startup_readback_invalid",
 			"Jellyfin startup readback omitted completion state",
-			skerrors.WithField("operation", "GET /System/Info"),
+			skerrors.WithField("operation", "GET /System/Info/Public"),
 		)
 	}
 	if request.CompleteOnboarding && !*finalInfo.StartupWizardCompleted {
 		return JellyfinOwnerResult{}, skerrors.NewDependencyError(
 			"jellyfin_startup_completion_unconfirmed",
 			"Jellyfin did not confirm startup completion",
-			skerrors.WithField("operation", "GET /System/Info"),
+			skerrors.WithField("operation", "GET /System/Info/Public"),
 		)
 	}
 

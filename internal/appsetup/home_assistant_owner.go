@@ -14,13 +14,14 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 )
 
 const (
 	// HomeAssistantPinnedVersion is the Home Assistant release used by the
 	// native Architecture v2 workload. Callers must bind setup to the version
 	// admitted by their applied workload.
-	HomeAssistantPinnedVersion = "2026.7.2"
+	HomeAssistantPinnedVersion = architecturev2renderer.HomeAssistantRelease
 
 	homeAssistantClientID         = "http://stackkit"
 	homeAssistantRedirectURI      = "http://stackkit"

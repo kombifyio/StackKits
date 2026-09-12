@@ -51,6 +51,9 @@ func NewProductRegistry() (*Registry, error) {
 		ContractHash: securitybaseline.ContractHash(policy),
 	}
 	registry := NewRegistry()
+	if err := registry.Register(HomeAssistantInstanceRendererContract(), homeAssistantInstanceRenderer{}); err != nil {
+		return nil, err
+	}
 	if err := registry.Register(contract, securityBaselineHostPolicyRenderer{policy: append([]byte(nil), policy...), contract: contract}); err != nil {
 		return nil, err
 	}
@@ -135,6 +138,14 @@ func NewProductRegistry() (*Registry, error) {
 	}
 	jellyfinWorkload := newJellyfinWorkloadBundleRenderer()
 	if err := registry.Register(jellyfinWorkload.contract, jellyfinWorkload); err != nil {
+		return nil, err
+	}
+	giteaWorkload := newGiteaWorkloadBundleRenderer()
+	if err := registry.Register(giteaWorkload.contract, giteaWorkload); err != nil {
+		return nil, err
+	}
+	privateAIWorkload := newPrivateAIWorkloadBundleRenderer()
+	if err := registry.Register(privateAIWorkload.contract, privateAIWorkload); err != nil {
 		return nil, err
 	}
 	homeAssistantWorkload := newHomeAssistantWorkloadBundleRenderer()

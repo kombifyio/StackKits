@@ -357,8 +357,23 @@ func (t *Transaction) readStable(relative string, maxBytes int64) ([]byte, os.Fi
 // Rename moves one plain entry between two root-relative names. The
 // destination must not exist, and the platform operation enforces that
 // constraint atomically. installed is true once the confined rename
-// succeeded, including when a later identity check fails.
+// succeeded, including when a later identity check fails. Rename finally
+// re-proves that the original root pathname still names the held directory,
+// so a caller that publishes with this rename observes a replaced root.
 func (t *Transaction) Rename(oldRelative, newRelative string) (installed bool, returnErr error) {
+	return t.rename(oldRelative, newRelative, true)
+}
+
+// RenameHeld applies Rename's handle-relative, no-replace and entry identity
+// guarantees but does not re-prove the root pathname. Multi-step transactions
+// use it so journal, rollback and cleanup renames keep operating on the held
+// directory after its pathname was replaced; such callers must perform their
+// own explicit VerifyPathIdentity at the commit point.
+func (t *Transaction) RenameHeld(oldRelative, newRelative string) (installed bool, returnErr error) {
+	return t.rename(oldRelative, newRelative, false)
+}
+
+func (t *Transaction) rename(oldRelative, newRelative string, requireNamedRoot bool) (installed bool, returnErr error) {
 	oldFull, release, err := t.beginPath("transaction-rename", oldRelative, false)
 	if err != nil {
 		return false, err
@@ -438,8 +453,10 @@ func (t *Transaction) Rename(oldRelative, newRelative string) (installed bool, r
 	if err := view.verifyAtomicParent(newParent, newParentRoot, newParentHandle, newParentInfo); err != nil {
 		return true, err
 	}
-	if err := t.root.verifyPathIdentityLocked(); err != nil {
-		return true, err
+	if requireNamedRoot {
+		if err := t.root.verifyPathIdentityLocked(); err != nil {
+			return true, err
+		}
 	}
 	if err := closeAtomicParent(oldParentRoot, oldParentHandle); err != nil {
 		return true, wrap(ErrIO, "transaction-rename", oldParent, "close held source parent", err)

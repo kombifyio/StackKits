@@ -5,6 +5,8 @@ package jellyfin
 
 import "github.com/kombifyio/stackkits/foundation"
 
+_runtimeImages: foundation.ArchitectureV2ModuleImages["stackkits-jellyfin-runtime"]
+
 Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "jellyfin"
@@ -70,8 +72,8 @@ Contract: foundation.#ModuleContract & {
 	services: jellyfin: foundation.#ServiceDefinition & {
 		name:     "jellyfin"
 		type:     "media"
-		image:    "jellyfin/jellyfin"
-		tag:      "latest"
+		image: _runtimeImages["jellyfin"].image
+		tag: _runtimeImages["jellyfin"].tag
 		upstream: {
 			github: {repo: "jellyfin/jellyfin"}
 		}

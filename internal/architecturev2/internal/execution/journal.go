@@ -484,7 +484,7 @@ func writeTransactionJournal(workspace *confinedfs.Transaction, previous *transa
 	} else if err := workspace.WriteFileExclusive(pendingPath, data, 0o600); err != nil {
 		return &transactionJournalError{Code: transactionJournalIO, Path: pendingPath, Err: err}
 	}
-	installed, err := workspace.Rename(pendingPath, recordPath)
+	installed, err := workspace.RenameHeld(pendingPath, recordPath)
 	if err != nil {
 		return &transactionJournalError{Code: transactionJournalIO, Path: recordPath, Err: err}
 	}

@@ -106,7 +106,8 @@ function toReleaseNote(rawLine, index) {
 }
 
 export function parseChangelogSections(markdown) {
-  const headerExpression = /^## \[([^\]]+)\](?:\([^)]+\))?(?:\s+(?:[-\u2014]\s+(.+)|\(([^)]+)\)))?$/gm
+  markdown = markdown.replace(/^## Unreleased[ \t]*\r?$/gm, '## [Unreleased]')
+  const headerExpression = /^## \[([^\]]+)\](?:\([^)]+\))?(?:[ \t]+(?:[-\u2014][ \t]+(.+)|\(([^)]+)\)))?[ \t]*\r?$/gm
   const matches = [...markdown.matchAll(headerExpression)]
   const sections = []
 
@@ -167,9 +168,9 @@ export function extractLatestMinorReleaseNotes(markdown, options = {}) {
   const lineSections = sections.filter((section) => minorKey(section.version) === currentMinor)
   const highlighted = lineSections.find((section) => getSubsectionBody(section.body, 'Highlights'))
   const baseline = lineSections.find((section) => /^\d+\.\d+\.0(?:[-+].*)?$/u.test(section.version))
-  const release = highlighted || baseline
+  const release = highlighted || baseline || lineSections[0]
   if (!release) {
-    return extractLatestReleaseNotes(markdown, { limit, fallbackVersion })
+    return { version: anchor || fallbackVersion, notes: [] }
   }
 
   const sourceBody = getSubsectionBody(release.body, 'Highlights') || release.body
@@ -191,7 +192,11 @@ export function renderReleaseNotes({
   const normalizedVersion = normalizeVersion(version)
   let sectionIndex = sections.findIndex((section) => section.version === normalizedVersion)
 
-  if (sectionIndex === -1 && allowUnreleased) {
+  if (sectionIndex === -1 && minorKey(normalizedVersion)) {
+    sectionIndex = sections.findIndex((section) => section.version === `${minorKey(normalizedVersion)}.0`)
+  }
+
+  if (sectionIndex === -1 && allowUnreleased && !sections.some((section) => minorKey(section.version))) {
     sectionIndex = sections.findIndex((section) => section.version === 'Unreleased')
   }
 
@@ -205,6 +210,8 @@ export function renderReleaseNotes({
 
   if (section.version === 'Unreleased') {
     notes.unshift(`Release notes for ${version} are rendered from the current Unreleased changelog section.`)
+  } else if (section.version !== normalizedVersion) {
+    notes.unshift(`Release ${normalizedVersion} belongs to the ${minorKey(normalizedVersion)} feature line. The highlights below describe that line; see the full changelog for patch changes.`)
   }
 
   if (compareUrl) {

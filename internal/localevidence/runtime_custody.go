@@ -248,21 +248,50 @@ func LoadBasementRuntimeCustody(workspaceRoot string) (BasementRuntimeCustody, e
 // leaves custody. It also returns the workspace-relative certificate path for
 // user-facing client enrollment guidance.
 func BasementStepCARootCAPEM(workspaceRoot string) (certificate []byte, relPath string, err error) {
-	path, err := confinedCustodyPath(workspaceRoot, basementRuntimeCustodyRelDir+"/step-ca/certs/root_ca.crt")
+	raw, _, err := readBasementRuntimeFile(workspaceRoot, "step-ca/certs/root_ca.crt")
 	if err != nil {
 		return nil, "", err
-	}
-	raw, err := os.ReadFile(path) //nolint:gosec // fixed path below explicit workspace
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, "", ErrBasementRuntimeCustodyMissing
-	}
-	if err != nil {
-		return nil, "", fmt.Errorf("localevidence: read step-ca root certificate: %w", err)
 	}
 	if _, err := parseCertificatePEM(string(raw), "step-ca root"); err != nil {
 		return nil, "", err
 	}
 	return raw, filepath.ToSlash(filepath.Join(basementRuntimeCustodyRelDir, "step-ca", "certs", "root_ca.crt")), nil
+}
+
+// readBasementRuntimeFile returns only bytes authenticated by the verified
+// custody manifest. Recheck the MAC of the bytes actually returned, since a
+// file could change after LoadBasementRuntimeCustody verified the inventory.
+func readBasementRuntimeFile(workspaceRoot, relative string) ([]byte, BasementRuntimeCustody, error) {
+	custody, err := LoadBasementRuntimeCustody(workspaceRoot)
+	if err != nil {
+		return nil, BasementRuntimeCustody{}, err
+	}
+	var signedMAC string
+	for _, file := range custody.Files {
+		if file.Path == relative {
+			signedMAC = file.MAC
+			break
+		}
+	}
+	if signedMAC == "" {
+		return nil, BasementRuntimeCustody{}, errors.New("localevidence: runtime input is absent from verified custody")
+	}
+	path, err := confinedCustodyPath(workspaceRoot, basementRuntimeCustodyRelDir+"/"+relative)
+	if err != nil {
+		return nil, BasementRuntimeCustody{}, err
+	}
+	raw, err := os.ReadFile(path) //nolint:gosec // confined path from the verified closed inventory
+	if err != nil {
+		return nil, BasementRuntimeCustody{}, fmt.Errorf("localevidence: read verified runtime input: %w", err)
+	}
+	key, err := LoadOwnerKey(workspaceRoot)
+	if err != nil {
+		return nil, BasementRuntimeCustody{}, err
+	}
+	if !hmac.Equal([]byte(signedMAC), []byte(basementRuntimeFileMAC(key, relative, raw))) {
+		return nil, BasementRuntimeCustody{}, errors.New("localevidence: runtime input changed after custody verification")
+	}
+	return raw, custody, nil
 }
 
 func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain string, sessionTTLSeconds int) (map[string][]byte, error) {
@@ -321,6 +350,14 @@ func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain 
 	if err != nil {
 		return nil, err
 	}
+	workloadProvisioner, err := basementOriginProvisioner(workspaceRoot)
+	if err != nil {
+		return nil, err
+	}
+	peerProvisioner, err := basementWorkloadProvisioner(workspaceRoot, basementPeerProvisionerName, "clientAuth")
+	if err != nil {
+		return nil, err
+	}
 	config, err := json.MarshalIndent(basementStepCAConfig{
 		Root:     "/home/step/certs/root_ca.crt",
 		Crt:      "/home/step/certs/intermediate_ca.crt",
@@ -330,7 +367,7 @@ func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain 
 		Logger:   basementStepCALogger{Format: "text"},
 		DB:       basementStepCADatabase{Type: "badgerV2", DataSource: "/home/step/db"},
 		Authority: basementStepCAAuthority{
-			Provisioners: []basementStepCAProvisioner{{Type: "ACME", Name: "acme"}},
+			Provisioners: []basementStepCAProvisioner{{Type: "ACME", Name: "acme"}, workloadProvisioner, peerProvisioner},
 		},
 	}, "", "  ")
 	if err != nil {
@@ -707,6 +744,9 @@ type basementStepCAAuthority struct {
 }
 
 type basementStepCAProvisioner struct {
-	Type string `json:"type"`
-	Name string `json:"name"`
+	Type    string            `json:"type"`
+	Name    string            `json:"name"`
+	Key     map[string]string `json:"key,omitempty"`
+	Claims  map[string]any    `json:"claims,omitempty"`
+	Options map[string]any    `json:"options,omitempty"`
 }

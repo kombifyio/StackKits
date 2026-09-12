@@ -99,6 +99,16 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 			return fmt.Errorf("materialize %s initial StackSpec from CUE authority: %w", stackkitName, err)
 		}
 	}
+	var ownerBinding localevidence.LocalBinding
+	if strings.TrimSpace(initOwnerSource) == "local" {
+		ownerBinding, err = architectureV2CanonicalOwnerBinding(
+			validation.CanonicalStackSpec,
+			authoring.StandaloneOwner,
+		)
+		if err != nil {
+			return fmt.Errorf("select local owner binding from canonical StackSpec: %w", err)
+		}
+	}
 	loader := config.NewLoader(wd)
 	specPath, displayPath, _, err := loader.ResolveStackSpecPathForRead(specFile)
 	if err != nil {
@@ -126,10 +136,7 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 	}
 	if strings.TrimSpace(initOwnerSource) == "local" {
 		custody, err := localevidence.EstablishOwnerCustody(wd, localevidence.OwnerCustodyRequest{
-			Binding: localevidence.LocalBinding{
-				SiteRef: authoring.StandaloneOwner.SiteRef, NodeRef: authoring.StandaloneOwner.NodeRef,
-				ChannelRef: authoring.StandaloneOwner.ExecutionChannelRef,
-			},
+			Binding: ownerBinding,
 			Trust: localevidence.TrustProfile{
 				IdentityProvider:     authoring.StandaloneOwner.IdentityProvider,
 				CertificateAuthority: authoring.StandaloneOwner.CertificateAuthority,
@@ -183,6 +190,33 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 	}
 	printArchitectureV2InitSummary(displayPath)
 	return nil
+}
+
+func architectureV2CanonicalOwnerBinding(canonicalStackSpec []byte, authoring *architecturev2.StandaloneOwnerAuthoring) (localevidence.LocalBinding, error) {
+	if authoring == nil {
+		return localevidence.LocalBinding{}, errors.New("CUE-owned standalone local owner contract is missing")
+	}
+	view, err := decodeInventorySpecView(canonicalStackSpec)
+	if err != nil {
+		return localevidence.LocalBinding{}, err
+	}
+	channelRef := strings.TrimSpace(authoring.ExecutionChannelRef)
+	if channelRef == "" {
+		return localevidence.LocalBinding{}, errors.New("CUE-owned execution channel is missing")
+	}
+	if authoredNodeRef := strings.TrimSpace(authoring.NodeRef); authoredNodeRef != "" {
+		if node, _, lookupErr := specNodeByID(view, authoredNodeRef); lookupErr == nil {
+			return localevidence.LocalBinding{SiteRef: node.SiteRef, NodeRef: node.ID, ChannelRef: channelRef}, nil
+		}
+	}
+	selected := enabledSpecNodes(view)
+	if len(selected) != 1 {
+		return localevidence.LocalBinding{}, fmt.Errorf(
+			"CUE-owned owner node %s/%s is absent and canonical StackSpec contains %d enabled nodes; retain that owner node or provide a single-node standalone candidate",
+			strings.TrimSpace(authoring.SiteRef), strings.TrimSpace(authoring.NodeRef), len(selected),
+		)
+	}
+	return localevidence.LocalBinding{SiteRef: selected[0].SiteRef, NodeRef: selected[0].ID, ChannelRef: channelRef}, nil
 }
 
 func architectureV2CanonicalDomain(canonicalStackSpec []byte) (string, error) {

@@ -7,6 +7,8 @@ package home_assistant
 
 import "github.com/kombifyio/stackkits/foundation"
 
+_runtimeImages: foundation.ArchitectureV2ModuleImages["stackkits-home-assistant-runtime"]
+
 Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "home-assistant"
@@ -86,8 +88,8 @@ Contract: foundation.#ModuleContract & {
 		name:        "home-assistant"
 		displayName: "Home Assistant"
 		type:        "application"
-		image:       "ghcr.io/home-assistant/home-assistant"
-		tag:         "2026.7.2@sha256:1476924357b46e80735c13e94232ba5c853cac052e9df4bb28d50fa56348097b"
+		image: _runtimeImages["home-assistant"].image
+		tag: _runtimeImages["home-assistant"].tag
 		upstream: {
 			github:  {repo: "home-assistant/core"}
 		}

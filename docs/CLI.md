@@ -110,6 +110,7 @@ post-install evidence; `status` and HTTP `verify` remain follow-up runtime gaps.
 | `backup` | Configure, inspect, run, verify, restore, and migrate Kopia backups. |
 | `cluster` | Manage multi-node cluster membership. |
 | `compat` | Show published OS support evidence and run non-destructive host prerequisite diagnostics. |
+| `support export` | Write one bounded, redacted local support artifact from an existing rollout log and its run receipts. |
 | `agent` | Emit agent-native install plans, prompts, self-checks, and MCP config. |
 | `kit` | Public release list, verify, and deprecated upgrade alias; Git/CUE import/export exists only in `stackkit-publisher`. |
 | `logs` | List and read structured deploy logs. |
@@ -941,11 +942,36 @@ the exact run ID and complete file digest, so appended or replaced evidence
 must be restarted without the stale cursor. Secret-shaped keys and inline
 credentials are redacted before write and again during structured reads.
 
+### `stackkit support export`
+
+`stackkit support export [run-id] --output <new-file.json>` creates one local
+`stackkit.support-bundle/v1` artifact from the matching structured log and the
+available `.stackkit/runs/<run-id>/` metadata, events, and summary receipts.
+When the run ID is omitted, the newest local log or receipt run is selected.
+JSONL sources retain the newest complete records within a 1 MiB budget and are
+defensively redacted through the same boundary used by structured log reads.
+Incomplete records and earlier truncated records are represented only by safe
+reason-coded notices. An oversized or malformed individual JSON receipt is
+likewise omitted with a notice while the remaining evidence is still exported.
+Diagnostic messages, phases, statuses, and failure classes remain available
+for troubleshooting.
+
+The command only reads local evidence and writes the requested file; it does
+not enable telemetry or send the bundle. The output parent must be an existing
+plain directory. Symlink and junction parents are rejected, the new file is
+created with owner-only custody, and an existing destination is never replaced.
+
 `--json` on Apply, Status, and Verify reserves stdout for exactly one versioned
 JSON value. Early failures and authorization denials retain a non-zero exit and
 emit `stackkit.command-result/v1` with `stackkit.actionable-error/v1`; human
 banner/status text is suppressed. `--progress-jsonl -` cannot share stdout with
 these single-document modes.
+
+For typed Architecture v2 and generated-artifact failures, `reasonCode` retains
+the registered product code, preferring the nested artifact cause. Recognized
+host/runtime conditions keep their existing reason and retryability. Unknown
+typed codes use the generic command reason. Typed error messages are fixed
+public text; paths, diagnostic fields and underlying causes are not serialized.
 
 ### `stackkit completion [bash|zsh|fish|powershell]`
 

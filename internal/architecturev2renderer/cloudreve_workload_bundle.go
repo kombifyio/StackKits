@@ -17,7 +17,7 @@ const (
 	cloudreveImageDigest         = "sha256:f7a464100bf6325e9ba58cb2b0ee60f9a24c58fc2eb90647720bc4b8f3cddd9a"
 )
 
-const cloudreveWorkloadRendererSchema = `stackkit.workload-bundle/v2|CloudreveWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:cloudreve|release:4.18.0|secret-material:not-included`
+const cloudreveWorkloadRendererSchema = `stackkit.workload-bundle/v2|CloudreveWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:cloudreve|release:4.18.0|secret-material:not-included|site-url:declared-https-route`
 
 // CloudreveWorkloadBundleDescriptor is the closed, credential-free runtime
 // artifact accepted by the selected-PaaS executor.
@@ -89,6 +89,14 @@ func ParseCloudreveWorkloadBundle(data []byte) (CloudreveWorkloadBundleDescripto
 	if bundle.DeliveryRoute != nil {
 		if err := validateParsedApplicationDeliveryRoute(*bundle.DeliveryRoute, cloudreveWorkloadModuleID, "files", 5212, path+".deliveryRoute"); err != nil {
 			return CloudreveWorkloadBundleDescriptor{}, err
+		}
+	}
+	for _, component := range components {
+		if configured, present := component.Environment["CR_SETTING_siteURL"]; present {
+			expected, err := applicationHTTPSRootURL(bundle.DeliveryRoute)
+			if err != nil || component.ID != cloudreveWorkloadUnitID || configured != expected {
+				return CloudreveWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".components", "Cloudreve site URL differs from its declared HTTPS route")
+			}
 		}
 	}
 	descriptor := CloudreveWorkloadBundleDescriptor{
@@ -175,6 +183,21 @@ func validateCloudreveWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	}
 	if err := validateCloudreveServiceEndpoint(endpoints[0], path+".serviceEndpoints"); err != nil {
 		return selectedPaaSWorkloadBundle{}, err
+	}
+	for index := range components {
+		if _, provided := components[index].Environment["CR_SETTING_siteURL"]; provided {
+			return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path, "Cloudreve site URL comes only from the delivery route")
+		}
+		if components[index].ID == cloudreveWorkloadUnitID && deliveryRoute != nil {
+			siteURL, err := applicationHTTPSRootURL(deliveryRoute)
+			if err != nil {
+				return selectedPaaSWorkloadBundle{}, err
+			}
+			if components[index].Environment == nil {
+				components[index].Environment = map[string]string{}
+			}
+			components[index].Environment["CR_SETTING_siteURL"] = siteURL
+		}
 	}
 	bundle := selectedPaaSWorkloadBundle{
 		APIVersion: "stackkit.workload-bundle/v2", Kind: "CloudreveWorkloadBundle",

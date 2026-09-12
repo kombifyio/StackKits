@@ -3082,7 +3082,12 @@ _servicePublicationShape: {
 	}
 	dependsOn: [...#ContractID] | *[]
 	networkRefs: [...#ContractID] & list.MinItems(1)
+	// Outbound access for owner-requested downloads; never publishes a port.
+	egress?: bool
+	// Bind existing local owner identity without fabricating a credential.
+	ownerEnvironment?: [string]: "email"
 	command?: [...string & =~"^[^[:cntrl:]]+$"] & list.MinItems(1)
+	entrypoint?: [...string & =~"^[^[:cntrl:]]+$"] & list.MinItems(1)
 	environment?: [string]:       string
 	secretEnvironment?: [string]: #ContractID
 	volumes?: [...{
@@ -3090,6 +3095,7 @@ _servicePublicationShape: {
 		target: #AbsolutePath
 		class:  "persistent" | "cache"
 		backup: bool
+		readOnly?: bool
 	}]
 	health: {
 		kind:  "http" | "command" | "image" | "completion"
@@ -5895,8 +5901,13 @@ _servicePublicationShape: {
 						}]
 					}
 				}]
-				if module.realizationSupport.level != "contract-only" {
+				if module.realizationSupport.level != "contract-only" && module.runtime.kind != "external" {
 					serviceMatches: list.MinItems(1)
+				}
+				if module.runtime.kind == "external" {
+					externalInstance: module.runtime.settings & #ExternalApplicationInstanceV1
+					serviceMatches: list.MaxItems(0)
+					externalHealth: [for health in module.health if health.id == alternative.route.healthRef && health.kind == "contract" {health.id}] & list.MinItems(1) & list.MaxItems(1)
 				}
 				settingsRefs: [for inputRef in alternative.inputs.settings.allowedRefs {
 					ref: inputRef
@@ -8171,8 +8182,13 @@ _servicePublicationShape: {
 			siteRefs: module.siteRefs & workload.siteRefs
 			nodeRefs: module.nodeRefs & workload.nodeRefs
 			serviceMatches: [for unit in module.renderUnits for endpoint in unit.serviceEndpoints if endpoint.serviceRef == workload.alternative.route.serviceRef && endpoint.healthRef == workload.alternative.route.healthRef {unit.id}] & list.MaxItems(1)
-			if module.realizationSupport.level != "contract-only" {
+			if module.realizationSupport.level != "contract-only" && module.runtime.kind != "external" {
 				serviceMatches: list.MinItems(1)
+			}
+			if module.runtime.kind == "external" {
+				externalInstance: module.runtime.settings & #ExternalApplicationInstanceV1
+				serviceMatches: list.MaxItems(0)
+				externalHealth: [for health in gates.health if health.targetKind == "module" && health.targetRef == module.id && health.sourceRef == workload.alternative.route.healthRef && health.kind == "contract" {health.id}] & list.MinItems(1)
 			}
 		}] & list.MinItems(1) & list.MaxItems(1)
 		placementMatches: [for item in placement if item.workloadRef == workload.id && item.siteRefs == workload.siteRefs && item.nodeRefs == workload.nodeRefs {item.workloadRef}] & list.MinItems(1) & list.MaxItems(1)
@@ -8180,7 +8196,7 @@ _servicePublicationShape: {
 			adapterProviderMatches: [for provider in providers if provider.id == workload.alternative.runtime.adapter.providerRef && provider.version == workload.alternative.runtime.adapter.providerVersion && provider.contractHash == workload.alternative.runtime.adapter.providerContractHash && list.Contains(provider.runtimeAdapterRefs, workload.alternative.runtime.adapter.id) {provider.id}] & list.MinItems(1) & list.MaxItems(1)
 			adapterModuleMatches: [for module in modules if module.runtimeAdapter != _|_ if module.id == workload.alternative.runtime.adapter.moduleRef && module.version == workload.alternative.runtime.adapter.moduleVersion && module.contractHash == workload.alternative.runtime.adapter.moduleContractHash && module.providerRef == workload.alternative.runtime.adapter.providerRef && module.runtimeAdapter.id == workload.alternative.runtime.adapter.id {module.id}] & list.MinItems(1) & list.MaxItems(1)
 		}
-		if len(workload.dataClasses) > 0 {
+		if len(workload.dataClasses) > 0 && workload.alternative.runtime.kind != "external" {
 			dataMatches: [
 				for module in modules
 				if module.id == workload.alternative.moduleRef

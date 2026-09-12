@@ -5,6 +5,8 @@ package vaultwarden
 
 import "github.com/kombifyio/stackkits/foundation"
 
+_runtimeImages: foundation.ArchitectureV2ModuleImages["stackkits-vaultwarden-runtime"]
+
 Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "vaultwarden"
@@ -67,8 +69,8 @@ Contract: foundation.#ModuleContract & {
 	services: vaultwarden: foundation.#ServiceDefinition & {
 		name:     "vaultwarden"
 		type:     "application"
-		image:    "vaultwarden/server"
-		tag:      "latest"
+		image: _runtimeImages["vaultwarden"].image
+		tag: _runtimeImages["vaultwarden"].tag
 		upstream: {
 			github: {repo: "dani-garcia/vaultwarden"}
 		}

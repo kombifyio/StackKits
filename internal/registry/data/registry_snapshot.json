@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-09-09T21:20:24Z",
+  "generated_at": "2026-09-12T11:10:47Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -833,6 +833,19 @@
       "core": true
     },
     {
+      "slug": "gitea",
+      "display_name": "Gitea",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Gitea image and storage catalog. Executable owner bootstrap is the native-v2 dev workload; this legacy scaffold is not an unattended installer.",
+      "contract_hash": "0738ee4ec3d3d240ee9e9ee893402eb8fc88f8de77a6536888c7e9387e266a16",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
       "slug": "home-assistant",
       "display_name": "Home Assistant",
       "version": "0.1.0",
@@ -970,6 +983,32 @@
         "pi"
       ],
       "core": true
+    },
+    {
+      "slug": "ollama",
+      "display_name": "Ollama",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Ollama for owner-controlled private AI. Models require an explicit owner download.",
+      "contract_hash": "9068d12aaaa984ab841bb810145fd8544115897a05eeb3d202087ad815a86569",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
+      "slug": "open-webui",
+      "display_name": "Open WebUI",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Open WebUI for owner-controlled private AI. Models require an explicit owner download.",
+      "contract_hash": "f30c950655170884d839c7114043468db69b1564a3baf583705f19bf7f1915ea",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
     },
     {
       "slug": "pocketid",

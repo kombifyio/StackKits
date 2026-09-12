@@ -101,6 +101,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		}
 		changedTests, changedTestTags, testDiscoveryWarning = loadChangedTestNames(repo, opts.mergeBase, changed)
 	}
+	inertGoFiles := declarationFreeGoFiles(repo, opts.mergeBase, changed)
 
 	plan := buildPlan(plannerInput{
 		BaseRef:              opts.baseRef,
@@ -113,6 +114,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		ChangedTests:         changedTests,
 		ChangedTestTags:      changedTestTags,
 		TestDiscoveryWarning: testDiscoveryWarning,
+		InertGoFiles:         inertGoFiles,
 	})
 
 	if opts.format == "shell" {
@@ -352,6 +354,52 @@ func isGoTestName(name string) bool {
 	}
 	next := rune(name[len("Test")])
 	return next < 'a' || next > 'z'
+}
+
+// declarationFreeGoFiles returns changed Go files whose selected base revision
+// and current revision contain only a package clause, ordinary comments and
+// go:generate directives. Other compiler directives retain normal tests.
+// Read/parse failures or declarations on either side also retain normal tests.
+func declarationFreeGoFiles(repo, mergeBase string, files []string) []string {
+	result := []string{}
+	for _, file := range files {
+		if !strings.HasSuffix(file, ".go") || strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		current, err := os.ReadFile(filepath.Join(repo, filepath.FromSlash(file)))
+		if err != nil || !isDeclarationFreeGoSource(current, file) {
+			continue
+		}
+		basePath, err := gitOutput(repo, "ls-tree", "-r", "--name-only", mergeBase, "--", ":(literal)"+file)
+		if err != nil {
+			continue
+		}
+		if basePath != "" {
+			base, err := gitOutput(repo, "cat-file", "-p", mergeBase+":"+file)
+			if err != nil || !isDeclarationFreeGoSource([]byte(base), file) {
+				continue
+			}
+		}
+		result = append(result, file)
+	}
+	return result
+}
+
+// isDeclarationFreeGoSource excludes compiler directives such as go:debug,
+// which can change runtime behavior even without a Go declaration.
+func isDeclarationFreeGoSource(source []byte, filename string) bool {
+	parsed, err := parser.ParseFile(token.NewFileSet(), filename, source, parser.SkipObjectResolution|parser.ParseComments)
+	if err != nil {
+		return false
+	}
+	for _, group := range parsed.Comments {
+		for _, comment := range group.List {
+			if strings.HasPrefix(comment.Text, "//go:") && !strings.HasPrefix(comment.Text, "//go:generate ") {
+				return false
+			}
+		}
+	}
+	return len(parsed.Decls) == 0
 }
 
 func loadGoPackages(repo string) ([]goPackage, error) {

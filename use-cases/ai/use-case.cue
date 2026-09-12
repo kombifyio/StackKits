@@ -1,7 +1,6 @@
 // Package ai defines the Private AI use case package.
 //
-// SK-M1 records the committed product intent only. Ollama and Open WebUI
-// modules, runtime workload, and lifecycle evidence belong to SK-M5.
+// CPU inference with explicit owner model selection. Live producer evidence remains pending.
 package ai
 
 import "github.com/kombifyio/stackkits/foundation"
@@ -14,8 +13,8 @@ Package: foundation.#UseCasePackage & {
 		version:     "0.1.0"
 		layer:       "application"
 		category:    "ai"
-		lifecycle:   "draft"
-		description: "Draft private AI intent for local model serving through Ollama and a supporting Open WebUI, pending SK-M5 module and runtime authority."
+		lifecycle:   "experimental"
+		description: "Private chat with Ollama and Open WebUI using persistent owner data and explicitly downloaded models. CPU runtime is implemented; live producer evidence remains pending."
 	}
 
 	selection: {
@@ -24,37 +23,28 @@ Package: foundation.#UseCasePackage & {
 			moduleSlug: "ollama"
 			role:       "primary"
 			required:   true
-			rationale:  "Ollama is the committed SK-M5 default, but its module and executable workload do not exist yet."
+			rationale:  "Ollama serves owner-selected models on the internal application network."
 			capabilities: ["model-serving", "local-inference"]
 		}
 		alternatives: []
 	}
 
-	defaultRuntimeProfile: "planned-self-hosted-ai"
-	runtimeProfiles: "planned-self-hosted-ai": {
-		displayName: "Planned Self-hosted Private AI"
-		description: "SK-M5 will realize Ollama and Open WebUI on an Owner-selected GPU-capable node through the module facts pipeline."
+	defaultRuntimeProfile: "self-hosted-ai"
+	runtimeProfiles: "self-hosted-ai": {
+		displayName: "Self-hosted Private AI"
+		description: "StackKits realizes Ollama and Open WebUI on one selected node through the existing application adapter. The CPU profile requires 4 cores, 12 GiB RAM and 40 GiB storage; model weights and context may require more."
 		realization: "oss"
 		placementModes: ["local-only", "standard"]
 		managedServerlessEligible: false
 		requiresControlPlane:      false
 		requiresLocalBridge:       false
-		notes: ["This draft profile is catalog intent, not an executable module, generated workload, or runtime receipt."]
+		notes: ["No model is downloaded during installation. Sign in with the owner credentials, then explicitly select and download a model in Open WebUI Admin Settings. Model files persist across restarts; chats and owner data are backup sources. GPU acceleration and live producer proof remain pending."]
 	}
 
 	computeTiers: {
-		low: {
-			included: false
-			reason: "Local inference is GPU/RAM heavy and has no lite graph substitution yet."
-		}
-		standard: {
-			included: false
-			reason: "SK-M5: Ollama/Open WebUI modules and runtime are not executable. When they are, residency is on-demand burst inference, not 24/7 training."
-		}
-		high: {
-			included: false
-			reason: "Same as standard until SK-M5 ships. High is the intended graph (GPU node + burst interactive inference)."
-		}
+		low: {included: false, reason: "CPU inference needs the explicit standard hardware floor."}
+		standard: {included: true, moduleSlug: "ollama", functions: ["model-serving", "local-inference", "chat-interface"], load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}, notes: ["No model is installed automatically. Model weights and context determine additional RAM and disk."]}
+		high: {included: true, moduleSlug: "ollama", functions: ["model-serving", "local-inference", "chat-interface"], load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}, notes: ["Same CPU runtime as standard. GPU passthrough is not configured."]}
 	}
 
 	tools: {
@@ -62,15 +52,17 @@ Package: foundation.#UseCasePackage & {
 			moduleSlug: "ollama"
 			role:       "primary"
 			required:   true
-			rationale:  "Planned local model-serving implementation; module contract pending in SK-M5."
+			rationale:  "Pinned Ollama runtime with a persistent model volume."
 			capabilities: ["model-serving", "local-inference"]
 		}
 		"open-webui": {
 			moduleSlug: "open-webui"
 			role:       "supporting"
 			required:   true
-			rationale:  "Planned user-facing interface for the Ollama runtime; module contract pending in SK-M5."
+			rationale:  "Pinned Open WebUI with owner provisioning, disabled public signup and persistent chat data."
 			capabilities: ["chat-interface", "model-selection"]
 		}
 	}
+	lifecycle: foundation.#StandardUseCaseLifecycle
+	evidence: {healthChecks: ["private-ai-http"], required: ["route", "backup", "runtime-owner", "removal"]}
 }

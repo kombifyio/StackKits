@@ -128,7 +128,7 @@ func (o *osStandaloneComposeWorkloadOperations) waitForApplicationHTTP(ctx conte
 			return fmt.Errorf("standalone application readiness interrupted: %w", errors.Join(err, probeErr))
 		}
 		if probeErr == nil && (status == http.StatusOK || status == http.StatusFound) {
-			return nil
+			return o.recordOriginBackend(ctx, project, address)
 		}
 		if probeErr == nil {
 			probeErr = fmt.Errorf("application returned HTTP status %d", status)
@@ -213,6 +213,7 @@ func (o *osStandaloneComposeWorkloadOperations) ValidateWorkloadObservation(
 }
 
 type standaloneComposeProject struct {
+	unitRef     string
 	name        string
 	directory   string
 	compose     []byte
@@ -261,7 +262,8 @@ func (o *osStandaloneComposeWorkloadOperations) prepare(
 	name := "stackkit-" + bundle.WorkloadRef + "-" + bundle.NodeRef
 	directory := filepath.Join(o.workspaceRoot, ".stackkit", "runtime", "applications", name)
 	return standaloneComposeProject{
-		name: name, directory: directory, compose: compose, environment: environment,
+		unitRef: deployment.UnitRef,
+		name:    name, directory: directory, compose: compose, environment: environment,
 		configFiles: configFiles, bundle: bundle, entry: entry,
 	}, nil
 }
@@ -280,9 +282,10 @@ type standaloneComposeService struct {
 	OOMScoreAdj *int                                   `yaml:"oom_score_adj,omitempty"`
 	Deploy      *standaloneComposeDeploy               `yaml:"deploy,omitempty"`
 	Command     []string                               `yaml:"command,omitempty"`
+	Entrypoint  []string                               `yaml:"entrypoint,omitempty"`
 	DependsOn   map[string]standaloneComposeDependency `yaml:"depends_on,omitempty"`
 	Environment map[string]string                      `yaml:"environment,omitempty"`
-	Volumes     []string                               `yaml:"volumes,omitempty"`
+	Volumes     []any                                  `yaml:"volumes,omitempty"`
 	Networks    []string                               `yaml:"networks"`
 	Ports       []string                               `yaml:"ports,omitempty"`
 	Labels      map[string]string                      `yaml:"labels,omitempty"`
@@ -418,11 +421,18 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 	for _, component := range bundle.Components {
 		service := standaloneComposeService{
 			Image:       component.ImageRef + "@" + component.ImageDigest,
-			Command:     append([]string(nil), component.Command...),
+			Command:     standaloneComposeLiteralArguments(component.Command),
+			Entrypoint:  standaloneComposeLiteralArguments(component.Entrypoint),
 			DependsOn:   map[string]standaloneComposeDependency{},
 			Environment: map[string]string{}, Networks: append([]string(nil), component.NetworkRefs...),
 		}
 		service.Deploy = componentDeploy(component.Resources)
+		if component.Egress {
+			// The component remains un-published. This bridge supplies outbound
+			// access independently of the application's ingress route.
+			document.Networks["stackkit-workload-egress"] = standaloneComposeNetwork{}
+			service.Networks = append(service.Networks, "stackkit-workload-egress")
+		}
 		if component.Lifecycle == "daemon" {
 			service.Restart = "unless-stopped"
 			service.Logging = workloadLogging()
@@ -436,7 +446,21 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 			service.DependsOn[dependency] = standaloneComposeDependency{Condition: condition}
 		}
 		for key, value := range component.Environment {
-			service.Environment[key] = value
+			service.Environment[key] = strings.ReplaceAll(value, "$", "$$")
+		}
+		if len(component.OwnerEnvironment) > 0 {
+			owner, err := localevidence.LoadOwnerCustody(o.workspaceRoot)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("resolve workload owner identity: %w", err)
+			}
+			for key, field := range component.OwnerEnvironment {
+				_, hasPublic := component.Environment[key]
+				_, hasSecret := component.SecretEnvironment[key]
+				if key == "" || field != "email" || strings.TrimSpace(owner.PocketID.Email) == "" || hasPublic || hasSecret {
+					return nil, nil, nil, errors.New("workload owner identity binding is invalid or ambiguous")
+				}
+				service.Environment[key] = strings.ReplaceAll(owner.PocketID.Email, "$", "$$")
+			}
 		}
 		for environmentName, slot := range component.SecretEnvironment {
 			secretRef, exists := bundle.SecretRefs[slot]
@@ -452,9 +476,23 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 			service.Environment[environmentName] = "${" + variable + ":?required}"
 		}
 		for _, volume := range component.Volumes {
+			if volume.HostPath != "" {
+				if bundle.ModuleRef != "stackkits-jellyfin-runtime" || component.ID != "jellyfin" || volume.ID != "library" || volume.Target != "/media" || !volume.ReadOnly || volume.Backup {
+					return nil, nil, nil, errors.New("host source is only permitted for the read-only owner-custodied media library")
+				}
+				service.Volumes = append(service.Volumes, map[string]any{
+					"type": "bind", "source": volume.HostPath, "target": volume.Target,
+					"read_only": true, "bind": map[string]any{"create_host_path": false},
+				})
+				continue
+			}
 			ref := component.ID + "-" + volume.ID
 			document.Volumes[ref] = map[string]any{}
-			service.Volumes = append(service.Volumes, ref+":"+volume.Target)
+			mount := ref + ":" + volume.Target
+			if volume.ReadOnly {
+				mount += ":ro"
+			}
+			service.Volumes = append(service.Volumes, mount)
 		}
 		for _, file := range bundle.ConfigFiles {
 			if !standaloneComposeVolumeOwnsPath(component.Volumes, file.Path) {
@@ -467,7 +505,7 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 		}
 		if len(component.HealthCommand) > 0 {
 			service.Healthcheck = &standaloneComposeHealthcheck{
-				Test:     append([]string{"CMD"}, component.HealthCommand...),
+				Test:     append([]string{"CMD"}, standaloneComposeLiteralArguments(component.HealthCommand)...),
 				Interval: "10s", Timeout: "5s", Retries: 12, StartPeriod: "10s",
 			}
 		}
@@ -488,7 +526,9 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 			}
 		}
 		sort.Strings(service.Networks)
-		sort.Strings(service.Volumes)
+		sort.SliceStable(service.Volumes, func(i, j int) bool {
+			return fmt.Sprint(service.Volumes[i]) < fmt.Sprint(service.Volumes[j])
+		})
 		document.Services[component.ID] = service
 	}
 	if len(assignedConfig) != len(bundle.ConfigFiles) {
@@ -511,6 +551,16 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 		environment.WriteByte('\n')
 	}
 	return compose, []byte(environment.String()), configFiles, nil
+}
+
+// Values in the governed bundle belong to the container, not the Compose host.
+// Only the generated secret environment references intentionally interpolate.
+func standaloneComposeLiteralArguments(values []string) []string {
+	result := make([]string, len(values))
+	for i, value := range values {
+		result[i] = strings.ReplaceAll(value, "$", "$$")
+	}
+	return result
 }
 
 func standaloneComposeVolumeOwnsPath(volumes []architecturev2renderer.ApplicationDeliveryVolumeDescriptor, path string) bool {
@@ -662,7 +712,7 @@ func standaloneComposeArgs(project standaloneComposeProject, operation string) [
 	case "up":
 		return append(prefix, "up", "-d", "--wait", "--wait-timeout", "600")
 	case "ps":
-		return append(prefix, "ps", "--all", "--format", "json")
+		return append(prefix, "ps", "--all", "--no-trunc", "--format", "json")
 	case "port":
 		return append(prefix, "port", project.bundle.EntryComponent, strconv.Itoa(project.entry.HealthPort))
 	default:

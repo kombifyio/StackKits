@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"reflect"
 )
 
 const (
@@ -13,11 +14,10 @@ const (
 	jellyfinWorkloadTemplateRef = "builtin://workloads/jellyfin/bundle/v2.json"
 	jellyfinWorkloadVersion     = "2.0.0"
 	jellyfinWorkloadOutputRef   = "workloads/jellyfin/bundle.json"
-	jellyfinImageRef            = "docker.io/jellyfin/jellyfin:10.10.7"
-	jellyfinImageDigest         = "sha256:7ae36aab93ef9b6aaff02b37f8bb23df84bb2d7a3f6054ec8fc466072a648ce2"
 )
 
-const jellyfinWorkloadRendererSchema = `stackkit.workload-bundle/v2|JellyfinWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:jellyfin|release:10.10.7|secret-material:not-included|library-backup:owner-custodied`
+const jellyfinWorkloadRendererSchema = `stackkit.workload-bundle/v2|JellyfinWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:jellyfin|release:` +
+	jellyfinRelease + `|secret-material:not-included|library-backup:owner-custodied|library-mount:read-only|source:storage.hostRoots.mediaRoot`
 
 type JellyfinWorkloadBundleDescriptor struct {
 	WorkloadRef string
@@ -68,11 +68,11 @@ func ParseJellyfinWorkloadBundle(data []byte) (JellyfinWorkloadBundleDescriptor,
 	}
 	if bundle.APIVersion != "stackkit.workload-bundle/v2" || bundle.Kind != "JellyfinWorkloadBundle" ||
 		bundle.Workload.Ref != "media" || bundle.Workload.AlternativeRef != "jellyfin" ||
-		bundle.Workload.ModuleRef != jellyfinWorkloadModuleID || bundle.Workload.Release != "10.10.7" ||
+		bundle.Workload.ModuleRef != jellyfinWorkloadModuleID || bundle.Workload.Release != jellyfinRelease ||
 		bundle.Workload.Delivery != "application-adapter" || bundle.Workload.EntryComponent != jellyfinWorkloadUnitID ||
 		bundle.Ownership.ExecutionAdapter != "selected-application-adapter" ||
 		bundle.Ownership.ProviderLifecycle != "not-owned" || bundle.Ownership.Credentials != "opaque-references-only" {
-		return JellyfinWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed Jellyfin 10.10.7 contract")
+		return JellyfinWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed Jellyfin "+jellyfinRelease+" contract")
 	}
 	if len(bundle.SecretRefs) != 0 {
 		return JellyfinWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "Jellyfin single-container contract accepts no secret material")
@@ -90,7 +90,7 @@ func ParseJellyfinWorkloadBundle(data []byte) (JellyfinWorkloadBundleDescriptor,
 		}
 	}
 	descriptor := JellyfinWorkloadBundleDescriptor{
-		WorkloadRef: "media", ModuleRef: jellyfinWorkloadModuleID, Release: "10.10.7",
+		WorkloadRef: "media", ModuleRef: jellyfinWorkloadModuleID, Release: jellyfinRelease,
 		SiteRef: bundle.Target.SiteRef, NodeRef: bundle.Target.NodeRef, InstanceRef: bundle.Target.InstanceRef,
 		Components: make([]SelectedPaaSWorkloadComponentDescriptor, len(components)),
 	}
@@ -123,7 +123,7 @@ func validateJellyfinWorkloadUnit(unit RenderUnit, contract RendererContract) (s
 	if unit.RuntimeKind() != "container" || unit.RuntimeDelivery() != "application-adapter" ||
 		!hasEngine || engine != "docker" || !hasImage || imageRef != jellyfinImageRef ||
 		!hasDigest || imageDigest != jellyfinImageDigest || !hasEntry || entry != jellyfinWorkloadUnitID {
-		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime", "runtime identity must match the exact Jellyfin 10.10.7 contract")
+		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime", "runtime identity must match the exact Jellyfin "+jellyfinRelease+" contract")
 	}
 	siteRef, hasSite := unit.SiteRef()
 	nodeRef, hasNode := unit.NodeRef()
@@ -139,7 +139,7 @@ func validateJellyfinWorkloadUnit(unit RenderUnit, contract RendererContract) (s
 	if hasDaemonRef || hasDaemonInstance || hasDaemonEngine || hasDaemonSocket {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".instances", "selected-PaaS workload receives no daemon or socket authority")
 	}
-	deliveryRoute, err := validateApplicationDeliveryRouteInput(unit, jellyfinWorkloadModuleID, "media", 8096, path+".inputs")
+	deliveryRoute, mediaRoot, err := validateJellyfinDeliveryInputs(unit, path+".inputs")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
@@ -167,6 +167,11 @@ func validateJellyfinWorkloadUnit(unit RenderUnit, contract RendererContract) (s
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
+	for index := range components[0].Volumes {
+		if components[0].Volumes[index].ID == "library" {
+			components[0].Volumes[index].HostPath = mediaRoot
+		}
+	}
 	var endpoints []selectedPaaSServiceEndpoint
 	if err := decodeStrict(unit.ServiceEndpointsJSON(), &endpoints); err != nil || len(endpoints) != 1 {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".serviceEndpoints", "requires one exact media endpoint")
@@ -179,7 +184,7 @@ func validateJellyfinWorkloadUnit(unit RenderUnit, contract RendererContract) (s
 		SecretRefs: map[string]string{}, Components: components, Route: endpoints[0], DeliveryRoute: deliveryRoute,
 	}
 	bundle.Workload.Ref, bundle.Workload.AlternativeRef = "media", "jellyfin"
-	bundle.Workload.ModuleRef, bundle.Workload.Release = jellyfinWorkloadModuleID, "10.10.7"
+	bundle.Workload.ModuleRef, bundle.Workload.Release = jellyfinWorkloadModuleID, jellyfinRelease
 	bundle.Workload.Delivery, bundle.Workload.EntryComponent = "application-adapter", entry
 	bundle.Target.SiteRef, bundle.Target.NodeRef, bundle.Target.InstanceRef = siteRef, nodeRef, unit.InstanceID()
 	bundle.Ownership.ExecutionAdapter = "selected-application-adapter"
@@ -192,23 +197,60 @@ func validateJellyfinRuntimeComponents(components []selectedPaaSRuntimeComponent
 	if len(components) != 1 || components[0].ID != "jellyfin" || components[0].Lifecycle != "daemon" ||
 		components[0].Image.Ref != jellyfinImageRef || components[0].Image.Digest != jellyfinImageDigest ||
 		components[0].Health.Kind != "http" || components[0].Health.Path != "/health" || components[0].Health.Port != 8096 {
-		return nil, fail(ErrInvalidPlan, path, "Jellyfin runtime graph differs from the closed 10.10.7 contract")
+		return nil, fail(ErrInvalidPlan, path, "Jellyfin runtime graph differs from the closed "+jellyfinRelease+" contract")
 	}
 	want := map[string]selectedPaaSRuntimeVolume{
 		"config":  {ID: "config", Target: "/config", Class: "persistent", Backup: true},
 		"cache":   {ID: "cache", Target: "/cache", Class: "cache", Backup: false},
-		"library": {ID: "library", Target: "/media", Class: "persistent", Backup: false},
+		"library": {ID: "library", Target: "/media", Class: "persistent", Backup: false, ReadOnly: true},
 	}
 	if len(components[0].Volumes) != len(want) {
 		return nil, fail(ErrInvalidPlan, path+".volumes", "Jellyfin requires config, cache, and owner-custodied library volumes")
 	}
 	for _, volume := range components[0].Volumes {
 		expected, ok := want[volume.ID]
+		if volume.ID == "library" && volume.HostPath != "" {
+			if !safeCoreHostBootstrapStoragePath(volume.HostPath) {
+				return nil, fail(ErrInvalidPlan, path+".volumes", "media source must be a clean path beneath a governed storage root")
+			}
+			expected.HostPath = volume.HostPath
+		}
 		if !ok || volume != expected {
 			return nil, fail(ErrInvalidPlan, path+".volumes", "Jellyfin volume %q differs from the closed contract", volume.ID)
 		}
 	}
 	return components, nil
+}
+
+func validateJellyfinDeliveryInputs(unit RenderUnit, path string) (*applicationDeliveryRoute, string, error) {
+	if !exactStringList(unit.PublicInputRefs(), []string{"delivery-route", "storage-roots"}) || len(unit.PlanInputRefs()) != 0 || !emptyJSONObject(unit.PlanInputsJSON()) {
+		return nil, "", fail(ErrInvalidPlan, path, "requires the exact delivery route and host storage bindings")
+	}
+	var bindings []rawModuleRenderInputBinding
+	expected := []rawModuleRenderInputBinding{
+		{TargetRef: "delivery-route", SourceRef: "network.moduleRoute", ValueType: "authority-bound-module-route-v1", Cardinality: "single", DefaultValue: json.RawMessage("null")},
+		{TargetRef: "storage-roots", SourceRef: "storage.hostRoots", ValueType: "host-storage-roots-v1", Cardinality: "single", Required: true},
+	}
+	if err := decodeStrict(unit.InputBindingsJSON(), &bindings); err != nil || !reflect.DeepEqual(bindings, expected) {
+		return nil, "", fail(ErrInvalidPlan, path, "media bindings differ from the compiler-owned contract")
+	}
+	var values struct {
+		Route   *applicationDeliveryRoute `json:"delivery-route"`
+		Storage coreHostStorageRootsInput `json:"storage-roots"`
+	}
+	if err := decodeStrict(unit.ValuesJSON(), &values); err != nil {
+		return nil, "", wrap(ErrInvalidPlan, path, "decode media delivery inputs", err)
+	}
+	storage, err := decodeCoreHostStorageRootsJSON(values.Storage, path+".storage-roots")
+	if err != nil {
+		return nil, "", err
+	}
+	if values.Route != nil {
+		if err := validateParsedApplicationDeliveryRoute(*values.Route, jellyfinWorkloadModuleID, "media", 8096, path+".delivery-route"); err != nil {
+			return nil, "", err
+		}
+	}
+	return values.Route, storage.MediaRoot, nil
 }
 
 func validateJellyfinServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path string) error {

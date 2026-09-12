@@ -46,7 +46,7 @@ their native rollout support.
 | Files | `cloudreve` | Nextcloud and DMS are planned product intent; no native rollout or migration parity is claimed. |
 | Photos | `immich` | `immich-lite` is an explicit alternative without ML search. Core Lite does not select it implicitly. |
 | Media | `jellyfin` | No bundled `*arr` stack; the owner supplies and retains custody of the media library. |
-| Smart Home | `home-assistant` | Container only; Home Assistant OS, Supervisor, Home Bridge, MQTT, and Zigbee provisioning are not native alternatives. Cloud placement grants no Home LAN access. |
+| Smart Home | `home-assistant` | Container mode has no Supervisor or automatic MQTT/Zigbee provisioning. Use the explicitly admitted HAOS alternative for appliance integration. Planned MQTT/Zigbee integration uses existing upstream services. Cloud placement grants no Home LAN access. |
 | Vault | `vaultwarden` | The owner creates the encrypted account through the official client; StackKits does not handle the master password. |
 
 These defaults identify the implementation to select for an enabled application;
@@ -79,6 +79,25 @@ Changes to the retained v2alpha1 graph instead start in
 accordingly. Cloud YAML `low` is kitio roundtrip only and has no legacy graph.
 
 ## Authoring Flow
+
+The public CLI includes the local module authoring path. From a checkout with
+the `foundation/` CUE package, render declared upstream facts and validate the
+result using the same CLI:
+
+```bash
+stackkit module scaffold --facts path/to/module_facts.json --out modules/my-service
+stackkit module lint --module modules/my-service
+```
+
+Scaffolding produces a draft `module.cue` and reference smoke artifacts; it
+does not activate a workload or claim runtime readiness. When facts use
+`imageSource`, supply `--catalog path/to/catalog.json` to resolve the existing
+CUE-owned image version. Release preparation remains in the publisher build.
+After authoring the atomic module, connect its explicit profiles and lifecycle
+to the existing [Use Case Package definitions](../use-cases/) and kit catalog.
+The [CUE package contract](../foundation/use_case.cue) defines how a use case
+combines atomic modules; executable alternatives and module profiles remain
+owned by the [Architecture v2 catalog](../foundation/architecture_v2_catalog.cue).
 
 1. Define or update the CUE/module contract first under `modules/`, the
    relevant kit directory, or `base/`.

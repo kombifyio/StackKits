@@ -241,6 +241,9 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 	}
 	constructors := []func() (architecturev2.ProductRuntimeOwnerRegistration, error){
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return newArchitectureV2CloudBackupRegistration(workspaceRoot, runtimeVersion)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductHostAdmissionRegistration(runtimeVersion)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
@@ -312,6 +315,12 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductLocalAutonomyRegistration(runtimeVersion, policies)
 		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductBridgeOriginMTLSRegistration(runtimeVersion, runtimeexecutorlocal.NewOSBridgeOriginMTLSOperations(workspaceRoot))
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductFederationLinkRegistration(runtimeVersion, runtimeexecutorlocal.NewOSFederationLinkOperations(workspaceRoot))
+		},
 	}
 	registrations := make([]architecturev2.ProductRuntimeOwnerRegistration, 0, len(constructors))
 	for index, construct := range constructors {
@@ -327,6 +336,12 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 	}
 	standaloneApplications := []func() (architecturev2.ProductRuntimeOwnerRegistration, error){
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductGiteaSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductPrivateAISelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductImmichSelectedPaaSRegistration(
 				runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations,
 			)
@@ -338,6 +353,16 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductVaultwardenSelectedPaaSRegistration(
+				runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations,
+			)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductJellyfinSelectedPaaSRegistration(
+				runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations,
+			)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductHomeAssistantSelectedPaaSRegistration(
 				runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations,
 			)
 		},
@@ -358,13 +383,10 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 		// remote static set so an Inventory-backed hybrid channel cannot route
 		// certificate verification through an unbound Techstack adapter.
 		remote, err := architecturev2.NewProductRemoteStaticRuntimeOwnerRegistrations(
-			architecturev2.ProductRuntimeOwnerCloudOffsiteBackup,
 			architecturev2.ProductRuntimeOwnerModernHomeIdentity,
 			architecturev2.ProductRuntimeOwnerModernCloudIdentity,
-			architecturev2.ProductRuntimeOwnerFederationLink,
 			architecturev2.ProductRuntimeOwnerFederationControlAgent,
 			architecturev2.ProductRuntimeOwnerBridgePublication,
-			architecturev2.ProductRuntimeOwnerBridgeOriginMTLS,
 			architecturev2.ProductRuntimeOwnerModernFederationPolicy,
 			architecturev2.ProductRuntimeOwnerFederationBackup,
 			architecturev2.ProductRuntimeOwnerFederationObservability,

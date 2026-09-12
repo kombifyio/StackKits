@@ -302,7 +302,7 @@ func inspectNativeV2BackupAuthority(ctx context.Context, workspace, requestedSpe
 	if policy.Source.CoreModuleRef != "" && policy.Source.CoreModuleRef != coreModuleRef {
 		return nativeV2BackupAuthority{}, errors.New("local Kopia policy source differs from the applied Core profile")
 	}
-	if coreModuleRef == localbackuppolicy.CoreLiteModuleRef && policy.Source.CoreModuleRef != coreModuleRef {
+	if coreModuleRef != localbackuppolicy.CoreModuleRef && policy.Source.CoreModuleRef != coreModuleRef {
 		return nativeV2BackupAuthority{}, errors.New("CoreLite local Kopia policy must carry its explicit Core profile")
 	}
 	return nativeV2BackupAuthority{
@@ -415,7 +415,7 @@ func nativeV2BackupPolicyRequirement(
 			continue
 		}
 		if candidate.ModuleRef != localbackuppolicy.CoreModuleRef &&
-			candidate.ModuleRef != localbackuppolicy.CoreLiteModuleRef {
+			candidate.ModuleRef != localbackuppolicy.CoreLiteModuleRef && candidate.ModuleRef != localbackuppolicy.CloudCoreModuleRef {
 			continue
 		}
 		if len(candidate.SiteRefs) != 1 || candidate.SiteRefs[0] != siteRef ||

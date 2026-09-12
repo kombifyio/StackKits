@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v1",
-  "source_sha": "9c8f24eb2b1f5a22348439b98c529b9a94526c85",
-  "authority_bundle_sha256": "606513935fdec970688bbaa7f10696c68592dbbb172761029e0a68dd3e608a6e",
+  "source_sha": "32a3e9b35e915365d1fea4a6cac23db858c2c2b5",
+  "authority_bundle_sha256": "285771c8be83e975d035d37a425740d65a6eb399802561c7ea8b8bdcdab8313a",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -64,13 +64,13 @@
               "use_case_id": "ai",
               "title": "Private AI",
               "included": false,
-              "reason": "Local inference is GPU/RAM heavy and has no lite graph substitution yet."
+              "reason": "CPU inference needs the explicit standard hardware floor."
             },
             {
               "use_case_id": "dev",
               "title": "Developer Platform",
               "included": false,
-              "reason": "Gitea+CI is not on the Basement low graph."
+              "reason": "The first Git hosting path uses the standard profile."
             },
             {
               "use_case_id": "files",
@@ -201,6 +201,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-gitea-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-home-assistant-runtime",
               "declaration": "not_declared"
             },
@@ -213,6 +217,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-private-ai-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-vaultwarden-runtime",
               "declaration": "not_declared"
             }
@@ -221,14 +229,40 @@
             {
               "use_case_id": "ai",
               "title": "Private AI",
-              "included": false,
-              "reason": "SK-M5: Ollama/Open WebUI modules and runtime are not executable. When they are, residency is on-demand burst inference, not 24/7 training."
+              "included": true,
+              "functions": [
+                "chat-interface",
+                "local-inference",
+                "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "ollama",
+              "notes": [
+                "No model is installed automatically. Model weights and context determine additional RAM and disk."
+              ]
             },
             {
               "use_case_id": "dev",
               "title": "Developer Platform",
-              "included": false,
-              "reason": "SK-M5: Gitea module is not executable. Intended load is always-on idle git host with interactive and batch CI bursts."
+              "included": true,
+              "functions": [
+                "developer-collaboration",
+                "git-hosting",
+                "source-control"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "gitea",
+              "notes": [
+                "Repository growth requires a separate disk budget. No CI runner is included."
+              ]
             },
             {
               "use_case_id": "files",
@@ -370,6 +404,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-gitea-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-home-assistant-runtime",
               "declaration": "not_declared"
             },
@@ -382,6 +420,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-private-ai-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-vaultwarden-runtime",
               "declaration": "not_declared"
             }
@@ -390,14 +432,40 @@
             {
               "use_case_id": "ai",
               "title": "Private AI",
-              "included": false,
-              "reason": "Same as standard until SK-M5 ships. High is the intended graph (GPU node + burst interactive inference)."
+              "included": true,
+              "functions": [
+                "chat-interface",
+                "local-inference",
+                "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "ollama",
+              "notes": [
+                "Same CPU runtime as standard. GPU passthrough is not configured."
+              ]
             },
             {
               "use_case_id": "dev",
               "title": "Developer Platform",
-              "included": false,
-              "reason": "Same as standard until SK-M5. CI batch bursts belong on high headroom, not on low."
+              "included": true,
+              "functions": [
+                "developer-collaboration",
+                "git-hosting",
+                "source-control"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "gitea",
+              "notes": [
+                "Same Git hosting runtime as standard."
+              ]
             },
             {
               "use_case_id": "files",
@@ -558,6 +626,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-gitea-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-home-assistant-runtime",
               "declaration": "not_declared"
             },
@@ -570,6 +642,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-private-ai-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-vaultwarden-runtime",
               "declaration": "not_declared"
             }
@@ -578,14 +654,40 @@
             {
               "use_case_id": "ai",
               "title": "Private AI",
-              "included": false,
-              "reason": "SK-M5: Ollama/Open WebUI modules and runtime are not executable. When they are, residency is on-demand burst inference, not 24/7 training."
+              "included": true,
+              "functions": [
+                "chat-interface",
+                "local-inference",
+                "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "ollama",
+              "notes": [
+                "No model is installed automatically. Model weights and context determine additional RAM and disk."
+              ]
             },
             {
               "use_case_id": "dev",
               "title": "Developer Platform",
-              "included": false,
-              "reason": "SK-M5: Gitea module is not executable. Intended load is always-on idle git host with interactive and batch CI bursts."
+              "included": true,
+              "functions": [
+                "developer-collaboration",
+                "git-hosting",
+                "source-control"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "gitea",
+              "notes": [
+                "Repository growth requires a separate disk budget. No CI runner is included."
+              ]
             },
             {
               "use_case_id": "files",
@@ -727,6 +829,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-gitea-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-home-assistant-runtime",
               "declaration": "not_declared"
             },
@@ -739,6 +845,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-private-ai-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-vaultwarden-runtime",
               "declaration": "not_declared"
             }
@@ -747,14 +857,40 @@
             {
               "use_case_id": "ai",
               "title": "Private AI",
-              "included": false,
-              "reason": "Same as standard until SK-M5 ships. High is the intended graph (GPU node + burst interactive inference)."
+              "included": true,
+              "functions": [
+                "chat-interface",
+                "local-inference",
+                "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "ollama",
+              "notes": [
+                "Same CPU runtime as standard. GPU passthrough is not configured."
+              ]
             },
             {
               "use_case_id": "dev",
               "title": "Developer Platform",
-              "included": false,
-              "reason": "Same as standard until SK-M5. CI batch bursts belong on high headroom, not on low."
+              "included": true,
+              "functions": [
+                "developer-collaboration",
+                "git-hosting",
+                "source-control"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "gitea",
+              "notes": [
+                "Same Git hosting runtime as standard."
+              ]
             },
             {
               "use_case_id": "files",
@@ -917,6 +1053,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-gitea-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-home-assistant-runtime",
               "declaration": "not_declared"
             },
@@ -929,6 +1069,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-private-ai-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-vaultwarden-runtime",
               "declaration": "not_declared"
             }
@@ -937,14 +1081,40 @@
             {
               "use_case_id": "ai",
               "title": "Private AI",
-              "included": false,
-              "reason": "SK-M5: Ollama/Open WebUI modules and runtime are not executable. When they are, residency is on-demand burst inference, not 24/7 training."
+              "included": true,
+              "functions": [
+                "chat-interface",
+                "local-inference",
+                "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "ollama",
+              "notes": [
+                "No model is installed automatically. Model weights and context determine additional RAM and disk."
+              ]
             },
             {
               "use_case_id": "dev",
               "title": "Developer Platform",
-              "included": false,
-              "reason": "SK-M5: Gitea module is not executable. Intended load is always-on idle git host with interactive and batch CI bursts."
+              "included": true,
+              "functions": [
+                "developer-collaboration",
+                "git-hosting",
+                "source-control"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "gitea",
+              "notes": [
+                "Repository growth requires a separate disk budget. No CI runner is included."
+              ]
             },
             {
               "use_case_id": "files",
@@ -1086,6 +1256,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-gitea-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-home-assistant-runtime",
               "declaration": "not_declared"
             },
@@ -1098,6 +1272,10 @@
               "declaration": "not_declared"
             },
             {
+              "module_id": "stackkits-private-ai-runtime",
+              "declaration": "not_declared"
+            },
+            {
               "module_id": "stackkits-vaultwarden-runtime",
               "declaration": "not_declared"
             }
@@ -1106,14 +1284,40 @@
             {
               "use_case_id": "ai",
               "title": "Private AI",
-              "included": false,
-              "reason": "Same as standard until SK-M5 ships. High is the intended graph (GPU node + burst interactive inference)."
+              "included": true,
+              "functions": [
+                "chat-interface",
+                "local-inference",
+                "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "ollama",
+              "notes": [
+                "Same CPU runtime as standard. GPU passthrough is not configured."
+              ]
             },
             {
               "use_case_id": "dev",
               "title": "Developer Platform",
-              "included": false,
-              "reason": "Same as standard until SK-M5. CI batch bursts belong on high headroom, not on low."
+              "included": true,
+              "functions": [
+                "developer-collaboration",
+                "git-hosting",
+                "source-control"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              },
+              "module_slug": "gitea",
+              "notes": [
+                "Same Git hosting runtime as standard."
+              ]
             },
             {
               "use_case_id": "files",
@@ -1528,5 +1732,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "b598f80246ad7462fc3384fb600421ba03233dafe57fde36aeec20d577ef4e2c"
+  "catalog_sha256": "916cc0c3c38c802b476f3503c9ab707cbec6766a9f629627fac040004308ce03"
 }

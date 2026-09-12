@@ -13,11 +13,10 @@ const (
 	vaultwardenWorkloadTemplateRef = "builtin://workloads/vaultwarden/bundle/v2.json"
 	vaultwardenWorkloadVersion     = "2.0.0"
 	vaultwardenWorkloadOutputRef   = "workloads/vaultwarden/bundle.json"
-	vaultwardenImageRef            = "ghcr.io/dani-garcia/vaultwarden:1.35.4"
-	vaultwardenImageDigest         = "sha256:43498a94b22f9563f2a94b53760ab3e710eefc0d0cac2efda4b12b9eb8690664"
 )
 
-const vaultwardenWorkloadRendererSchema = `stackkit.workload-bundle/v2|VaultwardenWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:vaultwarden|release:1.35.4|secret-material:not-included`
+const vaultwardenWorkloadRendererSchema = `stackkit.workload-bundle/v2|VaultwardenWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:vaultwarden|release:` +
+	vaultwardenRelease + `|secret-material:not-included`
 
 // VaultwardenWorkloadBundleDescriptor is the closed, credential-free runtime
 // artifact accepted by the selected-PaaS executor. AdminTokenRef is opaque.
@@ -73,11 +72,11 @@ func ParseVaultwardenWorkloadBundle(data []byte) (VaultwardenWorkloadBundleDescr
 	}
 	if bundle.APIVersion != "stackkit.workload-bundle/v2" || bundle.Kind != "VaultwardenWorkloadBundle" ||
 		bundle.Workload.Ref != "vault" || bundle.Workload.AlternativeRef != "vaultwarden" ||
-		bundle.Workload.ModuleRef != vaultwardenWorkloadModuleID || bundle.Workload.Release != "1.35.4" ||
+		bundle.Workload.ModuleRef != vaultwardenWorkloadModuleID || bundle.Workload.Release != vaultwardenRelease ||
 		bundle.Workload.Delivery != "application-adapter" || bundle.Workload.EntryComponent != vaultwardenWorkloadUnitID ||
 		bundle.Ownership.ExecutionAdapter != "selected-application-adapter" ||
 		bundle.Ownership.ProviderLifecycle != "not-owned" || bundle.Ownership.Credentials != "opaque-references-only" {
-		return VaultwardenWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed Vaultwarden 1.35.4 contract")
+		return VaultwardenWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed Vaultwarden "+vaultwardenRelease+" contract")
 	}
 	if len(bundle.SecretRefs) != 1 || !validSecretReference(bundle.SecretRefs["admin-token"]) {
 		return VaultwardenWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "requires exactly one opaque admin-token reference")
@@ -95,7 +94,7 @@ func ParseVaultwardenWorkloadBundle(data []byte) (VaultwardenWorkloadBundleDescr
 		}
 	}
 	descriptor := VaultwardenWorkloadBundleDescriptor{
-		WorkloadRef: "vault", ModuleRef: vaultwardenWorkloadModuleID, Release: "1.35.4",
+		WorkloadRef: "vault", ModuleRef: vaultwardenWorkloadModuleID, Release: vaultwardenRelease,
 		SiteRef: bundle.Target.SiteRef, NodeRef: bundle.Target.NodeRef, InstanceRef: bundle.Target.InstanceRef,
 		AdminTokenRef: bundle.SecretRefs["admin-token"],
 		Components:    make([]SelectedPaaSWorkloadComponentDescriptor, len(components)),
@@ -130,7 +129,7 @@ func validateVaultwardenWorkloadUnit(unit RenderUnit, contract RendererContract)
 	if unit.RuntimeKind() != "container" || unit.RuntimeDelivery() != "application-adapter" ||
 		!hasEngine || engine != "docker" || !hasImage || imageRef != vaultwardenImageRef ||
 		!hasDigest || imageDigest != vaultwardenImageDigest || !hasEntry || entry != vaultwardenWorkloadUnitID {
-		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime", "runtime identity must match the exact Vaultwarden 1.35.4 contract")
+		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime", "runtime identity must match the exact Vaultwarden "+vaultwardenRelease+" contract")
 	}
 	siteRef, hasSite := unit.SiteRef()
 	nodeRef, hasNode := unit.NodeRef()
@@ -193,7 +192,7 @@ func validateVaultwardenWorkloadUnit(unit RenderUnit, contract RendererContract)
 		SecretRefs: secretRefs, Components: components, Route: endpoints[0], DeliveryRoute: deliveryRoute,
 	}
 	bundle.Workload.Ref, bundle.Workload.AlternativeRef = "vault", "vaultwarden"
-	bundle.Workload.ModuleRef, bundle.Workload.Release = vaultwardenWorkloadModuleID, "1.35.4"
+	bundle.Workload.ModuleRef, bundle.Workload.Release = vaultwardenWorkloadModuleID, vaultwardenRelease
 	bundle.Workload.Delivery, bundle.Workload.EntryComponent = "application-adapter", entry
 	bundle.Target.SiteRef, bundle.Target.NodeRef, bundle.Target.InstanceRef = siteRef, nodeRef, unit.InstanceID()
 	bundle.Ownership.ExecutionAdapter = "selected-application-adapter"

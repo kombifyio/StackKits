@@ -5,6 +5,8 @@ package immich
 
 import "github.com/kombifyio/stackkits/foundation"
 
+_runtimeImages: foundation.ArchitectureV2ModuleImages["stackkits-immich-runtime"]
+
 Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "immich"
@@ -73,8 +75,8 @@ Contract: foundation.#ModuleContract & {
 		immich: foundation.#ServiceDefinition & {
 			name:  "immich"
 			type:  "application"
-			image: "ghcr.io/immich-app/immich-server"
-			tag:   "v2.7.0@sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"
+			image: _runtimeImages["immich-server"].image
+			tag: _runtimeImages["immich-server"].tag
 			upstream: {
 				github: {repo: "immich-app/immich"}
 				track:   "patch"
@@ -179,8 +181,8 @@ Contract: foundation.#ModuleContract & {
 		"immich-machine-learning": foundation.#ServiceDefinition & {
 			name:  "immich-machine-learning"
 			type:  "application"
-			image: "ghcr.io/immich-app/immich-machine-learning"
-			tag:   "v2.7.0@sha256:aff861526d690bb720130a46bd48ee2827c44d2f601a194e61f31e979a591952"
+			image: _runtimeImages["immich-machine-learning"].image
+			tag: _runtimeImages["immich-machine-learning"].tag
 			upstream: {
 				github: {repo: "immich-app/immich"}
 				track:   "patch"

@@ -1,8 +1,9 @@
 // Package smart_home defines the Smart Home use case package.
 //
 // Home Assistant owns the product MCP surface via its native /api/mcp server.
-// StackKits owns the admitted container lifecycle/evidence. Managed, external,
-// and local-bridge profiles below describe product intent, not native rollout.
+// StackKits owns configuration and admitted lifecycle/evidence, not device or
+// automation features. Managed profiles describe Cloud-only commercial intent;
+// optional local connectivity reuses existing upstream services.
 package smart_home
 
 import "github.com/kombifyio/stackkits/foundation"
@@ -12,11 +13,11 @@ Package: foundation.#UseCasePackage & {
 		name:        "smart-home"
 		useCaseRef:  "smart-home"
 		displayName: "Smart Home"
-		version:     "0.1.0"
+		version:     "0.1.1"
 		layer:       "application"
 		category:    "smart-home"
 		lifecycle:   "pilot"
-		description: "Home automation centered on Home Assistant with native MCP, API, managed runtime, and optional local bridge profiles."
+		description: "Home Assistant deployment and lifecycle integration using its native MCP/API and optional upstream MQTT/device services; Managed profiles are Cloud-only intent."
 	}
 
 	selection: {
@@ -33,6 +34,16 @@ Package: foundation.#UseCasePackage & {
 
 	defaultRuntimeProfile: "self-hosted-container"
 	runtimeProfiles: {
+		"provisioned-ha-os": {
+			displayName: "New Home Assistant OS appliance"
+			description: "An authorized runtime owner provisions HAOS and applies the fresh-instance baseline. Select the home-assistant-haos workload alternative explicitly."
+			realization: "external"
+			placementModes: ["local-only", "standard"]
+			managedServerlessEligible: false
+			requiresControlPlane: false
+			requiresLocalBridge: false
+			notes: ["Executable through an admitted external API owner. VM resources, images, endpoints and credentials remain in provider custody. Imported data uses home-assistant-imported instead and never receives the fresh baseline."]
+		}
 		"kombify-managed": {
 			displayName: "Kombify Managed Home Assistant"
 			description: "Kombify operates the Home Assistant runtime, state, routing, auth handoff, backup, and MCP/API wiring without requiring user-owned HA OS hardware."
@@ -41,17 +52,17 @@ Package: foundation.#UseCasePackage & {
 			managedServerlessEligible: true
 			requiresControlPlane:      true
 			requiresLocalBridge:       false
-			notes: ["Managed product intent, not an admitted native workload alternative. Stateful application profile; not a stateless function runtime."]
+			notes: ["Cloud-only Managed product intent, outside StackKits and Techstack Core/Standard. Existing Techstack commercial orchestration operates upstream Home Assistant; this is not an admitted native workload alternative."]
 		}
 		"kombify-managed-hybrid": {
-			displayName: "Kombify Managed Home Assistant + Home Bridge"
-			description: "Kombify manages Home Assistant while an optional local bridge supplies LAN discovery and radio/device adjacency."
+			displayName: "Kombify Managed Home Assistant with local integrations"
+			description: "Cloud-managed Home Assistant connected to explicitly selected existing local services for LAN and device access. Device and protocol behavior remains upstream-owned."
 			realization: "hybrid"
 			placementModes: ["managed-serverless", "standard"]
 			managedServerlessEligible: true
 			requiresControlPlane:      true
 			requiresLocalBridge:       true
-			notes: ["Planned bridge profile for devices that must stay near the home network. Native StackKits does not provision the Home Bridge, MQTT broker, or radio integrations."]
+			notes: ["Cloud-only Managed intent, outside Techstack Core/Standard. Reuse Home Assistant integrations, an existing MQTT broker and optional Zigbee2MQTT; no Kombify device bridge is implied. These optional services are not yet provisioned by native StackKits."]
 		}
 		"self-hosted-container": {
 			displayName: "Self-hosted Home Assistant Container"
@@ -116,13 +127,6 @@ Package: foundation.#UseCasePackage & {
 			rationale:  "Primary smart-home product and native MCP/API owner."
 			capabilities: ["native-product-mcp", "rest-api", "websocket-api", "assist-api"]
 		}
-		"kombify-home-bridge": {
-			moduleSlug: "kombify-home-bridge"
-			role:       "bridge"
-			required:   false
-			rationale:  "Planned local adjacency bridge; native StackKits does not currently provision this component."
-			capabilities: ["lan-discovery", "matter-thread", "zigbee", "z-wave", "mqtt-bridge"]
-		}
 		mosquitto: {
 			moduleSlug: "mosquitto"
 			role:       "supporting"
@@ -134,7 +138,7 @@ Package: foundation.#UseCasePackage & {
 			moduleSlug: "zigbee2mqtt"
 			role:       "supporting"
 			required:   false
-			rationale:  "Planned Zigbee bridge; declaring a device or Home Bridge intent does not install it through native StackKits."
+			rationale:  "Existing upstream Zigbee2MQTT connected to Home Assistant through MQTT. Its optional deployment integration is planned; declaration alone does not install it."
 			capabilities: ["zigbee", "mqtt-bridge"]
 		}
 	}

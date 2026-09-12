@@ -1,0 +1,67 @@
+{
+  "facts_schema_version": "1.0.0",
+  "slug": "open-webui",
+  "displayName": "Open WebUI",
+  "description": "Open WebUI for owner-controlled private AI. Models require an explicit owner download.",
+  "layer": "L3-application",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "1g"
+    }
+  },
+  "services": [
+    {
+      "name": "open-webui",
+      "type": "application",
+      "required": false,
+      "networks": [
+        "private-ai-internal"
+      ],
+      "volumes": [
+        {
+          "source": "open-webui-data",
+          "target": "/app/backend/data",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/health",
+        "port": 8080
+      },
+      "resources": {
+        "memory": "512m",
+        "memoryMax": "2g"
+      },
+      "upstream": {
+        "github": "open-webui/open-webui",
+        "registryImage": "ghcr.io/open-webui/open-webui"
+      },
+      "environment": {
+        "OLLAMA_BASE_URL": "http://ollama:11434",
+        "ENABLE_SIGNUP": "false",
+        "ENABLE_OPENAI_API": "false",
+        "RAG_EMBEDDING_MODEL_AUTO_UPDATE": "false",
+        "WHISPER_MODEL_AUTO_UPDATE": "false",
+        "OFFLINE_MODE": "true",
+        "HF_HUB_OFFLINE": "1"
+      },
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`ai.{{.domain}}`)",
+        "port": 8080
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "self-auth"
+      },
+      "imageSource": {
+        "moduleRef": "stackkits-private-ai-runtime",
+        "componentRef": "open-webui"
+      }
+    }
+  ]
+}

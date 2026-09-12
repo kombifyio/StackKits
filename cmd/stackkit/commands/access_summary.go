@@ -52,6 +52,9 @@ type accessClientTrust struct {
 	// the node's names once it points at that resolver and trusts the CA;
 	// neither step alone is enough.
 	Resolver string `json:"resolver"`
+	// ResolverAddress is the exact site address configured in the signed
+	// Unbound zone and therefore the value to enter in router DHCP or a device.
+	ResolverAddress string `json:"resolverAddress,omitempty"`
 	// ResolverSteps is what the operator has to do on the network for the
 	// printed links to open from other devices. Without it the resolver runs
 	// and nothing asks it anything.
@@ -345,6 +348,11 @@ func attachAccessClientTrust(wd string, summary *accessSummary) {
 	for _, b := range digest {
 		groups = append(groups, strings.ToUpper(hex.EncodeToString([]byte{b})))
 	}
+	resolverAddress, _ := localevidence.BasementLANDNSResolverAddress(wd)
+	resolverLabel := "this node's address"
+	if resolverAddress != "" {
+		resolverLabel = resolverAddress
+	}
 	summary.ClientTrust = &accessClientTrust{
 		Authority:       "step-ca basement root",
 		CAFingerprint:   "SHA256:" + strings.Join(groups, ":"),
@@ -358,11 +366,12 @@ func attachAccessClientTrust(wd string, summary *accessSummary) {
 			"Android: install the CA certificate, then enable it for apps under trusted credentials.",
 			"After enrollment open the printed https links; passkey registration requires that trusted secure context.",
 		},
-		Resolver: "lan-dns:unbound",
+		Resolver:        "lan-dns:unbound",
+		ResolverAddress: resolverAddress,
 		ResolverSteps: []string{
 			"The kit runs the site resolver on this node, answering DNS on port 53 for LAN devices.",
-			"Point the LAN at it: set this node's address as the DNS server in the router's DHCP settings, so every device picks it up on renewal.",
-			"Per device instead: set this node's address as the manual DNS server on the device.",
+			"Point the LAN at it: set " + resolverLabel + " as the DNS server in the router's DHCP settings, so every device picks it up on renewal.",
+			"Per device instead: set " + resolverLabel + " as the manual DNS server on the device.",
 			"Verify from another device: a lookup of any printed link's hostname must answer with this node's address.",
 			"The site's names resolve only through this resolver; a device still on the router's default DNS gets no answer for them.",
 		},

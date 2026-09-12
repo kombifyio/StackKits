@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -204,7 +205,16 @@ func BootstrapCloudreveOwner(
 	refreshToken = strings.TrimSpace(parsed.Token.RefreshToken)
 	sessionStarted = accessToken != "" || refreshToken != ""
 	if loginErr != nil {
-		if !CloudreveOwnerNotFound(loginErr) {
+		ownerNotFound := CloudreveOwnerNotFound(loginErr)
+		// Cloudreve 4.18 deliberately uses the same login error for an absent
+		// account and a wrong password. Its read-only preparation endpoint can
+		// establish absence before the explicitly authorized registration.
+		if !ownerNotFound && loginErr.HTTPStatus == http.StatusOK && loginErr.Code == 40080 && request.AllowFirstOwnerRegistration && *loginConfig.RegisterEnabled {
+			_, prepareErr := CloudreveJSON(ctx, client, http.MethodGet, baseURL,
+				"/session/prepare?"+url.Values{"email": {email}}.Encode(), "", nil)
+			ownerNotFound = prepareErr != nil && prepareErr.HTTPStatus == http.StatusOK && prepareErr.Code == 404
+		}
+		if !ownerNotFound {
 			return CloudreveOwnerResult{}, skerrors.NewAuthError(
 				"cloudreve_owner_login_failed",
 				"Cloudreve rejected the supplied Files owner credentials",

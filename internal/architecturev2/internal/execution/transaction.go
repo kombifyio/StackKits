@@ -328,7 +328,7 @@ func swapAndVerifyManagedOutput(prepared installPreparation, staged stagedOutput
 	if err := advanceAndWriteTransactionJournal(prepared.workspace, journal, transactionPhaseInstallIntent); err != nil {
 		return true, wrap(ErrTransactionRecovery, displayPath(prepared.workspace, prepared.finalRoot), "persist managed output install intent", err)
 	}
-	installed, err := prepared.workspace.Rename(staged.root, prepared.finalRoot)
+	installed, err := prepared.workspace.RenameHeld(staged.root, prepared.finalRoot)
 	if installed {
 		if syncErr := syncRenameParents(prepared.workspace, staged.root, prepared.finalRoot); syncErr != nil {
 			err = errors.Join(err, syncErr)
@@ -363,7 +363,7 @@ func movePreviousToBackup(workspace *confinedfs.Transaction, finalRoot, backupRo
 	if err := inspectManagedTree(workspace, finalRoot); err != nil {
 		return false, err
 	}
-	installed, err := workspace.Rename(finalRoot, backupRoot)
+	installed, err := workspace.RenameHeld(finalRoot, backupRoot)
 	if installed {
 		err = errors.Join(err, syncRenameParents(workspace, finalRoot, backupRoot))
 	}
@@ -378,7 +378,7 @@ func movePreviousToBackup(workspace *confinedfs.Transaction, finalRoot, backupRo
 		verificationErr = requireManagedTreeDigest(workspace, backupRoot, expectedDigest)
 	}
 	if verificationErr != nil {
-		restored, rollbackErr := workspace.Rename(backupRoot, finalRoot)
+		restored, rollbackErr := workspace.RenameHeld(backupRoot, finalRoot)
 		if restored {
 			rollbackErr = errors.Join(rollbackErr, syncRenameParents(workspace, backupRoot, finalRoot))
 		}
@@ -509,7 +509,7 @@ func rollbackManagedOutput(workspace *confinedfs.Transaction, finalRoot string, 
 		if err := inspectManagedTree(workspace, finalRoot); err != nil {
 			return err
 		}
-		moved, err := workspace.Rename(finalRoot, journal.FailedRoot)
+		moved, err := workspace.RenameHeld(finalRoot, journal.FailedRoot)
 		if moved {
 			err = errors.Join(err, syncRenameParents(workspace, finalRoot, journal.FailedRoot))
 		}
@@ -524,7 +524,7 @@ func rollbackManagedOutput(workspace *confinedfs.Transaction, finalRoot string, 
 		if err := requireManagedTreeDigest(workspace, journal.BackupRoot, journal.PreviousRootDigest); err != nil {
 			return err
 		}
-		restored, err := workspace.Rename(journal.BackupRoot, finalRoot)
+		restored, err := workspace.RenameHeld(journal.BackupRoot, finalRoot)
 		if restored {
 			err = errors.Join(err, syncRenameParents(workspace, journal.BackupRoot, finalRoot))
 		}

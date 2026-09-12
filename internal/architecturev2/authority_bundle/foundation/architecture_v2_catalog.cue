@@ -5,7 +5,14 @@
 // declares which immutable implementation contracts may realize it.
 package foundation
 
-import "list"
+import (
+	"list"
+	"strings"
+)
+
+_architectureV2ImmichServerImage: {ref: "ghcr.io/immich-app/immich-server:v2.7.0", digest: "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"}
+
+_architectureV2PrivateAIImage: {ref: "ghcr.io/open-webui/open-webui:v0.11.3", digest: "sha256:41daa0cf2561a5d4c8d1ff31ee2a98d93ab4d3ac2605cac69366ff6a3374a933"}
 
 _architectureV2CoreCapabilities: [
 	"topology-core",
@@ -140,6 +147,35 @@ _architectureV2VaultInfrastructure: #WorkloadInfrastructureV1 & {
 				volumeRef:    allocation.volumeRef
 				dataClasses:  allocation.dataClasses
 			},
+		]
+	}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2DevInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "dev", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "gitea", volumeRef: "data", target: "/var/lib/gitea", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "dev"},
+		{componentRef: "gitea", volumeRef: "config", target: "/etc/gitea", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "dev"},
+	]}
+	// The existing compiler-owned applicationRuntimes quiesces the sole writer
+	// before both allocations are captured: SQLite, repositories, LFS and keys.
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2AIInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "ai", classes: ["personal"], locality: "primary-site"}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [{componentRef: "open-webui", volumeRef: "data", dataClasses: ["personal"]}]}
+	storageAllocation: {
+		moduleRef: "stackkits-storage-allocation"
+		allocations: [
+			{componentRef: "open-webui", volumeRef: "data", target: "/app/backend/data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai"},
+			{componentRef: "ollama", volumeRef: "models", target: "/root/.ollama", class: "persistent", backup: false, dataClasses: ["personal"], dataBindingRef: "ai"},
 		]
 	}
 	snapshot: moduleRef: "stackkits-snapshot"
@@ -623,6 +659,92 @@ _architectureV2WorkloadContracts: [
 	},
 	#WorkloadContractV2 & {
 		metadata: {
+			id:          "ai"
+			version:     "1.1.0"
+			description: "Private AI chat and local model serving selected independently from kit architecture capabilities."
+		}
+		kind:       "application"
+		useCaseRef: "ai"
+		functionalCapabilities: ["model-serving", "local-inference", "chat-interface"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "private-ai"
+		computeTiers: {
+			low: {included: false, reason: "CPU inference requires the explicit standard profile and model-specific capacity."}
+			standard: {included: true, alternativeID: "private-ai"}
+			high: {included: true, alternativeID: "private-ai"}
+		}
+		alternatives: [{
+			id:          "private-ai"
+			providerRef: "stackkits-private-ai"
+			moduleRef:   "stackkits-private-ai-runtime"
+			route: {serviceRef: "ai", healthRef: "private-ai-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["owner-password", "session-key"]
+					requiredRefs: ["owner-password", "session-key"]
+				}
+			}
+			infrastructure: _architectureV2AIInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "dev"
+			version:     "1.1.0"
+			description: "Private Git hosting and private repository collaboration selected independently from kit architecture capabilities."
+		}
+		kind:       "application"
+		useCaseRef: "dev"
+		functionalCapabilities: ["source-control", "git-hosting", "developer-collaboration"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "gitea"
+		computeTiers: {
+			low: {included: false, reason: "Git hosting is available on the standard profile; repository growth needs a separate data budget."}
+			standard: {included: true, alternativeID: "gitea"}
+			high: {included: true, alternativeID: "gitea"}
+		}
+		alternatives: [{
+			id:          "gitea"
+			providerRef: "stackkits-gitea"
+			moduleRef:   "stackkits-gitea-runtime"
+			route: {serviceRef: "dev", healthRef: "gitea-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["owner-password"]
+					requiredRefs: ["owner-password"]
+				}
+			}
+			infrastructure: _architectureV2DevInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
 			id:          "media"
 			version:     "1.0.0"
 			description: "Self-hosted media library selected independently from kit architecture capabilities."
@@ -671,7 +793,7 @@ _architectureV2WorkloadContracts: [
 		}
 		kind:       "application"
 		useCaseRef: "smart-home"
-		functionalCapabilities: ["smart-home-hub", "native-product-mcp", "assist-api", "automation"]
+		functionalCapabilities: ["smart-home-hub", "automation"]
 		supportedSiteKinds: ["home", "cloud"]
 		dataClasses: ["personal"]
 		defaultAlternative: "home-assistant"
@@ -680,7 +802,7 @@ _architectureV2WorkloadContracts: [
 			standard: {included: true, alternativeID: "home-assistant"}
 			high: {included: true, alternativeID: "home-assistant"}
 		}
-		alternatives: [{
+		alternatives: list.Concat([[{
 			id:          "home-assistant"
 			providerRef: "stackkits-home-assistant"
 			moduleRef:   "stackkits-home-assistant-runtime"
@@ -703,11 +825,17 @@ _architectureV2WorkloadContracts: [
 				secretInputs: {allowedRefs: [], requiredRefs: []}
 			}
 			infrastructure: _architectureV2SmartHomeInfrastructure
-		}]
+		}], _architectureV2HomeAssistantInstanceAlternatives])
 	},
 ]
 
 _architectureV2ApplicationLifecycleContracts: [
+	#ApplicationLifecycleContractV1 & {metadata: {id: "dev", version: "1.0.0", description: "Private Git lifecycle; CI runners are a separate selection."}, workloadRef: "dev", useCaseRef: "dev", packageRef: "dev", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {
+		metadata: {id: "ai", version: "1.0.0", description: "Owner-controlled Private AI lifecycle; model download is an explicit owner operation."}
+		workloadRef: "ai", useCaseRef: "ai", packageRef: "ai"
+		lifecycle: #StandardUseCaseLifecycle
+	},
 	#ApplicationLifecycleContractV1 & {
 		metadata: {
 			id:          "photos"
@@ -1451,6 +1579,46 @@ _architectureV2Providers: list.Concat([[
 			}
 		}
 		evidence: ["vaultwarden-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-private-ai", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["ai"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-private-ai-runtime"]
+			}
+		}
+		evidence: ["private-ai-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-gitea", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["dev"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-gitea-runtime"]
+			}
+		}
+		evidence: ["gitea-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {id: "stackkits-jellyfin", version: "1.0.0"}
@@ -2313,12 +2481,68 @@ _architectureV2VaultwardenSupport: #ModuleRealizationSupportV2 & {
 
 // Jellyfin is the Media Library vertical. Config is a StackKits backup source;
 // the library volume is owner-custodied and excluded from backup.
+_architectureV2PrivateAISupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["owner-password", "session-key"]}
+	artifacts: {
+		requiredRefs: ["private-ai-workload-bundle"]
+		outputBindings: [{
+			artifactRef: "private-ai-workload-bundle"
+			unitRef:     "private-ai"
+			outputRef:   "workloads/private-ai/bundle.json"
+		}]
+		contracts: [{
+			id:       "private-ai-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "private-ai"
+			outputRef: "workloads/private-ai/bundle.json"
+		}]
+	}
+	evidence: requiredRefs: ["private-ai-selected-paas-runtime-contract"]
+}
+
+_architectureV2GiteaSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["owner-password"]}
+	artifacts: {
+		requiredRefs: ["gitea-workload-bundle"]
+		outputBindings: [{
+			artifactRef: "gitea-workload-bundle"
+			unitRef:     "gitea"
+			outputRef:   "workloads/gitea/bundle.json"
+		}]
+		contracts: [{
+			id:       "gitea-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "gitea"
+			outputRef: "workloads/gitea/bundle.json"
+		}]
+	}
+	evidence: requiredRefs: ["gitea-selected-paas-runtime-contract"]
+}
+
+// Jellyfin is the Media Library vertical. Config is a StackKits backup source;
+// the library volume is owner-custodied and excluded from backup.
 _architectureV2JellyfinSupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
 	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
-	inputs: {contractComplete: true, requiredRefs: []}
+	inputs: {contractComplete: true, requiredRefs: ["storage-roots"]}
 	artifacts: {
 		requiredRefs: ["jellyfin-workload-bundle"]
 		outputBindings: [{
@@ -2645,6 +2869,24 @@ _cloudCoreServiceControls: list.Concat([_sharedCoreServiceControls, [
 _basementCoreServiceControls: list.Concat([_sharedCoreServiceControls, [
 	{key: "base", serviceRef: "basement-hub", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["router", "socket-proxy", "step-ca", "kopia-agent", "hub", "lan-dns"], allowedActions: ["start", "restart", "logs"], critical: true},
 ]])
+
+_architectureV2LocalKopiaComponent: {
+	_networkRef: string | *"basement-backup"
+	id:          "kopia-agent", role: "application", lifecycle: "daemon"
+	image: {
+		ref:    "docker.io/kopia/kopia:0.18.2"
+		digest: "sha256:b6cb1f09a5fa832a320ee06d7803e82cdd7f69ac6f61d76a0d55fbbf1495c043"
+	}
+	dependsOn: [], networkRefs: [_networkRef]
+	volumes: [
+		{id: "kopia-repository", target: "/app/repository", class: "persistent", backup: false},
+		{id: "kopia-config", target: "/app/config", class: "persistent", backup: false},
+		{id: "kopia-cache", target: "/app/cache", class: "cache", backup: false},
+		{id: "kopia-restore-staging", target: "/restore-staging", class: "persistent", backup: false},
+	]
+	health: {kind: "command", command: ["kopia", "--version"]}
+	resources: {memoryLimit: "256m"}
+}
 
 _architectureV2LocalKopiaSourceRenderUnit: {
 	_outputRef:   string | *"home/backup/kopia-source-policy.json"
@@ -3378,7 +3620,9 @@ _architectureV2Modules: list.Concat([[
 		provides:    _architectureV2HomeLANDNSCapabilities
 		supportedSiteKinds: ["home"]
 		nodeSelection: {authority: "any", controlPlaneMembers: "any"}
-		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
+		// The policy is handed to the executable Basement core, which owns the
+		// Unbound component. It is not a second independently executed module.
+		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
 		renderUnits: [{
 			id:           "policy-bundle"
 			kind:         "native-config"
@@ -3868,31 +4112,31 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "compose", kind: "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core-standalone/compose/v1.yaml", version: "1.0.0"
-			contractHash: "sha256:fe7feef68376f10f814e9d4cfc21e7817f790e9015977bf0eb8661dbe4333f4a"
+			contractHash: "sha256:d2923b089113e10f2958c9c61a1f085114367c15e38e4bb92bc38b074e55a249"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/cloud-core-standalone/compose.yaml"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: _architectureV2CloudStandaloneServiceEndpoints
 			runtimeListeners: _architectureV2CloudStandaloneRuntimeListeners
-		}]
+		}, _architectureV2LocalKopiaSourceRenderUnit & {_outputRef: "cloud/backup/kopia-source-policy.json"}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
-			contractHash: "sha256:fe7feef68376f10f814e9d4cfc21e7817f790e9015977bf0eb8661dbe4333f4a"
-			unitRefs: ["compose"], artifactRefs: ["cloud-core-standalone-compose"]
-			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			contractHash: "sha256:d2923b089113e10f2958c9c61a1f085114367c15e38e4bb92bc38b074e55a249"
+			unitRefs: ["compose", "source-policy"], artifactRefs: ["cloud-core-standalone-compose", "cloud-kopia-backup-source-policy"]
+			publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 		}]
 		realizationSupport: {
 			contractVersion: "1.0.0", scope: "concrete", level: "apply-ready"
 			compatibleRendererRefs: ["stackkit"]
-			inputs: {contractComplete: true, requiredRefs: []}
-			planInputs: {contractComplete: true, requiredRefs: []}
+			inputs: {contractComplete: true, requiredRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs}
+			planInputs: {contractComplete: true, requiredRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs}
 			artifacts: {
-				requiredRefs: ["cloud-core-standalone-compose"]
-				outputBindings: [{artifactRef: "cloud-core-standalone-compose", unitRef: "compose", outputRef: "platform/cloud-core-standalone/compose.yaml"}]
+				requiredRefs: ["cloud-core-standalone-compose", "cloud-kopia-backup-source-policy"]
+				outputBindings: [{artifactRef: "cloud-core-standalone-compose", unitRef: "compose", outputRef: "platform/cloud-core-standalone/compose.yaml"}, {artifactRef: "cloud-kopia-backup-source-policy", unitRef: "source-policy", outputRef: "cloud/backup/kopia-source-policy.json"}]
 				contracts: [{
 					id: "cloud-core-standalone-compose", kind: "compose", format: "yaml", mode: "0640", required: true
 					compatibleTargets: ["compose"], unitRef: "compose", outputRef: "platform/cloud-core-standalone/compose.yaml"
-				}]
+				}, {id: "cloud-kopia-backup-source-policy", kind: "native-config", format: "json", mode: "0600", required: true, compatibleTargets: ["compose"], unitRef: "source-policy", outputRef: "cloud/backup/kopia-source-policy.json"}]
 			}
 			evidence: requiredRefs: ["cloud-core-runtime-evidence"]
 		}
@@ -4063,22 +4307,7 @@ _architectureV2Modules: list.Concat([[
 					dependsOn: ["coolify-redis"], networkRefs: ["basement-control"]
 					health: {kind: "http", path: "/ready", port: 6001}
 				},
-				{
-					id: "kopia-agent", role: "application", lifecycle: "daemon"
-					image: {
-						ref:    "docker.io/kopia/kopia:0.18.2"
-						digest: "sha256:b6cb1f09a5fa832a320ee06d7803e82cdd7f69ac6f61d76a0d55fbbf1495c043"
-					}
-					dependsOn: [], networkRefs: ["basement-backup"]
-					volumes: [
-						{id: "kopia-repository", target: "/app/repository", class: "persistent", backup: false},
-						{id: "kopia-config", target: "/app/config", class: "persistent", backup: false},
-						{id: "kopia-cache", target: "/app/cache", class: "cache", backup: false},
-						{id: "kopia-restore-staging", target: "/restore-staging", class: "persistent", backup: false},
-					]
-					health: {kind: "command", command: ["kopia", "--version"]}
-					resources: {memoryLimit: "256m"}
-				},
+				_architectureV2LocalKopiaComponent,
 				{
 					id: "hub", role: "application", lifecycle: "daemon"
 					image: {
@@ -4357,22 +4586,7 @@ _architectureV2Modules: list.Concat([[
 					health: {kind: "command", command: ["drill", "@127.0.0.1", "localhost", "A"]}
 					resources: {memoryLimit: "256m"}
 				},
-				{
-					id: "kopia-agent", role: "application", lifecycle: "daemon"
-					image: {
-						ref:    "docker.io/kopia/kopia:0.18.2"
-						digest: "sha256:b6cb1f09a5fa832a320ee06d7803e82cdd7f69ac6f61d76a0d55fbbf1495c043"
-					}
-					dependsOn: [], networkRefs: ["basement-backup"]
-					volumes: [
-						{id: "kopia-repository", target: "/app/repository", class: "persistent", backup: false},
-						{id: "kopia-config", target: "/app/config", class: "persistent", backup: false},
-						{id: "kopia-cache", target: "/app/cache", class: "cache", backup: false},
-						{id: "kopia-restore-staging", target: "/restore-staging", class: "persistent", backup: false},
-					]
-					health: {kind: "command", command: ["kopia", "--version"]}
-					resources: {memoryLimit: "256m"}
-				},
+				_architectureV2LocalKopiaComponent,
 				{
 					id: "hub", role: "application", lifecycle: "daemon"
 					image: {
@@ -4559,18 +4773,12 @@ _architectureV2Modules: list.Concat([[
 			kind:     "container"
 			delivery: "application-adapter"
 			engine:   "docker"
-			image: {
-				ref:    "ghcr.io/immich-app/immich-server:v2.7.0"
-				digest: "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"
-			}
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
 			entryComponentRef: "immich-server"
 			components: [
 				{
 					id: "immich-server", role: "application", lifecycle: "daemon"
-					image: {
-						ref:    "ghcr.io/immich-app/immich-server:v2.7.0"
-						digest: "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"
-					}
+					image: _architectureV2ImmichServerImage
 					dependsOn: ["immich-machine-learning", "immich-postgres-init", "immich-valkey"]
 					networkRefs: ["immich-internal"]
 					environment: {
@@ -4736,23 +4944,18 @@ _architectureV2Modules: list.Concat([[
 			kind:     "container"
 			delivery: "application-adapter"
 			engine:   "docker"
-			image: {
-				ref:    "ghcr.io/immich-app/immich-server:v2.7.0"
-				digest: "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"
-			}
+			image: _architectureV2ImmichServerImage
 			entryComponentRef: "immich-server"
 			components: [
 				{
 					id: "immich-server", role: "application", lifecycle: "daemon"
-					image: {
-						ref:    "ghcr.io/immich-app/immich-server:v2.7.0"
-						digest: "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"
-					}
+					image: _architectureV2ImmichServerImage
 					dependsOn: ["immich-postgres-init", "immich-valkey"]
 					networkRefs: ["immich-internal"]
 					environment: {
 						DB_HOSTNAME:    "immich-postgres", DB_PORT:  "5432", DB_USERNAME: "immich", DB_DATABASE_NAME: "immich"
 						REDIS_HOSTNAME: "immich-valkey", REDIS_PORT: "6379"
+						IMMICH_MACHINE_LEARNING_ENABLED: "false"
 					}
 					secretEnvironment: DB_PASSWORD: "database-password"
 					volumes: [for allocation in _architectureV2PhotosLiteInfrastructure.storageAllocation.allocations if allocation.componentRef == "immich-server" {
@@ -4809,7 +5012,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/immich-lite/bundle/v2.json"
 			version:      "3.0.0"
-			contractHash: "sha256:9e63b69bfdbcc6df895134afe9261b21300faf20776458a84a75222fb5d88df6"
+			contractHash: "sha256:5eb57d279f18736169bef048d15a7328162848d3ab2750452f2d057637d0fe17"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -4839,13 +5042,13 @@ _architectureV2Modules: list.Concat([[
 		renderVariants: [
 			{
 				id:           "compose", target: "compose", rendererRef: "stackkit"
-				contractHash: "sha256:9e63b69bfdbcc6df895134afe9261b21300faf20776458a84a75222fb5d88df6"
+				contractHash: "sha256:5eb57d279f18736169bef048d15a7328162848d3ab2750452f2d057637d0fe17"
 				unitRefs: ["immich-server"], artifactRefs: ["immich-lite-workload-bundle"]
 				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
-				contractHash: "sha256:9e63b69bfdbcc6df895134afe9261b21300faf20776458a84a75222fb5d88df6"
+				contractHash: "sha256:5eb57d279f18736169bef048d15a7328162848d3ab2750452f2d057637d0fe17"
 				unitRefs: ["immich-server"], artifactRefs: ["immich-lite-workload-bundle"]
 				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
 			},
@@ -4882,10 +5085,7 @@ _architectureV2Modules: list.Concat([[
 			kind:     "container"
 			delivery: "application-adapter"
 			engine:   "docker"
-			image: {
-				ref:    "docker.io/cloudreve/cloudreve:4.18.0"
-				digest: "sha256:f7a464100bf6325e9ba58cb2b0ee60f9a24c58fc2eb90647720bc4b8f3cddd9a"
-			}
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
 			entryComponentRef: "cloudreve"
 			components: [{
 				id: "cloudreve", role: "application", lifecycle: "daemon"
@@ -4909,7 +5109,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/cloudreve/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:a6343c858576f1dee488e363779962fa9c4f7feda0f2592ced538fa86e934ae0"
+			contractHash: "sha256:c7565fd38e01c503125d879f2b5e981955071a3d6d51a00ff8355abf47e1f364"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -4982,16 +5182,13 @@ _architectureV2Modules: list.Concat([[
 			kind:     "container"
 			delivery: "application-adapter"
 			engine:   "docker"
-			image: {
-				ref:    "ghcr.io/dani-garcia/vaultwarden:1.35.4"
-				digest: "sha256:43498a94b22f9563f2a94b53760ab3e710eefc0d0cac2efda4b12b9eb8690664"
-			}
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
 			entryComponentRef: "vaultwarden"
 			components: [{
 				id: "vaultwarden", role: "application", lifecycle: "daemon"
 				image: {
-					ref:    "ghcr.io/dani-garcia/vaultwarden:1.35.4"
-					digest: "sha256:43498a94b22f9563f2a94b53760ab3e710eefc0d0cac2efda4b12b9eb8690664"
+					ref:    "ghcr.io/dani-garcia/vaultwarden:1.37.2"
+					digest: "sha256:094b5689ed81549bd293418395c7cf495ae9d960fc2d4928cef2083ef913d912"
 				}
 				dependsOn: []
 				networkRefs: ["vaultwarden-internal"]
@@ -5011,7 +5208,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/vaultwarden/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:fa23863a99c114b5662986eb6b814504c8b1dd1dbfe4aa0c03b504ba451a58ce"
+			contractHash: "sha256:9355fcb2ec38ca6805efa7eaec56029d40fc63338ff4dc3a530c650b43b52e7e"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -5067,6 +5264,256 @@ _architectureV2Modules: list.Concat([[
 	},
 	{
 		metadata: {
+			id:          "stackkits-private-ai-runtime"
+			version:     "1.0.0"
+			description: "Private AI chat and CPU inference on one selected node with persistent models and owner data."
+		}
+		role:        "workload"
+		providerRef: "stackkits-private-ai"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2PrivateAIComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: _architectureV2PrivateAIImage
+			entryComponentRef: "open-webui"
+			components: [{
+				id: "open-webui", role: "application", lifecycle: "daemon"
+				image: _architectureV2PrivateAIImage
+				dependsOn: ["ollama"]
+				networkRefs: ["private-ai-internal"]
+				environment: {OFFLINE_MODE: "true", HF_HUB_OFFLINE: "1", OLLAMA_BASE_URL: "http://ollama:11434", ENABLE_SIGNUP: "false", ENABLE_PERSISTENT_CONFIG: "false", ENABLE_OPENAI_API: "false", RAG_EMBEDDING_MODEL_AUTO_UPDATE: "false", WHISPER_MODEL_AUTO_UPDATE: "false"}
+				ownerEnvironment: {WEBUI_ADMIN_EMAIL: "email"}
+				secretEnvironment: {WEBUI_ADMIN_PASSWORD: "owner-password", WEBUI_SECRET_KEY: "session-key"}
+				volumes: [{id: "data", target: "/app/backend/data", class: "persistent", backup: true}]
+				health: {kind: "http", path: "/health", port: 8080}
+				resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			}, {
+				id: "ollama", role: "application", lifecycle: "daemon", egress: true
+				image: {ref: "docker.io/ollama/ollama:0.34.0", digest: "sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba"}
+				dependsOn: []
+				networkRefs: ["private-ai-internal"]
+				environment: {OLLAMA_KEEP_ALIVE: "5m"}
+				volumes: [{id: "models", target: "/root/.ollama", class: "persistent", backup: false}]
+				health: {kind: "command", command: ["ollama",	"list"]}
+				resources: {memoryLimit: "6g", memoryReservation: "1g"}
+			}]
+		}
+		renderUnits: [{
+			id:          "private-ai"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/private-ai/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:a8e2e18dfbc0f0d17e11d6ac959c9313a501370c37f1d9f8ff2ea63f3e4c64bf"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["owner-password", "session-key"]
+			outputs: ["workloads/private-ai/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:        "ai"
+				upstreamProtocol:  "http"
+				targetPort:        8080
+				requiredPrivilege: "user"
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "private-ai-http"
+				data: {
+					bindingRef:      _architectureV2AIInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2AIInfrastructure.dataBinding.classes
+					locality:        _architectureV2AIInfrastructure.dataBinding.locality
+				}
+			}]
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["private-ai"], artifactRefs: ["private-ai-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["private-ai"], artifactRefs: ["private-ai-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2PrivateAISupport
+		health: [{
+			id:             "private-ai-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/health"
+			port:           8080
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["private-ai-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-gitea-runtime"
+			version:     "1.0.0"
+			description: "Private repositories, SQLite metadata, LFS objects and configuration on one owner-selected node."
+		}
+		role:        "workload"
+		providerRef: "stackkits-gitea"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2GiteaComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:              "container"
+			delivery:          "application-adapter"
+			engine:            "docker"
+			image:             components[0].image
+			entryComponentRef: "gitea"
+			components: [
+				{
+					"id":        "gitea"
+					"role":      "application"
+					"lifecycle": "daemon"
+					"image": {
+						"ref":    "docker.gitea.com/gitea:1.27.3-rootless"
+						"digest": "sha256:1c17ecaead42eb3b5391553d8708103a4beb0e86edf5b9ebc1eb269c318845f2"
+					}
+					"dependsOn": []
+					"networkRefs": [
+						"gitea-internal",
+					]
+					"command": [
+						"/bin/sh",
+						"-ec",
+						"gitea -c \"$GITEA_APP_INI\" migrate && users=$(gitea -c \"$GITEA_APP_INI\" admin user list) && owner=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ && $2 == \"owner\" {print $3 \" \" $4 \" \" $5}') && if [ -n \"$owner\" ]; then [ \"$owner\" = \"$STACKKITS_OWNER_EMAIL true true\" ] || { echo 'Existing Gitea owner does not match local custody' >&2; exit 1; }; else count=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ {n++} END {print n+0}'); [ \"$count\" = 0 ] || { echo 'Existing Gitea users require explicit owner reconciliation' >&2; exit 1; }; gitea -c \"$GITEA_APP_INI\" admin user create --username owner --email \"$STACKKITS_OWNER_EMAIL\" --password \"$STACKKITS_OWNER_PASSWORD\" --admin --must-change-password=false; fi && unset STACKKITS_OWNER_PASSWORD && exec gitea -c \"$GITEA_APP_INI\" web",
+					]
+					"environment": {
+						"GITEA__database__DB_TYPE":             "sqlite3"
+						"GITEA__database__PATH":                "/var/lib/gitea/data/gitea.db"
+						"GITEA__security__INSTALL_LOCK":        "true"
+						"GITEA__service__DISABLE_REGISTRATION": "true"
+						"GITEA__service__REQUIRE_SIGNIN_VIEW":  "true"
+						"GITEA__repository__FORCE_PRIVATE":     "true"
+						"GITEA__repository__DEFAULT_PRIVATE":   "private"
+						"GITEA__server__DISABLE_SSH":           "true"
+						"GITEA__actions__ENABLED":              "false"
+						"GITEA__security__REVERSE_PROXY_LIMIT": "0"
+					}
+					"ownerEnvironment": {
+						"STACKKITS_OWNER_EMAIL": "email"
+					}
+					"secretEnvironment": {
+						"STACKKITS_OWNER_PASSWORD": "owner-password"
+					}
+					"volumes": [
+						{
+							"id":     "data"
+							"target": "/var/lib/gitea"
+							"class":  "persistent"
+							"backup": true
+						},
+						{
+							"id":     "config"
+							"target": "/etc/gitea"
+							"class":  "persistent"
+							"backup": true
+						},
+					]
+					"health": {
+						"kind": "http"
+						"path": "/api/healthz"
+						"port": 3000
+					}
+					"resources": {
+						"memoryLimit":       "2g"
+						"memoryReservation": "256m"
+					}
+				},
+			]
+		}
+		renderUnits: [{
+			id:          "gitea"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/gitea/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:91430de555e07a2df848d5ab81fb85d1af41008f599662c23d68cc837291ddd9"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["owner-password"]
+			outputs: ["workloads/gitea/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:        "dev"
+				upstreamProtocol:  "http"
+				targetPort:        3000
+				requiredPrivilege: "user"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "gitea-http"
+				data: {
+					bindingRef:      _architectureV2DevInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2DevInfrastructure.dataBinding.classes
+					locality:        _architectureV2DevInfrastructure.dataBinding.locality
+				}
+			}]
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["gitea"], artifactRefs: ["gitea-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["gitea"], artifactRefs: ["gitea-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2GiteaSupport
+		health: [{
+			id:             "gitea-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/api/healthz"
+			port:           3000
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["gitea-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
 			id:          "stackkits-jellyfin-runtime"
 			version:     "1.0.0"
 			description: "Jellyfin media-library contract bound to one selected site; the media library volume is owner-custodied and not a StackKits backup source."
@@ -5085,10 +5532,7 @@ _architectureV2Modules: list.Concat([[
 			kind:     "container"
 			delivery: "application-adapter"
 			engine:   "docker"
-			image: {
-				ref:    "docker.io/jellyfin/jellyfin:10.10.7"
-				digest: "sha256:7ae36aab93ef9b6aaff02b37f8bb23df84bb2d7a3f6054ec8fc466072a648ce2"
-			}
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
 			entryComponentRef: "jellyfin"
 			components: [{
 				id: "jellyfin", role: "application", lifecycle: "daemon"
@@ -5100,6 +5544,7 @@ _architectureV2Modules: list.Concat([[
 				networkRefs: ["jellyfin-internal"]
 				volumes: [for allocation in _architectureV2MediaInfrastructure.storageAllocation.allocations if allocation.componentRef == "jellyfin" {
 					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					if allocation.volumeRef == "library" {readOnly: true}
 				}]
 				health: {kind: "http", path: "/health", port: 8096}
 				resources: {memoryLimit: "2g", memoryReservation: "512m"}
@@ -5112,12 +5557,12 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/jellyfin/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:8e48d778e46c4d9ffa0b5bec4921c4775438b74e7119d2dc530a3c27f572905f"
-			publicInputRefs: ["delivery-route"]
+			contractHash: "sha256:6d8bd298e33bffb6249a589cb7a845c513e0e0578bd186bb4c01bee0f00fc393"
+			publicInputRefs: ["delivery-route", "storage-roots"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
 				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
-			}]
+			}, {targetRef: "storage-roots", sourceRef: "storage.hostRoots", valueType: "host-storage-roots-v1", cardinality: "single", required: true}]
 			secretInputRefs: []
 			outputs: ["workloads/jellyfin/bundle.json"]
 			placement: {
@@ -5144,13 +5589,13 @@ _architectureV2Modules: list.Concat([[
 				id:           "compose", target: "compose", rendererRef: "stackkit"
 				contractHash: "sha256:f4cc3429148975e7741e8a55171d5a9d0138d67ec7b4ef42732ede51d7b53af8"
 				unitRefs: ["jellyfin"], artifactRefs: ["jellyfin-workload-bundle"]
-				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:47ffd0559451c9da935a2e115b3a7a139aef279e271c8389c8fc276674e6c9b9"
 				unitRefs: ["jellyfin"], artifactRefs: ["jellyfin-workload-bundle"]
-				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
 			},
 		]
 		realizationSupport: _architectureV2JellyfinSupport
@@ -5185,13 +5630,11 @@ _architectureV2Modules: list.Concat([[
 			kind:     "container"
 			delivery: "application-adapter"
 			engine:   "docker"
-			image: {
-				ref:    "ghcr.io/home-assistant/home-assistant:2026.7.2"
-				digest: "sha256:1476924357b46e80735c13e94232ba5c853cac052e9df4bb28d50fa56348097b"
-			}
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
 			entryComponentRef: "home-assistant"
 			components: [{
 				id: "home-assistant", role: "application", lifecycle: "daemon"
+				entrypoint: ["/bin/sh", "/config/stackkits-init.sh"]
 				image: {
 					ref:    "ghcr.io/home-assistant/home-assistant:2026.7.2"
 					digest: "sha256:1476924357b46e80735c13e94232ba5c853cac052e9df4bb28d50fa56348097b"
@@ -5212,7 +5655,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/home-assistant/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:8ace48ca66779adec03b5362b1f0cf33eb576e00cb7cd0b036d6c2e7512cbd7f"
+			contractHash: "sha256:0c8716ed5f3b19245b14bc5304282edcbaef30f47c4bef6c65100b0070d37f77"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -5261,7 +5704,9 @@ _architectureV2Modules: list.Concat([[
 			path:           "/"
 			port:           8123
 			timeoutSeconds: 10
-			expectedStatuses: [200]
+			// A fresh install answers 302 to /onboarding.html until native owner
+			// setup completes: reachable and installed, not yet usable.
+			expectedStatuses: [200, 302]
 		}]
 		evidence: ["home-assistant-selected-paas-runtime-contract"]
 	},
@@ -5663,9 +6108,9 @@ _architectureV2RILActionExecutors: [{
 
 ArchitectureV2Catalog: #ArchitectureV2CatalogContract & {
 	capabilities: [for contract in _architectureV2Capabilities {#CapabilityContract & contract}]
-	providers: [for contract in _architectureV2Providers {#CapabilityProvider & contract}]
+	providers: [for contract in list.Concat([_architectureV2Providers, _architectureV2HomeAssistantInstanceProviders]) {#CapabilityProvider & contract}]
 	addons: [for contract in _architectureV2AddOns {#AddOnContract & contract}]
-	modules: [for contract in _architectureV2Modules {#ModuleContractV2 & contract}]
+	modules: [for contract in list.Concat([_architectureV2Modules, _architectureV2HomeAssistantInstanceModules]) {#ModuleContractV2 & contract}]
 	workloads:             _architectureV2WorkloadContracts
 	applicationLifecycles: _architectureV2ApplicationLifecycleContracts
 	privilegedInterfaceApprovals: [for contract in _architectureV2PrivilegedInterfaceApprovals {#PrivilegedInterfaceApprovalV2 & contract}]
@@ -5681,4 +6126,20 @@ ArchitectureV2Catalog: #ArchitectureV2CatalogContract & {
 	_capabilityIDsUnique: list.UniqueItems([for contract in capabilities {contract.metadata.id}]) & true
 	_providerIDsUnique: list.UniqueItems([for contract in providers {contract.metadata.id}]) & true
 	_addOnIDsUnique: list.UniqueItems([for contract in addons {contract.metadata.id}]) & true
+}
+
+// ArchitectureV2ModuleImages projects the immutable runtime image authority for
+// legacy module consumers. It does not own a second set of version values.
+ArchitectureV2ModuleImages: {
+	for module in ArchitectureV2Catalog.modules if module.runtime.components != _|_ {
+		(module.metadata.id): {
+			for component in module.runtime.components if component.image.digest != _|_ {
+				(component.id): {
+					let parts = strings.Split(component.image.ref, ":")
+					image: strings.Join(parts[:len(parts)-1], ":")
+					tag: "\(parts[len(parts)-1])@\(component.image.digest)"
+				}
+			}
+		}
+	}
 }

@@ -30,7 +30,7 @@ _architectureV2CloudStandaloneCoreComputeProfile: #ModuleComputeProfileV2 & {
 	platformManagement: "standalone"
 	hostFloor: _architectureV2CoreComputeProfile.hostFloor
 	recommended: _architectureV2CoreComputeProfile.recommended
-	components: ["router", "socket-proxy", "pocketid", "tinyauth", "hub"]
+	components: ["router", "socket-proxy", "pocketid", "tinyauth", "hub", "kopia-agent"]
 	degradations: ["paas-management-omitted"]
 }
 _architectureV2CloudStandaloneCoreComputeProfiles: {
@@ -157,3 +157,24 @@ _architectureV2HomeAssistantComputeProfiles: {
 	standard: _architectureV2HomeAssistantComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
 	high:     _architectureV2HomeAssistantComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
 }
+
+_architectureV2PrivateAIComputeProfiles: {
+	standard: #ModuleComputeProfileV2 & {
+		description: "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile."
+		maturity:    "beta", executable: true, realization: "apply-ready"
+		hostFloor: {minCpuCores: 4, minRamGB: 12, minStorageGB: 40}
+		recommended: {cpuCores: 8, ramGB: 16, storageGB: 80}
+		reservation: ramGB: 1.5
+		components: ["open-webui", "ollama"]
+	}
+	high: standard
+}
+
+_architectureV2GiteaComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Private Git hosting with SQLite and persistent repositories, LFS objects and configuration. CI runners and SSH are not included. Repository growth needs a separate data budget."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.25
+	components: ["gitea"]
+}
+_architectureV2GiteaComputeProfiles: {standard: _architectureV2GiteaComputeProfile, high: _architectureV2GiteaComputeProfile}

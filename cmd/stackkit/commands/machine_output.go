@@ -7,6 +7,8 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/applyoutcome"
+	"github.com/kombifyio/stackkits/internal/architecturev2"
+	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/logging"
 	"github.com/kombifyio/stackkits/internal/managedentitlement"
 	"github.com/spf13/cobra"
@@ -61,6 +63,43 @@ func machineCommandFailureReason(cmd *cobra.Command, status string) string {
 	return name + "_" + status
 }
 
+// Preserve the existing product classifications without exposing error fields.
+// Code types can hold arbitrary strings, so only registered values are public.
+func typedProductFailureReason(err error) (reason string, typed bool) {
+	var artifact *generationartifact.Error
+	if errors.As(err, &artifact) && artifact != nil {
+		switch artifact.Code {
+		case generationartifact.ErrInvalidPlan, generationartifact.ErrInvalidContract,
+			generationartifact.ErrNonCanonical, generationartifact.ErrHashMismatch,
+			generationartifact.ErrBindingMismatch, generationartifact.ErrInvalidPath,
+			generationartifact.ErrPathEscape, generationartifact.ErrDuplicateArtifact,
+			generationartifact.ErrArtifactMissing, generationartifact.ErrArtifactChanged,
+			generationartifact.ErrIncompatible, generationartifact.ErrReadinessBlocked,
+			generationartifact.ErrRendererMissing, generationartifact.ErrExecutorMissing,
+			generationartifact.ErrExecutorFailed, generationartifact.ErrVerifierMissing,
+			generationartifact.ErrEvidenceSetMismatch, generationartifact.ErrDuplicateEvidence,
+			generationartifact.ErrEvidenceFreshness, generationartifact.ErrEvidenceUntrusted,
+			generationartifact.ErrIO:
+			return string(artifact.Code), true
+		}
+		return "", true
+	}
+	var resolution *architecturev2.ResolveError
+	if errors.As(err, &resolution) && resolution != nil {
+		switch resolution.Code {
+		case architecturev2.ErrInvalidStackSpec, architecturev2.ErrInvalidInventory,
+			architecturev2.ErrMigrationRequired, architecturev2.ErrMigrationBlocked,
+			architecturev2.ErrAuthorityLoad, architecturev2.ErrResolveFailed,
+			architecturev2.ErrGenerationAuthorization, architecturev2.ErrApplyAuthorization,
+			architecturev2.ErrRequestTooLarge, architecturev2.ErrUnsupportedMedia,
+			architecturev2.ErrResolveBusy, architecturev2.ErrOperationalUnavailable:
+			return string(resolution.Code), true
+		}
+		return "", true
+	}
+	return "", false
+}
+
 func writeMachineCommandFailure(cmd *cobra.Command, err error, guidance ...string) error {
 	if cmd == nil || err == nil {
 		return err
@@ -90,6 +129,15 @@ func writeMachineCommandFailure(cmd *cobra.Command, err error, guidance ...strin
 	// honest for exactly those cases.
 	reason := machineCommandFailureReason(cmd, status)
 	retryable := false
+	message := logging.RedactText(err.Error())
+	if typedReason, typed := typedProductFailureReason(err); typed {
+		status = "failed"
+		reason = machineCommandFailureReason(cmd, status)
+		if typedReason != "" {
+			reason = typedReason
+		}
+		message = "StackKits rejected the command at a typed product boundary."
+	}
 	if runtime := applyoutcome.Classify(err.Error()); runtime.Class != applyoutcome.ClassUnknown {
 		status = "failed"
 		reason = string(runtime.Class)
@@ -97,7 +145,7 @@ func writeMachineCommandFailure(cmd *cobra.Command, err error, guidance ...strin
 		guidance = append(append([]string(nil), runtime.Remediation...), guidance...)
 	}
 	detail := actionableerror.New(
-		"stackkit_command_failed", reason, logging.RedactText(err.Error()), guidance, retryable,
+		"stackkit_command_failed", reason, message, guidance, retryable,
 	)
 	if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), status, detail); writeErr != nil {
 		return errors.Join(err, fmt.Errorf("write machine-readable command failure: %w", writeErr))

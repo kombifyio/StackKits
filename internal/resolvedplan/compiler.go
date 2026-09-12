@@ -1575,6 +1575,23 @@ func (c *Compiler) buildData(profile *profileView, spec *specView, resolved *res
 }
 
 func (c *Compiler) workloadDataBindingRef(workload *resolvedWorkloadSelection) (string, error) {
+	// External instances retain data under their authenticated runtime owner.
+	// They must never acquire a local StackKits volume or proxy-origin binding.
+	module := c.catalog.modules[workload.moduleID]
+	runtime, err := objectField(module, "catalog.modules."+workload.moduleID, "runtime")
+	if err != nil {
+		return "", err
+	}
+	if runtime["kind"] == "external" {
+		settings, err := objectField(runtime, "catalog.modules."+workload.moduleID+".runtime", "settings")
+		if err != nil {
+			return "", err
+		}
+		if settings["dataCustody"] != "external-instance-owner" {
+			return "", fail(ErrContractConflict, "catalog.modules."+workload.moduleID, "external application requires explicit instance data custody")
+		}
+		return "", nil
+	}
 	dataClasses, err := stringListField(workload.contract, "catalog.workloads."+workload.id, "dataClasses", true)
 	if err != nil {
 		return "", err

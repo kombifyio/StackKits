@@ -23,8 +23,9 @@ import (
 )
 
 const (
-	RepositoryID = "kopia:local:basement"
-	Backend      = "filesystem"
+	RepositoryID      = "kopia:local:basement"
+	CloudRepositoryID = "kopia:local:cloud"
+	Backend           = "filesystem"
 )
 
 type engineAPI interface {
@@ -81,6 +82,13 @@ func (r *Runtime) sourceProjection() localbackuppolicy.Source {
 		return r.policy.SourceProjection()
 	}
 	return localbackuppolicy.GovernedSource()
+}
+
+func (r *Runtime) repositoryID() string {
+	if r.sourceProjection().CoreModuleRef == localbackuppolicy.CloudCoreModuleRef {
+		return CloudRepositoryID
+	}
+	return RepositoryID
 }
 
 func newWithEngine(workspaceRoot string, factory engineFactory) (*Runtime, error) {
@@ -165,7 +173,7 @@ func (r *Runtime) Configure(ctx context.Context, configuration backuplifecycle.R
 	}
 	return backuplifecycle.RepositoryReceipt{
 		APIVersion:          "stackkit.local-backup-repository-receipt/v1",
-		RepositoryID:        RepositoryID,
+		RepositoryID:        r.repositoryID(),
 		Backend:             Backend,
 		ConfigurationDigest: backuplifecycle.RepositoryConfigurationDigest(configuration),
 	}, nil
@@ -175,7 +183,7 @@ func (r *Runtime) Status(ctx context.Context, scope backuplifecycle.RepositorySc
 	if err := r.ready(ctx); err != nil {
 		return backuplifecycle.RepositoryStatus{}, err
 	}
-	if scope.RepositoryID != RepositoryID {
+	if scope.RepositoryID != r.repositoryID() {
 		return backuplifecycle.RepositoryStatus{}, errors.New("localbackupruntime: repository scope differs from the fixed local repository")
 	}
 	if err := r.validateAuthority(scope.OwnerRef, scope.AuthorityRef, scope.Lineage); err != nil {
@@ -195,7 +203,7 @@ func (r *Runtime) Status(ctx context.Context, scope backuplifecycle.RepositorySc
 		return backuplifecycle.RepositoryStatus{}, err
 	}
 	return backuplifecycle.RepositoryStatus{
-		RepositoryID: RepositoryID,
+		RepositoryID: r.repositoryID(),
 		Ready:        repositoryReady(status) && sourcePolicy.Exact,
 		Consistency:  backuplifecycle.ConsistencyCrashConsistent,
 	}, nil
@@ -817,10 +825,10 @@ func (r *Runtime) RestoreSnapshot(
 	if request.SnapshotSourceDigest != currentSourceDigest {
 		return backuplifecycle.RepositoryRestoreReceipt{}, errors.New("localbackupruntime: snapshot volume selection differs from the held Plan policy")
 	}
-	if request.RepositoryID != RepositoryID ||
+	if request.RepositoryID != r.repositoryID() ||
 		request.SnapshotAnchorID == "" ||
-		request.SnapshotRequest.RepositoryID != RepositoryID ||
-		request.SnapshotReceipt.RepositoryID != RepositoryID ||
+		request.SnapshotRequest.RepositoryID != r.repositoryID() ||
+		request.SnapshotReceipt.RepositoryID != r.repositoryID() ||
 		request.SnapshotReceipt.SnapshotID == "" ||
 		request.SnapshotReceipt.RequestDigest != backuplifecycle.RepositorySnapshotRequestDigest(request.SnapshotRequest) ||
 		request.OperationID == "" ||
@@ -887,7 +895,7 @@ func (r *Runtime) RestoreSnapshot(
 	}
 	return backuplifecycle.RepositoryRestoreReceipt{
 		APIVersion:                "stackkit.local-backup-repository-restore/v1",
-		RepositoryID:              RepositoryID,
+		RepositoryID:              r.repositoryID(),
 		SnapshotID:                request.SnapshotReceipt.SnapshotID,
 		OperationID:               request.OperationID,
 		RequestDigest:             backuplifecycle.RepositoryRestoreRequestDigest(request),
@@ -899,6 +907,9 @@ func (r *Runtime) RestoreSnapshot(
 }
 
 func (r *Runtime) snapshotRequest(request backuplifecycle.RepositorySnapshotRequest) (backupexec.SnapshotRequest, error) {
+	if request.RepositoryID != r.repositoryID() {
+		return backupexec.SnapshotRequest{}, errors.New("backup repository differs from the held runtime profile")
+	}
 	if err := r.validateAuthority(request.OwnerRef, request.AuthorityRef, request.Lineage); err != nil {
 		return backupexec.SnapshotRequest{}, err
 	}
@@ -912,7 +923,7 @@ func (r *Runtime) snapshotRequest(request backuplifecycle.RepositorySnapshotRequ
 func (r *Runtime) historicalSnapshotRequest(
 	request backuplifecycle.RepositorySnapshotRequest,
 ) (backupexec.SnapshotRequest, error) {
-	if !localbackuppolicy.IsRecognizedSnapshotSelection(request.Source, request.Excludes) {
+	if request.RepositoryID != r.repositoryID() || !localbackuppolicy.IsRecognizedSnapshotSelectionForCoreModule(r.sourceProjection().CoreModuleRef, request.Source, request.Excludes) {
 		return backupexec.SnapshotRequest{}, errors.New("localbackupruntime: historical snapshot selection is not recognized")
 	}
 	return snapshotRequestShape(request)
@@ -920,7 +931,7 @@ func (r *Runtime) historicalSnapshotRequest(
 
 func snapshotRequestShape(request backuplifecycle.RepositorySnapshotRequest) (backupexec.SnapshotRequest, error) {
 	source := localbackuppolicy.GovernedSource()
-	if request.RepositoryID != RepositoryID ||
+	if (request.RepositoryID != RepositoryID && request.RepositoryID != CloudRepositoryID) ||
 		request.Consistency != backuplifecycle.ConsistencyCrashConsistent ||
 		request.Source != source.ContainerPath ||
 		strings.TrimSpace(request.OperationID) == "" {
@@ -1014,8 +1025,12 @@ func snapshotReceipt(
 	engineRequest backupexec.SnapshotRequest,
 	snapshot backupexec.Snapshot,
 ) (backuplifecycle.RepositorySnapshotReceipt, error) {
+	expectedHost := localbackuppolicy.Hostname
+	if request.RepositoryID == CloudRepositoryID {
+		expectedHost = (localbackuppolicy.Source{CoreModuleRef: localbackuppolicy.CloudCoreModuleRef}).RuntimeProfile().Hostname
+	}
 	if snapshot.ID == "" || snapshot.SourceHost == "" ||
-		snapshot.SourceHost != localbackuppolicy.Hostname ||
+		snapshot.SourceHost != expectedHost ||
 		snapshot.SourcePath != engineRequest.Source ||
 		snapshot.Description != engineRequest.Description ||
 		snapshot.OperationID != engineRequest.OperationID ||
@@ -1032,7 +1047,7 @@ func snapshotReceipt(
 	sum := sha256.Sum256(encoded)
 	return backuplifecycle.RepositorySnapshotReceipt{
 		APIVersion:    "stackkit.local-backup-repository-snapshot/v1",
-		RepositoryID:  RepositoryID,
+		RepositoryID:  request.RepositoryID,
 		SnapshotID:    snapshot.ID,
 		OperationID:   request.OperationID,
 		RequestDigest: backuplifecycle.RepositorySnapshotRequestDigest(request),

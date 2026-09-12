@@ -69,6 +69,7 @@ package foundation
 		default:      string
 		placeholder?: string
 	}
+
 	// Whether the pinned release applies this decision at install time, or
 	// only records it against the homelab for a later release to honour. A
 	// consumer shows a recorded setting as such; it never hides it, because
@@ -119,13 +120,41 @@ UseCaseCatalog: #UseCaseCatalog & {
 			}
 			settings: [
 				{
+					id:    "operating-form"
+					name:  "Home Assistant installation"
+					kind:  "choice"
+					group: "profile"
+					depth: "summary"
+					help:  "Choose Container or a dedicated Home Assistant OS appliance. OS requires a separately admitted appliance target."
+					options: [
+						{id: "container", name: "Container", note: "Home Assistant Core with operator-managed host services; no Supervisor or Apps."},
+						{id: "haos", name: "Home Assistant OS", note: "Dedicated appliance with Supervisor, Apps and native system maintenance."},
+					]
+					default:     "container"
+					realization: "install"
+				},
+				{
+					id:    "instance-origin"
+					name:  "Existing installation"
+					kind:  "choice"
+					group: "profile"
+					depth: "summary"
+					help:  "An existing instance is observed without changing accounts, integrations or configuration. Migration is a separate backup-protected operation."
+					options: [
+						{id: "new", name: "Create new"},
+						{id: "existing", name: "Connect existing", note: "Preserve the original configuration; management requires a separate grant."},
+					]
+					default:     "new"
+					realization: "install"
+				},
+				{
 					id:          "device-passthrough"
 					name:        "USB devices"
 					kind:        "toggle"
 					group:       "hardware"
 					depth:       "summary"
 					help:        "Let Home Assistant use a Zigbee, Z-Wave or other USB stick plugged into this Node."
-					default:     true
+					default:     false
 					realization: "recorded"
 				},
 				{

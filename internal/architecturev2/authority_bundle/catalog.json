@@ -33,6 +33,388 @@
   "applicationLifecycles": [
     {
       "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Private Git lifecycle; CI runners are a separate selection.",
+        "id": "dev",
+        "version": "1.0.0"
+      },
+      "packageRef": "dev",
+      "useCaseRef": "dev",
+      "workloadRef": "dev"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Owner-controlled Private AI lifecycle; model download is an explicit owner operation.",
+        "id": "ai",
+        "version": "1.0.0"
+      },
+      "packageRef": "ai",
+      "useCaseRef": "ai",
+      "workloadRef": "ai"
+    },
+    {
+      "lifecycle": {
         "referenceVertical": true,
         "stages": {
           "backup": {
@@ -3390,6 +3772,26 @@
       },
       {
         "governanceMatches": [
+          "stackkits-private-ai-runtime"
+        ],
+        "matches": [
+          "stackkits-private-ai"
+        ],
+        "module": "stackkits-private-ai-runtime",
+        "provider": "stackkits-private-ai"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-gitea-runtime"
+        ],
+        "matches": [
+          "stackkits-gitea"
+        ],
+        "module": "stackkits-gitea-runtime",
+        "provider": "stackkits-gitea"
+      },
+      {
+        "governanceMatches": [
           "stackkits-jellyfin-runtime"
         ],
         "matches": [
@@ -3597,6 +3999,36 @@
         ],
         "module": "stackkits-ha-modern-quorum-runtime",
         "provider": "stackkits-ha-modern-quorum"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-home-assistant-haos-runtime"
+        ],
+        "matches": [
+          "stackkits-home-assistant-appliance"
+        ],
+        "module": "stackkits-home-assistant-haos-runtime",
+        "provider": "stackkits-home-assistant-appliance"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-home-assistant-existing-runtime"
+        ],
+        "matches": [
+          "stackkits-home-assistant-appliance"
+        ],
+        "module": "stackkits-home-assistant-existing-runtime",
+        "provider": "stackkits-home-assistant-appliance"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-home-assistant-imported-runtime"
+        ],
+        "matches": [
+          "stackkits-home-assistant-appliance"
+        ],
+        "module": "stackkits-home-assistant-imported-runtime",
+        "provider": "stackkits-home-assistant-appliance"
       }
     ],
     "moduleRequirements": [
@@ -4155,6 +4587,18 @@
         },
         {
           "contracts": [
+            "ai"
+          ],
+          "providerID": "stackkits-private-ai"
+        },
+        {
+          "contracts": [
+            "dev"
+          ],
+          "providerID": "stackkits-gitea"
+        },
+        {
+          "contracts": [
             "media"
           ],
           "providerID": "stackkits-jellyfin"
@@ -4287,6 +4731,12 @@
             "availability-ha"
           ],
           "providerID": "stackkits-ha-modern-quorum"
+        },
+        {
+          "contracts": [
+            "smart-home"
+          ],
+          "providerID": "stackkits-home-assistant-appliance"
         }
       ]
     },
@@ -5002,6 +5452,20 @@
       },
       {
         "matches": [
+          "stackkits-private-ai-runtime"
+        ],
+        "module": "stackkits-private-ai-runtime",
+        "provider": "stackkits-private-ai"
+      },
+      {
+        "matches": [
+          "stackkits-gitea-runtime"
+        ],
+        "module": "stackkits-gitea-runtime",
+        "provider": "stackkits-gitea"
+      },
+      {
+        "matches": [
           "stackkits-jellyfin-runtime"
         ],
         "module": "stackkits-jellyfin-runtime",
@@ -5146,6 +5610,27 @@
         ],
         "module": "stackkits-ha-modern-quorum-runtime",
         "provider": "stackkits-ha-modern-quorum"
+      },
+      {
+        "matches": [
+          "stackkits-home-assistant-haos-runtime"
+        ],
+        "module": "stackkits-home-assistant-haos-runtime",
+        "provider": "stackkits-home-assistant-appliance"
+      },
+      {
+        "matches": [
+          "stackkits-home-assistant-existing-runtime"
+        ],
+        "module": "stackkits-home-assistant-existing-runtime",
+        "provider": "stackkits-home-assistant-appliance"
+      },
+      {
+        "matches": [
+          "stackkits-home-assistant-imported-runtime"
+        ],
+        "module": "stackkits-home-assistant-imported-runtime",
+        "provider": "stackkits-home-assistant-appliance"
       }
     ],
     "providerRequirements": [
@@ -5736,6 +6221,62 @@
           "backup-core"
         ],
         "provider": "stackkits-vaultwarden"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-private-ai"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-private-ai"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-private-ai"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-private-ai"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-gitea"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-gitea"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-gitea"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-gitea"
       },
       {
         "capability": "runtime-paas",
@@ -6446,6 +6987,18 @@
           "capabilityBindings": [],
           "issuerBindings": [],
           "issuerIDsUnique": true,
+          "provider": "stackkits-private-ai"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-gitea"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
           "provider": "stackkits-jellyfin"
         },
         {
@@ -6573,6 +7126,12 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-ha-modern-quorum"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-home-assistant-appliance"
         }
       ]
     },
@@ -7281,6 +7840,200 @@
           "workloadID": "vault"
         },
         {
+          "alternativeID": "private-ai",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-private-ai-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "private-ai"
+                  ],
+                  "ref": "owner-password"
+                },
+                {
+                  "matches": [
+                    "private-ai"
+                  ],
+                  "ref": "session-key"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "ai",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "private-ai",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-private-ai",
+              "workloadOwnership": [
+                "ai"
+              ]
+            }
+          ],
+          "workloadID": "ai"
+        },
+        {
+          "alternativeID": "gitea",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-gitea-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "gitea"
+                  ],
+                  "ref": "owner-password"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "dev",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "gitea",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-gitea",
+              "workloadOwnership": [
+                "dev"
+              ]
+            }
+          ],
+          "workloadID": "dev"
+        },
+        {
           "alternativeID": "jellyfin",
           "moduleMatches": [
             {
@@ -7447,6 +8200,223 @@
             {
               "capabilityAliasForbidden": [],
               "providerID": "stackkits-home-assistant",
+              "workloadOwnership": [
+                "smart-home"
+              ]
+            }
+          ],
+          "workloadID": "smart-home"
+        },
+        {
+          "alternativeID": "home-assistant-haos",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "externalHealth": [
+                "home-assistant-instance"
+              ],
+              "externalInstance": {
+                "baselinePolicy": "fresh-only",
+                "baselineVersion": "1",
+                "configurationPolicy": "preserve-user-changes",
+                "dataCustody": "external-instance-owner",
+                "installationMethod": "haos",
+                "instanceOrigin": "new",
+                "managementScope": "managed",
+                "platform": "home-assistant"
+              },
+              "moduleID": "stackkits-home-assistant-haos-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "external-control-plane"
+              ],
+              "runtimeKind": [
+                "external"
+              ],
+              "secretRefs": [],
+              "serviceMatches": [],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-home-assistant-appliance",
+              "workloadOwnership": [
+                "smart-home"
+              ]
+            }
+          ],
+          "workloadID": "smart-home"
+        },
+        {
+          "alternativeID": "home-assistant-existing",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "externalHealth": [
+                "home-assistant-instance"
+              ],
+              "externalInstance": {
+                "baselinePolicy": "preserve",
+                "configurationPolicy": "preserve-user-changes",
+                "dataCustody": "external-instance-owner",
+                "installationMethod": "unknown",
+                "instanceOrigin": "existing",
+                "managementScope": "observed",
+                "platform": "home-assistant"
+              },
+              "moduleID": "stackkits-home-assistant-existing-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "external-control-plane"
+              ],
+              "runtimeKind": [
+                "external"
+              ],
+              "secretRefs": [],
+              "serviceMatches": [],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-home-assistant-appliance",
+              "workloadOwnership": [
+                "smart-home"
+              ]
+            }
+          ],
+          "workloadID": "smart-home"
+        },
+        {
+          "alternativeID": "home-assistant-imported",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "externalHealth": [
+                "home-assistant-instance"
+              ],
+              "externalInstance": {
+                "baselinePolicy": "preserve",
+                "configurationPolicy": "preserve-user-changes",
+                "dataCustody": "external-instance-owner",
+                "installationMethod": "haos",
+                "instanceOrigin": "imported",
+                "managementScope": "managed",
+                "platform": "home-assistant"
+              },
+              "moduleID": "stackkits-home-assistant-imported-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "external-control-plane"
+              ],
+              "runtimeKind": [
+                "external"
+              ],
+              "secretRefs": [],
+              "serviceMatches": [],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-home-assistant-appliance",
               "workloadOwnership": [
                 "smart-home"
               ]
@@ -9953,7 +10923,7 @@
       "role": "platform",
       "runtime": {
         "delivery": "stackkit",
-        "execution": "executable",
+        "execution": "contract-handoff",
         "kind": "native"
       },
       "serviceControls": [],
@@ -12042,7 +13012,8 @@
             "socket-proxy",
             "pocketid",
             "tinyauth",
-            "hub"
+            "hub",
+            "kopia-agent"
           ],
           "degradations": [
             "paas-management-omitted"
@@ -12069,7 +13040,8 @@
             "socket-proxy",
             "pocketid",
             "tinyauth",
-            "hub"
+            "hub",
+            "kopia-agent"
           ],
           "degradations": [
             "paas-management-omitted"
@@ -12174,6 +13146,18 @@
               "outputRef": "platform/cloud-core-standalone/compose.yaml",
               "required": true,
               "unitRef": "compose"
+            },
+            {
+              "compatibleTargets": [
+                "compose"
+              ],
+              "format": "json",
+              "id": "cloud-kopia-backup-source-policy",
+              "kind": "native-config",
+              "mode": "0600",
+              "outputRef": "cloud/backup/kopia-source-policy.json",
+              "required": true,
+              "unitRef": "source-policy"
             }
           ],
           "outputBindings": [
@@ -12181,10 +13165,16 @@
               "artifactRef": "cloud-core-standalone-compose",
               "outputRef": "platform/cloud-core-standalone/compose.yaml",
               "unitRef": "compose"
+            },
+            {
+              "artifactRef": "cloud-kopia-backup-source-policy",
+              "outputRef": "cloud/backup/kopia-source-policy.json",
+              "unitRef": "source-policy"
             }
           ],
           "requiredRefs": [
-            "cloud-core-standalone-compose"
+            "cloud-core-standalone-compose",
+            "cloud-kopia-backup-source-policy"
           ]
         },
         "compatibleRendererRefs": [
@@ -12198,12 +13188,21 @@
         },
         "inputs": {
           "contractComplete": true,
-          "requiredRefs": []
+          "requiredRefs": [
+            "backup-source"
+          ]
         },
         "level": "apply-ready",
         "planInputs": {
           "contractComplete": true,
-          "requiredRefs": []
+          "requiredRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities",
+            "backupPolicy"
+          ]
         },
         "scope": "concrete"
       },
@@ -12213,7 +13212,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:fe7feef68376f10f814e9d4cfc21e7817f790e9015977bf0eb8661dbe4333f4a",
+          "contractHash": "sha256:d2923b089113e10f2958c9c61a1f085114367c15e38e4bb92bc38b074e55a249",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -12356,22 +13355,80 @@
           ],
           "templateRef": "builtin://cloud/core-standalone/compose/v1.yaml",
           "version": "1.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "compose",
+            "opentofu",
+            "terramate"
+          ],
+          "contractHash": "sha256:7edfa9c808cedb14d3f58a7101f7a31f597fa09ea1488002587225a4ee43bee3",
+          "id": "source-policy",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "backup.localKopiaSource",
+              "targetRef": "backup-source",
+              "valueType": "local-kopia-backup-source-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "cloud/backup/kopia-source-policy.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities",
+            "backupPolicy"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "backup-source"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://home/backup/kopia-source/v1.json",
+          "version": "1.0.0"
         }
       ],
       "renderVariants": [
         {
           "artifactRefs": [
-            "cloud-core-standalone-compose"
+            "cloud-core-standalone-compose",
+            "cloud-kopia-backup-source-policy"
           ],
-          "contractHash": "sha256:fe7feef68376f10f814e9d4cfc21e7817f790e9015977bf0eb8661dbe4333f4a",
+          "contractHash": "sha256:d2923b089113e10f2958c9c61a1f085114367c15e38e4bb92bc38b074e55a249",
           "id": "compose",
-          "planInputRefs": [],
-          "publicInputRefs": [],
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities",
+            "backupPolicy"
+          ],
+          "publicInputRefs": [
+            "backup-source"
+          ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
           "target": "compose",
           "unitRefs": [
-            "compose"
+            "compose",
+            "source-policy"
           ]
         }
       ],
@@ -12509,6 +13566,55 @@
               "memoryLimit": "256m"
             },
             "role": "application"
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "command": [
+                "kopia",
+                "--version"
+              ],
+              "kind": "command"
+            },
+            "id": "kopia-agent",
+            "image": {
+              "digest": "sha256:b6cb1f09a5fa832a320ee06d7803e82cdd7f69ac6f61d76a0d55fbbf1495c043",
+              "ref": "docker.io/kopia/kopia:0.18.2"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "cloud-backup"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "application",
+            "volumes": [
+              {
+                "backup": false,
+                "class": "persistent",
+                "id": "kopia-repository",
+                "target": "/app/repository"
+              },
+              {
+                "backup": false,
+                "class": "persistent",
+                "id": "kopia-config",
+                "target": "/app/config"
+              },
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "kopia-cache",
+                "target": "/app/cache"
+              },
+              {
+                "backup": false,
+                "class": "persistent",
+                "id": "kopia-restore-staging",
+                "target": "/restore-staging"
+              }
+            ]
           }
         ],
         "delivery": "stackkit",
@@ -16081,7 +17187,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:9e63b69bfdbcc6df895134afe9261b21300faf20776458a84a75222fb5d88df6",
+          "contractHash": "sha256:5eb57d279f18736169bef048d15a7328162848d3ab2750452f2d057637d0fe17",
           "id": "immich-server",
           "inputBindings": [
             {
@@ -16149,7 +17255,7 @@
           "artifactRefs": [
             "immich-lite-workload-bundle"
           ],
-          "contractHash": "sha256:9e63b69bfdbcc6df895134afe9261b21300faf20776458a84a75222fb5d88df6",
+          "contractHash": "sha256:5eb57d279f18736169bef048d15a7328162848d3ab2750452f2d057637d0fe17",
           "id": "compose",
           "planInputRefs": [],
           "publicInputRefs": [
@@ -16168,7 +17274,7 @@
           "artifactRefs": [
             "immich-lite-workload-bundle"
           ],
-          "contractHash": "sha256:9e63b69bfdbcc6df895134afe9261b21300faf20776458a84a75222fb5d88df6",
+          "contractHash": "sha256:5eb57d279f18736169bef048d15a7328162848d3ab2750452f2d057637d0fe17",
           "id": "opentofu",
           "planInputRefs": [],
           "publicInputRefs": [
@@ -16198,6 +17304,7 @@
               "DB_HOSTNAME": "immich-postgres",
               "DB_PORT": "5432",
               "DB_USERNAME": "immich",
+              "IMMICH_MACHINE_LEARNING_ENABLED": "false",
               "REDIS_HOSTNAME": "immich-valkey",
               "REDIS_PORT": "6379"
             },
@@ -16492,7 +17599,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:a6343c858576f1dee488e363779962fa9c4f7feda0f2592ced538fa86e934ae0",
+          "contractHash": "sha256:c7565fd38e01c503125d879f2b5e981955071a3d6d51a00ff8355abf47e1f364",
           "id": "cloudreve",
           "inputBindings": [
             {
@@ -16782,7 +17889,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:fa23863a99c114b5662986eb6b814504c8b1dd1dbfe4aa0c03b504ba451a58ce",
+          "contractHash": "sha256:9355fcb2ec38ca6805efa7eaec56029d40fc63338ff4dc3a530c650b43b52e7e",
           "id": "vaultwarden",
           "inputBindings": [
             {
@@ -16901,8 +18008,8 @@
             },
             "id": "vaultwarden",
             "image": {
-              "digest": "sha256:43498a94b22f9563f2a94b53760ab3e710eefc0d0cac2efda4b12b9eb8690664",
-              "ref": "ghcr.io/dani-garcia/vaultwarden:1.35.4"
+              "digest": "sha256:094b5689ed81549bd293418395c7cf495ae9d960fc2d4928cef2083ef913d912",
+              "ref": "ghcr.io/dani-garcia/vaultwarden:1.37.2"
             },
             "lifecycle": "daemon",
             "networkRefs": [
@@ -16931,8 +18038,665 @@
         "entryComponentRef": "vaultwarden",
         "execution": "executable",
         "image": {
-          "digest": "sha256:43498a94b22f9563f2a94b53760ab3e710eefc0d0cac2efda4b12b9eb8690664",
-          "ref": "ghcr.io/dani-garcia/vaultwarden:1.35.4"
+          "digest": "sha256:094b5689ed81549bd293418395c7cf495ae9d960fc2d4928cef2083ef913d912",
+          "ref": "ghcr.io/dani-garcia/vaultwarden:1.37.2"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "open-webui",
+            "ollama"
+          ],
+          "description": "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 4,
+            "minRamGB": 12,
+            "minStorageGB": 40
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 8,
+            "ramGB": 16,
+            "storageGB": 80
+          },
+          "reservation": {
+            "ramGB": 1.5
+          }
+        },
+        "standard": {
+          "components": [
+            "open-webui",
+            "ollama"
+          ],
+          "description": "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 4,
+            "minRamGB": 12,
+            "minStorageGB": 40
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 8,
+            "ramGB": 16,
+            "storageGB": 80
+          },
+          "reservation": {
+            "ramGB": 1.5
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "private-ai-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "private-ai-http",
+          "kind": "http",
+          "path": "/health",
+          "phase": "continuous",
+          "port": 8080,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Private AI chat and CPU inference on one selected node with persistent models and owner data.",
+        "id": "stackkits-private-ai-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-private-ai",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "private-ai-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/private-ai/bundle.json",
+              "required": true,
+              "unitRef": "private-ai"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "private-ai-workload-bundle",
+              "outputRef": "workloads/private-ai/bundle.json",
+              "unitRef": "private-ai"
+            }
+          ],
+          "requiredRefs": [
+            "private-ai-workload-bundle"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "private-ai-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "owner-password",
+            "session-key"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:a8e2e18dfbc0f0d17e11d6ac959c9313a501370c37f1d9f8ff2ea63f3e4c64bf",
+          "id": "private-ai",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/private-ai/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "owner-password",
+            "session-key"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "data": {
+                "bindingRef": "ai",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "private-ai-http",
+              "ingressAuth": "native",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "ai",
+              "targetPort": 8080,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/private-ai/bundle/v2.json",
+          "version": "2.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "private-ai-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password",
+            "session-key"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "private-ai"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "private-ai-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password",
+            "session-key"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "private-ai"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [
+              "ollama"
+            ],
+            "environment": {
+              "ENABLE_OPENAI_API": "false",
+              "ENABLE_PERSISTENT_CONFIG": "false",
+              "ENABLE_SIGNUP": "false",
+              "HF_HUB_OFFLINE": "1",
+              "OFFLINE_MODE": "true",
+              "OLLAMA_BASE_URL": "http://ollama:11434",
+              "RAG_EMBEDDING_MODEL_AUTO_UPDATE": "false",
+              "WHISPER_MODEL_AUTO_UPDATE": "false"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/health",
+              "port": 8080
+            },
+            "id": "open-webui",
+            "image": {
+              "digest": "sha256:41daa0cf2561a5d4c8d1ff31ee2a98d93ab4d3ac2605cac69366ff6a3374a933",
+              "ref": "ghcr.io/open-webui/open-webui:v0.11.3"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "private-ai-internal"
+            ],
+            "ownerEnvironment": {
+              "WEBUI_ADMIN_EMAIL": "email"
+            },
+            "resources": {
+              "memoryLimit": "2g",
+              "memoryReservation": "512m"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "WEBUI_ADMIN_PASSWORD": "owner-password",
+              "WEBUI_SECRET_KEY": "session-key"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "target": "/app/backend/data"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "egress": true,
+            "environment": {
+              "OLLAMA_KEEP_ALIVE": "5m"
+            },
+            "health": {
+              "command": [
+                "ollama",
+                "list"
+              ],
+              "kind": "command"
+            },
+            "id": "ollama",
+            "image": {
+              "digest": "sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba",
+              "ref": "docker.io/ollama/ollama:0.34.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "private-ai-internal"
+            ],
+            "resources": {
+              "memoryLimit": "6g",
+              "memoryReservation": "1g"
+            },
+            "role": "application",
+            "volumes": [
+              {
+                "backup": false,
+                "class": "persistent",
+                "id": "models",
+                "target": "/root/.ollama"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "open-webui",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:41daa0cf2561a5d4c8d1ff31ee2a98d93ab4d3ac2605cac69366ff6a3374a933",
+          "ref": "ghcr.io/open-webui/open-webui:v0.11.3"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "gitea"
+          ],
+          "description": "Private Git hosting with SQLite and persistent repositories, LFS objects and configuration. CI runners and SSH are not included. Repository growth needs a separate data budget.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.25
+          }
+        },
+        "standard": {
+          "components": [
+            "gitea"
+          ],
+          "description": "Private Git hosting with SQLite and persistent repositories, LFS objects and configuration. CI runners and SSH are not included. Repository growth needs a separate data budget.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.25
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "gitea-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "gitea-http",
+          "kind": "http",
+          "path": "/api/healthz",
+          "phase": "continuous",
+          "port": 3000,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Private repositories, SQLite metadata, LFS objects and configuration on one owner-selected node.",
+        "id": "stackkits-gitea-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-gitea",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "gitea-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/gitea/bundle.json",
+              "required": true,
+              "unitRef": "gitea"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "gitea-workload-bundle",
+              "outputRef": "workloads/gitea/bundle.json",
+              "unitRef": "gitea"
+            }
+          ],
+          "requiredRefs": [
+            "gitea-workload-bundle"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "gitea-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "owner-password"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:91430de555e07a2df848d5ab81fb85d1af41008f599662c23d68cc837291ddd9",
+          "id": "gitea",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/gitea/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "dev",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "gitea-http",
+              "ingressAuth": "native",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "dev",
+              "targetPort": 3000,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/gitea/bundle/v2.json",
+          "version": "2.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "gitea-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "gitea"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "gitea-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "gitea"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "command": [
+              "/bin/sh",
+              "-ec",
+              "gitea -c \"$GITEA_APP_INI\" migrate \u0026\u0026 users=$(gitea -c \"$GITEA_APP_INI\" admin user list) \u0026\u0026 owner=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ \u0026\u0026 $2 == \"owner\" {print $3 \" \" $4 \" \" $5}') \u0026\u0026 if [ -n \"$owner\" ]; then [ \"$owner\" = \"$STACKKITS_OWNER_EMAIL true true\" ] || { echo 'Existing Gitea owner does not match local custody' \u003e\u00262; exit 1; }; else count=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ {n++} END {print n+0}'); [ \"$count\" = 0 ] || { echo 'Existing Gitea users require explicit owner reconciliation' \u003e\u00262; exit 1; }; gitea -c \"$GITEA_APP_INI\" admin user create --username owner --email \"$STACKKITS_OWNER_EMAIL\" --password \"$STACKKITS_OWNER_PASSWORD\" --admin --must-change-password=false; fi \u0026\u0026 unset STACKKITS_OWNER_PASSWORD \u0026\u0026 exec gitea -c \"$GITEA_APP_INI\" web"
+            ],
+            "dependsOn": [],
+            "environment": {
+              "GITEA__actions__ENABLED": "false",
+              "GITEA__database__DB_TYPE": "sqlite3",
+              "GITEA__database__PATH": "/var/lib/gitea/data/gitea.db",
+              "GITEA__repository__DEFAULT_PRIVATE": "private",
+              "GITEA__repository__FORCE_PRIVATE": "true",
+              "GITEA__security__INSTALL_LOCK": "true",
+              "GITEA__security__REVERSE_PROXY_LIMIT": "0",
+              "GITEA__server__DISABLE_SSH": "true",
+              "GITEA__service__DISABLE_REGISTRATION": "true",
+              "GITEA__service__REQUIRE_SIGNIN_VIEW": "true"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/api/healthz",
+              "port": 3000
+            },
+            "id": "gitea",
+            "image": {
+              "digest": "sha256:1c17ecaead42eb3b5391553d8708103a4beb0e86edf5b9ebc1eb269c318845f2",
+              "ref": "docker.gitea.com/gitea:1.27.3-rootless"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "gitea-internal"
+            ],
+            "ownerEnvironment": {
+              "STACKKITS_OWNER_EMAIL": "email"
+            },
+            "resources": {
+              "memoryLimit": "2g",
+              "memoryReservation": "256m"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "STACKKITS_OWNER_PASSWORD": "owner-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "target": "/var/lib/gitea"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "config",
+                "target": "/etc/gitea"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "gitea",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:1c17ecaead42eb3b5391553d8708103a4beb0e86edf5b9ebc1eb269c318845f2",
+          "ref": "docker.gitea.com/gitea:1.27.3-rootless"
         },
         "kind": "container"
       },
@@ -17049,7 +18813,9 @@
         },
         "inputs": {
           "contractComplete": true,
-          "requiredRefs": []
+          "requiredRefs": [
+            "storage-roots"
+          ]
         },
         "level": "apply-ready",
         "planInputs": {
@@ -17065,7 +18831,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:8e48d778e46c4d9ffa0b5bec4921c4775438b74e7119d2dc530a3c27f572905f",
+          "contractHash": "sha256:6d8bd298e33bffb6249a589cb7a845c513e0e0578bd186bb4c01bee0f00fc393",
           "id": "jellyfin",
           "inputBindings": [
             {
@@ -17075,6 +18841,13 @@
               "sourceRef": "network.moduleRoute",
               "targetRef": "delivery-route",
               "valueType": "authority-bound-module-route-v1"
+            },
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "storage.hostRoots",
+              "targetRef": "storage-roots",
+              "valueType": "host-storage-roots-v1"
             }
           ],
           "kind": "native-config",
@@ -17088,7 +18861,8 @@
           "planInputRefs": [],
           "providesInterfaces": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "storage-roots"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -17135,7 +18909,8 @@
           "id": "compose",
           "planInputRefs": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "storage-roots"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
@@ -17152,7 +18927,8 @@
           "id": "opentofu",
           "planInputRefs": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "storage-roots"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
@@ -17204,6 +18980,7 @@
                 "backup": false,
                 "class": "persistent",
                 "id": "library",
+                "readOnly": true,
                 "target": "/media"
               }
             ]
@@ -17286,7 +19063,8 @@
       "health": [
         {
           "expectedStatuses": [
-            200
+            200,
+            302
           ],
           "id": "home-assistant-http",
           "kind": "http",
@@ -17365,7 +19143,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:8ace48ca66779adec03b5362b1f0cf33eb576e00cb7cd0b036d6c2e7512cbd7f",
+          "contractHash": "sha256:0c8716ed5f3b19245b14bc5304282edcbaef30f47c4bef6c65100b0070d37f77",
           "id": "home-assistant",
           "inputBindings": [
             {
@@ -17468,6 +19246,10 @@
         "components": [
           {
             "dependsOn": [],
+            "entrypoint": [
+              "/bin/sh",
+              "/config/stackkits-init.sh"
+            ],
             "health": {
               "kind": "http",
               "path": "/",
@@ -20350,6 +22132,427 @@
         "home",
         "cloud"
       ]
+    },
+    {
+      "computeProfiles": {
+        "standard": {
+          "description": "External Home Assistant API owner; guest capacity is admitted by its provisioning owner, not reserved on the StackKits core host.",
+          "executable": true,
+          "maturity": "beta",
+          "realization": "apply-ready"
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "home-assistant-instance-evidence"
+      ],
+      "health": [
+        {
+          "id": "home-assistant-instance",
+          "kind": "contract",
+          "phase": "post-apply",
+          "scope": "each-node",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Externally bound Home Assistant instance; API authority, endpoint, VM and credentials remain with the admitted runtime owner.",
+        "id": "stackkits-home-assistant-haos-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-home-assistant-appliance",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu",
+                "terramate"
+              ],
+              "format": "json",
+              "id": "stackkits-home-assistant-haos-runtime-instance",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/home-assistant-haos/instance.json",
+              "required": true,
+              "unitRef": "instance"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "stackkits-home-assistant-haos-runtime-instance",
+              "outputRef": "workloads/home-assistant-haos/instance.json",
+              "unitRef": "instance"
+            }
+          ],
+          "requiredRefs": [
+            "stackkits-home-assistant-haos-runtime-instance"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "home-assistant-instance-evidence"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:c09bb12b007fb88863f5f3bc4001de7f4a30f5125c657aceffe811c698a4d6b5",
+          "id": "instance",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/home-assistant-haos/instance.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://workloads/home-assistant/instance/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "delivery": "external-control-plane",
+        "engine": "api",
+        "execution": "executable",
+        "kind": "external",
+        "settings": {
+          "baselinePolicy": "fresh-only",
+          "baselineVersion": "1",
+          "configurationPolicy": "preserve-user-changes",
+          "dataCustody": "external-instance-owner",
+          "installationMethod": "haos",
+          "instanceOrigin": "new",
+          "managementScope": "managed",
+          "platform": "home-assistant"
+        }
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "standard": {
+          "description": "External Home Assistant API owner; guest capacity is admitted by its provisioning owner, not reserved on the StackKits core host.",
+          "executable": true,
+          "maturity": "beta",
+          "realization": "apply-ready"
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "home-assistant-instance-evidence"
+      ],
+      "health": [
+        {
+          "id": "home-assistant-instance",
+          "kind": "contract",
+          "phase": "post-apply",
+          "scope": "each-node",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Externally bound Home Assistant instance; API authority, endpoint, VM and credentials remain with the admitted runtime owner.",
+        "id": "stackkits-home-assistant-existing-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-home-assistant-appliance",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu",
+                "terramate"
+              ],
+              "format": "json",
+              "id": "stackkits-home-assistant-existing-runtime-instance",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/home-assistant-existing/instance.json",
+              "required": true,
+              "unitRef": "instance"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "stackkits-home-assistant-existing-runtime-instance",
+              "outputRef": "workloads/home-assistant-existing/instance.json",
+              "unitRef": "instance"
+            }
+          ],
+          "requiredRefs": [
+            "stackkits-home-assistant-existing-runtime-instance"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "home-assistant-instance-evidence"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:c09bb12b007fb88863f5f3bc4001de7f4a30f5125c657aceffe811c698a4d6b5",
+          "id": "instance",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/home-assistant-existing/instance.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://workloads/home-assistant/instance/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "delivery": "external-control-plane",
+        "engine": "api",
+        "execution": "executable",
+        "kind": "external",
+        "settings": {
+          "baselinePolicy": "preserve",
+          "configurationPolicy": "preserve-user-changes",
+          "dataCustody": "external-instance-owner",
+          "installationMethod": "unknown",
+          "instanceOrigin": "existing",
+          "managementScope": "observed",
+          "platform": "home-assistant"
+        }
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "standard": {
+          "description": "External Home Assistant API owner; guest capacity is admitted by its provisioning owner, not reserved on the StackKits core host.",
+          "executable": true,
+          "maturity": "beta",
+          "realization": "apply-ready"
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "home-assistant-instance-evidence"
+      ],
+      "health": [
+        {
+          "id": "home-assistant-instance",
+          "kind": "contract",
+          "phase": "post-apply",
+          "scope": "each-node",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Externally bound Home Assistant instance; API authority, endpoint, VM and credentials remain with the admitted runtime owner.",
+        "id": "stackkits-home-assistant-imported-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-home-assistant-appliance",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu",
+                "terramate"
+              ],
+              "format": "json",
+              "id": "stackkits-home-assistant-imported-runtime-instance",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/home-assistant-imported/instance.json",
+              "required": true,
+              "unitRef": "instance"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "stackkits-home-assistant-imported-runtime-instance",
+              "outputRef": "workloads/home-assistant-imported/instance.json",
+              "unitRef": "instance"
+            }
+          ],
+          "requiredRefs": [
+            "stackkits-home-assistant-imported-runtime-instance"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "home-assistant-instance-evidence"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:c09bb12b007fb88863f5f3bc4001de7f4a30f5125c657aceffe811c698a4d6b5",
+          "id": "instance",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/home-assistant-imported/instance.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://workloads/home-assistant/instance/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "delivery": "external-control-plane",
+        "engine": "api",
+        "execution": "executable",
+        "kind": "external",
+        "settings": {
+          "baselinePolicy": "preserve",
+          "configurationPolicy": "preserve-user-changes",
+          "dataCustody": "external-instance-owner",
+          "installationMethod": "haos",
+          "instanceOrigin": "imported",
+          "managementScope": "managed",
+          "platform": "home-assistant"
+        }
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
     }
   ],
   "planArtifacts": [
@@ -22475,6 +24678,102 @@
     {
       "certificateIssuers": [],
       "evidence": [
+        "private-ai-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-private-ai",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-private-ai-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "ai"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "gitea-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-gitea",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-gitea-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "dev"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
         "jellyfin-selected-paas-runtime-contract"
       ],
       "metadata": {
@@ -23564,6 +25863,39 @@
         "cloud"
       ],
       "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "home-assistant-instance-evidence"
+      ],
+      "metadata": {
+        "id": "stackkits-home-assistant-appliance",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-home-assistant-haos-runtime",
+            "stackkits-home-assistant-existing-runtime",
+            "stackkits-home-assistant-imported-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "smart-home"
+      ]
     }
   ],
   "rilActionExecutors": [
@@ -25142,6 +27474,313 @@
     {
       "alternatives": [
         {
+          "id": "private-ai",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "open-webui",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "ai",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "open-webui",
+                  "dataBindingRef": "ai",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/app/backend/data",
+                  "volumeRef": "data"
+                },
+                {
+                  "backup": false,
+                  "class": "persistent",
+                  "componentRef": "ollama",
+                  "dataBindingRef": "ai",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/root/.ollama",
+                  "volumeRef": "models"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "owner-password",
+                "session-key"
+              ],
+              "requiredRefs": [
+                "owner-password",
+                "session-key"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-private-ai-runtime",
+          "providerRef": "stackkits-private-ai",
+          "route": {
+            "healthRef": "private-ai-http",
+            "serviceRef": "ai"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "supported"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "alternativeID": "private-ai",
+          "included": true
+        },
+        "low": {
+          "included": false,
+          "reason": "CPU inference requires the explicit standard profile and model-specific capacity."
+        },
+        "standard": {
+          "alternativeID": "private-ai",
+          "included": true
+        }
+      },
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "private-ai",
+      "functionalCapabilities": [
+        "model-serving",
+        "local-inference",
+        "chat-interface"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Private AI chat and local model serving selected independently from kit architecture capabilities.",
+        "id": "ai",
+        "version": "1.1.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "ai"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "gitea",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "gitea",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "data"
+                },
+                {
+                  "componentRef": "gitea",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "config"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "dev",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "gitea",
+                  "dataBindingRef": "dev",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/var/lib/gitea",
+                  "volumeRef": "data"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "gitea",
+                  "dataBindingRef": "dev",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/etc/gitea",
+                  "volumeRef": "config"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "owner-password"
+              ],
+              "requiredRefs": [
+                "owner-password"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-gitea-runtime",
+          "providerRef": "stackkits-gitea",
+          "route": {
+            "healthRef": "gitea-http",
+            "serviceRef": "dev"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "supported"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "alternativeID": "gitea",
+          "included": true
+        },
+        "low": {
+          "included": false,
+          "reason": "Git hosting is available on the standard profile; repository growth needs a separate data budget."
+        },
+        "standard": {
+          "alternativeID": "gitea",
+          "included": true
+        }
+      },
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "gitea",
+      "functionalCapabilities": [
+        "source-control",
+        "git-hosting",
+        "developer-collaboration"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Private Git hosting and private repository collaboration selected independently from kit architecture capabilities.",
+        "id": "dev",
+        "version": "1.1.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "dev"
+    },
+    {
+      "alternatives": [
+        {
           "id": "jellyfin",
           "infrastructure": {
             "backupSource": {
@@ -25436,6 +28075,108 @@
             "mode": "on-demand",
             "owner": "module"
           }
+        },
+        {
+          "id": "home-assistant-haos",
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-home-assistant-haos-runtime",
+          "providerRef": "stackkits-home-assistant-appliance",
+          "route": {
+            "healthRef": "home-assistant-instance",
+            "serviceRef": "smart-home"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [],
+            "allowedDeliveries": [
+              "external-control-plane"
+            ],
+            "allowedKinds": [
+              "external"
+            ],
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        },
+        {
+          "id": "home-assistant-existing",
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-home-assistant-existing-runtime",
+          "providerRef": "stackkits-home-assistant-appliance",
+          "route": {
+            "healthRef": "home-assistant-instance",
+            "serviceRef": "smart-home"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [],
+            "allowedDeliveries": [
+              "external-control-plane"
+            ],
+            "allowedKinds": [
+              "external"
+            ],
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        },
+        {
+          "id": "home-assistant-imported",
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-home-assistant-imported-runtime",
+          "providerRef": "stackkits-home-assistant-appliance",
+          "route": {
+            "healthRef": "home-assistant-instance",
+            "serviceRef": "smart-home"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [],
+            "allowedDeliveries": [
+              "external-control-plane"
+            ],
+            "allowedKinds": [
+              "external"
+            ],
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
         }
       ],
       "computeTiers": {
@@ -25458,8 +28199,6 @@
       "defaultAlternative": "home-assistant",
       "functionalCapabilities": [
         "smart-home-hub",
-        "native-product-mcp",
-        "assist-api",
         "automation"
       ],
       "kind": "application",

@@ -9,16 +9,17 @@
   "schemaVersion": "stackkit.architecture-authority-bundle/v2",
   "sourceHashes": {
     "architecture/v2/contractfixture/catalog.cue": "sha256:4c7c0f72972327b9e9e0bfa1b0d8c31e2d461884d10115a1819bb3cd6fdc77eb",
-    "basement-kit/stackfile.cue": "sha256:44978d30880c6b4ccc93dd28234fde26bb355961601194d9ae8f3241cb04e501",
+    "basement-kit/stackfile.cue": "sha256:da554da3335f53b44013848591f8ef20a61c519ccc37fb5bdb73f30df5d8e80e",
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee",
     "foundation/application_lifecycle.cue": "sha256:7befc7549306375ef5434a852ad31940fe4924698900db1ccff0c766c0e70cdd",
-    "foundation/architecture_v2.cue": "sha256:2d54ab7bfb7501f177f034e3458730eb758fdadd9491f71004bea7d9eff8079d",
+    "foundation/architecture_v2.cue": "sha256:461b980a205ba357b986e81335e0f9c65989982890ce002b1577f7e6c8c9e70a",
     "foundation/architecture_v2_backup.cue": "sha256:750b23662d20956156394cf61ad1466e651372a18aa06075883a2a70199c93e0",
-    "foundation/architecture_v2_catalog.cue": "sha256:6e93cdd6534c711a89586d54af9f893b0022996efcb09fd04197f611ae7e777a",
-    "foundation/architecture_v2_cloud_core.cue": "sha256:aea0006846bfc485cf776061a2add324db7b7d6d86801bd96e4bbb2a1d3908a0",
+    "foundation/architecture_v2_catalog.cue": "sha256:b0cab8fed401839aac0f49fce6fdf839d990f3d8ea9deb681ed227a9d0faf508",
+    "foundation/architecture_v2_cloud_core.cue": "sha256:557062e98e94a96dc42968b93393d5d08a47b6f2e870c48509fd12eebd3aa7b3",
     "foundation/architecture_v2_definition_binding.cue": "sha256:eb672ae095f461383f94d7212cc92a6a16a01f5abcd9722523015457bc3484a4",
-    "foundation/architecture_v2_module_profiles.cue": "sha256:037506048754ee38e364963e57b58a4c98a5ccbf106620b24a7d4aa4a1bd0947",
+    "foundation/architecture_v2_module_profiles.cue": "sha256:798a4be36978c47178b447cc495c6fa858df1964e98ad97b34a6a4ec6aa40104",
     "foundation/architecture_v2_profiles.cue": "sha256:1b80546a4156f4aeba80f8149f5847fbd2315f2269ed8128fe3cb8b36e7128f3",
+    "foundation/architecture_v2_smart_home.cue": "sha256:3b570fb719b18d9d1f14d8123e3494279c3baa491906eb606c0851e1065e3fa8",
     "foundation/architecture_v2_storage.cue": "sha256:299057ef61b0f600cb5eff5e3d9d0423613daffb295fd4f0ecd39ff3d9b53adf",
     "foundation/use_case_identity.cue": "sha256:69434bf7d383b41ae037fad46003b1196e219025895d81c603fd398cfc461b87"
   }

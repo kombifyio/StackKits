@@ -804,7 +804,9 @@
       "photos",
       "vault",
       "media",
-      "smart-home"
+      "smart-home",
+      "ai",
+      "dev"
     ],
     "required": [
       "cloud-core"

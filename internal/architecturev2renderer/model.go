@@ -390,6 +390,7 @@ type rawModuleRuntimeImage struct {
 type moduleRuntimeContract struct {
 	execution, kind, delivery, engine, imageRef, imageDigest, entryComponentRef string
 	componentsCanonical                                                         []byte
+	settingsCanonical                                                           []byte
 }
 
 type rawRenderUnitInstance struct {
@@ -1288,6 +1289,14 @@ func parseModuleRuntime(object map[string]json.RawMessage, modulePath string) (m
 		return moduleRuntimeContract{}, fail(ErrInvalidPlan, modulePath+".runtime.execution", "unsupported module execution class %q", decoded.Execution)
 	}
 	runtime := moduleRuntimeContract{execution: decoded.Execution, kind: decoded.Kind, delivery: decoded.Delivery, componentsCanonical: []byte("[]")}
+	if decoded.Settings == nil {
+		decoded.Settings = map[string]json.RawMessage{}
+	}
+	settings, err := json.Marshal(decoded.Settings)
+	if err != nil {
+		return moduleRuntimeContract{}, wrap(ErrInvalidPlan, modulePath+".runtime.settings", "canonicalize runtime settings", err)
+	}
+	runtime.settingsCanonical = settings
 	if decoded.Engine.present {
 		if !containsStringValue([]string{"docker", "podman", "systemd", "binary", "api"}, decoded.Engine.value) {
 			return moduleRuntimeContract{}, fail(ErrInvalidPlan, modulePath+".runtime.engine", "unsupported module runtime engine %q", decoded.Engine.value)

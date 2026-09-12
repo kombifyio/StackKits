@@ -4,88 +4,92 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Unreleased
+## [0.25.1](https://github.com/kombifyio/StackKits/compare/v0.24.92...v0.25.1) (2026-09-12)
+
+This is the first public release of the 0.25 line. It includes the complete
+0.25 feature package and the publication fixes below; 0.25.0 was reserved but
+did not reach public publication.
 
 ### Fixed
 
-- Automatic Apply recovery reuses the generated inventory identity after local
-  free-space changes, while admission still checks fresh host observations.
+- Public authoring documentation links to the CUE contracts included in the
+  standalone distribution. Release delivery carries the authenticated plan
+  identity through the existing publisher.
+- Application status distinguishes authenticated restore activation from recovery to the prior runtime state. Completed activation no longer asks the owner to activate the same restore again; application-data readback remains explicitly unverified.
+- Preserve registered product error codes in CLI JSON failures while keeping
+  typed diagnostics private, so external lifecycle runners can identify the
+  rejected authority or artifact boundary.
 
-- Failed local Apply evidence collection reports fixed probe/collection stages
-  on stderr through joined errors, without exposing arbitrary wrapped causes or
-  secret material. Apply refusal and exit classification remain unchanged.
+### Highlights
 
-- Plan inspection preserves the generated local storage-capacity sample for
-  exact input identity while checking every other current input. Ordinary disk
-  usage changes no longer invalidate generated artifacts; Apply still requires
-  readiness from fresh host observations before execution.
+- **Photos and household applications:** Photos Lite disables the machine-learning features whose service it omits, while retaining upload and original download. Home Assistant initializes persistent automation, script and scene files without overwriting existing content. Vaultwarden 1.37.2 supports the current official Bitwarden clients; existing encrypted entries and attachments remain usable after upgrade. Vault owner invitations work with closed registration even without SMTP.
+- **Media and Smart Home execution:** Jellyfin and Home Assistant use the regular standalone runtime owner. Jellyfin completes native owner setup and reads an explicitly selected media directory without changing its permissions or allowing library writes. Missing directories are reported instead of being silently created. A fresh Home Assistant onboarding redirect is recognized as reachable while setup remains unfinished.
+- **Private AI:** Explicitly selected Ollama and Open WebUI workloads run through the standalone lifecycle with local owner access. Models download only when requested, Ollama remains on a private network, and model files and chats persist across container replacement. The CPU profile declares its memory and storage requirements before installation.
+- **Private Git:** Explicitly selected Gitea runs through the standalone owner with private repositories, native HTTPS Git access and persistent repository data and configuration. The first administrator is established before HTTP starts; existing accounts are preserved. Owners can explicitly read a declared application password with `stackkit secrets reveal` from their local custody.
+- **Smart Home operating forms:** Home Assistant OS, observed existing instances and preserved imports have explicit workload contracts alongside the container path. Imported installations keep their existing configuration; only fresh installations receive baseline setup intent.
+- **Standalone backup and recovery:** Cloud deployments gain the local Kopia runtime. S3 target import creates an opaque, owner-bound Inventory reference; explicit rebind renews configuration authority while preserving the target and credentials. Restores preserve the original file owners and permissions so application databases can reopen their data. Volume activation retains recovery data when cleanup fails.
+- **Cloud offsite backups:** The native Kopia runtime connects the owner's S3 target, completes a snapshot and isolated restore, and signs the resulting evidence. Offsite configuration and cache stay separate from the local repository. Disposable verification staging is removed while owner recovery staging is preserved.
+- **Modern origin access:** Cloud-held keys can be enrolled by the Home owner through the existing certificate authority. Signed workload admission, per-request revocation and live container bindings protect the Home origin listener. Explicit key replacement preserves revoked-key denial, and Apply resumes older interrupted provisioner upgrades. The complete Home-plus-Cloud path remains in development.
+- **Modern site connection:** The native FederationLink runtime adopts an explicitly owner-approved WireGuard interface, limits traffic to declared services and verifies the Home origin with mTLS. Revocation, kernel-enforced expiry and shutdown withdraw access. Creating the underlying WireGuard interface and completing connected Edge publication remain separate work.
+- **Modern remote inspection:** Home-signed actions can request remote plan and verify through the existing server over mTLS. The receiver checks the exact plan, target, execution channel and pinned CLI; signed withdrawal and persisted replay handling survive restarts. Remote apply and destroy are not enabled by this release.
+- **Owner approval:** The local API can bind a PocketID-authenticated owner approval to one exact remote action, target and short validity window. Browser confirmation and callback custody prevent another browser from taking over the flow. Executing remote mutations remains separate work.
+- **Useful support exports:** `stackkit support export` collects bounded, redacted logs and operation receipts into a local file. Interrupted or oversized records produce a clear notice while other diagnostics remain available; existing output files are preserved.
+- **More reliable application startup:** Compose preserves literal dollar signs in application settings and commands, and runtime verification uses complete container identities. Basement DNS remains under its existing core owner, allowing Apply to reach authorization without an incorrect missing-module block.
+- **Files first owner:** Fresh Cloudreve installations can complete explicitly authorized owner registration. A read-only account check distinguishes a missing account from an existing owner's wrong password before registration is attempted.
+- **Reliable generated artifacts:** Interrupted installation transactions clean their own staging through the originally opened directory even if its named path changes; activation still rejects a replaced workspace. Generated authority hashes now match the source bytes distributed by Git on both Windows and Linux.
+- **Readable release packages:** One prepared version identifies the release across distributions. Patch numbers range from 0 to 9; development builds use a local source marker. The publisher refuses to replace a released version with another source, and minor-line highlights come from this changelog.
 
-- Native `init --candidate-spec <file|->` preserves a complete approved v2
-  StackSpec through the existing CUE validation, compare-and-swap persistence
-  and local owner custody. It refuses competing authoring overrides instead
-  of reconstructing and losing workload, profile or placement decisions.
+### Upgrade and scope
 
-- Cloud public-edge executor contracts preserve the canonical `ingressAuth`
-  route policy through strict decoding and the runtime policy digest. Native
-  application authentication no longer blocks Cloud Kit generation; unknown
-  modes remain invalid and omitted modes retain the CUE `native` default.
+- Standard Mode remains account-free. These changes use the existing standalone lifecycle and owner custody.
+- Existing media libraries remain outside StackKits backups. Application configuration and cache remain writable; the selected media directory must already exist.
+- The local Smart Home runtime runs Home Assistant as a container. The separate HAOS and imported-instance contracts do not establish a verified guest installation or hardware setup. Supervisor, MQTT and Zigbee device integration retain their own scope.
+- Private AI requires an explicit model download and sufficient capacity for that model. Large model files are excluded from backups; complete AI backup/restore and GPU execution remain unverified. Local inference and chat persistence have been exercised with real Ollama and Open WebUI containers.
+- Gitea HTTPS push, clone and repository persistence have been exercised with a real Git client. Both repository data and application configuration belong to its declared backup scope; a complete Gitea recovery cycle, SSH and CI runner integration remain pending. Native Git clients need working DNS and a trusted certificate for the declared route.
+- Cloud offsite transport and staged data restoration have been exercised against a real S3-compatible service. Application-consistent Cloud recovery and the complete two-site Modern installation remain in development. Smartphone and desktop client verification remains separate from the exercised application APIs.
+- Cloud S3 endpoints require trusted HTTPS. Kopia keeps its native S3 connection credentials in private runtime configuration excluded from backups; support evidence contains opaque custody references.
+
+## [0.24.92](https://github.com/kombifyio/StackKits/releases/tag/v0.24.92) (2026-09-09)
+
+The following notes preserve the previously published release and its exact source association.
 
 ### Added
 
-- Use-case catalog: `#UseCaseSetting` declares what an operator decides per
-  use case before install (kind, group, depth, help, options, default,
-  realization), and `docs` names the guide on docs.kombify.io. The release
-  projection `stackkits-use-case-catalog-v1.json` carries both; consumers
-  derive the backend alternative and compute profile from `components` and
-  `computeTiers` as before.
-
-- StackKits WebMCP v2alpha1 and `https://stackkit.cc/planner`: four read-only,
-  schema-first module-profile/catalog/capacity/handoff tools share one visible
-  Planner state and CUE-derived public catalog. The handoff projects
-  `init → validate → resolve → generate → plan`; Apply remains an explicit,
-  non-executable follow-up. The complete core, component, reference host,
-  schemas, generated data, and affected tests are part of the OSS export.
-- Architecture v2 Smart Home workload: catalog `home-assistant` on Basement/Cloud/Modern, pinned `home-assistant/home-assistant:2026.7.2`. Self-hosted container only. Generate writes the reverse-proxy `configuration.yaml` baseline (Homelab name, `trusted_proxies`, `external_url` when the delivery host is known), `.stackkit/agent/home-assistant.mcp.json` for native `/api/mcp` on `https://smart-home.<domain>`, and Homelab owner intent (`username: homelab`). Setup creates that owner through `/api/onboarding/users`. Config volume is a StackKits backup source. No HA OS, Supervisor, Zigbee, or MQTT runtime in this slice.
-- Use-case agent surface (`#UseCaseAgentSurfaceV1`, ADR-0038). Generate writes workspace `.stackkit/agent-surface.json` for selected workloads. Photos is the reference: Immich REST, family-vault skill, no product MCP. Smart Home emits the Home Assistant `/api/mcp` client fragment plus the `homelab-mcp` skill. Coolify delivery is unchanged.
-- Architecture v2 Media workload: catalog `jellyfin` on Basement/Cloud/Modern `standard` and `high`, pinned `jellyfin/jellyfin:10.10.7`. Library volume is owner-custodied and not a StackKits backup source. Basement `low` still omits Media.
+- `stackkit service start|stop|restart|logs` persists owner-signed desired state,
+  redacts bounded logs, protects critical control-plane services, and exposes
+  the same closed operations through StackAction for enrolled agents.
 
 ### Changed
 
-- Native `stackkit/v2alpha2` uses explicit module-local compute, storage and
-  accelerator profiles plus workload alternatives. The earlier kit-global tier
-  contracts below are retained only through the explicit `v2alpha1` adapter.
-  CPU/RAM/storage sliders preserve undeclared values, and incomplete CUE capacity
-  facts cannot produce a ready handoff. Required host facts must be observed in
-  inventory before Apply, not inferred from declared hardware intent.
-- Remove the obsolete `modules` dispatch input from the catalog Delivery
-  adapter; module contract verification owns its catalog selection.
-
-- Affected-test hang guards follow the 5-minute phase cap: one planned `go test` may run 180s, and the wrapper kill is 5 minutes. The previous 90s/2-minute pair aborted legitimate Architecture v2 catalog evaluation and `cmd/stackkit/commands` generate proofs. CUE authority changes compile the embed instead of selecting a Go test name that does not exist.
-
-- Photos no longer lists `ente-photos` as a catalog component, package tool, or kit YAML alternative. `component-closure` follows Immich only. Ente stays post-1.0 until a module exists. The public compatibility projection collapses identical use-case/adapter rows from multiple alternatives and fail-closes when those rows disagree.
-- Basement `stackkit generate` after `--use-case photos,files,vault` on `standard` emits `basement-core`, `immich`, `cloudreve`, and `vaultwarden` (not the low-graph lite substitutes).
-- Basement `stackkit generate` after `--compute-tier low --use-case photos,files,vault` emits `basement-core-lite` and `immich-lite` (standalone Compose, no Coolify). Media fails closed at init. Authoring docs and Basement YAML `computeTiers.high` floors follow the CUE graph (2C/4GB min, not 4C/8GB). Cloud YAML `low` remains kitio roundtrip with no graph.
-- Files and Vault catalog workloads declare `computeTiers` alternatives. The public use-case catalog and MCP `stackkit_use_case_compute_tiers` project package fits and load so the Techstack Unifier can omit Media on `low` and treat always-on active-resident as base load. Unifier no longer maps `context: pi` or ARM to `install.computeTier`.
-- Init writes catalog `#WorkloadContractV2.computeTiers` alternatives: Basement `--compute-tier low --use-case photos` authors `immich-lite` on `standalone-compose`. Omitted catalog fits fail closed at init and compile. `stackkit generate` accepts `--local-site`/`--local-node` for inventory attest.
-- Every use-case package declares `computeTiers.{low,standard,high}` (functions + load residency/baseline/burst on the kit graph). Runtime-profile `contexts` are removed. Photos `low` is Immich without ML; Vault fits all graphs as idle-resident; Media is omitted on `low` until a lite substitution exists. Draft packages (AI, Dev, Mail, Game, Remote) omit all three graphs with reasons.
-- Native v2 `install.computeTier` (`low` | `standard` | `high`, default `standard`) selects a kit-declared module graph. Basement publishes `standard` (Coolify PaaS + Immich ML), `low` (standalone, core-lite without Coolify, Immich without ML, floors 2/2/10), and `high` (`telemetry-collection`). Cloud and Modern publish `standard` and `high`, not `low`. Missing or undeclared graphs fail closed. `--hardware-profile` writes `nodes[0].hardware.profile`; `pi` is a constrained homelab device class, not Raspberry-only. Apply does not choose the graph. Host preflight uses the selected graph's host floors. Multi-node Apply without a bound local node fails closed instead of probing nothing. Memory-cgroup guidance is kernel-generic, not Raspberry-only.
-- Compiler admits runtime capacity before side effects. Missing inventory facts block Apply (`inventory-fact-unverified`); attested undersize blocks Apply (`runtime-capacity-unsatisfied`). Generation can still succeed.
-- Basement and Cloud core runtimes declare minimum attested CPU/RAM/disk; empty inventory no longer silently admits Product Apply.
-- Failed Product Apply (human and `--json`) ends with retry/`status`/`logs` guidance and the Run-ID when a local run exists.
-- `base-install.sh` and `cloud-install.sh` resume apply on an existing workspace instead of dying.
+- Application rollout now completes independent components as
+  `completed_degraded`, uses declared adapter fallbacks only before an external
+  identity is committed, and verifies standalone Compose runtime state.
+- Access manifests project desired state, allowed actions, and protected
+  evidence references so orchestration UIs consume StackKits authority without
+  a Coolify-specific mapping.
+- Planner use-case tiles now materialize CUE-declared defaults and explicit
+  alternatives; capacity controls use integer CPU/storage steps and 0.5-GiB RAM
+  steps without coercing undeclared or off-grid input.
 
 ### Fixed
 
-- Basement mode verification now reports standard placement, bootstrapped
-  install, and local context as awaiting current runtime evidence. The historical
-  SK-S1 citation no longer implies current-line support proof; the implemented
-  paths remain available with the existing mode-matrix warnings.
+- Keep the shared renderer transaction fixture aligned with the required host, maintenance, and redaction contracts so foundation changes exercise generation authorization instead of failing during compiler construction.
+- Published GitHub Release notes now retain the exact private source SHA across
+  draft creation, retry, and final changelog-note application, so first-party
+  consumers can verify release provenance after publication.
+- Public release publication now requires the exact numeric version to exist in
+  this changelog. Fast pre-1.0 deliveries can no longer replace user-facing
+  notes with a source-SHA placeholder.
+- The missing public history for every existing v0.14.x and v0.15.x tag is
+  restored, including patch releases that previously existed only as tags or
+  GitHub Release objects.
+- Coolify, Komodo, and Dokploy now retain an external deployment identity when
+  a post-upsert deploy/readiness step fails, preventing a duplicate Compose
+  fallback deployment.
 
-- Public release lane: the governed go-common projection now pins v0.4.49
-  (sum, origin hash and the three projected files that changed since
-  v0.4.40), matching `go.mod` since #865. Every public sync since that bump
-  had failed at "source go.mod does not contain the governed go-common pin".
+**Full Changelog**: https://github.com/kombifyio/stackKits/compare/v0.16.8...v0.24.92
 
+Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
 
 ## [0.24.2](https://github.com/kombifyio/stackKits/compare/v0.23.0...v0.24.2) (2026-09-02)
 
@@ -431,6 +435,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **kits:** give cloud-kit a real Cloud identity; enforce YAML/CUE metadata parity (nzws.1, nzws.2) ([3eda25c](https://github.com/kombifyio/stackKits/commit/3eda25cccc7d3f5570fd8aece4dfb8f50a865047))
 * **public-surface:** English-only export surface with an enforcing gate (nzws.3, nzws.4) ([0bfae18](https://github.com/kombifyio/stackKits/commit/0bfae18dcf5b7fc87c8ed8d19363d59c82bd0975))
 * **tests:** unrot the plan-shape assertions and run them on CUE changes (dbvm) ([43885be](https://github.com/kombifyio/stackKits/commit/43885beef6c46d45aad201719da7f625ea288d94))
+
+## [Unreleased]
+
+- Bind every Use Case Package's default runtime profile to an actually declared profile in the central CUE contract, so invalid new use cases fail at authoring time instead of later in composition.
+
+### Added
+
+- `stackkit service start|stop|restart|logs` persists owner-signed desired state,
+  redacts bounded logs, protects critical control-plane services, and exposes
+  the same closed operations through StackAction for enrolled agents.
+
+### Changed
+
+- Application rollout now completes independent components as
+  `completed_degraded`, uses declared adapter fallbacks only before an external
+  identity is committed, and verifies standalone Compose runtime state.
+- Access manifests project desired state, allowed actions, and protected
+  evidence references so orchestration UIs consume StackKits authority without
+  a Coolify-specific mapping.
+- Planner use-case tiles now materialize CUE-declared defaults and explicit
+  alternatives; capacity controls use integer CPU/storage steps and 0.5-GiB RAM
+  steps without coercing undeclared or off-grid input.
+
+### Fixed
+
+- Keep the shared renderer transaction fixture aligned with the required host, maintenance, and redaction contracts so foundation changes exercise generation authorization instead of failing during compiler construction.
+- Published GitHub Release notes now retain the exact private source SHA across
+  draft creation, retry, and final changelog-note application, so first-party
+  consumers can verify release provenance after publication.
+- Public release publication now requires the exact numeric version to exist in
+  this changelog. Fast pre-1.0 deliveries can no longer replace user-facing
+  notes with a source-SHA placeholder.
+- The missing public history for every existing v0.14.x and v0.15.x tag is
+  restored, including patch releases that previously existed only as tags or
+  GitHub Release objects.
+- Coolify, Komodo, and Dokploy now retain an external deployment identity when
+  a post-upsert deploy/readiness step fails, preventing a duplicate Compose
+  fallback deployment.
 
 ## [0.16.8](https://github.com/kombifyio/stackKits/compare/v0.16.7...v0.16.8) (2026-08-13)
 

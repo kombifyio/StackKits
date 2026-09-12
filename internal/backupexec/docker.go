@@ -84,7 +84,22 @@ func NewDockerV2EngineForPolicy(policy localbackuppolicy.Policy) (V2Engine, erro
 		return docker.NewLocalClient(docker.WithTimeout(timeout))
 	}), source))
 	engine.retention = held.Retention
+	engine.hostname = held.Runtime.Hostname
+	engine.coreModuleRef = held.Source.CoreModuleRef
 	return engine, nil
+}
+
+// NewDockerV2OffsiteEngineForPolicy admits only the finite Cloud outbound
+// profile and retains the same source mounts, image and single-peer checks.
+func NewDockerV2OffsiteEngineForPolicy(policy localbackuppolicy.Policy) (V2Engine, error) {
+	if policy.Source.CoreModuleRef != localbackuppolicy.CloudCoreModuleRef || policy.Runtime.NetworkMode != "outbound-no-peer" {
+		return V2Engine{}, fmt.Errorf("offsite Kopia requires the governed Cloud outbound profile")
+	}
+	engine, err := NewDockerV2EngineForPolicy(policy)
+	if err != nil {
+		return V2Engine{}, err
+	}
+	return NewV2OffsiteEngineForPolicy(engine.Exec, policy)
 }
 
 type dockerV2Client interface {
@@ -103,26 +118,9 @@ func dockerV2Executor(newClient dockerV2ClientFactory) SecretExecutor {
 
 func dockerV2ExecutorForSource(newClient dockerV2ClientFactory, source localbackuppolicy.Source) SecretExecutor {
 	return func(ctx context.Context, command []string, sensitiveInput []byte) (string, error) {
-		if newClient == nil {
-			return "", fmt.Errorf("native-v2 Docker client factory is required")
-		}
-		client := newClient(dockerTimeout(ctx, LongOperationTimeout))
-		if !client.IsInstalled() {
-			return "", fmt.Errorf("docker is not installed on this host — the backup engine requires the local %s service", v2ComposeService)
-		}
-		if !client.IsRunning(ctx) {
-			return "", fmt.Errorf("docker daemon is not running")
-		}
-		container, err := client.ResolveComposeServiceContainer(ctx, v2ComposeProject, v2ComposeService)
+		client, container, err := inspectDockerV2SourceRuntime(ctx, newClient, source)
 		if err != nil {
-			return "", fmt.Errorf("resolve local kopia runtime: %w (provision the local backup runtime and re-apply the stack)", err)
-		}
-		network, err := client.InspectNetwork(ctx, v2NetworkName)
-		if err != nil {
-			return "", fmt.Errorf("inspect local kopia runtime network: %w", err)
-		}
-		if err := validateDockerV2RuntimeForSource(container, network, source); err != nil {
-			return "", fmt.Errorf("local kopia runtime differs from the governed policy: %w", err)
+			return "", err
 		}
 		passwordCommand, err := kopiaPasswordCommand(command)
 		if err != nil {
@@ -130,6 +128,31 @@ func dockerV2ExecutorForSource(newClient dockerV2ClientFactory, source localback
 		}
 		return client.ExecWithStdin(ctx, container.ID, passwordCommand, sensitiveInput)
 	}
+}
+
+func inspectDockerV2SourceRuntime(ctx context.Context, newClient dockerV2ClientFactory, source localbackuppolicy.Source) (dockerV2Client, *docker.ContainerInfo, error) {
+	if newClient == nil {
+		return nil, nil, fmt.Errorf("native-v2 Docker client factory is required")
+	}
+	client := newClient(dockerTimeout(ctx, LongOperationTimeout))
+	if !client.IsInstalled() {
+		return nil, nil, fmt.Errorf("docker is not installed on this host — the backup engine requires the local %s service", v2ComposeService)
+	}
+	if !client.IsRunning(ctx) {
+		return nil, nil, fmt.Errorf("docker daemon is not running")
+	}
+	container, err := client.ResolveComposeServiceContainer(ctx, source.ComposeProject(), v2ComposeService)
+	if err != nil {
+		return nil, nil, fmt.Errorf("resolve local kopia runtime: %w (provision the local backup runtime and re-apply the stack)", err)
+	}
+	network, err := client.InspectNetwork(ctx, "stackkit-"+source.RuntimeProfile().NetworkRef)
+	if err != nil {
+		return nil, nil, fmt.Errorf("inspect local kopia runtime network: %w", err)
+	}
+	if err := validateDockerV2RuntimeForSource(container, network, source); err != nil {
+		return nil, nil, fmt.Errorf("local kopia runtime differs from the governed policy: %w", err)
+	}
+	return client, container, nil
 }
 
 func validateDockerV2Runtime(container *docker.ContainerInfo, network *docker.NetworkInfo) error {
@@ -141,13 +164,14 @@ func validateDockerV2RuntimeForSource(container *docker.ContainerInfo, network *
 }
 
 func validateDockerV2RuntimeState(container *docker.ContainerInfo, network *docker.NetworkInfo, source localbackuppolicy.Source, allowStopped bool) error {
+	v2ComposeProject, v2NetworkName := source.ComposeProject(), "stackkit-"+source.RuntimeProfile().NetworkRef
 	if container == nil || network == nil {
 		return fmt.Errorf("container and network inspection are required")
 	}
 	if err := localbackuppolicy.ValidateSourceProjection(source); err != nil {
 		return fmt.Errorf("source selection is not the governed Full-Core or CoreLite projection: %w", err)
 	}
-	runtime := localbackuppolicy.GovernedRuntime()
+	runtime := source.RuntimeProfile()
 	config := container.Config
 	if config.Image != runtime.Image {
 		return fmt.Errorf("container image is not the exact pinned runtime")
@@ -179,7 +203,7 @@ func validateDockerV2RuntimeState(container *docker.ContainerInfo, network *dock
 	if err := validateDockerV2HostConfig(container.HostConfig, source); err != nil {
 		return err
 	}
-	if err := validateDockerV2Labels(container); err != nil {
+	if err := validateDockerV2LabelsForProject(container, v2ComposeProject); err != nil {
 		return err
 	}
 	if !slices.Equal(config.Entrypoint, []string{"/bin/sh", "-c"}) ||
@@ -253,8 +277,9 @@ func validateDockerV2RuntimeState(container *docker.ContainerInfo, network *dock
 		}
 	}
 
-	if network.Name != v2NetworkName || !network.Internal {
-		return fmt.Errorf("backup network is not internal with exactly one peer")
+	wantInternal := source.RuntimeProfile().NetworkMode == localbackuppolicy.NetworkMode
+	if network.Name != v2NetworkName || network.Internal != wantInternal {
+		return fmt.Errorf("backup network differs from its governed source profile")
 	}
 	// Docker detaches the active endpoint when a container stops while
 	// retaining its configured NetworkID. Only recovery may accept this empty
@@ -273,6 +298,7 @@ func validateDockerV2RuntimeState(container *docker.ContainerInfo, network *dock
 }
 
 func validateDockerV2HostConfig(config docker.ContainerHostConfig, source localbackuppolicy.Source) error {
+	v2ComposeProject := source.ComposeProject()
 	if len(config.UnknownInspectionFields) != 0 {
 		return fmt.Errorf("container inspection contains unsupported host controls")
 	}
@@ -339,7 +365,7 @@ func validateDockerV2HostConfig(config docker.ContainerHostConfig, source localb
 	}
 	if config.ShmSize != 64*1024*1024 ||
 		config.CPUShares != 0 ||
-		config.Memory != 0 ||
+		config.Memory != 256*1024*1024 ||
 		config.NanoCPUs != 0 ||
 		config.CgroupParent != "" ||
 		config.BlkioWeight != 0 ||
@@ -355,7 +381,7 @@ func validateDockerV2HostConfig(config docker.ContainerHostConfig, source localb
 		config.CpusetCPUs != "" ||
 		config.CpusetMems != "" ||
 		config.MemoryReservation != 0 ||
-		config.MemorySwap != 0 ||
+		config.MemorySwap != 2*config.Memory ||
 		config.MemorySwappiness != nil ||
 		config.CPUCount != 0 ||
 		config.CPUPercent != 0 ||
@@ -364,7 +390,7 @@ func validateDockerV2HostConfig(config docker.ContainerHostConfig, source localb
 		len(config.Ulimits) != 0 {
 		return fmt.Errorf("container cgroup resource policy differs from the governed runtime")
 	}
-	if config.OomScoreAdj != 0 ||
+	if config.OomScoreAdj != 300 ||
 		(config.OomKillDisable != nil && *config.OomKillDisable) ||
 		config.PidsLimit != nil {
 		return fmt.Errorf("container process availability policy differs from the governed runtime")
@@ -403,6 +429,10 @@ func containsAllPaths(actual, required []string) bool {
 }
 
 func validateDockerV2Labels(container *docker.ContainerInfo) error {
+	return validateDockerV2LabelsForProject(container, v2ComposeProject)
+}
+
+func validateDockerV2LabelsForProject(container *docker.ContainerInfo, v2ComposeProject string) error {
 	labels := container.Config.Labels
 	if len(labels) != 12 ||
 		labels["com.docker.compose.container-number"] != "1" ||
@@ -438,6 +468,15 @@ func kopiaPasswordCommand(command []string) ([]string, error) {
 		"/bin/sh", "-ceu",
 		`IFS= read -r KOPIA_PASSWORD; export KOPIA_PASSWORD; exec "$@"`,
 		"--",
+	}
+	if len(command) >= 6 && command[1] == "--config-file" && (command[2] == DefaultConfigFile || command[2] == OffsiteConfigFile) && command[3] == "repository" && command[4] == "connect" && command[5] == "s3" {
+		argv[2] = `IFS= read -r KOPIA_PASSWORD; IFS= read -r AWS_ACCESS_KEY_ID; IFS= read -r AWS_SECRET_ACCESS_KEY; export KOPIA_PASSWORD AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; unset AWS_SESSION_TOKEN; exec "$@"`
+	}
+	if len(command) >= 3 && command[1] == "--config-file" && command[2] == OffsiteConfigFile {
+		// The runtime KOPIA_CACHE_DIRECTORY is the local repository's cache and
+		// Kopia's connect default. An offsite command never inherits it: a shared
+		// cache serves the local format blob, and a failed connect removes it.
+		argv[2] = "unset KOPIA_CACHE_DIRECTORY; " + argv[2]
 	}
 	return append(argv, command...), nil
 }

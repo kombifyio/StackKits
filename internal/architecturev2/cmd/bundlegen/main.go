@@ -23,6 +23,7 @@ import (
 	"cuelang.org/go/cue/load"
 	"github.com/kombifyio/stackkits/internal/architecturev2/authoritysources"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/scaffold"
 	"gopkg.in/yaml.v3"
 )
 
@@ -76,6 +77,16 @@ type manifest struct {
 	Profiles       map[string]string `json:"profiles"`
 }
 
+// readCanonicalSource binds emitted source and its hash to the LF bytes Git
+// distributes, even when a Windows editor wrote CRLF into the working tree.
+func readCanonicalSource(path string) ([]byte, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n")), nil
+}
+
 func main() {
 	repoFlag := flag.String("repo", "../..", "StackKits CUE module root")
 	outFlag := flag.String("out", "authority_bundle", "generated bundle output directory")
@@ -85,11 +96,13 @@ func main() {
 	contractFixtureFlag := flag.Bool("contract-fixture", false, "generate the isolated non-product contract-fixture authority bundle")
 	contractFixtureOutFlag := flag.String("contract-fixture-out", "", "also generate the isolated contract-fixture bundle at this path after the product bundle")
 	productKitsGoOutputFlag := flag.String("product-kits-go-output", "", "optional repo-relative generated Go inventory derived from the product authority bundle")
+	rendererImagesGoOutputFlag := flag.String("renderer-images-go-output", "", "optional repo-relative generated renderer workload image constants derived from the product authority catalog")
 	flag.Parse()
 	var err error
 	if *contractFixtureFlag {
-		if strings.TrimSpace(*sourceFlag) != "" || *profilesFlag != "all" || *projectFlag || strings.TrimSpace(*contractFixtureOutFlag) != "" || strings.TrimSpace(*productKitsGoOutputFlag) != "" {
-			err = fmt.Errorf("-contract-fixture cannot be combined with -manifest, -profiles, -project, -contract-fixture-out, or -product-kits-go-output")
+		if strings.TrimSpace(*sourceFlag) != "" || *profilesFlag != "all" || *projectFlag || strings.TrimSpace(*contractFixtureOutFlag) != "" ||
+			strings.TrimSpace(*productKitsGoOutputFlag) != "" || strings.TrimSpace(*rendererImagesGoOutputFlag) != "" {
+			err = fmt.Errorf("-contract-fixture cannot be combined with -manifest, -profiles, -project, -contract-fixture-out, -product-kits-go-output, or -renderer-images-go-output")
 		} else {
 			err = runContractFixture(*repoFlag, *outFlag)
 		}
@@ -97,6 +110,12 @@ func main() {
 		err = runWithOptions(*repoFlag, *outFlag, *sourceFlag, *profilesFlag, *projectFlag)
 		if err == nil && strings.TrimSpace(*productKitsGoOutputFlag) != "" {
 			err = writeProductKitsGo(*repoFlag, *outFlag, *productKitsGoOutputFlag)
+		}
+		if err == nil && strings.TrimSpace(*rendererImagesGoOutputFlag) != "" {
+			err = writeRendererWorkloadImagesGo(*repoFlag, *outFlag, *rendererImagesGoOutputFlag)
+			if err == nil {
+				err = writeReferencedModuleScaffolds(*repoFlag, *outFlag)
+			}
 		}
 		if err == nil && strings.TrimSpace(*contractFixtureOutFlag) != "" {
 			err = runContractFixture(*repoFlag, *contractFixtureOutFlag)
@@ -151,6 +170,134 @@ func writeProductKitsGo(repoFlag, bundleOut, relativeOutput string) error {
 		return fmt.Errorf("format generated product kit inventory: %w", err)
 	}
 	return writeProjectedSource(repoRoot, filepath.Clean(relativeOutput), formatted)
+}
+
+// rendererWorkloadImages names the selected-PaaS workload modules whose exact
+// image identity the Architecture v2 renderer closes over. Refs, digests and
+// releases come only from the compiled catalog.
+var rendererWorkloadImages = []struct{ moduleID, goPrefix, componentRef string }{
+	{moduleID: "stackkits-home-assistant-runtime", goPrefix: "homeAssistant"},
+	{moduleID: "stackkits-jellyfin-runtime", goPrefix: "jellyfin"},
+	{moduleID: "stackkits-vaultwarden-runtime", goPrefix: "vaultwarden"},
+	{moduleID: "stackkits-private-ai-runtime", goPrefix: "privateAI"},
+	{moduleID: "stackkits-gitea-runtime", goPrefix: "gitea"},
+	{moduleID: "stackkits-private-ai-runtime", goPrefix: "ollama", componentRef: "ollama"},
+}
+
+type catalogImage struct {
+	Ref    string `json:"ref"`
+	Digest string `json:"digest"`
+}
+
+func writeRendererWorkloadImagesGo(repoFlag, bundleOut, relativeOutput string) error {
+	repoRoot, err := filepath.Abs(repoFlag)
+	if err != nil {
+		return err
+	}
+	bundleRoot, err := filepath.Abs(bundleOut)
+	if err != nil {
+		return err
+	}
+	catalogBytes, err := os.ReadFile(filepath.Join(bundleRoot, "catalog.json"))
+	if err != nil {
+		return fmt.Errorf("read generated product authority catalog: %w", err)
+	}
+	var catalog struct {
+		Modules []struct {
+			Metadata struct {
+				ID string `json:"id"`
+			} `json:"metadata"`
+			Runtime struct {
+				Image             *catalogImage `json:"image"`
+				EntryComponentRef string        `json:"entryComponentRef"`
+				Components        []struct {
+					ID      string       `json:"id"`
+					Image   catalogImage `json:"image"`
+					Command []string     `json:"command"`
+				} `json:"components"`
+			} `json:"runtime"`
+		} `json:"modules"`
+	}
+	if err := json.Unmarshal(catalogBytes, &catalog); err != nil {
+		return fmt.Errorf("decode generated product authority catalog: %w", err)
+	}
+	moduleIndex := make(map[string]int, len(catalog.Modules))
+	for index, module := range catalog.Modules {
+		if _, duplicate := moduleIndex[module.Metadata.ID]; duplicate {
+			return fmt.Errorf("generated product authority catalog repeats module %q", module.Metadata.ID)
+		}
+		moduleIndex[module.Metadata.ID] = index
+	}
+
+	var source bytes.Buffer
+	source.WriteString("// Code generated by architecture-v2 bundlegen from the compiled CUE authority; DO NOT EDIT.\n")
+	source.WriteString("// Exact selected-PaaS workload images from foundation.ArchitectureV2Catalog.\n\n")
+	source.WriteString("package architecturev2renderer\n\nconst (\n")
+	for _, selected := range rendererWorkloadImages {
+		index, ok := moduleIndex[selected.moduleID]
+		if !ok {
+			return fmt.Errorf("generated product authority catalog omits renderer workload module %q", selected.moduleID)
+		}
+		runtime := catalog.Modules[index].Runtime
+		if selected.componentRef != "" {
+			runtime.Image = nil
+			runtime.EntryComponentRef = selected.componentRef
+			for _, component := range runtime.Components {
+				if component.ID == selected.componentRef {
+					image := component.Image
+					runtime.Image = &image
+				}
+			}
+		}
+		if runtime.Image == nil {
+			return fmt.Errorf("module %q declares no runtime image", selected.moduleID)
+		}
+		release, err := pinnedImageRelease(*runtime.Image)
+		if err != nil {
+			return fmt.Errorf("module %q runtime image: %w", selected.moduleID, err)
+		}
+		entryMatches := false
+		for _, component := range runtime.Components {
+			if component.ID == runtime.EntryComponentRef {
+				entryMatches = component.Image == *runtime.Image
+			}
+		}
+		if !entryMatches {
+			return fmt.Errorf("module %q entry component %q image differs from its runtime image", selected.moduleID, runtime.EntryComponentRef)
+		}
+		fmt.Fprintf(&source, "\t%sImageRef = %q\n", selected.goPrefix, runtime.Image.Ref)
+		fmt.Fprintf(&source, "\t%sImageDigest = %q\n", selected.goPrefix, runtime.Image.Digest)
+		fmt.Fprintf(&source, "\t%sRelease = %q\n", selected.goPrefix, release)
+		for _, component := range runtime.Components {
+			if component.ID == runtime.EntryComponentRef && len(component.Command) > 0 {
+				command, err := json.Marshal(component.Command)
+				if err != nil {
+					return err
+				}
+				fmt.Fprintf(&source, "\t%sCommandJSON = %q\n", selected.goPrefix, command)
+			}
+		}
+	}
+	source.WriteString(")\n")
+	formatted, err := format.Source(source.Bytes())
+	if err != nil {
+		return fmt.Errorf("format generated renderer workload images: %w", err)
+	}
+	return writeProjectedSource(repoRoot, filepath.Clean(relativeOutput), formatted)
+}
+
+// pinnedImageRelease returns the upstream release named by an exact tag and
+// OCI digest pin. The catalog carries the release only as the image tag.
+func pinnedImageRelease(image catalogImage) (string, error) {
+	digest, isSHA256 := strings.CutPrefix(image.Digest, "sha256:")
+	if decoded, err := hex.DecodeString(digest); !isSHA256 || err != nil || len(decoded) != sha256.Size || digest != strings.ToLower(digest) {
+		return "", fmt.Errorf("digest %q is not a lowercase sha256 OCI digest", image.Digest)
+	}
+	tagSeparator := strings.LastIndex(image.Ref, ":")
+	if strings.Contains(image.Ref, "@") || tagSeparator <= strings.LastIndex(image.Ref, "/") || tagSeparator == len(image.Ref)-1 {
+		return "", fmt.Errorf("ref %q has no exact release tag", image.Ref)
+	}
+	return image.Ref[tagSeparator+1:], nil
 }
 
 func run(repoFlag, outFlag string) error {
@@ -290,7 +437,7 @@ func generateBundleProjection(repoRoot, staging string, source sourceManifest, p
 		if err := validateProductBundlePath(relativePath); err != nil {
 			return err
 		}
-		data, err := os.ReadFile(filepath.Join(repoRoot, filepath.FromSlash(relativePath)))
+		data, err := readCanonicalSource(filepath.Join(repoRoot, filepath.FromSlash(relativePath)))
 		if err != nil {
 			return err
 		}
@@ -409,7 +556,7 @@ func generateContractFixtureBundle(repoRoot, staging string, source sourceManife
 			continue
 		}
 		seen[relativePath] = struct{}{}
-		data, err := os.ReadFile(filepath.Join(repoRoot, filepath.FromSlash(relativePath)))
+		data, err := readCanonicalSource(filepath.Join(repoRoot, filepath.FromSlash(relativePath)))
 		if err != nil {
 			return err
 		}
@@ -1315,4 +1462,55 @@ func removeGuardedTree(target, parent, requiredPrefix string) error {
 		return fmt.Errorf("refusing unsafe recursive removal %q", target)
 	}
 	return os.RemoveAll(cleanTarget)
+}
+
+// Referenced module facts consume the same compiled CUE image authority as the
+// runtime renderer. Other legacy facts retain their existing scaffold workflow.
+func writeReferencedModuleScaffolds(repoRoot, bundleRoot string) error {
+	catalog, err := os.ReadFile(filepath.Join(bundleRoot, "catalog.json"))
+	if err != nil {
+		return err
+	}
+	paths, err := filepath.Glob(filepath.Join(repoRoot, "modules", "*", "module_facts.json"))
+	if err != nil {
+		return err
+	}
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		var raw struct {
+			Services []struct {
+				ImageSource *scaffold.FactsImageSource `json:"imageSource"`
+			} `json:"services"`
+		}
+		if err := json.Unmarshal(data, &raw); err != nil {
+			return fmt.Errorf("read module facts %s: %w", path, err)
+		}
+		referenced := false
+		for _, service := range raw.Services {
+			referenced = referenced || service.ImageSource != nil
+		}
+		if !referenced {
+			continue
+		}
+		facts, err := scaffold.LoadFactsWithCatalog(data, catalog)
+		if err != nil {
+			return fmt.Errorf("resolve module facts %s: %w", path, err)
+		}
+		if facts.Slug != filepath.Base(filepath.Dir(path)) {
+			return fmt.Errorf("module facts slug differs from directory: %s", path)
+		}
+		artifacts, err := scaffold.Render(facts)
+		if err != nil {
+			return err
+		}
+		for name, content := range artifacts {
+			if err := writeProjectedSource(repoRoot, filepath.Join("modules", facts.Slug, name), []byte(content)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

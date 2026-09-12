@@ -28,6 +28,9 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/api"
+	"github.com/kombifyio/stackkits/internal/federationcontrol"
+	"github.com/kombifyio/stackkits/internal/localorigin"
+	"github.com/kombifyio/stackkits/internal/localowner"
 	"github.com/kombifyio/stackkits/internal/telemetry"
 )
 
@@ -53,6 +56,8 @@ func main() {
 	logLevel := flag.String("log-level", "info", "Log level: debug, info, warn, error")
 	mcpToken := flag.String("mcp-token", "", "Bearer token for POST /mcp (or set STACKKIT_MCP_TOKEN)")
 	mcpAllowWrite := flag.Bool("mcp-allow-write", false, "Enable mutating MCP tools (or set STACKKIT_MCP_ALLOW_WRITE=true)")
+	originListen := flag.String("origin-listen", "", "Optional loopback socket for owner-bound origin mTLS; disabled by default")
+	controlListen := flag.String("federation-control-listen", "", "Optional owner-bound Cloud mTLS receiver socket for Home plan/verify actions")
 	flag.Parse()
 
 	setupLogging(*logLevel)
@@ -76,7 +81,23 @@ func main() {
 
 	httpServer := newHTTPServer(cfg, srv.Handler())
 
-	runServer(httpServer)
+	var originServer *http.Server
+	if *originListen != "" {
+		originServer, cfgErr = localorigin.NewServer(cfg.BaseDir, *originListen)
+		if cfgErr != nil {
+			slog.Error("origin listener configuration rejected", "error", cfgErr)
+			os.Exit(1)
+		}
+	}
+	var controlServer *http.Server
+	if *controlListen != "" {
+		controlServer, cfgErr = federationcontrol.NewServer(cfg.BaseDir, *controlListen)
+		if cfgErr != nil {
+			slog.Error("federation control receiver configuration rejected", "error", cfgErr)
+			os.Exit(1)
+		}
+	}
+	runServer(httpServer, originServer, controlServer)
 }
 
 func initServerTelemetry(version string) func() {
@@ -143,6 +164,16 @@ func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int,
 	if err != nil {
 		return api.ServerConfig{}, err
 	}
+	stepUpOrigin := strings.TrimSpace(os.Getenv("STACKKIT_OWNER_STEP_UP_ORIGIN"))
+	if stepUpOrigin != "" {
+		stepUpOrigin, err = localowner.NormalizeStepUpOrigin(stepUpOrigin)
+		if err != nil {
+			return api.ServerConfig{}, fmt.Errorf("STACKKIT_OWNER_STEP_UP_ORIGIN must be an HTTPS origin without credentials, path, query or fragment: %w", err)
+		}
+		if key == "" {
+			return api.ServerConfig{}, fmt.Errorf("STACKKIT_OWNER_STEP_UP_ORIGIN requires an API key for approval creation")
+		}
+	}
 	origins, err := resolveCORSOrigins(corsOrigins, allowWildcardCORS, productionGuards)
 	if err != nil {
 		return api.ServerConfig{}, err
@@ -157,6 +188,7 @@ func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int,
 	}
 
 	return api.ServerConfig{
+		OwnerStepUpOrigin:                 stepUpOrigin,
 		Port:                              port,
 		BaseDir:                           dir,
 		Version:                           Version,
@@ -378,9 +410,21 @@ func resolveRateLimit(flagVal int) int {
 	return rl
 }
 
-func runServer(httpServer *http.Server) {
+func runServer(httpServer *http.Server, originServers ...*http.Server) {
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(done)
+	for _, origin := range originServers {
+		if origin == nil {
+			continue
+		}
+		go func(server *http.Server) {
+			if err := server.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+				slog.Error("origin listener failed", "error", err)
+				done <- syscall.SIGTERM
+			}
+		}(origin)
+	}
 
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -396,6 +440,11 @@ func runServer(httpServer *http.Server) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	for _, origin := range originServers {
+		if origin != nil {
+			_ = origin.Shutdown(ctx)
+		}
+	}
 
 	if err := httpServer.Shutdown(ctx); err != nil {
 		slog.Error("shutdown error", "error", err)

@@ -29,6 +29,7 @@ func NewDockerV2SnapshotSettler(source localbackuppolicy.Source) func(context.Co
 }
 
 func dockerV2SnapshotSettler(newClient func(time.Duration) snapshotSettlementClient, source localbackuppolicy.Source) func(context.Context) error {
+	v2ComposeProject, v2NetworkName := source.ComposeProject(), "stackkit-"+source.RuntimeProfile().NetworkRef
 	return func(ctx context.Context) error {
 		if ctx == nil || newClient == nil {
 			return errors.New("snapshot settlement requires a context and local Docker client")

@@ -90,6 +90,9 @@ func localKopiaCoreProfile(moduleID string) (closedLocalCoreProfile, bool) {
 		return basementClosedLocalCoreProfile(), true
 	case basementCoreLiteModuleID:
 		return basementClosedLocalCoreLiteProfile(), true
+	case cloudStandaloneCoreModuleID:
+		p := cloudStandaloneCoreRenderProfile()
+		return closedLocalCoreProfile{displayName: p.displayName, moduleID: p.moduleID, runtimeEngine: p.runtimeEngine, imageRef: p.imageRef, imageDigest: p.imageDigest, entryComponent: p.entryComponent, componentsJSON: p.componentsJSON}, true
 	default:
 		return closedLocalCoreProfile{}, false
 	}
@@ -101,6 +104,8 @@ func localKopiaRuntimeOutputRefForModule(moduleID string) (string, bool) {
 		return localKopiaRuntimeOutputRef, true
 	case basementCoreLiteModuleID:
 		return localKopiaRuntimeLiteOutputRef, true
+	case cloudStandaloneCoreModuleID:
+		return "cloud/backup/kopia-source-policy.json", true
 	default:
 		return "", false
 	}
@@ -176,12 +181,15 @@ func validateLocalKopiaRuntimeUnit(unit RenderUnit, contract RendererContract) (
 	if err := decodeStrict(unit.PlanInputsJSON(), &inputs); err != nil {
 		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".planInputs", "decode exact local Kopia inputs", err)
 	}
-	if (inputs.Kit.Slug != "basement-kit" && inputs.Kit.Slug != "modern-homelab") ||
+	if (inputs.Kit.Slug != "basement-kit" && inputs.Kit.Slug != "modern-homelab" && !(profile.moduleID == cloudStandaloneCoreModuleID && inputs.Kit.Slug == "cloud-kit")) ||
 		inputs.Kit.Version == "" || !validSHA256(inputs.Kit.DefinitionHash) {
 		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".planInputs.kit", "requires an exact Home-capable governed kit identity")
 	}
-	if len(inputs.ModuleCapabilities) != 1 || inputs.ModuleCapabilities[0].ID != "local-backup-runtime" ||
-		!validSHA256(inputs.ModuleCapabilities[0].ContractHash) {
+	capabilityRef := "local-backup-runtime"
+	if profile.moduleID == cloudStandaloneCoreModuleID {
+		capabilityRef = "cloud-core-runtime"
+	}
+	if len(inputs.ModuleCapabilities) != 1 || inputs.ModuleCapabilities[0].ID != capabilityRef || !validSHA256(inputs.ModuleCapabilities[0].ContractHash) {
 		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".planInputs.moduleCapabilities", "module must own only local-backup-runtime")
 	}
 	if err := validateCoreHostBootstrapTarget(inputs.Sites, inputs.ModuleTargets, siteRef, nodeRef, path+".planInputs"); err != nil {
@@ -195,7 +203,7 @@ func validateLocalKopiaRuntimeUnit(unit RenderUnit, contract RendererContract) (
 	if source.CoreModuleRef != "" && source.CoreModuleRef != profile.moduleID {
 		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".values.backup-source.coreModuleRef", "must bind the selected %s runtime", profile.displayName)
 	}
-	if profile.moduleID == basementCoreLiteModuleID && source.CoreModuleRef != profile.moduleID {
+	if profile.moduleID != basementCoreModuleID && source.CoreModuleRef != profile.moduleID {
 		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".values.backup-source.coreModuleRef", "CoreLite source policy must carry its explicit module binding")
 	}
 	if err := localbackuppolicy.ValidateSourceProjection(source); err != nil {

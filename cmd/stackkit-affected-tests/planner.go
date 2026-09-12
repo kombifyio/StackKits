@@ -26,6 +26,17 @@ const perKitTemplateParityTest = "TestPerKitTemplatesMatchCanonical"
 
 const kitInventoryParityTest = "TestProductKitsMatchesCUEDerivedAuthorityProfiles"
 
+var kitDocumentParityTests = []string{
+	"TestKitDocumentIdentityMatchesItsContentShape",
+	"TestKitYAMLMetadataMatchesCUEDefinition",
+	"TestKitYAMLContextsAreDeclaredByModeMatrix",
+	"TestKitYAMLDeclaresKnownMaturity",
+	"TestKitDeclaresModeMatrix",
+	"TestModeMatrixPreviewKitsClaimNoSupport",
+	"TestModeMatrixContainsExactlyProductKits",
+	"TestModeMatrixDoesNotContradictStackkitYAML",
+}
+
 // kitRoots are the directories whose contents define an active product kit.
 var kitRoots = activeKitPaths("", "/")
 
@@ -48,6 +59,30 @@ func activeKitPaths(prefix, suffix string) []string {
 		paths[index] = prefix + slug + suffix
 	}
 	return paths
+}
+
+// Cross-package owners use the same explicit file-to-test selection, with the
+// public test's package retained instead of assuming it lives beside the source.
+var filePublicTestBoundaries = map[string]struct {
+	Package string
+	Tests   []string
+}{
+	"cmd/stackkit/commands/federation_control_runtime.go": {
+		Package: "cmd/stackkit/commands", Tests: []string{"TestFederationControlCLISignsExactHomeAction"},
+	},
+	"internal/architecturev2/federation_action.go": {
+		Package: "cmd/stackkit/commands", Tests: []string{"TestFederationControlCLISignsExactHomeAction"},
+	},
+	"internal/resolvedplan/federation_action.go": {
+		Package: "cmd/stackkit/commands", Tests: []string{"TestFederationControlCLISignsExactHomeAction"},
+	},
+	"internal/localevidence/remote_action_signature.go": {
+		Package: "cmd/stackkit/commands", Tests: []string{"TestFederationControlCLISignsExactHomeAction"},
+	},
+	"internal/architecturev2/product_application_selected_paas_factory.go": {
+		Package: "cmd/stackkit/commands",
+		Tests:   []string{"TestLocalRuntimeOwnersExecuteGeneratedApplicationWorkloads"},
+	},
 }
 
 // fileFocusedTests keeps focused production and shared-fixture slices explicit
@@ -195,6 +230,11 @@ type plannerInput struct {
 	ChangedTests         map[string][]string
 	ChangedTestTags      map[string][]string
 	TestDiscoveryWarning string
+	// InertGoFiles are changed Go files that both the selected base and the
+	// current revision parse as declaration-free metadata (for example a
+	// go:generate comment carrier). They cannot change package behavior, so
+	// their package is compile-checked instead of running the unrelated suite.
+	InertGoFiles []string
 }
 
 type classification struct {
@@ -247,7 +287,7 @@ func buildPlan(input plannerInput) testPlan {
 		Argv:   []string{"git", "diff", "--check", input.MergeBase, "--"},
 		Reason: "catch whitespace errors only in the candidate diff",
 	}}
-	goSelection := affectedGoSelectionFor(files, input.GoPackages, maxReverse)
+	goSelection := affectedGoSelectionWithInert(files, input.GoPackages, maxReverse, input.InertGoFiles)
 	if classes.GoShared {
 		changed := make(map[string]struct{}, len(goSelection.Changed))
 		for _, pattern := range goSelection.Changed {
@@ -261,6 +301,7 @@ func buildPlan(input plannerInput) testPlan {
 		goSelection.Reverse = sortedUnique(goSelection.Reverse)
 	}
 	focusedTests := focusedGoTests(files, input.ChangedTests)
+	applyPublicTestBoundaries(files, input.InertGoFiles, &goSelection, focusedTests)
 	// Architecture v2 CUE changes must keep the embedded authority and renderer
 	// buildable. Bundle drift is `mise run generate:architecture-v2`. A CUE-only
 	// slice therefore compile-checks those packages instead of executing
@@ -294,16 +335,21 @@ func buildPlan(input plannerInput) testPlan {
 	// and hygiene alone for the YAML — which is how cloud-kit once shipped a
 	// byte copy of basement-kit's manifest.
 	//
-	// internal/cue holds kit metadata, mode-matrix and document-identity parity
-	// tests, so it runs in full. internal/architecturev2 is the expensive
-	// package, so a kit change selects only CUE-derived kit inventory parity.
-	// Bundle drift stays on `mise run generate:architecture-v2`.
+	// Select the existing metadata, mode-matrix and document-identity boundaries
+	// without pulling unrelated CUE runtime tests into a kit-only edit. A direct
+	// Go change keeps its normal full or focused selection. Bundle drift stays
+	// on `mise run generate:architecture-v2`.
 	if anyPathUnder(files, kitRoots...) {
+		const cuePackage = "internal/cue"
 		const cuePattern = "./internal/cue"
+		_, alreadyFocused := focusedTests[cuePackage]
+		if !slicesContain(goSelection.Changed, cuePattern) || alreadyFocused {
+			focusedTests[cuePackage] = sortedUnique(append(focusedTests[cuePackage], kitDocumentParityTests...))
+		}
 		goSelection.Changed = sortedUnique(append(goSelection.Changed, cuePattern))
+		goSelection.TestOnly = withoutString(goSelection.TestOnly, cuePattern)
 		goSelection.CompileOnly = withoutString(goSelection.CompileOnly, cuePattern)
 		goSelection.Reverse = withoutString(goSelection.Reverse, cuePattern)
-		delete(focusedTests, "internal/cue")
 
 		const authorityPattern = "./internal/architecturev2"
 		goSelection.CompileOnly = withoutString(goSelection.CompileOnly, authorityPattern)
@@ -511,6 +557,49 @@ func focusedGoTests(files []string, changedTests map[string][]string) map[string
 	return result
 }
 
+func applyPublicTestBoundaries(files, inertFiles []string, selection *affectedGoSelection, focused map[string][]string) {
+	// A registered boundary covers only its mapped production file. Unmapped
+	// production in either package must keep its independent package coverage,
+	// even when the same diff also edits the public owner test.
+	unmappedProduction := map[string]bool{}
+	inertFiles = sortedUnique(inertFiles)
+	for _, file := range files {
+		if !strings.HasSuffix(file, ".go") || strings.HasSuffix(file, "_test.go") || isGeneratedGoProjection(file) || slicesContain(inertFiles, file) {
+			continue
+		}
+		if _, registered := filePublicTestBoundaries[file]; registered {
+			continue
+		}
+		if _, registered := fileFocusedTests[file]; !registered {
+			unmappedProduction[path.Dir(file)] = true
+		}
+	}
+	for _, file := range files {
+		boundary, registered := filePublicTestBoundaries[file]
+		if !registered {
+			continue
+		}
+		source := path.Dir(file)
+		if unmappedProduction[source] {
+			delete(focused, source)
+		} else if _, alreadyFocused := focused[source]; !alreadyFocused {
+			// Explicit empty selection compiles the source; the real behavior is
+			// executed below through its public owner boundary.
+			focused[source] = nil
+		}
+		if unmappedProduction[boundary.Package] {
+			delete(focused, boundary.Package)
+		} else {
+			focused[boundary.Package] = sortedUnique(append(focused[boundary.Package], boundary.Tests...))
+		}
+		target := packagePattern(boundary.Package)
+		selection.Changed = sortedUnique(append(selection.Changed, target))
+		selection.TestOnly = withoutString(selection.TestOnly, target)
+		selection.CompileOnly = withoutString(selection.CompileOnly, target)
+		selection.Reverse = withoutString(selection.Reverse, target)
+	}
+}
+
 func classifyFiles(files []string) classification {
 	result := classification{}
 	modules := map[string]struct{}{}
@@ -609,6 +698,14 @@ type affectedGoSelection struct {
 }
 
 func affectedGoSelectionFor(files []string, packages []goPackage, maxReverse int) affectedGoSelection {
+	return affectedGoSelectionWithInert(files, packages, maxReverse, nil)
+}
+
+// affectedGoSelectionWithInert reuses the generated-projection compile-only
+// path for declaration-free metadata files. A metadata file stays inert only
+// when no real production file shares its package; any production change in the
+// same package restores ordinary changed-package or changed-test selection.
+func affectedGoSelectionWithInert(files []string, packages []goPackage, maxReverse int, inertFiles []string) affectedGoSelection {
 	dirToPackage := map[string]goPackage{}
 	changedImports := map[string]struct{}{}
 	changedPatterns := map[string]struct{}{}
@@ -616,6 +713,10 @@ func affectedGoSelectionFor(files []string, packages []goPackage, maxReverse int
 	testOnlyPatterns := map[string]bool{}
 	reversePatterns := map[string]struct{}{}
 	productionChange := map[string]struct{}{}
+	inert := make(map[string]struct{}, len(inertFiles))
+	for _, file := range inertFiles {
+		inert[file] = struct{}{}
+	}
 
 	for _, pkg := range packages {
 		dir := strings.Trim(strings.ReplaceAll(pkg.Dir, "\\", "/"), "/")
@@ -631,6 +732,7 @@ func affectedGoSelectionFor(files []string, packages []goPackage, maxReverse int
 		if !strings.HasSuffix(file, ".go") && !embeddedReleaseTrustPolicy {
 			continue
 		}
+		_, isInert := inert[file]
 		dir := path.Dir(file)
 		pattern := packagePattern(dir)
 		changedPatterns[pattern] = struct{}{}
@@ -638,15 +740,15 @@ func affectedGoSelectionFor(files []string, packages []goPackage, maxReverse int
 			generatedOnlyPatterns[pattern] = true
 			testOnlyPatterns[pattern] = true
 		}
-		if embeddedReleaseTrustPolicy || strings.HasSuffix(file, "_test.go") || !isGeneratedGoProjection(file) {
+		if embeddedReleaseTrustPolicy || strings.HasSuffix(file, "_test.go") || (!isGeneratedGoProjection(file) && !isInert) {
 			generatedOnlyPatterns[pattern] = false
 		}
-		if embeddedReleaseTrustPolicy || !strings.HasSuffix(file, "_test.go") {
+		if embeddedReleaseTrustPolicy || (!strings.HasSuffix(file, "_test.go") && !isInert) {
 			testOnlyPatterns[pattern] = false
 		}
 		if pkg, ok := dirToPackage[dir]; ok {
 			changedImports[pkg.ImportPath] = struct{}{}
-			if embeddedReleaseTrustPolicy || !strings.HasSuffix(file, "_test.go") {
+			if embeddedReleaseTrustPolicy || (!strings.HasSuffix(file, "_test.go") && !isInert) {
 				productionChange[pkg.ImportPath] = struct{}{}
 			}
 		}

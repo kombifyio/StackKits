@@ -9,6 +9,9 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -16,7 +19,7 @@ const (
 	cloudStandaloneCoreComposeTemplate  = "builtin://cloud/core-standalone/compose/v1.yaml"
 	cloudStandaloneCoreComposeOutputRef = "platform/cloud-core-standalone/compose.yaml"
 	cloudStandaloneCoreVersion          = "1.0.0"
-	cloudStandaloneCoreComposeSchema    = `stackkit.cloud-core-standalone-compose/v1|artifact-revision:1|resolved-network-domain:required|resolved-subdomain-prefix:optional|runtime-listeners:catalog-bound,direct-loopback-only|services:router,socket-proxy,pocketid,tinyauth,hub|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-http-01|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
+	cloudStandaloneCoreComposeSchema    = `stackkit.cloud-core-standalone-compose/v1|artifact-revision:3|resolved-network-domain:required|resolved-subdomain-prefix:optional|runtime-listeners:catalog-bound,direct-loopback-only|services:router,socket-proxy,pocketid,tinyauth,hub,kopia-agent|networks:cloud-core-host-reachable,cloud-control-internal,cloud-backup-outbound-no-peer|kopia:owner-local-source-policy|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-http-01|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
 )
 
 type cloudCoreEndpointProfile struct {
@@ -182,7 +185,7 @@ func CloudStandaloneCoreComposeRendererContract() RendererContract {
 	}
 }
 
-// CloudStandaloneCoreServiceContracts returns the five pinned services in
+// CloudStandaloneCoreServiceContracts returns the pinned services in
 // stable ID order. The hub keeps the existing nginx image and digest as the
 // standalone runtime entry component.
 func CloudStandaloneCoreServiceContracts() []BasementCoreServiceContract {
@@ -250,12 +253,67 @@ func renderCloudComposeForAddress(compose, domain, prefix string, serviceRefs []
 
 var cloudStandaloneCoreCompose = buildCloudStandaloneCoreCompose()
 
-var cloudStandaloneCoreComponentsJSON = filterCloudCoreComponentsJSON(cloudCoreComponentsJSON, map[string]struct{}{
+var cloudStandaloneCoreComponentsJSON = withCloudKopiaComponent(filterCloudCoreComponentsJSON(cloudCoreComponentsJSON, map[string]struct{}{
 	"coolify":          {},
 	"coolify-postgres": {},
 	"coolify-redis":    {},
 	"coolify-realtime": {},
-})
+}))
+
+func withCloudKopiaComponent(source string) string {
+	var components, basement []map[string]any
+	if err := json.Unmarshal([]byte(source), &components); err != nil {
+		panic(err)
+	}
+	if err := json.Unmarshal([]byte(basementCoreComponentsJSON), &basement); err != nil {
+		panic(err)
+	}
+	for _, component := range basement {
+		if component["id"] == "kopia-agent" {
+			component["networkRefs"] = []string{"cloud-backup"}
+			components = append(components, component)
+		}
+	}
+	encoded, err := json.Marshal(components)
+	if err != nil {
+		panic(err)
+	}
+	return string(encoded)
+}
+
+func withCloudKopiaCompose(compose string) string {
+	var cloud, basement map[string]any
+	if err := yaml.Unmarshal([]byte(compose), &cloud); err != nil {
+		panic(err)
+	}
+	if err := yaml.Unmarshal([]byte(basementCoreCompose), &basement); err != nil {
+		panic(err)
+	}
+	source, err := localbackuppolicy.GovernedSourceForCoreModule(localbackuppolicy.CloudCoreModuleRef)
+	if err != nil {
+		panic(err)
+	}
+	kopia := basement["services"].(map[string]any)["kopia-agent"].(map[string]any)
+	kopia["hostname"] = source.RuntimeProfile().Hostname
+	kopia["networks"] = []string{source.RuntimeProfile().NetworkRef}
+	volumes := []string{}
+	for _, name := range source.ManagedVolumeNames {
+		volumes = append(volumes, source.HostPath+"/"+name+"/_data:"+source.ContainerPath+"/"+name+"/_data:ro")
+	}
+	for name, target := range map[string]string{"kopia-repository": source.RepositoryPath, "kopia-config": source.ConfigPath, "kopia-cache": source.CachePath, "kopia-restore-staging": localbackuppolicy.RestoreStagingPath} {
+		volumes = append(volumes, name+":"+target)
+		cloud["volumes"].(map[string]any)[name] = map[string]any{}
+	}
+	sort.Strings(volumes)
+	kopia["volumes"] = volumes
+	cloud["services"].(map[string]any)["kopia-agent"] = kopia
+	cloud["networks"].(map[string]any)["cloud-backup"] = map[string]any{"name": "stackkit-cloud-backup", "internal": false}
+	encoded, err := yaml.Marshal(cloud)
+	if err != nil {
+		panic(err)
+	}
+	return string(encoded)
+}
 
 func filterCloudCoreComponentsJSON(source string, removed map[string]struct{}) string {
 	var components []map[string]any
@@ -295,7 +353,7 @@ func buildCloudStandaloneCoreCompose() string {
 	compose = strings.ReplaceAll(compose, `<li><a href="https://coolify.{{STACKKIT_DOMAIN}}">Coolify</a></li>`, "")
 	compose = strings.ReplaceAll(compose, "name: stackkit-cloud-core", "name: stackkit-cloud-core-standalone")
 	compose = strings.ReplaceAll(compose, "name: stackkit-cloud-control", "name: stackkit-cloud-control-standalone")
-	return compose
+	return withCloudKopiaCompose(compose)
 }
 
 func filterCloudComposeMapping(compose, section string, removed map[string]struct{}) string {

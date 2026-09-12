@@ -22,8 +22,8 @@ const (
 	vaultwardenOutputRef      = "workloads/vaultwarden/bundle.json"
 	vaultwardenHealthID       = "module-stackkits-vaultwarden-runtime-vaultwarden-http"
 	vaultwardenHealthRef      = "vaultwarden-http"
-	vaultwardenImageRef       = "ghcr.io/dani-garcia/vaultwarden:1.35.4"
-	vaultwardenImageDigest    = "sha256:43498a94b22f9563f2a94b53760ab3e710eefc0d0cac2efda4b12b9eb8690664"
+	vaultwardenImageRef       = architecturev2renderer.VaultwardenImageRef
+	vaultwardenImageDigest    = architecturev2renderer.VaultwardenImageDigest
 	vaultwardenMaxBytes       = 128 << 10
 )
 

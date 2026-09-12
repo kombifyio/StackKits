@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:840cbedbfdba0ea92b661557cb8b0cc815f067df115a63878daa319f471e308a",
+  "contentDigest": "sha256:8e113162efd5095e44dda8fb602f0e99868d6ee983804731c8c13c49d1c61ddd",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -20,16 +20,42 @@
       ],
       "computeTiers": {
         "high": {
-          "included": false,
-          "reason": "Same as standard until SK-M5 ships. High is the intended graph (GPU node + burst interactive inference)."
+          "functions": [
+            "model-serving",
+            "local-inference",
+            "chat-interface"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "ollama",
+          "notes": [
+            "Same CPU runtime as standard. GPU passthrough is not configured."
+          ]
         },
         "low": {
           "included": false,
-          "reason": "Local inference is GPU/RAM heavy and has no lite graph substitution yet."
+          "reason": "CPU inference needs the explicit standard hardware floor."
         },
         "standard": {
-          "included": false,
-          "reason": "SK-M5: Ollama/Open WebUI modules and runtime are not executable. When they are, residency is on-demand burst inference, not 24/7 training."
+          "functions": [
+            "model-serving",
+            "local-inference",
+            "chat-interface"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "ollama",
+          "notes": [
+            "No model is installed automatically. Model weights and context determine additional RAM and disk."
+          ]
         }
       },
       "description": "Private AI workloads, local model serving, and user-facing AI workbench intent.",
@@ -103,16 +129,42 @@
       ],
       "computeTiers": {
         "high": {
-          "included": false,
-          "reason": "Same as standard until SK-M5. CI batch bursts belong on high headroom, not on low."
+          "functions": [
+            "source-control",
+            "git-hosting",
+            "developer-collaboration"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "gitea",
+          "notes": [
+            "Same Git hosting runtime as standard."
+          ]
         },
         "low": {
           "included": false,
-          "reason": "Gitea+CI is not on the Basement low graph."
+          "reason": "The first Git hosting path uses the standard profile."
         },
         "standard": {
-          "included": false,
-          "reason": "SK-M5: Gitea module is not executable. Intended load is always-on idle git host with interactive and batch CI bursts."
+          "functions": [
+            "source-control",
+            "git-hosting",
+            "developer-collaboration"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "gitea",
+          "notes": [
+            "Repository growth requires a separate disk budget. No CI runner is included."
+          ]
         }
       },
       "description": "Private source control, developer collaboration, and delivery-platform intent.",
@@ -591,7 +643,50 @@
       "id": "smart-home",
       "settings": [
         {
-          "default": true,
+          "default": "container",
+          "depth": "summary",
+          "group": "profile",
+          "help": "Choose Container or a dedicated Home Assistant OS appliance. OS requires a separately admitted appliance target.",
+          "id": "operating-form",
+          "kind": "choice",
+          "name": "Home Assistant installation",
+          "options": [
+            {
+              "id": "container",
+              "name": "Container",
+              "note": "Home Assistant Core with operator-managed host services; no Supervisor or Apps."
+            },
+            {
+              "id": "haos",
+              "name": "Home Assistant OS",
+              "note": "Dedicated appliance with Supervisor, Apps and native system maintenance."
+            }
+          ],
+          "realization": "install"
+        },
+        {
+          "default": "new",
+          "depth": "summary",
+          "group": "profile",
+          "help": "An existing instance is observed without changing accounts, integrations or configuration. Migration is a separate backup-protected operation.",
+          "id": "instance-origin",
+          "kind": "choice",
+          "name": "Existing installation",
+          "options": [
+            {
+              "id": "new",
+              "name": "Create new"
+            },
+            {
+              "id": "existing",
+              "name": "Connect existing",
+              "note": "Preserve the original configuration; management requires a separate grant."
+            }
+          ],
+          "realization": "install"
+        },
+        {
+          "default": false,
           "depth": "summary",
           "group": "hardware",
           "help": "Let Home Assistant use a Zigbee, Z-Wave or other USB stick plugged into this Node.",

@@ -1,6 +1,7 @@
 package localevidence
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net"
@@ -73,4 +74,40 @@ func buildLANDNSRecords(domain string, address netip.Addr) ([]byte, error) {
 	fmt.Fprintf(&zone, "  local-zone: %q redirect\n", domain+".")
 	fmt.Fprintf(&zone, "  local-data: \"%s. IN %s %s\"\n", domain, recordType, address.String())
 	return []byte(zone.String()), nil
+}
+
+// BasementLANDNSResolverAddress returns the exact address written into the
+// owner-signed Unbound custody. Access summaries use this value so the owner
+// does not have to discover or guess which node address to configure in DHCP.
+func BasementLANDNSResolverAddress(workspaceRoot string) (string, error) {
+	raw, custody, err := readBasementRuntimeFile(workspaceRoot, lanDNSRecordsPath)
+	if err != nil {
+		return "", err
+	}
+	address, err := parseLANDNSRecords(custody.Domain, raw)
+	if err != nil {
+		return "", err
+	}
+	return address.String(), nil
+}
+
+func parseLANDNSRecords(domain string, raw []byte) (netip.Addr, error) {
+	lines := strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n")
+	if len(lines) != 4 {
+		return netip.Addr{}, errors.New("localevidence: verified LAN DNS runtime input is malformed")
+	}
+	record := strings.TrimPrefix(strings.TrimSuffix(lines[3], `"`), `  local-data: "`)
+	fields := strings.Fields(record)
+	if len(fields) != 4 || fields[0] != domain+"." || fields[1] != "IN" {
+		return netip.Addr{}, errors.New("localevidence: verified LAN DNS runtime record is malformed")
+	}
+	address, err := netip.ParseAddr(fields[3])
+	if err != nil || (fields[2] == "A") != address.Is4() || (fields[2] == "AAAA") != address.Is6() {
+		return netip.Addr{}, errors.New("localevidence: verified LAN DNS runtime address is malformed")
+	}
+	expected, err := buildLANDNSRecords(domain, address)
+	if err != nil || !bytes.Equal(raw, expected) {
+		return netip.Addr{}, errors.New("localevidence: verified LAN DNS runtime input does not match its canonical zone")
+	}
+	return address, nil
 }

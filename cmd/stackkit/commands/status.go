@@ -314,7 +314,7 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 		err = errors.Join(err, fmt.Errorf("verify native application setup evidence: %w", setupErr))
 	}
 	applications, experienceErr := buildArchitectureV2ApplicationExperiences(
-		verified, output.ApplicationLifecycles, output.Observations,
+		wd, verified, output.ApplicationLifecycles, output.Observations,
 		output.applicationAccess, setupRuns,
 	)
 	if experienceErr == nil {
@@ -521,6 +521,7 @@ func loadApplicationLifecycleEvidence(wd string, plan resolvedplan.ResolvedPlan)
 }
 
 func buildArchitectureV2ApplicationExperiences(
+	workspace string,
 	plan generationartifact.VerifiedPlan,
 	lifecycles []applicationlifecycle.State,
 	observations []runtimeobservation.Observation,
@@ -570,7 +571,8 @@ func buildArchitectureV2ApplicationExperiences(
 		setup := architectureV2SetupInput(resolved, contract, setupRuns)
 		experience, err := applicationlifecycle.ProjectExperience(applicationlifecycle.ExperienceInput{
 			Contract: contract, State: stateByWorkload[contract.WorkloadRef], ServiceRef: serviceRef,
-			RouteRef: routeRef, URL: urlByService[serviceRef], HealthRef: requirement.HealthRef,
+			RestoreActivation: readApplicationRestoreActivation(workspace, contract, stateByWorkload[contract.WorkloadRef]),
+			RouteRef:          routeRef, URL: urlByService[serviceRef], HealthRef: requirement.HealthRef,
 			RuntimeTargets: runtimeTargets[contract.WorkloadRef], Setup: setup, Observations: observations,
 		})
 		if err != nil {

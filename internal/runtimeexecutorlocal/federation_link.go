@@ -366,7 +366,9 @@ func validFederationLinkObservation(observation FederationLinkObservation, expec
 		return false
 	}
 	configuredAt, err := exactFederationLinkTime(observation.ConfigurationObservedAt)
-	if err != nil || configuredAt.Before(evaluatedAt) || configuredAt.After(observedAt) {
+	if err != nil || configuredAt.Before(evaluatedAt) || configuredAt.After(observedAt) ||
+		expectation.Partition.MaxStaleVerificationSeconds < 0 ||
+		checkedAt.Sub(configuredAt).Seconds() > float64(expectation.Partition.MaxStaleVerificationSeconds) {
 		return false
 	}
 	validUntil, err := exactFederationLinkTime(expectation.Binding.ValidUntil)

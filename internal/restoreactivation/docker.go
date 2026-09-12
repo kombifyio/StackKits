@@ -25,10 +25,9 @@ for entry in "$dst"/* "$dst"/.[!.]* "$dst"/..?*; do
   test -e "$entry" || test -L "$entry" || continue
   rm -rf -- "$entry" || exit $?
 done
-for entry in "$src"/* "$src"/.[!.]* "$src"/..?*; do
-  test -e "$entry" || test -L "$entry" || continue
-  cp -a -- "$entry" "$dst"/ || exit $?
-done`
+# Copy the directory itself so its ownership and permissions survive too.
+# PostgreSQL data roots in particular must retain their restrictive mode.
+cp -a -- "$src"/. "$dst"/ || exit $?`
 	stagingValidationScript = `root=$1
 shift
 for path do

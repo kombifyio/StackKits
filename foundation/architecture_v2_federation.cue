@@ -4,6 +4,27 @@ package foundation
 
 import "list"
 
+// Wire envelope for the existing StackKits server's outbound Home control
+// channel. Approval proof is verified by the Home human-identity owner, never
+// inferred from the action signature. Runtime capabilities may be a strict
+// subset of these catalog actions and must report missing mutations explicitly.
+#FederationRemoteActionEnvelopeV1: close({
+	schema: "stackkit.federation-remote-action/v1"
+	action: "plan" | "verify" | "apply" | "destroy"
+	nonce: string & =~"^[a-f0-9]{64}$"
+	idempotencyKey: string & =~"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"
+	planHash: string & =~"^sha256:[a-f0-9]{64}$"
+	ownerRef: string & !=""
+	homeSiteRef: string & !=""
+	targetSiteRef: string & !=""
+	targetNodeRef: string & !=""
+	executionChannelRef: string & !=""
+	issuedAt: #RFC3339Timestamp
+	expiresAt: #RFC3339Timestamp
+	approval?: {...}
+	signature: close({ownerRef: string & !="", keyId: string & !="", value: string & !=""})
+})
+
 _architectureV2FederationRuntimeCapabilities: [
 	"inter-site-link",
 	"outbound-control-agent",

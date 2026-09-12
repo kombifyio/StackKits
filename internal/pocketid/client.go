@@ -319,24 +319,30 @@ func (c *Client) CreateOneTimeAccessToken(ctx context.Context, userID string, tt
 
 // RegisterClientRequest is the payload for RegisterOIDCClient.
 type RegisterClientRequest struct {
-	ID                string   `json:"id,omitempty"`
-	Name              string   `json:"name"`
-	CallbackURLs      []string `json:"callbackURLs"`
-	IsPublic          bool     `json:"isPublic"`
-	PkceEnabled       bool     `json:"pkceEnabled,omitempty"`
-	IsGroupRestricted bool     `json:"isGroupRestricted"`
+	RequiresReauthentication bool     `json:"requiresReauthentication"`
+	ID                       string   `json:"id,omitempty"`
+	Name                     string   `json:"name"`
+	CallbackURLs             []string `json:"callbackURLs"`
+	IsPublic                 bool     `json:"isPublic"`
+	PkceEnabled              bool     `json:"pkceEnabled,omitempty"`
+	IsGroupRestricted        bool     `json:"isGroupRestricted"`
 }
 
 // OIDCClient describes a registered OIDC client. Secret is only populated
 // after CreateClientSecret returns.
 type OIDCClient struct {
-	ID                string      `json:"id"`
-	Name              string      `json:"name"`
-	CallbackURLs      []string    `json:"callbackURLs"`
-	IsPublic          bool        `json:"isPublic"`
-	IsGroupRestricted bool        `json:"isGroupRestricted"`
-	AllowedUserGroups []UserGroup `json:"allowedUserGroups,omitempty"`
-	Secret            string      `json:"-"`
+	Credentials struct {
+		FederatedIdentities []json.RawMessage `json:"federatedIdentities"`
+	} `json:"credentials"`
+	RequiresReauthentication bool        `json:"requiresReauthentication"`
+	PkceEnabled              bool        `json:"pkceEnabled"`
+	ID                       string      `json:"id"`
+	Name                     string      `json:"name"`
+	CallbackURLs             []string    `json:"callbackURLs"`
+	IsPublic                 bool        `json:"isPublic"`
+	IsGroupRestricted        bool        `json:"isGroupRestricted"`
+	AllowedUserGroups        []UserGroup `json:"allowedUserGroups,omitempty"`
+	Secret                   string      `json:"-"`
 }
 
 // GetOIDCClient reads the exact client including its allowed group projection.

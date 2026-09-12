@@ -28,7 +28,9 @@ The command verifies the current Plan, signed Apply, exact local container and
 pinned Jellyfin version. During first run it sets your chosen administrator
 credentials. On an existing installation it performs a normal login and
 administrator readback. It revokes its temporary session before recording the
-signed result. It does not read or use a default first-user password.
+signed result. First-run initialization discards the server's initial-user
+response and immediately sets your explicit credentials; it never uses a
+default first-user password.
 
 Without `--complete-onboarding`, an unfinished Jellyfin startup wizard remains
 unfinished. Open Media at its declared private route to choose library paths,
@@ -42,6 +44,17 @@ stackkit setup media --credentials-file .stackkit/setup/media-owner.json --owner
 The completion flag only finishes Jellyfin's startup wizard. It does not add
 libraries, change remote-access settings, discover GPU devices or configure
 transcoding. Follow the Plan's media volume mapping when adding a library.
+The native library is mounted read-only at `/media`; Jellyfin can scan and
+stream those files but cannot edit or delete the owner-custodied media bytes.
+Its configuration and transcoding cache remain writable in separate volumes.
+To use an existing library on the selected Docker host, set `storage.mediaRoot`
+in the StackSpec to its existing absolute directory, for example
+`/srv/household-media`, before generating and applying. StackKits binds that
+directory at `/media` read-only and does not create it or change its permissions.
+A missing directory fails delivery. Leave the setting absent to retain the
+named library volume. The selected source remains outside StackKits backups;
+provide its independent recovery source. This path names storage on the runtime
+host, not the machine running a remote client.
 Household viewers should receive separate non-administrator accounts through
 Jellyfin. Connect each playback client to the declared Media URL and sign in
 there; the setup session is not a client credential.

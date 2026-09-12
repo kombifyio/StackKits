@@ -241,7 +241,7 @@ func (service *Service) Recover(ctx context.Context, input RecoverInput) (Result
 		return Result{}, err
 	}
 	if record.Status == lifecyclemutation.StatusSucceeded || record.Status == lifecyclemutation.StatusRecovered {
-		result, err := loadPersistedResult(input.WorkspaceRoot, input.OperationID)
+		result, err := ReadResult(input.WorkspaceRoot, input.OperationID)
 		if err != nil {
 			return Result{}, err
 		}
@@ -679,7 +679,7 @@ func bindResultAuthority(result Result, authority Authority, safetySnapshotID, s
 // failing. Its retry must carry the original signed evidence, including the
 // original verification timestamp, so those committed transitions remain valid.
 func resultForFinalization(workspace string, authority Authority, safetySnapshotID, status string, verification LiveVerification) (Result, error) {
-	result, err := loadPersistedResult(workspace, authority.OperationID)
+	result, err := ReadResult(workspace, authority.OperationID)
 	if errors.Is(err, errResultNotFound) {
 		return signResult(workspace, authority, safetySnapshotID, status, verification)
 	}
@@ -692,7 +692,9 @@ func resultForFinalization(workspace string, authority Authority, safetySnapshot
 	return result, nil
 }
 
-func loadPersistedResult(workspace, operationID string) (Result, error) {
+// ReadResult reads the canonical persisted result and verifies its local Owner signature.
+// Callers must additionally bind it to their current Plan and operation evidence.
+func ReadResult(workspace, operationID string) (Result, error) {
 	if !activationOperationPattern.MatchString(operationID) {
 		return Result{}, errors.New("restoreactivation: result operation ID is invalid")
 	}

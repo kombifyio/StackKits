@@ -17,6 +17,181 @@ servers:
   - url: https://api.kombify.io/stackkits
     description: Production (via Cloudflare Edge)
 paths:
+  /api/v1/identity/step-up:
+    post:
+      operationId: requestLocalOwnerStepUp
+      summary: Prepare an exact-action local PocketID Owner approval
+      description: |
+        Requires configured HTTPS Owner step-up origin and API key. Returns a
+        human review URL; never executes an action. Home PocketID and established
+        Owner custody are required. apply TTL is at most 60 seconds; destroy TTL
+        is at most 30 seconds. Machine credentials cannot complete human approval.
+      security:
+        - StackKitsAPIKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [actionDigest, planHash, action, ownerRef, homeSiteRef, targetSiteRef, targetNodeRef, issuedAt, expiresAt]
+              properties:
+                actionDigest:
+                  type: string
+                  pattern: '^[0-9a-f]{64}$'
+                  description: SHA-256 of unsigned admitted action, excluding approval and signature.
+                planHash:
+                  type: string
+                  pattern: '^[0-9a-f]{64}$'
+                action:
+                  enum: [apply, destroy]
+                ownerRef:
+                  type: string
+                homeSiteRef:
+                  type: string
+                targetSiteRef:
+                  type: string
+                targetNodeRef:
+                  type: string
+                issuedAt:
+                  type: string
+                  format: date-time
+                expiresAt:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Short-lived browser review URL.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [approvalUrl, expiresAt]
+                properties:
+                  approvalUrl:
+                    type: string
+                    format: uri
+                  expiresAt:
+                    type: string
+                    format: date-time
+        '401':
+          description: Missing API key.
+        '403':
+          description: Invalid key, expired action or unavailable Owner authority.
+  /api/v1/identity/step-up/review:
+    get:
+      operationId: reviewLocalOwnerStepUp
+      summary: Show exact action and target to the human Owner
+      security: []
+      parameters:
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: HTML review with secure browser binding.
+        '403':
+          description: Invalid or expired flow.
+    post:
+      operationId: confirmLocalOwnerStepUp
+      summary: Confirm the review and redirect to local PocketID
+      description: Requires the exact reviewing browser cookie, same origin and CSRF form value.
+      security: []
+      responses:
+        '303':
+          description: Redirect to confidential PKCE PocketID reauthentication.
+        '403':
+          description: Invalid browser binding or expired flow.
+  /api/v1/identity/step-up/callback:
+    get:
+      operationId: completeLocalOwnerStepUp
+      summary: Exchange an exact browser-bound authorization code
+      description: |
+        Requires the pending one-time state, browser cookie and exact PocketID
+        response issuer. Downloads a credential-bearing approval; no action is
+        executed. The receiving executor must revalidate and consume it.
+      security: []
+      responses:
+        '200':
+          description: Private approval JSON containing the PocketID-signed idToken.
+        '403':
+          description: Human approval rejected or expired.
+  /api/v1/identity/workload-peers:
+    post:
+      operationId: applyOwnerWorkloadPeerOperation
+      summary: Admit or revoke an exact owner-approved workload peer
+      description: |
+        Home-loopback management only. Requires both the API credential and a
+        fresh local Owner custody signature over the exact operation. The API
+        does not generate owner approvals, issue certificates, or claim passkey
+        step-up. Admission accepts only a Home-CA-issued client-only certificate.
+        Revocation applies to subsequent origin requests on existing TLS sessions.
+      servers:
+        - url: http://localhost:8082
+      security:
+        - StackKitsAPIKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [operation, issuedAt, expiresAt, previousState, signature]
+              properties:
+                operation:
+                  enum: [admit, revoke]
+                peerRef:
+                  type: string
+                  maxLength: 255
+                previousState:
+                  type: string
+                  description: Owner-signed commitment to the current peer revision; empty only for first admission.
+                issuedAt:
+                  type: string
+                  format: date-time
+                expiresAt:
+                  type: string
+                  format: date-time
+                  description: At most five minutes after issuedAt.
+                signature:
+                  type: object
+                  additionalProperties: false
+                  required: [ownerRef, keyId, value]
+                  properties:
+                    ownerRef: {type: string}
+                    keyId: {type: string}
+                    value: {type: string}
+                admission:
+                  type: object
+                  additionalProperties: false
+                  required: [peerRef, serviceRef, edgeSiteRef, audience, certificatePEM, validUntil]
+                  properties:
+                    peerRef: {type: string, maxLength: 255}
+                    serviceRef: {type: string, maxLength: 255}
+                    edgeSiteRef: {type: string, maxLength: 255}
+                    audience: {type: string, maxLength: 512}
+                    certificatePEM: {type: string, maxLength: 65536}
+                    validUntil: {type: string, format: date-time}
+              oneOf:
+                - properties:
+                    operation: {const: admit}
+                  required: [admission]
+                  not: {required: [peerRef]}
+                - properties:
+                    operation: {const: revoke}
+                  required: [peerRef]
+                  not: {required: [admission]}
+      responses:
+        "204":
+          description: Owner-authorized operation persisted.
+        "400":
+          description: Invalid or oversized operation.
+        "403":
+          description: Local owner approval, certificate or publication scope rejected.
   /health:
     get:
       operationId: healthRoot

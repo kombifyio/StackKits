@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "9c8f24eb2b1f5a22348439b98c529b9a94526c85",
-  "authority_bundle_sha256": "606513935fdec970688bbaa7f10696c68592dbbb172761029e0a68dd3e608a6e",
+  "source_sha": "32a3e9b35e915365d1fea4a6cac23db858c2c2b5",
+  "authority_bundle_sha256": "285771c8be83e975d035d37a425740d65a6eb399802561c7ea8b8bdcdab8313a",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -317,6 +317,152 @@
             "host-bootstrap"
           ],
           "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-gitea-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "dev"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private Git hosting with SQLite and persistent repositories, LFS objects and configuration. CI runners and SSH are not included. Repository growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "gitea"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "6f422829e5e9e741114d7b14481a2bf14ea43337e2a47246e48b85a410396816"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private Git hosting with SQLite and persistent repositories, LFS objects and configuration. CI runners and SSH are not included. Repository growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "gitea"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d35faa8919eda647a4ac14a9dd436a7d7ccbfc060238a7e6951e6b07fa932411"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-home-assistant-existing-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "not_declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "External Home Assistant API owner; guest capacity is admitted by its provisioning owner, not reserved on the StackKits core host.",
+              "architectures": [],
+              "virtualization": [],
+              "components": [],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "27cff9905482a2b1f48133b2d5cddcf9bb0a49a5bdc891148fba7c135f8afefe"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-home-assistant-haos-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "not_declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "External Home Assistant API owner; guest capacity is admitted by its provisioning owner, not reserved on the StackKits core host.",
+              "architectures": [],
+              "virtualization": [],
+              "components": [],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "27cff9905482a2b1f48133b2d5cddcf9bb0a49a5bdc891148fba7c135f8afefe"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-home-assistant-imported-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "not_declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "External Home Assistant API owner; guest capacity is admitted by its provisioning owner, not reserved on the StackKits core host.",
+              "architectures": [],
+              "virtualization": [],
+              "components": [],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "27cff9905482a2b1f48133b2d5cddcf9bb0a49a5bdc891148fba7c135f8afefe"
+            }
+          ],
           "storage_profiles": [],
           "accelerator_profiles": []
         },
@@ -641,6 +787,80 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-private-ai-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 12,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1.5
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 80
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "ollama",
+                "open-webui"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "29406da684e0c037eeda608d1f4acf490959f151a45f85a7eaf8d25e3303c60b"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 12,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1.5
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 80
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "ollama",
+                "open-webui"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "70c31040def4b3b1c797f75a46430c9251dd139ee4e3696fdaa9c9734e56728a"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-vaultwarden-runtime",
           "role": "workload",
           "required": false,
@@ -729,6 +949,31 @@
       ],
       "use_cases": [
         {
+          "use_case_id": "ai",
+          "title": "Private AI",
+          "description": "Private AI workloads, local model serving, and user-facing AI workbench intent.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "private-ai",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "private-ai",
+              "module_id": "stackkits-private-ai-runtime",
+              "functions": [
+                "chat-interface",
+                "local-inference",
+                "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
           "use_case_id": "basement-core",
           "title": "basement-core",
           "description": "Required standalone Basement control plane with local routing, owner identity, internal PKI, container management, and operator hub.",
@@ -781,6 +1026,31 @@
                 "local-routing",
                 "operator-hub",
                 "owner-identity"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "dev",
+          "title": "Developer Platform",
+          "description": "Private source control, developer collaboration, and delivery-platform intent.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "gitea",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "gitea",
+              "module_id": "stackkits-gitea-runtime",
+              "functions": [
+                "developer-collaboration",
+                "git-hosting",
+                "source-control"
               ],
               "load": {
                 "residency": "always-on",
@@ -891,6 +1161,45 @@
             {
               "alternative_id": "home-assistant",
               "module_id": "stackkits-home-assistant-runtime",
+              "functions": [
+                "automation",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "home-assistant-haos",
+              "module_id": "stackkits-home-assistant-haos-runtime",
+              "functions": [
+                "automation",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "home-assistant-existing",
+              "module_id": "stackkits-home-assistant-existing-runtime",
+              "functions": [
+                "automation",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "home-assistant-imported",
+              "module_id": "stackkits-home-assistant-imported-runtime",
               "functions": [
                 "automation",
                 "smart-home-hub"
@@ -1085,6 +1394,7 @@
               "virtualization": [],
               "components": [
                 "hub",
+                "kopia-agent",
                 "pocketid",
                 "router",
                 "socket-proxy",
@@ -1094,7 +1404,7 @@
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "f178520176125888b3de11b97b282c2e017a7a7492d9355d2ed922d45dad6510"
+              "profile_sha256": "ef89142bd5a62852f5f274f141beaeab72ec89f2729182c72e76927ca823e966"
             },
             {
               "id": "high",
@@ -1117,6 +1427,7 @@
               "virtualization": [],
               "components": [
                 "hub",
+                "kopia-agent",
                 "pocketid",
                 "router",
                 "socket-proxy",
@@ -1126,7 +1437,7 @@
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "5dfcf8c7ab65680c2b21d58b307fdc8efbbe49667a9df5f6a6780a72505c916a"
+              "profile_sha256": "06d82a11934d9cd11b59ca977bb29eb6311da95a2c390aec4a30a35059dd1969"
             }
           ],
           "storage_profiles": [],
@@ -1252,6 +1563,152 @@
             "host-bootstrap"
           ],
           "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-gitea-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "dev"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private Git hosting with SQLite and persistent repositories, LFS objects and configuration. CI runners and SSH are not included. Repository growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "gitea"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "6f422829e5e9e741114d7b14481a2bf14ea43337e2a47246e48b85a410396816"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private Git hosting with SQLite and persistent repositories, LFS objects and configuration. CI runners and SSH are not included. Repository growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "gitea"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d35faa8919eda647a4ac14a9dd436a7d7ccbfc060238a7e6951e6b07fa932411"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-home-assistant-existing-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "not_declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "External Home Assistant API owner; guest capacity is admitted by its provisioning owner, not reserved on the StackKits core host.",
+              "architectures": [],
+              "virtualization": [],
+              "components": [],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "27cff9905482a2b1f48133b2d5cddcf9bb0a49a5bdc891148fba7c135f8afefe"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-home-assistant-haos-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "not_declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "External Home Assistant API owner; guest capacity is admitted by its provisioning owner, not reserved on the StackKits core host.",
+              "architectures": [],
+              "virtualization": [],
+              "components": [],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "27cff9905482a2b1f48133b2d5cddcf9bb0a49a5bdc891148fba7c135f8afefe"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-home-assistant-imported-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "not_declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "External Home Assistant API owner; guest capacity is admitted by its provisioning owner, not reserved on the StackKits core host.",
+              "architectures": [],
+              "virtualization": [],
+              "components": [],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "27cff9905482a2b1f48133b2d5cddcf9bb0a49a5bdc891148fba7c135f8afefe"
+            }
+          ],
           "storage_profiles": [],
           "accelerator_profiles": []
         },
@@ -1564,6 +2021,80 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-private-ai-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 12,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1.5
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 80
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "ollama",
+                "open-webui"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "29406da684e0c037eeda608d1f4acf490959f151a45f85a7eaf8d25e3303c60b"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 12,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1.5
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 80
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "ollama",
+                "open-webui"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "70c31040def4b3b1c797f75a46430c9251dd139ee4e3696fdaa9c9734e56728a"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-public-tls-contract",
           "role": "platform",
           "required": false,
@@ -1664,6 +2195,31 @@
       ],
       "use_cases": [
         {
+          "use_case_id": "ai",
+          "title": "Private AI",
+          "description": "Private AI workloads, local model serving, and user-facing AI workbench intent.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "private-ai",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "private-ai",
+              "module_id": "stackkits-private-ai-runtime",
+              "functions": [
+                "chat-interface",
+                "local-inference",
+                "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
           "use_case_id": "cloud-core",
           "title": "cloud-core",
           "description": "Required provider-neutral Cloud control plane installed on an externally supplied host; provider and server lifecycle remain outside StackKits.",
@@ -1697,6 +2253,31 @@
                 "operator-hub",
                 "owner-identity",
                 "public-routing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "dev",
+          "title": "Developer Platform",
+          "description": "Private source control, developer collaboration, and delivery-platform intent.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "gitea",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "gitea",
+              "module_id": "stackkits-gitea-runtime",
+              "functions": [
+                "developer-collaboration",
+                "git-hosting",
+                "source-control"
               ],
               "load": {
                 "residency": "always-on",
@@ -1807,6 +2388,45 @@
             {
               "alternative_id": "home-assistant",
               "module_id": "stackkits-home-assistant-runtime",
+              "functions": [
+                "automation",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "home-assistant-haos",
+              "module_id": "stackkits-home-assistant-haos-runtime",
+              "functions": [
+                "automation",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "home-assistant-existing",
+              "module_id": "stackkits-home-assistant-existing-runtime",
+              "functions": [
+                "automation",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "home-assistant-imported",
+              "module_id": "stackkits-home-assistant-imported-runtime",
               "functions": [
                 "automation",
                 "smart-home-hub"
@@ -2179,6 +2799,152 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-gitea-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "dev"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private Git hosting with SQLite and persistent repositories, LFS objects and configuration. CI runners and SSH are not included. Repository growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "gitea"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "6f422829e5e9e741114d7b14481a2bf14ea43337e2a47246e48b85a410396816"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private Git hosting with SQLite and persistent repositories, LFS objects and configuration. CI runners and SSH are not included. Repository growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "gitea"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d35faa8919eda647a4ac14a9dd436a7d7ccbfc060238a7e6951e6b07fa932411"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-home-assistant-existing-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "not_declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "External Home Assistant API owner; guest capacity is admitted by its provisioning owner, not reserved on the StackKits core host.",
+              "architectures": [],
+              "virtualization": [],
+              "components": [],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "27cff9905482a2b1f48133b2d5cddcf9bb0a49a5bdc891148fba7c135f8afefe"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-home-assistant-haos-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "not_declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "External Home Assistant API owner; guest capacity is admitted by its provisioning owner, not reserved on the StackKits core host.",
+              "architectures": [],
+              "virtualization": [],
+              "components": [],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "27cff9905482a2b1f48133b2d5cddcf9bb0a49a5bdc891148fba7c135f8afefe"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-home-assistant-imported-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "not_declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "External Home Assistant API owner; guest capacity is admitted by its provisioning owner, not reserved on the StackKits core host.",
+              "architectures": [],
+              "virtualization": [],
+              "components": [],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "27cff9905482a2b1f48133b2d5cddcf9bb0a49a5bdc891148fba7c135f8afefe"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-home-assistant-runtime",
           "role": "workload",
           "required": false,
@@ -2499,6 +3265,80 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-private-ai-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 12,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1.5
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 80
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "ollama",
+                "open-webui"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "29406da684e0c037eeda608d1f4acf490959f151a45f85a7eaf8d25e3303c60b"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 12,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1.5
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 80
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "ollama",
+                "open-webui"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "70c31040def4b3b1c797f75a46430c9251dd139ee4e3696fdaa9c9734e56728a"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-vaultwarden-runtime",
           "role": "workload",
           "required": false,
@@ -2587,6 +3427,31 @@
       ],
       "use_cases": [
         {
+          "use_case_id": "ai",
+          "title": "Private AI",
+          "description": "Private AI workloads, local model serving, and user-facing AI workbench intent.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "private-ai",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "private-ai",
+              "module_id": "stackkits-private-ai-runtime",
+              "functions": [
+                "chat-interface",
+                "local-inference",
+                "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
           "use_case_id": "basement-core",
           "title": "basement-core",
           "description": "Required standalone Basement control plane with local routing, owner identity, internal PKI, container management, and operator hub.",
@@ -2639,6 +3504,31 @@
                 "local-routing",
                 "operator-hub",
                 "owner-identity"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "dev",
+          "title": "Developer Platform",
+          "description": "Private source control, developer collaboration, and delivery-platform intent.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "gitea",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "gitea",
+              "module_id": "stackkits-gitea-runtime",
+              "functions": [
+                "developer-collaboration",
+                "git-hosting",
+                "source-control"
               ],
               "load": {
                 "residency": "always-on",
@@ -2749,6 +3639,45 @@
             {
               "alternative_id": "home-assistant",
               "module_id": "stackkits-home-assistant-runtime",
+              "functions": [
+                "automation",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "home-assistant-haos",
+              "module_id": "stackkits-home-assistant-haos-runtime",
+              "functions": [
+                "automation",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "home-assistant-existing",
+              "module_id": "stackkits-home-assistant-existing-runtime",
+              "functions": [
+                "automation",
+                "smart-home-hub"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "active-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "home-assistant-imported",
+              "module_id": "stackkits-home-assistant-imported-runtime",
               "functions": [
                 "automation",
                 "smart-home-hub"
@@ -3095,5 +4024,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "cfdd9694673f71e1c6898b023db13f34e00a4aa93aaaa146de4b9d8cd4c8da0a"
+  "catalog_sha256": "2cd9b3aa770bd8b4949d3b211c8db309c9080bb94a33261e6d722d5a74ca20f5"
 }

@@ -2604,11 +2604,26 @@ func validOpaqueSHA256Ref(value, scheme string) bool {
 	return true
 }
 
+func normalizeCloudRouteIngressAuth(routes []CloudPublicEdgeRoute, path string) error {
+	for index := range routes {
+		if routes[index].IngressAuth == "" {
+			routes[index].IngressAuth = "native"
+		}
+		if !oneOf(routes[index].IngressAuth, "none", "native", "forward-auth") {
+			return fail(ErrInvalidPlan, fmt.Sprintf("%s.routes[%d].ingressAuth", path, index), "unsupported ingress auth mode %q", routes[index].IngressAuth)
+		}
+	}
+	return nil
+}
+
 func decodeCloudRuntimeExecutorPlan(raw []byte, path string, spec executorContractBundleSpec) (executorContractPlan, error) {
 	if spec.moduleID == cloudPrivateAdminMeshModuleID {
 		var exact cloudAdminMeshExecutorPlan
 		if err := decodeStrict(raw, &exact); err != nil {
 			return nil, wrap(ErrInvalidPlan, path, "decode exact Cloud admin-mesh executor contract", err)
+		}
+		if err := normalizeCloudRouteIngressAuth(exact.CloudAdminMesh.Routes, path+".cloudAdminMesh"); err != nil {
+			return nil, err
 		}
 		if err := validateExecutorContractPlanCommon(exact.StackID, exact.Kit, exact.Sites, exact.ModuleTargets, exact.ModuleCapabilities, exact.ControlPlane, spec, path); err != nil {
 			return nil, err
@@ -2628,10 +2643,8 @@ func decodeCloudRuntimeExecutorPlan(raw []byte, path string, spec executorContra
 		if err := decodeStrict(raw, &exact); err != nil {
 			return nil, wrap(ErrInvalidPlan, path, "decode exact Cloud public-edge executor contract", err)
 		}
-		for index := range exact.PublicEdge.Routes {
-			if exact.PublicEdge.Routes[index].IngressAuth == "" {
-				exact.PublicEdge.Routes[index].IngressAuth = "native"
-			}
+		if err := normalizeCloudRouteIngressAuth(exact.PublicEdge.Routes, path+".publicEdge"); err != nil {
+			return nil, err
 		}
 		if err := validateExecutorContractPlanCommon(exact.StackID, exact.Kit, exact.Sites, exact.ModuleTargets, exact.ModuleCapabilities, exact.ControlPlane, spec, path); err != nil {
 			return nil, err

@@ -14,17 +14,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 )
 
 const (
 	// VaultwardenPinnedVersion is the release admitted by the native
 	// Vaultwarden workload. The adapter refuses to mutate another release.
-	VaultwardenPinnedVersion = "1.35.4"
+	VaultwardenPinnedVersion = architecturev2renderer.VaultwardenRelease
 
-	vaultwardenCompatibilityVersion = "2025.12.0"
-	vaultwardenResponseBodyLimit    = 256 << 10
-	vaultwardenSetupTimeout         = 3 * time.Minute
-	vaultwardenCleanupTimeout       = 5 * time.Second
+	vaultwardenResponseBodyLimit = 256 << 10
+	vaultwardenSetupTimeout      = 3 * time.Minute
+	vaultwardenCleanupTimeout    = 5 * time.Second
 )
 
 // VaultwardenOwnerRequest contains only the explicit owner invitation input.
@@ -116,10 +116,10 @@ func BootstrapVaultwardenOwner(
 	if err := vaultwardenJSONRequest(ctx, client, baseURL, http.MethodGet, "/api/config", nil, nil, &config); err != nil {
 		return result, fmt.Errorf("read Vaultwarden API configuration: %w", err)
 	}
-	if config.Version != vaultwardenCompatibilityVersion || config.Server.Name != "Vaultwarden" ||
-		config.Server.URL != "https://github.com/dani-garcia/vaultwarden" || config.Settings.DisableUserRegistration == nil ||
-		!*config.Settings.DisableUserRegistration {
-		return result, errors.New("Vaultwarden API configuration is not the pinned source with closed public signups")
+	// The exact release is bound by /api/version above. The advertised Bitwarden
+	// client-compatibility version moves with each release and adds no identity.
+	if config.Server.Name != "Vaultwarden" || config.Server.URL != "https://github.com/dani-garcia/vaultwarden" {
+		return result, errors.New("Vaultwarden API configuration is not the pinned source")
 	}
 
 	cookies, loginErr := vaultwardenAdminLogin(ctx, client, baseURL, request.AdminToken)
@@ -133,6 +133,19 @@ func BootstrapVaultwardenOwner(
 	}
 	if session == nil {
 		return result, errors.New("Vaultwarden admin login did not return its authenticated session cookie")
+	}
+	// The public disableUserRegistration flag only hides the registration link.
+	// With invitations and no SMTP it is false even when public signups are closed.
+	// Read the effective policy from the masked authenticated diagnostics instead.
+	var signupPolicy struct {
+		Allowed *bool   `json:"signups_allowed"`
+		Domains *string `json:"signups_domains_whitelist"`
+	}
+	if err := vaultwardenJSONRequest(ctx, client, baseURL, http.MethodGet, "/admin/diagnostics/config", nil, session.cookies, &signupPolicy); err != nil {
+		return result, errors.New("read Vaultwarden effective signup policy failed")
+	}
+	if signupPolicy.Allowed == nil || *signupPolicy.Allowed || signupPolicy.Domains == nil || strings.TrimSpace(*signupPolicy.Domains) != "" {
+		return result, errors.New("Vaultwarden owner invitation requires closed public signups without domain exceptions")
 	}
 
 	user, found, err := vaultwardenReadUser(ctx, session, email)
@@ -254,14 +267,10 @@ func (s *vaultwardenAdminSession) clear() {
 }
 
 type vaultwardenConfigReadback struct {
-	Version string `json:"version"`
-	Server  struct {
+	Server struct {
 		Name string `json:"name"`
 		URL  string `json:"url"`
 	} `json:"server"`
-	Settings struct {
-		DisableUserRegistration *bool `json:"disableUserRegistration"`
-	} `json:"settings"`
 }
 
 type vaultwardenUserReadback struct {

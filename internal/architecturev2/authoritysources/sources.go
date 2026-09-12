@@ -6,6 +6,7 @@ var contractFixture = []string{
 	"foundation/architecture_v2_profiles.cue",
 	"foundation/architecture_v2.cue",
 	"foundation/architecture_v2_module_profiles.cue",
+	"foundation/architecture_v2_smart_home.cue",
 	"foundation/architecture_v2_storage.cue",
 	"foundation/architecture_v2_backup.cue",
 	"foundation/application_lifecycle.cue",

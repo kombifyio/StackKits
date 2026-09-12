@@ -57,6 +57,9 @@ type ProductRuntimeOwnerDescriptor struct {
 // service-construction input.
 func ProductStaticRuntimeOwnerCatalog() []ProductRuntimeOwnerDescriptor {
 	return []ProductRuntimeOwnerDescriptor{
+		{ID: ProductRuntimeOwnerHomeAssistantHAOS, Selector: productHomeAssistantInstanceSelector(ProductRuntimeOwnerHomeAssistantHAOS)},
+		{ID: ProductRuntimeOwnerHomeAssistantExisting, Selector: productHomeAssistantInstanceSelector(ProductRuntimeOwnerHomeAssistantExisting)},
+		{ID: ProductRuntimeOwnerHomeAssistantImported, Selector: productHomeAssistantInstanceSelector(ProductRuntimeOwnerHomeAssistantImported)},
 		{ID: ProductRuntimeOwnerSecurityBaseline, Selector: productSecurityBaselineSelector()},
 		{ID: ProductRuntimeOwnerCoreHostBootstrap, Selector: productCoreHostBootstrapSelector()},
 		{ID: ProductRuntimeOwnerHomeBackupTarget, Selector: productHomeBackupTargetSelector()},

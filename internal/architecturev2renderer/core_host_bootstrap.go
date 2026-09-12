@@ -260,6 +260,13 @@ func decodeCoreHostStorageRootsJSON(value coreHostStorageRootsInput, path string
 	if value.VolumeDriver != "local" || value.DataRoot == "" || value.BackupRoot == "" || value.StacksRoot == "" {
 		return value, fail(ErrInvalidPlan, path, "requires local storage and all mandatory host roots")
 	}
+	if value.MediaRoot != "" {
+		for _, managed := range []string{value.DataRoot, value.BackupRoot, value.StacksRoot} {
+			if managed == value.MediaRoot || strings.HasPrefix(managed, value.MediaRoot+"/") {
+				return value, fail(ErrInvalidPlan, path+".mediaRoot", "owner media source must not contain managed storage roots")
+			}
+		}
+	}
 	for field, storagePath := range map[string]string{
 		"dataRoot": value.DataRoot, "backupRoot": value.BackupRoot,
 		"stacksRoot": value.StacksRoot, "mediaRoot": value.MediaRoot,
@@ -323,9 +330,8 @@ func newCoreHostBootstrapPolicy(inputs coreHostBootstrapPlanInputs, runtime core
 		storage.BackupRoot: "backup",
 		storage.StacksRoot: "stacks",
 	}
-	if storage.MediaRoot != "" {
-		paths[storage.MediaRoot] = "media"
-	}
+	// mediaRoot is an existing owner-custodied source, not managed storage.
+	// Creating or chmodding it would hide an absent library and change custody.
 	ordered := make([]string, 0, len(paths))
 	for path := range paths {
 		ordered = append(ordered, path)

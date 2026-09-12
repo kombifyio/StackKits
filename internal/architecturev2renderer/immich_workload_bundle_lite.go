@@ -13,7 +13,7 @@ const (
 	immichLiteWorkloadOutputRef   = "workloads/immich-lite/bundle.json"
 )
 
-const immichLiteWorkloadRendererSchema = `stackkit.workload-bundle/v2|ImmichWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:server,postgres,postgres-init,valkey|secret-material:not-included|machine-learning:omitted`
+const immichLiteWorkloadRendererSchema = `stackkit.workload-bundle/v2|ImmichWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:server,postgres,postgres-init,valkey|secret-material:not-included|machine-learning:omitted-and-disabled`
 
 func ImmichLiteWorkloadBundleRendererContract() RendererContract {
 	sum := sha256.Sum256([]byte(immichLiteWorkloadRendererSchema))

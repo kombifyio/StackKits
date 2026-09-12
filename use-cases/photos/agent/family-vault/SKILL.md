@@ -9,6 +9,9 @@ StackKits deploys digest-pinned Immich through the application adapter selected
 in the resolved Plan. The Immich Full or Lite workload and its module-local
 resource profile are explicit choices; the Core profile is not an application
 size selector. This guide applies after that runtime exists.
+Lite disables Immich's machine-learning processing as well as omitting that
+service. Photo upload, original download and ordinary browsing remain available;
+smart search, face recognition, similar-photo detection and OCR require Full.
 
 ## Owner setup
 

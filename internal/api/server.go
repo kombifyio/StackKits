@@ -24,6 +24,7 @@ import (
 
 // ServerConfig holds configuration for the API server.
 type ServerConfig struct {
+	OwnerStepUpOrigin                 string // Explicit HTTPS origin of this server for local PocketID approval callbacks.
 	Port                              int
 	BaseDir                           string
 	Version                           string
@@ -137,6 +138,8 @@ func (s *Server) routes() {
 	s.registerMCPRoutes()
 
 	s.registerStackActionRoutes()
+	s.registerOwnerStepUpRoutes()
+	s.mux.HandleFunc("POST /api/v1/identity/workload-peers", s.handleWorkloadPeerOperation)
 
 	// Node-local management
 	s.mux.HandleFunc("GET /api/v1/status", s.handleManagementStatus)
@@ -551,7 +554,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 func apiKeyMiddleware(validKey string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if isPublicAPIKeyExemptRoute(r) || isServiceAuthenticatedRoute(r) {
+			if isPublicAPIKeyExemptRoute(r) || isServiceAuthenticatedRoute(r) || isOwnerStepUpBrowserRoute(r) {
 				next.ServeHTTP(w, r)
 				return
 			}

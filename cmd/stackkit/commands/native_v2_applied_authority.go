@@ -28,6 +28,14 @@ type nativeV2AppliedAuthority struct {
 }
 
 func inspectNativeV2AppliedAuthority(ctx context.Context, workspace, requestedSpec string) (nativeV2AppliedAuthority, error) {
+	return inspectNativeV2Authority(ctx, workspace, requestedSpec, true)
+}
+
+func inspectNativeV2GeneratedAuthority(ctx context.Context, workspace, requestedSpec string) (nativeV2AppliedAuthority, error) {
+	return inspectNativeV2Authority(ctx, workspace, requestedSpec, false)
+}
+
+func inspectNativeV2Authority(ctx context.Context, workspace, requestedSpec string, requireApply bool) (nativeV2AppliedAuthority, error) {
 	heldRoot, err := confinedfs.Open(workspace)
 	if err != nil {
 		return nativeV2AppliedAuthority{}, err
@@ -56,9 +64,9 @@ func inspectNativeV2AppliedAuthority(ctx context.Context, workspace, requestedSp
 		inspection.Kind != generationartifact.PlanInspectionKind ||
 		inspection.VerifiedPhase != generationartifact.ExecutionPhaseGeneration ||
 		inspection.Readiness.Generation.Status != "ready" ||
-		inspection.Readiness.Apply.Status != "ready" ||
+		(requireApply && inspection.Readiness.Apply.Status != "ready") ||
 		len(inspection.Readiness.Generation.Blockers) != 0 ||
-		len(inspection.Readiness.Apply.Blockers) != 0 ||
+		(requireApply && len(inspection.Readiness.Apply.Blockers) != 0) ||
 		inspection.ExecutorInvoked {
 		return nativeV2AppliedAuthority{}, errors.New("native v2 local lifecycle requires the exact generation- and Apply-ready Architecture v2 closure")
 	}
@@ -115,6 +123,9 @@ func inspectNativeV2AppliedAuthority(ctx context.Context, workspace, requestedSp
 	owner, err := localevidence.LoadOwnerCustody(workspace)
 	if err != nil {
 		return nativeV2AppliedAuthority{}, fmt.Errorf("verify local owner custody: %w", err)
+	}
+	if !requireApply {
+		return nativeV2AppliedAuthority{OwnerRef: owner.OwnerRef, AuthorityRef: owner.Trust.HumanAuthorityRef, WorkspaceRoot: workspace, OutputRoot: inspection.OutputRoot, Plan: plan, Manifest: manifest, Receipt: receipt, Owner: owner, Lineage: backuplifecycle.AuthorityLineage{Binding: inspection.Binding, ManifestHash: manifestHash, GenerationReceiptHash: generationReceiptHash}}, nil
 	}
 	verifyRaw, err := newArchitectureV2ProductVerifyAuthority(workspace, architectureV2ExecutionCLIOptions{})
 	if err != nil {

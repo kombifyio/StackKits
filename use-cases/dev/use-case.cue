@@ -1,7 +1,6 @@
 // Package dev defines the Developer Platform use case package.
 //
-// SK-M1 records the committed Gitea product intent only. The Gitea module,
-// CI tool selection, runtime workload, and lifecycle evidence belong to SK-M5.
+// Private Git hosting is explicit; CI runner selection remains separate.
 package dev
 
 import "github.com/kombifyio/stackkits/foundation"
@@ -14,8 +13,8 @@ Package: foundation.#UseCasePackage & {
 		version:     "0.1.0"
 		layer:       "application"
 		category:    "dev"
-		lifecycle:   "draft"
-		description: "Draft private source-control and developer-collaboration intent centered on Gitea, pending SK-M5 module, CI, and runtime authority."
+		lifecycle:   "experimental"
+		description: "Private repositories through native Git HTTPS and local owner custody. CI runners are not installed."
 	}
 
 	selection: {
@@ -24,44 +23,37 @@ Package: foundation.#UseCasePackage & {
 			moduleSlug: "gitea"
 			role:       "primary"
 			required:   true
-			rationale:  "Gitea is the committed SK-M5 source-control default, but its module and executable workload do not exist yet."
+			rationale:  "Gitea provides private source control with local account custody."
 			capabilities: ["source-control", "git-hosting", "developer-collaboration"]
 		}
 		alternatives: []
 	}
 
-	defaultRuntimeProfile: "planned-self-hosted-dev"
-	runtimeProfiles: "planned-self-hosted-dev": {
-		displayName: "Planned Self-hosted Developer Platform"
-		description: "SK-M5 will realize Gitea and a selected CI implementation on an Owner-selected node through the module facts pipeline."
+	defaultRuntimeProfile: "self-hosted-dev"
+	runtimeProfiles: "self-hosted-dev": {
+		displayName: "Self-hosted Git Hosting"
+		description: "Gitea runs on one owner-selected node through Standalone Compose. SQLite, repositories, LFS data and configuration persist."
 		realization: "oss"
 		placementModes: ["local-only", "standard"]
 		managedServerlessEligible: false
 		requiresControlPlane:      false
 		requiresLocalBridge:       false
-		notes: ["This draft profile is catalog intent; the removed legacy Woodpecker definitions were never executable module or runtime authority, and CI selection remains SK-M5 work."]
+		notes: ["Use the local owner account over the declared HTTPS route. Native Git authentication does not use a browser login gate. SSH and CI runners are separate future selections."]
 	}
 
 	computeTiers: {
-		low: {
-			included: false
-			reason: "Gitea+CI is not on the Basement low graph."
-		}
-		standard: {
-			included: false
-			reason: "SK-M5: Gitea module is not executable. Intended load is always-on idle git host with interactive and batch CI bursts."
-		}
-		high: {
-			included: false
-			reason: "Same as standard until SK-M5. CI batch bursts belong on high headroom, not on low."
-		}
+		low: {included: false, reason: "The first Git hosting path uses the standard profile."}
+		standard: {included: true, moduleSlug: "gitea", functions: ["source-control", "git-hosting", "developer-collaboration"], load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}, notes: ["Repository growth requires a separate disk budget. No CI runner is included."]}
+		high: {included: true, moduleSlug: "gitea", functions: ["source-control", "git-hosting", "developer-collaboration"], load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}, notes: ["Same Git hosting runtime as standard."]}
 	}
 
 	tools: gitea: {
 		moduleSlug: "gitea"
 		role:       "primary"
 		required:   true
-		rationale:  "Planned source-control implementation; module contract pending in SK-M5."
+		rationale:  "Pinned rootless Gitea with native authentication and private repositories."
 		capabilities: ["source-control", "git-hosting", "developer-collaboration"]
 	}
+	lifecycle: foundation.#StandardUseCaseLifecycle
+	evidence: {healthChecks: ["gitea-http"], required: ["route", "backup", "runtime-owner", "removal"]}
 }

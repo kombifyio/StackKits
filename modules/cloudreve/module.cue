@@ -5,6 +5,8 @@ package cloudreve
 
 import "github.com/kombifyio/stackkits/foundation"
 
+_runtimeImages: foundation.ArchitectureV2ModuleImages["stackkits-cloudreve-runtime"]
+
 Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "cloudreve"
@@ -67,8 +69,8 @@ Contract: foundation.#ModuleContract & {
 		displayName: "Files"
 		description: "Document management and file sharing backed by Cloudreve"
 		type:        "storage"
-		image:       "cloudreve/cloudreve"
-		tag:         "latest"
+		image: _runtimeImages["cloudreve"].image
+		tag: _runtimeImages["cloudreve"].tag
 		upstream: {
 			github: {repo: "cloudreve/Cloudreve"}
 		}

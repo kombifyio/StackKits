@@ -725,12 +725,15 @@ func writeFederationPrivateAtomic(workspace, relative string, data []byte) error
 	if err != nil {
 		return err
 	}
-	if !result.Installed || !result.FileSynced || !result.PermissionsVerified {
+	if !result.Installed || !result.FileSynced {
 		return fmt.Errorf("atomic Federation write returned incomplete durability evidence: %#v", result)
 	}
 	absolute := filepath.Join(workspace, filepath.FromSlash(relative))
 	if err := backupcustody.ProtectPrivatePath(absolute, false); err != nil {
 		return fmt.Errorf("protect Federation evidence file: %w", err)
+	}
+	if err := backupcustody.RequirePrivatePath(absolute, false); err != nil {
+		return err
 	}
 	return root.VerifyPathIdentity()
 }

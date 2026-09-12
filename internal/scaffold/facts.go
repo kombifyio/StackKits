@@ -70,7 +70,8 @@ type FactsService struct {
 	Name         string             `json:"name"`
 	Type         string             `json:"type"`
 	Image        string             `json:"image"`
-	Tag          string             `json:"tag"`
+	Tag          string             `json:"tag,omitempty"`
+	ImageSource  *FactsImageSource  `json:"imageSource,omitempty"`
 	Required     *bool              `json:"required,omitempty"`
 	Needs        []string           `json:"needs,omitempty"`
 	Routed       bool               `json:"routed,omitempty"`
@@ -84,6 +85,13 @@ type FactsService struct {
 	Environment  map[string]string  `json:"environment,omitempty"`
 	Upstream     *FactsUpstream     `json:"upstream,omitempty"`
 	Subdomain    *FactsSubdomain    `json:"subdomain,omitempty"`
+}
+
+// FactsImageSource selects an immutable image from the compiled CUE catalog.
+// A referenced service never maintains its own image or tag.
+type FactsImageSource struct {
+	ModuleRef    string `json:"moduleRef"`
+	ComponentRef string `json:"componentRef"`
 }
 
 // FactsTraefik carries routing coordinates for a routed service.
@@ -161,11 +169,19 @@ var slugRe = regexp.MustCompile(`^[a-z][a-z0-9-]+$`)
 
 // LoadFacts unmarshals and validates a module_facts.json document.
 func LoadFacts(data []byte) (*Facts, error) {
+	return LoadFactsWithCatalog(data, nil)
+}
+
+// LoadFactsWithCatalog resolves referenced images before normal validation.
+func LoadFactsWithCatalog(data, catalog []byte) (*Facts, error) {
 	var f Facts
 	dec := json.NewDecoder(strings.NewReader(string(data)))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&f); err != nil {
 		return nil, fmt.Errorf("parse module_facts.json: %w", err)
+	}
+	if err := f.resolveImages(catalog); err != nil {
+		return nil, err
 	}
 	if err := f.validate(); err != nil {
 		return nil, err
@@ -213,6 +229,63 @@ func (f *Facts) validate() error {
 		}
 		if s.Routed && s.Traefik == nil {
 			return fmt.Errorf("service %q: routed service needs traefik {rule, port}", s.Name)
+		}
+	}
+	return nil
+}
+
+func (f *Facts) resolveImages(data []byte) error {
+	var catalog struct {
+		Modules []struct {
+			Metadata struct {
+				ID string `json:"id"`
+			} `json:"metadata"`
+			Runtime struct {
+				Components []struct {
+					ID    string `json:"id"`
+					Image struct {
+						Ref    string `json:"ref"`
+						Digest string `json:"digest"`
+					} `json:"image"`
+				} `json:"components"`
+			} `json:"runtime"`
+		} `json:"modules"`
+	}
+	loaded := false
+	for i := range f.Services {
+		s := &f.Services[i]
+		if s.ImageSource == nil {
+			continue
+		}
+		if s.Image != "" || s.Tag != "" || s.ImageSource.ModuleRef == "" || s.ImageSource.ComponentRef == "" {
+			return fmt.Errorf("service %q: imageSource requires exact references and excludes image/tag overrides", s.Name)
+		}
+		if !loaded {
+			if err := json.Unmarshal(data, &catalog); err != nil {
+				return fmt.Errorf("resolve imageSource from compiled CUE catalog: %w", err)
+			}
+			loaded = true
+		}
+		matches := 0
+		for _, module := range catalog.Modules {
+			if module.Metadata.ID != s.ImageSource.ModuleRef {
+				continue
+			}
+			for _, component := range module.Runtime.Components {
+				if component.ID != s.ImageSource.ComponentRef {
+					continue
+				}
+				matches++
+				ref := component.Image.Ref
+				colon := strings.LastIndex(ref, ":")
+				if colon <= strings.LastIndex(ref, "/") || colon == len(ref)-1 || strings.Contains(ref, "@") || !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(component.Image.Digest) {
+					return fmt.Errorf("service %q: catalog image must have an exact tag and digest", s.Name)
+				}
+				s.Image, s.Tag = ref[:colon], ref[colon+1:]+"@"+component.Image.Digest
+			}
+		}
+		if matches != 1 {
+			return fmt.Errorf("service %q: imageSource must resolve exactly once", s.Name)
 		}
 	}
 	return nil

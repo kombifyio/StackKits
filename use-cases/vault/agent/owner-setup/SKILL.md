@@ -40,7 +40,10 @@ stackkit setup vault --owner-approve --credentials-file .stackkit/setup/vault-ow
 
 The action authenticates the admin session from the exact signed Apply-bound
 `secret://` custody, checks the pinned Vaultwarden release and closed signup
-setting, and reads back only the bounded user id/status/enabled fields. It
+policy from the authenticated masked diagnostics, and reads back only the
+bounded user id/status/enabled fields. The public registration link can remain
+visible for invited users without SMTP; its visibility does not mean public
+signups are enabled. Open signups or domain signup exceptions block setup. It
 invites a missing user, recognizes an existing invited or registered user, and
 fails for a disabled user. It never reinvites an existing user. An invitation
 only creates or confirms a server-side user record. It does not establish the
@@ -52,9 +55,10 @@ custody for declared local `secret://` references; it never emits the token.
 If no signed Apply-bound custody is available, leave setup pending and report
 the missing administrator handoff rather than copying or revealing the token.
 
-After receiving the invitation, complete registration in the official web or
-Bitwarden client. Create the master password and client-side encryption keys
-there. Never put a master password, recovery code, encrypted private key,
+After StackKits confirms the invitation, complete registration with that email
+in the official web or Bitwarden client. Without SMTP, no invitation email is
+sent; open the declared Vault route directly. Create the master password and
+client-side encryption keys there. Never put a master password, recovery code, encrypted private key,
 session token, or client key in a StackKits credential file, CLI/MCP argument,
 generated artifact, issue, or repository. The break-glass admin token and the
 personal Vault account are separate credentials and must never be treated as

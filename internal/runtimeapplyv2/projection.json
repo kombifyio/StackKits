@@ -1,9 +1,9 @@
 {
   "schemaVersion": "stackkits.runtimeapply-projection/v1",
   "source": "kombify-go-common/runtimeapply",
-  "sourceVersion": "v0.4.60",
-  "sourceCommit": "5967c2ebfe3bbf79af68ac2c09669811877c295e",
-  "sourceSum": "h1:k1gJ7kq4mRGqdYfVNLOP+4UEYyQqys56fSBPCuTvDUw=",
+  "sourceVersion": "v0.5.0",
+  "sourceCommit": "0de72094bcc5b23e3b888d02dd00f19d6314b762",
+  "sourceSum": "h1:+40gGtYDlMsfixm8pGWVa3tzI8GJWY8K1+d1m0iOYWs=",
   "sourceFiles": [
     "journal.go",
     "journal_test.go",

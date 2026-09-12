@@ -69,6 +69,64 @@ idempotency, transport, and orchestration and consumes the published
 StackAction/CLI contracts. See [RIL_ACTION_EXECUTION.md](RIL_ACTION_EXECUTION.md)
 for the superseded checkpoint and current ownership boundary.
 
+## Local Owner action approval
+
+Set `STACKKIT_OWNER_STEP_UP_ORIGIN` to the explicit HTTPS origin of the existing
+local StackKits server, without a path or trailing slash. The server must also
+have its API key configured. Route that origin to this server using the existing
+local TLS ingress. PocketID and the established Home Owner custody must already
+be available. This flow is account-free and uses no hosted Kombify identity.
+Host names and the default HTTPS port are canonicalized before registration.
+Invalid origins (including trailing-dot hosts) stop server startup with a
+configuration error.
+
+1. The admitted operation caller posts its exact `RemoteActionApprovalBinding`
+   to `POST /api/v1/identity/step-up` with `X-API-Key`. It includes `actionDigest`,
+   `planHash` (lowercase SHA-256 hex), `action`, `ownerRef`, `homeSiteRef`,
+   `targetSiteRef`, `targetNodeRef`, and RFC3339 `issuedAt`/`expiresAt`.
+   The digest covers the unsigned action envelope including its nonce and
+   idempotency key, excluding its approval and signature. `apply` expires within
+   60 seconds; `destroy` within 30 seconds. The receiver owns these constraints.
+2. Open the returned `approvalUrl`. The page shows the action, target and plan.
+   Its confirmation sends the owner to local PocketID using confidential PKCE
+   and required reauthentication. Expired requests require a new current action.
+3. The callback downloads `stackkit-owner-approval.json`. Treat it as a short-lived
+   credential: hand it directly to the admitted operation caller and never add
+   it to logs, a public receipt, a source repository or a support bundle.
+4. The existing executor verifies the exact binding and consumes the approval
+   before its first side effect. The approval API never executes an operation.
+
+The browser review and callback routes use a random flow capability, secure
+browser cookie, same-origin confirmation and PKCE rather than an API key. Pending
+approval binds to the browser that first confirms it; another browser cannot
+complete that callback using the same review URL. A callback with missing or
+mismatched browser custody permanently invalidates that approval flow. Only the verified local
+PocketID origin is permitted as the form's redirected destination. Pending
+flows disappear on restart. Consumed approvals remain spent across restarts in
+the existing private custody tree. A failed or interrupted execution resumes
+through its operation journal; it cannot reuse the approval for a second action.
+
+The receipt preserves the independent PocketID signature and `amr=phr` claim;
+possession of the local evidence-signing key does not manufacture human approval.
+The dedicated client is confidential because PocketID's device-code grant does
+not enforce the authorization-code reauthentication setting. Only the Home
+callback holds its secret and exchanges authorization codes. Public clients,
+federated client credentials, altered callbacks and absent reauthentication or
+PKCE settings are rejected. The secret remains in owner-only local custody.
+
+PocketID's current reauthentication semantics permit a passkey-authenticated
+session issued within the preceding minute to obtain a reauthentication token
+valid for three minutes. It does not emit `auth_time`; StackKits does not invent
+that claim or promise a new physical gesture for every action. Its signed token
+must be issued during the action window and carry the exact binding nonce.
+Source: [PocketID reauthentication implementation](https://github.com/pocket-id/pocket-id/blob/9399cba775e5c3eb6b70742092e232b148fd9a0f/backend/internal/service/webauthn_service.go).
+
+Cloud-side consumers require admitted Home PocketID public keys, issuer, subject
+and current client/owner policy through the existing authenticated pairing
+contract. They must not accept a trust object supplied with a receipt. Device
+identity and remote mutation authority remain separate checks. The new approval
+handler alone does not enable remote `apply` or `destroy`.
+
 ## Response Model
 
 JSON endpoints use the shared API envelope:

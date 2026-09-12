@@ -141,6 +141,7 @@ type RenderUnit struct {
 	containerImageDigest       string
 	runtimeEntryComponentRef   string
 	runtimeComponentsJSON      []byte
+	runtimeSettingsJSON        []byte
 	publicInputRefs            []string
 	secretInputRefs            []string
 	planInputRefs              []string
@@ -187,6 +188,9 @@ func (u RenderUnit) RuntimeEntryComponentRef() (string, bool) {
 }
 func (u RenderUnit) RuntimeComponentsJSON() []byte {
 	return append([]byte(nil), u.runtimeComponentsJSON...)
+}
+func (u RenderUnit) RuntimeSettingsJSON() []byte {
+	return append([]byte(nil), u.runtimeSettingsJSON...)
 }
 func (u RenderUnit) PublicInputRefs() []string { return append([]string(nil), u.publicInputRefs...) }
 func (u RenderUnit) SecretInputRefs() []string { return append([]string(nil), u.secretInputRefs...) }
@@ -409,7 +413,8 @@ func newRenderUnit(moduleID string, contract renderUnitContract, instance render
 		kind: contract.kind, rendererRef: contract.rendererRef,
 		templateRef: contract.templateRef, version: contract.version, contractHash: contract.contractHash,
 		runtimeKind: contract.runtime.kind, runtimeDelivery: contract.runtime.delivery, runtimeEngine: contract.runtime.engine,
-		containerImageRef: contract.runtime.imageRef, containerImageDigest: contract.runtime.imageDigest,
+		runtimeSettingsJSON: append([]byte(nil), contract.runtime.settingsCanonical...),
+		containerImageRef:   contract.runtime.imageRef, containerImageDigest: contract.runtime.imageDigest,
 		runtimeEntryComponentRef: contract.runtime.entryComponentRef, runtimeComponentsJSON: append([]byte(nil), contract.runtime.componentsCanonical...),
 		publicInputRefs: append([]string(nil), contract.publicInputRefs...), secretInputRefs: append([]string(nil), contract.secretInputRefs...),
 		planInputRefs:     append([]string(nil), contract.planInputRefs...),

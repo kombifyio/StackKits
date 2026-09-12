@@ -22,8 +22,9 @@ const (
 	// CoreModuleRef and CoreLiteModuleRef are the only runtime profiles that
 	// may own the local Kopia source. An empty Source.CoreModuleRef is retained
 	// solely for decoding pre-profile Full-Core policy artifacts.
-	CoreModuleRef     = "stackkits-basement-core-runtime"
-	CoreLiteModuleRef = "stackkits-basement-core-lite-runtime"
+	CoreModuleRef      = "stackkits-basement-core-runtime"
+	CoreLiteModuleRef  = "stackkits-basement-core-lite-runtime"
+	CloudCoreModuleRef = "stackkits-cloud-core-standalone-runtime"
 
 	ServiceRef          = "kopia-agent"
 	Hostname            = "stackkit-basement-backup"
@@ -85,6 +86,8 @@ func coreProfile(coreModuleRef string) (coreSourceProfile, error) {
 		return coreSourceProfile{managedVolumeNames: managedVolumeNames}, nil
 	case CoreLiteModuleRef:
 		return coreSourceProfile{managedVolumeNames: managedLiteVolumeNames}, nil
+	case CloudCoreModuleRef:
+		return coreSourceProfile{managedVolumeNames: []string{"stackkit-cloud-core-standalone_pocketid-data", "stackkit-cloud-core-standalone_tinyauth-data"}}, nil
 	default:
 		return coreSourceProfile{}, fmt.Errorf("local Kopia source coreModuleRef %q is not a supported Core profile", coreModuleRef)
 	}
@@ -257,14 +260,14 @@ func NewWithApplicationVolumesAndRuntimes(stackID, siteRef, nodeRef string, appl
 // profile-aware regeneration does not change an otherwise identical artifact;
 // CoreLite remains explicitly identified in the source.
 func NewWithApplicationVolumesAndRuntimesForCoreModule(coreModuleRef, stackID, siteRef, nodeRef string, applicationVolumes []ApplicationVolume, applicationRuntimes []ApplicationRuntime) (Policy, error) {
-	source, err := governedSourceWithApplicationVolumesAndRuntimes(coreModuleRef, coreModuleRef == CoreLiteModuleRef, applicationVolumes, applicationRuntimes)
+	source, err := governedSourceWithApplicationVolumesAndRuntimes(coreModuleRef, coreModuleRef != "" && coreModuleRef != CoreModuleRef, applicationVolumes, applicationRuntimes)
 	if err != nil {
 		return Policy{}, err
 	}
 	policy := Policy{
 		StackID: stackID,
 		Target:  governedTarget(siteRef, nodeRef),
-		Runtime: GovernedRuntime(),
+		Runtime: source.RuntimeProfile(),
 		Source:  source,
 	}
 	if err := policy.validate(); err != nil {
@@ -323,6 +326,25 @@ func GovernedRuntime() Runtime {
 	}
 }
 
+// ComposeProject returns the finite runtime identity carried by an admitted
+// source profile. Unknown profiles are rejected by ValidateSourceProjection.
+func (source Source) ComposeProject() string {
+	if source.CoreModuleRef == CloudCoreModuleRef {
+		return "stackkit-cloud-core-standalone"
+	}
+	return "stackkit-basement-core"
+}
+
+func (source Source) RuntimeProfile() Runtime {
+	runtime := GovernedRuntime()
+	if source.CoreModuleRef == CloudCoreModuleRef {
+		runtime.Hostname, runtime.NetworkRef = "stackkit-cloud-backup", "cloud-backup"
+		runtime.NetworkMode = "outbound-no-peer"
+		runtime.RequiredEvidenceRef = "cloud-core-runtime-evidence"
+	}
+	return runtime
+}
+
 // GovernedSource returns a detached copy of the exact read-only backup source.
 // Exclusion order is a canonical contract: repository, config, then cache.
 func GovernedSource() Source {
@@ -361,6 +383,11 @@ func governedSource(coreModuleRef string, explicit bool) Source {
 	}
 	if explicit {
 		source.CoreModuleRef = coreModuleRef
+	}
+	if coreModuleRef == CloudCoreModuleRef {
+		for index := range source.ExcludePaths {
+			source.ExcludePaths[index] = strings.ReplaceAll(source.ExcludePaths[index], "stackkit-basement-core", source.ComposeProject())
+		}
 	}
 	return source
 }
@@ -502,7 +529,7 @@ func recognizedSnapshotSource(coreModuleRef, containerPath string, excludes []st
 		return current, true
 	}
 	legacy := current.ExcludePaths[:len(current.ExcludePaths)-1]
-	if reflect.DeepEqual(excludes, legacy) {
+	if coreModuleRef != CloudCoreModuleRef && reflect.DeepEqual(excludes, legacy) {
 		return current, true
 	}
 	return Source{}, false
@@ -551,17 +578,22 @@ func ValidateSnapshotPolicy(policy Policy) error {
 		return err
 	}
 	runtime := policy.Runtime
+	expectedRuntime := policy.Source.RuntimeProfile()
+	// Historical Cloud snapshots used the internal-only profile. Their data
+	// remains restorable; current artifact Decode still requires the new profile.
+	networkRecognized := runtime.NetworkMode == expectedRuntime.NetworkMode ||
+		(policy.Source.CoreModuleRef == CloudCoreModuleRef && runtime.NetworkMode == NetworkMode)
 	imageName, imageDigest, imagePinned := strings.Cut(runtime.Image, "@")
 	if runtime.ServiceRef != ServiceRef ||
-		runtime.Hostname != Hostname ||
+		runtime.Hostname != expectedRuntime.Hostname ||
 		!imagePinned ||
 		!strings.HasPrefix(imageName, "docker.io/kopia/kopia:") ||
 		!imageDigestPattern.MatchString(imageDigest) ||
 		runtime.Mode != Mode ||
-		runtime.NetworkMode != NetworkMode ||
-		runtime.NetworkRef != NetworkRef ||
+		!networkRecognized ||
+		runtime.NetworkRef != expectedRuntime.NetworkRef ||
 		!reflect.DeepEqual(runtime.HealthCommand, []string{"kopia", "--version"}) ||
-		runtime.RequiredEvidenceRef != RequiredEvidenceRef {
+		runtime.RequiredEvidenceRef != expectedRuntime.RequiredEvidenceRef {
 		return errors.New("local Kopia snapshot policy runtime is not recognized")
 	}
 	return nil
@@ -671,7 +703,7 @@ func (policy Policy) validate() error {
 	if policy.Target != governedTarget(policy.Target.SiteRef, policy.Target.NodeRef) {
 		return errors.New("local Kopia runtime policy target differs from the governed exclusive rootful Docker daemon")
 	}
-	if !reflect.DeepEqual(policy.Runtime, GovernedRuntime()) {
+	if !reflect.DeepEqual(policy.Runtime, policy.Source.RuntimeProfile()) {
 		return errors.New("local Kopia runtime policy runtime differs from the governed local runtime")
 	}
 	if err := validateSource(policy.Source, policy.Target); err != nil {

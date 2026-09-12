@@ -1,0 +1,49 @@
+{
+  "facts_schema_version": "1.0.0",
+  "slug": "ollama",
+  "displayName": "Ollama",
+  "description": "Ollama for owner-controlled private AI. Models require an explicit owner download.",
+  "layer": "L3-application",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "1g"
+    }
+  },
+  "services": [
+    {
+      "name": "ollama",
+      "type": "application",
+      "required": false,
+      "networks": [
+        "private-ai-internal"
+      ],
+      "volumes": [
+        {
+          "source": "ollama-data",
+          "target": "/root/.ollama",
+          "type": "volume",
+          "backup": false
+        }
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/api/tags",
+        "port": 11434
+      },
+      "resources": {
+        "memory": "512m",
+        "memoryMax": "6g"
+      },
+      "upstream": {
+        "github": "ollama/ollama",
+        "registryImage": "ollama/ollama"
+      },
+      "imageSource": {
+        "moduleRef": "stackkits-private-ai-runtime",
+        "componentRef": "ollama"
+      }
+    }
+  ]
+}

@@ -184,23 +184,18 @@ func ValidateSelectedPaaSWorkloadObservation(
 		}
 		return validateVaultwardenObservation(observation, deployment, descriptor)
 	case jellyfinWorkloadModuleRef:
-		if _, err := architecturev2renderer.ParseJellyfinWorkloadBundle(deployment.Bundle); err != nil {
-			return fmt.Errorf("validate Jellyfin workload observation contract: %w", err)
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationJellyfin, deployment, observation)
+	case "stackkits-private-ai-runtime":
+		if _, err := architecturev2renderer.ParsePrivateAIWorkloadBundle(deployment.Bundle); err != nil {
+			return err
 		}
 		bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(deployment.Bundle)
 		if err != nil {
-			return fmt.Errorf("validate Jellyfin workload observation envelope: %w", err)
+			return err
 		}
-		return validateStandaloneApplicationObservation(observation, deployment, bundle, 200)
+		return validateStandaloneApplicationObservation(observation, deployment, bundle, []int{200})
 	case homeAssistantWorkloadModuleRef:
-		if _, err := architecturev2renderer.ParseHomeAssistantWorkloadBundle(deployment.Bundle); err != nil {
-			return fmt.Errorf("validate Home Assistant workload observation contract: %w", err)
-		}
-		bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(deployment.Bundle)
-		if err != nil {
-			return fmt.Errorf("validate Home Assistant workload observation envelope: %w", err)
-		}
-		return validateStandaloneApplicationObservation(observation, deployment, bundle, 200)
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationHomeAssistant, deployment, observation)
 	default:
 		return errors.New("selected-PaaS workload has no product-owned observation validator")
 	}
@@ -210,7 +205,7 @@ func validateStandaloneApplicationObservation(
 	observation SelectedPaaSWorkloadObservation,
 	deployment SelectedPaaSWorkloadDeployment,
 	bundle architecturev2renderer.ApplicationDeliveryBundleDescriptor,
-	expectedHTTPStatus int,
+	expectedHTTPStatuses []int,
 ) error {
 	if deployment.WorkloadRef != bundle.WorkloadRef || deployment.ModuleRef != bundle.ModuleRef ||
 		deployment.Release != bundle.Release || deployment.SiteRef != bundle.SiteRef ||
@@ -219,7 +214,7 @@ func validateStandaloneApplicationObservation(
 		observation.Release != deployment.Release || observation.InstanceRef != deployment.InstanceRef ||
 		observation.ArtifactDigest != deployment.ArtifactDigest || observation.Status != "running" ||
 		!exactApplicationDeliveryRouteObservation(observation.Route, bundle.Route) ||
-		observation.Route.Status != "healthy" || observation.Route.HTTPStatus != expectedHTTPStatus ||
+		observation.Route.Status != "healthy" || !slices.Contains(expectedHTTPStatuses, observation.Route.HTTPStatus) ||
 		len(observation.Components) != len(bundle.Components) {
 		return errors.New("selected-PaaS observation does not prove the exact running workload and route")
 	}

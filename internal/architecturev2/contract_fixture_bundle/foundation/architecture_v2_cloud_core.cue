@@ -113,8 +113,8 @@ _architectureV2CloudCoreHubComponent: {
 	resources: {memoryLimit: "256m"}
 }
 
-_architectureV2CloudCoreStandaloneComponents: list.Concat([_architectureV2CloudCoreBaseComponents, [_architectureV2CloudCoreHubComponent]])
-_architectureV2CloudCoreFullComponents:       list.Concat([_architectureV2CloudCoreBaseComponents, _architectureV2CloudCorePlatformComponents, [_architectureV2CloudCoreHubComponent]])
+_architectureV2CloudCoreStandaloneComponents: list.Concat([_architectureV2CloudCoreBaseComponents, [_architectureV2CloudCoreHubComponent, _architectureV2LocalKopiaComponent & {_networkRef: "cloud-backup"}]])
+_architectureV2CloudCoreFullComponents: list.Concat([_architectureV2CloudCoreBaseComponents, _architectureV2CloudCorePlatformComponents, [_architectureV2CloudCoreHubComponent]])
 
 // These contracts remain shared with the explicit full graph. Standalone
 // removes only the PaaS-owned route, listener, controls and health source.

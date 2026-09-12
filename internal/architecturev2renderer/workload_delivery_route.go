@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -14,6 +17,20 @@ const (
 	applicationDeliveryRouteValueType   = "authority-bound-module-route-v1"
 	applicationDeliveryRouteCardinality = "single"
 )
+
+// applicationHTTPSRootURL projects one validated delivery route for native
+// application links. Runtime loopback ports and request headers are not URL
+// authorities. Files and Git share this projection.
+func applicationHTTPSRootURL(route *applicationDeliveryRoute) (string, error) {
+	if route == nil || route.Host == "" || route.Protocol != "https" || !route.TLS.Required {
+		return "", fail(ErrInvalidPlan, "application.deliveryRoute", "native application links require a declared HTTPS route")
+	}
+	host := route.Host
+	if route.Port != 0 && route.Port != 443 {
+		host = net.JoinHostPort(host, strconv.Itoa(route.Port))
+	}
+	return (&url.URL{Scheme: "https", Host: host, Path: strings.TrimRight(route.Path, "/") + "/"}).String(), nil
+}
 
 type applicationDeliveryTLS struct {
 	Required           bool   `json:"required"`
@@ -90,7 +107,10 @@ type ApplicationDeliveryComponentDescriptor struct {
 	ImageDigest       string
 	DependsOn         []string
 	NetworkRefs       []string
+	Egress            bool
+	OwnerEnvironment  map[string]string
 	Command           []string
+	Entrypoint        []string
 	Environment       map[string]string
 	SecretEnvironment map[string]string
 	Volumes           []ApplicationDeliveryVolumeDescriptor
@@ -119,10 +139,12 @@ func resourcesDescriptor(limits *selectedPaaSRuntimeLimits) *ApplicationDelivery
 }
 
 type ApplicationDeliveryVolumeDescriptor struct {
-	ID     string
-	Target string
-	Class  string
-	Backup bool
+	HostPath string
+	ID       string
+	Target   string
+	Class    string
+	Backup   bool
+	ReadOnly bool
 }
 
 // ApplicationDeliveryBundleDescriptor is the validated provider-neutral
@@ -199,11 +221,14 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		}
 		volumes := make([]ApplicationDeliveryVolumeDescriptor, len(component.Volumes))
 		for volumeIndex, volume := range component.Volumes {
+			if volume.HostPath != "" && (bundle.Workload.ModuleRef != jellyfinWorkloadModuleID || component.ID != "jellyfin" || volume.ID != "library" || volume.Target != "/media" || volume.Class != "persistent" || !volume.ReadOnly || volume.Backup || !safeCoreHostBootstrapStoragePath(volume.HostPath)) {
+				return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".volumes", "host source requires the governed read-only media library")
+			}
 			if !strings.HasPrefix(volume.Target, "/") {
 				return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".volumes", "volume target is invalid")
 			}
 			volumes[volumeIndex] = ApplicationDeliveryVolumeDescriptor{
-				ID: volume.ID, Target: volume.Target, Class: volume.Class, Backup: volume.Backup,
+				ID: volume.ID, Target: volume.Target, Class: volume.Class, Backup: volume.Backup, ReadOnly: volume.ReadOnly, HostPath: volume.HostPath,
 			}
 		}
 		components[index] = ApplicationDeliveryComponentDescriptor{
@@ -211,7 +236,10 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 			ImageRef: component.Image.Ref, ImageDigest: component.Image.Digest,
 			DependsOn:         append([]string(nil), component.DependsOn...),
 			NetworkRefs:       append([]string(nil), component.NetworkRefs...),
+			Egress:            component.Egress,
+			OwnerEnvironment:  cloneStringMap(component.OwnerEnvironment),
 			Command:           append([]string(nil), component.Command...),
+			Entrypoint:        append([]string(nil), component.Entrypoint...),
 			Environment:       cloneStringMap(component.Environment),
 			SecretEnvironment: cloneStringMap(component.SecretEnvironment),
 			Volumes:           volumes, HealthKind: component.Health.Kind,

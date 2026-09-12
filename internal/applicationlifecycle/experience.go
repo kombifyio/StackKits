@@ -40,11 +40,12 @@ type ExperienceEvidence struct {
 // Status is intentionally explicit: missing or stale evidence is
 // unverified, never silently promoted to ready.
 type ExperienceAxis struct {
-	Status     string               `json:"status"`
-	Reason     string               `json:"reason,omitempty"`
-	Freshness  string               `json:"freshness"`
-	ObservedAt time.Time            `json:"observedAt,omitempty"`
-	Evidence   []ExperienceEvidence `json:"evidence,omitempty"`
+	ActivationStatus string               `json:"activationStatus,omitempty"`
+	Status           string               `json:"status"`
+	Reason           string               `json:"reason,omitempty"`
+	Freshness        string               `json:"freshness"`
+	ObservedAt       time.Time            `json:"observedAt,omitempty"`
+	Evidence         []ExperienceEvidence `json:"evidence,omitempty"`
 }
 
 // ApplicationExperience is a derived user-facing view of one selected
@@ -124,19 +125,30 @@ type SetupInput struct {
 	Runs        []SetupRun
 }
 
+// RestoreActivationInput is a signed result already authenticated by the caller.
+// It records runtime activation only; it cannot prove application-data readback.
+type RestoreActivationInput struct {
+	OperationID string
+	PlanHash    string
+	Status      string
+	Evidence    Evidence
+	VerifiedAt  time.Time
+}
+
 // ExperienceInput contains only current-plan bindings and read-only evidence
 // already accepted by the CLI. No function here performs runtime, network, or
 // backup operations.
 type ExperienceInput struct {
-	Contract       Contract
-	State          State
-	ServiceRef     string
-	RouteRef       string
-	URL            string
-	HealthRef      string
-	RuntimeTargets []RuntimeTarget
-	Setup          SetupInput
-	Observations   []runtimeobservation.Observation
+	RestoreActivation *RestoreActivationInput
+	Contract          Contract
+	State             State
+	ServiceRef        string
+	RouteRef          string
+	URL               string
+	HealthRef         string
+	RuntimeTargets    []RuntimeTarget
+	Setup             SetupInput
+	Observations      []runtimeobservation.Observation
 }
 
 // ProjectExperience deterministically derives the five independent
@@ -168,7 +180,7 @@ func ProjectExperience(input ExperienceInput) (ApplicationExperience, error) {
 		experience.Recoverable = unverifiedAxis(FreshnessNone, "lifecycle evidence is not bound to the current Plan and workload")
 	} else {
 		experience.Installed = installedAxis(input.State)
-		experience.Recoverable = recoveryAxis(input.Contract, input.State)
+		experience.Recoverable = recoveryAxis(input.Contract, input.State, input.RestoreActivation)
 	}
 
 	observation, service, health, httpProbe, runtime, targetEvidence := latestWorkloadObservation(input)
@@ -229,7 +241,7 @@ func operationAxis(operation Operation, fallbackReason, terminalStatus string) E
 	return axis
 }
 
-func recoveryAxis(contract Contract, state State) ExperienceAxis {
+func recoveryAxis(contract Contract, state State, activation *RestoreActivationInput) ExperienceAxis {
 	for index := len(state.Operations) - 1; index >= 0; index-- {
 		operation := state.Operations[index]
 		if operation.Stage != "restore" {
@@ -248,8 +260,26 @@ func recoveryAxis(contract Contract, state State) ExperienceAxis {
 			return axis
 		}
 		if operation.Status == StatusSucceeded || operation.Status == StatusRecovered {
-			axis.Status = AxisRequired
-			axis.Reason = "restore bytes are staged; typed live application activation verification is not available"
+			if activation != nil && activation.OperationID == operation.ID && activation.PlanHash == contract.PlanHash && operation.OperationRef == "stackkit.restore" {
+				for _, evidence := range operation.Evidence {
+					if evidence != activation.Evidence || evidence.Kind != "restore-result" || evidence.Digest == "" {
+						continue
+					}
+					if (activation.Status == "activated" && operation.Status == StatusSucceeded) || (activation.Status == "recovered" && operation.Status == StatusRecovered) {
+						axis.Status = AxisUnverified
+						axis.ActivationStatus = activation.Status
+						axis.Freshness = FreshnessHistorical
+						axis.ObservedAt = activation.VerifiedAt
+						axis.Reason = "restore data was activated and runtime verification completed; application-data readback remains unverified"
+						if activation.Status == "recovered" {
+							axis.Reason = "restore activation failed and the prior runtime state was restored; the requested restore was not applied"
+						}
+						return axis
+					}
+				}
+			}
+			axis.Status = AxisUnverified
+			axis.Reason = "restore lifecycle completed, but no matching authenticated live activation result is available; staged data and application-data readback remain unverified"
 			return axis
 		}
 		return axis
@@ -639,7 +669,14 @@ func experienceNextActions(experience ApplicationExperience) []string {
 	case AxisBlocked:
 		add("Resolve the restore lifecycle recovery requirement before further mutation.")
 	case AxisUnverified:
-		add("Run and verify a restore drill before relying on this workload's recoverability.")
+		switch experience.Recoverable.ActivationStatus {
+		case "activated":
+			add("Open the application and read back the restored data before relying on its recoverability.")
+		case "recovered":
+			add("Review the failed activation before starting a new restore; the prior runtime state has been restored.")
+		default:
+			add("Run and verify a restore drill before relying on this workload's recoverability.")
+		}
 	}
 	if experience.Usable.Status != AxisVerified && experience.Usable.Status != AxisAbsent {
 		add("Run the live checks above before treating this application as ready to use.")
