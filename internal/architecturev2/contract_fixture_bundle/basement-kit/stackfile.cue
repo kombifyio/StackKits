@@ -265,6 +265,18 @@ Definition: foundation.#ProductKitDefinition & {
 		contractVersion:   "1.0.0"
 		initialSpecStatus: "supported"
 		requiredOverrides: []
+		selectedWorkloadAccess: {
+			workloadRefs: ["photos", "files", "vault"]
+			enableCapabilities: ["internal-pki"]
+			route: {exposure: "local", protocol: "https", port: 443, path: "/"}
+			accessPolicies: {
+				user: {exposure: "private", authentication: "human", privilege: "user"}
+				vault: {
+					exposure: "private", authentication: "human+device", privilege: "vault"
+					enrolledDeviceRequired: true, ownerStepUpRequired: true
+				}
+			}
+		}
 		standaloneOwner: {
 			source:               "local"
 			siteRef:              "home"

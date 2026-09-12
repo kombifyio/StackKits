@@ -216,6 +216,7 @@ func resolveUseCaseWorkloadSelections(
 }
 
 type useCaseWorkloadSelection struct {
+	ServiceEndpoint    map[string]any
 	ModuleRef          string
 	CoreServiceRefs    []string
 	Alternative        string
@@ -521,6 +522,11 @@ func materializeInitialStackSpec(
 	if core, selected := workloadSelections["cloud-core"]; selected && core.ModuleRef != "" {
 		if err := projectCloudInitialCoreRoutes(spec, core); err != nil {
 			return StackSpecValidation{}, resolveError(ErrAuthorityLoad, "bind selected Cloud core routes: "+err.Error(), err)
+		}
+	}
+	if nativeProfiles {
+		if err := projectInitialWorkloadAccess(spec, authoring, workloadSelections); err != nil {
+			return StackSpecValidation{}, resolveError(ErrAuthorityLoad, "project selected workload access: "+err.Error(), err)
 		}
 	}
 	candidate, err := resolvedplan.CanonicalJSON(spec)

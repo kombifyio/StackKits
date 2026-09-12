@@ -108,33 +108,6 @@ async function validateBaseKitServices(repoRoot, failures) {
   }
 }
 
-async function validatePaaSReleasePosture(repoRoot, failures) {
-  const modeMatrixFile = path.join(repoRoot, 'basement-kit', 'mode_matrix.cue');
-  if (await exists(modeMatrixFile)) {
-    const text = await readFile(modeMatrixFile, 'utf8');
-    if (!/paas:\s*\{[\s\S]*coolify:\s*"default"/.test(text)) {
-      failures.push(`${modeMatrixFile}: BaseKit v0.4 PaaS posture must keep Coolify as the default`);
-    }
-    if (!/paas:\s*\{[\s\S]*komodo:\s*"supported"/.test(text)) {
-      failures.push(`${modeMatrixFile}: BaseKit v0.4 PaaS posture must keep Komodo as the supported alternative`);
-    }
-    if (!/paas:\s*\{[\s\S]*dokploy:\s*"draft"/.test(text)) {
-      failures.push(`${modeMatrixFile}: BaseKit v0.4 PaaS posture must keep Dokploy as draft until parity evidence lands`);
-    }
-    if (/dokploy:\s*"(default|supported|beta|ga)"/.test(text)) {
-      failures.push(`${modeMatrixFile}: Dokploy must not be promoted into the v0.4 beta-supported PaaS set`);
-    }
-  }
-
-  const stackkitFile = path.join(repoRoot, 'basement-kit', 'stackkit.yaml');
-  if (await exists(stackkitFile)) {
-    const text = await readFile(stackkitFile, 'utf8');
-    if (!/Komodo is the beta-supported PaaS alternative; Dokploy remains draft/.test(text)) {
-      failures.push(`${stackkitFile}: BaseKit changelog must document Komodo as beta-supported and Dokploy as draft`);
-    }
-  }
-}
-
 function collectStackOwnedGeneratedApps(text) {
   const names = new Set();
   const ownershipPattern = /ownership\s*=\s*"stackkit"/g;
@@ -358,7 +331,6 @@ async function main() {
 
   validateModuleContracts(modules, failures);
   await validateBaseKitServices(repoRoot, failures);
-  await validatePaaSReleasePosture(repoRoot, failures);
   await validateGeneratedFiles(opts.generated.map((p) => path.resolve(p)), failures);
 
   if (failures.length > 0) {

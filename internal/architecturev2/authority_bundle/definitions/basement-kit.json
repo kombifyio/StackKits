@@ -185,6 +185,40 @@
     },
     "initialSpecStatus": "supported",
     "requiredOverrides": [],
+    "selectedWorkloadAccess": {
+      "accessPolicies": {
+        "user": {
+          "authentication": "human",
+          "enrolledDeviceRequired": false,
+          "exposure": "private",
+          "lanStepDown": false,
+          "ownerStepUpRequired": false,
+          "privilege": "user"
+        },
+        "vault": {
+          "authentication": "human+device",
+          "enrolledDeviceRequired": true,
+          "exposure": "private",
+          "lanStepDown": false,
+          "ownerStepUpRequired": true,
+          "privilege": "vault"
+        }
+      },
+      "enableCapabilities": [
+        "internal-pki"
+      ],
+      "route": {
+        "exposure": "local",
+        "path": "/",
+        "port": 443,
+        "protocol": "https"
+      },
+      "workloadRefs": [
+        "photos",
+        "files",
+        "vault"
+      ]
+    },
     "standaloneOwner": {
       "certificateAuthority": "step-ca",
       "executionChannelRef": "local-home-main",

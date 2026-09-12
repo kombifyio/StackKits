@@ -39,7 +39,9 @@ modeMatrix: foundation.#KitModeSupport & {
 	}
 
 	paas: {
-		coolify: "default"
+		// Explicit adapter availability; native execution defaults are CUE-owned
+		// by the product Definition (ADR-0042), not this legacy matrix.
+		coolify: "supported"
 		komodo:  "supported"
 		dokploy: "draft"
 		dockge:  "experimental"

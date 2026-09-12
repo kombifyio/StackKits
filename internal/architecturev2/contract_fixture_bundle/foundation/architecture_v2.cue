@@ -1354,6 +1354,19 @@ import (
 	requiredOverrides: [...#KitAuthoringOverrideV2] | *[]
 	initialSpec:      #StackSpecV2
 	standaloneOwner?: #StandaloneOwnerAuthoringV2
+	// Initial selection projection only; persisted candidate intent is never
+	// repaired from these templates. Endpoint/data facts remain module-owned.
+	selectedWorkloadAccess?: {
+		workloadRefs: [...#ContractID] & list.MinItems(1)
+		enableCapabilities: [...#ContractID]
+		route: {
+			exposure: #ServiceExposureV2
+			protocol: "https"
+			port: int & >=1 & <=65535
+			path: string & =~"^/"
+		}
+		accessPolicies: [string]: #AccessPolicyV2
+	}
 
 	_requiredOverridesUnique: list.UniqueItems(requiredOverrides) & true
 

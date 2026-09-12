@@ -4,6 +4,14 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.26.2](https://github.com/kombifyio/stackKits/compare/v0.26.1...v0.26.2) (2026-09-12)
+
+
+### Fixed
+
+* **catalog:** align platform posture and publish agent handoff ([#1000](https://github.com/kombifyio/stackKits/issues/1000)) ([0cda664](https://github.com/kombifyio/stackKits/commit/0cda6643f19ec5bebf25ae61575bdbd09b629383))
+* **init:** bind selected Basement apps to HTTPS and data authority ([#1003](https://github.com/kombifyio/stackKits/issues/1003)) ([be31f8e](https://github.com/kombifyio/stackKits/commit/be31f8e639afbaa4a46ceee676fbe4ffdb75cc82))
+
 ## [0.26.1](https://github.com/kombifyio/stackKits/compare/v0.26.0...v0.26.1) (2026-09-12)
 
 

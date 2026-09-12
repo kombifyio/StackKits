@@ -138,8 +138,9 @@ func resolveNativeWorkloadSelections(profile stackspecmigration.KitProfile, defi
 		}
 		selectedModules[moduleID] = true
 		result[id] = useCaseWorkloadSelection{
-			ModuleRef:   moduleID,
-			Alternative: alternativeID, RuntimeAdapterRef: adapter,
+			ServiceEndpoint: selectedWorkloadServiceEndpoint(module, alternative),
+			ModuleRef:       moduleID,
+			Alternative:     alternativeID, RuntimeAdapterRef: adapter,
 			RequiredSecretRefs: workloadAlternativeRequiredSecretRefs(contract, alternativeID),
 			PlatformManagement: platformManagement,
 		}
