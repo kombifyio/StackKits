@@ -4,6 +4,14 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.27.1](https://github.com/kombifyio/stackKits/compare/v0.27.0...v0.27.1) (2026-09-12)
+
+
+### Fixed
+
+* **cli:** preserve safe executor failure diagnostics in progress ([#1024](https://github.com/kombifyio/stackKits/issues/1024)) ([e691c6e](https://github.com/kombifyio/stackKits/commit/e691c6ed4b30ee39d39465afcca35e916a663ecc))
+* **mcp:** preserve explicit workload data removal policy ([#1025](https://github.com/kombifyio/stackKits/issues/1025)) ([7964ad1](https://github.com/kombifyio/stackKits/commit/7964ad1184db586eaf8ccc6682ceee58ea100f04))
+
 ## [0.27.0](https://github.com/kombifyio/stackKits/compare/22c35ec004cda5579a66b73558afca1f9c0a6742...1a50d0f13b0e2c813e8cb0fc0883f1dde41c3e67) (2026-09-12)
 
 

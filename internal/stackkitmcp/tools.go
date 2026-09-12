@@ -153,6 +153,7 @@ type upgradeOperationInput struct {
 type removeOperationInput struct {
 	architectureV2MutationInput
 	WorkloadRef string `json:"workload_ref" jsonschema:"exact ResolvedPlan workload ref to remove"`
+	DeleteData  bool   `json:"delete_data,omitempty" jsonschema:"explicitly delete the workload's owned data volumes; omitted or false retains data; requires local Owner approval"`
 }
 
 type configSetInput struct {
@@ -854,6 +855,9 @@ func (a *App) stackkitRemoveV2(ctx context.Context, req *mcp.CallToolRequest, in
 		return errorJSONResult(out), out, nil
 	}
 	args := []string{"remove", "--json", "--auto-approve", "--workload", workloadRef}
+	if in.DeleteData {
+		args = append(args, "--delete-data")
+	}
 	return a.runApprovedStackkitTool(ctx, standaloneoperations.Remove, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), args, nil)
 }
 

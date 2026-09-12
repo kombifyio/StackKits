@@ -362,6 +362,13 @@ func rolloutFailure(phase string, err error) {
 		Message:      err.Error(),
 		FailureClass: rollout.ClassifyFailure(err.Error()),
 	}
+	if phase == "apply" {
+		diagnostic := diagnoseExecutorFailure(err)
+		event.Attributes = map[string]string{"executorDiagnosticCode": diagnostic.Code}
+		if diagnostic.BoundaryField != "" {
+			event.Attributes["executorBoundaryField"] = diagnostic.BoundaryField
+		}
+	}
 	emitRolloutProgress(event)
 	if rolloutRecorder == nil {
 		return
