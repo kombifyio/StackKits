@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.27.3](https://github.com/kombifyio/stackKits/compare/v0.27.2...v0.27.3) (2026-09-12)
+
+
+### Fixed
+
+* **runtime:** align internal PKI issuer lifetime ([#1029](https://github.com/kombifyio/stackKits/issues/1029)) ([1f2e6f2](https://github.com/kombifyio/stackKits/commit/1f2e6f20db6fdc2956ae6a27c5a1e34052800a9e))
+
 ## [0.27.2](https://github.com/kombifyio/stackKits/compare/v0.27.1...v0.27.2) (2026-09-12)
 
 

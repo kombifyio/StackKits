@@ -248,7 +248,7 @@ func validateInternalPKIPlanInputs(raw []byte, path string) ([]string, error) {
 	issuer := pki.Issuer
 	if issuer.ID != "stackkits-internal-ca" || issuer.CapabilityRef != "internal-pki" ||
 		issuer.Kind != "internal-ca" || issuer.Challenge != "none" ||
-		!exactStringList(issuer.SupportedSiteKinds, []string{"home"}) || issuer.ValiditySeconds != 7776000 ||
+		!exactStringList(issuer.SupportedSiteKinds, []string{"home"}) || issuer.ValiditySeconds != 86400 ||
 		len(issuer.RequiredInputSlotIDs) != 0 {
 		return nil, fail(ErrInvalidPlan, path+".internalPKI.issuer", "issuer is outside the exact internal CA contract")
 	}
@@ -266,7 +266,7 @@ func validateInternalPKIPlanInputs(raw []byte, path string) ([]string, error) {
 		}
 	}
 	if !issuer.Renewal.Required || issuer.Renewal.HealthGateRef != "internal-pki-renewal-contract" ||
-		issuer.Renewal.RenewBeforeSeconds != 2592000 || issuer.Renewal.RenewBeforeSeconds >= issuer.ValiditySeconds {
+		issuer.Renewal.RenewBeforeSeconds != 21000 || issuer.Renewal.RenewBeforeSeconds >= issuer.ValiditySeconds {
 		return nil, fail(ErrInvalidPlan, path+".internalPKI.issuer.renewal", "renewal policy drifted")
 	}
 	if err := rejectPublicTLSExecutorContractLeaks(raw, path); err != nil {
