@@ -135,6 +135,7 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		printSuccess("Canonical Architecture v2 spec is already current: %s", displayPath)
 	}
 	if strings.TrimSpace(initOwnerSource) == "local" {
+		email, username, displayName := architectureV2ResumeOwnerIdentity(wd)
 		custody, err := localevidence.EstablishOwnerCustody(wd, localevidence.OwnerCustodyRequest{
 			Binding: ownerBinding,
 			Trust: localevidence.TrustProfile{
@@ -144,7 +145,7 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 				HumanIssuerRef:       authoring.StandaloneOwner.HumanIssuerRef,
 				TrustDomainRef:       authoring.StandaloneOwner.TrustDomainRef,
 			},
-			Email: initOwnerEmail, Username: initOwnerUsername, DisplayName: initOwnerDisplayName,
+			Email: email, Username: username, DisplayName: displayName,
 		})
 		if err != nil {
 			return fmt.Errorf("establish local owner custody: %w", err)
@@ -217,6 +218,32 @@ func architectureV2CanonicalOwnerBinding(canonicalStackSpec []byte, authoring *a
 		)
 	}
 	return localevidence.LocalBinding{SiteRef: selected[0].SiteRef, NodeRef: selected[0].ID, ChannelRef: channelRef}, nil
+}
+
+// architectureV2ResumeOwnerIdentity keeps established PocketID projection when
+// repeat/resume omits owner identity flags. Empty flags still default on first
+// create; an explicit different identity remains a closed conflict.
+func architectureV2ResumeOwnerIdentity(workspaceRoot string) (email, username, displayName string) {
+	email = strings.TrimSpace(initOwnerEmail)
+	username = strings.TrimSpace(initOwnerUsername)
+	displayName = strings.TrimSpace(initOwnerDisplayName)
+	if email != "" && username != "" && displayName != "" {
+		return email, username, displayName
+	}
+	existing, err := localevidence.LoadOwnerCustody(workspaceRoot)
+	if err != nil {
+		return email, username, displayName
+	}
+	if email == "" {
+		email = existing.PocketID.Email
+	}
+	if username == "" {
+		username = existing.PocketID.Username
+	}
+	if displayName == "" {
+		displayName = existing.PocketID.DisplayName
+	}
+	return email, username, displayName
 }
 
 func architectureV2CanonicalDomain(canonicalStackSpec []byte) (string, error) {

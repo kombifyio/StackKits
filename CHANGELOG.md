@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.26.6](https://github.com/kombifyio/stackKits/compare/v0.26.5...v0.26.6) (2026-09-12)
+
+
+### Fixed
+
+* **init:** preserve established owner identity during resume ([#1014](https://github.com/kombifyio/stackKits/issues/1014)) ([0ca6e05](https://github.com/kombifyio/stackKits/commit/0ca6e058941c2a4de8598cbfec87596e9653dc64))
+
 ## [0.26.5](https://github.com/kombifyio/stackKits/compare/v0.26.4...v0.26.5) (2026-09-12)
 
 
