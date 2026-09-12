@@ -4,6 +4,15 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.26.3](https://github.com/kombifyio/stackKits/compare/v0.26.2...v0.26.3) (2026-09-12)
+
+
+### Fixed
+
+* **cloud:** declare protected HTTPS access for selected applications ([#1007](https://github.com/kombifyio/stackKits/issues/1007)) ([48408cf](https://github.com/kombifyio/stackKits/commit/48408cf426cf896d9d4ace9c4aeee9c33aa4385a))
+* **release:** clarify unclaimed HA recovery evidence ([#1006](https://github.com/kombifyio/stackKits/issues/1006)) ([1c80b60](https://github.com/kombifyio/stackKits/commit/1c80b605d450fc6c02f1e09cf5ad543611903b06))
+* **state-console:** retain application evidence on status failure ([#1004](https://github.com/kombifyio/stackKits/issues/1004)) ([93a17f6](https://github.com/kombifyio/stackKits/commit/93a17f692b2912802316aa75559189590590ce84))
+
 ## [0.26.2](https://github.com/kombifyio/stackKits/compare/v0.26.1...v0.26.2) (2026-09-12)
 
 

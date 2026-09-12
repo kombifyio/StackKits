@@ -240,6 +240,21 @@ Definition: foundation.#ProductKitDefinition & {
 		contractVersion:   "1.0.0"
 		initialSpecStatus: "supported"
 		requiredOverrides: ["network.domain.base"]
+		selectedWorkloadAccess: {
+			workloadRefs: ["photos", "files", "vault"]
+			enableCapabilities: []
+			route: {exposure: "public", protocol: "https", port: 443, path: "/"}
+			accessPolicies: {
+				user: {
+					exposure: "public", authentication: "human+device", privilege: "user"
+					enrolledDeviceRequired: true
+				}
+				vault: {
+					exposure: "public", authentication: "human+device", privilege: "vault"
+					enrolledDeviceRequired: true, ownerStepUpRequired: true
+				}
+			}
+		}
 		standaloneOwner: {
 			source:               "local"
 			siteRef:              "cloud"

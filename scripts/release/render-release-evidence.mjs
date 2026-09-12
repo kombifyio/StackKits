@@ -43,7 +43,7 @@ const LEGACY_V04_KNOWN_LIMITATIONS = [
 ];
 
 const CURRENT_KNOWN_LIMITATIONS = [
-  'Live browser evidence still must prove PocketID/passkey Owner login, TinyAuth ForwardAuth session acceptance, and default L3 app content before those support claims are marked verified.',
+  'Live browser evidence still must prove PocketID/passkey Owner login, TinyAuth ForwardAuth session acceptance, and application content before those support claims are marked verified.',
 ];
 
 const LEGACY_V04_DEFAULT_KNOWN_LIMITATIONS = [
@@ -140,7 +140,7 @@ const CANONICAL_SCENARIOS = [
     label: 'SK-S6 HA backup release-readiness',
     defaultStatus: 'not_applicable',
     pendingSummary:
-      'SK-S6 HA backup release-readiness is not applicable to this BaseKit-only release evidence unless HA or multi-server backup readiness is claimed.',
+      'SK-S6 HA backup release-readiness is not claimed by this release; HA or multi-server backup recovery remains unverified unless matching evidence is attached.',
     pendingGate: 'SK-S6 HA backup release-readiness contract evidence is pending.',
   },
 ];

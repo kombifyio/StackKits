@@ -207,6 +207,38 @@
     "requiredOverrides": [
       "network.domain.base"
     ],
+    "selectedWorkloadAccess": {
+      "accessPolicies": {
+        "user": {
+          "authentication": "human+device",
+          "enrolledDeviceRequired": true,
+          "exposure": "public",
+          "lanStepDown": false,
+          "ownerStepUpRequired": false,
+          "privilege": "user"
+        },
+        "vault": {
+          "authentication": "human+device",
+          "enrolledDeviceRequired": true,
+          "exposure": "public",
+          "lanStepDown": false,
+          "ownerStepUpRequired": true,
+          "privilege": "vault"
+        }
+      },
+      "enableCapabilities": [],
+      "route": {
+        "exposure": "public",
+        "path": "/",
+        "port": 443,
+        "protocol": "https"
+      },
+      "workloadRefs": [
+        "photos",
+        "files",
+        "vault"
+      ]
+    },
     "standaloneOwner": {
       "certificateAuthority": "step-ca",
       "executionChannelRef": "host-channel-cloud-main",

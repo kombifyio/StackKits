@@ -215,6 +215,16 @@
     .application-setup a { color: var(--accent); }
     .application-setup .actions { margin-top: 2px; }
     .application-setup-help { margin: 14px 0 0; color: var(--muted); line-height: 1.5; font-size: 13px; }
+    .application-status-failure {
+      margin: 0 0 14px;
+      padding: 11px;
+      border: 1px solid var(--error);
+      border-radius: 7px;
+      background: var(--error-soft);
+    }
+    .application-status-failure strong { display: block; font-size: 13px; }
+    .application-status-failure p { margin: 5px 0 0; font-size: 13px; }
+    .application-status-failure ul { margin: 8px 0 0; padding-left: 20px; font-size: 13px; }
 
     .panel h3 {
       margin: 16px 0 8px;
@@ -687,6 +697,7 @@
     // This is a transient projection of CLI evidence, never a persisted
     // readiness decision. A different workspace must fetch its own status.
     let applicationSnapshot = null;
+    let applicationStatusFailure = null;
     let applicationScopeVersion = 0;
 
     const output = document.getElementById("output");
@@ -740,6 +751,7 @@
       state.specReady = false;
       delete state.runState.stackkit_init;
       applicationSnapshot = null;
+      applicationStatusFailure = null;
       applicationScopeVersion++;
     }
 
@@ -834,18 +846,23 @@
       markRun(name, "running");
       if (name === "stackkit_status") {
         applicationSnapshot = null;
+        applicationStatusFailure = null;
         renderApplicationStatus("Checking the selected workspace…");
       }
       const requestScopeVersion = applicationScopeVersion;
       try {
         const result = await window.openai.callTool(name, args);
         const success = toolSucceeded(result);
-        markRun(name, success ? "ok" : "error");
+        const data = name === "stackkit_status" ? structured(result) : null;
+        const status = data?.structured_output || data;
+        const failure = name === "stackkit_status" ? statusFailure(data, status) : null;
+        markRun(name, success && !failure ? "ok" : "error");
         setOutput(result ?? { tool: name, error: "The connector returned no result." });
         if (name === "stackkit_status") {
-          const data = structured(result);
-          const status = data?.structured_output || data;
-          if (success && requestScopeVersion === applicationScopeVersion && status?.apiVersion === "stackkit.status/v2" &&
+          if (requestScopeVersion === applicationScopeVersion) {
+            applicationStatusFailure = failure;
+          }
+          if (requestScopeVersion === applicationScopeVersion && status?.apiVersion === "stackkit.status/v2" &&
               Array.isArray(status.applications) && status.applications.every((application) => application?.schemaVersion === "stackkit.application-experience/v1")) {
             applicationSnapshot = { scope: JSON.stringify(args), data: status };
           }
@@ -857,11 +874,24 @@
       } catch (error) {
         markRun(name, "error");
         setOutput({ tool: name, error: error?.message || String(error) });
-        if (name === "stackkit_status") renderApplicationStatus("The status request failed. Check the connector and retry.");
+        if (name === "stackkit_status" && requestScopeVersion === applicationScopeVersion) {
+          applicationStatusFailure = { message: clean(error?.message || String(error)), guidance: [] };
+          renderApplicationStatus("The status request failed. Check the connector and retry.");
+        }
         return null;
       } finally {
         setBusy(false);
       }
+    }
+
+    function statusFailure(result, status) {
+      const detail = result?.error_details || status?.actionableError;
+      const message = clean(detail?.message || result?.error);
+      const guidance = Array.isArray(detail?.userGuidance) ? detail.userGuidance.map(clean).filter(Boolean) : [];
+      if (!message && !guidance.length) {
+        return null;
+      }
+      return { message, guidance };
     }
 
     function markRun(tool, status) {
@@ -1059,6 +1089,28 @@
       const heading = document.createElement("h3");
       heading.textContent = "Your applications";
       container.append(heading);
+      if (applicationStatusFailure) {
+        const failure = document.createElement("section");
+        failure.className = "application-status-failure";
+        const title = document.createElement("strong");
+        title.textContent = "Status refresh needs attention";
+        failure.append(title);
+        if (applicationStatusFailure.message) {
+          const message = document.createElement("p");
+          message.textContent = applicationStatusFailure.message;
+          failure.append(message);
+        }
+        if (applicationStatusFailure.guidance.length) {
+          const guidance = document.createElement("ul");
+          for (const item of applicationStatusFailure.guidance) {
+            const step = document.createElement("li");
+            step.textContent = item;
+            guidance.append(step);
+          }
+          failure.append(guidance);
+        }
+        container.append(failure);
+      }
       const status = applicationSnapshot?.scope === JSON.stringify(baseArgs()) ? applicationSnapshot.data : null;
       if (!status) {
         const message = document.createElement("p");
