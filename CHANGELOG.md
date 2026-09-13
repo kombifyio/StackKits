@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.30.3](https://github.com/kombifyio/stackKits/compare/v0.30.2...v0.30.3) (2026-09-13)
+
+
+### Fixed
+
+* attach selected application volumes onto kopia-agent ([#1058](https://github.com/kombifyio/stackKits/issues/1058)) ([53767de](https://github.com/kombifyio/stackKits/commit/53767de64862b95dd75b3368e563deecd57cad5d))
+
 ## [0.30.2](https://github.com/kombifyio/stackKits/compare/v0.30.1...v0.30.2) (2026-09-13)
 
 
