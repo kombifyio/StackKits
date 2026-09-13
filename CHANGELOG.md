@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.30.7](https://github.com/kombifyio/stackKits/compare/v0.30.6...v0.30.7) (2026-09-13)
+
+
+### Fixed
+
+* treat a completed docker stop as quiesced ([#1067](https://github.com/kombifyio/stackKits/issues/1067)) ([2de750e](https://github.com/kombifyio/stackKits/commit/2de750e2a2c9a6b7e2537140fc5fb2c004220ac0))
+
 ## [0.30.6](https://github.com/kombifyio/stackKits/compare/v0.30.5...v0.30.6) (2026-09-13)
 
 
