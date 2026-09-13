@@ -352,19 +352,7 @@ func (o *osBasementCoreOperations) persistCompose(project BasementCoreProject) (
 }
 
 func (o *osBasementCoreOperations) environment() ([]string, error) {
-	owner, err := localevidence.LoadOwnerCustody(o.workspaceRoot)
-	if err != nil {
-		return nil, fmt.Errorf("resolve stackkit owner email for Compose interpolation: %w", err)
-	}
-	email := strings.TrimSpace(owner.PocketID.Email)
-	if email == "" {
-		return nil, errors.New("owner custody carries no contact email for Compose interpolation")
-	}
-	return []string{
-		"LANG=C", "LC_ALL=C",
-		"STACKKIT_CUSTODY_DIR=" + filepath.Join(o.workspaceRoot, ".stackkit", "custody"),
-		"STACKKIT_OWNER_EMAIL=" + email,
-	}, nil
+	return localevidence.ComposeInterpolationEnvironment(o.workspaceRoot)
 }
 
 func basementCoreComposeArgs(composePath, operation string) []string {

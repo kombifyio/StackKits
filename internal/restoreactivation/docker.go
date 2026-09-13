@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/localevidence"
 )
 
 const (
@@ -453,10 +455,11 @@ func (runtime *dockerRuntime) docker(ctx context.Context, args ...string) ([]byt
 		return nil, errors.New("restoreactivation: Docker runtime is not initialized")
 	}
 	full := append([]string{"--host", localDockerSocket}, args...)
-	environment := append(
-		minimalCommandEnvironment(),
-		"STACKKIT_CUSTODY_DIR="+filepath.Join(runtime.workspace, ".stackkit", "custody"),
-	)
+	interpolation, err := localevidence.ComposeInterpolationEnvironment(runtime.workspace)
+	if err != nil {
+		return nil, fmt.Errorf("restoreactivation: compose interpolation environment: %w", err)
+	}
+	environment := append(minimalCommandEnvironment(), interpolation...)
 	return runtime.run(ctx, "docker", full, environment)
 }
 

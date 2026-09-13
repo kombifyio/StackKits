@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.30.8](https://github.com/kombifyio/stackKits/compare/v0.30.7...v0.30.8) (2026-09-13)
+
+
+### Fixed
+
+* share Compose interpolation env between Apply and restore-activate ([#1069](https://github.com/kombifyio/stackKits/issues/1069)) ([5a9a355](https://github.com/kombifyio/stackKits/commit/5a9a355fba49a3e2e47dc7da0898450f213ac5ea))
+
 ## [0.30.7](https://github.com/kombifyio/stackKits/compare/v0.30.6...v0.30.7) (2026-09-13)
 
 
