@@ -367,7 +367,30 @@ func architectureV2HTTPProbeAccess(
 		}
 		candidates := workloadsByService[workloadKey]
 		if len(candidates) == 0 {
-			return nil, fmt.Errorf("verified Access manifest route %q has no exact Plan workload binding", key)
+			platform := false
+			for _, ownerKey := range runtimeOwnerByService {
+				if ownerKey == serviceKey {
+					platform = true
+					break
+				}
+			}
+			if !platform {
+				return nil, fmt.Errorf("verified Access manifest route %q has no exact Plan workload binding", key)
+			}
+			routeRef := strings.TrimSpace(service.RouteRef)
+			if routeRef == "" {
+				routeRef = strings.TrimSpace(service.RouteSlug)
+				if routeRef != "" {
+					routeRef = "route:" + routeRef
+				}
+			}
+			if routeRef == "" {
+				return nil, fmt.Errorf("verified Access manifest route %q has no route identity", key)
+			}
+			result.Services = append(result.Services, stackverify.AccessService{
+				Key: key, URL: url, ServiceRef: key, RouteRef: routeRef,
+			})
+			continue
 		}
 		if len(candidates) > 1 {
 			return nil, fmt.Errorf("verified Access manifest route %q maps to multiple Plan workloads", key)
@@ -443,10 +466,18 @@ func architectureV2HTTPProbeScopes(
 			}
 		}
 	}
-	if matchedWorkloads != 1 {
-		return nil
+	if matchedWorkloads == 1 {
+		return sortedRuntimeObservationScopes(result)
 	}
-	return sortedRuntimeObservationScopes(result)
+	if matchedWorkloads == 0 && strings.TrimSpace(probe.WorkloadRef) == "" && len(groups) > 0 {
+		for candidate := range groups {
+			if !seen[candidate] {
+				result = append(result, candidate)
+			}
+		}
+		return sortedRuntimeObservationScopes(result)
+	}
+	return nil
 }
 
 func sortedRuntimeObservationScopes(scopes []runtimeObservationScope) []runtimeObservationScope {

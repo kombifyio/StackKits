@@ -103,8 +103,28 @@ var fileFocusedTests = map[string][]string{
 		"TestNativeV2BackupCommandFailsBeforeSideEffectsOnTamperedAuthority",
 		"TestBackupEmergencyExportWritesManifestAndRunbook",
 		"TestBackupEmergencyExportRejectsUnsupportedFormat",
+		"TestBackupEmergencyExportRequiresGeneratedContractWithoutSources",
 		"TestHumanSize",
 		"TestTruncateBackup",
+	},
+	"cmd/stackkit/commands/backup_emergency.go": {
+		"TestBackupEmergencyExportRestoresAuthenticatedBytes",
+		"TestBackupEmergencyExportWritesManifestAndRunbook",
+		"TestBackupEmergencyExportRequiresGeneratedContractWithoutSources",
+	},
+	"cmd/stackkit/commands/architecture_v2_execution.go": {
+		"TestBackupEmergencyExportWritesManifestAndRunbook",
+	},
+	"internal/backuplifecycle/emergency_contract.go": {
+		"TestExportFromGeneratedV2ContractWritesEncryptedArchiveManifestAndRunbook",
+		"TestSourcesFromContractExcludeSecretsUnlessSelectedAndPreferDatabaseDumps",
+	},
+	"internal/backupplan/plan.go": {
+		"TestBuildSingleServerDefaultsProtectAgainstPrimaryToolFailure",
+		"TestWritePersistsSecretFreeEmergencyExportContract",
+	},
+	"internal/backupexec/hooks.go": {
+		"TestRunPreSnapshotHooksPostgresAndRedisSemantics",
 	},
 	"cmd/stackkit/commands/backup_native_v2.go": {
 		"TestNativeV2BackupCommandFailsBeforeSideEffectsOnTamperedAuthority",

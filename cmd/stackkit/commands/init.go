@@ -294,9 +294,6 @@ func promptOptionalConfig(p *prompter, defaults initDefaults) (domain, email, ad
 
 func resolveInitDefaults(currentDomain string) initDefaults {
 	spec := &models.StackSpec{}
-	if contextFlag != "" {
-		spec.Context = contextFlag
-	}
 	if initLocalDNS {
 		currentDomain = models.LocalDNSDomain(initLocalName)
 	}

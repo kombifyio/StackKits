@@ -106,7 +106,9 @@ Package: foundation.#UseCasePackage & {
 		required: ["route", "auth", "backup", "owner-bootstrap", "runtime-owner", "removal"]
 	}
 
-	lifecycle: foundation.#StandardUseCaseLifecycle
+	lifecycle: foundation.#StandardUseCaseLifecycle & {
+		stages: setup: {}
+	}
 
 	agentSurface: {
 		equipPolicy:  "on-generate"

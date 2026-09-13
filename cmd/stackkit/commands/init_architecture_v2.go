@@ -284,7 +284,6 @@ func validateArchitectureV2InitFlags(cmd *cobra.Command) error {
 			unsupported = append(unsupported, "--"+flag)
 		}
 	}
-	add("context", strings.TrimSpace(contextFlag) != "")
 	add("mode", strings.TrimSpace(initMode) != "")
 	add("admin-email", strings.TrimSpace(initAdminEmail) != "")
 	add("service-profile", strings.TrimSpace(initServiceProfile) != "")

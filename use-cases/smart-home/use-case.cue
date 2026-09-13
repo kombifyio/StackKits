@@ -268,5 +268,7 @@ Package: foundation.#UseCasePackage & {
 		}
 	}
 
-	lifecycle: foundation.#StandardUseCaseLifecycle
+	lifecycle: foundation.#StandardUseCaseLifecycle & {
+		stages: setup: {}
+	}
 }

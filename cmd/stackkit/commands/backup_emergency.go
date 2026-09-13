@@ -5,10 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"filippo.io/age"
+	"github.com/kombifyio/stackkits/internal/backuphooks"
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
+	"github.com/kombifyio/stackkits/internal/backupplan"
+	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 	"github.com/spf13/cobra"
 )
 
@@ -60,9 +65,25 @@ func runBackupEmergencyExport(cmd *cobra.Command, args []string) (returnErr erro
 	}
 	ctx, cancel := context.WithTimeout(cmd.Context(), backupLongOperationTimeout)
 	defer cancel()
-	result, err := backuplifecycle.ExportEmergency(ctx, backuplifecycle.EmergencyExportInput{
-		Target: backupEmergencyExportTarget, Sources: sources, Recipients: recipients, LargeMediaMode: backupEmergencyExportLargeMediaMode,
-	})
+	var result backuplifecycle.EmergencyExportResult
+	var err error
+	if len(sources) == 0 {
+		plan, policy, loadErr := loadGeneratedEmergencyExportContract(ctx)
+		if loadErr != nil {
+			return loadErr
+		}
+		result, err = backuplifecycle.ExportFromContract(ctx, backuplifecycle.EmergencyContractInput{
+			Plan:           plan,
+			Policy:         policy,
+			Target:         backupEmergencyExportTarget,
+			Recipients:     recipients,
+			LargeMediaMode: backupEmergencyExportLargeMediaMode,
+		})
+	} else {
+		result, err = backuplifecycle.ExportEmergency(ctx, backuplifecycle.EmergencyExportInput{
+			Target: backupEmergencyExportTarget, Sources: sources, Recipients: recipients, LargeMediaMode: backupEmergencyExportLargeMediaMode,
+		})
+	}
 	if err != nil {
 		return err
 	}
@@ -71,6 +92,58 @@ func runBackupEmergencyExport(cmd *cobra.Command, args []string) (returnErr erro
 	}
 	_, err = fmt.Fprintf(cmd.OutOrStdout(), "Encrypted emergency export: %s\nSHA-256: %s\nConsistency: %s; application recovery remains unverified.\n", result.Archive, result.ArchiveSHA256, result.Manifest.Consistency)
 	return err
+}
+
+func persistGeneratedEmergencyExportContract(workspaceRoot, outputRoot string) error {
+	dir, ok := emergencyExportMetadataDir(workspaceRoot, outputRoot)
+	if !ok {
+		return nil
+	}
+	if err := backupplan.Write(dir, backupplan.Build(nil)); err != nil {
+		return err
+	}
+	hooks, err := backuphooks.Build()
+	if err != nil {
+		return err
+	}
+	data, err := hooks.MarshalIndent()
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(dir, backuphooks.ManifestFileName), data, 0o600); err != nil {
+		return fmt.Errorf("write %s: %w", backuphooks.ManifestFileName, err)
+	}
+	return nil
+}
+
+func emergencyExportMetadataDir(workspaceRoot, outputRoot string) (string, bool) {
+	dir := filepath.Join(workspaceRoot, ".stackkit")
+	governed := workspaceRoot
+	if outputRoot != "" && outputRoot != "." {
+		governed = filepath.Join(workspaceRoot, filepath.FromSlash(outputRoot))
+	}
+	relative, err := filepath.Rel(governed, dir)
+	if err != nil {
+		return "", false
+	}
+	if relative == "." || !strings.HasPrefix(relative, "..") {
+		return "", false
+	}
+	return dir, true
+}
+
+func loadGeneratedEmergencyExportContract(ctx context.Context) (backupplan.EmergencyExportPlan, localbackuppolicy.Policy, error) {
+	plan := backupplan.Build(nil).EmergencyExport
+	if loaded, err := backupplan.Read(filepath.Join(getWorkDir(), ".stackkit")); err == nil {
+		plan = loaded.EmergencyExport
+	}
+	authority, err := inspectNativeV2BackupAuthorityForRequest(ctx, getWorkDir(), specFile)
+	if err != nil {
+		return backupplan.EmergencyExportPlan{}, localbackuppolicy.Policy{}, fmt.Errorf(
+			"generated v2 backup source policy is required when --source is omitted: %w", err,
+		)
+	}
+	return plan, authority.Policy, nil
 }
 
 func runBackupEmergencyRestore(cmd *cobra.Command, args []string) (returnErr error) {

@@ -631,7 +631,10 @@ func architectureV2ReadinessPhase(mode architectureV2ExecutionMode) generationar
 func (g architectureV2ExecutionGate) continueV2Execution(wd string, mode architectureV2ExecutionMode, options architectureV2ExecutionCLIOptions, authority architectureV2ExecutionAuthority, current architecturev2.CurrentResolution, persisted generationartifact.VerifiedPlan, currentCanonical []byte, defaultManifestPath, defaultReceiptPath string, transaction *confinedfs.Transaction, outputLock *confinedfs.OutputLock) error {
 	switch mode {
 	case architectureV2Generate:
-		return g.generateV2(wd, options.context, authority, current)
+		if err := g.generateV2(wd, options.context, authority, current); err != nil {
+			return err
+		}
+		return persistGeneratedEmergencyExportContract(wd, persisted.OutputRoot())
 	case architectureV2Plan, architectureV2Apply, architectureV2Verify, architectureV2Remove:
 		return g.verifyV2Generation(wd, mode, options, authority, current, persisted, currentCanonical, defaultManifestPath, defaultReceiptPath, transaction, outputLock)
 	default:

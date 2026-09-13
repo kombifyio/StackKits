@@ -27,7 +27,7 @@ func configureCommandGroups() {
 		switch command.Name() {
 		case "init", "validate", "generate", "plan", "prepare", "apply", "setup":
 			command.GroupID = "start"
-		case "status", "verify", "logs", "backup", "upgrade", "drift", "service", "remove", "break-glass":
+		case "status", "verify", "logs", "backup", "upgrade", "drift", "service", "remove", "break-glass", "user":
 			command.GroupID = "care"
 		}
 	}

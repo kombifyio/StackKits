@@ -6,9 +6,9 @@ package backupexec
 // container before the Kopia snapshot, so the snapshot carries a consistent
 // dump instead of torn database files.
 //
-// v1 executes postgres and redis hooks — the pair the Immich photo stack
-// needs. Other engines are reported as skipped so the caller sees honestly
-// which volumes are snapshotted without quiesce.
+// Postgres, Redis, and SQLite hooks share this executor so Kopia snapshots
+// and portable emergency export archive the same dump families. MariaDB and
+// MongoDB remain skipped until their catalog strategies are executed.
 
 import (
 	"context"
@@ -64,9 +64,9 @@ func LoadHookManifest(tofuDir string) (*backuphooks.Manifest, error) {
 }
 
 // RunPreSnapshotHooks executes every hook whose container exists on this
-// node. A postgres dump failure fails the run (the database class would be
-// inconsistent without it); redis cache-only hooks and unsupported engines
-// are reported as skipped.
+// node. A postgres or sqlite dump failure fails the run (the database class
+// would be inconsistent without it); redis cache-only hooks and unsupported
+// engines are reported as skipped.
 func RunPreSnapshotHooks(ctx context.Context, exec ContainerExecutor, manifest *backuphooks.Manifest) ([]HookResult, error) {
 	if manifest == nil || len(manifest.Hooks) == 0 {
 		return nil, nil
@@ -88,6 +88,8 @@ func runHook(ctx context.Context, exec ContainerExecutor, hook backuphooks.Hook)
 	switch hook.Engine {
 	case "postgres":
 		return runPostgresHook(ctx, exec, hook, result)
+	case "sqlite":
+		return runSqliteHook(ctx, exec, hook, result)
 	case "redis":
 		return runRedisHook(ctx, exec, hook, result)
 	default:
@@ -117,6 +119,42 @@ func containerMissing(out string, err error) bool {
 		}
 	}
 	return false
+}
+
+func runSqliteHook(ctx context.Context, exec ContainerExecutor, hook backuphooks.Hook, result HookResult) HookResult {
+	settings := hook.Sqlite
+	if settings == nil || strings.TrimSpace(settings.DBFile) == "" {
+		result.Status = HookStatusFailed
+		result.Detail = "sqlite hook without sqlite settings"
+		return result
+	}
+	outFile := strings.TrimSpace(settings.OutFile)
+	if outFile == "" {
+		outFile = settings.DBFile + ".dbsnap"
+	}
+	if strings.ContainsAny(outFile, " \t'\"$") {
+		result.Status = HookStatusFailed
+		result.Detail = "sqlite dump path must be a single host-safe filename"
+		return result
+	}
+	script := fmt.Sprintf(
+		`set -e; mkdir -p "$(dirname %[2]s)"; sqlite3 %[1]s ".backup %[3]s"`,
+		shellWord(settings.DBFile), shellWord(outFile), outFile,
+	)
+	out, err := exec(ctx, hook.Container, []string{"sh", "-c", script})
+	if err != nil {
+		if containerMissing(out, err) {
+			result.Status = HookStatusSkipped
+			result.Detail = "container not present on this node"
+			return result
+		}
+		result.Status = HookStatusFailed
+		result.Detail = firstNonEmpty(out, err.Error())
+		return result
+	}
+	result.Status = HookStatusOK
+	result.Detail = "sqlite backup completed to " + outFile
+	return result
 }
 
 func runPostgresHook(ctx context.Context, exec ContainerExecutor, hook backuphooks.Hook, result HookResult) HookResult {

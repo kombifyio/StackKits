@@ -9,7 +9,7 @@
 | --- | --- | --- |
 | Native v2 Kopia backup | Owner-authorized configure, journaled writer stop/resume, crash-consistent snapshot with CUE retention, signed snapshot anchor and staged restore; Full and Lite Core include selected `backup: true` standalone-Compose volumes | Database-specific application consistency, functional data/client restore checks and final live target evidence |
 | Local backup schedule | Explicit Owner approval binds a systemd trigger to the exact CLI, Plan, Apply and CUE UTC schedule; ordinary backup journals own execution and retries | Final candidate timer, missed-run and restart evidence on a real systemd host |
-| Emergency export | Explicit local sources streamed into an age-encrypted tar/gzip archive with manifest, SHA-256 checksums and restore runbook | Database/file consistency and complete source selection for each application |
+| Emergency export | Generated v2 backup contract or explicit local sources streamed into an age-encrypted tar/gzip archive with manifest, SHA-256 checksums and restore runbook | Live application restore drill and complete per-application source selection |
 | Emergency restore | Authenticates the full encrypted archive, validates every listed file, and publishes a new private staging directory | Database import, service activation, login and real client access |
 | Off-host recovery | An owner-held archive can be decrypted on a replacement machine without the original host, Kopia or a Kombify account | Independent storage and separately retained age identity |
 
@@ -145,8 +145,10 @@ stackkit backup emergency-export \
 The target must be a new directory whose parent exists, outside all sources.
 The command rejects overlapping sources, missing included sources, symbolic
 links, device nodes, sockets, and files that change while being copied. It never
-overwrites an existing export. Sources are explicit `CLASS=PATH` selections;
-there is no implicit scan of every Docker volume.
+overwrites an existing export. Omit `--source` to export the generated v2
+contract (CUE include classes and the generate/apply source-policy volumes).
+Explicit `CLASS=PATH` selections remain the standalone path. There is no
+implicit scan of every Docker volume.
 
 Supported classes: `config`, `secrets`, `platform-state`, `database`, `documents`,
 `photos`, `large-media`, `serverless-config`, `user-content`,

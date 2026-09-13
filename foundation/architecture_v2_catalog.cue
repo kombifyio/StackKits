@@ -930,7 +930,7 @@ _architectureV2ApplicationLifecycleContracts: [
 		workloadRef: "files"
 		useCaseRef:  "files"
 		packageRef:  "files"
-		lifecycle:   #StandardUseCaseLifecycle
+		lifecycle:   #StandardUseCaseLifecycle & {stages: setup: {}}
 	},
 	#ApplicationLifecycleContractV1 & {
 		metadata: {
@@ -941,7 +941,7 @@ _architectureV2ApplicationLifecycleContracts: [
 		workloadRef: "vault"
 		useCaseRef:  "vault"
 		packageRef:  "vault"
-		lifecycle:   #StandardUseCaseLifecycle
+		lifecycle:   #StandardUseCaseLifecycle & {stages: setup: {}}
 	},
 	#ApplicationLifecycleContractV1 & {
 		metadata: {
@@ -952,7 +952,7 @@ _architectureV2ApplicationLifecycleContracts: [
 		workloadRef: "media"
 		useCaseRef:  "media"
 		packageRef:  "media"
-		lifecycle:   #StandardUseCaseLifecycle
+		lifecycle:   #StandardUseCaseLifecycle & {stages: setup: {}}
 	},
 	#ApplicationLifecycleContractV1 & {
 		metadata: {

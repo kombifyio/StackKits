@@ -111,7 +111,6 @@ Compose, tfvars, scripts, and snapshots are outputs and must not be hand-edited.
 | `--quiet`, `-q` | `false` | Suppress non-essential output. |
 | `--chdir`, `-C` | `.` | Change working directory before running. |
 | `--spec`, `-s` | `stack-spec.yaml` | Spec path; `kombination.yaml` fallback is supported. |
-| `--context` | auto | v1 compatibility only. Native v2 `init` rejects it. Migration maps `pi` to `site.kind: home` plus `hardware.profile: pi` (constrained device class, not Raspberry-only). |
 | `--no-log` | `false` | Disable structured deploy logging. |
 
 ## Init, Prepare, Generate, Apply, Verify

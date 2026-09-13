@@ -6,7 +6,7 @@ package foundation
 	// StackKit metadata (required)
 	metadata: #StackKitMetadata
 
-	// Node context (auto-detected or user-specified via --context flag)
+	// Node context (legacy migration input only; native v2 init rejects --context)
 	context?: #NodeContext
 
 	// Install/lifecycle mode (bare/bootstrapped/advanced; legacy simple accepted by Go normalization)

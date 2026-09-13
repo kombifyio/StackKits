@@ -3,6 +3,10 @@
 package backupplan
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -10,6 +14,7 @@ import (
 
 const (
 	SchemaVersion       = "stackkit.backup-recovery.v1"
+	PlanFileName        = "backup-recovery-plan.json"
 	MaterializerPending = "pending"
 	// MaterializerManagedOffsitePending marks a plan whose managed offsite
 	// target (kombify-r2) is provisioned control-plane-side but the node has
@@ -271,12 +276,19 @@ func buildEmergencyExportPlan(resilience *models.BackupResilienceSpec, dataClass
 	if resilience != nil {
 		cfg = resilience.EmergencyExport
 	}
+	target := models.BackupDestinationSpec{
+		Name: "emergency-export",
+		Type: "local",
+		Path: "/backup/emergency-export",
+	}
 	plan := EmergencyExportPlan{
 		Enabled:        true,
 		Mode:           "portable-archive",
 		Format:         "tar.gz.age",
+		Schedule:       "0 3 * * 0",
 		IncludeClasses: append([]string(nil), dataClasses...),
 		LargeMediaMode: "manifest-only",
+		Target:         &target,
 		Manifest: EmergencyExportManifestPlan{
 			Enabled:               true,
 			IncludeRestoreRunbook: true,
@@ -464,6 +476,53 @@ func toleratedFailuresForManagers(managers int) int {
 
 func defaultDataClasses() []string {
 	return []string{"config", "secrets", "platform-state", "database", "documents", "serverless-config"}
+}
+
+// MarshalIndent renders the generated recovery plan with the same trailing
+// newline used by backup-hooks.json.
+func (p RecoveryPlan) MarshalIndent() ([]byte, error) {
+	data, err := json.MarshalIndent(p, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(data, '\n'), nil
+}
+
+// Write persists the CUE-derived recovery plan as generate metadata. It is
+// secret-free: destinations and class names only, never keys.
+func Write(dir string, plan RecoveryPlan) error {
+	if strings.TrimSpace(dir) == "" {
+		return fmt.Errorf("backup recovery plan directory is required")
+	}
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return fmt.Errorf("create backup recovery plan directory: %w", err)
+	}
+	data, err := plan.MarshalIndent()
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(dir, PlanFileName)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return fmt.Errorf("write %s: %w", PlanFileName, err)
+	}
+	return nil
+}
+
+// Read loads a previously generated recovery plan.
+func Read(dir string) (RecoveryPlan, error) {
+	path := filepath.Join(dir, PlanFileName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return RecoveryPlan{}, fmt.Errorf("read %s: %w", PlanFileName, err)
+	}
+	var plan RecoveryPlan
+	if err := json.Unmarshal(data, &plan); err != nil {
+		return RecoveryPlan{}, fmt.Errorf("parse %s: %w", PlanFileName, err)
+	}
+	if plan.SchemaVersion != SchemaVersion {
+		return RecoveryPlan{}, fmt.Errorf("%s has unsupported schema %q", PlanFileName, plan.SchemaVersion)
+	}
+	return plan, nil
 }
 
 func stringSliceDefault(value, fallback []string) []string {

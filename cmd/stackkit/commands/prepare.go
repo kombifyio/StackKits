@@ -277,11 +277,6 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 		// Hardware info may not be available yet (detected later in prepare),
 		// so we resolve with what we have now; generate will re-resolve with full info.
 		resolved := netenv.ResolveFromResult(netResult, caps.CPUCores, caps.MemoryGB)
-
-		// CLI --context flag overrides auto-detection
-		if contextFlag != "" {
-			resolved = models.NodeContext(contextFlag)
-		}
 		caps.ResolvedContext = resolved
 		writeDockerCapabilities(caps)
 
@@ -503,9 +498,6 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 			if caps.NetworkEnv != "" {
 				netResult := &netenv.Result{Environment: caps.NetworkEnv}
 				resolved := netenv.ResolveFromResult(netResult, caps.CPUCores, caps.MemoryGB)
-				if contextFlag != "" {
-					resolved = models.NodeContext(contextFlag)
-				}
 				if resolved != caps.ResolvedContext {
 					printInfo("Context refined: %s -> %s (with hardware info)", caps.ResolvedContext, resolved)
 					caps.ResolvedContext = resolved

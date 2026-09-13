@@ -1,8 +1,10 @@
 # StackKit CLI Reference
 
-> Last verified: 2026-07-27
+> Last verified: 2026-09-13
 
-This page summarizes the implemented `stackkit` command surface. Cobra command definitions under `cmd/stackkit/commands/` are the source of truth.
+This page summarizes the implemented `stackkit` command surface. Cobra command
+definitions under `cmd/stackkit/commands/` and `cmd/stackkit/user/` are the
+source of truth.
 
 ## Installation
 
@@ -66,7 +68,6 @@ go build -o build/stackkit-mcp ./cmd/stackkit-mcp
 | `--quiet` | `-q` | `false` | Suppress non-essential output. |
 | `--chdir` | `-C` | `.` | Change working directory before running. |
 | `--spec` | `-s` | `stack-spec.yaml` | Spec file path; `kombination.yaml` is accepted as a read alias when the default is missing. |
-| `--context` | | auto | Override node context: `local`, `cloud`, or `pi`. |
 | `--no-log` | | `false` | Disable structured deploy logging. |
 | `--progress-jsonl` | | unset | Write redacted machine-readable rollout progress JSONL to a path, or `-` for stdout. |
 | `--correlation-id` | | unset | Bind one validated caller correlation ID to the collision-resistant local rollout run and its events. |
@@ -118,6 +119,7 @@ post-install evidence; `status` and HTTP `verify` remain follow-up runtime gaps.
 | `logs` | List and read structured deploy logs. |
 | `registry` | Inspect or reproduce the embedded Git/CUE registry snapshot. |
 | `secrets` | Establish owner-bound local custody for secret references in canonical StackSpec intent. |
+| `user` | Invite, list, and remove PocketID household users. Mutations require `--owner-approve`. |
 | `completion` | Generate shell completions. |
 | `version` | Print version, commit, build date, Go version, and OS/arch. |
 
@@ -541,6 +543,24 @@ restore and upgrade.
 Omitting `--complete-onboarding` leaves existing onboarding flags intact;
 it never reopens onboarding that the owner has already completed. Only an
 authenticated result for the current Plan and Apply verifies the setup axis.
+
+### `stackkit user`
+
+Invite, list, and remove Homelab users in the local PocketID `household`
+group. TinyAuth continues to admit the existing `owners`, `admins`, and
+`household` groups on its OIDC client; this command does not broaden TinyAuth
+and does not use an owner-email whitelist. Owner and admin identities are
+refused. `add` and `remove` require `--owner-approve`.
+
+```bash
+stackkit user add alex --email alex@home.test --display-name Alex --owner-approve
+stackkit user list
+stackkit user remove alex --owner-approve
+```
+
+`add` prints a one-time PocketID setup URL. Share it only with that person so
+they can enroll a passkey. Runtime evidence that a second household user can
+reach Photos or Files with their own passkey remains a separate check.
 
 ### `stackkit backup`
 

@@ -139,6 +139,7 @@ func (s *Server) routes() {
 
 	s.registerStackActionRoutes()
 	s.registerOwnerStepUpRoutes()
+	s.registerHomeIdentityVerifierRoutes()
 	s.mux.HandleFunc("POST /api/v1/identity/workload-peers", s.handleWorkloadPeerOperation)
 
 	// Node-local management

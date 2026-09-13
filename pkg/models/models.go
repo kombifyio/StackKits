@@ -992,7 +992,8 @@ const (
 
 // NodeContext classifies the deployment environment.
 // Matches CUE #NodeContext: "local" | "cloud" | "pi".
-// Auto-detected from network environment + hardware, overridable via --context flag.
+// Legacy v1/v0.6 observation and migration input; native v2 authoring does not
+// accept a --context flag.
 type NodeContext string
 
 const (
@@ -1055,7 +1056,7 @@ type DockerCapabilities struct {
 	CPUCores int     `json:"cpuCores,omitempty"`
 	MemoryGB float64 `json:"memoryGB,omitempty"`
 
-	// Resolved NodeContext (auto-detected or overridden via --context flag)
+	// Resolved NodeContext from legacy host observation (never native v2 authoring).
 	ResolvedContext NodeContext `json:"resolvedContext,omitempty"` // "local", "cloud", "pi"
 
 	// Network environment detection (lower-level detail feeding into context resolution)

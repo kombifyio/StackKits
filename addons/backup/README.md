@@ -172,11 +172,13 @@ stackkit backup emergency-export --recipient age1YOUR_PUBLIC_RECIPIENT \
   --source config=/opt/stacks --target /backup/emergency-export-new
 ```
 
-Sources are explicit `CLASS=PATH` selections. Automatic database dumps and
-CUE-selected source execution remain separate integration work; source labels
-alone do not prove consistency or full application coverage. Follow
-[Backup resilience](../../docs/BACKUP-RESILIENCE.md) for owner identity custody,
-media exclusions and independent staged restore.
+Sources may be explicit `CLASS=PATH` selections, or omitted so the command
+exports the generated v2 contract: CUE `resilience.emergencyExport` classes plus
+the generate/apply source-policy volumes. Database dumps use the same hook
+family as Kopia (`pg_dump`, `sqlite3 .backup`, Redis `BGSAVE`) and land inside
+those volumes. Source labels alone do not prove consistency or full application
+coverage. Follow [Backup resilience](../../docs/BACKUP-RESILIENCE.md) for owner
+identity custody, media exclusions and independent staged restore.
 
 ## Data classes
 

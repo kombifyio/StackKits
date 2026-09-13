@@ -195,10 +195,13 @@ var backupEmergencyExportCmd = &cobra.Command{
 	Short: "Export selected local data as an encrypted portable recovery archive",
 	Args:  machineAwareNoArgs,
 	Long: `Create a portable age-encrypted tar/gzip archive with per-file checksums and a
-restore runbook. Select each source explicitly as CLASS=PATH and provide an age
-recipient public key. The target must be a new directory outside the sources.
-File copying does not prove application consistency; stop writers or export database-native dumps first.
-Recovery stages data without the original host, Kopia, or a Kombify account.`,
+restore runbook. Provide an age recipient public key and a new target directory
+outside the sources. Omit --source to export the generated v2 backup contract
+(CUE emergencyExport classes plus the generate/apply source-policy volumes).
+Explicit CLASS=PATH sources remain the standalone path when no generated
+contract is present. File copying does not prove application consistency; stop
+writers or export database-native dumps first. Recovery stages data without the
+original host, Kopia, or a Kombify account.`,
 	RunE: runBackupEmergencyExport,
 }
 

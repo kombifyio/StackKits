@@ -259,7 +259,7 @@ Replaced by the per-tool role system:
 - `beszel` variant → `--monitoring beszel`
 - `coolify` variant → `--paas coolify`
 - `minimal` variant → `--compute-tier low` for the graph, optionally
-  `hardware.profile: pi` for a constrained device. `--context pi` remains a
+  `hardware.profile: pi` for a constrained device. Legacy `context: pi` remains a
   migration alias to home + profile `pi` only.
 
 ---

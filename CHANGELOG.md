@@ -4,6 +4,25 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.30.0](https://github.com/kombifyio/stackKits/compare/2f73dcd2338914aed27969f1c45c2bb10c026266...bd73272444f97bdf8b99e23cf67d64952a9ecbf1) (2026-09-13)
+
+
+### Added
+
+* add stackkit user add/list/remove CLI ([#1047](https://github.com/kombifyio/stackKits/issues/1047)) ([a9ecbd9](https://github.com/kombifyio/stackKits/commit/a9ecbd976fa927dbfdf865d094614d857edc297d))
+* **identity:** enforce Home human and device proofs on the server ([#1049](https://github.com/kombifyio/stackKits/issues/1049)) ([5af26ba](https://github.com/kombifyio/stackKits/commit/5af26baa8af1d18f8dc75470ee5cf552fe7e7224))
+* wire v2 emergency export from generated backup contract ([#1048](https://github.com/kombifyio/stackKits/issues/1048)) ([da04d13](https://github.com/kombifyio/stackKits/commit/da04d13c43c911bc2bc7a4bbe1724da7d541566b))
+
+
+### Fixed
+
+* admit stackkit.setup on Files, Vault, and Media lifecycles ([#1051](https://github.com/kombifyio/stackKits/issues/1051)) ([2748eef](https://github.com/kombifyio/stackKits/commit/2748eefe49f5384bedb0b43e0f729fed8de310de))
+* bind live installer smoke to the admitted release ([#1046](https://github.com/kombifyio/stackKits/issues/1046)) ([a03772d](https://github.com/kombifyio/stackKits/commit/a03772d21b0bba908d59507bb9629abbb375f045))
+* retire --context from native v2 authoring ([#1044](https://github.com/kombifyio/stackKits/issues/1044)) ([0fc1c09](https://github.com/kombifyio/stackKits/commit/0fc1c09a76b051e55d0654b1733f3296032964f7))
+* verify HTTP probes for platform Access routes via kit LAN DNS ([#1052](https://github.com/kombifyio/stackKits/issues/1052)) ([bd73272](https://github.com/kombifyio/stackKits/commit/bd73272444f97bdf8b99e23cf67d64952a9ecbf1))
+
+Notes cover changes after VERSION 0.29.0 (2f73dcd2338914aed27969f1c45c2bb10c026266), the earliest available contiguous 0.29.x VERSION anchor, through selected source bd73272444f97bdf8b99e23cf67d64952a9ecbf1.
+
 ## [0.29.0](https://github.com/kombifyio/stackKits/compare/3c0f576563f95904cf3741c8b6ed84e3653be36d...a9bf380db02cbb3f91d0a8a742319a076b65d845) (2026-09-13)
 
 

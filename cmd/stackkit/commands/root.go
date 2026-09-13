@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/kombifyio/stackkits/cmd/stackkit/user"
 	"github.com/kombifyio/stackkits/internal/logging"
 	"github.com/kombifyio/stackkits/internal/rollout"
 	"github.com/kombifyio/stackkits/internal/telemetry"
@@ -58,7 +59,6 @@ var (
 	quiet                  bool
 	workDir                string
 	specFile               string
-	contextFlag            string
 	noLog                  bool
 	progressJSONL          string
 	correlationID          string
@@ -180,7 +180,6 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "Suppress non-essential output")
 	rootCmd.PersistentFlags().StringVarP(&workDir, "chdir", "C", ".", "Change to directory before running")
 	rootCmd.PersistentFlags().StringVarP(&specFile, "spec", "s", "stack-spec.yaml", "Path to stack specification file (kombination.yaml is accepted when the default is missing)")
-	rootCmd.PersistentFlags().StringVar(&contextFlag, "context", "", "Node context override (local, cloud, pi). Auto-detected if omitted.")
 	rootCmd.PersistentFlags().BoolVar(&noLog, "no-log", false, "Disable structured deploy logging")
 	rootCmd.PersistentFlags().StringVar(&progressJSONL, "progress-jsonl", "", "Write redacted machine-readable rollout progress JSONL to a path, or '-' for stdout")
 	rootCmd.PersistentFlags().StringVar(&correlationID, "correlation-id", "", "Validated caller correlation ID recorded in local rollout evidence")
@@ -224,6 +223,7 @@ func init() {
 	rootCmd.AddCommand(serviceCmd)
 	rootCmd.AddCommand(newAddressCommand())
 	rootCmd.AddCommand(outputTransactionCmd)
+	rootCmd.AddCommand(user.NewCommand())
 }
 
 func commandDisablesDeployObservability(cmd *cobra.Command) bool {
