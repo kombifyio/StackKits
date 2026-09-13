@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.28.3](https://github.com/kombifyio/stackKits/compare/v0.28.2...v0.28.3) (2026-09-13)
+
+
+### Fixed
+
+* synchronize Basement renderer authority ([#1038](https://github.com/kombifyio/stackKits/issues/1038)) ([ba5fd4b](https://github.com/kombifyio/stackKits/commit/ba5fd4b4b0ac23989bd8120a469af38d5a912088))
+
 ## [0.28.2](https://github.com/kombifyio/stackKits/compare/v0.28.1...v0.28.2) (2026-09-12)
 
 

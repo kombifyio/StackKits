@@ -13,7 +13,7 @@ const (
 	basementCoreTerramateStackOutputRef    = "platform/basement-core/stack.tm.hcl"
 )
 
-const basementCoreTerramateSchema = `stackkit.basement-core-terramate/v1|artifact-revision:5|runtime-listeners:catalog-bound,direct-loopback-only|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl,terramate.tm.hcl|execution-instance:node-local|credentials:none|cloud:none|ingress:forward-auth-bound,websecure-step-ca|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
+const basementCoreTerramateSchema = `stackkit.basement-core-terramate/v1|artifact-revision:6|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl,terramate.tm.hcl|execution-instance:node-local|credentials:none|cloud:none|step-ca:lan-dns-resolved-acme-challenges|ingress:forward-auth-bound,websecure-step-ca|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
 
 const basementCoreTerramateRoot = `terramate {
   required_version = "~> 0.17"
