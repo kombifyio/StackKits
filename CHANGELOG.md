@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.30.2](https://github.com/kombifyio/stackKits/compare/v0.30.1...v0.30.2) (2026-09-13)
+
+
+### Fixed
+
+* synchronize Basement renderer hashes after hub Host TLS ([#1056](https://github.com/kombifyio/stackKits/issues/1056)) ([659cd8a](https://github.com/kombifyio/stackKits/commit/659cd8a456b484e62486b2fb45ded2be45954bfe))
+
 ## [0.30.1](https://github.com/kombifyio/stackKits/compare/v0.30.0...v0.30.1) (2026-09-13)
 
 

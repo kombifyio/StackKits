@@ -4432,7 +4432,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "compose", kind:                                    "compose", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash: "sha256:ffc2410dea927a118d253685d01a1878cac69d1bdb7960c0f677dfd3e0bde4ad"
+				contractHash: "sha256:93db0348d65bb07212d059ef0d28eb62be8cbab3b819ae7ee655572f1acffc63"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/compose.yaml"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -4442,7 +4442,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:c9f7cecfbeca07889a9da14d46a737754e4d5a4b13185a336c782e7f6ec172a8"
+				contractHash: "sha256:f311830cfe6341e71b65f28b20d7a50defdf98b5fe53f3a07b5dbd92877950a4"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -4711,7 +4711,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "compose", kind:                                         "compose", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core-lite/compose/v1.yaml", version: "1.0.0"
-				contractHash: "sha256:a5a5992a807b88feebc4419994b35ccd542bdf8eb9442544bd80e703512cef4f"
+				contractHash: "sha256:f80eeaa47831affe18a39d93cfd86695bee872552da3e1a8b8084fb6fd2fd793"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core-lite/compose.yaml"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -4721,7 +4721,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "opentofu", kind:                                       "opentofu", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core-lite/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:c544fb84c8dcd48ff3613ccee9b829847c1b6d1104f4da676481e027eb7575f2"
+				contractHash: "sha256:dc9f98f6d5db29e9c6b1911fbce4fa26bfe82fbe01d67fe19be89394d22ba9f9"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core-lite/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -4731,7 +4731,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "terramate", kind:                                    "terramate", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core-lite/terramate/v1", version: "1.0.0"
-				contractHash: "sha256:c9ecc8a994535f19787ef6dc5f9c1b8f87dd437669fe74c5c112160602504898"
+				contractHash: "sha256:9ebc790d7cec77efabe37e6a5f64884d724264f5b332133864ff0c88f5a801dc"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: [
 					"platform/basement-core-lite/main.tf",

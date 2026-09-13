@@ -14,7 +14,7 @@
     "foundation/application_lifecycle.cue": "sha256:7befc7549306375ef5434a852ad31940fe4924698900db1ccff0c766c0e70cdd",
     "foundation/architecture_v2.cue": "sha256:6d50326ea0523c84c67298962b2a99d15cd01118b08a1f16d47809dc5af46f68",
     "foundation/architecture_v2_backup.cue": "sha256:750b23662d20956156394cf61ad1466e651372a18aa06075883a2a70199c93e0",
-    "foundation/architecture_v2_catalog.cue": "sha256:316b6af7124a097b93ef9022c65a8c964e0d57a50cc0f30607743b52204805cc",
+    "foundation/architecture_v2_catalog.cue": "sha256:8bb7b28f01e0413da5d4e226a2ed8d98d6e8b0f9e05a9901fa6afd54b6bf58e2",
     "foundation/architecture_v2_cloud_core.cue": "sha256:557062e98e94a96dc42968b93393d5d08a47b6f2e870c48509fd12eebd3aa7b3",
     "foundation/architecture_v2_definition_binding.cue": "sha256:a3bd59ab840c4d2775dfa1ca9703a76b22a836a38ca363d089c1322453cf947b",
     "foundation/architecture_v2_module_profiles.cue": "sha256:91aca31646fc909ffd424a02f0705924ef4a81ab5b0553c500a30e4d678b1582",
