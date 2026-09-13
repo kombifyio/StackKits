@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.30.4](https://github.com/kombifyio/stackKits/compare/v0.30.3...v0.30.4) (2026-09-13)
+
+
+### Fixed
+
+* interpolate Basement compose env when attaching kopia volumes ([#1060](https://github.com/kombifyio/stackKits/issues/1060)) ([8dcab46](https://github.com/kombifyio/stackKits/commit/8dcab4672396bd283d91f8879150bbbb224e3d0b))
+
 ## [0.30.3](https://github.com/kombifyio/stackKits/compare/v0.30.2...v0.30.3) (2026-09-13)
 
 
