@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "a1faf406ba6ba3d5da4c8c6c43c599e7009be2e4",
-  "authority_bundle_sha256": "fa574079b40905624a05c70fedbeeaf893b7179f7af0f54feaa0470a5102f263",
+  "source_sha": "2f73dcd2338914aed27969f1c45c2bb10c026266",
+  "authority_bundle_sha256": "5f18955216dc6364c9cc178c3b009c62787ad54eb329664acd635a527ab931af",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -4259,5 +4259,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "e48862899fe5e2fd37092bca5b183e6f8bdc3b78ba3015e2c34e3796959b514e"
+  "catalog_sha256": "d3d1353d38ffba67952027116a0a34554dce0cb4924672089dd08fd5bf0c08c6"
 }

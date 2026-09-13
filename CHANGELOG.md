@@ -4,6 +4,24 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.29.0](https://github.com/kombifyio/stackKits/compare/3c0f576563f95904cf3741c8b6ed84e3653be36d...a9bf380db02cbb3f91d0a8a742319a076b65d845) (2026-09-13)
+
+
+### Added
+
+* provision household users through PocketID groups ([#1042](https://github.com/kombifyio/stackKits/issues/1042)) ([32b7dd2](https://github.com/kombifyio/stackKits/commit/32b7dd22dba42869137e48ffaafc4865748cba8d))
+
+
+### Fixed
+
+* author Modern local HTTPS beside Edge TLS ([#1040](https://github.com/kombifyio/stackKits/issues/1040)) ([be261b2](https://github.com/kombifyio/stackKits/commit/be261b29b8748cdd83374bac951882854367a3a7))
+* bind internal PKI routes to Traefik ([#1036](https://github.com/kombifyio/stackKits/issues/1036)) ([d2e8afa](https://github.com/kombifyio/stackKits/commit/d2e8afa75db4669ed32b7351330182907906cf42))
+* bind overlapping module image pins to the v2 catalog ([#1043](https://github.com/kombifyio/stackKits/issues/1043)) ([a9bf380](https://github.com/kombifyio/stackKits/commit/a9bf380db02cbb3f91d0a8a742319a076b65d845))
+* **runtime:** complete local Basement apply ([#1033](https://github.com/kombifyio/stackKits/issues/1033)) ([d3f6dd3](https://github.com/kombifyio/stackKits/commit/d3f6dd33548c1f51c58e12ab370c662612dd3229))
+* synchronize Basement renderer authority ([#1038](https://github.com/kombifyio/stackKits/issues/1038)) ([ba5fd4b](https://github.com/kombifyio/stackKits/commit/ba5fd4b4b0ac23989bd8120a469af38d5a912088))
+
+Notes cover changes after VERSION 0.28.0 (3c0f576563f95904cf3741c8b6ed84e3653be36d), the earliest available contiguous 0.28.x VERSION anchor, through selected source a9bf380db02cbb3f91d0a8a742319a076b65d845.
+
 ## [0.28.3](https://github.com/kombifyio/stackKits/compare/v0.28.2...v0.28.3) (2026-09-13)
 
 

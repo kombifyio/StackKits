@@ -8,6 +8,8 @@ package paperless_ngx
 
 import "github.com/kombifyio/stackkits/foundation"
 
+_runtimeImages: foundation.ArchitectureV2ModuleImages["stackkits-paperless-runtime"]
+
 Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "paperless-ngx"
@@ -36,8 +38,8 @@ Contract: foundation.#ModuleContract & {
 		paperless: foundation.#ServiceDefinition & {
 			name:     "paperless"
 			type:     "application"
-			image:    "ghcr.io/paperless-ngx/paperless-ngx"
-			tag:      "3.1.3@sha256:aa810a36942c63d4ee70d00eda7236cd3d6acfb7eb3f7987fb568ed14df8817a"
+			image:    _runtimeImages["paperless"].image
+			tag:      _runtimeImages["paperless"].tag
 			required: false
 			status:   "implemented"
 
@@ -124,8 +126,8 @@ Contract: foundation.#ModuleContract & {
 		"paperless-postgres": foundation.#ServiceDefinition & {
 			name:     "paperless-postgres"
 			type:     "database"
-			image:    "docker.io/library/postgres"
-			tag:      "18@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280"
+			image:    _runtimeImages["paperless-postgres"].image
+			tag:      _runtimeImages["paperless-postgres"].tag
 			required: false
 			status:   "implemented"
 
@@ -173,8 +175,8 @@ Contract: foundation.#ModuleContract & {
 		"paperless-valkey": foundation.#ServiceDefinition & {
 			name:     "paperless-valkey"
 			type:     "cache"
-			image:    "docker.io/valkey/valkey"
-			tag:      "9-alpine@sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b"
+			image:    _runtimeImages["paperless-valkey"].image
+			tag:      _runtimeImages["paperless-valkey"].tag
 			required: false
 			status:   "implemented"
 

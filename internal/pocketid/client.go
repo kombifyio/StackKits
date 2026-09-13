@@ -134,6 +134,31 @@ func (c *Client) FindUsersByUsername(ctx context.Context, username string) ([]Us
 	return result, nil
 }
 
+// ListUsers returns the current PocketID user page. Callers filter groups
+// themselves; this does not interpret identity roles.
+func (c *Client) ListUsers(ctx context.Context) ([]User, error) {
+	var response struct {
+		Data []User `json:"data"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/api/users?pagination%5Blimit%5D=100", nil, &response); err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+	return append([]User(nil), response.Data...), nil
+}
+
+// DeleteUser removes one PocketID subject. Callers must refuse owner and
+// break-glass identities before invoking this.
+func (c *Client) DeleteUser(ctx context.Context, userID string) error {
+	userID = strings.TrimSpace(userID)
+	if userID == "" || strings.ContainsAny(userID, "/?#") {
+		return errors.New("delete user: subject is invalid")
+	}
+	if err := c.do(ctx, http.MethodDelete, "/api/users/"+userID, nil, nil); err != nil {
+		return fmt.Errorf("delete user %q: %w", userID, err)
+	}
+	return nil
+}
+
 // GetUser reads the exact PocketID subject including its current groups.
 func (c *Client) GetUser(ctx context.Context, userID string) (*User, error) {
 	userID = strings.TrimSpace(userID)

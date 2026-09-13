@@ -389,7 +389,7 @@ import "list"
 		if route.tls.required == true if route.tls.mode != "external" if plan.network.configuration.tls.defaultMode == "internal" {
 			mode: route.tls.mode & "internal"
 		}
-		if route.tls.required == true if route.tls.mode != "external" if plan.network.configuration.tls.defaultMode == "public" {
+		if route.tls.required == true if route.tls.mode != "external" if route.exposure == "public" if plan.network.configuration.tls.defaultMode == "public" {
 			mode: route.tls.mode & "terminate-at-edge"
 		}
 		if route.tls.required == true {

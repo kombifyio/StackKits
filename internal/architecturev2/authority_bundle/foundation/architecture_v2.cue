@@ -10037,7 +10037,6 @@ _servicePublicationShape: {
 				}] & list.MinItems(1) & list.MaxItems(1)
 			}
 			if serviceRoute.tls.mode == "internal" {
-				defaultMode: network.configuration.tls.defaultMode & "internal"
 				profileMatches: [for capability in capabilities if capability.id == "internal-pki" if capability.tlsProfile != _|_ if capability.tlsProfile.id == serviceRoute.tls.profileRef && capability.tlsProfile.mode == "internal" {capability.id}] & list.MinItems(1) & list.MaxItems(1)
 				issuerMatches: [for capability in capabilities if capability.id == "internal-pki" if capability.tlsProfile != _|_ for provider in providers if provider.id == capability.providerRef for issuer in provider.certificateIssuers for allowedKind in capability.tlsProfile.allowedIssuerKinds if issuer.id == serviceRoute.tls.issuerRef && issuer.capabilityRef == capability.id && issuer.kind == allowedKind {issuer.id}] & list.MinItems(1) & list.MaxItems(1)
 			}

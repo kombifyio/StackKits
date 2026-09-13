@@ -357,6 +357,7 @@ func ensureBootstrapGroups(ctx context.Context, client pocketIDClientForBootstra
 	}{
 		{name: ownersGroupName, friendly: ownersGroupFriendlyName},
 		{name: adminsGroupName, friendly: adminsGroupFriendlyName},
+		{name: "household", friendly: "Household"},
 	}
 	for _, group := range groups {
 		if err := ensureUserGroup(ctx, client, group.name, group.friendly); err != nil {

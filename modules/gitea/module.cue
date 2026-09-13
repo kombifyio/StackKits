@@ -8,6 +8,8 @@ package gitea
 
 import "github.com/kombifyio/stackkits/foundation"
 
+_runtimeImages: foundation.ArchitectureV2ModuleImages["stackkits-gitea-runtime"]
+
 Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "gitea"
@@ -35,8 +37,8 @@ Contract: foundation.#ModuleContract & {
 	services: gitea: foundation.#ServiceDefinition & {
 		name:     "gitea"
 		type:     "application"
-		image:    "docker.gitea.com/gitea"
-		tag:      "1.27.3-rootless@sha256:1c17ecaead42eb3b5391553d8708103a4beb0e86edf5b9ebc1eb269c318845f2"
+		image:    _runtimeImages["gitea"].image
+		tag:      _runtimeImages["gitea"].tag
 		required: false
 		status:   "implemented"
 

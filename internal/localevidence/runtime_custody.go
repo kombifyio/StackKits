@@ -461,7 +461,6 @@ func basementRuntimeEnvironments(owner OwnerCustody, domain string, sessionTTLSe
 			// mounted into TinyAuth with SSL_CERT_FILE for any TLS endpoint.
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_INSECURE=false",
 			"TINYAUTH_OAUTH_AUTOREDIRECT=pocketid",
-			"TINYAUTH_OAUTH_WHITELIST="+owner.PocketID.Email,
 		),
 		"coolify.env": encode(
 			"APP_ID="+appID,

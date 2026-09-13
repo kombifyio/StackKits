@@ -451,20 +451,9 @@ func resolveRouteTLS(routeID, protocol, exposure string, network map[string]any,
 	if err != nil {
 		return nil, err
 	}
-	mode := ""
-	requiredCapability := ""
-	switch defaultMode {
-	case "internal":
-		if exposure == "public" {
-			return nil, fail(ErrProfileMismatch, "spec.routes."+routeID+".tls", "public route requires catalog-owned public TLS termination")
-		}
-		mode = "internal"
-		requiredCapability = "internal-pki"
-	case "public":
-		mode = "terminate-at-edge"
-		requiredCapability = "public-tls"
-	default:
-		return nil, fail(ErrProfileMismatch, "spec.routes."+routeID, "TLS-required route cannot use network TLS mode %q", defaultMode)
+	mode, requiredCapability, err := resolveRouteTLSMode(routeID, exposure, defaultMode, capabilityProviders)
+	if err != nil {
+		return nil, err
 	}
 	providerID, exists := capabilityProviders[requiredCapability]
 	if !exists {
@@ -547,6 +536,30 @@ func resolveRouteTLS(routeID, protocol, exposure string, network map[string]any,
 		return nil, err
 	}
 	return map[string]any{"required": true, "mode": mode, "minVersion": requestedMinimum, "profileRef": profileID, "issuerRef": issuerID}, nil
+}
+
+func resolveRouteTLSMode(routeID, exposure, defaultMode string, capabilityProviders map[string]string) (string, string, error) {
+	if exposure == "public" {
+		switch defaultMode {
+		case "internal":
+			return "", "", fail(ErrProfileMismatch, "spec.routes."+routeID+".tls", "public route requires catalog-owned public TLS termination")
+		case "public":
+			return "terminate-at-edge", "public-tls", nil
+		default:
+			return "", "", fail(ErrProfileMismatch, "spec.routes."+routeID, "TLS-required route cannot use network TLS mode %q", defaultMode)
+		}
+	}
+	if _, hasInternal := capabilityProviders["internal-pki"]; hasInternal {
+		return "internal", "internal-pki", nil
+	}
+	switch defaultMode {
+	case "internal":
+		return "internal", "internal-pki", nil
+	case "public":
+		return "", "", fail(ErrProfileMismatch, "spec.routes."+routeID+".tls", "local HTTPS route requires resolved internal PKI when network TLS default is public")
+	default:
+		return "", "", fail(ErrProfileMismatch, "spec.routes."+routeID, "TLS-required route cannot use network TLS mode %q", defaultMode)
+	}
 }
 
 func tlsVersionRank(version string) int {

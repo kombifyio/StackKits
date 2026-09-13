@@ -8,6 +8,8 @@ package ollama
 
 import "github.com/kombifyio/stackkits/foundation"
 
+_runtimeImages: foundation.ArchitectureV2ModuleImages["stackkits-private-ai-runtime"]
+
 Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "ollama"
@@ -35,8 +37,8 @@ Contract: foundation.#ModuleContract & {
 	services: ollama: foundation.#ServiceDefinition & {
 		name:     "ollama"
 		type:     "application"
-		image:    "docker.io/ollama/ollama"
-		tag:      "0.34.0@sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba"
+		image:    _runtimeImages["ollama"].image
+		tag:      _runtimeImages["ollama"].tag
 		required: false
 		status:   "implemented"
 

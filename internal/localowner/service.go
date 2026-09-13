@@ -31,8 +31,10 @@ type pocketIDOwnerClient interface {
 	GetGroupIDByName(context.Context, string) (string, error)
 	CreateUserGroup(context.Context, pocketid.CreateUserGroupRequest) (*pocketid.UserGroup, error)
 	FindUsersByUsername(context.Context, string) ([]pocketid.User, error)
+	ListUsers(context.Context) ([]pocketid.User, error)
 	CreateUser(context.Context, pocketid.CreateUserRequest) (*pocketid.User, error)
 	GetUser(context.Context, string) (*pocketid.User, error)
+	DeleteUser(context.Context, string) error
 	UpdateUserGroups(context.Context, string, []string) (*pocketid.User, error)
 	CreateOneTimeAccessToken(context.Context, string, time.Duration) (string, error)
 	GetOIDCClient(context.Context, string) (*pocketid.OIDCClient, error)
@@ -125,12 +127,16 @@ func (s *Service) Realize(ctx context.Context) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	ownerGroupIDs, err := ownerMembershipGroupIDs(ctx, client)
+	if err != nil {
+		return Result{}, err
+	}
 	var subject string
 	if len(users) == 0 {
 		created, createErr := client.CreateUser(ctx, pocketid.CreateUserRequest{
 			Username: owner.PocketID.Username, Email: owner.PocketID.Email,
 			FirstName: owner.PocketID.DisplayName, DisplayName: owner.PocketID.DisplayName,
-			IsAdmin: true, UserGroupIDs: append([]string(nil), groupIDs...),
+			IsAdmin: true, UserGroupIDs: append([]string(nil), ownerGroupIDs...),
 		})
 		if createErr != nil || created == nil || strings.TrimSpace(created.ID) == "" {
 			return Result{}, errors.New("localowner: PocketID owner creation failed")
@@ -147,7 +153,7 @@ func (s *Service) Realize(ctx context.Context) (Result, error) {
 		return Result{}, err
 	}
 	if !hasRequiredGroups(readback.UserGroups) {
-		completeGroupIDs := requiredAndExistingGroupIDs(groupIDs, readback.UserGroups)
+		completeGroupIDs := requiredAndExistingGroupIDs(ownerGroupIDs, readback.UserGroups)
 		readback, err = client.UpdateUserGroups(ctx, subject, completeGroupIDs)
 		if err != nil || readback == nil {
 			return Result{}, errors.New("localowner: PocketID owner group binding failed")
@@ -341,9 +347,22 @@ func (s *Service) verifyTinyAuthPocketIDBinding(
 	return nil
 }
 
-func exactRequiredGroupIDs(ctx context.Context, client pocketIDOwnerClient) ([]string, error) {
+func ownerMembershipGroupIDs(ctx context.Context, client pocketIDOwnerClient) ([]string, error) {
 	result := make([]string, 0, 2)
 	for _, name := range []string{"admins", "owners"} {
+		id, err := client.GetGroupIDByName(ctx, name)
+		if err != nil || strings.TrimSpace(id) == "" {
+			return nil, errors.New("localowner: required PocketID group is missing")
+		}
+		result = append(result, id)
+	}
+	sort.Strings(result)
+	return result, nil
+}
+
+func exactRequiredGroupIDs(ctx context.Context, client pocketIDOwnerClient) ([]string, error) {
+	result := make([]string, 0, 3)
+	for _, name := range []string{"admins", "owners", "household"} {
 		id, err := client.GetGroupIDByName(ctx, name)
 		if err != nil || strings.TrimSpace(id) == "" {
 			return nil, errors.New("localowner: required PocketID group is missing")
@@ -408,7 +427,7 @@ func verifyPocketIDAdmin(ctx context.Context, client pocketIDOwnerClient) error 
 func ensureRequiredGroups(ctx context.Context, client pocketIDOwnerClient) ([]string, error) {
 	required := []struct {
 		name, friendly string
-	}{{"admins", "Admins"}, {"owners", "Owners"}}
+	}{{"admins", "Admins"}, {"owners", "Owners"}, {"household", "Household"}}
 	ids := make([]string, 0, len(required))
 	for _, group := range required {
 		id, err := client.GetGroupIDByName(ctx, group.name)

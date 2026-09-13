@@ -226,11 +226,10 @@ Contract: foundation.#ModuleContract & {
 		"immich-postgres": foundation.#ServiceDefinition & {
 			name:  "immich-postgres"
 			type:  "database"
-			image: "ghcr.io/immich-app/postgres"
-			tag:   "16-vectorchord0.3.0-pgvectors0.3.0"
+			image: _runtimeImages["immich-postgres"].image
+			tag:   _runtimeImages["immich-postgres"].tag
 			upstream: {
 				github: {repo: "immich-app/immich"}
-				pinLine: "16-vectorchord0.3.0-pgvectors0.3.0"
 			}
 			required: true
 			status:   "implemented"
@@ -289,11 +288,10 @@ Contract: foundation.#ModuleContract & {
 		"immich-postgres-init": foundation.#ServiceDefinition & {
 			name:  "immich-postgres-init"
 			type:  "automation"
-			image: "ghcr.io/immich-app/postgres"
-			tag:   "16-vectorchord0.3.0-pgvectors0.3.0"
+			image: _runtimeImages["immich-postgres-init"].image
+			tag:   _runtimeImages["immich-postgres-init"].tag
 			upstream: {
 				github: {repo: "immich-app/immich"}
-				pinLine: "16-vectorchord0.3.0-pgvectors0.3.0"
 			}
 			required: true
 			status:   "implemented"
@@ -333,8 +331,8 @@ Contract: foundation.#ModuleContract & {
 		"immich-redis": foundation.#ServiceDefinition & {
 			name:  "immich-redis"
 			type:  "cache"
-			image: "ghcr.io/valkey-io/valkey"
-			tag:   "9"
+			image: _runtimeImages["immich-valkey"].image
+			tag:   _runtimeImages["immich-valkey"].tag
 			upstream: {github: {repo: "valkey-io/valkey"}}
 			required: true
 			status:   "implemented"

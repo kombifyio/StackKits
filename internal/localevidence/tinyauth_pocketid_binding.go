@@ -68,7 +68,7 @@ func BindBasementTinyAuthPocketID(
 	request.ClientSecret = strings.TrimSpace(request.ClientSecret)
 	request.GroupIDs = normalizeTinyAuthGroupIDs(request.GroupIDs)
 	if request.ClientID != TinyAuthPocketIDClientID || len(request.ClientSecret) < 32 ||
-		len(request.GroupIDs) != 2 {
+		len(request.GroupIDs) != 3 {
 		return TinyAuthPocketIDBinding{}, errors.New("localevidence: TinyAuth PocketID binding input is incomplete")
 	}
 	if existing, loadErr := LoadBasementTinyAuthPocketIDBinding(workspaceRoot); loadErr == nil {
@@ -199,7 +199,7 @@ func LoadBasementTinyAuthPocketIDBinding(workspaceRoot string) (TinyAuthPocketID
 		record.OwnerRef != owner.OwnerRef || record.KeyID != owner.KeyID ||
 		record.ClientID != TinyAuthPocketIDClientID ||
 		record.CallbackURL != TinyAuthPocketIDCallbackURL(runtimeCustody.Domain) ||
-		len(record.GroupIDs) != 2 || record.BoundAt.IsZero() ||
+		len(record.GroupIDs) != 3 || record.BoundAt.IsZero() ||
 		record.BoundAt.Location() != time.UTC {
 		return TinyAuthPocketIDBinding{}, errors.New("localevidence: TinyAuth PocketID binding is not bound to established custody")
 	}
@@ -231,6 +231,7 @@ func normalizeTinyAuthGroupIDs(input []string) []string {
 }
 
 func renderTinyAuthPocketIDEnvironment(domain, email, clientID, clientSecret string) []byte {
+	_ = email // PocketID group restriction replaces the email whitelist.
 	return []byte(strings.Join([]string{
 		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTID=" + clientID,
 		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTSECRET=" + clientSecret,
@@ -243,7 +244,6 @@ func renderTinyAuthPocketIDEnvironment(domain, email, clientID, clientSecret str
 		// See runtime_custody.go: provider TLS is verified, never skipped.
 		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_INSECURE=false",
 		"TINYAUTH_OAUTH_AUTOREDIRECT=pocketid",
-		"TINYAUTH_OAUTH_WHITELIST=" + email,
 	}, "\n") + "\n")
 }
 
@@ -251,7 +251,7 @@ func validTinyAuthPocketIDEnvironment(raw []byte, domain, email, clientID string
 	prefix := renderTinyAuthPocketIDEnvironment(domain, email, clientID, "")
 	secretLine := []byte("TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTSECRET=")
 	lines := bytes.Split(raw, []byte("\n"))
-	if len(lines) != 12 {
+	if len(lines) != 11 {
 		return false
 	}
 	if !bytes.HasPrefix(lines[1], secretLine) || len(bytes.TrimPrefix(lines[1], secretLine)) < 32 {
