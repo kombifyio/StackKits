@@ -4,6 +4,14 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.30.1](https://github.com/kombifyio/stackKits/compare/v0.30.0...v0.30.1) (2026-09-13)
+
+
+### Fixed
+
+* fall back to public GitHub metadata when the smoke token is 401 ([#1053](https://github.com/kombifyio/stackKits/issues/1053)) ([66a8fd9](https://github.com/kombifyio/stackKits/commit/66a8fd97460fc05db488878ed919ba48053a560b))
+* issue step-ca TLS for base.home instead of Traefik default cert ([#1055](https://github.com/kombifyio/stackKits/issues/1055)) ([2fc0fb9](https://github.com/kombifyio/stackKits/commit/2fc0fb97c3bd72c8a65a8c5af626e173fb93e979))
+
 ## [0.30.0](https://github.com/kombifyio/stackKits/compare/2f73dcd2338914aed27969f1c45c2bb10c026266...bd73272444f97bdf8b99e23cf67d64952a9ecbf1) (2026-09-13)
 
 
