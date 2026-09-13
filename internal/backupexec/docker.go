@@ -5,16 +5,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/docker"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
-	"github.com/kombifyio/stackkits/internal/localevidence"
 )
 
 const (
@@ -154,146 +150,9 @@ func inspectDockerV2SourceRuntime(ctx context.Context, newClient dockerV2ClientF
 		return nil, nil, fmt.Errorf("inspect local kopia runtime network: %w", err)
 	}
 	if err := validateDockerV2RuntimeForSource(container, network, source); err != nil {
-		if recErr := reconcileKopiaApplicationVolumeBinds(ctx, container, network, source); recErr == nil {
-			container, err = client.ResolveComposeServiceContainer(ctx, source.ComposeProject(), v2ComposeService)
-			if err != nil {
-				return nil, nil, fmt.Errorf("resolve local kopia runtime after attaching application volumes: %w", err)
-			}
-			network, err = client.InspectNetwork(ctx, "stackkit-"+source.RuntimeProfile().NetworkRef)
-			if err != nil {
-				return nil, nil, fmt.Errorf("inspect local kopia runtime network after attaching application volumes: %w", err)
-			}
-			if err := validateDockerV2RuntimeForSource(container, network, source); err == nil {
-				return client, container, nil
-			}
-		} else {
-			return nil, nil, fmt.Errorf("local kopia runtime differs from the governed policy: %w", errors.Join(err, recErr))
-		}
 		return nil, nil, fmt.Errorf("local kopia runtime differs from the governed policy: %w", err)
 	}
 	return client, container, nil
-}
-
-// reconcileKopiaApplicationVolumeBinds attaches compiler-selected application
-// volume binds onto the already-applied Core kopia-agent. Basement compose is
-// closed and cannot take those plan inputs; backup configure is the first
-// owner command that knows the exact source policy. Tests replace this hook.
-var reconcileKopiaApplicationVolumeBinds = reconcileKopiaApplicationVolumeBindsOnHost
-
-func extraApplicationVolumeNames(source localbackuppolicy.Source) []string {
-	coreNames, err := localbackuppolicy.ManagedVolumeNamesForCoreModule(source.CoreModuleRef)
-	if err != nil {
-		coreNames = localbackuppolicy.ManagedVolumeNames()
-	}
-	core := make(map[string]struct{}, len(coreNames))
-	for _, name := range coreNames {
-		core[name] = struct{}{}
-	}
-	extra := make([]string, 0, len(source.ManagedVolumeNames))
-	for _, name := range source.ManagedVolumeNames {
-		if _, known := core[name]; !known {
-			extra = append(extra, name)
-		}
-	}
-	return extra
-}
-
-func kopiaApplicationVolumeOverlayYAML(source localbackuppolicy.Source, extra []string) string {
-	var body strings.Builder
-	body.WriteString("services:\n  kopia-agent:\n    volumes:\n")
-	for _, name := range extra {
-		fmt.Fprintf(&body, "      - %s/%s/_data:%s/%s/_data:ro\n",
-			source.HostPath, name, source.ContainerPath, name)
-	}
-	return body.String()
-}
-
-func reconcileKopiaApplicationVolumeBindsOnHost(ctx context.Context, container *docker.ContainerInfo, network *docker.NetworkInfo, source localbackuppolicy.Source) error {
-	extra := extraApplicationVolumeNames(source)
-	if len(extra) == 0 {
-		return errors.New("kopia source has no application volumes to attach")
-	}
-	coreSource, err := localbackuppolicy.GovernedSourceForCoreModule(source.CoreModuleRef)
-	if err != nil {
-		coreSource = localbackuppolicy.GovernedSource()
-	}
-	if err := validateDockerV2RuntimeForSource(container, network, coreSource); err != nil {
-		return fmt.Errorf("core kopia runtime is not ready for application volume attachment: %w", err)
-	}
-	if container.Config.Labels == nil {
-		return errors.New("kopia runtime has no Compose labels for application volume attachment")
-	}
-	workingDir := container.Config.Labels["com.docker.compose.project.working_dir"]
-	composeFile := container.Config.Labels["com.docker.compose.project.config_files"]
-	if workingDir == "" || composeFile == "" || strings.Contains(composeFile, ",") {
-		return errors.New("kopia runtime Compose paths are not a single generated artifact")
-	}
-	workingDir = filepath.Clean(workingDir)
-	composeFile = filepath.Clean(composeFile)
-	if filepath.Dir(composeFile) != workingDir || filepath.Base(composeFile) != "compose.yaml" {
-		return errors.New("kopia runtime Compose path is not the generated basement-core artifact")
-	}
-	overlay := filepath.Join(workingDir, "kopia-application-volumes.yaml")
-	if err := os.WriteFile(overlay, []byte(kopiaApplicationVolumeOverlayYAML(source, extra)), 0o600); err != nil {
-		return fmt.Errorf("write kopia application volume overlay: %w", err)
-	}
-	env, err := kopiaComposeInterpolationEnv(workingDir)
-	if err != nil {
-		return err
-	}
-	cmd := exec.CommandContext(ctx, "docker", "compose",
-		"--project-name", source.ComposeProject(),
-		"-f", composeFile, "-f", overlay,
-		"up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "120", v2ComposeService)
-	cmd.Dir = workingDir
-	cmd.Env = env
-	if output, err := cmd.CombinedOutput(); err != nil {
-		msg := strings.TrimSpace(string(output))
-		if len(msg) > 300 {
-			msg = msg[:300]
-		}
-		if msg != "" {
-			return fmt.Errorf("attach kopia application volumes: %s: %w", msg, err)
-		}
-		return fmt.Errorf("attach kopia application volumes: %w", err)
-	}
-	return nil
-}
-
-func kopiaComposeInterpolationEnv(workingDir string) ([]string, error) {
-	workspaceRoot, err := basementWorkspaceRootFromKopiaWorkingDir(workingDir)
-	if err != nil {
-		return nil, err
-	}
-	owner, err := localevidence.LoadOwnerCustody(workspaceRoot)
-	if err != nil {
-		return nil, fmt.Errorf("resolve owner email for kopia Compose interpolation: %w", err)
-	}
-	email := strings.TrimSpace(owner.PocketID.Email)
-	if email == "" {
-		return nil, errors.New("owner custody carries no contact email for kopia Compose interpolation")
-	}
-	return append(os.Environ(),
-		"LANG=C", "LC_ALL=C",
-		"STACKKIT_CUSTODY_DIR="+filepath.Join(workspaceRoot, ".stackkit", "custody"),
-		"STACKKIT_OWNER_EMAIL="+email,
-	), nil
-}
-
-func basementWorkspaceRootFromKopiaWorkingDir(workingDir string) (string, error) {
-	workingDir = filepath.Clean(workingDir)
-	if filepath.Base(workingDir) != "basement-core" {
-		return "", errors.New("kopia working dir is not the basement-core runtime directory")
-	}
-	runtimeDir := filepath.Dir(workingDir)
-	if filepath.Base(runtimeDir) != "runtime" {
-		return "", errors.New("kopia working dir is not under .stackkit/runtime")
-	}
-	stackkitDir := filepath.Dir(runtimeDir)
-	if filepath.Base(stackkitDir) != ".stackkit" {
-		return "", errors.New("kopia working dir is not under workspace .stackkit")
-	}
-	return filepath.Dir(stackkitDir), nil
 }
 
 func validateDockerV2Runtime(container *docker.ContainerInfo, network *docker.NetworkInfo) error {

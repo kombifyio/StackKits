@@ -122,7 +122,7 @@ func (r basementCoreLiteTerramateRenderer) RenderUnit(ctx context.Context, unit 
 	}
 	domain, _ := unit.NetworkDomainBase()
 	return []UnitOutput{
-		{Ref: basementCoreLiteTerramateOpenTofuOutputRef, Bytes: renderSiteListenerBindings(unit, renderBasementCoreLiteOpenTofu(domain))},
+		{Ref: basementCoreLiteTerramateOpenTofuOutputRef, Bytes: renderKopiaSourceVolumeBinds(unit, renderSiteListenerBindings(unit, renderBasementCoreLiteOpenTofu(domain)))},
 		{Ref: basementCoreLiteTerramateRootOutputRef, Bytes: []byte(basementCoreTerramateRoot)},
 		{Ref: basementCoreLiteTerramateStackOutputRef, Bytes: []byte(strings.ReplaceAll(basementCoreTerramateStack, "Basement Core", "Basement Core Lite"))},
 	}, nil
@@ -135,7 +135,7 @@ func (r basementCoreRenderer) renderLiteUnit(ctx context.Context, unit RenderUni
 	if err := validateClosedLocalCoreUnitOutputs(unit, r.contract, r.unitID, []string{r.outputRef}, basementClosedLocalCoreLiteProfile()); err != nil {
 		return nil, err
 	}
-	return []UnitOutput{{Ref: r.outputRef, Bytes: renderSiteListenerBindings(unit, r.render(unit))}}, nil
+	return []UnitOutput{{Ref: r.outputRef, Bytes: renderKopiaSourceVolumeBinds(unit, renderSiteListenerBindings(unit, r.render(unit)))}}, nil
 }
 
 func newBasementCoreLiteComposeBoundRenderer() liteBoundRenderer {

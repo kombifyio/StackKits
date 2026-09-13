@@ -33,6 +33,12 @@ var (
 	applicationVolumeNameRegex = regexp.MustCompile(`^[a-z][a-z0-9_.-]*$`)
 )
 
+// ValidComposeVolumeName reports whether name is a Compose-qualified volume
+// identity the backup source may mount.
+func ValidComposeVolumeName(name string) bool {
+	return applicationVolumeNameRegex.MatchString(name)
+}
+
 // StandaloneComposeProjectName is the shared project-name derivation used by
 // the runtime renderer, backup projection, and restore authority.
 func StandaloneComposeProjectName(workloadRef, nodeRef string) string {

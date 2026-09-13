@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.30.5](https://github.com/kombifyio/stackKits/compare/v0.30.4...v0.30.5) (2026-09-13)
+
+
+### Fixed
+
+* generate kopia-agent mounts from the governed backup source ([#1063](https://github.com/kombifyio/stackKits/issues/1063)) ([552099e](https://github.com/kombifyio/stackKits/commit/552099e661103ac65ccdb18a0b2e1af644fd37ad))
+
 ## [0.30.4](https://github.com/kombifyio/stackKits/compare/v0.30.3...v0.30.4) (2026-09-13)
 
 

@@ -13634,7 +13634,15 @@
           ],
           "contractHash": "sha256:d2923b089113e10f2958c9c61a1f085114367c15e38e4bb92bc38b074e55a249",
           "id": "compose",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "backup.localKopiaSource",
+              "targetRef": "backup-source",
+              "valueType": "local-kopia-backup-source-v1"
+            }
+          ],
           "kind": "compose",
           "outputs": [
             "platform/cloud-core-standalone/compose.yaml"
@@ -13645,7 +13653,9 @@
           },
           "planInputRefs": [],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "backup-source"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "runtimeListeners": [
@@ -14422,7 +14432,15 @@
           ],
           "contractHash": "sha256:93db0348d65bb07212d059ef0d28eb62be8cbab3b819ae7ee655572f1acffc63",
           "id": "compose",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "backup.localKopiaSource",
+              "targetRef": "backup-source",
+              "valueType": "local-kopia-backup-source-v1"
+            }
+          ],
           "kind": "compose",
           "outputs": [
             "platform/basement-core/compose.yaml"
@@ -14433,7 +14451,9 @@
           },
           "planInputRefs": [],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "backup-source"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "runtimeListeners": [
@@ -15974,7 +15994,15 @@
           ],
           "contractHash": "sha256:f80eeaa47831affe18a39d93cfd86695bee872552da3e1a8b8084fb6fd2fd793",
           "id": "compose",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "backup.localKopiaSource",
+              "targetRef": "backup-source",
+              "valueType": "local-kopia-backup-source-v1"
+            }
+          ],
           "kind": "compose",
           "outputs": [
             "platform/basement-core-lite/compose.yaml"
@@ -15985,7 +16013,9 @@
           },
           "planInputRefs": [],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "backup-source"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "runtimeListeners": [

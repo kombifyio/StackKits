@@ -3018,6 +3018,15 @@ _architectureV2LocalKopiaSourceRenderUnit: {
 	placement: {scope: "node-local", cardinality: "one-per-node"}
 }
 
+// Compiler-owned backup source on Core Compose units so kopia-agent mounts
+// the same ManagedVolumeNames as the source policy. Not caller material.
+_architectureV2KopiaComposeRenderInputs: {
+	publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs
+	secretInputRefs: []
+	planInputRefs:   []
+	inputBindings:   _architectureV2LocalKopiaSourceRenderUnit.inputBindings
+}
+
 _architectureV2Modules: list.Concat([[
 	{
 		metadata: {
@@ -4220,7 +4229,10 @@ _architectureV2Modules: list.Concat([[
 			id:           "compose", kind:                                            "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core-standalone/compose/v1.yaml", version: "1.0.0"
 			contractHash: "sha256:d2923b089113e10f2958c9c61a1f085114367c15e38e4bb92bc38b074e55a249"
-			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+			secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+			planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+			inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
 			outputs: ["platform/cloud-core-standalone/compose.yaml"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: _architectureV2CloudStandaloneServiceEndpoints
@@ -4433,7 +4445,10 @@ _architectureV2Modules: list.Concat([[
 				id:           "compose", kind:                                    "compose", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
 				contractHash: "sha256:93db0348d65bb07212d059ef0d28eb62be8cbab3b819ae7ee655572f1acffc63"
-				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
 				outputs: ["platform/basement-core/compose.yaml"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
 				serviceEndpoints: _basementCoreServiceEndpoints
@@ -4712,7 +4727,10 @@ _architectureV2Modules: list.Concat([[
 				id:           "compose", kind:                                         "compose", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core-lite/compose/v1.yaml", version: "1.0.0"
 				contractHash: "sha256:f80eeaa47831affe18a39d93cfd86695bee872552da3e1a8b8084fb6fd2fd793"
-				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
 				outputs: ["platform/basement-core-lite/compose.yaml"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
 				serviceEndpoints: _basementCoreLiteServiceEndpoints

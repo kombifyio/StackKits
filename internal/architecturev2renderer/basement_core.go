@@ -501,17 +501,17 @@ func RenderBasementCoreComposeForDomain(domain string) []byte {
 }
 
 func ValidateBasementCoreComposeArtifact(content []byte) bool {
-	return validateBasementCoreComposeArtifact(content, RenderBasementCoreComposeForDomain)
+	return validateBasementCoreComposeArtifact(content, RenderBasementCoreComposeForDomain, basementCoreModuleID)
 }
 
 // ValidateBasementCoreLiteComposeArtifact validates the Lite artifact against
 // the same immutable renderer family while preserving Lite's reduced service
 // graph and output contract.
 func ValidateBasementCoreLiteComposeArtifact(content []byte) bool {
-	return validateBasementCoreComposeArtifact(content, RenderBasementCoreLiteComposeForDomain)
+	return validateBasementCoreComposeArtifact(content, RenderBasementCoreLiteComposeForDomain, basementCoreLiteModuleID)
 }
 
-func validateBasementCoreComposeArtifact(content []byte, render func(string) []byte) bool {
+func validateBasementCoreComposeArtifact(content []byte, render func(string) []byte, coreModuleRef string) bool {
 	match := regexp.MustCompile("id\\.([a-z0-9.-]+)`").FindSubmatch(content)
 	if len(match) != 2 {
 		return false
@@ -543,7 +543,12 @@ func validateBasementCoreComposeArtifact(content []byte, render func(string) []b
 		return false
 	}
 	expected = bytes.ReplaceAll(expected, []byte(`dns: ["0.0.0.0"]`), []byte(`dns: ["`+boundAddress+`"]`))
-	return bytes.Equal(content, expected)
+	core, err := localbackuppolicy.GovernedSourceForCoreModule(coreModuleRef)
+	if err != nil {
+		return false
+	}
+	expected = alignKopiaSourceVolumeBinds(content, expected, core)
+	return expected != nil && bytes.Equal(content, expected)
 }
 
 // BasementCoreServiceContract is the secret-free, pinned service identity
@@ -621,7 +626,8 @@ func (r basementCoreRenderer) RenderUnit(ctx context.Context, unit RenderUnit) (
 	if err := validateBasementCoreUnit(unit, r.contract, r.unitID, r.outputRef); err != nil {
 		return nil, err
 	}
-	return []UnitOutput{{Ref: r.outputRef, Bytes: renderSiteListenerBindings(unit, r.render(unit))}}, nil
+	compose := renderKopiaSourceVolumeBinds(unit, renderSiteListenerBindings(unit, r.render(unit)))
+	return []UnitOutput{{Ref: r.outputRef, Bytes: compose}}, nil
 }
 
 func validateBasementCoreUnit(unit RenderUnit, contract RendererContract, unitID, outputRef string) error {
@@ -665,10 +671,8 @@ func validateClosedLocalCoreUnitOutputs(unit RenderUnit, contract RendererContra
 		!containsExact(unit.LogicalNodeRefs(), nodeRef) {
 		return fail(ErrInvalidPlan, path+".instances", "%s requires one exact node-local target", profile.displayName)
 	}
-	if len(unit.PublicInputRefs()) != 0 || len(unit.SecretInputRefs()) != 0 || len(unit.PlanInputRefs()) != 0 ||
-		!emptyJSONObject(unit.ValuesJSON()) || !emptyJSONObject(unit.SecretRefsJSON()) ||
-		!emptyJSONObject(unit.PlanInputsJSON()) || !emptyJSONArray(unit.InputBindingsJSON()) {
-		return fail(ErrInvalidPlan, path+".inputs", "%s consumes no caller or secret material; Apply supplies local custody out of band", profile.displayName)
+	if err := validateClosedLocalCoreBackupSourceInputs(unit, path, profile.displayName, profile.moduleID); err != nil {
+		return err
 	}
 	if !emptyJSONArray(unit.ProvidedInterfacesJSON()) || !emptyJSONArray(unit.RequiredInterfacesJSON()) ||
 		!emptyJSONArray(unit.PrivilegedInterfaceApprovalsJSON()) || !emptyJSONArray(unit.RuntimeNetworkBindingsJSON()) {

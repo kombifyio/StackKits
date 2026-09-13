@@ -129,9 +129,8 @@ func renderCloudCoreUnit(ctx context.Context, unit RenderUnit, contract Renderer
 		!containsExact(unit.LogicalSiteRefs(), siteRef) || !containsExact(unit.LogicalNodeRefs(), nodeRef) {
 		return nil, fail(ErrInvalidPlan, path+".instances", "%s requires one exact node-local target", profile.displayName)
 	}
-	if len(unit.PublicInputRefs()) != 0 || len(unit.SecretInputRefs()) != 0 || len(unit.PlanInputRefs()) != 0 ||
-		!emptyJSONObject(unit.ValuesJSON()) || !emptyJSONObject(unit.SecretRefsJSON()) || !emptyJSONObject(unit.PlanInputsJSON()) || !emptyJSONArray(unit.InputBindingsJSON()) {
-		return nil, fail(ErrInvalidPlan, path+".inputs", "%s consumes no caller, provider, or secret material", profile.displayName)
+	if err := validateClosedLocalCoreBackupSourceInputs(unit, path, profile.displayName, profile.moduleID); err != nil {
+		return nil, err
 	}
 	if !emptyJSONArray(unit.ProvidedInterfacesJSON()) || !emptyJSONArray(unit.RequiredInterfacesJSON()) ||
 		!emptyJSONArray(unit.PrivilegedInterfaceApprovalsJSON()) || !emptyJSONArray(unit.RuntimeNetworkBindingsJSON()) ||
@@ -171,6 +170,7 @@ func renderCloudCoreUnit(ctx context.Context, unit RenderUnit, contract Renderer
 	if err := validateRuntimeListenerComposeParity(unit.RuntimeListenersJSON(), output, path+".runtimeListeners"); err != nil {
 		return nil, err
 	}
+	output = renderKopiaSourceVolumeBinds(unit, output)
 	return []UnitOutput{{Ref: profile.outputRef, Bytes: output}}, nil
 }
 
@@ -231,7 +231,26 @@ func ExpectedCloudStandaloneCoreComposeArtifact() []byte {
 // ValidateCloudStandaloneCoreComposeArtifact validates both the standalone
 // graph and its resolved domain/prefix substitution.
 func ValidateCloudStandaloneCoreComposeArtifact(content []byte) bool {
-	return validateCloudComposeArtifact(content, RenderCloudStandaloneCoreComposeForAddress)
+	match := regexp.MustCompile("routers[.]pocketid[.]rule=Host\\(`([a-z0-9.-]+)`\\)").FindSubmatch(content)
+	if len(match) != 2 {
+		return false
+	}
+	host := string(match[1])
+	domain, prefix := strings.TrimPrefix(host, "id."), ""
+	if domain == host {
+		separator := strings.Index(host, "-id.")
+		if separator < 1 {
+			return false
+		}
+		prefix, domain = host[:separator], host[separator+4:]
+	}
+	expected := RenderCloudStandaloneCoreComposeForAddress(domain, prefix)
+	core, err := localbackuppolicy.GovernedSourceForCoreModule(cloudStandaloneCoreModuleID)
+	if err != nil {
+		return false
+	}
+	expected = alignKopiaSourceVolumeBinds(content, expected, core)
+	return expected != nil && bytes.Equal(content, expected)
 }
 
 func newCloudStandaloneCoreComposeRenderer() cloudCoreRenderer {
