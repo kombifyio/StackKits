@@ -599,7 +599,13 @@ func validateCleanDockerStop(container QuiesceContainer, stopSignal string) erro
 		return fmt.Errorf("container reported an exit error")
 	}
 	signal, ok := dockerStopSignal(stopSignal)
-	if !ok || (container.ExitCode != 0 && container.ExitCode != 128+signal) {
+	if !ok {
+		return fmt.Errorf("container exit code %d is not a clean stop", container.ExitCode)
+	}
+	// docker stop sends SIGTERM then SIGKILL after grace. SIGKILL (137) with
+	// OOMKilled=false is that completed stop, not a memory kill. Snapshot
+	// consistency is crash-consistent either way.
+	if container.ExitCode != 0 && container.ExitCode != 128+signal && container.ExitCode != 128+9 {
 		return fmt.Errorf("container exit code %d is not a clean stop", container.ExitCode)
 	}
 	return nil
