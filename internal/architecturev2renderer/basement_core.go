@@ -31,8 +31,8 @@ const (
 	basementCoreVersion     = "1.0.0"
 )
 
-const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:22|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|services:router,socket-proxy,pocketid,tinyauth,step-ca,lan-dns,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
-const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:22|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
+const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:23|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|services:router,socket-proxy,pocketid,tinyauth,step-ca,lan-dns,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
+const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:23|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
 
 // basementCoreComponentsJSON is the closed component graph accepted by both
 // target-specific renderers. It mirrors the CUE catalog and intentionally
@@ -196,6 +196,7 @@ services:
       - ${STACKKIT_CUSTODY_DIR:?}/basement-runtime/step-ca:/home/step:ro
       - step-ca-db:/home/step/db
     ports: ["127.0.0.1:9000:9000"]
+    dns: ["0.0.0.0"]
     healthcheck:
       test: ["CMD", "step-ca", "version"]
       interval: 10s
@@ -520,19 +521,29 @@ func validateBasementCoreComposeArtifact(content []byte, render func(string) []b
 	var document struct {
 		Services map[string]struct {
 			Ports []string `yaml:"ports"`
+			DNS   []string `yaml:"dns"`
 		} `yaml:"services"`
 	}
 	if yaml.Unmarshal(content, &document) != nil {
 		return false
 	}
+	boundAddress := ""
 	for _, binding := range document.Services["lan-dns"].Ports {
 		value := strings.TrimSuffix(strings.TrimSuffix(binding, "/udp"), ":53:53")
 		address, err := netip.ParseAddr(strings.Trim(value, "[]"))
 		if err != nil || (!address.IsUnspecified() && (!address.Unmap().IsGlobalUnicast() || address.Unmap().IsLoopback())) {
 			return false
 		}
+		if boundAddress != "" && boundAddress != address.String() {
+			return false
+		}
+		boundAddress = address.String()
 		expected = bytes.ReplaceAll(expected, []byte("0.0.0.0:53:53"), []byte(value+":53:53"))
 	}
+	if len(document.Services["step-ca"].DNS) != 1 || document.Services["step-ca"].DNS[0] != boundAddress {
+		return false
+	}
+	expected = bytes.ReplaceAll(expected, []byte(`dns: ["0.0.0.0"]`), []byte(`dns: ["`+boundAddress+`"]`))
 	return bytes.Equal(content, expected)
 }
 

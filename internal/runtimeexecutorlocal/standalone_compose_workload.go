@@ -613,11 +613,11 @@ func standaloneComposeRouteLabels(route architecturev2renderer.ApplicationDelive
 	}
 	if route.TLSRequired {
 		labels["traefik.http.routers."+router+".tls"] = "true"
-		if route.TLSProfileRef != "" {
-			labels["traefik.http.routers."+router+".tls.options"] = route.TLSProfileRef + "@file"
-		}
 		if route.TLSIssuerRef != "" {
-			labels["traefik.http.routers."+router+".tls.certresolver"] = route.TLSIssuerRef
+			// The plan carries provider-neutral issuer/profile identities. All
+			// supported Compose core owners expose that authority to Traefik
+			// through their installed resolver named "stackkits".
+			labels["traefik.http.routers."+router+".tls.certresolver"] = "stackkits"
 		}
 	}
 	if route.IngressAuth == "forward-auth" {

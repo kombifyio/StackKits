@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.28.2](https://github.com/kombifyio/stackKits/compare/v0.28.1...v0.28.2) (2026-09-12)
+
+
+### Fixed
+
+* bind internal PKI routes to Traefik ([#1036](https://github.com/kombifyio/stackKits/issues/1036)) ([d2e8afa](https://github.com/kombifyio/stackKits/commit/d2e8afa75db4669ed32b7351330182907906cf42))
+
 ## [0.28.1](https://github.com/kombifyio/stackKits/compare/v0.28.0...v0.28.1) (2026-09-12)
 
 

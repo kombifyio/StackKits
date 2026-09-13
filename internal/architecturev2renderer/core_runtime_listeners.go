@@ -108,6 +108,7 @@ func renderSiteListenerBindings(unit RenderUnit, output []byte) []byte {
 		return nil
 	}
 	rendered := string(output)
+	siteAddress := ""
 	for _, listener := range listeners {
 		if listener.BindAddressSource != "node-site" {
 			continue
@@ -115,6 +116,15 @@ func renderSiteListenerBindings(unit RenderUnit, output []byte) []byte {
 		declared := listener
 		declared.BindAddress = "0.0.0.0"
 		rendered = strings.ReplaceAll(rendered, composeRuntimeListenerBinding(declared), composeRuntimeListenerBinding(listener))
+		if listener.ComponentRef == "lan-dns" {
+			siteAddress = listener.BindAddress
+		}
+	}
+	if strings.Contains(rendered, `dns: ["0.0.0.0"]`) {
+		if siteAddress == "" {
+			return nil
+		}
+		rendered = strings.ReplaceAll(rendered, `dns: ["0.0.0.0"]`, `dns: ["`+siteAddress+`"]`)
 	}
 	return []byte(rendered)
 }
