@@ -860,6 +860,9 @@ func (r *Runtime) RestoreSnapshot(
 	snapshot, found, engineErr := r.newEngine().FindSnapshot(ctx, engineSnapshotRequest, secret)
 	backupcustody.Clear(secret)
 	if engineErr != nil {
+		if diagnostic, safe := backupexec.SafeDiagnostic(engineErr); safe {
+			return backuplifecycle.RepositoryRestoreReceipt{}, fmt.Errorf("localbackupruntime: exact restore snapshot lookup failed: %s", diagnostic)
+		}
 		return backuplifecycle.RepositoryRestoreReceipt{}, errors.New("localbackupruntime: exact restore snapshot lookup failed")
 	}
 	if !found {
@@ -885,6 +888,9 @@ func (r *Runtime) RestoreSnapshot(
 	result, engineErr := r.newEngine().RestoreSnapshot(ctx, engineRestore, secret)
 	backupcustody.Clear(secret)
 	if engineErr != nil {
+		if diagnostic, safe := backupexec.SafeDiagnostic(engineErr); safe {
+			return backuplifecycle.RepositoryRestoreReceipt{}, fmt.Errorf("localbackupruntime: verified snapshot staging failed: %s", diagnostic)
+		}
 		return backuplifecycle.RepositoryRestoreReceipt{}, errors.New("localbackupruntime: verified snapshot staging failed")
 	}
 	if result.SnapshotID != engineRestore.SnapshotID ||

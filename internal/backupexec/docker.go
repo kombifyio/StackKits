@@ -54,6 +54,11 @@ func NewDockerEngine(container string) Engine {
 	return Engine{Exec: DockerExecutor(container)}
 }
 
+// kopiaAgentMemoryLimitBytes mirrors the kopia-agent `resources.memoryLimit`
+// in the Architecture v2 catalog (1g). Full-content snapshot verification of a
+// few-hundred-MB database volume was OOM-killed at the previous 256m.
+const kopiaAgentMemoryLimitBytes = 1024 * 1024 * 1024
+
 // DockerV2Executor binds the native-v2 secret executor to docker exec -i.
 // Kopia 0.18.2 reads KOPIA_PASSWORD before attempting its terminal-only
 // password prompt. A fixed shell adapter reads exactly one secret line from
@@ -365,7 +370,7 @@ func validateDockerV2HostConfig(config docker.ContainerHostConfig, source localb
 	}
 	if config.ShmSize != 64*1024*1024 ||
 		config.CPUShares != 0 ||
-		config.Memory != 256*1024*1024 ||
+		config.Memory != kopiaAgentMemoryLimitBytes ||
 		config.NanoCPUs != 0 ||
 		config.CgroupParent != "" ||
 		config.BlkioWeight != 0 ||

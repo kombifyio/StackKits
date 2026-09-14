@@ -14016,7 +14016,7 @@
               "cloud-backup"
             ],
             "resources": {
-              "memoryLimit": "256m"
+              "memoryLimit": "1g"
             },
             "role": "application",
             "volumes": [
@@ -15517,7 +15517,7 @@
               "basement-backup"
             ],
             "resources": {
-              "memoryLimit": "256m"
+              "memoryLimit": "1g"
             },
             "role": "application",
             "volumes": [
@@ -16841,7 +16841,7 @@
               "basement-backup"
             ],
             "resources": {
-              "memoryLimit": "256m"
+              "memoryLimit": "1g"
             },
             "role": "application",
             "volumes": [

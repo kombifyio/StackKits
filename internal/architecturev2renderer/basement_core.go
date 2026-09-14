@@ -48,7 +48,7 @@ const basementCoreComponentsJSON = `[
 {"id":"coolify-postgres","role":"database","lifecycle":"daemon","image":{"ref":"docker.io/library/postgres:15-alpine","digest":"sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f"},"dependsOn":[],"networkRefs":["basement-control"],"volumes":[{"id":"coolify-postgres-data","target":"/var/lib/postgresql/data","class":"persistent","backup":true}],"health":{"kind":"command","command":["pg_isready","-U","coolify"]},"resources":{"memoryLimit":"512m"}},
 {"id":"coolify-redis","role":"cache","lifecycle":"daemon","image":{"ref":"docker.io/library/redis:7-alpine","digest":"sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99"},"dependsOn":[],"networkRefs":["basement-control"],"volumes":[{"id":"coolify-redis-data","target":"/data","class":"persistent","backup":true}],"health":{"kind":"command","command":["redis-cli","ping"]},"resources":{"memoryLimit":"256m"}},
 {"id":"coolify-realtime","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/coollabsio/coolify-realtime:1.0.16","digest":"sha256:b5bb9d1c95d9b4ca59773b82d1e1a2bf4ccac5fbed33be19b9b3906574db3629"},"dependsOn":["coolify-redis"],"networkRefs":["basement-control"],"health":{"kind":"http","path":"/ready","port":6001}},
-{"id":"kopia-agent","role":"application","lifecycle":"daemon","image":{"ref":"docker.io/kopia/kopia:0.18.2","digest":"sha256:b6cb1f09a5fa832a320ee06d7803e82cdd7f69ac6f61d76a0d55fbbf1495c043"},"dependsOn":[],"networkRefs":["basement-backup"],"volumes":[{"id":"kopia-repository","target":"/app/repository","class":"persistent","backup":false},{"id":"kopia-config","target":"/app/config","class":"persistent","backup":false},{"id":"kopia-cache","target":"/app/cache","class":"cache","backup":false},{"id":"kopia-restore-staging","target":"/restore-staging","class":"persistent","backup":false}],"health":{"kind":"command","command":["kopia","--version"]},"resources":{"memoryLimit":"256m"}},
+{"id":"kopia-agent","role":"application","lifecycle":"daemon","image":{"ref":"docker.io/kopia/kopia:0.18.2","digest":"sha256:b6cb1f09a5fa832a320ee06d7803e82cdd7f69ac6f61d76a0d55fbbf1495c043"},"dependsOn":[],"networkRefs":["basement-backup"],"volumes":[{"id":"kopia-repository","target":"/app/repository","class":"persistent","backup":false},{"id":"kopia-config","target":"/app/config","class":"persistent","backup":false},{"id":"kopia-cache","target":"/app/cache","class":"cache","backup":false},{"id":"kopia-restore-staging","target":"/restore-staging","class":"persistent","backup":false}],"health":{"kind":"command","command":["kopia","--version"]},"resources":{"memoryLimit":"1g"}},
 {"id":"hub","role":"application","lifecycle":"daemon","image":{"ref":"docker.io/library/nginx:alpine","digest":"sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"},"dependsOn":["tinyauth"],"networkRefs":["basement-core"],"health":{"kind":"http","path":"/healthz","port":80},"resources":{"memoryLimit":"256m"}}
 ]`
 
@@ -341,7 +341,7 @@ services:
         max-size: "10m"
         max-file: "3"
     oom_score_adj: 300
-    mem_limit: 256m
+    mem_limit: 1g
     entrypoint: ["/bin/sh", "-c"]
     command: ["trap : TERM INT; sleep infinity & wait"]
     volumes:

@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.31.3](https://github.com/kombifyio/stackKits/compare/v0.31.2...v0.31.3) (2026-09-14)
+
+
+### Fixed
+
+* **backup:** raise kopia-agent memory limit to 1g and bound verify parallelism ([#1106](https://github.com/kombifyio/stackKits/issues/1106)) ([5fb363b](https://github.com/kombifyio/stackKits/commit/5fb363bb258d935777909b41a7f6799410dc4ebd))
+
 ## [0.31.2](https://github.com/kombifyio/stackKits/compare/v0.31.1...v0.31.2) (2026-09-14)
 
 

@@ -3000,7 +3000,10 @@ _architectureV2LocalKopiaComponent: {
 		{id: "kopia-restore-staging", target: "/restore-staging", class: "persistent", backup: false},
 	]
 	health: {kind: "command", command: ["kopia", "--version"]}
-	resources: {memoryLimit: "256m"}
+	// Kopia verifies every restored file (100 %) before staging; at 256m the
+	// kernel OOM-killed `snapshot verify` on a 300 MB Immich Postgres volume
+	// (Depot run ktwlw82dlp, v0.31.1). 1g is a cap, not a reservation.
+	resources: {memoryLimit: "1g"}
 }
 
 _architectureV2LocalKopiaSourceRenderUnit: {

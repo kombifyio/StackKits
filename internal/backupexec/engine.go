@@ -794,6 +794,10 @@ func (e V2Engine) verifySnapshotContent(ctx context.Context, snapshotID string, 
 		"snapshot", "verify", snapshotID,
 		"--verify-files-percent=100",
 		"--max-errors=1",
+		// Bounded parallelism keeps the full-content verification inside the
+		// kopia-agent memory limit on small hosts; correctness is unchanged.
+		"--parallel=4",
+		"--file-parallelism=2",
 	}, input); err != nil {
 		return err
 	}
