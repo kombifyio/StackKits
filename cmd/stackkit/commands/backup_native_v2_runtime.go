@@ -94,7 +94,7 @@ func continueNativeV2BackupProduction(
 				verifyContext context.Context,
 				verifyRequest backuplifecycle.RestoreVerificationRequest,
 			) (backuplifecycle.RestoreVerification, error) {
-				return verifyNativeV2BackupRestore(verifyContext, authority, verifyRequest)
+				return verifyNativeV2BackupRestore(verifyContext, authority, verifyRequest, false)
 			},
 		})
 	case nativeV2BackupAbandon:

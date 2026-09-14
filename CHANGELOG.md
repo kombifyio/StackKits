@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.31.1](https://github.com/kombifyio/stackKits/compare/v0.31.0...v0.31.1) (2026-09-14)
+
+
+### Fixed
+
+* **backup:** defer application observation to restore activation ([#1095](https://github.com/kombifyio/stackKits/issues/1095)) ([9dc8e03](https://github.com/kombifyio/stackKits/commit/9dc8e03237951915339cf4b29592147a25f74fb3))
+
 ## [0.31.0](https://github.com/kombifyio/stackKits/compare/c623eb2ae85003ffb23d96740154881124eb0d22...b186f27e9a9ad6165a63d6a40dfe5e0d9ed8bc35) (2026-09-14)
 
 

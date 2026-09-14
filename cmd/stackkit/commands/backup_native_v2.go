@@ -315,6 +315,7 @@ func verifyNativeV2BackupRestore(
 	ctx context.Context,
 	expected nativeV2BackupAuthority,
 	request backuplifecycle.RestoreVerificationRequest,
+	requireApplicationObservation bool,
 ) (backuplifecycle.RestoreVerification, error) {
 	if expected.LegacyBeta4 != nil {
 		return verifyExactBeta4BackupRestore(ctx, expected, request)
@@ -378,8 +379,10 @@ func verifyNativeV2BackupRestore(
 		owner.PocketIDSubject != current.Lineage.PocketIDSubject {
 		return backuplifecycle.RestoreVerification{}, errors.New("native v2 restore post-verifier did not prove the current local service and Owner closure")
 	}
-	if err := verifyNativeV2BackupApplications(ctx, current); err != nil {
-		return backuplifecycle.RestoreVerification{}, err
+	if requireApplicationObservation {
+		if err := verifyNativeV2BackupApplications(ctx, current); err != nil {
+			return backuplifecycle.RestoreVerification{}, err
+		}
 	}
 	return backuplifecycle.RestoreVerification{
 		APIVersion:         "stackkit.local-backup-restore-verification/v1",

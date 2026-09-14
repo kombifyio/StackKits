@@ -378,6 +378,7 @@ func nativeV2RestoreActivationVerifier(
 				OperationID:          restoreResult.OperationID,
 				StagingPath:          restoreResult.Request.StagingPath,
 			},
+			true,
 		)
 	}
 }
