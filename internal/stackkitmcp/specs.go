@@ -108,7 +108,7 @@ func promptText(name string) string {
 	case "stackkit_ssh_rollout":
 		return embeddedPrompt("docs/agent/ssh-rollout.md")
 	default:
-		return "Use https://stackkit.cc/llms.txt and the single stackkit MCP connection to complete this StackKits task. Prefer BaseKit for release-ready autonomous rollout."
+		return "Use https://stackkit.cc/llms.txt and the single stackkit MCP connection to complete this StackKits task. Prefer Basement Kit for the supported autonomous rollout."
 	}
 }
 

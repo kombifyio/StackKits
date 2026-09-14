@@ -26,7 +26,7 @@ Cloud Kit — cloud VM / BYO-VPS:
 curl -sSL https://cloud.stackkit.cc | sh
 ```
 
-Modern Homelab — combined Home + Cloud topology (Preview):
+Modern Homelab — combined Home + Cloud topology (alpha definition archive, not an install target yet):
 
 ```sh
 curl -sSL https://install.stackkit.cc | sh
@@ -37,8 +37,41 @@ The Modern archive and catalog entry prove self-contained native-v2 authoring
 and validation. They do not claim that every federation runtime owner is
 graduated.
 
-For the CLI plus the complete public three-kit catalog, use the same
-`install.stackkit.cc` installer and select the desired kit with `stackkit init`.
+For the CLI plus the public kit catalog (two install paths plus the Modern
+alpha definition), use the same `install.stackkit.cc` installer and select the
+desired kit with `stackkit init`.
+
+| Kit | Target | Status |
+| --- | --- | --- |
+| Basement Kit | an existing Linux host at home | supported one-command path |
+| Cloud Kit | an existing VPS with your own domain | preview |
+| Modern Homelab | Home + Cloud, joined by an explicit federation bridge | alpha definition archive |
+
+A published release is source and distribution evidence, not runtime
+acceptance. Each release ships `release-evidence.json`; kit and use-case
+runtime evidence is summarized on <https://stackkit.cc> and a status only
+widens when a cited run exists.
+
+## Website, docs and community
+
+- Product site and installers: <https://stackkit.cc>
+- Documentation: <https://docs.kombify.io/stackkits>
+- Questions and ideas: GitHub Discussions on this repository; bugs via the
+  issue templates; vulnerabilities via GitHub Security Advisories (see
+  `SECURITY.md`)
+- How the project is built, including the AI-assisted development
+  provenance: [docs/BUILT-WITH.md](docs/BUILT-WITH.md)
+
+## Works with agents
+
+StackKits is agent-native without depending on any AI service. Every release
+ships `llms.txt`, OpenAPI, JSON schemas, prompt Markdown, and the `stackkit-mcp`
+connector:
+
+```sh
+stackkit agent mcp-config --client codex   # or claude / generic
+stackkit agent prompt --list
+```
 
 ## Documentation
 

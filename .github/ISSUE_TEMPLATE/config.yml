@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/kombifyio/stackKits/discussions
+    about: Ask how to use StackKits, share your setup, or propose a direction before filing an issue.
+  - name: Documentation
+    url: https://docs.kombify.io/stackkits
+    about: Quickstart, kit guides, use cases, CLI reference and day-2 operations.
+  - name: Security vulnerability
+    url: https://github.com/kombifyio/stackKits/security/advisories/new
+    about: Report a vulnerability privately through GitHub Security Advisories. Never open a public issue for it.

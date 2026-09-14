@@ -1,0 +1,60 @@
+name: Bug report
+description: Something in the stackkit CLI, an installer, a kit or a generated rollout does not behave as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please redact secrets, tokens, private hostnames and access URLs before pasting output.
+  - type: input
+    id: version
+    attributes:
+      label: StackKits version
+      description: Output of `stackkit version`.
+      placeholder: "0.31.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: kit
+    attributes:
+      label: Kit
+      options:
+        - Basement Kit
+        - Cloud Kit
+        - Modern Homelab (alpha definition)
+        - CLI only / not kit specific
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Host
+      description: OS and version, architecture, and whether it is a VM, bare metal or a VPS.
+      placeholder: "Ubuntu 24.04 amd64, VPS"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands you ran, in order.
+      placeholder: |
+        curl -sSL https://base.stackkit.cc | sh
+        stackkit generate
+        stackkit apply
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and output
+      description: Paste the relevant output. `stackkit logs latest --json` and `stackkit support export` produce redacted diagnostics.
+      render: shell
+    validations:
+      required: true

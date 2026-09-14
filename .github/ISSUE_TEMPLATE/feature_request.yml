@@ -1,0 +1,29 @@
+name: Feature or use-case request
+description: Propose a new use case, module, kit capability or CLI behavior.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to achieve?
+      description: Describe the outcome for your homelab, not the implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Which upstream application or behavior would you integrate, and where does it fit (kit, use case, module)?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: The request integrates existing open-source software rather than asking StackKits to reimplement an application feature.
+        - label: I checked the documented use cases at https://docs.kombify.io/stackkits and the open issues.

@@ -4,6 +4,14 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.31.2](https://github.com/kombifyio/stackKits/compare/v0.31.1...v0.31.2) (2026-09-14)
+
+
+### Fixed
+
+* **deps:** raise sigstore-go, grpc and rekor floors for the public binary ([#1098](https://github.com/kombifyio/stackKits/issues/1098)) ([4b9eb76](https://github.com/kombifyio/stackKits/commit/4b9eb7604fdc32d4db9018d90afd907058e6a241))
+* **website:** derive Modern alpha status, correct dual-license text, retire BaseKit wording ([#1099](https://github.com/kombifyio/stackKits/issues/1099)) ([56c2a81](https://github.com/kombifyio/stackKits/commit/56c2a8179b4aed1aaa2b1a7846354f58b4f7a021))
+
 ## [0.31.1](https://github.com/kombifyio/stackKits/compare/v0.31.0...v0.31.1) (2026-09-14)
 
 
