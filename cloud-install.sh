@@ -330,7 +330,7 @@ run_stackkit() {
 report_stackkit_failure() {
   err "stackkit $* failed."
   echo "  Retry in $HOMELAB_DIR: stackkit apply"
-  echo "  Inspect: stackkit status --json"
+  echo "  Inspect: stackkit verify --json"
   echo "  Logs:    stackkit logs latest --json"
   exit 1
 }
@@ -497,6 +497,10 @@ fi
 # without a summary or a next step. Capture the status and end with something
 # actionable instead.
 set +e
+warn "This apply hardens SSH on this host: root login is disabled and password"
+echo "  authentication is turned off. Keep this session open. Afterwards log in as"
+echo "  the execution-channel user with your SSH key:  ssh kombify@<this host>"
+echo ""
 run_stackkit apply --auto-approve
 APPLY_STATUS=$?
 set -e
@@ -519,7 +523,7 @@ if [ "$APPLY_STATUS" -ne 0 ]; then
   err "The rollout did not complete."
   echo ""
   echo "  What ran, and what failed:"
-  echo "    cd $HOMELAB_DIR && stackkit status"
+  echo "    cd $HOMELAB_DIR && stackkit verify --json"
   echo "    cd $HOMELAB_DIR && stackkit logs latest --json"
   echo ""
   echo "  Applying again is safe: it converges the same plan and keeps what"
@@ -570,7 +574,7 @@ if [ -z "$DOMAIN_EFFECTIVE" ] && [ "$RESUME_EXISTING" != "1" ]; then
 fi
 if [ -z "$DOMAIN_EFFECTIVE" ]; then
   warn "Apply completed, but the saved access domain could not be read."
-  echo "  Inspect the deployment: cd $HOMELAB_DIR && stackkit status"
+  echo "  Inspect the deployment: cd $HOMELAB_DIR && stackkit verify --json"
   echo "  Service URLs and setup evidence: $ACCESS_JSON"
   exit 0
 fi
@@ -622,9 +626,13 @@ fi
 echo "    3. Sign in at ${AUTH_URL}"
 echo ""
 echo "  Commands:"
-echo "    stackkit status        Check service health"
+echo "    stackkit verify --json Check the applied routes and services"
 echo "    stackkit verify --http Run HTTP route checks"
+echo "    stackkit logs latest   Show the latest rollout run"
 echo "    stackkit remove        Tear down everything"
+echo ""
+echo "  SSH access from now on: root login is disabled by the host hardening."
+echo "    ssh kombify@${DOMAIN}   (passwordless sudo, your SSH key)"
 echo ""
 if [ -f "$ACCESS_JSON" ]; then
   echo "  Machine-readable access summary:"

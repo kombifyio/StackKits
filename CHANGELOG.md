@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.31.5](https://github.com/kombifyio/stackKits/compare/v0.31.4...v0.31.5) (2026-09-14)
+
+
+### Fixed
+
+* **apply:** wait for certificate issuance before verifying public TLS and PKI leaves ([#1111](https://github.com/kombifyio/stackKits/issues/1111)) ([87f4826](https://github.com/kombifyio/stackKits/commit/87f48267edc142871f3f2e3124d10d103ba0743e))
+
 ## [0.31.4](https://github.com/kombifyio/stackKits/compare/v0.31.3...v0.31.4) (2026-09-14)
 
 

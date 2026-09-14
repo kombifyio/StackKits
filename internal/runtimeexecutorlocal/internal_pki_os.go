@@ -22,14 +22,18 @@ import (
 
 // osInternalPKIOperations observes the existing Basement step-ca/Traefik owner.
 // It never creates a CA or leaf private key, and never claims remote trust.
-type osInternalPKIOperations struct{ workspaceRoot string }
+type osInternalPKIOperations struct {
+	workspaceRoot string
+	issuanceWait  time.Duration
+	retryInterval time.Duration
+}
 
 func NewOSInternalPKIOperations(workspaceRoot string) (*osInternalPKIOperations, error) {
 	root, err := ownerWorkspaceRoot(workspaceRoot, "local Basement internal PKI")
 	if err != nil {
 		return nil, err
 	}
-	return &osInternalPKIOperations{workspaceRoot: root}, nil
+	return &osInternalPKIOperations{workspaceRoot: root, issuanceWait: certificateIssuanceWait, retryInterval: certificateIssuanceInterval}, nil
 }
 
 func (o *osInternalPKIOperations) root(ctx context.Context, policy InternalPKIPolicy) (*x509.Certificate, error) {
@@ -119,7 +123,15 @@ func (o *osInternalPKIOperations) observeLeaves(ctx context.Context, policy Inte
 		// Traefik's existing step-ca ACME resolver owns issuance and renewal. The
 		// loopback dial prevents DNS from redirecting this local authority probe;
 		// regular TLS verification still binds the exact SNI and custodied root.
-		cert, err := probeInternalPKICertificate(ctx, roots, identity, "127.0.0.1:443")
+		var cert *x509.Certificate
+		err := waitForCertificateIssuance(ctx, o.issuanceWait, o.retryInterval, func() error {
+			probed, probeErr := probeInternalPKICertificate(ctx, roots, identity, "127.0.0.1:443")
+			if probeErr != nil {
+				return probeErr
+			}
+			cert = probed
+			return nil
+		})
 		if err != nil {
 			return nil, err
 		}

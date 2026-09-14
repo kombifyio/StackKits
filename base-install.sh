@@ -480,7 +480,7 @@ run_stackkit() {
 report_stackkit_failure() {
   err "stackkit $* failed."
   echo "  Retry in $HOMELAB_DIR: stackkit apply"
-  echo "  Inspect: stackkit status --json"
+  echo "  Inspect: stackkit verify --json"
   echo "  Logs:    stackkit logs latest --json"
   exit 1
 }
@@ -674,7 +674,7 @@ if [ "$APPLY_STATUS" -ne 0 ]; then
   err "The rollout did not complete."
   echo ""
   echo "  What ran, and what failed:"
-  echo "    cd $HOMELAB_DIR && stackkit status"
+  echo "    cd $HOMELAB_DIR && stackkit verify --json"
   echo "    cd $HOMELAB_DIR && stackkit logs latest --json"
   echo ""
   echo "  Applying again is safe: it converges the same plan and keeps what"

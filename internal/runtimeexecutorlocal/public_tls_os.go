@@ -69,9 +69,11 @@ func NewOSPublicTLSOperations(workspaceRoot string) (*osPublicTLSOperations, err
 	return &osPublicTLSOperations{
 		workspaceRoot: root,
 		probe: &traefikPublicTLSProbe{
-			apiBaseURL: publicTLSTraefikAPIBase,
-			client:     client,
-			now:        func() time.Time { return time.Now().UTC() },
+			apiBaseURL:    publicTLSTraefikAPIBase,
+			client:        client,
+			issuanceWait:  certificateIssuanceWait,
+			retryInterval: certificateIssuanceInterval,
+			now:           func() time.Time { return time.Now().UTC() },
 		},
 		now: func() time.Time { return time.Now().UTC() },
 	}, nil
@@ -406,9 +408,11 @@ func validPublicTLSHost(host string) bool {
 }
 
 type traefikPublicTLSProbe struct {
-	apiBaseURL string
-	client     *http.Client
-	now        func() time.Time
+	apiBaseURL    string
+	client        *http.Client
+	now           func() time.Time
+	issuanceWait  time.Duration
+	retryInterval time.Duration
 }
 
 type traefikHTTPRouter struct {
@@ -426,22 +430,30 @@ func (p *traefikPublicTLSProbe) Probe(ctx context.Context, route architecturev2r
 	if err := validatePublicTLSRoute(route); err != nil {
 		return publicTLSRouteObservation{}, err
 	}
-	routers, err := p.routers(ctx)
+	var observation publicTLSRouteObservation
+	err := waitForCertificateIssuance(ctx, p.issuanceWait, p.retryInterval, func() error {
+		routers, err := p.routers(ctx)
+		if err != nil {
+			return err
+		}
+		matched := false
+		for _, router := range routers {
+			if !strings.EqualFold(router.Status, "enabled") || !publicTLSRouterMatches(router.Rule, route) || router.TLS == nil || strings.TrimSpace(router.TLS.CertResolver) == "" {
+				continue
+			}
+			matched = true
+			break
+		}
+		if !matched {
+			return errors.New("Traefik has no enabled TLS router with an ACME resolver for the declared route")
+		}
+		observation, err = p.verifyHTTPS(ctx, route)
+		return err
+	})
 	if err != nil {
 		return publicTLSRouteObservation{}, err
 	}
-	matched := false
-	for _, router := range routers {
-		if !strings.EqualFold(router.Status, "enabled") || !publicTLSRouterMatches(router.Rule, route) || router.TLS == nil || strings.TrimSpace(router.TLS.CertResolver) == "" {
-			continue
-		}
-		matched = true
-		break
-	}
-	if !matched {
-		return publicTLSRouteObservation{}, errors.New("Traefik has no enabled TLS router with an ACME resolver for the declared route")
-	}
-	return p.verifyHTTPS(ctx, route)
+	return observation, nil
 }
 
 func (p *traefikPublicTLSProbe) routers(ctx context.Context) ([]traefikHTTPRouter, error) {
