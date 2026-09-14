@@ -301,7 +301,7 @@ func ProbeHTTPRoutes(ctx context.Context, access *AccessSummary, client *http.Cl
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	client, err := prepareHTTPProbeClient(client)
+	client, err := prepareHTTPProbeClient(client, loginGateAuthorities(access))
 	if err != nil {
 		return nil, err
 	}
@@ -328,7 +328,35 @@ func ProbeHTTPRoutes(ctx context.Context, access *AccessSummary, client *http.Cl
 	return result, nil
 }
 
-func prepareHTTPProbeClient(input *http.Client) (*http.Client, error) {
+func loginGateAuthorities(access *AccessSummary) map[string]struct{} {
+	if access == nil {
+		return nil
+	}
+	result := make(map[string]struct{})
+	for _, service := range access.Services {
+		key := strings.TrimSpace(service.Key)
+		ref := strings.TrimSpace(service.ServiceRef)
+		if key != "auth" && ref != "auth" {
+			continue
+		}
+		parsed, err := url.Parse(strings.TrimSpace(service.URL))
+		if err != nil || parsed.Host == "" {
+			continue
+		}
+		result[httpAuthorityKey(parsed)] = struct{}{}
+	}
+	return result
+}
+
+func httpAuthorityKey(parsed *url.URL) string {
+	port := parsed.Port()
+	if port == "" {
+		port = defaultHTTPPort(parsed.Scheme)
+	}
+	return strings.ToLower(parsed.Hostname()) + ":" + port
+}
+
+func prepareHTTPProbeClient(input *http.Client, loginGates map[string]struct{}) (*http.Client, error) {
 	client := &http.Client{}
 	if input != nil {
 		clone := *input
@@ -361,16 +389,22 @@ func prepareHTTPProbeClient(input *http.Client) (*http.Client, error) {
 			return nil
 		}
 		previous := via[len(via)-1].URL
-		if previous == nil || req.URL == nil || !sameHTTPAuthority(previous, req.URL) {
+		if previous == nil || req.URL == nil {
 			return errors.New("HTTP probe redirect changed route authority")
 		}
 		if previous.Scheme == "https" && req.URL.Scheme != "https" {
 			return errors.New("HTTP probe redirect downgraded HTTPS")
 		}
-		if len(via) >= maxHTTPProbeRedirects {
+		if sameHTTPAuthority(previous, req.URL) {
+			if len(via) >= maxHTTPProbeRedirects {
+				return http.ErrUseLastResponse
+			}
+			return nil
+		}
+		if _, ok := loginGates[httpAuthorityKey(req.URL)]; ok {
 			return http.ErrUseLastResponse
 		}
-		return nil
+		return errors.New("HTTP probe redirect changed route authority")
 	}
 	return client, nil
 }

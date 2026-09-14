@@ -20,7 +20,9 @@ const focusedTestBatchSize = 8
 // Architecture v2 catalog evaluation in ./internal/cue is past 90s after
 // the Media workload; cmd/stackkit/commands compile plus a generate proof
 // also exceeds 90s of test-binary time on a cold Windows cache.
-const goTestTimeoutArg = "-timeout=180s"
+// ./internal/resolvedplan with nested t.Parallel() exceeds 180s on 2-core
+// CI when batched with ./internal/architecturev2renderer (PR 1075 Fast Gate).
+const goTestTimeoutArg = "-timeout=300s"
 
 const perKitTemplateParityTest = "TestPerKitTemplatesMatchCanonical"
 
@@ -494,6 +496,32 @@ func buildPlan(input plannerInput) testPlan {
 			Scope:  "stackaction-generated-openapi",
 			Argv:   []string{"go", "run", "./internal/contractgen/stackactiongen/cmd", "-repo-root", ".", "-check"},
 			Reason: "verify canonical and website OpenAPI projections without installing unrelated website tooling",
+		})
+	}
+	if anyPathUnder(files, "scripts/release/validate-mode-matrix-citations.mjs", "scripts/release/validate-mode-matrix-citations.test.mjs") {
+		commands = append(commands, testCommand{
+			Kind:   "node",
+			Scope:  "mode-matrix-runtime-citations",
+			Argv:   []string{"node", "--test", "scripts/release/validate-mode-matrix-citations.test.mjs"},
+			Reason: "fixture-only mode-matrix citation check; live receipts stay a producer/release gate",
+		})
+	}
+	if anyPathUnder(files,
+		"scripts/derive-status-surfaces.mjs",
+		"scripts/derive-status-surfaces.test.mjs",
+		"README.md",
+		"STATUS.md",
+		"docs/RELEASE.md",
+		".goreleaser.yaml",
+		"website/src/content/kit-maturity.generated.ts",
+		"basement-kit/stackkit.yaml",
+		"cloud-kit/stackkit.yaml",
+	) {
+		commands = append(commands, testCommand{
+			Kind:   "node",
+			Scope:  "status-surfaces",
+			Argv:   []string{"node", "--test", "scripts/derive-status-surfaces.test.mjs"},
+			Reason: "derive website kit status, README badge, and released binaries from manifests",
 		})
 	}
 	warnings := []string{}

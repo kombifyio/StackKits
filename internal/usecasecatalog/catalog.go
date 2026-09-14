@@ -71,14 +71,33 @@ type Setting struct {
 	Realization string          `json:"realization"`
 }
 
+type AuthoringModule struct {
+	ID              string   `json:"id"`
+	ComputeProfiles []string `json:"computeProfiles"`
+}
+
+type AuthoringAlternative struct {
+	ID      string            `json:"id"`
+	Name    string            `json:"name"`
+	Modules []AuthoringModule `json:"modules"`
+}
+
+type AuthoringWorkload struct {
+	ID                 string                 `json:"id"`
+	DefaultAlternative string                 `json:"defaultAlternative"`
+	Alternatives       []AuthoringAlternative `json:"alternatives"`
+}
+
 type UseCase struct {
-	ID           string                           `json:"id"`
-	Title        string                           `json:"title"`
-	Description  string                           `json:"description"`
-	Components   []Component                      `json:"components"`
-	ComputeTiers map[string]UseCaseComputeTierFit `json:"computeTiers,omitempty"`
-	Settings     []Setting                        `json:"settings,omitempty"`
-	Docs         string                           `json:"docs,omitempty"`
+	ID                 string                           `json:"id"`
+	Title              string                           `json:"title"`
+	Description        string                           `json:"description"`
+	Components         []Component                      `json:"components"`
+	ComputeTiers       map[string]UseCaseComputeTierFit `json:"computeTiers,omitempty"`
+	Settings           []Setting                        `json:"settings,omitempty"`
+	Docs               string                           `json:"docs,omitempty"`
+	DefaultAlternative string                           `json:"defaultAlternative,omitempty"`
+	Alternatives       []AuthoringAlternative           `json:"alternatives,omitempty"`
 }
 
 type ReleaseIdentity struct {
@@ -95,7 +114,8 @@ type UseCaseManifest struct {
 	GeneratedAt      string          `json:"generatedAt"`
 	GeneratorVersion string          `json:"generatorVersion"`
 	Catalog          struct {
-		UseCases []UseCase `json:"useCases"`
+		UseCases []UseCase           `json:"useCases"`
+		KitCores []AuthoringWorkload `json:"kitCores,omitempty"`
 	} `json:"catalog"`
 	ContentDigest string `json:"contentDigest"`
 }
@@ -192,6 +212,10 @@ type sourceCatalog struct {
 	RuntimeEvidencePresent        bool
 	RuntimeEvidenceSourceMismatch bool
 	OS                            []OSCompatibility
+	KitCores                      []AuthoringWorkload
+	moduleProfiles                map[string][]string
+	catalogWorkloads              []map[string]any
+	catalogModules                []map[string]any
 }
 
 func Generate(repoRoot string, release ReleaseIdentity, generatorVersion string) (UseCaseManifest, CompatibilityManifest, []InternalUseCase, error) {
@@ -238,12 +262,16 @@ func generate(repoRoot string, release ReleaseIdentity, generatorVersion string,
 	if err != nil {
 		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
 	}
+	if err := attachAuthoringVocabulary(&source, source.catalogWorkloads, source.catalogModules); err != nil {
+		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
+	}
 	generatedAt, err := generatedTime(repoRoot, release.SourceSHA)
 	if err != nil {
 		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
 	}
 	useCases := UseCaseManifest{SchemaVersion: UseCaseSchema, Release: release, GeneratedAt: generatedAt, GeneratorVersion: generatorVersion}
 	useCases.Catalog.UseCases = source.UseCases
+	useCases.Catalog.KitCores = source.KitCores
 	useCases.ContentDigest, err = contentDigest(useCases)
 	if err != nil {
 		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
@@ -379,6 +407,7 @@ func loadSource(root string, release ReleaseIdentity) (sourceCatalog, error) {
 	var architecture struct {
 		Workloads             []map[string]any `json:"workloads"`
 		ApplicationLifecycles []map[string]any `json:"applicationLifecycles"`
+		Modules               []map[string]any `json:"modules"`
 	}
 	if err := loadCUE(root, "foundation", "ArchitectureV2Catalog", &architecture); err != nil {
 		return sourceCatalog{}, err
@@ -416,6 +445,8 @@ func loadSource(root string, release ReleaseIdentity) (sourceCatalog, error) {
 		}
 	}
 	sort.Slice(result.UseCases, func(i, j int) bool { return result.UseCases[i].ID < result.UseCases[j].ID })
+	result.catalogWorkloads = architecture.Workloads
+	result.catalogModules = architecture.Modules
 	for _, workload := range architecture.Workloads {
 		if stringField(workload, "kind") != "application" {
 			continue
@@ -845,6 +876,99 @@ func attachPackageComputeTiers(source *sourceCatalog) error {
 		source.UseCases[index].ComputeTiers = fits
 	}
 	return nil
+}
+
+func attachAuthoringVocabulary(source *sourceCatalog, workloads, modules []map[string]any) error {
+	profiles := map[string][]string{}
+	for _, module := range modules {
+		id := metadataID(module)
+		if id == "" {
+			continue
+		}
+		keys := computeProfileIDs(module)
+		if len(keys) == 0 {
+			continue
+		}
+		profiles[id] = keys
+	}
+	source.moduleProfiles = profiles
+	for index, useCase := range source.UseCases {
+		workload := source.Workloads[useCase.ID]
+		if workload == nil {
+			continue
+		}
+		authoring, err := authoringWorkloadFromCatalog(workload, profiles)
+		if err != nil {
+			return err
+		}
+		source.UseCases[index].DefaultAlternative = authoring.DefaultAlternative
+		source.UseCases[index].Alternatives = authoring.Alternatives
+	}
+	var kitCores []AuthoringWorkload
+	for _, workload := range workloads {
+		if stringField(workload, "kind") != "service" {
+			continue
+		}
+		authoring, err := authoringWorkloadFromCatalog(workload, profiles)
+		if err != nil {
+			return err
+		}
+		kitCores = append(kitCores, authoring)
+	}
+	sort.Slice(kitCores, func(i, j int) bool { return kitCores[i].ID < kitCores[j].ID })
+	source.KitCores = kitCores
+	return nil
+}
+
+func authoringWorkloadFromCatalog(workload map[string]any, profiles map[string][]string) (AuthoringWorkload, error) {
+	id := metadataID(workload)
+	defaultAlternative := stringField(workload, "defaultAlternative")
+	rawAlternatives, _ := workload["alternatives"].([]any)
+	if defaultAlternative == "" || len(rawAlternatives) == 0 {
+		return AuthoringWorkload{}, fmt.Errorf("workload %s omits v2alpha2 alternatives", id)
+	}
+	seen := map[string]bool{}
+	authoring := AuthoringWorkload{ID: id, DefaultAlternative: defaultAlternative}
+	for _, raw := range rawAlternatives {
+		alternative, _ := raw.(map[string]any)
+		alternativeID := stringField(alternative, "id")
+		moduleRef := stringField(alternative, "moduleRef")
+		if alternativeID == "" || moduleRef == "" {
+			return AuthoringWorkload{}, fmt.Errorf("workload %s has an alternative without id and moduleRef", id)
+		}
+		if seen[alternativeID] {
+			return AuthoringWorkload{}, fmt.Errorf("workload %s declares alternative %q twice", id, alternativeID)
+		}
+		seen[alternativeID] = true
+		keys := profiles[moduleRef]
+		if len(keys) == 0 {
+			return AuthoringWorkload{}, fmt.Errorf("workload %s alternative %s references module %s without compute profiles", id, alternativeID, moduleRef)
+		}
+		authoring.Alternatives = append(authoring.Alternatives, AuthoringAlternative{
+			ID: alternativeID, Name: alternativeID,
+			Modules: []AuthoringModule{{ID: moduleRef, ComputeProfiles: append([]string(nil), keys...)}},
+		})
+	}
+	if !seen[defaultAlternative] {
+		return AuthoringWorkload{}, fmt.Errorf("workload %s default alternative %s is not in alternatives", id, defaultAlternative)
+	}
+	sort.Slice(authoring.Alternatives, func(i, j int) bool { return authoring.Alternatives[i].ID < authoring.Alternatives[j].ID })
+	return authoring, nil
+}
+
+func computeProfileIDs(module map[string]any) []string {
+	raw, _ := module["computeProfiles"].(map[string]any)
+	if len(raw) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(raw))
+	for key := range raw {
+		if strings.TrimSpace(key) != "" {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func decodePackageComputeTiers(pkg map[string]any, useCaseID string) (map[string]UseCaseComputeTierFit, error) {

@@ -12864,7 +12864,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:c8668463c26e91b092b5886ed77b1130d41207422f0d16f6c891399f52eb81dd",
+          "contractHash": "sha256:ba75ad9944dcff185ce65c091eccb700894a258c782de7fb9cfc05433e6c2e00",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -12974,9 +12974,9 @@
                 "https"
               ],
               "healthRef": "cloud-hub-http",
-              "ingressAuth": "native",
+              "ingressAuth": "forward-auth",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "user",
+              "requiredPrivilege": "admin",
               "serviceRef": "base",
               "targetPort": 80,
               "upstreamProtocol": "http"
@@ -12991,9 +12991,9 @@
                 "https"
               ],
               "healthRef": "cloud-pocketid-http",
-              "ingressAuth": "native",
+              "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "user",
+              "requiredPrivilege": "identity",
               "serviceRef": "id",
               "targetPort": 1411,
               "upstreamProtocol": "http"
@@ -13008,9 +13008,9 @@
                 "https"
               ],
               "healthRef": "cloud-tinyauth-http",
-              "ingressAuth": "native",
+              "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "user",
+              "requiredPrivilege": "identity",
               "serviceRef": "auth",
               "targetPort": 3000,
               "upstreamProtocol": "http"
@@ -13025,9 +13025,9 @@
                 "https"
               ],
               "healthRef": "cloud-coolify-http",
-              "ingressAuth": "native",
+              "ingressAuth": "forward-auth",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "user",
+              "requiredPrivilege": "admin",
               "serviceRef": "coolify",
               "targetPort": 8080,
               "upstreamProtocol": "http"
@@ -13042,7 +13042,7 @@
           "artifactRefs": [
             "cloud-core-compose"
           ],
-          "contractHash": "sha256:c8668463c26e91b092b5886ed77b1130d41207422f0d16f6c891399f52eb81dd",
+          "contractHash": "sha256:ba75ad9944dcff185ce65c091eccb700894a258c782de7fb9cfc05433e6c2e00",
           "id": "compose",
           "planInputRefs": [],
           "publicInputRefs": [],
@@ -13632,7 +13632,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:d2923b089113e10f2958c9c61a1f085114367c15e38e4bb92bc38b074e55a249",
+          "contractHash": "sha256:749b51ca2a8762c29dc788ff4682d72191b3c77383b189679e9ccdc42be27fcf",
           "id": "compose",
           "inputBindings": [
             {
@@ -13741,9 +13741,9 @@
                 "https"
               ],
               "healthRef": "cloud-hub-http",
-              "ingressAuth": "native",
+              "ingressAuth": "forward-auth",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "user",
+              "requiredPrivilege": "admin",
               "serviceRef": "base",
               "targetPort": 80,
               "upstreamProtocol": "http"
@@ -13758,9 +13758,9 @@
                 "https"
               ],
               "healthRef": "cloud-pocketid-http",
-              "ingressAuth": "native",
+              "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "user",
+              "requiredPrivilege": "identity",
               "serviceRef": "id",
               "targetPort": 1411,
               "upstreamProtocol": "http"
@@ -13775,9 +13775,9 @@
                 "https"
               ],
               "healthRef": "cloud-tinyauth-http",
-              "ingressAuth": "native",
+              "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "user",
+              "requiredPrivilege": "identity",
               "serviceRef": "auth",
               "targetPort": 3000,
               "upstreamProtocol": "http"
@@ -13840,7 +13840,7 @@
             "cloud-core-standalone-compose",
             "cloud-kopia-backup-source-policy"
           ],
-          "contractHash": "sha256:d2923b089113e10f2958c9c61a1f085114367c15e38e4bb92bc38b074e55a249",
+          "contractHash": "sha256:749b51ca2a8762c29dc788ff4682d72191b3c77383b189679e9ccdc42be27fcf",
           "id": "compose",
           "planInputRefs": [
             "stackId",
@@ -17181,7 +17181,7 @@
                 ]
               },
               "healthRef": "immich-http",
-              "ingressAuth": "native",
+              "ingressAuth": "forward-auth",
               "originSelector": "control-authority-site",
               "requiredPrivilege": "user",
               "serviceRef": "photos",
@@ -17702,7 +17702,7 @@
                 ]
               },
               "healthRef": "immich-http",
-              "ingressAuth": "native",
+              "ingressAuth": "forward-auth",
               "originSelector": "control-authority-site",
               "requiredPrivilege": "user",
               "serviceRef": "photos",
@@ -18112,7 +18112,7 @@
                 ]
               },
               "healthRef": "cloudreve-http",
-              "ingressAuth": "native",
+              "ingressAuth": "forward-auth",
               "originSelector": "control-authority-site",
               "requiredPrivilege": "user",
               "serviceRef": "files",
@@ -18404,7 +18404,7 @@
                 ]
               },
               "healthRef": "vaultwarden-http",
-              "ingressAuth": "native",
+              "ingressAuth": "forward-auth",
               "originSelector": "control-authority-site",
               "requiredPrivilege": "vault",
               "serviceRef": "vault",
@@ -18703,7 +18703,7 @@
                 ]
               },
               "healthRef": "private-ai-http",
-              "ingressAuth": "native",
+              "ingressAuth": "forward-auth",
               "originSelector": "control-authority-site",
               "requiredPrivilege": "user",
               "serviceRef": "ai",
@@ -19038,7 +19038,7 @@
                 ]
               },
               "healthRef": "gitea-http",
-              "ingressAuth": "native",
+              "ingressAuth": "forward-auth",
               "originSelector": "control-authority-site",
               "requiredPrivilege": "user",
               "serviceRef": "dev",
@@ -19354,7 +19354,7 @@
                 ]
               },
               "healthRef": "paperless-http",
-              "ingressAuth": "native",
+              "ingressAuth": "forward-auth",
               "originSelector": "control-authority-site",
               "requiredPrivilege": "user",
               "serviceRef": "documents",
@@ -19757,7 +19757,7 @@
                 ]
               },
               "healthRef": "jellyfin-http",
-              "ingressAuth": "native",
+              "ingressAuth": "forward-auth",
               "originSelector": "control-authority-site",
               "requiredPrivilege": "user",
               "serviceRef": "media",
@@ -20061,7 +20061,7 @@
                 ]
               },
               "healthRef": "home-assistant-http",
-              "ingressAuth": "native",
+              "ingressAuth": "forward-auth",
               "originSelector": "control-authority-site",
               "requiredPrivilege": "user",
               "serviceRef": "smart-home",

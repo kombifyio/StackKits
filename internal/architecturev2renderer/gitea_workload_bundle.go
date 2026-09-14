@@ -268,7 +268,7 @@ func validateGiteaRuntimeComponents(components []selectedPaaSRuntimeComponent, p
 func validateGiteaServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path string) error {
 	if endpoint.ServiceRef != "dev" || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != 3000 ||
 		endpoint.RequiredPrivilege != "user" || endpoint.OriginSelector != "control-authority-site" ||
-		endpoint.HealthRef != "gitea-http" || !validBundleIngressAuthNative(endpoint.IngressAuth) || endpoint.Data.BindingRef != "dev" ||
+		endpoint.HealthRef != "gitea-http" || !validBundleApplicationIngressAuth(endpoint.IngressAuth) || endpoint.Data.BindingRef != "dev" ||
 		endpoint.Data.Locality != "primary-site" || !exactStringList(endpoint.Data.RequiredClasses, []string{"personal"}) ||
 		!exactStringList(endpoint.AllowedIngressProtocols, []string{"https"}) ||
 		!sameStringSet(endpoint.AllowedExposures, []string{"local", "remote-private", "public"}) {

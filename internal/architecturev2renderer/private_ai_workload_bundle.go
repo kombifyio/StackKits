@@ -250,7 +250,7 @@ func validatePrivateAIRuntimeComponents(components []selectedPaaSRuntimeComponen
 func validatePrivateAIServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path string) error {
 	if endpoint.ServiceRef != "ai" || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != 8080 ||
 		endpoint.RequiredPrivilege != "user" || endpoint.OriginSelector != "control-authority-site" ||
-		endpoint.HealthRef != "private-ai-http" || !validBundleIngressAuthNative(endpoint.IngressAuth) || endpoint.Data.BindingRef != "ai" ||
+		endpoint.HealthRef != "private-ai-http" || !validBundleApplicationIngressAuth(endpoint.IngressAuth) || endpoint.Data.BindingRef != "ai" ||
 		endpoint.Data.Locality != "primary-site" || !exactStringList(endpoint.Data.RequiredClasses, []string{"personal"}) ||
 		!exactStringList(endpoint.AllowedIngressProtocols, []string{"http", "https"}) ||
 		!sameStringSet(endpoint.AllowedExposures, []string{"local", "remote-private", "public"}) {

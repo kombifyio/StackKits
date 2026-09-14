@@ -4,6 +4,37 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.31.0](https://github.com/kombifyio/stackKits/compare/c623eb2ae85003ffb23d96740154881124eb0d22...b186f27e9a9ad6165a63d6a40dfe5e0d9ed8bc35) (2026-09-14)
+
+
+### Added
+
+* project v2alpha2 alternatives and kit cores into the release catalog ([#1084](https://github.com/kombifyio/stackKits/issues/1084)) ([8773ace](https://github.com/kombifyio/stackKits/commit/8773acedb383de33404bf6b606553e4a0598f132))
+
+
+### Fixed
+
+* accept catalog forward-auth on selected-PaaS application bundles ([#1083](https://github.com/kombifyio/stackKits/issues/1083)) ([467e646](https://github.com/kombifyio/stackKits/commit/467e6467febc3b4f8f34b9156d7201b3bc06eced))
+* align basement-kit yaml roles and Smart Home default with CUE ([#1085](https://github.com/kombifyio/stackKits/issues/1085)) ([decd4a2](https://github.com/kombifyio/stackKits/commit/decd4a20cb7810c4d12e6fa8719a89ce7257a0f9))
+* attach selected application volumes onto kopia-agent ([#1058](https://github.com/kombifyio/stackKits/issues/1058)) ([53767de](https://github.com/kombifyio/stackKits/commit/53767de64862b95dd75b3368e563deecd57cad5d))
+* derive website kit status, README badge, and released binaries ([#1089](https://github.com/kombifyio/stackKits/issues/1089)) ([2763396](https://github.com/kombifyio/stackKits/commit/2763396353bc61f44c445521bfb96ed077d52d53))
+* fall back to public GitHub metadata when the smoke token is 401 ([#1053](https://github.com/kombifyio/stackKits/issues/1053)) ([66a8fd9](https://github.com/kombifyio/stackKits/commit/66a8fd97460fc05db488878ed919ba48053a560b))
+* generate kopia-agent mounts from the governed backup source ([#1063](https://github.com/kombifyio/stackKits/issues/1063)) ([552099e](https://github.com/kombifyio/stackKits/commit/552099e661103ac65ccdb18a0b2e1af644fd37ad))
+* interpolate Basement compose env when attaching kopia volumes ([#1060](https://github.com/kombifyio/stackKits/issues/1060)) ([8dcab46](https://github.com/kombifyio/stackKits/commit/8dcab4672396bd283d91f8879150bbbb224e3d0b))
+* issue step-ca TLS for base.home instead of Traefik default cert ([#1055](https://github.com/kombifyio/stackKits/issues/1055)) ([2fc0fb9](https://github.com/kombifyio/stackKits/commit/2fc0fb97c3bd72c8a65a8c5af626e173fb93e979))
+* raise affected go test timeout so resolvedplan Fast Gate can finish ([#1078](https://github.com/kombifyio/stackKits/issues/1078)) ([ea17e2f](https://github.com/kombifyio/stackKits/commit/ea17e2f881308b935c80688e95e1176d1b49b49f))
+* share Compose interpolation env between Apply and restore-activate ([#1069](https://github.com/kombifyio/stackKits/issues/1069)) ([5a9a355](https://github.com/kombifyio/stackKits/commit/5a9a355fba49a3e2e47dc7da0898450f213ac5ea))
+* synchronize Basement renderer hashes after hub Host TLS ([#1056](https://github.com/kombifyio/stackKits/issues/1056)) ([659cd8a](https://github.com/kombifyio/stackKits/commit/659cd8a456b484e62486b2fb45ded2be45954bfe))
+* TinyAuth-gate AI, Dev, and Documents routes ([#1076](https://github.com/kombifyio/stackKits/issues/1076)) ([0d9e5e8](https://github.com/kombifyio/stackKits/commit/0d9e5e8fbefc2facecf45153ecc8cfc44f605e1f))
+* TinyAuth-gate Cloud hub and Coolify routes ([#1077](https://github.com/kombifyio/stackKits/issues/1077)) ([f78e100](https://github.com/kombifyio/stackKits/commit/f78e1000613f89ee21e79a9c041cb653f1560ec0))
+* TinyAuth-gate media and smart-home routes ([#1074](https://github.com/kombifyio/stackKits/issues/1074)) ([7087000](https://github.com/kombifyio/stackKits/commit/7087000899a6d13e0f27f408bee29def565f309b))
+* TinyAuth-gate photos, files, and vault routes ([#1072](https://github.com/kombifyio/stackKits/issues/1072)) ([c84d145](https://github.com/kombifyio/stackKits/commit/c84d1459d66aa794be53157e707c25c6459c1362))
+* treat a completed docker stop as quiesced ([#1067](https://github.com/kombifyio/stackKits/issues/1067)) ([2de750e](https://github.com/kombifyio/stackKits/commit/2de750e2a2c9a6b7e2537140fc5fb2c004220ac0))
+* treat docker-stop SIGKILL as a completed quiesce stop ([#1065](https://github.com/kombifyio/stackKits/issues/1065)) ([a76c2a8](https://github.com/kombifyio/stackKits/commit/a76c2a8e4dbfaa3ee7f26dc5a4e07f31a17e14e7))
+* **verify:** accept TinyAuth login-gate redirects in HTTP probes ([#1091](https://github.com/kombifyio/stackKits/issues/1091)) ([b186f27](https://github.com/kombifyio/stackKits/commit/b186f27e9a9ad6165a63d6a40dfe5e0d9ed8bc35))
+
+Notes cover changes after VERSION 0.30.0 (c623eb2ae85003ffb23d96740154881124eb0d22), the earliest available contiguous 0.30.x VERSION anchor, through selected source b186f27e9a9ad6165a63d6a40dfe5e0d9ed8bc35.
+
 ## [0.30.8](https://github.com/kombifyio/stackKits/compare/v0.30.7...v0.30.8) (2026-09-13)
 
 

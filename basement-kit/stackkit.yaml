@@ -120,7 +120,7 @@ autoSelect:
 # CUE/StackKit contracts are the rollout source of truth; the Admin registry mirrors release lineage and operations state.
 application:
   photos:
-    role: default
+    role: optional            # Native kit selection lists photos optional with empty defaults; SK-S1 enables it via --use-case.
     package: photos
     defaultTool: immich
     alternatives: []
@@ -144,7 +144,7 @@ application:
     alternatives: []
     description: "Media streaming with automated library management"
   vault:
-    role: default
+    role: optional            # Native kit selection lists vault optional with empty defaults; SK-S1 enables it via --use-case.
     package: vault
     defaultTool: vaultwarden
     alternatives: []
@@ -155,7 +155,7 @@ application:
     defaultTool: home-assistant
     alternatives: []
     description: "Home automation centered on Home Assistant, native product MCP, and managed/hybrid runtime profiles"
-    defaultRuntimeProfile: kombify-managed-hybrid
+    defaultRuntimeProfile: self-hosted-container
     runtimeProfiles:
       kombify-managed:
         displayName: "Kombify Managed Home Assistant"
@@ -241,7 +241,7 @@ application:
           requiresApproval: true
           evidence: "Audited Home Assistant service call through exposed MCP tools."
   files:
-    role: default
+    role: optional            # Native kit selection lists files optional with empty defaults; SK-S1 enables it via --use-case.
     package: files
     defaultTool: cloudreve
     alternatives: [nextcloud]

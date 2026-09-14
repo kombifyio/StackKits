@@ -298,13 +298,22 @@ Definition: foundation.#ProductKitDefinition & {
 			// Cloud standalone core declares three default-closed public service routes. They
 			// are intent, not an implicit allow-all: the resolved plan binds each
 			// route to the exact Cloud core endpoint and the public-edge/TLS owners.
+			// Hub is TinyAuth-gated; identity routes stay ungated so login can complete.
 			access: {
-				"cloud-public-owner": {
+				"cloud-public-admin": {
 					exposure:               "public"
-					privilege:              "user"
+					privilege:              "admin"
 					authentication:         "human+device"
 					enrolledDeviceRequired: true
-					ownerStepUpRequired:    false
+					ownerStepUpRequired:    true
+					lanStepDown:            false
+				}
+				"cloud-public-identity": {
+					exposure:               "public"
+					privilege:              "identity"
+					authentication:         "human+device"
+					enrolledDeviceRequired: true
+					ownerStepUpRequired:    true
 					lanStepDown:            false
 				}
 			}
@@ -317,7 +326,7 @@ Definition: foundation.#ProductKitDefinition & {
 					port:            443
 					host:            "base.example.invalid"
 					path:            "/"
-					accessPolicyRef: "cloud-public-owner"
+					accessPolicyRef: "cloud-public-admin"
 				}
 				"cloud-pocketid-public": {
 					serviceRef:      "id"
@@ -327,7 +336,7 @@ Definition: foundation.#ProductKitDefinition & {
 					port:            443
 					host:            "id.example.invalid"
 					path:            "/"
-					accessPolicyRef: "cloud-public-owner"
+					accessPolicyRef: "cloud-public-identity"
 				}
 				"cloud-tinyauth-public": {
 					serviceRef:      "auth"
@@ -337,7 +346,7 @@ Definition: foundation.#ProductKitDefinition & {
 					port:            443
 					host:            "auth.example.invalid"
 					path:            "/"
-					accessPolicyRef: "cloud-public-owner"
+					accessPolicyRef: "cloud-public-identity"
 				}
 			}
 			sites: [{

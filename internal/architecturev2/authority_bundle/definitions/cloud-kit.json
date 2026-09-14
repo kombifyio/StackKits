@@ -11,13 +11,21 @@
     "contractVersion": "1.0.0",
     "initialSpec": {
       "access": {
-        "cloud-public-owner": {
+        "cloud-public-admin": {
           "authentication": "human+device",
           "enrolledDeviceRequired": true,
           "exposure": "public",
           "lanStepDown": false,
-          "ownerStepUpRequired": false,
-          "privilege": "user"
+          "ownerStepUpRequired": true,
+          "privilege": "admin"
+        },
+        "cloud-public-identity": {
+          "authentication": "human+device",
+          "enrolledDeviceRequired": true,
+          "exposure": "public",
+          "lanStepDown": false,
+          "ownerStepUpRequired": true,
+          "privilege": "identity"
         }
       },
       "apiVersion": "stackkit/v2alpha1",
@@ -155,7 +163,7 @@
       },
       "routes": {
         "cloud-hub-public": {
-          "accessPolicyRef": "cloud-public-owner",
+          "accessPolicyRef": "cloud-public-admin",
           "exposure": "public",
           "host": "base.example.invalid",
           "moduleRef": "stackkits-cloud-core-standalone-runtime",
@@ -165,7 +173,7 @@
           "serviceRef": "base"
         },
         "cloud-pocketid-public": {
-          "accessPolicyRef": "cloud-public-owner",
+          "accessPolicyRef": "cloud-public-identity",
           "exposure": "public",
           "host": "id.example.invalid",
           "moduleRef": "stackkits-cloud-core-standalone-runtime",
@@ -175,7 +183,7 @@
           "serviceRef": "id"
         },
         "cloud-tinyauth-public": {
-          "accessPolicyRef": "cloud-public-owner",
+          "accessPolicyRef": "cloud-public-identity",
           "exposure": "public",
           "host": "auth.example.invalid",
           "moduleRef": "stackkits-cloud-core-standalone-runtime",

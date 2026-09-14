@@ -2892,6 +2892,8 @@ _basementCoreServiceEndpoints: [
 _cloudCoreServiceEndpoints: [
 	{
 		serviceRef: "base", upstreamProtocol: "http", targetPort: 80
+		requiredPrivilege: "admin"
+		ingressAuth:       "forward-auth"
 		allowedIngressProtocols: ["http", "https"]
 		allowedExposures: ["remote-private", "public"]
 		originSelector: "control-authority-site"
@@ -2899,6 +2901,8 @@ _cloudCoreServiceEndpoints: [
 	},
 	{
 		serviceRef: "id", upstreamProtocol: "http", targetPort: 1411
+		requiredPrivilege: "identity"
+		ingressAuth:       "none"
 		allowedIngressProtocols: ["http", "https"]
 		allowedExposures: ["remote-private", "public"]
 		originSelector: "control-authority-site"
@@ -2906,6 +2910,8 @@ _cloudCoreServiceEndpoints: [
 	},
 	{
 		serviceRef: "auth", upstreamProtocol: "http", targetPort: 3000
+		requiredPrivilege: "identity"
+		ingressAuth:       "none"
 		allowedIngressProtocols: ["http", "https"]
 		allowedExposures: ["remote-private", "public"]
 		originSelector: "control-authority-site"
@@ -2913,6 +2919,8 @@ _cloudCoreServiceEndpoints: [
 	},
 	{
 		serviceRef: "coolify", upstreamProtocol: "http", targetPort: 8080
+		requiredPrivilege: "admin"
+		ingressAuth:       "forward-auth"
 		allowedIngressProtocols: ["http", "https"]
 		allowedExposures: ["remote-private", "public"]
 		originSelector: "control-authority-site"
@@ -4159,7 +4167,7 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "compose", kind:                                 "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core/compose/v1.yaml", version: "1.0.0"
-			contractHash: "sha256:c8668463c26e91b092b5886ed77b1130d41207422f0d16f6c891399f52eb81dd"
+			contractHash: "sha256:ba75ad9944dcff185ce65c091eccb700894a258c782de7fb9cfc05433e6c2e00"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/cloud-core/compose.yaml"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -4168,7 +4176,7 @@ _architectureV2Modules: list.Concat([[
 		}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
-			contractHash: "sha256:c8668463c26e91b092b5886ed77b1130d41207422f0d16f6c891399f52eb81dd"
+			contractHash: "sha256:ba75ad9944dcff185ce65c091eccb700894a258c782de7fb9cfc05433e6c2e00"
 			unitRefs: ["compose"], artifactRefs: ["cloud-core-compose"]
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 		}]
@@ -4228,7 +4236,7 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "compose", kind:                                            "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core-standalone/compose/v1.yaml", version: "1.0.0"
-			contractHash: "sha256:d2923b089113e10f2958c9c61a1f085114367c15e38e4bb92bc38b074e55a249"
+			contractHash: "sha256:749b51ca2a8762c29dc788ff4682d72191b3c77383b189679e9ccdc42be27fcf"
 			publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
 			secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
 			planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
@@ -4240,7 +4248,7 @@ _architectureV2Modules: list.Concat([[
 		}, _architectureV2LocalKopiaSourceRenderUnit & {_outputRef: "cloud/backup/kopia-source-policy.json"}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
-			contractHash: "sha256:d2923b089113e10f2958c9c61a1f085114367c15e38e4bb92bc38b074e55a249"
+			contractHash: "sha256:749b51ca2a8762c29dc788ff4682d72191b3c77383b189679e9ccdc42be27fcf"
 			unitRefs: ["compose", "source-policy"], artifactRefs: ["cloud-core-standalone-compose", "cloud-kopia-backup-source-policy"]
 			publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 		}]
@@ -4998,6 +5006,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "photos"
 				upstreamProtocol: "http"
 				targetPort:       2283
+				ingressAuth:       "forward-auth"
 				allowedIngressProtocols: ["http", "https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -5153,6 +5162,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "photos"
 				upstreamProtocol: "http"
 				targetPort:       2283
+				ingressAuth:       "forward-auth"
 				allowedIngressProtocols: ["http", "https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -5250,6 +5260,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "files"
 				upstreamProtocol: "http"
 				targetPort:       5212
+				ingressAuth:       "forward-auth"
 				allowedIngressProtocols: ["http", "https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -5350,6 +5361,7 @@ _architectureV2Modules: list.Concat([[
 				upstreamProtocol:  "http"
 				targetPort:        80
 				requiredPrivilege: "vault"
+				ingressAuth:        "forward-auth"
 				allowedIngressProtocols: ["http", "https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -5455,6 +5467,7 @@ _architectureV2Modules: list.Concat([[
 				upstreamProtocol:  "http"
 				targetPort:        8080
 				requiredPrivilege: "user"
+				ingressAuth:        "forward-auth"
 				allowedIngressProtocols: ["http", "https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -5600,6 +5613,7 @@ _architectureV2Modules: list.Concat([[
 				upstreamProtocol:  "http"
 				targetPort:        3000
 				requiredPrivilege: "user"
+				ingressAuth:        "forward-auth"
 				allowedIngressProtocols: ["https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -5717,7 +5731,7 @@ _architectureV2Modules: list.Concat([[
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: [{
 				serviceRef:        "documents", upstreamProtocol: "http", targetPort: 8000
-				requiredPrivilege: "user", allowedIngressProtocols: ["https"]
+				requiredPrivilege: "user", ingressAuth: "forward-auth", allowedIngressProtocols: ["https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site", healthRef: "paperless-http"
 				data: {bindingRef: _architectureV2DocumentsInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2DocumentsInfrastructure.dataBinding.classes, locality: _architectureV2DocumentsInfrastructure.dataBinding.locality}
@@ -5792,6 +5806,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "media"
 				upstreamProtocol: "http"
 				targetPort:       8096
+				ingressAuth:       "forward-auth"
 				allowedIngressProtocols: ["http", "https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -5890,6 +5905,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "smart-home"
 				upstreamProtocol: "http"
 				targetPort:       8123
+				ingressAuth:       "forward-auth"
 				allowedIngressProtocols: ["http", "https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"

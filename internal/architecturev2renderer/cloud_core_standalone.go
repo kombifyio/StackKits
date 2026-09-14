@@ -19,7 +19,7 @@ const (
 	cloudStandaloneCoreComposeTemplate  = "builtin://cloud/core-standalone/compose/v1.yaml"
 	cloudStandaloneCoreComposeOutputRef = "platform/cloud-core-standalone/compose.yaml"
 	cloudStandaloneCoreVersion          = "1.0.0"
-	cloudStandaloneCoreComposeSchema    = `stackkit.cloud-core-standalone-compose/v1|artifact-revision:3|resolved-network-domain:required|resolved-subdomain-prefix:optional|runtime-listeners:catalog-bound,direct-loopback-only|services:router,socket-proxy,pocketid,tinyauth,hub,kopia-agent|networks:cloud-core-host-reachable,cloud-control-internal,cloud-backup-outbound-no-peer|kopia:owner-local-source-policy|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-http-01|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
+	cloudStandaloneCoreComposeSchema    = `stackkit.cloud-core-standalone-compose/v1|artifact-revision:4|resolved-network-domain:required|resolved-subdomain-prefix:optional|runtime-listeners:catalog-bound,direct-loopback-only|services:router,socket-proxy,pocketid,tinyauth,hub,kopia-agent|networks:cloud-core-host-reachable,cloud-control-internal,cloud-backup-outbound-no-peer|kopia:owner-local-source-policy|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-http-01|ingress:forward-auth-bound|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
 )
 
 type cloudCoreEndpointProfile struct {
@@ -63,10 +63,10 @@ func cloudCoreRenderProfileForCloudCore() cloudCoreRenderProfile {
 		componentsJSON:   cloudCoreComponentsJSON,
 		allowedExposures: []string{"public", "remote-private"},
 		serviceEndpoints: map[string]cloudCoreEndpointProfile{
-			"base":    {port: 80, healthRef: "cloud-hub-http", privilege: "user", ingressAuth: "native"},
-			"id":      {port: 1411, healthRef: "cloud-pocketid-http", privilege: "user", ingressAuth: "native"},
-			"auth":    {port: 3000, healthRef: "cloud-tinyauth-http", privilege: "user", ingressAuth: "native"},
-			"coolify": {port: 8080, healthRef: "cloud-coolify-http", privilege: "user", ingressAuth: "native"},
+			"base":    {port: 80, healthRef: "cloud-hub-http", privilege: "admin", ingressAuth: "forward-auth"},
+			"id":      {port: 1411, healthRef: "cloud-pocketid-http", privilege: "identity", ingressAuth: "none"},
+			"auth":    {port: 3000, healthRef: "cloud-tinyauth-http", privilege: "identity", ingressAuth: "none"},
+			"coolify": {port: 8080, healthRef: "cloud-coolify-http", privilege: "admin", ingressAuth: "forward-auth"},
 		},
 		componentValidate: validateCloudCoreComponents,
 		renderCompose: func(domain, prefix string) []byte {
@@ -88,9 +88,9 @@ func cloudStandaloneCoreRenderProfile() cloudCoreRenderProfile {
 		componentsJSON:   cloudStandaloneCoreComponentsJSON,
 		allowedExposures: []string{"public", "remote-private"},
 		serviceEndpoints: map[string]cloudCoreEndpointProfile{
-			"base": {port: 80, healthRef: "cloud-hub-http", privilege: "user", ingressAuth: "native"},
-			"id":   {port: 1411, healthRef: "cloud-pocketid-http", privilege: "user", ingressAuth: "native"},
-			"auth": {port: 3000, healthRef: "cloud-tinyauth-http", privilege: "user", ingressAuth: "native"},
+			"base": {port: 80, healthRef: "cloud-hub-http", privilege: "admin", ingressAuth: "forward-auth"},
+			"id":   {port: 1411, healthRef: "cloud-pocketid-http", privilege: "identity", ingressAuth: "none"},
+			"auth": {port: 3000, healthRef: "cloud-tinyauth-http", privilege: "identity", ingressAuth: "none"},
 		},
 		componentValidate: func(data []byte, path string) error {
 			return validateClosedLocalCoreComponents(data, cloudStandaloneCoreComponentsJSON, path, "Cloud standalone core")

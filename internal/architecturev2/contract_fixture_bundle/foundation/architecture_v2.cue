@@ -1814,8 +1814,9 @@ import (
 #ServiceExposureV2: "local" | "lan" | "remote-private" | "public"
 
 // #IngressAuthModeV2 distinguishes browser forward-auth gating from app-native
-// client authentication. Native workloads (Photos, Vault, Media, Files) keep
-// their own login flows; platform and admin surfaces use TinyAuth forwardAuth.
+// client authentication. Catalog application endpoints may declare
+// "forward-auth" so Traefik attaches TinyAuth; identity and TinyAuth stay
+// "none". "native" remains the CUE default when a workload omits the field.
 #IngressAuthModeV2: "none" | "native" | "forward-auth"
 
 #ServiceEndpointOriginSelectionV2: {

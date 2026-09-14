@@ -267,7 +267,7 @@ func volumeMatches(volume selectedPaaSRuntimeVolume, id, target string, backup b
 }
 
 func validatePaperlessServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path string) error {
-	if endpoint.ServiceRef != "documents" || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != 8000 || endpoint.RequiredPrivilege != "user" || endpoint.OriginSelector != "control-authority-site" || endpoint.HealthRef != "paperless-http" || !validBundleIngressAuthNative(endpoint.IngressAuth) || endpoint.Data.BindingRef != "documents" || endpoint.Data.Locality != "primary-site" || !exactStringList(endpoint.Data.RequiredClasses, []string{"personal"}) || !exactStringList(endpoint.AllowedIngressProtocols, []string{"https"}) || !sameStringSet(endpoint.AllowedExposures, []string{"local", "remote-private", "public"}) {
+	if endpoint.ServiceRef != "documents" || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != 8000 || endpoint.RequiredPrivilege != "user" || endpoint.OriginSelector != "control-authority-site" || endpoint.HealthRef != "paperless-http" || !validBundleApplicationIngressAuth(endpoint.IngressAuth) || endpoint.Data.BindingRef != "documents" || endpoint.Data.Locality != "primary-site" || !exactStringList(endpoint.Data.RequiredClasses, []string{"personal"}) || !exactStringList(endpoint.AllowedIngressProtocols, []string{"https"}) || !sameStringSet(endpoint.AllowedExposures, []string{"local", "remote-private", "public"}) {
 		return fail(ErrInvalidPlan, path, "Paperless route authority differs")
 	}
 	return nil

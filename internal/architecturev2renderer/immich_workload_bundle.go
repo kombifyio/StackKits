@@ -343,7 +343,7 @@ func validateImmichLiteComponents(components []selectedPaaSRuntimeComponent, pat
 }
 
 func validateImmichServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path string) error {
-	if endpoint.ServiceRef != "photos" || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != 2283 || endpoint.RequiredPrivilege != "user" || endpoint.OriginSelector != "control-authority-site" || endpoint.HealthRef != "immich-http" || !validBundleIngressAuthNative(endpoint.IngressAuth) || endpoint.Data.BindingRef != "photos" || endpoint.Data.Locality != "primary-site" || !exactStringList(endpoint.Data.RequiredClasses, []string{"personal"}) || !exactStringList(endpoint.AllowedIngressProtocols, []string{"http", "https"}) || !sameStringSet(endpoint.AllowedExposures, []string{"local", "remote-private", "public"}) {
+	if endpoint.ServiceRef != "photos" || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != 2283 || endpoint.RequiredPrivilege != "user" || endpoint.OriginSelector != "control-authority-site" || endpoint.HealthRef != "immich-http" || !validBundleApplicationIngressAuth(endpoint.IngressAuth) || endpoint.Data.BindingRef != "photos" || endpoint.Data.Locality != "primary-site" || !exactStringList(endpoint.Data.RequiredClasses, []string{"personal"}) || !exactStringList(endpoint.AllowedIngressProtocols, []string{"http", "https"}) || !sameStringSet(endpoint.AllowedExposures, []string{"local", "remote-private", "public"}) {
 		return fail(ErrInvalidPlan, path, "photos route authority differs from the governed Immich endpoint")
 	}
 	return nil
@@ -389,11 +389,10 @@ func sameStringSet(left, right []string) bool {
 	return reflect.DeepEqual(left, right)
 }
 
-// validBundleIngressAuthNative admits the governed application ingress mode:
-// every catalog application endpoint (photos, files, vault, media,
-// smart-home) keeps app-native authentication for native clients, so the
-// bundle route is native or carries the CUE default. Platform and admin
-// surfaces use forward-auth through the delivery route instead.
-func validBundleIngressAuthNative(value string) bool {
-	return value == "" || value == "native"
+// validBundleApplicationIngressAuth admits application ingress modes that a
+// selected-PaaS bundle may project. Catalog I1 routes are TinyAuth
+// forward-auth; empty and native remain the CUE default for fixtures that
+// have not yet projected the catalog field.
+func validBundleApplicationIngressAuth(value string) bool {
+	return value == "" || value == "native" || value == "forward-auth"
 }
