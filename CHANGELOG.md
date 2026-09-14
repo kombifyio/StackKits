@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.31.4](https://github.com/kombifyio/stackKits/compare/v0.31.3...v0.31.4) (2026-09-14)
+
+
+### Fixed
+
+* **apply:** run internal PKI leaf verification after workload runtime owners ([#1108](https://github.com/kombifyio/stackKits/issues/1108)) ([dff3c09](https://github.com/kombifyio/stackKits/commit/dff3c09b9cbc25672f107a540c655477469fc4c7))
+
 ## [0.31.3](https://github.com/kombifyio/stackKits/compare/v0.31.2...v0.31.3) (2026-09-14)
 
 
