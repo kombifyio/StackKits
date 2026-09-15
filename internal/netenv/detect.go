@@ -23,9 +23,21 @@ type Result struct {
 	HasPublicInterface bool
 }
 
+const networkEnvOverride = "STACKKIT_NETWORK_ENV"
+
+// IsPublicServer reports whether the detected environment is a VPS or managed
+// cloud host with a public interface. Home/NAT and unknown are not.
+func IsPublicServer(env models.NetworkEnvironment) bool {
+	return env == models.NetEnvVPS || env == models.NetEnvCloud
+}
+
 // Detect determines the network environment by checking network interfaces
 // and comparing the local IP to the external IP.
 func Detect(ctx context.Context) *Result {
+	if override := detectOverride(); override != nil {
+		return override
+	}
+
 	r := &Result{Environment: models.NetEnvUnknown}
 
 	// Check if this was provisioned by kombify Cloud
@@ -60,6 +72,32 @@ func Detect(ctx context.Context) *Result {
 	}
 
 	return r
+}
+
+func detectOverride() *Result {
+	raw := strings.ToLower(strings.TrimSpace(os.Getenv(networkEnvOverride)))
+	switch raw {
+	case "":
+		return nil
+	case string(models.NetEnvHome):
+		return &Result{Environment: models.NetEnvHome, IsNAT: true, PrivateIP: "192.168.0.2"}
+	case string(models.NetEnvVPS):
+		return &Result{
+			Environment:        models.NetEnvVPS,
+			HasPublicInterface: true,
+			PublicIP:           "203.0.113.10",
+			PrivateIP:          "10.0.0.2",
+		}
+	case string(models.NetEnvCloud):
+		return &Result{
+			Environment:        models.NetEnvCloud,
+			HasPublicInterface: true,
+			PublicIP:           "203.0.113.10",
+			PrivateIP:          "10.0.0.2",
+		}
+	default:
+		return &Result{Environment: models.NetEnvUnknown}
+	}
 }
 
 // PrivateIP returns the first non-loopback RFC1918 address on the host.

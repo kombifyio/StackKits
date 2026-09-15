@@ -211,6 +211,12 @@ func admitCommandBeforeDeployObservability(cmd *cobra.Command) error {
 	if cmd == verifyCmd && verifyOffline {
 		return nil
 	}
+	if cmd == removeCmd {
+		adoptConventionalInstallerWorkspace(getWorkDir())
+		if strings.TrimSpace(removeWorkloadRef) == "" && !removeJSON && !removeTerminalEvidenceJSON {
+			return nil
+		}
+	}
 	for current := cmd; current != nil; current = current.Parent() {
 		if operation := strings.TrimSpace(current.Annotations[legacyV06BeforeObservabilityAnnotation]); operation != "" {
 			return requireLegacyV06Command(operation, "this command still depends on exact-v0.6 operational artifacts and has no governed Architecture v2 implementation")
@@ -270,11 +276,7 @@ func requireNativeV2StackSpec(wd, requestedSpecPath string, mode architectureV2E
 	if !os.IsNotExist(err) {
 		return fmt.Errorf("%s: inspect required StackSpec v2 %s: %w", mode, displayPath, err)
 	}
-	return fmt.Errorf(
-		"%s: canonical StackSpec v2 is required on the v0.7 line; %s is missing and implicit legacy defaults are disabled (run stackkit init, then retry)",
-		mode,
-		displayPath,
-	)
+	return missingNativeStackSpecError(wd, displayPath, mode)
 }
 
 // admitApplyBeforeDeployObservability classifies local intent before the root
@@ -410,6 +412,12 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 	}
 	options.inventoryData = append([]byte(nil), inventory...)
 	options.stackSpecData = append([]byte(nil), rawSpec...)
+	switch mode {
+	case architectureV2Generate:
+		printInfo("Resolving the current plan before generation.")
+	case architectureV2Apply:
+		printInfo("Resolving the current plan before Apply.")
+	}
 	authority, err := g.openV2Authority(wd, mode, options)
 	if err != nil {
 		return err
@@ -507,6 +515,9 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 				return fmt.Errorf("decode verified canonical plan for external host freshness: %w", err)
 			}
 			if err := resolvedplan.ValidateHostConformanceReceiptsForApply(canonicalPlan, now().UTC()); err != nil {
+				return err
+			}
+			if err := maybePrepareCloudExecutionChannelBeforeApply(options.context, wd, canonicalPlanKitSlug(canonicalPlan)); err != nil {
 				return err
 			}
 			// Admit the host before anything is mutated. This runs inside the
@@ -691,6 +702,7 @@ func (g architectureV2ExecutionGate) generateV2(wd string, renderContext context
 	if err := agentsurface.WriteWorkspaceFromSpec(workspaceRoot, specPath); err != nil {
 		return fmt.Errorf("write agent-surface handoff: %w", err)
 	}
+	printSuccess("Deployment artifacts are ready")
 	return nil
 }
 
@@ -928,6 +940,15 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 			return err
 		}
 	}
+	canonicalPlan, err := resolvedplan.DecodeCanonicalPlan(persisted.Canonical())
+	if err != nil {
+		return fmt.Errorf("decode verified canonical plan for kombify.me access: %w", err)
+	}
+	if err := prepareKombifyMeAccess(canonicalPlan); err != nil {
+		return err
+	}
+	stopProgress := startApplyProgressHeartbeat(0)
+	defer stopProgress()
 	result, err := executeArchitectureV2ProductApply(
 		executionContext,
 		applyAuthority,
@@ -1080,9 +1101,6 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 	transaction *confinedfs.Transaction,
 ) error {
 	workloadRef := strings.TrimSpace(options.workloadRef)
-	if workloadRef == "" {
-		return errors.New("architecture v2 remove requires --workload with one exact ResolvedPlan workload ref")
-	}
 	if transaction == nil {
 		return errors.New("architecture v2 workload removal requires the held lifecycle transaction")
 	}
@@ -1100,7 +1118,70 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("verify current Product Apply before workload removal: %w", err)
+		if workloadRef != "" {
+			return fmt.Errorf("verify current Product Apply before workload removal: %w", err)
+		}
+		return removeLabeledDockerResources(wd, options.context, err)
+	}
+	if workloadRef == "" {
+		if options.removalJSON || options.removalEvidenceJSON {
+			return errors.New("architecture v2 whole-deployment remove cannot emit --json or --terminal-evidence-json; pass --workload for one result")
+		}
+		refs := orderedRemovalWorkloadRefs(applied.Summary().AppliedWorkloads)
+		if len(refs) == 0 {
+			return removeLabeledDockerResources(wd, options.context, errors.New("applied result has no workloads"))
+		}
+		for _, ref := range refs {
+			one := options
+			one.workloadRef = ref
+			printInfo("Removing workload %s", ref)
+			if removeErr := g.removeOneAppliedV2Workload(wd, one, authority, plan, transaction, applied); removeErr != nil {
+				return fmt.Errorf("remove workload %s: %w", ref, removeErr)
+			}
+		}
+		return nil
+	}
+	return g.removeOneAppliedV2Workload(wd, options, authority, plan, transaction, applied)
+}
+
+func removeLabeledDockerResources(wd string, ctx context.Context, reason error) error {
+	printWarning("No verified Product Apply evidence in %s (%v); removing Docker resources labeled by StackKits", wd, reason)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := dockerFallbackCleanup(ctx, false); err != nil {
+		return fmt.Errorf("remove labeled Docker resources: %w", err)
+	}
+	cleanupFiles(wd, false)
+	printSuccess("Removed labeled Docker resources in %s", wd)
+	return nil
+}
+
+func orderedRemovalWorkloadRefs(workloads []architecturev2.AppliedWorkloadIdentity) []string {
+	seen := map[string]bool{}
+	refs := make([]string, 0, len(workloads))
+	for i := len(workloads) - 1; i >= 0; i-- {
+		ref := strings.TrimSpace(workloads[i].WorkloadRef)
+		if ref == "" || seen[ref] {
+			continue
+		}
+		seen[ref] = true
+		refs = append(refs, ref)
+	}
+	return refs
+}
+
+func (g architectureV2ExecutionGate) removeOneAppliedV2Workload(
+	wd string,
+	options architectureV2ExecutionCLIOptions,
+	authority architectureV2ExecutionAuthority,
+	plan generationartifact.VerifiedPlan,
+	transaction *confinedfs.Transaction,
+	applied architecturev2.VerifiedApplyResult,
+) error {
+	workloadRef := strings.TrimSpace(options.workloadRef)
+	if workloadRef == "" {
+		return errors.New("architecture v2 remove requires one exact ResolvedPlan workload ref")
 	}
 	sharedRequestDigest, err := architectureV2SharedRequestDigest(applied)
 	if err != nil {
@@ -1560,6 +1641,16 @@ func canonicalPlanKitSlug(plan resolvedplan.ResolvedPlan) string {
 	}
 	slug, _ := kit["slug"].(string)
 	return slug
+}
+
+func maybePrepareCloudExecutionChannelBeforeApply(ctx context.Context, workspace, kitSlug string) error {
+	if kitSlug != "cloud-kit" {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return runtimeexecutorlocal.PrepareCloudExecutionChannel(ctx, workspace)
 }
 
 // admitApplyHost measures the target against the floor its kit declares and

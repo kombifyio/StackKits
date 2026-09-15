@@ -1,9 +1,11 @@
 package commands
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/netenv"
 	"github.com/kombifyio/stackkits/internal/productkits"
 	"github.com/kombifyio/stackkits/internal/stackspecintent"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
@@ -48,7 +51,17 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 			return err
 		}
 	} else {
-		domain := strings.TrimSpace(initDomain)
+		requestedDomain := strings.TrimSpace(initDomain)
+		domain, usedFallback := defaultArchitectureV2InitDomain(stackkitName, requestedDomain)
+		if stackkitName == "cloud-kit" && requestedDomain == "" {
+			printInfo("No custom domain given; using kombify.me for public access")
+		} else if usedFallback {
+			printWarning("%s is not pointed at this host yet; using kombify.me", requestedDomain)
+		}
+		detected := netenv.Detect(context.Background())
+		if err := admitArchitectureV2InitPlacement(stackkitName, domain, detected); err != nil {
+			return err
+		}
 		if containsString(authoring.RequiredOverrides, architectureV2DomainOverride) && domain == "" {
 			if initNonInteractive {
 				return fmt.Errorf("%s requires --domain as the CUE-owned %s authoring override", stackkitName, architectureV2DomainOverride)
@@ -63,6 +76,15 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 			domain = strings.TrimSpace(domain)
 			if domain == "" {
 				return fmt.Errorf("%s requires a non-empty --domain authoring override", stackkitName)
+			}
+		}
+		if !initNonInteractive && !commandFlagChanged(cmd, "use-case") {
+			selected, picked, pickErr := pickKitOptionalUseCasesIfTerminal(os.Stderr)
+			if pickErr != nil {
+				return pickErr
+			}
+			if picked {
+				initUseCases = selected
 			}
 		}
 
@@ -136,6 +158,9 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 	}
 	if strings.TrimSpace(initOwnerSource) == "local" {
 		email, username, displayName := architectureV2ResumeOwnerIdentity(wd)
+		if err := architectureV2RequireRealOwnerEmail(email); err != nil {
+			return err
+		}
 		custody, err := localevidence.EstablishOwnerCustody(wd, localevidence.OwnerCustodyRequest{
 			Binding: ownerBinding,
 			Trust: localevidence.TrustProfile{
@@ -221,12 +246,16 @@ func architectureV2CanonicalOwnerBinding(canonicalStackSpec []byte, authoring *a
 }
 
 // architectureV2ResumeOwnerIdentity keeps established PocketID projection when
-// repeat/resume omits owner identity flags. Empty flags still default on first
-// create; an explicit different identity remains a closed conflict.
+// repeat/resume omits owner identity flags. Placeholder owner@home.test is not
+// a real account and is not reused. An explicit different identity remains a
+// closed conflict except when replacing that placeholder.
 func architectureV2ResumeOwnerIdentity(workspaceRoot string) (email, username, displayName string) {
 	email = strings.TrimSpace(initOwnerEmail)
 	username = strings.TrimSpace(initOwnerUsername)
 	displayName = strings.TrimSpace(initOwnerDisplayName)
+	if username == "" && email != "" {
+		username = localevidence.OwnerUsernameFromEmail(email)
+	}
 	if email != "" && username != "" && displayName != "" {
 		return email, username, displayName
 	}
@@ -234,16 +263,31 @@ func architectureV2ResumeOwnerIdentity(workspaceRoot string) (email, username, d
 	if err != nil {
 		return email, username, displayName
 	}
-	if email == "" {
+	placeholder := localevidence.IsPlaceholderOwnerEmail(existing.PocketID.Email)
+	if email == "" && !placeholder {
 		email = existing.PocketID.Email
 	}
-	if username == "" {
+	if username == "" && !placeholder {
 		username = existing.PocketID.Username
 	}
-	if displayName == "" {
+	if username == "" && email != "" {
+		username = localevidence.OwnerUsernameFromEmail(email)
+	}
+	if displayName == "" && !placeholder {
 		displayName = existing.PocketID.DisplayName
 	}
 	return email, username, displayName
+}
+
+func architectureV2RequireRealOwnerEmail(email string) error {
+	if strings.TrimSpace(initOwnerSource) != "local" {
+		return nil
+	}
+	email = strings.TrimSpace(email)
+	if email == "" || localevidence.IsPlaceholderOwnerEmail(email) {
+		return fmt.Errorf("local owner email is required before init; pass --owner-email")
+	}
+	return nil
 }
 
 func architectureV2CanonicalDomain(canonicalStackSpec []byte) (string, error) {

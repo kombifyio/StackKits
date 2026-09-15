@@ -116,6 +116,29 @@ var fileFocusedTests = map[string][]string{
 	},
 	"cmd/stackkit/commands/architecture_v2_execution.go": {
 		"TestBackupEmergencyExportWritesManifestAndRunbook",
+		"TestHumanApplyAnnouncesWorkBeforeAdmissionFailure",
+		"TestHumanGenerateAnnouncesWorkBeforeAdmissionFailure",
+		"TestApplyJSONPersistentPreRunSuppressesBannerAndEmitsFailureJSON",
+	},
+	"cmd/stackkit/commands/root.go": {
+		"TestHumanApplyAnnouncesWorkBeforeAdmissionFailure",
+		"TestHumanGenerateAnnouncesWorkBeforeAdmissionFailure",
+		"TestApplyJSONPersistentPreRunSuppressesBannerAndEmitsFailureJSON",
+		"TestApplyPersistentPreRunDoesNotPrintGreeting",
+		"TestGreetingBannerHonorsNoBannerEnv",
+	},
+	"cmd/stackkit/commands/banner.go": {
+		"TestApplyPersistentPreRunDoesNotPrintGreeting",
+		"TestGreetingBannerHonorsNoBannerEnv",
+		"TestApplyJSONPersistentPreRunSuppressesBannerAndEmitsFailureJSON",
+	},
+	"cmd/stackkit/commands/apply.go": {
+		"TestHumanApplyAnnouncesWorkBeforeAdmissionFailure",
+		"TestApplyJSONPersistentPreRunSuppressesBannerAndEmitsFailureJSON",
+		"TestApplyPersistentPreRunDoesNotPrintGreeting",
+	},
+	"cmd/stackkit/commands/generate.go": {
+		"TestHumanGenerateAnnouncesWorkBeforeAdmissionFailure",
 	},
 	"internal/backuplifecycle/emergency_contract.go": {
 		"TestExportFromGeneratedV2ContractWritesEncryptedArchiveManifestAndRunbook",

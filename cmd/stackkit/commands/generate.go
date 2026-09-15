@@ -43,6 +43,11 @@ func init() {
 }
 
 func runGenerate(cmd *cobra.Command, args []string) (retErr error) {
+	stopHeartbeat := startLifecycleHeartbeat(
+		"Generating deployment artifacts. This can take a minute with no other output.",
+		"Still generating",
+	)
+	defer stopHeartbeat()
 	wd := getWorkDir()
 	rolloutEvent("generate", "started", "generate started", nil)
 	defer func() {

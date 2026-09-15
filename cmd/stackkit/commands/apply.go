@@ -94,6 +94,11 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	// workspace being valid, and an operator who passed one deserves to know
 	// even when Apply stops earlier for another reason.
 	noteInertApplyFlags(cmd)
+	stopHeartbeat := startLifecycleHeartbeat(
+		"Applying the StackKit. Resolving the plan, pulling images, and waiting for health checks can take several minutes.",
+		"Still applying",
+	)
+	defer stopHeartbeat()
 	wd := getWorkDir()
 	if err := admitApplyBeforeDeployObservability(wd, specFile); err != nil {
 		return err

@@ -27,32 +27,28 @@ var (
 	removeDeleteData           bool
 	removeWorkloadRef          string
 	removeV2ExecutionOptions   architectureV2ExecutionCLIOptions
+	newRemoveDockerClient      = docker.NewClient
 )
 
 const removeConfirmationValue = "yes"
 
 var removeCmd = &cobra.Command{
 	Use:   "remove",
-	Short: "Remove a governed workload or an exact-v0.6 deployment",
-	Long: `Remove all resources created by the deployment.
+	Short: "Uninstall the local StackKits deployment",
+	Long: `Uninstall the StackKits runtime on this machine.
 
-For canonical Architecture v2, --workload removes one exact workload through
-its applied runtime owner and persists Owner-signed absence evidence. Application
-data volumes are kept by default. --delete-data deletes only named volumes owned
-by that exact applied workload. Exact v0.6 compatibility builds retain the
-historical whole-deployment OpenTofu destroy and Docker fallback.
+With no --workload, this is the product uninstall: it stops and deletes every
+Compose project named stackkit-* (Basement core, Cloud core, and selected use
+cases), including their networks and volumes. It looks in the current
+directory, then ~/my-homelab or ~/my-cloud-homelab.
 
-Use --purge for a full factory reset (removes images, state, deploy dir).
-
-WARNING: Canonical v2 removal keeps application data unless --delete-data is set.
+--workload removes one exact Architecture v2 workload through its applied
+runtime owner. That path keeps application volumes unless --delete-data is set.
 
 Examples:
-  stackkit remove                 Remove with confirmation
-  stackkit remove --auto-approve  Remove without confirmation
-  stackkit remove --workload files --json
-  stackkit remove --workload files --delete-data
-  stackkit remove --force         Force remove even with errors
-  stackkit remove --purge         Full factory reset`,
+  stackkit remove                 Uninstall with confirmation
+  stackkit remove --auto-approve  Uninstall without typing yes
+  stackkit remove --workload files --json`,
 	RunE: runRemove,
 }
 
@@ -78,7 +74,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	wd := getWorkDir()
+	wd := adoptConventionalInstallerWorkspace(getWorkDir())
 
 	if !removeAutoApprove {
 		fmt.Println()
@@ -91,7 +87,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		} else if removePurge {
 			printError("WARNING: This will permanently remove all resources AND all StackKit data!")
 		} else {
-			printError("WARNING: This will permanently remove all resources!")
+			printError("WARNING: This will stop and delete the StackKits Docker stack, including volumes.")
 		}
 		fmt.Printf("Type %q to confirm: ", removeConfirmationValue)
 
@@ -114,6 +110,12 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	removeV2ExecutionOptions.removalEvidenceJSON = removeTerminalEvidenceJSON
 	if removeJSON && removeTerminalEvidenceJSON {
 		return errors.New("--json and --terminal-evidence-json are mutually exclusive")
+	}
+	if strings.TrimSpace(removeWorkloadRef) == "" {
+		if removeJSON || removeTerminalEvidenceJSON {
+			return errors.New("--json and --terminal-evidence-json require --workload")
+		}
+		return removeWholeLocalDeployment(ctx, wd, true, removePurge)
 	}
 	if removeJSON {
 		removeV2ExecutionOptions.removalSink = func(result workloadremoval.Result) error {
@@ -311,10 +313,49 @@ func tryTofuDestroy(ctx context.Context, spec *models.StackSpec, wd string) bool
 	return true
 }
 
+func removeWholeLocalDeployment(ctx context.Context, wd string, deleteVolumes, purge bool) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	printWarning("Removing the local StackKits Docker stack")
+	client := newRemoveDockerClient()
+	if !client.IsInstalled() {
+		return errors.New("docker is not installed; cannot uninstall the running stack")
+	}
+	if !client.IsRunning(ctx) {
+		return errors.New("docker daemon is not running; cannot uninstall the running stack")
+	}
+	discovered, err := client.ListComposeProjects(ctx)
+	if err != nil {
+		printWarning("Could not list Compose projects: %v", err)
+	}
+	projects := docker.StackKitsComposeProjectsToRemove(discovered)
+	var failed []string
+	for _, project := range projects {
+		printInfo("Removing Compose project %s", project)
+		if rmErr := client.RemoveComposeProject(ctx, project, deleteVolumes); rmErr != nil {
+			failed = append(failed, project+": "+rmErr.Error())
+			printWarning("  %s", rmErr)
+			continue
+		}
+		printSuccess("  Removed %s", project)
+	}
+	if err := dockerFallbackCleanup(ctx, purge); err != nil {
+		failed = append(failed, err.Error())
+	}
+	cleanupFiles(wd, purge)
+	if len(failed) > 0 && !removeForce {
+		return fmt.Errorf("remove incomplete: %s", strings.Join(failed, "; "))
+	}
+	printSuccess("Remove complete")
+	printInfo("Re-install with the installer, or stackkit init then apply")
+	return nil
+}
+
 // dockerFallbackCleanup removes StackKit resources directly via Docker CLI.
 // Used when OpenTofu destroy fails or is unavailable.
 func dockerFallbackCleanup(ctx context.Context, purge bool) error {
-	dockerClient := docker.NewClient()
+	dockerClient := newRemoveDockerClient()
 	if !dockerClient.IsInstalled() {
 		printWarning("Docker is not installed — skipping container cleanup")
 		return nil

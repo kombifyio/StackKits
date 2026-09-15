@@ -3,6 +3,9 @@ package runtimeexecutorlocal
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
@@ -12,6 +15,10 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	cryptossh "golang.org/x/crypto/ssh"
+
+	"github.com/kombifyio/stackkits/internal/localevidence"
 )
 
 const cloudHostSecurityProcessOutputLimit = 256 << 10
@@ -379,7 +386,14 @@ const (
 	cloudHostSecurityExecutionShell     = "/bin/bash"
 	cloudHostSecurityExecutionSudoers   = "/etc/sudoers.d/60-stackkits-execution-channel"
 	cloudHostSecurityRootAuthorizedKeys = "/root/.ssh/authorized_keys"
+	cloudHostSecurityMintedKeyName      = "id_ed25519"
+	cloudHostSecurityMintedPubName      = "id_ed25519.pub"
+	cloudHostSecurityMintedKeyScope     = "execution-channel"
 )
+
+func cloudExecutionChannelCustodyKeyPath(workspaceRoot, name string) string {
+	return filepath.Join(workspaceRoot, ".stackkit", "cloud-host-security", cloudHostSecurityMintedKeyScope, name)
+}
 
 type cloudHostSecurityExecutionLayout struct {
 	user         string
@@ -397,18 +411,62 @@ func defaultCloudHostSecurityExecutionLayout() cloudHostSecurityExecutionLayout 
 	}
 }
 
-func cloudHostSecurityUserAddArgs() []string {
-	return []string{"useradd", "--create-home", "--shell", cloudHostSecurityExecutionShell, cloudHostSecurityExecutionUser}
+func cloudHostSecurityUserAddArgs(username string) []string {
+	return []string{"useradd", "--create-home", "--shell", cloudHostSecurityExecutionShell, username}
 }
 
-// preserveExecutionChannelAccount copies the provider-injected SSH key onto a
+func validLinuxExecutionChannelUser(name string) bool {
+	if name == "" || name == "root" || len(name) > 32 {
+		return false
+	}
+	for i, r := range name {
+		if i == 0 && (r < 'a' || r > 'z') {
+			return false
+		}
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func executionChannelUserFromOwnerCustody(workspaceRoot string) string {
+	custody, err := localevidence.LoadOwnerCustody(workspaceRoot)
+	if err != nil {
+		return ""
+	}
+	if validLinuxExecutionChannelUser(custody.PocketID.Username) {
+		return custody.PocketID.Username
+	}
+	return ""
+}
+
+// PrepareCloudExecutionChannel provisions the non-root execution-channel account
+// and workspace-custodied SSH key before Cloud host-security disables root
+// login. Installers and `stackkit host prepare` call this idempotently.
+func PrepareCloudExecutionChannel(ctx context.Context, workspaceRoot string) error {
+	operations, err := NewOSCloudHostSecurityOperations(workspaceRoot)
+	if err != nil {
+		return err
+	}
+	return operations.preserveExecutionChannelAccount(ctx)
+}
+
+// preserveExecutionChannelAccount copies any existing SSH public keys onto a
 // non-root login and grants it passwordless sudo before PermitRootLogin is
-// disabled. Disabling root without that account would lock the control plane
-// out of the same host it is hardening.
+// disabled. When the host has no provider-injected keys (a password-root VPS),
+// it mints a workspace-custodied execution-channel key rather than aborting
+// Cloud Kit Apply.
 func (o *osCloudHostSecurityOperations) preserveExecutionChannelAccount(ctx context.Context) error {
 	layout := o.execution
 	if strings.TrimSpace(layout.user) == "" {
 		layout = defaultCloudHostSecurityExecutionLayout()
+	}
+	if layout.user == cloudHostSecurityExecutionUser {
+		if owner := executionChannelUserFromOwnerCustody(o.workspaceRoot); owner != "" {
+			layout.user = owner
+		}
 	}
 	lookup := layout.lookup
 	if lookup == nil {
@@ -416,7 +474,7 @@ func (o *osCloudHostSecurityOperations) preserveExecutionChannelAccount(ctx cont
 	}
 	account, err := lookup(layout.user)
 	if err != nil {
-		if _, addErr := o.runner.Run(ctx, cloudHostSecurityUserAddArgs()); addErr != nil {
+		if _, addErr := o.runner.Run(ctx, cloudHostSecurityUserAddArgs(layout.user)); addErr != nil {
 			return fmt.Errorf("create the Cloud execution-channel account: %w", addErr)
 		}
 		account, err = lookup(layout.user)
@@ -433,13 +491,9 @@ func (o *osCloudHostSecurityOperations) preserveExecutionChannelAccount(ctx cont
 	if uidErr != nil || gidErr != nil {
 		uid, gid = -1, -1
 	}
-	keys := mergeAuthorizedSSHKeys(
-		readOptionalFile(layout.rootKeysPath),
-		readOptionalFile(filepath.Join(home, ".ssh", "authorized_keys")),
-		readOptionalFile("/home/ubuntu/.ssh/authorized_keys"),
-	)
-	if strings.TrimSpace(keys) == "" {
-		return errors.New("Cloud host-security would disable root SSH without a key-authenticated execution-channel account")
+	keys, err := o.ensureExecutionChannelAuthorizedKeys(layout, home)
+	if err != nil {
+		return err
 	}
 	sshDir := filepath.Join(home, ".ssh")
 	if err := os.MkdirAll(sshDir, 0o700); err != nil {
@@ -451,8 +505,67 @@ func (o *osCloudHostSecurityOperations) preserveExecutionChannelAccount(ctx cont
 	if err := writeExecutionChannelFile(filepath.Join(sshDir, "authorized_keys"), keys, 0o600, uid, gid); err != nil {
 		return err
 	}
+	if private := readOptionalFile(cloudExecutionChannelCustodyKeyPath(o.workspaceRoot, cloudHostSecurityMintedKeyName)); len(private) > 0 {
+		if err := writeExecutionChannelFile(filepath.Join(sshDir, cloudHostSecurityMintedKeyName), string(private), 0o600, uid, gid); err != nil {
+			return err
+		}
+	}
 	sudoers := "# Managed by StackKits Cloud host security. Do not edit.\n" + layout.user + " ALL=(ALL) NOPASSWD:ALL\n"
 	return writeExecutionChannelFile(layout.sudoersPath, sudoers, 0o440, 0, 0)
+}
+
+func (o *osCloudHostSecurityOperations) ensureExecutionChannelAuthorizedKeys(layout cloudHostSecurityExecutionLayout, home string) (string, error) {
+	keys := mergeAuthorizedSSHKeys(executionChannelAuthorizedKeySources(layout, home)...)
+	if strings.TrimSpace(keys) != "" {
+		return keys, nil
+	}
+	if pub := readOptionalFile(cloudExecutionChannelCustodyKeyPath(o.workspaceRoot, cloudHostSecurityMintedPubName)); strings.TrimSpace(string(pub)) != "" {
+		return mergeAuthorizedSSHKeys(pub), nil
+	}
+	authorized, private, err := mintCloudExecutionChannelKey()
+	if err != nil {
+		return "", err
+	}
+	if _, err := o.persist(cloudHostSecurityMintedKeyScope, cloudHostSecurityMintedKeyName, private, 0o600); err != nil {
+		return "", err
+	}
+	if _, err := o.persist(cloudHostSecurityMintedKeyScope, cloudHostSecurityMintedPubName, []byte(authorized), 0o644); err != nil {
+		return "", err
+	}
+	return authorized, nil
+}
+
+func executionChannelAuthorizedKeySources(layout cloudHostSecurityExecutionLayout, home string) [][]byte {
+	sources := [][]byte{
+		readOptionalFile(layout.rootKeysPath),
+		readOptionalFile(filepath.Join(home, ".ssh", "authorized_keys")),
+		readOptionalFile("/home/ubuntu/.ssh/authorized_keys"),
+		readOptionalFile("/home/debian/.ssh/authorized_keys"),
+		readOptionalFile("/home/admin/.ssh/authorized_keys"),
+	}
+	if sudoUser := strings.TrimSpace(os.Getenv("SUDO_USER")); sudoUser != "" && sudoUser != "root" && sudoUser != layout.user {
+		if account, err := user.Lookup(sudoUser); err == nil {
+			sources = append(sources, readOptionalFile(filepath.Join(account.HomeDir, ".ssh", "authorized_keys")))
+		}
+	}
+	return sources
+}
+
+func mintCloudExecutionChannelKey() (authorized string, private []byte, err error) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return "", nil, fmt.Errorf("mint Cloud execution-channel key: %w", err)
+	}
+	sshPublic, err := cryptossh.NewPublicKey(publicKey)
+	if err != nil {
+		return "", nil, fmt.Errorf("encode Cloud execution-channel public key: %w", err)
+	}
+	block, err := cryptossh.MarshalPrivateKey(privateKey, "")
+	if err != nil {
+		return "", nil, fmt.Errorf("encode Cloud execution-channel private key: %w", err)
+	}
+	authorized = strings.TrimSpace(string(cryptossh.MarshalAuthorizedKey(sshPublic))) + " stackkits-cloud-execution-channel\n"
+	return authorized, pem.EncodeToMemory(block), nil
 }
 
 func mergeAuthorizedSSHKeys(parts ...[]byte) string {
@@ -505,6 +618,8 @@ func writeExecutionChannelFile(path, content string, mode os.FileMode, uid, gid 
 	}
 	if existing, err := os.Lstat(path); err == nil && existing.Mode()&os.ModeSymlink != 0 {
 		return errors.New("execution-channel path is a symlink")
+	} else if err == nil {
+		_ = os.Chmod(path, 0o600)
 	}
 	if err := os.WriteFile(path, []byte(content), mode); err != nil {
 		return fmt.Errorf("write the execution-channel file: %w", err)
@@ -637,7 +752,8 @@ func validCloudHostSecurityArgs(args []string) error {
 	case len(args) == 5 && args[0] == "apt-get" && args[1] == "install" && args[2] == "-y" &&
 		args[3] == "--no-install-recommends" && validCloudHostSecurityPackage(args[4]):
 		return nil
-	case slices.Equal(args, cloudHostSecurityUserAddArgs()):
+	case len(args) == 5 && args[0] == "useradd" && args[1] == "--create-home" &&
+		args[2] == "--shell" && args[3] == cloudHostSecurityExecutionShell && validLinuxExecutionChannelUser(args[4]):
 		return nil
 	}
 	return errors.New("process is outside the closed Cloud host-security contract")

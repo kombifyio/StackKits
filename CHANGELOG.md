@@ -4,6 +4,46 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.32.1](https://github.com/kombifyio/stackKits/compare/v0.32.0...v0.32.1) (2026-09-15)
+
+
+### Fixed
+
+* **install:** make Cloud resume install-only with automatic host prepare ([#1130](https://github.com/kombifyio/stackKits/issues/1130)) ([3924656](https://github.com/kombifyio/stackKits/commit/39246568a3290296780bea97f1385eb4084ed860))
+* **website:** publish installers with inlined host bootstrap ([#1132](https://github.com/kombifyio/stackKits/issues/1132)) ([f6204e3](https://github.com/kombifyio/stackKits/commit/f6204e37badad8eafb70fae46ea571c61d60ea70))
+
+## [0.32.0](https://github.com/kombifyio/stackKits/compare/3f4304864dc437ce91d217502a82574a6147e5eb...927346795e896aebecf57a9a0f3b49433a6cca69) (2026-09-15)
+
+
+### Added
+
+* **install:** ask to install a StackKit after the CLI succeeds ([#1124](https://github.com/kombifyio/stackKits/issues/1124)) ([0bc7f83](https://github.com/kombifyio/stackKits/commit/0bc7f83cb32f545857c028fcb1e8277d7b7a2ff5))
+
+
+### Fixed
+
+* **apply:** keep a single greeting instead of reprinting the logo ([#1117](https://github.com/kombifyio/stackKits/issues/1117)) ([2fe5edc](https://github.com/kombifyio/stackKits/commit/2fe5edc77a80817d9953742e8941d64f71e2cbc3))
+* **apply:** run internal PKI leaf verification after workload runtime owners ([#1108](https://github.com/kombifyio/stackKits/issues/1108)) ([dff3c09](https://github.com/kombifyio/stackKits/commit/dff3c09b9cbc25672f107a540c655477469fc4c7))
+* **apply:** show progress while generate and apply wait ([#1115](https://github.com/kombifyio/stackKits/issues/1115)) ([f15f41a](https://github.com/kombifyio/stackKits/commit/f15f41a22db5d03fec956cbcd04f1f80c5c198b9))
+* **apply:** wait for certificate issuance before verifying public TLS and PKI leaves ([#1111](https://github.com/kombifyio/stackKits/issues/1111)) ([87f4826](https://github.com/kombifyio/stackKits/commit/87f48267edc142871f3f2e3124d10d103ba0743e))
+* **backup:** defer application observation to restore activation ([#1095](https://github.com/kombifyio/stackKits/issues/1095)) ([9dc8e03](https://github.com/kombifyio/stackKits/commit/9dc8e03237951915339cf4b29592147a25f74fb3))
+* **backup:** raise kopia-agent memory limit to 1g and bound verify parallelism ([#1106](https://github.com/kombifyio/stackKits/issues/1106)) ([5fb363b](https://github.com/kombifyio/stackKits/commit/5fb363bb258d935777909b41a7f6799410dc4ebd))
+* **cli:** find installer workspace for remove and pick use cases ([#1120](https://github.com/kombifyio/stackKits/issues/1120)) ([6df72ae](https://github.com/kombifyio/stackKits/commit/6df72ae644979a5eb3cc79cab90161b45f94684b))
+* **cli:** uninstall native Compose stacks with stackkit remove ([#1121](https://github.com/kombifyio/stackKits/issues/1121)) ([8317024](https://github.com/kombifyio/stackKits/commit/8317024bcd0efcb7c95b027b4044a5cf23a73414))
+* **cloud:** mint an execution-channel SSH key before disabling root login ([#1126](https://github.com/kombifyio/stackKits/issues/1126)) ([2e87f47](https://github.com/kombifyio/stackKits/commit/2e87f47604efd5d4c166e12f8f026daf568cce07))
+* **deps:** raise sigstore-go, grpc and rekor floors for the public binary ([#1098](https://github.com/kombifyio/stackKits/issues/1098)) ([4b9eb76](https://github.com/kombifyio/stackKits/commit/4b9eb7604fdc32d4db9018d90afd907058e6a241))
+* **install:** ask for owner and use cases before every install ([#1128](https://github.com/kombifyio/stackKits/issues/1128)) ([1d7c1a5](https://github.com/kombifyio/stackKits/commit/1d7c1a568bd9992851935167e8790ef3be4b5faf))
+* **install:** ask to install StackKit Blueprint after the CLI ([#1125](https://github.com/kombifyio/stackKits/issues/1125)) ([4b4ac2f](https://github.com/kombifyio/stackKits/commit/4b4ac2f8c078f88aa783d7ff55582910a43d107f))
+* **install:** default Cloud Kit to kombify.me without a custom domain ([#1122](https://github.com/kombifyio/stackKits/issues/1122)) ([e62d03e](https://github.com/kombifyio/stackKits/commit/e62d03e431efb790cb6476d1b4b7653197b924c3))
+* **install:** detect public hosts before init and advertise install.stackkit.cc ([#1118](https://github.com/kombifyio/stackKits/issues/1118)) ([9ddfb3f](https://github.com/kombifyio/stackKits/commit/9ddfb3f0b63041921427a6d0377badf5c5423adf))
+* **install:** make install.stackkit.cc detect the host and pick the kit ([#1119](https://github.com/kombifyio/stackKits/issues/1119)) ([614b07d](https://github.com/kombifyio/stackKits/commit/614b07daa6febfaf165ed93416d69ffd83c77d8e))
+* **install:** prepare Cloud execution channel on incomplete resume ([#1129](https://github.com/kombifyio/stackKits/issues/1129)) ([9273467](https://github.com/kombifyio/stackKits/commit/927346795e896aebecf57a9a0f3b49433a6cca69))
+* **install:** recover from the wrong Basement or Cloud installer URL ([#1123](https://github.com/kombifyio/stackKits/issues/1123)) ([b65ba78](https://github.com/kombifyio/stackKits/commit/b65ba7836231712d7e5f245270add7796ac98f56))
+* **install:** require owner email and suggest the login username ([#1127](https://github.com/kombifyio/stackKits/issues/1127)) ([3c0d4a5](https://github.com/kombifyio/stackKits/commit/3c0d4a547542d9c4b2b66aa432a17ef4127bd7e9))
+* **website:** derive Modern alpha status, correct dual-license text, retire BaseKit wording ([#1099](https://github.com/kombifyio/stackKits/issues/1099)) ([56c2a81](https://github.com/kombifyio/stackKits/commit/56c2a8179b4aed1aaa2b1a7846354f58b4f7a021))
+
+Notes cover changes after VERSION 0.31.0 (3f4304864dc437ce91d217502a82574a6147e5eb), the earliest available contiguous 0.31.x VERSION anchor, through selected source 927346795e896aebecf57a9a0f3b49433a6cca69.
+
 ## [0.31.5](https://github.com/kombifyio/stackKits/compare/v0.31.4...v0.31.5) (2026-09-14)
 
 

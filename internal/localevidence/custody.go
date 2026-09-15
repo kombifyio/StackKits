@@ -85,11 +85,16 @@ func EstablishOwnerCustody(workspaceRoot string, request OwnerCustodyRequest) (O
 	existing, err := LoadOwnerCustody(workspaceRoot)
 	if err == nil {
 		requestedProjection := normalizeOwnerProjection(request, existing.OwnerRef)
-		if existing.Binding != request.Binding || existing.Trust != request.Trust ||
-			existing.PocketID != requestedProjection {
+		if existing.Binding != request.Binding || existing.Trust != request.Trust {
 			return OwnerCustody{}, errors.New("localevidence: requested local owner projection or binding differs from established custody")
 		}
-		return existing, nil
+		if existing.PocketID == requestedProjection {
+			return existing, nil
+		}
+		if IsPlaceholderOwnerEmail(existing.PocketID.Email) && !IsPlaceholderOwnerEmail(requestedProjection.Email) {
+			return replacePlaceholderOwnerProjection(workspaceRoot, existing, requestedProjection)
+		}
+		return OwnerCustody{}, errors.New("localevidence: requested local owner projection or binding differs from established custody")
 	}
 	if !errors.Is(err, ErrOwnerCustodyMissing) {
 		return OwnerCustody{}, err
@@ -140,6 +145,28 @@ func EstablishOwnerCustody(workspaceRoot string, request OwnerCustodyRequest) (O
 	return LoadOwnerCustody(workspaceRoot)
 }
 
+func replacePlaceholderOwnerProjection(workspaceRoot string, existing OwnerCustody, projection OwnerProjection) (OwnerCustody, error) {
+	ownerKey, err := LoadOwnerKey(workspaceRoot)
+	if err != nil {
+		return OwnerCustody{}, fmt.Errorf("localevidence: load owner evidence key: %w", err)
+	}
+	record := existing
+	record.PocketID = projection
+	signingBytes, err := ownerCustodySigningBytes(record)
+	if err != nil {
+		return OwnerCustody{}, fmt.Errorf("localevidence: encode owner custody for signing: %w", err)
+	}
+	record.Signature = base64.RawStdEncoding.EncodeToString(ed25519.Sign(ownerKey.private, signingBytes))
+	path, err := confinedCustodyPath(workspaceRoot, ownerCustodyRelPath)
+	if err != nil {
+		return OwnerCustody{}, err
+	}
+	if err := writePrivateJSON(path, record); err != nil {
+		return OwnerCustody{}, fmt.Errorf("localevidence: persist owner custody: %w", err)
+	}
+	return LoadOwnerCustody(workspaceRoot)
+}
+
 func normalizeOwnerProjection(request OwnerCustodyRequest, ownerRef string) OwnerProjection {
 	projection := OwnerProjection{
 		Subject: ownerRef, Email: strings.TrimSpace(request.Email),
@@ -150,12 +177,44 @@ func normalizeOwnerProjection(request OwnerCustodyRequest, ownerRef string) Owne
 		projection.Email = "owner@home.test"
 	}
 	if projection.Username == "" {
+		projection.Username = OwnerUsernameFromEmail(projection.Email)
+	}
+	if projection.Username == "" {
 		projection.Username = "owner"
 	}
 	if projection.DisplayName == "" {
 		projection.DisplayName = "Home Owner"
 	}
 	return projection
+}
+
+// IsPlaceholderOwnerEmail reports the generated PocketID email that is not a
+// real owner account. First-create local init must not persist it.
+func IsPlaceholderOwnerEmail(email string) bool {
+	return strings.EqualFold(strings.TrimSpace(email), "owner@home.test")
+}
+
+// OwnerUsernameFromEmail turns the local part of an email into a login name
+// suitable for PocketID and the Cloud execution-channel account.
+func OwnerUsernameFromEmail(email string) string {
+	local, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(email)), "@")
+	var b strings.Builder
+	for _, r := range local {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '.', r == '_', r == '-':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('-')
+		}
+	}
+	name := strings.Trim(b.String(), ".-")
+	for strings.Contains(name, "--") {
+		name = strings.ReplaceAll(name, "--", "-")
+	}
+	if len(name) > 32 {
+		name = strings.Trim(name[:32], ".-")
+	}
+	return name
 }
 
 func LoadOwnerCustody(workspaceRoot string) (OwnerCustody, error) {

@@ -3,7 +3,8 @@
 # StackKits CLI installer — shared core used by all stackkit installers.
 # =============================================================================
 # Usage (direct):
-#   curl -sSL https://install.stackkit.cc | sh                        # CLI + public kit catalog
+#   curl -sSL https://install.stackkit.cc | sh                        # CLI, then ask to install a StackKit
+#   STACKKIT_CLI_ONLY=1 curl -sSL https://install.stackkit.cc | sh    # CLI + public kit catalog only
 #   curl -sSL https://install.stackkit.cc | sh -s -- basement-kit     # CLI + basement-kit
 #   curl -sSL https://install.stackkit.cc | sh -s -- cloud-kit        # CLI + cloud-kit
 #   curl -sSL https://install.stackkit.cc | sh -s -- modern-homelab   # CLI + Modern Homelab Preview
@@ -11,15 +12,17 @@
 # Called by the short website entrypoints (`base.stackkit.cc`,
 # `cloud.stackkit.cc`) to provide the shared install + kit-download step
 # before the kit-specific flow. The retired `base-kit` name is rejected.
+# STACKKIT_CLI_ONLY=1 keeps this script from launching a kit installer.
 # =============================================================================
 set -eu
 
 # KIT_NAME controls which kit definitions are downloaded alongside the binary.
-# ""             → CLI + the public kit catalog
+# ""             → CLI + catalog, then ask to install a StackKit (default yes)
 # "basement-kit" → CLI + basement-kit definitions
 # "cloud-kit"    → CLI + cloud-kit definitions
 # "modern-homelab" → CLI + Modern Homelab Preview definitions
 KIT_NAME="${1:-}"
+INSTALL_KITS=""
 
 # Allow callers (e.g. base-install.sh) to suppress the banner.
 if [ "${STACKKIT_NO_BANNER:-}" != "1" ]; then
@@ -90,6 +93,7 @@ download_release_asset() {
 
 # --- Detect platform ----------------------------------------------------------
 
+if [ "${STACKKIT_SKIP_RELEASE_INSTALL:-}" != "1" ]; then
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 case "$ARCH" in
@@ -330,15 +334,18 @@ if [ -n "$INSTALL_KITS" ]; then
     chown -R "$TARGET_USER" "$STACKKITS_DIR" 2>/dev/null || true
   fi
 fi
+fi
 
 # --- Summary ------------------------------------------------------------------
 
-echo ""
-stackkit version
-echo ""
-echo "stackkit is installed."
-if command -v stackkit-mcp >/dev/null 2>&1; then
-  echo "stackkit-mcp is installed for local agent/MCP workflows."
+if [ "${STACKKIT_SKIP_RELEASE_INSTALL:-}" != "1" ]; then
+  echo ""
+  stackkit version
+  echo ""
+  echo "StackKit CLI installed successfully."
+  if command -v stackkit-mcp >/dev/null 2>&1; then
+    echo "stackkit-mcp is installed for local agent/MCP workflows."
+  fi
 fi
 
 print_cli_chain() {
@@ -354,24 +361,122 @@ print_cli_chain() {
   echo "    stackkit apply --auto-approve                # deploy (installs Docker on demand)"
 }
 
-if [ -n "$INSTALL_KITS" ]; then
+can_prompt() {
+  [ -t 1 ] && [ -r /dev/tty ] && [ -w /dev/tty ]
+}
+
+# Kit-specific callers (base.stackkit.cc / cloud.stackkit.cc) only need the
+# CLI + definitions. STACKKIT_CLI_ONLY=1 is the explicit CLI-only path.
+if [ -n "$KIT_NAME" ] || [ "${STACKKIT_CLI_ONLY:-}" = "1" ]; then
+  if [ -n "$INSTALL_KITS" ]; then
+    echo ""
+    echo "  Installed kit definitions: $INSTALL_KITS"
+  fi
   echo ""
-  echo "  Installed kit definitions: $INSTALL_KITS"
+  print_cli_chain "${KIT_NAME:-basement-kit}"
   echo ""
-  echo "  Guided one-command installs (recommended; walks you to a running homelab):"
-  echo "    curl -sSL https://base.stackkit.cc | sh     # Basement (local homelab)"
-  echo "    curl -sSL https://cloud.stackkit.cc | sh    # Cloud Kit (public domain)"
+  exit 0
+fi
+
+# Website default: confirm the CLI, then ask before installing a StackKit.
+if [ "${STACKKIT_SKIP_RELEASE_INSTALL:-}" = "1" ]; then
   echo ""
-  case "$KIT_NAME" in
-    basement-kit|cloud-kit|modern-homelab) print_cli_chain "$KIT_NAME" ;;
-    *) print_cli_chain basement-kit ;;
-  esac
-else
-  echo ""
-  echo "  Guided one-command installs (recommended):"
-  echo "    curl -sSL https://base.stackkit.cc | sh     # Basement (local homelab)"
-  echo "    curl -sSL https://cloud.stackkit.cc | sh    # Cloud Kit (public domain)"
-  echo ""
-  print_cli_chain basement-kit
+  echo "StackKit CLI installed successfully."
 fi
 echo ""
+if can_prompt; then
+  printf '  Install StackKit Blueprint now? [Y/n]: ' >/dev/tty
+  read -r _stackkit_continue </dev/tty || _stackkit_continue=""
+  case "$_stackkit_continue" in
+    n|N|no|NO|No)
+      echo ""
+      print_cli_chain basement-kit
+      echo ""
+      exit 0
+      ;;
+  esac
+  echo ""
+else
+  echo "  Installing StackKit Blueprint now."
+fi
+
+echo "  Checking whether this host is a home network or a public server..."
+DETECTED_ENV="${STACKKIT_NETWORK_ENV:-}"
+PUBLIC_SERVER=""
+if [ -z "$DETECTED_ENV" ] && command -v stackkit >/dev/null 2>&1; then
+  if stackkit host environment --help >/dev/null 2>&1; then
+    _env_json=$(stackkit host environment --json 2>/dev/null || true)
+    DETECTED_ENV=$(printf '%s' "$_env_json" | sed -n 's/.*"environment"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    PUBLIC_SERVER=$(printf '%s' "$_env_json" | sed -n 's/.*"publicServer"[[:space:]]*:[[:space:]]*\(true\|false\).*/\1/p')
+  fi
+fi
+[ -z "$DETECTED_ENV" ] && DETECTED_ENV="unknown"
+if [ "$DETECTED_ENV" = "unknown" ] && [ "$PUBLIC_SERVER" = "true" ]; then
+  DETECTED_ENV="vps"
+fi
+echo "  Detected network: $DETECTED_ENV"
+
+KIT_INSTALL_URL=""
+case "$DETECTED_ENV" in
+  home)
+    echo "  Home/LAN host → Basement Kit"
+    KIT_INSTALL_URL="${STACKKIT_BASE_INSTALL_URL:-https://base.stackkit.cc}"
+    export STACKKIT_PLACEMENT=home
+    ;;
+  vps|cloud)
+    if can_prompt; then
+      echo ""
+      echo "  This host is a public server. Cloud Kit is the product for a VPS;"
+      echo "  Basement Kit is for a home network."
+      printf '  Continue with Cloud Kit? [Y/n]: ' >/dev/tty
+      read -r _stackkit_cloud </dev/tty || _stackkit_cloud=""
+      case "$_stackkit_cloud" in
+        n|N|no|NO|No)
+          echo "  Keeping Basement Kit with kombify.me for public access"
+          KIT_INSTALL_URL="${STACKKIT_BASE_INSTALL_URL:-https://base.stackkit.cc}"
+          export STACKKIT_PLACEMENT=home
+          ;;
+        *)
+          echo "  Public server → Cloud Kit"
+          KIT_INSTALL_URL="${STACKKIT_CLOUD_INSTALL_URL:-https://cloud.stackkit.cc}"
+          export STACKKIT_PLACEMENT=cloud
+          ;;
+      esac
+      echo ""
+    else
+      echo "  Public server → Cloud Kit"
+      KIT_INSTALL_URL="${STACKKIT_CLOUD_INSTALL_URL:-https://cloud.stackkit.cc}"
+      export STACKKIT_PLACEMENT=cloud
+    fi
+    ;;
+  *)
+    if can_prompt; then
+      echo ""
+      echo "  Could not tell whether this host is on a home network or a public VPS."
+      echo "    1) Home network — Basement Kit"
+      echo "    2) Public server / VPS — Cloud Kit"
+      printf '  Select [1]: ' >/dev/tty
+      read -r _stackkit_place </dev/tty || _stackkit_place=""
+      case "$_stackkit_place" in
+        2)
+          KIT_INSTALL_URL="${STACKKIT_CLOUD_INSTALL_URL:-https://cloud.stackkit.cc}"
+          export STACKKIT_PLACEMENT=cloud
+          ;;
+        *)
+          KIT_INSTALL_URL="${STACKKIT_BASE_INSTALL_URL:-https://base.stackkit.cc}"
+          export STACKKIT_PLACEMENT=home
+          ;;
+      esac
+      echo ""
+    else
+      echo "  Could not tell home vs VPS. Continuing with Basement Kit."
+      KIT_INSTALL_URL="${STACKKIT_BASE_INSTALL_URL:-https://base.stackkit.cc}"
+      export STACKKIT_PLACEMENT=home
+    fi
+    ;;
+esac
+
+echo "  Continuing with the matching kit installer..."
+trap - EXIT
+export STACKKIT_NO_BANNER=1
+curl -sSL "$KIT_INSTALL_URL" | sh

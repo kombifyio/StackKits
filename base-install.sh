@@ -10,11 +10,12 @@
 # (see "CLI path" in the final summary or docs/INSTALLATION_PROCESSES.md).
 #
 # Modes (STACKKIT_INSTALL_MODE=auto|guided|expert; interactive menu on a TTY):
-#   auto    Quick Install: defaults everywhere, straight to a running homelab.
+#   auto    Quick Install: owner account and use cases, then defaults to a
+#           running homelab. Files/Photos/Vault start checked in the picker.
 #   guided  Core decisions: workspace, domain, admin email, owner account,
-#           one apply confirmation.
-#   expert  Detailed: guided plus use cases (photos/files/vault), stack name,
-#           platform adapter, per-phase apply confirmation.
+#           use-case picker, one apply confirmation.
+#   expert  Detailed: guided plus stack name, platform adapter,
+#           per-phase apply confirmation.
 # Non-TTY runs always use auto. Environment-provided values are never re-asked.
 #
 # Steps:
@@ -29,10 +30,10 @@
 #   HOMELAB_DIR            Workspace (default: $HOME/my-homelab)
 #   DOMAIN                 Own domain (default: device-enrolled home zone)
 #   STACKKIT_NAME          Deployment contract ID (default: workspace name)
-#   STACKKIT_ADMIN_EMAIL   Admin/owner email (KOMBIFY_USER_EMAIL fallback)
-#   STACKKIT_BOOTSTRAP_OWNER  true|false: preconfigure PocketID owner account
-#   STACKKIT_OWNER_USERNAME   Owner username (default: derived from email)
-#   STACKKIT_USE_CASES     Comma-separated optional workloads: photos,files,vault; empty or none = core only
+#   STACKKIT_ADMIN_EMAIL   Required owner email for logins (KOMBIFY_USER_EMAIL fallback)
+#   STACKKIT_OWNER_USERNAME   Login username (default: derived from the email)
+#   STACKKIT_USE_CASES     Comma-separated optional workloads; skip the picker.
+#                          files,photos,vault are the L3 defaults; none = core only
 #   STACKKIT_PLATFORM / STACKKIT_PAAS
 #                          Workload runtime adapter: standalone-compose (default) | komodo | coolify
 #                          (applies to the selected use cases)
@@ -47,6 +48,14 @@
 # =============================================================================
 set -eu
 
+_INSTALL_SCRIPT_DIR=$(
+  cd "$(dirname "$0")" 2>/dev/null && pwd
+) || _INSTALL_SCRIPT_DIR=""
+if [ -n "$_INSTALL_SCRIPT_DIR" ] && [ -f "$_INSTALL_SCRIPT_DIR/install-host-bootstrap.sh" ]; then
+  # shellcheck source=install-host-bootstrap.sh
+  . "$_INSTALL_SCRIPT_DIR/install-host-bootstrap.sh"
+fi
+
 printf '\033[38;5;208m'
 cat <<'BANNER'
 
@@ -58,6 +67,9 @@ cat <<'BANNER'
 
 BANNER
 printf '\033[0m'
+# Nested stackkit init/apply must not reprint this greeting. Progress lines
+# are the operator signal that later steps are still working.
+export STACKKIT_NO_BANNER=1
 
 # --- Helpers ------------------------------------------------------------------
 
@@ -67,6 +79,43 @@ warn()  { printf '\033[1;33m==> %s\033[0m\n' "$*"; }
 err()   { printf '\033[1;31m==> %s\033[0m\n' "$*" >&2; }
 die()   { err "$*"; exit 1; }
 can_prompt() { [ -t 1 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; }
+
+workspace_spec_kit() {
+  _spec="${1:-}"
+  [ -f "$_spec" ] || return 0
+  if grep -Eq '(^|[[:space:]])(stackkit|slug):[[:space:]]*cloud-kit([[:space:]]|$)' "$_spec"; then
+    printf '%s' "cloud-kit"
+  elif grep -Eq '(^|[[:space:]])(stackkit|slug):[[:space:]]*basement-kit([[:space:]]|$)' "$_spec"; then
+    printf '%s' "basement-kit"
+  fi
+}
+
+read_host_environment() {
+  DETECTED_ENV="${STACKKIT_NETWORK_ENV:-}"
+  PUBLIC_SERVER=""
+  if [ -z "$DETECTED_ENV" ] && command -v stackkit >/dev/null 2>&1; then
+    if stackkit host environment --help >/dev/null 2>&1; then
+      _env_json=$(stackkit host environment --json 2>/dev/null || true)
+      DETECTED_ENV=$(printf '%s' "$_env_json" | sed -n 's/.*"environment"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+      PUBLIC_SERVER=$(printf '%s' "$_env_json" | sed -n 's/.*"publicServer"[[:space:]]*:[[:space:]]*\(true\|false\).*/\1/p')
+    fi
+  fi
+  [ -z "$DETECTED_ENV" ] && DETECTED_ENV="unknown"
+  if [ "$DETECTED_ENV" = "unknown" ] && [ "$PUBLIC_SERVER" = "true" ]; then
+    DETECTED_ENV="vps"
+  fi
+}
+
+remove_local_stack_if_present() {
+  command -v stackkit >/dev/null 2>&1 || return 0
+  info "Clearing any existing local StackKits stack so the matching kit can install"
+  if [ -n "${1:-}" ] && [ -d "$1" ]; then
+    (cd "$1" && stackkit remove --auto-approve) || warn "Could not fully remove the previous stack; continuing with the matching kit."
+  else
+    stackkit remove --auto-approve || warn "Could not fully remove the previous stack; continuing with the matching kit."
+  fi
+}
+
 env_value() { eval "printf '%s' \"\${$1:-}\""; }
 first_env_value() {
   for _stackkit_key in "$@"; do
@@ -93,7 +142,16 @@ prompt_default() {
   fi
 }
 
-# prompt_yn LABEL DEFAULT(y|n) -> exit 0 for yes
+# prompt_select LABEL DEFAULT_NUM -> stdout selected number
+prompt_select() {
+  printf '  %s [%s]: ' "$1" "$2" >/dev/tty
+  read -r _stackkit_answer </dev/tty || _stackkit_answer=""
+  if [ -z "$_stackkit_answer" ]; then
+    printf '%s' "$2"
+  else
+    printf '%s' "$_stackkit_answer"
+  fi
+}
 prompt_yn() {
   if [ "$2" = "y" ]; then _stackkit_hint="Y/n"; else _stackkit_hint="y/N"; fi
   printf '  %s [%s]: ' "$1" "$_stackkit_hint" >/dev/tty
@@ -103,6 +161,80 @@ prompt_yn() {
     n|N|no|NO|No) return 1 ;;
     *) [ "$2" = "y" ] ;;
   esac
+}
+
+valid_owner_email() {
+  _email=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+  case "$_email" in
+    *[[:space:]]*|*"@"*"@"*) return 1 ;;
+    *@*.*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+owner_username_from_email() {
+  printf '%s' "$1" | sed 's/@.*//' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g; s/^[.-]*//; s/[.-]*$//; s/--*/-/g' | cut -c1-32
+}
+
+is_placeholder_owner_email() {
+  [ "$1" = "owner@home.test" ]
+}
+
+# Generated PocketID placeholders and missing owner.json are not a real account.
+# Resume still asks for email and use cases in that case.
+workspace_needs_owner_identity() {
+  _owner_json="$HOMELAB_DIR/.stackkit/custody/owner.json"
+  if [ ! -f "$_owner_json" ]; then
+    return 0
+  fi
+  if grep -Eq '"email"[[:space:]]*:[[:space:]]*"owner@home\.test"' "$_owner_json"; then
+    return 0
+  fi
+  return 1
+}
+
+# Owner logins cannot be created from a generated placeholder. Email is
+# required before init; the username is suggested from the local part.
+collect_owner_identity() {
+  if [ -z "${ADMIN_EMAIL:-}" ]; then
+    ADMIN_EMAIL="${STACKKIT_ADMIN_EMAIL:-${KOMBIFY_USER_EMAIL:-}}"
+  fi
+  if is_placeholder_owner_email "$ADMIN_EMAIL"; then
+    ADMIN_EMAIL=""
+  fi
+  if [ -z "$ADMIN_EMAIL" ]; then
+    if can_prompt; then
+      echo ""
+      echo "  Homelab logins need your email before install."
+      while true; do
+        printf '  Email address: ' >/dev/tty
+        read -r ADMIN_EMAIL </dev/tty || ADMIN_EMAIL=""
+        ADMIN_EMAIL=$(printf '%s' "$ADMIN_EMAIL" | tr -d '\r')
+        if valid_owner_email "$ADMIN_EMAIL" && ! is_placeholder_owner_email "$ADMIN_EMAIL"; then
+          break
+        fi
+        echo "  Enter a valid email address so owner logins can be created."
+      done
+    else
+      die "Homelab install needs an owner email. Set STACKKIT_ADMIN_EMAIL or run this installer from a terminal."
+    fi
+  fi
+  if ! valid_owner_email "$ADMIN_EMAIL"; then
+    die "STACKKIT_ADMIN_EMAIL must be a valid email address."
+  fi
+  if [ -z "${OWNER_USERNAME:-}" ]; then
+    OWNER_USERNAME="${STACKKIT_OWNER_USERNAME:-}"
+  fi
+  if [ -z "$OWNER_USERNAME" ]; then
+    OWNER_USERNAME=$(owner_username_from_email "$ADMIN_EMAIL")
+    [ -n "$OWNER_USERNAME" ] || OWNER_USERNAME="owner"
+    if can_prompt && [ -z "${STACKKIT_OWNER_USERNAME:-}" ]; then
+      OWNER_USERNAME=$(prompt_default "Login username" "$OWNER_USERNAME")
+    fi
+  fi
+  OWNER_USERNAME=$(printf '%s' "$OWNER_USERNAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g; s/^[.-]*//; s/[.-]*$//; s/--*/-/g' | cut -c1-32)
+  [ -n "$OWNER_USERNAME" ] || die "Login username cannot be empty."
+  BOOTSTRAP_OWNER="true"
 }
 
 # --- Mode resolution ------------------------------------------------------------
@@ -119,9 +251,9 @@ if [ -z "$INSTALL_MODE" ]; then
   if can_prompt; then
     echo ""
     echo "  How do you want to install?"
-    echo "    1) Quick Install   -- defaults everywhere, straight to a running homelab"
-    echo "    2) Core decisions  -- workspace, domain, admin email, owner account"
-    echo "    3) Detailed        -- core decisions plus use cases, name, platform"
+    echo "    1) Quick Install   -- owner account and use cases, then a running homelab"
+    echo "    2) Core decisions  -- workspace, domain, owner account, use cases"
+    echo "    3) Detailed        -- core decisions plus name and platform"
     printf '  Select [1]: ' >/dev/tty
     read -r _stackkit_mode_answer </dev/tty || _stackkit_mode_answer=""
     case "$_stackkit_mode_answer" in
@@ -139,6 +271,10 @@ if [ "$INSTALL_MODE" != "auto" ] && ! can_prompt; then
 fi
 info "Install mode: $INSTALL_MODE"
 
+ADMIN_EMAIL=""
+OWNER_USERNAME=""
+BOOTSTRAP_OWNER=""
+
 # --- Decision collection --------------------------------------------------------
 # Environment-provided values are never re-asked in any mode.
 
@@ -148,39 +284,27 @@ if [ "$INSTALL_MODE" != "auto" ] && [ -z "$HOMELAB_DIR_SET" ]; then
   HOMELAB_DIR=$(prompt_default "Workspace directory" "$HOMELAB_DIR")
 fi
 
-DOMAIN_VALUE="${DOMAIN:-}"
-if [ -z "$DOMAIN_VALUE" ] && [ "$INSTALL_MODE" != "auto" ]; then
-  if prompt_yn "Use your own domain (instead of the local default home)?" "n"; then
-    DOMAIN_VALUE=$(prompt_default "Domain" "home")
-  fi
-fi
-# The standalone installer and native authoring select the same canonical
-# device-enrolled zone.
-DOMAIN_VALUE="${DOMAIN_VALUE:-home}"
-
-ADMIN_EMAIL="${STACKKIT_ADMIN_EMAIL:-${KOMBIFY_USER_EMAIL:-}}"
-if [ -z "$ADMIN_EMAIL" ] && [ "$INSTALL_MODE" != "auto" ]; then
-  printf '  Admin email (Enter = generate a deployment-scoped one): ' >/dev/tty
-  read -r ADMIN_EMAIL </dev/tty || ADMIN_EMAIL=""
-fi
-if [ -z "$ADMIN_EMAIL" ] && [ "$INSTALL_MODE" = "auto" ]; then
-  : # auto mode: StackKits generates a deployment-scoped admin identity
-fi
-
-BOOTSTRAP_OWNER="${STACKKIT_BOOTSTRAP_OWNER:-}"
-if [ -z "$BOOTSTRAP_OWNER" ] && [ -n "$ADMIN_EMAIL" ] && [ "$INSTALL_MODE" != "auto" ]; then
-  if prompt_yn "Create a preconfigured StackKits owner account for $ADMIN_EMAIL?" "y"; then
-    BOOTSTRAP_OWNER="true"
+RESUME_EXISTING=0
+RESUME_INCOMPLETE=0
+if workspace_has_deployment_intent; then
+  RESUME_EXISTING=1
+  if workspace_apply_incomplete; then
+    RESUME_INCOMPLETE=1
+    warn "Workspace $HOMELAB_DIR has a previous incomplete install; preparing the host and resuming apply."
   else
-    BOOTSTRAP_OWNER="false"
+    warn "Workspace $HOMELAB_DIR already has StackKits intent; skipping init and resuming apply."
+  fi
+  if workspace_needs_owner_identity; then
+    warn "Workspace owner is not a real account yet; email and use cases are required before install."
   fi
 fi
-[ -z "$BOOTSTRAP_OWNER" ] && BOOTSTRAP_OWNER="false"
 
-OWNER_USERNAME="${STACKKIT_OWNER_USERNAME:-}"
-if [ "$BOOTSTRAP_OWNER" = "true" ] && [ -z "$OWNER_USERNAME" ]; then
-  OWNER_USERNAME=$(printf '%s' "$ADMIN_EMAIL" | sed 's/@.*//' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')
-  [ -z "$OWNER_USERNAME" ] && OWNER_USERNAME="admin"
+DOMAIN_VALUE="${DOMAIN:-}"
+# Domain and kit placement are decided after the CLI is installed so we can
+# observe whether this host is a home network or a public server.
+
+if [ "$RESUME_EXISTING" != "1" ] || workspace_needs_owner_identity; then
+  collect_owner_identity
 fi
 
 STACK_NAME="${STACKKIT_NAME:-}"
@@ -192,12 +316,6 @@ if [ "$INSTALL_MODE" = "expert" ]; then
     _default_name=$(basename "$HOMELAB_DIR")
     STACK_NAME=$(prompt_default "Stack name (deployment contract ID)" "$_default_name")
     [ "$STACK_NAME" = "$_default_name" ] && STACK_NAME=""
-  fi
-  if [ "${STACKKIT_USE_CASES+x}" != "x" ]; then
-    USE_CASES=$(prompt_default "Use cases to enable (photos,files,vault; Enter = all, 'none' = none)" "photos,files,vault")
-  fi
-  if [ -n "$USE_CASES" ] && [ "$USE_CASES" != "none" ] && [ -z "$PLATFORM_SELECTION" ]; then
-    PLATFORM_SELECTION=$(prompt_default "Platform adapter for the use cases (standalone-compose|komodo|coolify)" "standalone-compose")
   fi
 fi
 
@@ -218,16 +336,6 @@ if [ -n "${STACKKIT_MODE:-}" ]; then
 fi
 if [ -n "${STACKKIT_SERVICE_PROFILE:-}" ]; then
   warn "STACKKIT_SERVICE_PROFILE is a retired v0.6 knob; select use cases instead (ignored)."
-fi
-
-# --- Existing-deployment resume ---------------------------------------------------
-# One host runs one active local deployment. Re-running the installer on the
-# same workspace resumes apply (journal) instead of re-init.
-
-RESUME_EXISTING=0
-if [ -f "$HOMELAB_DIR/stack-spec.yaml" ] || [ -f "$HOMELAB_DIR/.stackkit/resolved-plan.json" ] || [ -f "$HOMELAB_DIR/deploy/.stackkit/resolved-plan.json" ]; then
-  RESUME_EXISTING=1
-  warn "Workspace $HOMELAB_DIR already has StackKits intent; skipping init and resuming apply."
 fi
 
 # --- External platform override helpers (unchanged advanced path) -----------------
@@ -426,30 +534,195 @@ STACKKIT_INSTALL_URL="${STACKKIT_INSTALL_URL:-https://install.stackkit.cc}"
 curl -sSL "$STACKKIT_INSTALL_URL" | STACKKIT_NO_BANNER=1 sh -s -- basement-kit
 ok "  stackkit $(stackkit version 2>/dev/null | head -1) installed"
 
-# --- Step 2: Initialize basement-kit ----------------------------------------------
+SELECTED_KIT="basement-kit"
+read_host_environment
+info "Detected network: $DETECTED_ENV"
 
-info "Step 2/5 -- Initializing basement-kit"
+PLACEMENT="${STACKKIT_PLACEMENT:-}"
+_existing_kit=$(workspace_spec_kit "$HOMELAB_DIR/stack-spec.yaml")
+if [ "$RESUME_EXISTING" = "1" ]; then
+  case "$DETECTED_ENV" in
+    vps|cloud)
+      if [ "$_existing_kit" != "cloud-kit" ] && [ "${STACKKIT_KIT_HANDOFF:-}" != "cloud" ]; then
+        warn "This workspace is not Cloud Kit. This host is a public server; continuing with Cloud Kit."
+        remove_local_stack_if_present "$HOMELAB_DIR"
+        RESUME_EXISTING=0
+        PLACEMENT="cloud"
+        if [ -z "$HOMELAB_DIR_SET" ]; then
+          HOMELAB_DIR="$HOME/my-cloud-homelab"
+        fi
+      fi
+      ;;
+    home)
+      if [ "$_existing_kit" = "cloud-kit" ]; then
+        warn "This workspace is Cloud Kit. This host is a home network; continuing with Basement Kit."
+        remove_local_stack_if_present "$HOMELAB_DIR"
+        RESUME_EXISTING=0
+        PLACEMENT="home"
+      fi
+      ;;
+  esac
+fi
+
+if [ "$RESUME_EXISTING" != "1" ]; then
+  case "$DETECTED_ENV" in
+    home) [ -z "$PLACEMENT" ] && PLACEMENT="home" ;;
+    vps|cloud)
+      if [ -z "$PLACEMENT" ]; then
+        if [ "$INSTALL_MODE" != "auto" ] && can_prompt; then
+          echo ""
+          echo "  This host is a public server. Cloud Kit is the product for a VPS;"
+          echo "  Basement Kit is for a home network."
+          if prompt_yn "Continue with Cloud Kit?" "y"; then
+            PLACEMENT="cloud"
+          else
+            PLACEMENT="home"
+            DOMAIN_VALUE="${DOMAIN_VALUE:-kombify.me}"
+            info "Keeping Basement Kit with kombify.me for public access"
+          fi
+          echo ""
+        else
+          PLACEMENT="cloud"
+          info "This host is a public server. Continuing with Cloud Kit."
+        fi
+      fi
+      ;;
+    *)
+      if [ -z "$PLACEMENT" ]; then
+        if can_prompt; then
+          echo ""
+          echo "  Could not tell whether this host is on a home network or a public VPS."
+          echo "    1) Home network — Basement Kit, local addresses recommended"
+          echo "    2) Public server / VPS — Cloud Kit, kombify.me or your domain"
+          _place=$(prompt_select "Select" "1")
+          case "$_place" in
+            2) PLACEMENT="cloud" ;;
+            *) PLACEMENT="home" ;;
+          esac
+          echo ""
+        else
+          PLACEMENT="home"
+          info "Could not tell home vs VPS. Continuing with Basement Kit."
+        fi
+      fi
+      ;;
+  esac
+  if [ "$PLACEMENT" = "cloud" ]; then
+    SELECTED_KIT="cloud-kit"
+    export STACKKIT_PLACEMENT=cloud
+    if [ -z "$HOMELAB_DIR_SET" ]; then
+      HOMELAB_DIR="$HOME/my-cloud-homelab"
+    fi
+    if [ "$RESUME_EXISTING" != "1" ] && [ "$_existing_kit" != "cloud-kit" ]; then
+      remove_local_stack_if_present "${HOMELAB_DIR}"
+    fi
+    info "Using Cloud Kit on this public host"
+    curl -sSL "$STACKKIT_INSTALL_URL" | STACKKIT_NO_BANNER=1 sh -s -- cloud-kit
+    if workspace_has_deployment_intent; then
+      info "Preparing Cloud execution-channel access for this host"
+      prepare_cloud_install_host || die "Could not prepare this host for Cloud Kit apply. Run the installer again as root on this VPS."
+      ok "  Cloud execution-channel account is ready"
+    fi
+    case "$DOMAIN_VALUE" in
+      ""|home|home.localhost|homelab|stack.home|home.lab|home.kombify)
+        DOMAIN_VALUE=""
+        ;;
+    esac
+  fi
+
+  if [ -z "$DOMAIN_VALUE" ]; then
+    if [ "$SELECTED_KIT" = "cloud-kit" ]; then
+      DOMAIN_VALUE="kombify.me"
+      info "No custom domain given; using kombify.me for public access"
+    elif can_prompt; then
+      echo ""
+      echo "  How should services be reached?"
+      _rec="1"
+      if [ "$DETECTED_ENV" = "vps" ] || [ "$DETECTED_ENV" = "cloud" ]; then
+        _rec="2"
+        echo "    Local *.home addresses are not reachable on a public server."
+      fi
+      echo "    1) Local home addresses (*.home) — recommended on a home network"
+      echo "    2) kombify.me public subdomain"
+      echo "    3) Your own domain"
+      _acc=$(prompt_select "Select" "$_rec")
+      case "$_acc" in
+        2) DOMAIN_VALUE="kombify.me" ;;
+        3) DOMAIN_VALUE=$(prompt_default "Domain" "") ;;
+        *) DOMAIN_VALUE="home" ;;
+      esac
+      echo ""
+    else
+      DOMAIN_VALUE="home"
+    fi
+  fi
+  if [ -z "$DOMAIN_VALUE" ]; then
+    if [ "$SELECTED_KIT" = "cloud-kit" ] || [ "$DETECTED_ENV" = "vps" ] || [ "$DETECTED_ENV" = "cloud" ]; then
+      DOMAIN_VALUE="kombify.me"
+      info "No custom domain given; using kombify.me for public access"
+    else
+      DOMAIN_VALUE="home"
+    fi
+  fi
+  if [ "$SELECTED_KIT" = "basement-kit" ] && [ "$DOMAIN_VALUE" = "home" ]; then
+    case "$DETECTED_ENV" in
+      vps|cloud)
+        DOMAIN_VALUE="kombify.me"
+        info "Local *.home addresses are not reachable on this public server; using kombify.me"
+        ;;
+    esac
+  fi
+fi
+
+pick_use_cases() {
+  if [ "$RESUME_EXISTING" = "1" ] && ! workspace_needs_owner_identity; then
+    return 0
+  fi
+  if [ "${STACKKIT_USE_CASES+x}" = "x" ]; then
+    USE_CASES="${STACKKIT_USE_CASES}"
+    [ "$USE_CASES" = "none" ] && USE_CASES=""
+    return 0
+  fi
+  if can_prompt && command -v stackkit >/dev/null 2>&1 && stackkit use-cases pick --help >/dev/null 2>&1; then
+    info "Select use cases (arrows move, space toggles, Enter confirms)"
+    USE_CASES=$(stackkit use-cases pick --print </dev/tty) || die "Use-case selection canceled"
+    USE_CASES=$(printf '%s\n' "$USE_CASES" | tr -d '\r' | tail -n 1)
+  elif can_prompt; then
+    die "Use-case selection is required before install. Install the stackkit CLI first, or set STACKKIT_USE_CASES."
+  else
+    USE_CASES="files,photos,vault"
+  fi
+}
+
+# --- Step 2: Initialize selected kit ----------------------------------------------
+
+pick_use_cases
+if [ "$INSTALL_MODE" = "expert" ] && [ -n "$USE_CASES" ] && [ -z "$PLATFORM_SELECTION" ]; then
+  PLATFORM_SELECTION=$(prompt_default "Platform adapter for the use cases (standalone-compose|komodo|coolify)" "standalone-compose")
+fi
+info "Step 2/5 -- Initializing $SELECTED_KIT"
 mkdir -p "$HOMELAB_DIR"
 cd "$HOMELAB_DIR"
 
-if [ "$RESUME_EXISTING" = "1" ]; then
+if [ "$RESUME_EXISTING" = "1" ] && ! workspace_needs_owner_identity; then
   stackkit validate
   ok "  existing workspace validated in $HOMELAB_DIR"
+  if [ "$RESUME_INCOMPLETE" = "1" ] && [ "$SELECTED_KIT" = "cloud-kit" ]; then
+    prepare_cloud_install_host || die "Could not prepare this host for Cloud Kit apply. Run the installer again as root on this VPS."
+    ok "  host prepared for Cloud Kit apply"
+  fi
 else
+  collect_owner_identity
   # Materialize the release catalog defaults as explicit native intent.
   # Existing workspaces above keep their persisted alternatives and adapters.
-  set -- init basement-kit --catalog-defaults --non-interactive --owner-source=local
+  set -- init "$SELECTED_KIT" --catalog-defaults --non-interactive --owner-source=local
   if [ -n "$DOMAIN_VALUE" ]; then
     set -- "$@" --domain "$DOMAIN_VALUE"
   fi
   if [ -n "$STACK_NAME" ]; then
     set -- "$@" --name "$STACK_NAME"
   fi
-  if [ "$BOOTSTRAP_OWNER" = "true" ]; then
-    set -- "$@" --owner-email "$ADMIN_EMAIL" --owner-username "$OWNER_USERNAME"
-  elif [ -n "$ADMIN_EMAIL" ]; then
-    set -- "$@" --owner-email "$ADMIN_EMAIL"
-  fi
+  set -- "$@" --owner-email "$ADMIN_EMAIL" --owner-username "$OWNER_USERNAME"
   if [ -n "$USE_CASES" ]; then
     set -- "$@" --use-case "$USE_CASES"
     if [ -n "$PLATFORM_SELECTION" ]; then
@@ -458,7 +731,7 @@ else
   fi
   stackkit "$@"
   stackkit validate
-  ok "  basement-kit initialized and validated in $HOMELAB_DIR"
+  ok "  $SELECTED_KIT initialized and validated in $HOMELAB_DIR"
 fi
 
 
@@ -623,7 +896,10 @@ fi
 if [ -f "$HOMELAB_DIR/.stackkit/resolved-plan.json" ] || [ -f "$HOMELAB_DIR/deploy/.stackkit/resolved-plan.json" ]; then
   info "Canonical plan already present; skipping generate"
 else
+  info "Preparing deployment artifacts (stackkit generate)"
+  info "This can take a minute with little extra CLI output"
   run_stackkit_step generate
+  ok "Deployment artifacts are ready"
 fi
 
 if [ "$INSTALL_MODE" != "auto" ]; then
@@ -650,7 +926,24 @@ fi
 # set -eu would abort this script mid-install on any non-zero exit, leaving the
 # operator without a summary or a next step. Capture the status instead and end
 # with something actionable.
+info "Installing services (stackkit apply)"
+info "Image download and health waits can take several minutes with little extra output"
+if [ "${SELECTED_KIT:-}" = "cloud-kit" ]; then
+  prepare_cloud_install_host || die "Could not prepare this host for Cloud Kit apply. Run the installer again as root on this VPS."
+fi
 set +e
+if [ "${SELECTED_KIT:-}" = "cloud-kit" ]; then
+  _ssh_user="${OWNER_USERNAME:-kombify}"
+  warn "This apply hardens SSH on this host: root login is disabled and password"
+  echo "  authentication is turned off. Keep this session open. Afterwards log in as"
+  echo "  ${_ssh_user}:  ssh ${_ssh_user}@<this host>"
+  _exec_key="$(cloud_execution_channel_key_dir)/id_ed25519"
+  if [ -f "$_exec_key" ]; then
+    echo "  If this host had no SSH key, use the workspace key:"
+    echo "    ssh -i $_exec_key ${_ssh_user}@<this host>"
+  fi
+  echo ""
+fi
 run_stackkit apply --auto-approve
 APPLY_STATUS=$?
 set -e
@@ -677,9 +970,14 @@ if [ "$APPLY_STATUS" -ne 0 ]; then
   echo "    cd $HOMELAB_DIR && stackkit verify --json"
   echo "    cd $HOMELAB_DIR && stackkit logs latest --json"
   echo ""
-  echo "  Applying again is safe: it converges the same plan and keeps what"
-  echo "  already succeeded."
-  echo "    cd $HOMELAB_DIR && stackkit apply --auto-approve"
+  if [ "${SELECTED_KIT:-}" = "cloud-kit" ]; then
+    echo "  Re-run the installer; it prepares this host and converges the same plan:"
+    echo "    curl -sSL https://install.stackkit.cc | sh"
+  else
+    echo "  Applying again is safe: it converges the same plan and keeps what"
+    echo "  already succeeded."
+    echo "    cd $HOMELAB_DIR && stackkit apply --auto-approve"
+  fi
   echo ""
   echo "  Project directory: $HOMELAB_DIR"
   exit "$APPLY_STATUS"
@@ -763,10 +1061,13 @@ else
   if [ -n "${ADMIN_EMAIL:-}" ]; then
     echo "    Owner email: ${ADMIN_EMAIL}"
   fi
+  if [ -n "${OWNER_USERNAME:-}" ]; then
+    echo "    Login username: ${OWNER_USERNAME}"
+  fi
 fi
 echo ""
 echo "  Next steps:"
-if [ "$BOOTSTRAP_OWNER" = "true" ]; then
+if [ "${BOOTSTRAP_OWNER:-}" = "true" ]; then
   echo "    1. Complete the one-time PocketID owner setup URL printed above"
 else
   echo "    1. Create your PocketID admin passkey at ${ID_URL}/setup"

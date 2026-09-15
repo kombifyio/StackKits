@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
@@ -109,9 +110,10 @@ Use stackkit <command> --help for examples and detailed options.`,
 	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		machineOutputCommandActive = commandRequestsMachineOutput(cmd)
-		// Show banner for root help and key workflow commands
+		// Greeting only: root help and init. Apply prints progress instead;
+		// a second ASCII logo looks like the command hung after a restart.
 		name := cmd.Name()
-		if !machineOutputCommandActive && (name == "stackkit" || name == "init" || name == "apply") {
+		if !machineOutputCommandActive && (name == "stackkit" || name == "init") {
 			printBanner()
 		}
 		if err := logging.ValidateCorrelationID(correlationID); err != nil {
@@ -237,17 +239,29 @@ func commandDisablesDeployObservability(cmd *cobra.Command) bool {
 
 // Helper functions for output
 
+var (
+	humanOutputMu           sync.Mutex
+	lifecycleHeartbeatEvery = 20 * time.Second
+)
+
+func writeHumanLine(format string, args ...interface{}) {
+	humanOutputMu.Lock()
+	defer humanOutputMu.Unlock()
+	fmt.Printf(format, args...)
+	_ = os.Stdout.Sync()
+}
+
 // printSuccess prints a success message
 func printSuccess(format string, args ...interface{}) {
 	if !quiet && !humanOutputSuppressed() {
-		fmt.Printf("%s %s\n", green("✓"), fmt.Sprintf(format, args...))
+		writeHumanLine("%s %s\n", green("✓"), fmt.Sprintf(format, args...))
 	}
 }
 
 // printWarning prints a warning message
 func printWarning(format string, args ...interface{}) {
 	if !quiet && !humanOutputSuppressed() {
-		fmt.Printf("%s %s\n", yellow("⚠"), fmt.Sprintf(format, args...))
+		writeHumanLine("%s %s\n", yellow("⚠"), fmt.Sprintf(format, args...))
 	}
 }
 
@@ -259,15 +273,41 @@ func printError(format string, args ...interface{}) {
 // printInfo prints an info message
 func printInfo(format string, args ...interface{}) {
 	if !quiet && !humanOutputSuppressed() {
-		fmt.Printf("%s %s\n", cyan("ℹ"), fmt.Sprintf(format, args...))
+		writeHumanLine("%s %s\n", cyan("ℹ"), fmt.Sprintf(format, args...))
 	}
 }
 
 // printVerbose prints verbose output
 func printVerbose(format string, args ...interface{}) {
 	if verbose && !humanOutputSuppressed() {
-		fmt.Printf("  %s\n", fmt.Sprintf(format, args...))
+		writeHumanLine("  %s\n", fmt.Sprintf(format, args...))
 	}
+}
+
+// startLifecycleHeartbeat tells a human operator that a long, otherwise silent
+// lifecycle command is still working. Docker Compose Apply captures process
+// output and waits up to 10 minutes per `up --wait`, so the ASCII banner
+// otherwise looks like a hang. Machine JSON and --quiet stay silent.
+func startLifecycleHeartbeat(startedMessage, waitingMessage string) func() {
+	if quiet || humanOutputSuppressed() {
+		return func() {}
+	}
+	printInfo("%s", startedMessage)
+	ctx, cancel := context.WithCancel(context.Background())
+	started := time.Now()
+	go func() {
+		ticker := time.NewTicker(lifecycleHeartbeatEvery)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				printInfo("%s (%s elapsed)", waitingMessage, time.Since(started).Round(time.Second))
+			}
+		}
+	}()
+	return cancel
 }
 
 func initDeployLogger() {

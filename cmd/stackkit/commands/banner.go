@@ -1,6 +1,9 @@
 package commands
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 const banner = `
      _             _    _    _ _
@@ -11,8 +14,12 @@ const banner = `
 `
 
 // printBanner displays the stackkit ASCII banner in orange.
+//
+// Apply never uses it: that command is the long wait after a greeting the
+// installer or `init` already printed. STACKKIT_NO_BANNER=1 lets those
+// wrappers keep a single greeting for nested CLI calls.
 func printBanner() {
-	if quiet {
+	if quiet || humanOutputSuppressed() || os.Getenv("STACKKIT_NO_BANNER") == "1" {
 		return
 	}
 	// 256-color orange (208)
