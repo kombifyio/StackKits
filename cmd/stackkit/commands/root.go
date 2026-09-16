@@ -103,9 +103,9 @@ Your local workflow:
   plan       Review infrastructure changes
   apply      Execute the admitted changes
   verify     Check the result
-  status     Find what is usable and what needs attention
+  drift      Compare the running deployment with the applied plan
 
-Returning to an existing deployment? Run stackkit status in its directory.
+Returning to an existing deployment? Run stackkit verify and stackkit drift detect in its directory.
 Use stackkit <command> --help for examples and detailed options.`,
 	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {

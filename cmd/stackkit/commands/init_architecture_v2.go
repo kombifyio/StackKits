@@ -122,7 +122,14 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		}
 	}
 	var ownerBinding localevidence.LocalBinding
+	var ownerEmail, ownerUsername, ownerDisplayName string
 	if strings.TrimSpace(initOwnerSource) == "local" {
+		// Check the owner identity before anything is written: a persisted
+		// StackSpec would turn the retry with --owner-email into a CAS refusal.
+		ownerEmail, ownerUsername, ownerDisplayName = architectureV2ResumeOwnerIdentity(wd)
+		if err := architectureV2RequireRealOwnerEmail(ownerEmail); err != nil {
+			return err
+		}
 		ownerBinding, err = architectureV2CanonicalOwnerBinding(
 			validation.CanonicalStackSpec,
 			authoring.StandaloneOwner,
@@ -157,10 +164,6 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		printSuccess("Canonical Architecture v2 spec is already current: %s", displayPath)
 	}
 	if strings.TrimSpace(initOwnerSource) == "local" {
-		email, username, displayName := architectureV2ResumeOwnerIdentity(wd)
-		if err := architectureV2RequireRealOwnerEmail(email); err != nil {
-			return err
-		}
 		custody, err := localevidence.EstablishOwnerCustody(wd, localevidence.OwnerCustodyRequest{
 			Binding: ownerBinding,
 			Trust: localevidence.TrustProfile{
@@ -170,7 +173,7 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 				HumanIssuerRef:       authoring.StandaloneOwner.HumanIssuerRef,
 				TrustDomainRef:       authoring.StandaloneOwner.TrustDomainRef,
 			},
-			Email: email, Username: username, DisplayName: displayName,
+			Email: ownerEmail, Username: ownerUsername, DisplayName: ownerDisplayName,
 		})
 		if err != nil {
 			return fmt.Errorf("establish local owner custody: %w", err)

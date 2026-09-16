@@ -18,7 +18,7 @@ func currentApplyRunID() string {
 func applyFailureGuidance() []string {
 	guidance := []string{
 		"Retry `stackkit apply` on the same workspace; the apply journal resumes succeeded owners.",
-		"Inspect `stackkit status --json` for executionReadiness and apply state.",
+		"Inspect `stackkit plan --json` for readiness blockers and `stackkit drift detect --json` for the applied state.",
 	}
 	if runID := currentApplyRunID(); runID != "" && logging.IsValidRunID(runID) {
 		return append(guidance, fmt.Sprintf("Inspect run %s with `stackkit logs latest --json`.", runID))

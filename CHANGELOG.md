@@ -4,6 +4,15 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.33.1](https://github.com/kombifyio/stackKits/compare/v0.33.0...v0.33.1) (2026-09-16)
+
+
+### Fixed
+
+* **cli:** logs latest, init owner check, drift JSON failures and agent init steps
+* **release:** finalize can read the public draft; smoke greps without SIGPIPE
+* **test-planner:** keep over-budget packages inside the affected slice budget
+
 ## [0.33.0](https://github.com/kombifyio/stackKits/compare/47e8bbe21ceb53e9207bc2d04dd2170e1678d768...dcaa48b6a56975b39a4071ced0439413872c2e6d) (2026-09-16)
 
 ### Highlights

@@ -557,6 +557,11 @@ func buildPlan(input plannerInput) testPlan {
 	if len(classes.Unknown) > 0 {
 		warnings = append(warnings, "unknown paths receive hygiene checks only; the planner never falls back to go test ./...")
 	}
+	for _, command := range commands {
+		if command.Scope == budgetedPackageScope {
+			warnings = append(warnings, command.Argv[len(command.Argv)-1]+" is over the affected slice budget: this slice skips its unselected registered slow tests, which run in mise run test:full")
+		}
+	}
 	if len(files) == 0 {
 		warnings = append(warnings, "no changes relative to the selected merge base or in the working tree")
 	}
@@ -645,6 +650,16 @@ func applyPublicTestBoundaries(files, inertFiles []string, selection *affectedGo
 			unmappedProduction[path.Dir(file)] = true
 		}
 	}
+	// The package slice replaces a dropped focused run. A package over the slice
+	// budget skips slow tests in that slice, so it must still execute every test
+	// the dropped focus or the boundary selected.
+	fallBackToPackageSlice := func(dir string, tests []string) {
+		if selection.Required == nil {
+			selection.Required = map[string][]string{}
+		}
+		selection.Required[dir] = sortedUnique(append(append(selection.Required[dir], focused[dir]...), tests...))
+		delete(focused, dir)
+	}
 	for _, file := range files {
 		boundary, registered := filePublicTestBoundaries[file]
 		if !registered {
@@ -652,14 +667,14 @@ func applyPublicTestBoundaries(files, inertFiles []string, selection *affectedGo
 		}
 		source := path.Dir(file)
 		if unmappedProduction[source] {
-			delete(focused, source)
+			fallBackToPackageSlice(source, nil)
 		} else if _, alreadyFocused := focused[source]; !alreadyFocused {
 			// Explicit empty selection compiles the source; the real behavior is
 			// executed below through its public owner boundary.
 			focused[source] = nil
 		}
 		if unmappedProduction[boundary.Package] {
-			delete(focused, boundary.Package)
+			fallBackToPackageSlice(boundary.Package, boundary.Tests)
 		} else {
 			focused[boundary.Package] = sortedUnique(append(focused[boundary.Package], boundary.Tests...))
 		}
@@ -766,6 +781,9 @@ type affectedGoSelection struct {
 	TestOnly    []string
 	CompileOnly []string
 	Reverse     []string
+	// Required keeps the tests a dropped focused selection or public boundary
+	// selected in a package that fell back to the package slice.
+	Required map[string][]string
 }
 
 func affectedGoSelectionFor(files []string, packages []goPackage, maxReverse int) affectedGoSelection {
@@ -867,11 +885,6 @@ func isGeneratedGoProjection(file string) bool {
 	return strings.HasSuffix(file, "_gen.go") || strings.HasSuffix(file, "_generated.go")
 }
 
-func affectedGoPatterns(files []string, packages []goPackage, maxReverse int) []string {
-	selection := affectedGoSelectionFor(files, packages, maxReverse)
-	return sortedUnique(append(append(selection.Changed, selection.CompileOnly...), selection.Reverse...))
-}
-
 func affectedGoCommands(selection affectedGoSelection, changedTests, changedTestTags map[string][]string) []testCommand {
 	type focusedSelection struct {
 		pattern string
@@ -880,6 +893,7 @@ func affectedGoCommands(selection affectedGoSelection, changedTests, changedTest
 	}
 	focusedSelections := []focusedSelection{}
 	fullPatterns := []string{}
+	budgetedPatterns := []string{}
 	compileOnlyPatterns := append([]string(nil), selection.CompileOnly...)
 	taggedCompilePatterns := map[string][]string{}
 	selectTests := func(pattern string, fallback *[]string) {
@@ -905,7 +919,11 @@ func affectedGoCommands(selection affectedGoSelection, changedTests, changedTest
 		focusedSelections = append(focusedSelections, focusedSelection{pattern: pattern, tests: tests, tags: sortedUnique(changedTestTags[dir])})
 	}
 	for _, pattern := range selection.Changed {
-		selectTests(pattern, &fullPatterns)
+		if overSliceBudget(pattern) {
+			selectTests(pattern, &budgetedPatterns)
+		} else {
+			selectTests(pattern, &fullPatterns)
+		}
 	}
 	for _, pattern := range selection.TestOnly {
 		selectTests(pattern, &compileOnlyPatterns)
@@ -934,6 +952,9 @@ func affectedGoCommands(selection affectedGoSelection, changedTests, changedTest
 			Kind: "go", Scope: "changed-packages", Argv: append(args, fullPatterns...),
 			Reason: "run changed packages that have no changed test-function boundary",
 		})
+	}
+	for _, pattern := range budgetedPatterns {
+		commands = append(commands, budgetedPackageCommand(pattern, selection.Required[strings.TrimPrefix(pattern, "./")]))
 	}
 	if len(compileOnlyPatterns) > 0 {
 		args := []string{"go", "test", "-count=1", goTestTimeoutArg, "-run", "^$"}

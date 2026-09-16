@@ -44,8 +44,11 @@ Use filters to narrow down to specific event types.`,
 
   # Show a timing summary
   stackkit logs --timing`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runLogs,
+	// Reading logs must not open a run log of its own, or "latest" is always
+	// the empty log of this very command.
+	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
+	Args:        cobra.MaximumNArgs(1),
+	RunE:        runLogs,
 }
 
 var logsListCmd = &cobra.Command{

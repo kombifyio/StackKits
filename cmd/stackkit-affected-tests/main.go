@@ -117,6 +117,15 @@ func run(args []string, stdout, stderr io.Writer) error {
 		InertGoFiles:         inertGoFiles,
 	})
 
+	if opts.format != "json" {
+		// A reduced or degraded slice must be visible where the plan runs, not
+		// only in the JSON plan.
+		for _, warning := range plan.Warnings {
+			if _, err := fmt.Fprintln(stderr, "warning:", warning); err != nil {
+				return err
+			}
+		}
+	}
 	if opts.format == "shell" {
 		for _, command := range plan.Commands {
 			if _, err := fmt.Fprintln(stdout, shellJoin(command.Argv)); err != nil {

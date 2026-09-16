@@ -175,7 +175,16 @@ func init() {
 	rootCmd.AddCommand(driftCmd)
 }
 
-func runDriftDetect(cmd *cobra.Command, _ []string) error {
+func runDriftDetect(cmd *cobra.Command, _ []string) (retErr error) {
+	machineResultWritten := false
+	defer func() {
+		if retErr != nil && driftDetectJSON && !machineResultWritten {
+			retErr = writeMachineCommandFailure(cmd, retErr,
+				"Correct the reported Plan, Apply evidence, or runtime condition, then retry `stackkit drift detect --json`.",
+				"Run `stackkit verify --json` to check the applied deployment first.",
+			)
+		}
+	}()
 	ctx := cmd.Context()
 	if ctx == nil {
 		ctx = context.Background()
@@ -218,6 +227,7 @@ func runDriftDetect(cmd *cobra.Command, _ []string) error {
 		}
 	}
 	if driftDetectJSON {
+		machineResultWritten = true
 		return writeCommandResult(cmd, cmd.CommandPath(), report)
 	}
 	return printDriftReport(cmd.OutOrStdout(), report)

@@ -3,7 +3,7 @@
   "program": "stackkit",
   "usage": "stackkit [flags]",
   "short": "Set up and care for your own services with portable StackKits",
-  "description": "Run your own services from a portable StackKit definition.\nThe standalone local path needs no kombify account or Techstack.\n\nStart in a dedicated deployment directory:\n  stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com\n\nThen review your saved choices and follow the next step printed by init.\nNothing is installed by init. Catalog defaults come from the selected Kit;\nexplicit flags let you change its choices.\n\nYour local workflow:\n  init       Save your desired configuration\n  validate   Check the configuration\n  generate   Prepare the deployment artifacts\n  plan       Review infrastructure changes\n  apply      Execute the admitted changes\n  verify     Check the result\n  status     Find what is usable and what needs attention\n\nReturning to an existing deployment? Run stackkit status in its directory.\nUse stackkit <command> --help for examples and detailed options.",
+  "description": "Run your own services from a portable StackKit definition.\nThe standalone local path needs no kombify account or Techstack.\n\nStart in a dedicated deployment directory:\n  stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com\n\nThen review your saved choices and follow the next step printed by init.\nNothing is installed by init. Catalog defaults come from the selected Kit;\nexplicit flags let you change its choices.\n\nYour local workflow:\n  init       Save your desired configuration\n  validate   Check the configuration\n  generate   Prepare the deployment artifacts\n  plan       Review infrastructure changes\n  apply      Execute the admitted changes\n  verify     Check the result\n  drift      Compare the running deployment with the applied plan\n\nReturning to an existing deployment? Run stackkit verify and stackkit drift detect in its directory.\nUse stackkit <command> --help for examples and detailed options.",
   "globalFlags": [
     {
       "name": "chdir",
@@ -1457,7 +1457,6 @@
       ],
       "subcommands": [
         "stackkit break-glass list",
-        "stackkit break-glass rotate",
         "stackkit break-glass show-bundle"
       ]
     },
@@ -1481,28 +1480,6 @@
           "description": "List bundles copied to another directory"
         }
       ],
-      "flags": [
-        {
-          "name": "dir",
-          "type": "string",
-          "description": "Override the bundle directory (default: /var/lib/stackkit/recovery)",
-          "required": false,
-          "inheritedFrom": "stackkit break-glass"
-        }
-      ],
-      "subcommands": []
-    },
-    {
-      "path": "stackkit break-glass rotate",
-      "name": "rotate",
-      "parent": "stackkit break-glass",
-      "aliases": [],
-      "group": "care",
-      "usage": "stackkit break-glass rotate [flags]",
-      "short": "Generate a new break-glass account on this node and re-issue the bundle (Phase 5)",
-      "description": "Rotate the per-node break-glass credentials and re-issue the bundle.\n\nThis is part of Phase 5 of the owner & break-glass-admin roadmap and is\nnot yet implemented. Until it lands, rotate manually by re-running\n'stackkit apply' on the node — the apply orchestrator will regenerate\nthe per-node break-glass admin and write a fresh bundle.",
-      "runnable": true,
-      "examples": [],
       "flags": [
         {
           "name": "dir",

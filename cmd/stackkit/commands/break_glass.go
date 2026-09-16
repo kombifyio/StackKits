@@ -9,7 +9,7 @@ package commands
 // Sub-commands:
 //   list                    list bundles in the recovery dir
 //   show-bundle <node>      print a single node's bundle path
-//   rotate                  Phase-5 stub
+//   rotate                  not implemented (hidden)
 //
 // The bundle directory defaults to /var/lib/stackkit/recovery (matching the
 // internal/identity default) but is overrideable via --dir or the
@@ -132,9 +132,12 @@ var breakGlassShowBundleCmd = &cobra.Command{
 	},
 }
 
+// rotate is not implemented; it stays hidden from help and the generated CLI
+// reference until it can do more than fail.
 var breakGlassRotateCmd = &cobra.Command{
-	Use:   "rotate",
-	Short: "Generate a new break-glass account on this node and re-issue the bundle (Phase 5)",
+	Use:    "rotate",
+	Hidden: true,
+	Short:  "Generate a new break-glass account on this node and re-issue the bundle",
 	Long: `Rotate the per-node break-glass credentials and re-issue the bundle.
 
 This is part of Phase 5 of the owner & break-glass-admin roadmap and is
@@ -142,7 +145,7 @@ not yet implemented. Until it lands, rotate manually by re-running
 'stackkit apply' on the node — the apply orchestrator will regenerate
 the per-node break-glass admin and write a fresh bundle.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return fmt.Errorf("break-glass rotate is Phase 5, not yet implemented; rerun stackkit apply to regenerate the per-node bundle")
+		return fmt.Errorf("break-glass rotate is not implemented yet; rerun stackkit apply on this node to regenerate the per-node bundle")
 	},
 }
 

@@ -53,7 +53,7 @@ var agentPromptBodies = map[string]string{
 	"basekit-autonomous-rollout": `You are operating StackKits autonomously on a fresh controlled host. Deploy BaseKit only.
 
 Run:
-stackkit init basement-kit --owner-source=local --non-interactive
+stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email <owner-email> --non-interactive
 stackkit validate
 stackkit generate
 stackkit plan
@@ -64,8 +64,8 @@ Do not put provider lifecycle, credentials, management addresses, or observed ho
 	"inspect-existing-rollout": `Inspect an existing StackKits workspace without mutation.
 
 Run:
-stackkit status --json
 stackkit verify --json
+stackkit drift detect --json
 stackkit logs list --json
 
 Report current StackKit, mode, Hub URL, service URLs, failing checks, latest run ID, and evidence paths.`,
@@ -75,7 +75,7 @@ Run:
 stackkit logs list --json
 stackkit logs latest --json
 stackkit verify --json
-stackkit status --json
+stackkit drift detect --json
 
 Classify the failure as host-prerequisite, docker-daemon, image-pull, network-or-dns, generated-config, opentofu-plan, opentofu-apply, service-health, or unknown.`,
 	"ssh-rollout": `Prepare an externally handed-over host for a governed Basement Kit rollout. Raw SSH target selection is not StackSpec intent.
@@ -83,7 +83,7 @@ Classify the failure as host-prerequisite, docker-daemon, image-pull, network-or
 Require an observed Inventory plus any ExternalHostBinding/HostConformanceReceipt from the host or TechStack owner. Never put provider credentials, lifecycle, or management addresses into StackSpec.
 
 Run:
-stackkit init basement-kit --owner-source=local --non-interactive
+stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email <owner-email> --non-interactive
 stackkit validate
 stackkit generate
 stackkit plan
@@ -92,14 +92,14 @@ stackkit verify --json`,
 	"family-photo-vault-lifecycle": `Operate the Family Photo Vault through the common standalone StackKits operation registry.
 
 Install from the CUE-owned Modern reference profile:
-stackkit init modern-homelab --domain <domain-base> --owner-source=local --non-interactive
+stackkit init modern-homelab --domain <domain-base> --catalog-defaults --owner-source=local --owner-email <owner-email> --non-interactive
 stackkit validate
 stackkit generate
 stackkit plan
 stackkit apply
 stackkit verify --json
 
-Manage with status, logs, backup, upgrade, restore, and drift. Before destructive removal, obtain explicit local Owner approval, then run:
+Manage with verify, drift, logs, backup, restore, and upgrade. Before destructive removal, obtain explicit local Owner approval, then run:
 stackkit remove --workload photos --json
 
 Never hand-edit generated artifacts, inject provider lifecycle or credentials, bypass the exact operation confirmation, or treat the State Console as lifecycle authority.`,
@@ -288,7 +288,7 @@ func buildAgentInstallPlan(kit, target, workspace string) agentInstallPlan {
 	if workspace == "" {
 		workspace = "my-homelab"
 	}
-	initCommand := "stackkit init " + kit + " --non-interactive --owner-source=local"
+	initCommand := "stackkit init " + kit + " --catalog-defaults --owner-source=local --owner-email <owner-email> --non-interactive"
 	if kit == "cloud-kit" || kit == "modern-homelab" {
 		initCommand += " --domain <domain-base>"
 	}
@@ -302,7 +302,7 @@ func buildAgentInstallPlan(kit, target, workspace string) agentInstallPlan {
 		Target:    target,
 		Workspace: workspace,
 		Commands: []agentCommandStep{
-			{Command: "stackkit version", Purpose: "require the exact native v0.8 candidate bundle; never fall back to a compatibility release", Mutation: false},
+			{Command: "stackkit version", Purpose: "confirm the installed StackKits CLI release; never fall back to an exact-v0.6 compatibility build", Mutation: false},
 			{Command: "mkdir -p " + workspace + " && cd " + workspace, Purpose: "create a clean workspace", Mutation: true},
 			{Command: initCommand, Purpose: "materialize canonical StackSpec v2 from the embedded CUE authoring contract", Mutation: true},
 			{Command: "stackkit validate", Purpose: "validate desired StackSpec v2 intent against the embedded CUE authority", Mutation: false},
