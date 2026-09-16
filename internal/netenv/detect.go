@@ -170,6 +170,11 @@ func getPublicIP(ctx context.Context) string {
 }
 
 // fetchIP makes a GET request to a service that returns the public IP as plain text.
+//
+// The request goes out over IPv4 only and only an IPv4 answer counts. On a
+// dual-stack home network the host owns a global IPv6 address, so an IPv6 answer
+// is always "on an interface" and made every such home server look like a VPS;
+// IPv4 NAT is what separates a home network from a public server.
 func fetchIP(ctx context.Context, url string) string {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -177,7 +182,12 @@ func fetchIP(ctx context.Context, url string) string {
 	}
 	req.Header.Set("User-Agent", "stackkit/netenv")
 
-	client := &http.Client{Timeout: 5 * time.Second}
+	dialer := &net.Dialer{Timeout: 5 * time.Second}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = func(ctx context.Context, _, address string) (net.Conn, error) {
+		return dialer.DialContext(ctx, "tcp4", address)
+	}
+	client := &http.Client{Timeout: 5 * time.Second, Transport: transport}
 	resp, err := client.Do(req)
 	if err != nil {
 		return ""
@@ -191,7 +201,7 @@ func fetchIP(ctx context.Context, url string) string {
 	}
 
 	ip := strings.TrimSpace(string(body))
-	if net.ParseIP(ip) == nil {
+	if parsed := net.ParseIP(ip); parsed == nil || parsed.To4() == nil {
 		return ""
 	}
 	return ip

@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.33.3](https://github.com/kombifyio/stackKits/compare/v0.33.2...v0.33.3) (2026-09-16)
+
+
+### Fixed
+
+* **netenv:** detect a home network by its IPv4 NAT, not a global IPv6 address
+
 ## [0.33.2](https://github.com/kombifyio/stackKits/compare/v0.33.1...v0.33.2) (2026-09-16)
 
 
