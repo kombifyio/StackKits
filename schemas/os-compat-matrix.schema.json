@@ -24,6 +24,10 @@
     "applications": {
       "type": "array",
       "items": { "$ref": "#/$defs/applicationRow" }
+    },
+    "environments": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/environmentRow" }
     }
   },
   "additionalProperties": false,
@@ -45,6 +49,7 @@
         "verify-failed",
         "backup-failed",
         "restore-failed",
+        "lan-access-failed",
         "cleanup-failed"
       ]
     },
@@ -60,7 +65,7 @@
         },
         "verifiedPhases": {
           "type": "array",
-          "items": { "type": "string", "pattern": "^(install|init|generate|apply|verify|backup|restore|setup-[a-z0-9-]+)$" },
+          "items": { "type": "string", "pattern": "^(install|init|generate|apply|verify|backup|restore|lan-access|setup-[a-z0-9-]+)$" },
           "uniqueItems": true
         },
         "lastVerifiedRelease": { "$ref": "#/$defs/release" }
@@ -107,6 +112,21 @@
         "id": { "$ref": "#/$defs/slug" },
         "name": { "type": "string", "minLength": 1 },
         "rollout": { "type": "string", "minLength": 1, "maxLength": 240, "pattern": "^[^<>|\n]*\\S[^<>|\n]*$" },
+        "grade": true,
+        "reasonCodes": true,
+        "verifiedPhases": true,
+        "lastVerifiedRelease": true
+      },
+      "allOf": [{ "$ref": "#/$defs/evidence" }],
+      "additionalProperties": false
+    },
+    "environmentRow": {
+      "type": "object",
+      "required": ["kit", "environment", "name", "grade", "reasonCodes"],
+      "properties": {
+        "kit": { "enum": ["basement-kit", "cloud-kit", "modern-homelab"] },
+        "environment": { "$ref": "#/$defs/slug" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[^<>|\n]+$" },
         "grade": true,
         "reasonCodes": true,
         "verifiedPhases": true,

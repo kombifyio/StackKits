@@ -3,18 +3,44 @@
   "producer": {
     "workflowPath": "stackkits-linux-compat.yml"
   },
-  "lifecyclePhases": ["install", "init", "generate", "apply", "verify", "backup", "restore"],
+  "lifecyclePhases": [
+    "install",
+    "init",
+    "generate",
+    "apply",
+    "verify",
+    "backup",
+    "restore"
+  ],
   "os": [
     {
-      "os": { "family": "linux", "distribution": "ubuntu", "version": "24.04" },
-      "cells": ["ubuntu-24.04-amd64-basement-standalone"]
+      "os": {
+        "family": "linux",
+        "distribution": "ubuntu",
+        "version": "24.04"
+      },
+      "cells": [
+        "ubuntu-24.04-amd64-basement-standalone",
+        "ubuntu-24.04-amd64-basement-home-lan"
+      ]
     },
     {
-      "os": { "family": "linux", "distribution": "debian", "version": "13" },
-      "cells": ["debian-13-amd64-basement-standalone"]
+      "os": {
+        "family": "linux",
+        "distribution": "debian",
+        "version": "13"
+      },
+      "cells": [
+        "debian-13-amd64-basement-standalone",
+        "debian-13-amd64-basement-home-lan"
+      ]
     },
     {
-      "os": { "family": "linux", "distribution": "debian", "version": "12" },
+      "os": {
+        "family": "linux",
+        "distribution": "debian",
+        "version": "12"
+      },
       "cells": []
     }
   ],
@@ -22,18 +48,87 @@
     {
       "id": "proxmox-ve",
       "name": "Proxmox VE",
-      "rollout": "kombify Techstack enrolls the Proxmox VE host and creates an Ubuntu 24.04 guest VM through its API; the StackKit installs inside that guest.",
-      "substrates": []
+      "rollout": "kombify Techstack or the Proxmox VE API creates an Ubuntu 24.04 guest VM; the StackKit installs inside that guest and is reached from the home network.",
+      "substrates": [
+        "proxmox-ve"
+      ]
     }
   ],
   "applications": [
-    { "useCase": "files", "adapter": "standalone-compose", "automated": true },
-    { "useCase": "photos", "adapter": "standalone-compose", "automated": true },
-    { "useCase": "vault", "adapter": "standalone-compose", "automated": true },
-    { "useCase": "ai", "adapter": "standalone-compose", "automated": false },
-    { "useCase": "dev", "adapter": "standalone-compose", "automated": false },
-    { "useCase": "documents", "adapter": "standalone-compose", "automated": false },
-    { "useCase": "media", "adapter": "standalone-compose", "automated": false },
-    { "useCase": "smart-home", "adapter": "standalone-compose", "automated": false }
+    {
+      "useCase": "files",
+      "adapter": "standalone-compose",
+      "automated": true
+    },
+    {
+      "useCase": "photos",
+      "adapter": "standalone-compose",
+      "automated": true
+    },
+    {
+      "useCase": "vault",
+      "adapter": "standalone-compose",
+      "automated": true
+    },
+    {
+      "useCase": "ai",
+      "adapter": "standalone-compose",
+      "automated": false
+    },
+    {
+      "useCase": "dev",
+      "adapter": "standalone-compose",
+      "automated": false
+    },
+    {
+      "useCase": "documents",
+      "adapter": "standalone-compose",
+      "automated": false
+    },
+    {
+      "useCase": "media",
+      "adapter": "standalone-compose",
+      "automated": false
+    },
+    {
+      "useCase": "smart-home",
+      "adapter": "standalone-compose",
+      "automated": false
+    }
+  ],
+  "environments": [
+    {
+      "kit": "basement-kit",
+      "environment": "ci-vm",
+      "name": "Fresh virtual machine in CI",
+      "cells": [
+        "ubuntu-24.04-amd64-basement-standalone",
+        "debian-13-amd64-basement-standalone"
+      ]
+    },
+    {
+      "kit": "basement-kit",
+      "environment": "home-lan-vm",
+      "name": "Virtual machine on a home network",
+      "cells": [
+        "ubuntu-24.04-amd64-basement-home-lan",
+        "debian-13-amd64-basement-home-lan"
+      ],
+      "extraPhases": [
+        "lan-access"
+      ]
+    },
+    {
+      "kit": "cloud-kit",
+      "environment": "public-vps",
+      "name": "Public VPS with a kombify.me address",
+      "cells": []
+    },
+    {
+      "kit": "modern-homelab",
+      "environment": "home-and-vps",
+      "name": "Home virtual machine plus public VPS",
+      "cells": []
+    }
   ]
 }

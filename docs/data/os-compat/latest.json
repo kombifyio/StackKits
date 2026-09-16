@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
-  "stackkitsVersion": "v0.32.1",
-  "generatedAt": "2026-09-16T12:04:02Z",
+  "stackkitsVersion": "v0.33.3",
+  "generatedAt": "2026-09-16T21:03:18Z",
   "results": [
     {
       "os": {
@@ -23,7 +23,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.32.1"
+      "lastVerifiedRelease": "v0.33.3"
     },
     {
       "os": {
@@ -62,11 +62,10 @@
     {
       "id": "proxmox-ve",
       "name": "Proxmox VE",
-      "rollout": "kombify Techstack enrolls the Proxmox VE host and creates an Ubuntu 24.04 guest VM through its API; the StackKit installs inside that guest.",
-      "grade": "unverified",
-      "reasonCodes": [
-        "no-automated-lane"
-      ]
+      "rollout": "kombify Techstack or the Proxmox VE API creates an Ubuntu 24.04 guest VM; the StackKit installs inside that guest and is reached from the home network.",
+      "grade": "supported",
+      "reasonCodes": [],
+      "lastVerifiedRelease": "v0.33.3"
     }
   ],
   "applications": [
@@ -85,22 +84,14 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.32.1"
+      "lastVerifiedRelease": "v0.33.3"
     },
     {
       "useCase": "photos",
       "adapter": "standalone-compose",
-      "grade": "supported",
-      "reasonCodes": [],
-      "verifiedPhases": [
-        "install",
-        "init",
-        "generate",
-        "apply",
-        "setup-photos",
-        "verify",
-        "backup",
-        "restore"
+      "grade": "unverified",
+      "reasonCodes": [
+        "current-release-receipt-pending"
       ],
       "lastVerifiedRelease": "v0.32.1"
     },
@@ -111,7 +102,7 @@
       "reasonCodes": [
         "current-release-receipt-pending"
       ],
-      "lastVerifiedRelease": "v0.31.5"
+      "lastVerifiedRelease": "v0.33.2"
     },
     {
       "useCase": "ai",
@@ -148,6 +139,61 @@
     {
       "useCase": "smart-home",
       "adapter": "standalone-compose",
+      "grade": "unverified",
+      "reasonCodes": [
+        "no-automated-lane"
+      ]
+    }
+  ],
+  "environments": [
+    {
+      "kit": "basement-kit",
+      "environment": "ci-vm",
+      "name": "Fresh virtual machine in CI",
+      "grade": "supported",
+      "reasonCodes": [],
+      "verifiedPhases": [
+        "install",
+        "init",
+        "generate",
+        "apply",
+        "verify",
+        "backup",
+        "restore"
+      ],
+      "lastVerifiedRelease": "v0.33.3"
+    },
+    {
+      "kit": "basement-kit",
+      "environment": "home-lan-vm",
+      "name": "Virtual machine on a home network",
+      "grade": "supported",
+      "reasonCodes": [],
+      "verifiedPhases": [
+        "install",
+        "init",
+        "generate",
+        "apply",
+        "verify",
+        "backup",
+        "restore",
+        "lan-access"
+      ],
+      "lastVerifiedRelease": "v0.33.3"
+    },
+    {
+      "kit": "cloud-kit",
+      "environment": "public-vps",
+      "name": "Public VPS with a kombify.me address",
+      "grade": "unverified",
+      "reasonCodes": [
+        "no-automated-lane"
+      ]
+    },
+    {
+      "kit": "modern-homelab",
+      "environment": "home-and-vps",
+      "name": "Home virtual machine plus public VPS",
       "grade": "unverified",
       "reasonCodes": [
         "no-automated-lane"

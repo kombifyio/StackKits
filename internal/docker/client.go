@@ -192,6 +192,7 @@ type ContainerHealthcheck struct {
 
 type ContainerHostConfig struct {
 	Binds                   []string                          `json:"Binds"`
+	Mounts                  []ContainerHostMount              `json:"Mounts"`
 	ContainerIDFile         string                            `json:"ContainerIDFile"`
 	LogConfig               ContainerLogConfig                `json:"LogConfig"`
 	NetworkMode             string                            `json:"NetworkMode"`
@@ -268,12 +269,54 @@ func (config *ContainerHostConfig) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		return err
 	}
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
+	unknown, err := unknownInspectionFields(data, reflect.TypeOf(decoded))
+	if err != nil {
 		return err
 	}
+	*config = ContainerHostConfig(decoded)
+	config.UnknownInspectionFields = unknown
+	return nil
+}
+
+// ContainerHostMount is one HostConfig.Mounts request. Some Compose releases
+// (for example 2.26 on Debian 13) request named volumes through the mount API
+// instead of Binds; the option objects stay raw so validators can require them
+// to be empty.
+type ContainerHostMount struct {
+	Type                    string          `json:"Type"`
+	Source                  string          `json:"Source"`
+	Target                  string          `json:"Target"`
+	ReadOnly                bool            `json:"ReadOnly"`
+	Consistency             string          `json:"Consistency"`
+	BindOptions             json.RawMessage `json:"BindOptions"`
+	VolumeOptions           json.RawMessage `json:"VolumeOptions"`
+	ImageOptions            json.RawMessage `json:"ImageOptions"`
+	TmpfsOptions            json.RawMessage `json:"TmpfsOptions"`
+	ClusterOptions          json.RawMessage `json:"ClusterOptions"`
+	UnknownInspectionFields []string        `json:"-"`
+}
+
+func (mount *ContainerHostMount) UnmarshalJSON(data []byte) error {
+	type hostMountAlias ContainerHostMount
+	var decoded hostMountAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	unknown, err := unknownInspectionFields(data, reflect.TypeOf(decoded))
+	if err != nil {
+		return err
+	}
+	*mount = ContainerHostMount(decoded)
+	mount.UnknownInspectionFields = unknown
+	return nil
+}
+
+func unknownInspectionFields(data []byte, projection reflect.Type) ([]string, error) {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
 	known := make(map[string]struct{})
-	projection := reflect.TypeOf(decoded)
 	for index := 0; index < projection.NumField(); index++ {
 		name := strings.Split(projection.Field(index).Tag.Get("json"), ",")[0]
 		if name != "" && name != "-" {
@@ -287,9 +330,7 @@ func (config *ContainerHostConfig) UnmarshalJSON(data []byte) error {
 		}
 	}
 	slices.Sort(unknown)
-	*config = ContainerHostConfig(decoded)
-	config.UnknownInspectionFields = unknown
-	return nil
+	return unknown, nil
 }
 
 type ContainerLogConfig struct {

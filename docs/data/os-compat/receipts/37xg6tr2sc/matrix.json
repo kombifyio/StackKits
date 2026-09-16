@@ -1,0 +1,85 @@
+{
+  "schemaVersion": "techstack.depot-linux-summary/v1",
+  "producerCommit": "3a1682a3ff7f2225c021891a443b3f627399eced",
+  "runId": "64264432673531.1",
+  "configSha256": "fd4421d30db1c4b52f648200fa71e8b9bfde6341df8e979002a4791356119b17",
+  "release": "v0.33.3",
+  "useCases": [],
+  "evidenceScope": "declared-guest-phases-only",
+  "publicSupportGrade": "unverified",
+  "status": "incomplete",
+  "results": [
+    {
+      "cell": "ubuntu-24.04-amd64-basement-standalone",
+      "status": "passed",
+      "cleanup": "passed",
+      "phases": [
+        {
+          "name": "install",
+          "status": "passed"
+        },
+        {
+          "name": "init",
+          "status": "passed"
+        },
+        {
+          "name": "generate",
+          "status": "passed"
+        },
+        {
+          "name": "apply",
+          "status": "passed"
+        },
+        {
+          "name": "verify",
+          "status": "passed"
+        },
+        {
+          "name": "backup",
+          "status": "passed"
+        },
+        {
+          "name": "restore",
+          "status": "passed"
+        }
+      ],
+      "attemptId": "e6d52b93-b3bb-41d9-abde-293d90590e7c"
+    },
+    {
+      "cell": "debian-13-amd64-basement-standalone",
+      "status": "failed",
+      "cleanup": "passed",
+      "phases": [
+        {
+          "name": "install",
+          "status": "passed"
+        },
+        {
+          "name": "init",
+          "status": "passed"
+        },
+        {
+          "name": "generate",
+          "status": "passed"
+        },
+        {
+          "name": "apply",
+          "status": "passed"
+        },
+        {
+          "name": "verify",
+          "status": "passed"
+        },
+        {
+          "name": "backup",
+          "status": "failed"
+        },
+        {
+          "name": "restore",
+          "status": "unverified"
+        }
+      ],
+      "attemptId": "be619baa-87ce-4369-9e46-380980b11a88"
+    }
+  ]
+}

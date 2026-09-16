@@ -48,6 +48,7 @@ type osMatrixDoc struct {
 	Results          []osMatrixDocRow  `json:"results"`
 	Virtualization   []osMatrixVirtRow `json:"virtualization,omitempty"`
 	Applications     []osMatrixAppRow  `json:"applications,omitempty"`
+	Environments     []osMatrixEnvRow  `json:"environments,omitempty"`
 }
 
 type osMatrixEvidence struct {
@@ -78,6 +79,15 @@ type osMatrixVirtRow struct {
 	osMatrixEvidence
 }
 
+// osMatrixEnvRow grades one kit in one kind of environment (for example a
+// fresh CI virtual machine or a virtual machine on a home network).
+type osMatrixEnvRow struct {
+	Kit         string `json:"kit"`
+	Environment string `json:"environment"`
+	Name        string `json:"name"`
+	osMatrixEvidence
+}
+
 type osMatrixAppRow struct {
 	UseCase string `json:"useCase"`
 	Adapter string `json:"adapter"`
@@ -96,7 +106,8 @@ var (
 	osMatrixVersion      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 	osMatrixRelease      = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 	osMatrixV2Release    = regexp.MustCompile(`^(unreleased|v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)$`)
-	osMatrixPhase        = regexp.MustCompile(`^(install|init|generate|apply|verify|backup|restore|setup-[a-z0-9-]+)$`)
+	osMatrixPhase        = regexp.MustCompile(`^(install|init|generate|apply|verify|backup|restore|lan-access|setup-[a-z0-9-]+)$`)
+	osMatrixKits         = map[string]bool{"basement-kit": true, "cloud-kit": true, "modern-homelab": true}
 )
 
 // Closed public reason codes. The two v2 codes stay readable for archives.
@@ -111,6 +122,7 @@ var osMatrixReasonLabels = map[string]string{
 	"verify-failed":                     "Verify phase failed on this release",
 	"backup-failed":                     "Backup phase failed on this release",
 	"restore-failed":                    "Restore phase failed on this release",
+	"lan-access-failed":                 "Local service addresses were not reachable from the home network",
 	"cleanup-failed":                    "Cleanup after the lifecycle run failed",
 	"current-candidate-receipt-pending": "Current candidate receipt pending",
 	"os-policy-not-yet-admitted":        "OS policy not yet admitted",
@@ -140,7 +152,7 @@ func runCompatEmitOSMatrix(cmd *cobra.Command, args []string) error {
 	if err := writeGenerated(emitOSMatrixWebsiteOut, feed); err != nil {
 		return err
 	}
-	fmt.Printf("emitted %s and %s from %s (%d OS, %d virtualization, %d application rows)\n", emitOSMatrixDocsOut, emitOSMatrixWebsiteOut, emitOSMatrixInput, len(matrix.Results), len(matrix.Virtualization), len(matrix.Applications))
+	fmt.Printf("emitted %s and %s from %s (%d OS, %d virtualization, %d application, %d environment rows)\n", emitOSMatrixDocsOut, emitOSMatrixWebsiteOut, emitOSMatrixInput, len(matrix.Results), len(matrix.Virtualization), len(matrix.Applications), len(matrix.Environments))
 	return nil
 }
 
@@ -230,6 +242,20 @@ func decodeOSMatrix(raw []byte) (osMatrixDoc, error) {
 			return osMatrixDoc{}, err
 		}
 		if err := validateOSMatrixEvidence(matrix.SchemaVersion, fmt.Sprintf("virtualization row %d", i), row.osMatrixEvidence); err != nil {
+			return osMatrixDoc{}, err
+		}
+	}
+	for i, row := range matrix.Environments {
+		if matrix.SchemaVersion < 3 || !osMatrixKits[row.Kit] || !osMatrixSlug.MatchString(row.Environment) {
+			return osMatrixDoc{}, fmt.Errorf("environment row %d needs a known kit and an environment id", i)
+		}
+		if strings.TrimSpace(row.Name) == "" || len(row.Name) > 80 || strings.ContainsAny(row.Name, "<>|\n") {
+			return osMatrixDoc{}, fmt.Errorf("environment row %d needs a short plain name", i)
+		}
+		if err := unique("environment", row.Kit+"@"+row.Environment); err != nil {
+			return osMatrixDoc{}, err
+		}
+		if err := validateOSMatrixEvidence(matrix.SchemaVersion, fmt.Sprintf("environment row %d", i), row.osMatrixEvidence); err != nil {
 			return osMatrixDoc{}, err
 		}
 	}
@@ -362,6 +388,18 @@ func renderOSMatrixMarkdown(matrix osMatrixDoc, sourceHash string) string {
 		for _, row := range matrix.Virtualization {
 			note, last := osMatrixEvidenceCells(row.osMatrixEvidence)
 			fmt.Fprintf(&b, "| %s | %s | **%s %s** | %s | %s |\n", row.Name, row.Rollout, gradeGlyph(row.Grade), row.Grade, note, last)
+		}
+	}
+
+	if len(matrix.Environments) > 0 {
+		b.WriteString("\n## Kits by environment\n\n")
+		b.WriteString("Each kit graded in the kind of environment it was run in. A home-network row also opens the kit's\n")
+		b.WriteString("local service addresses from another device on that network.\n\n")
+		b.WriteString("| Kit | Environment | Grade | Evidence | Last verified |\n")
+		b.WriteString("| --- | --- | :-: | --- | --- |\n")
+		for _, row := range matrix.Environments {
+			note, last := osMatrixEvidenceCells(row.osMatrixEvidence)
+			fmt.Fprintf(&b, "| `%s` | %s | **%s %s** | %s | %s |\n", row.Kit, row.Name, gradeGlyph(row.Grade), row.Grade, note, last)
 		}
 	}
 

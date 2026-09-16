@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "techstack.depot-linux-summary/v1",
+  "producerCommit": "b2e044a98171d0ff528f054a3549decc0e2c30d5",
+  "runId": "3255369683866.1",
+  "configSha256": "280fe14f24a1a402499a3dba4e02782efaca9032542ecf47bed0b1ce5bf3bdee",
+  "release": "v0.33.2",
+  "useCases": [
+    "vault"
+  ],
+  "evidenceScope": "declared-guest-phases-only",
+  "publicSupportGrade": "unverified",
+  "status": "passed",
+  "results": [
+    {
+      "cell": "ubuntu-24.04-amd64-basement-standalone",
+      "status": "passed",
+      "cleanup": "passed",
+      "phases": [
+        {
+          "name": "install",
+          "status": "passed"
+        },
+        {
+          "name": "init",
+          "status": "passed"
+        },
+        {
+          "name": "generate",
+          "status": "passed"
+        },
+        {
+          "name": "apply",
+          "status": "passed"
+        },
+        {
+          "name": "setup-vault",
+          "status": "passed"
+        },
+        {
+          "name": "verify",
+          "status": "passed"
+        },
+        {
+          "name": "backup",
+          "status": "passed"
+        },
+        {
+          "name": "restore",
+          "status": "passed"
+        }
+      ],
+      "attemptId": "cc24f80d-d6e3-420b-963a-9692ecfdd74b",
+      "applicationProof": {
+        "application": "vault",
+        "setupScope": "invitation-preparation-only",
+        "snapshotAnchorId": "sha256:5e0ea20dde5189025ee1c73434634a8a3cd026754f935913e85db4714c73ced3",
+        "restoreResultId": "sha256:fb56687cbac7acdd11684a082e7017c6011412a43534861626715155f58a382f",
+        "snapshotOperationId": "depot-snapshot",
+        "restoreOperationId": "depot-restore",
+        "activationOperationId": "depot-restore-activate",
+        "activationStatus": "activated",
+        "restoredApplicationReadback": "pending"
+      }
+    }
+  ]
+}

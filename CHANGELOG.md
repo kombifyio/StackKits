@@ -4,6 +4,26 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.34.0](https://github.com/kombifyio/stackKits/compare/a931504667f6ac2a088a4665d8c8df762b00717b...b6ec89e38110ac7f4da174a92b3663e5cbb8f38e) (2026-09-16)
+
+
+### Added
+
+* **compat:** grade kits per environment with home-network lab evidence
+
+
+### Fixed
+
+* **backup:** accept named volumes Compose requests through the mount API
+* **cli:** logs latest, init owner check, drift JSON failures and agent init steps
+* **cli:** native backup commands report --json failures as command results
+* **netenv:** detect a home network by its IPv4 NAT, not a global IPv6 address
+* **release:** finalize can read the public draft; smoke greps without SIGPIPE
+* **release:** WebMCP live smoke waits for the edge to serve the deployed source
+* **test-planner:** keep over-budget packages inside the affected slice budget
+
+Notes cover changes after VERSION 0.33.0 (a931504667f6ac2a088a4665d8c8df762b00717b), the earliest available contiguous 0.33.x VERSION anchor, through selected source b6ec89e38110ac7f4da174a92b3663e5cbb8f38e.
+
 ## [0.33.3](https://github.com/kombifyio/stackKits/compare/v0.33.2...v0.33.3) (2026-09-16)
 
 

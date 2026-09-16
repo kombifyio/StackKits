@@ -1,0 +1,86 @@
+{
+  "schemaVersion": "techstack.depot-vm-run/v1",
+  "attemptId": "cc24f80d-d6e3-420b-963a-9692ecfdd74b",
+  "runnerSha256": "8016c91ed3260add2d1ef132caed9060d0baadd23c8fc8cdb7511dce63d1914f",
+  "evidenceScope": "declared-guest-phases-only",
+  "publicSupportGrade": "unverified",
+  "cell": "ubuntu-24.04-amd64-basement-standalone",
+  "status": "passed",
+  "phases": [
+    {
+      "name": "install",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "install.json",
+      "durationSeconds": 17.513
+    },
+    {
+      "name": "init",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "init.json",
+      "durationSeconds": 4.286
+    },
+    {
+      "name": "generate",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "generate.json",
+      "durationSeconds": 18.462
+    },
+    {
+      "name": "apply",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "apply.json",
+      "durationSeconds": 92.652
+    },
+    {
+      "name": "setup-vault",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "setup-vault.json",
+      "durationSeconds": 39.921
+    },
+    {
+      "name": "verify",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "verify.json",
+      "durationSeconds": 11.857
+    },
+    {
+      "name": "backup",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "backup.json",
+      "durationSeconds": 58.66
+    },
+    {
+      "name": "restore",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "restore.json",
+      "durationSeconds": 172.707
+    }
+  ],
+  "startedAt": "2026-09-16T19:59:16.817273+00:00",
+  "cleanup": {
+    "status": "passed",
+    "processAbsent": true,
+    "privateDirectoryAbsent": true
+  },
+  "producerCommit": "b2e044a98171d0ff528f054a3549decc0e2c30d5",
+  "configSha256": "280fe14f24a1a402499a3dba4e02782efaca9032542ecf47bed0b1ce5bf3bdee",
+  "imageSha256": "d0fe84bb5f80853425fa6be28e2c106f30104c3cfe8611933f2e65c9b63f0e30",
+  "substrate": "qemu-kvm",
+  "arch": "amd64",
+  "guestKind": "linux",
+  "runnerSystem": "Linux",
+  "runnerMachine": "x86_64",
+  "guestScriptSha256": "cdfe1e528d437dbec81d3bd580bb5cf6788ce86da089d1a34367e3084424662b",
+  "guestHostKeySha256": "87d56c2ae04d8c8085d7a6704a330059876705ad3594a96c91423ce73e78c596",
+  "qemuStarted": true,
+  "durationSeconds": 432.114,
+  "finishedAt": "2026-09-16T20:06:28.930911+00:00"
+}

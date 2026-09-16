@@ -3,6 +3,7 @@ package backupexec
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -302,6 +303,34 @@ func validateDockerV2RuntimeState(container *docker.ContainerInfo, network *dock
 	return nil
 }
 
+// dockerV2NamedVolumeBind reads a mount-API request as the equivalent Binds
+// entry. Only a plain named volume qualifies; any driver, subpath, label,
+// bind, tmpfs or image option is a different attachment and is rejected.
+func dockerV2NamedVolumeBind(mount docker.ContainerHostMount) (string, error) {
+	emptyOptions := func(raw json.RawMessage) bool {
+		trimmed := strings.TrimSpace(string(raw))
+		return trimmed == "" || trimmed == "null"
+	}
+	volumeOptions := strings.TrimSpace(string(mount.VolumeOptions))
+	if len(mount.UnknownInspectionFields) != 0 ||
+		mount.Type != "volume" ||
+		mount.Source == "" ||
+		mount.Target == "" ||
+		mount.Consistency != "" ||
+		!(volumeOptions == "" || volumeOptions == "null" || volumeOptions == "{}") ||
+		!emptyOptions(mount.BindOptions) ||
+		!emptyOptions(mount.ImageOptions) ||
+		!emptyOptions(mount.TmpfsOptions) ||
+		!emptyOptions(mount.ClusterOptions) {
+		return "", fmt.Errorf("container mount request differs from a plain named volume")
+	}
+	mode := "rw"
+	if mount.ReadOnly {
+		mode = "ro"
+	}
+	return mount.Source + ":" + mount.Target + ":" + mode, nil
+}
+
 func validateDockerV2HostConfig(config docker.ContainerHostConfig, source localbackuppolicy.Source) error {
 	v2ComposeProject := source.ComposeProject()
 	if len(config.UnknownInspectionFields) != 0 {
@@ -322,6 +351,13 @@ func validateDockerV2HostConfig(config docker.ContainerHostConfig, source localb
 		v2ComposeProject+"_kopia-restore-staging:"+localbackuppolicy.RestoreStagingPath+":rw",
 	)
 	actualBinds := slices.Clone(config.Binds)
+	for _, mount := range config.Mounts {
+		bind, err := dockerV2NamedVolumeBind(mount)
+		if err != nil {
+			return err
+		}
+		actualBinds = append(actualBinds, bind)
+	}
 	slices.Sort(actualBinds)
 	slices.Sort(wantBinds)
 	if !slices.Equal(actualBinds, wantBinds) ||

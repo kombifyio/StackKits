@@ -1,9 +1,0 @@
-{
-  "schemaVersion": "stackkits-depot-run-provenance/v1",
-  "runId": "wn3fkjn7mk",
-  "workflowPath": "stackkits-linux-compat.yml",
-  "trigger": "workflow_dispatch",
-  "producerSha": "f938aaaa5155917c390a3598671e8ca36d65cf93",
-  "createdAt": "2026-09-16T11:51:21Z",
-  "status": "failed"
-}
