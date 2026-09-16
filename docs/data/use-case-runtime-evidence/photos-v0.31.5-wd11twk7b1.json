@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "techstack.depot-linux-summary/v1",
+  "producerCommit": "3cfb220a513c48f7b404fb0216cff2e4d063057e",
+  "runId": "539337428835601.1",
+  "configSha256": "9b5d79e0f4ac54a42ef7455bb86984f8403d1ae496e9c5fce1b4cde84b702a59",
+  "release": "v0.31.5",
+  "useCases": [
+    "photos"
+  ],
+  "evidenceScope": "declared-guest-phases-only",
+  "publicSupportGrade": "unverified",
+  "status": "passed",
+  "results": [
+    {
+      "cell": "ubuntu-24.04-amd64-basement-standalone",
+      "status": "passed",
+      "cleanup": "passed",
+      "phases": [
+        {
+          "name": "install",
+          "status": "passed"
+        },
+        {
+          "name": "init",
+          "status": "passed"
+        },
+        {
+          "name": "generate",
+          "status": "passed"
+        },
+        {
+          "name": "apply",
+          "status": "passed"
+        },
+        {
+          "name": "setup-photos",
+          "status": "passed"
+        },
+        {
+          "name": "verify",
+          "status": "passed"
+        },
+        {
+          "name": "backup",
+          "status": "passed"
+        },
+        {
+          "name": "restore",
+          "status": "passed"
+        }
+      ],
+      "attemptId": "dbbc0306-b2a6-47dd-a792-230259b2e6a0",
+      "applicationProof": {
+        "application": "photos",
+        "setupScope": "native-owner-setup",
+        "snapshotAnchorId": "sha256:24ec07011df0e56716091d950f582695ba662d8bb0323512310c71ce557f80a0",
+        "restoreResultId": "sha256:8554a019d7f9540c99008f799cee2d29abd2fd05da76e4a5bcc94bd67f243dd6",
+        "snapshotOperationId": "depot-snapshot",
+        "restoreOperationId": "depot-restore",
+        "activationOperationId": "depot-restore-activate",
+        "activationStatus": "activated",
+        "restoredApplicationReadback": "pending"
+      }
+    }
+  ]
+}

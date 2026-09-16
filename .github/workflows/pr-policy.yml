@@ -1,0 +1,31 @@
+name: Pull request policy
+
+# This repository is a generated release mirror: the next release export
+# replaces the tree, so a merged pull request would be lost. Explain that on
+# every new pull request so contributors do not lose work.
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  notice:
+    name: Explain the mirror policy
+    if: github.event.pull_request.user.type != 'Bot'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Comment on the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" --body-file - <<'EOF'
+          Thanks for the change. This repository is a generated release mirror: every release replaces the tree with the curated export of the private upstream, so pull requests cannot be merged here (see `CONTRIBUTING.md`).
+
+          To get this in: open an issue or a Discussion that links this branch. A maintainer ports the patch upstream, and it ships with the next release with credit in the release notes. This pull request stays open until the change is ported or declined.
+          EOF

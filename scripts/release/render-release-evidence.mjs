@@ -6,11 +6,11 @@ import path from 'node:path';
 
 const VALID_STATUS = new Set(['pass', 'fail', 'pending', 'not_applicable']);
 const PUBLIC_SK_S1_PENDING_SUMMARY =
-  'SK-S1 public product evidence is BLOCKED until an authorized leased Proxmox product run supplies separate provenance; Candidate and compatibility evidence do not substitute.';
+  'SK-S1 public product evidence is recorded by the registered Linux producer on the exact public release archive; pending until its fresh-install receipt is bound to this release. Candidate and compatibility evidence do not substitute.';
 const PUBLIC_SK_S1_PENDING_GATE =
-  'SK-S1 public product evidence is BLOCKED pending an authorized leased Proxmox product run.';
+  'SK-S1 public product evidence is pending the registered Linux producer receipt for this release.';
 const PUBLIC_BROWSER_PENDING_SUMMARY =
-  'SK-S1 browser evidence is BLOCKED until it is produced by the separately authorized leased Proxmox product run.';
+  'SK-S1 browser evidence is pending; it is produced by the registered producer on the exact public release, not by this publication.';
 
 const LEGACY_V04_MISSING_ALTERNATIVES = [
   {

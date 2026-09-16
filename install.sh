@@ -232,6 +232,57 @@ else
   echo "Downloading ${URL}..."
   download_release_asset "$URL" "$TMP/$ARCHIVE"
 fi
+
+# --- Verify the archive against the release checksums ------------------------
+# Every release publishes checksums.txt next to its archives. The install fails
+# closed when the checksum file is missing or does not match; set
+# STACKKIT_SKIP_CHECKSUM_VERIFY=1 only after verifying the archive yourself.
+
+CHECKSUMS_FILE="checksums.txt"
+
+sha256_of_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  elif command -v openssl >/dev/null 2>&1; then
+    openssl dgst -sha256 "$1" | awk '{print $NF}'
+  else
+    return 1
+  fi
+}
+
+if [ "${STACKKIT_SKIP_CHECKSUM_VERIFY:-0}" != "1" ]; then
+  if [ -n "$ASSET_API_URL" ]; then
+    CHECKSUMS_API_URL=$(release_asset_api_url "$CHECKSUMS_FILE")
+    if [ -n "$CHECKSUMS_API_URL" ]; then
+      curl_release -H "Accept: application/octet-stream" -fsSL "$CHECKSUMS_API_URL" -o "$TMP/$CHECKSUMS_FILE" || true
+    fi
+  else
+    download_release_asset "${DOWNLOAD_BASE%/}/${CHECKSUMS_FILE}" "$TMP/$CHECKSUMS_FILE" || true
+  fi
+  if [ ! -s "$TMP/$CHECKSUMS_FILE" ]; then
+    echo "Error: could not download ${CHECKSUMS_FILE} for release v${LATEST}; refusing to install an unverified archive." >&2
+    exit 1
+  fi
+  EXPECTED_SHA256=$(awk -v name="$ARCHIVE" '$2 == name { print $1; exit }' "$TMP/$CHECKSUMS_FILE")
+  if [ -z "$EXPECTED_SHA256" ]; then
+    echo "Error: ${CHECKSUMS_FILE} of release v${LATEST} has no entry for ${ARCHIVE}." >&2
+    exit 1
+  fi
+  if ! ACTUAL_SHA256=$(sha256_of_file "$TMP/$ARCHIVE"); then
+    echo "Error: no sha256sum, shasum, or openssl available to verify ${ARCHIVE}." >&2
+    exit 1
+  fi
+  if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+    echo "Error: checksum mismatch for ${ARCHIVE}." >&2
+    echo "  expected: ${EXPECTED_SHA256}" >&2
+    echo "  actual:   ${ACTUAL_SHA256}" >&2
+    exit 1
+  fi
+  echo "Verified ${ARCHIVE} against ${CHECKSUMS_FILE} (sha256 ${EXPECTED_SHA256})."
+fi
+
 tar xzf "$TMP/$ARCHIVE" -C "$TMP"
 
 if [ ! -f "$TMP/tofu" ]; then

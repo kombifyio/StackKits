@@ -8,6 +8,7 @@ StackKits is designed around safe defaults and release evidence:
 - `stackkit-server` requires an API key outside local development and production profiles reject unauthenticated mode and wildcard CORS,
 - examples use placeholders such as `<token>` or `secret://path`,
 - release artifacts publish checksums, SBOMs, and `release-evidence.json` when the Enterprise evidence contract is active,
+- the public installers (`install.stackkit.cc`, `base.stackkit.cc`, `cloud.stackkit.cc`) download `checksums.txt` from the same release and refuse to unpack an archive whose SHA-256 does not match,
 - GitHub Artifact Attestations must verify before release evidence marks attestation status as passed,
 - at least one trusted-root document must match the reviewed digest allowlist embedded in the public binary before the release index is parsed; unknown documents are not used for verification and the release asset is an offline cache, not its own trust source.
 

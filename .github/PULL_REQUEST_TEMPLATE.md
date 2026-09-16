@@ -1,4 +1,12 @@
-## What changed
+<!--
+This repository is a generated release mirror. Pull requests are not merged
+here: the tree is replaced by the next release export. See CONTRIBUTING.md.
+
+To get a change into StackKits, open an issue or a Discussion and link this
+branch; a maintainer ports the patch upstream and credits you in the notes.
+-->
+
+## What this change does
 
 <!-- One paragraph. Conventional Commit title, e.g. `fix(cli): ...` -->
 
@@ -8,10 +16,7 @@
 
 ## How it was verified
 
-<!-- Commands and results. Pre-1.0 the affected gate is the synchronous check:
-     `mise run check` (Go/CUE/website slice + public boundary).
-     Runtime claims need a cited run; missing evidence stays pending. -->
+<!-- Commands and results. Runtime claims need a cited run. -->
 
-- [ ] `mise run check` passes
+- [ ] I have linked this branch from an issue or Discussion so it can be ported
 - [ ] No secrets, private hostnames, credentials or internal URLs in the diff
-- [ ] Generated files were regenerated from their CUE/Go source, not hand-edited

@@ -9,38 +9,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-* **install:** make Cloud resume install-only with automatic host prepare ([#1130](https://github.com/kombifyio/stackKits/issues/1130)) ([3924656](https://github.com/kombifyio/stackKits/commit/39246568a3290296780bea97f1385eb4084ed860))
-* **website:** publish installers with inlined host bootstrap ([#1132](https://github.com/kombifyio/stackKits/issues/1132)) ([f6204e3](https://github.com/kombifyio/stackKits/commit/f6204e37badad8eafb70fae46ea571c61d60ea70))
+* **install:** make Cloud resume install-only with automatic host prepare
+* **website:** publish installers with inlined host bootstrap
 
 ## [0.32.0](https://github.com/kombifyio/stackKits/compare/3f4304864dc437ce91d217502a82574a6147e5eb...927346795e896aebecf57a9a0f3b49433a6cca69) (2026-09-15)
 
 
 ### Added
 
-* **install:** ask to install a StackKit after the CLI succeeds ([#1124](https://github.com/kombifyio/stackKits/issues/1124)) ([0bc7f83](https://github.com/kombifyio/stackKits/commit/0bc7f83cb32f545857c028fcb1e8277d7b7a2ff5))
+* **install:** ask to install a StackKit after the CLI succeeds
 
 
 ### Fixed
 
-* **apply:** keep a single greeting instead of reprinting the logo ([#1117](https://github.com/kombifyio/stackKits/issues/1117)) ([2fe5edc](https://github.com/kombifyio/stackKits/commit/2fe5edc77a80817d9953742e8941d64f71e2cbc3))
-* **apply:** run internal PKI leaf verification after workload runtime owners ([#1108](https://github.com/kombifyio/stackKits/issues/1108)) ([dff3c09](https://github.com/kombifyio/stackKits/commit/dff3c09b9cbc25672f107a540c655477469fc4c7))
-* **apply:** show progress while generate and apply wait ([#1115](https://github.com/kombifyio/stackKits/issues/1115)) ([f15f41a](https://github.com/kombifyio/stackKits/commit/f15f41a22db5d03fec956cbcd04f1f80c5c198b9))
-* **apply:** wait for certificate issuance before verifying public TLS and PKI leaves ([#1111](https://github.com/kombifyio/stackKits/issues/1111)) ([87f4826](https://github.com/kombifyio/stackKits/commit/87f48267edc142871f3f2e3124d10d103ba0743e))
-* **backup:** defer application observation to restore activation ([#1095](https://github.com/kombifyio/stackKits/issues/1095)) ([9dc8e03](https://github.com/kombifyio/stackKits/commit/9dc8e03237951915339cf4b29592147a25f74fb3))
-* **backup:** raise kopia-agent memory limit to 1g and bound verify parallelism ([#1106](https://github.com/kombifyio/stackKits/issues/1106)) ([5fb363b](https://github.com/kombifyio/stackKits/commit/5fb363bb258d935777909b41a7f6799410dc4ebd))
-* **cli:** find installer workspace for remove and pick use cases ([#1120](https://github.com/kombifyio/stackKits/issues/1120)) ([6df72ae](https://github.com/kombifyio/stackKits/commit/6df72ae644979a5eb3cc79cab90161b45f94684b))
-* **cli:** uninstall native Compose stacks with stackkit remove ([#1121](https://github.com/kombifyio/stackKits/issues/1121)) ([8317024](https://github.com/kombifyio/stackKits/commit/8317024bcd0efcb7c95b027b4044a5cf23a73414))
-* **cloud:** mint an execution-channel SSH key before disabling root login ([#1126](https://github.com/kombifyio/stackKits/issues/1126)) ([2e87f47](https://github.com/kombifyio/stackKits/commit/2e87f47604efd5d4c166e12f8f026daf568cce07))
-* **deps:** raise sigstore-go, grpc and rekor floors for the public binary ([#1098](https://github.com/kombifyio/stackKits/issues/1098)) ([4b9eb76](https://github.com/kombifyio/stackKits/commit/4b9eb7604fdc32d4db9018d90afd907058e6a241))
-* **install:** ask for owner and use cases before every install ([#1128](https://github.com/kombifyio/stackKits/issues/1128)) ([1d7c1a5](https://github.com/kombifyio/stackKits/commit/1d7c1a568bd9992851935167e8790ef3be4b5faf))
-* **install:** ask to install StackKit Blueprint after the CLI ([#1125](https://github.com/kombifyio/stackKits/issues/1125)) ([4b4ac2f](https://github.com/kombifyio/stackKits/commit/4b4ac2f8c078f88aa783d7ff55582910a43d107f))
-* **install:** default Cloud Kit to kombify.me without a custom domain ([#1122](https://github.com/kombifyio/stackKits/issues/1122)) ([e62d03e](https://github.com/kombifyio/stackKits/commit/e62d03e431efb790cb6476d1b4b7653197b924c3))
-* **install:** detect public hosts before init and advertise install.stackkit.cc ([#1118](https://github.com/kombifyio/stackKits/issues/1118)) ([9ddfb3f](https://github.com/kombifyio/stackKits/commit/9ddfb3f0b63041921427a6d0377badf5c5423adf))
-* **install:** make install.stackkit.cc detect the host and pick the kit ([#1119](https://github.com/kombifyio/stackKits/issues/1119)) ([614b07d](https://github.com/kombifyio/stackKits/commit/614b07daa6febfaf165ed93416d69ffd83c77d8e))
-* **install:** prepare Cloud execution channel on incomplete resume ([#1129](https://github.com/kombifyio/stackKits/issues/1129)) ([9273467](https://github.com/kombifyio/stackKits/commit/927346795e896aebecf57a9a0f3b49433a6cca69))
-* **install:** recover from the wrong Basement or Cloud installer URL ([#1123](https://github.com/kombifyio/stackKits/issues/1123)) ([b65ba78](https://github.com/kombifyio/stackKits/commit/b65ba7836231712d7e5f245270add7796ac98f56))
-* **install:** require owner email and suggest the login username ([#1127](https://github.com/kombifyio/stackKits/issues/1127)) ([3c0d4a5](https://github.com/kombifyio/stackKits/commit/3c0d4a547542d9c4b2b66aa432a17ef4127bd7e9))
-* **website:** derive Modern alpha status, correct dual-license text, retire BaseKit wording ([#1099](https://github.com/kombifyio/stackKits/issues/1099)) ([56c2a81](https://github.com/kombifyio/stackKits/commit/56c2a8179b4aed1aaa2b1a7846354f58b4f7a021))
+* **apply:** keep a single greeting instead of reprinting the logo
+* **apply:** run internal PKI leaf verification after workload runtime owners
+* **apply:** show progress while generate and apply wait
+* **apply:** wait for certificate issuance before verifying public TLS and PKI leaves
+* **backup:** defer application observation to restore activation
+* **backup:** raise kopia-agent memory limit to 1g and bound verify parallelism
+* **cli:** find installer workspace for remove and pick use cases
+* **cli:** uninstall native Compose stacks with stackkit remove
+* **cloud:** mint an execution-channel SSH key before disabling root login
+* **deps:** raise sigstore-go, grpc and rekor floors for the public binary
+* **install:** ask for owner and use cases before every install
+* **install:** ask to install StackKit Blueprint after the CLI
+* **install:** default Cloud Kit to kombify.me without a custom domain
+* **install:** detect public hosts before init and advertise install.stackkit.cc
+* **install:** make install.stackkit.cc detect the host and pick the kit
+* **install:** prepare Cloud execution channel on incomplete resume
+* **install:** recover from the wrong Basement or Cloud installer URL
+* **install:** require owner email and suggest the login username
+* **website:** derive Modern alpha status, correct dual-license text, retire BaseKit wording
 
 Notes cover changes after VERSION 0.31.0 (3f4304864dc437ce91d217502a82574a6147e5eb), the earliest available contiguous 0.31.x VERSION anchor, through selected source 927346795e896aebecf57a9a0f3b49433a6cca69.
 
@@ -49,65 +49,65 @@ Notes cover changes after VERSION 0.31.0 (3f4304864dc437ce91d217502a82574a6147e5
 
 ### Fixed
 
-* **apply:** wait for certificate issuance before verifying public TLS and PKI leaves ([#1111](https://github.com/kombifyio/stackKits/issues/1111)) ([87f4826](https://github.com/kombifyio/stackKits/commit/87f48267edc142871f3f2e3124d10d103ba0743e))
+* **apply:** wait for certificate issuance before verifying public TLS and PKI leaves
 
 ## [0.31.4](https://github.com/kombifyio/stackKits/compare/v0.31.3...v0.31.4) (2026-09-14)
 
 
 ### Fixed
 
-* **apply:** run internal PKI leaf verification after workload runtime owners ([#1108](https://github.com/kombifyio/stackKits/issues/1108)) ([dff3c09](https://github.com/kombifyio/stackKits/commit/dff3c09b9cbc25672f107a540c655477469fc4c7))
+* **apply:** run internal PKI leaf verification after workload runtime owners
 
 ## [0.31.3](https://github.com/kombifyio/stackKits/compare/v0.31.2...v0.31.3) (2026-09-14)
 
 
 ### Fixed
 
-* **backup:** raise kopia-agent memory limit to 1g and bound verify parallelism ([#1106](https://github.com/kombifyio/stackKits/issues/1106)) ([5fb363b](https://github.com/kombifyio/stackKits/commit/5fb363bb258d935777909b41a7f6799410dc4ebd))
+* **backup:** raise kopia-agent memory limit to 1g and bound verify parallelism
 
 ## [0.31.2](https://github.com/kombifyio/stackKits/compare/v0.31.1...v0.31.2) (2026-09-14)
 
 
 ### Fixed
 
-* **deps:** raise sigstore-go, grpc and rekor floors for the public binary ([#1098](https://github.com/kombifyio/stackKits/issues/1098)) ([4b9eb76](https://github.com/kombifyio/stackKits/commit/4b9eb7604fdc32d4db9018d90afd907058e6a241))
-* **website:** derive Modern alpha status, correct dual-license text, retire BaseKit wording ([#1099](https://github.com/kombifyio/stackKits/issues/1099)) ([56c2a81](https://github.com/kombifyio/stackKits/commit/56c2a8179b4aed1aaa2b1a7846354f58b4f7a021))
+* **deps:** raise sigstore-go, grpc and rekor floors for the public binary
+* **website:** derive Modern alpha status, correct dual-license text, retire BaseKit wording
 
 ## [0.31.1](https://github.com/kombifyio/stackKits/compare/v0.31.0...v0.31.1) (2026-09-14)
 
 
 ### Fixed
 
-* **backup:** defer application observation to restore activation ([#1095](https://github.com/kombifyio/stackKits/issues/1095)) ([9dc8e03](https://github.com/kombifyio/stackKits/commit/9dc8e03237951915339cf4b29592147a25f74fb3))
+* **backup:** defer application observation to restore activation
 
 ## [0.31.0](https://github.com/kombifyio/stackKits/compare/c623eb2ae85003ffb23d96740154881124eb0d22...b186f27e9a9ad6165a63d6a40dfe5e0d9ed8bc35) (2026-09-14)
 
 
 ### Added
 
-* project v2alpha2 alternatives and kit cores into the release catalog ([#1084](https://github.com/kombifyio/stackKits/issues/1084)) ([8773ace](https://github.com/kombifyio/stackKits/commit/8773acedb383de33404bf6b606553e4a0598f132))
+* project v2alpha2 alternatives and kit cores into the release catalog
 
 
 ### Fixed
 
-* accept catalog forward-auth on selected-PaaS application bundles ([#1083](https://github.com/kombifyio/stackKits/issues/1083)) ([467e646](https://github.com/kombifyio/stackKits/commit/467e6467febc3b4f8f34b9156d7201b3bc06eced))
-* align basement-kit yaml roles and Smart Home default with CUE ([#1085](https://github.com/kombifyio/stackKits/issues/1085)) ([decd4a2](https://github.com/kombifyio/stackKits/commit/decd4a20cb7810c4d12e6fa8719a89ce7257a0f9))
-* attach selected application volumes onto kopia-agent ([#1058](https://github.com/kombifyio/stackKits/issues/1058)) ([53767de](https://github.com/kombifyio/stackKits/commit/53767de64862b95dd75b3368e563deecd57cad5d))
-* derive website kit status, README badge, and released binaries ([#1089](https://github.com/kombifyio/stackKits/issues/1089)) ([2763396](https://github.com/kombifyio/stackKits/commit/2763396353bc61f44c445521bfb96ed077d52d53))
-* fall back to public GitHub metadata when the smoke token is 401 ([#1053](https://github.com/kombifyio/stackKits/issues/1053)) ([66a8fd9](https://github.com/kombifyio/stackKits/commit/66a8fd97460fc05db488878ed919ba48053a560b))
-* generate kopia-agent mounts from the governed backup source ([#1063](https://github.com/kombifyio/stackKits/issues/1063)) ([552099e](https://github.com/kombifyio/stackKits/commit/552099e661103ac65ccdb18a0b2e1af644fd37ad))
-* interpolate Basement compose env when attaching kopia volumes ([#1060](https://github.com/kombifyio/stackKits/issues/1060)) ([8dcab46](https://github.com/kombifyio/stackKits/commit/8dcab4672396bd283d91f8879150bbbb224e3d0b))
-* issue step-ca TLS for base.home instead of Traefik default cert ([#1055](https://github.com/kombifyio/stackKits/issues/1055)) ([2fc0fb9](https://github.com/kombifyio/stackKits/commit/2fc0fb97c3bd72c8a65a8c5af626e173fb93e979))
-* raise affected go test timeout so resolvedplan Fast Gate can finish ([#1078](https://github.com/kombifyio/stackKits/issues/1078)) ([ea17e2f](https://github.com/kombifyio/stackKits/commit/ea17e2f881308b935c80688e95e1176d1b49b49f))
-* share Compose interpolation env between Apply and restore-activate ([#1069](https://github.com/kombifyio/stackKits/issues/1069)) ([5a9a355](https://github.com/kombifyio/stackKits/commit/5a9a355fba49a3e2e47dc7da0898450f213ac5ea))
-* synchronize Basement renderer hashes after hub Host TLS ([#1056](https://github.com/kombifyio/stackKits/issues/1056)) ([659cd8a](https://github.com/kombifyio/stackKits/commit/659cd8a456b484e62486b2fb45ded2be45954bfe))
-* TinyAuth-gate AI, Dev, and Documents routes ([#1076](https://github.com/kombifyio/stackKits/issues/1076)) ([0d9e5e8](https://github.com/kombifyio/stackKits/commit/0d9e5e8fbefc2facecf45153ecc8cfc44f605e1f))
-* TinyAuth-gate Cloud hub and Coolify routes ([#1077](https://github.com/kombifyio/stackKits/issues/1077)) ([f78e100](https://github.com/kombifyio/stackKits/commit/f78e1000613f89ee21e79a9c041cb653f1560ec0))
-* TinyAuth-gate media and smart-home routes ([#1074](https://github.com/kombifyio/stackKits/issues/1074)) ([7087000](https://github.com/kombifyio/stackKits/commit/7087000899a6d13e0f27f408bee29def565f309b))
-* TinyAuth-gate photos, files, and vault routes ([#1072](https://github.com/kombifyio/stackKits/issues/1072)) ([c84d145](https://github.com/kombifyio/stackKits/commit/c84d1459d66aa794be53157e707c25c6459c1362))
-* treat a completed docker stop as quiesced ([#1067](https://github.com/kombifyio/stackKits/issues/1067)) ([2de750e](https://github.com/kombifyio/stackKits/commit/2de750e2a2c9a6b7e2537140fc5fb2c004220ac0))
-* treat docker-stop SIGKILL as a completed quiesce stop ([#1065](https://github.com/kombifyio/stackKits/issues/1065)) ([a76c2a8](https://github.com/kombifyio/stackKits/commit/a76c2a8e4dbfaa3ee7f26dc5a4e07f31a17e14e7))
-* **verify:** accept TinyAuth login-gate redirects in HTTP probes ([#1091](https://github.com/kombifyio/stackKits/issues/1091)) ([b186f27](https://github.com/kombifyio/stackKits/commit/b186f27e9a9ad6165a63d6a40dfe5e0d9ed8bc35))
+* accept catalog forward-auth on selected-PaaS application bundles
+* align basement-kit yaml roles and Smart Home default with CUE
+* attach selected application volumes onto kopia-agent
+* derive website kit status, README badge, and released binaries
+* fall back to public GitHub metadata when the smoke token is 401
+* generate kopia-agent mounts from the governed backup source
+* interpolate Basement compose env when attaching kopia volumes
+* issue step-ca TLS for base.home instead of Traefik default cert
+* raise affected go test timeout so resolvedplan Fast Gate can finish
+* share Compose interpolation env between Apply and restore-activate
+* synchronize Basement renderer hashes after hub Host TLS
+* TinyAuth-gate AI, Dev, and Documents routes
+* TinyAuth-gate Cloud hub and Coolify routes
+* TinyAuth-gate media and smart-home routes
+* TinyAuth-gate photos, files, and vault routes
+* treat a completed docker stop as quiesced
+* treat docker-stop SIGKILL as a completed quiesce stop
+* **verify:** accept TinyAuth login-gate redirects in HTTP probes
 
 Notes cover changes after VERSION 0.30.0 (c623eb2ae85003ffb23d96740154881124eb0d22), the earliest available contiguous 0.30.x VERSION anchor, through selected source b186f27e9a9ad6165a63d6a40dfe5e0d9ed8bc35.
 
@@ -116,74 +116,74 @@ Notes cover changes after VERSION 0.30.0 (c623eb2ae85003ffb23d96740154881124eb0d
 
 ### Fixed
 
-* share Compose interpolation env between Apply and restore-activate ([#1069](https://github.com/kombifyio/stackKits/issues/1069)) ([5a9a355](https://github.com/kombifyio/stackKits/commit/5a9a355fba49a3e2e47dc7da0898450f213ac5ea))
+* share Compose interpolation env between Apply and restore-activate
 
 ## [0.30.7](https://github.com/kombifyio/stackKits/compare/v0.30.6...v0.30.7) (2026-09-13)
 
 
 ### Fixed
 
-* treat a completed docker stop as quiesced ([#1067](https://github.com/kombifyio/stackKits/issues/1067)) ([2de750e](https://github.com/kombifyio/stackKits/commit/2de750e2a2c9a6b7e2537140fc5fb2c004220ac0))
+* treat a completed docker stop as quiesced
 
 ## [0.30.6](https://github.com/kombifyio/stackKits/compare/v0.30.5...v0.30.6) (2026-09-13)
 
 
 ### Fixed
 
-* treat docker-stop SIGKILL as a completed quiesce stop ([#1065](https://github.com/kombifyio/stackKits/issues/1065)) ([a76c2a8](https://github.com/kombifyio/stackKits/commit/a76c2a8e4dbfaa3ee7f26dc5a4e07f31a17e14e7))
+* treat docker-stop SIGKILL as a completed quiesce stop
 
 ## [0.30.5](https://github.com/kombifyio/stackKits/compare/v0.30.4...v0.30.5) (2026-09-13)
 
 
 ### Fixed
 
-* generate kopia-agent mounts from the governed backup source ([#1063](https://github.com/kombifyio/stackKits/issues/1063)) ([552099e](https://github.com/kombifyio/stackKits/commit/552099e661103ac65ccdb18a0b2e1af644fd37ad))
+* generate kopia-agent mounts from the governed backup source
 
 ## [0.30.4](https://github.com/kombifyio/stackKits/compare/v0.30.3...v0.30.4) (2026-09-13)
 
 
 ### Fixed
 
-* interpolate Basement compose env when attaching kopia volumes ([#1060](https://github.com/kombifyio/stackKits/issues/1060)) ([8dcab46](https://github.com/kombifyio/stackKits/commit/8dcab4672396bd283d91f8879150bbbb224e3d0b))
+* interpolate Basement compose env when attaching kopia volumes
 
 ## [0.30.3](https://github.com/kombifyio/stackKits/compare/v0.30.2...v0.30.3) (2026-09-13)
 
 
 ### Fixed
 
-* attach selected application volumes onto kopia-agent ([#1058](https://github.com/kombifyio/stackKits/issues/1058)) ([53767de](https://github.com/kombifyio/stackKits/commit/53767de64862b95dd75b3368e563deecd57cad5d))
+* attach selected application volumes onto kopia-agent
 
 ## [0.30.2](https://github.com/kombifyio/stackKits/compare/v0.30.1...v0.30.2) (2026-09-13)
 
 
 ### Fixed
 
-* synchronize Basement renderer hashes after hub Host TLS ([#1056](https://github.com/kombifyio/stackKits/issues/1056)) ([659cd8a](https://github.com/kombifyio/stackKits/commit/659cd8a456b484e62486b2fb45ded2be45954bfe))
+* synchronize Basement renderer hashes after hub Host TLS
 
 ## [0.30.1](https://github.com/kombifyio/stackKits/compare/v0.30.0...v0.30.1) (2026-09-13)
 
 
 ### Fixed
 
-* fall back to public GitHub metadata when the smoke token is 401 ([#1053](https://github.com/kombifyio/stackKits/issues/1053)) ([66a8fd9](https://github.com/kombifyio/stackKits/commit/66a8fd97460fc05db488878ed919ba48053a560b))
-* issue step-ca TLS for base.home instead of Traefik default cert ([#1055](https://github.com/kombifyio/stackKits/issues/1055)) ([2fc0fb9](https://github.com/kombifyio/stackKits/commit/2fc0fb97c3bd72c8a65a8c5af626e173fb93e979))
+* fall back to public GitHub metadata when the smoke token is 401
+* issue step-ca TLS for base.home instead of Traefik default cert
 
 ## [0.30.0](https://github.com/kombifyio/stackKits/compare/2f73dcd2338914aed27969f1c45c2bb10c026266...bd73272444f97bdf8b99e23cf67d64952a9ecbf1) (2026-09-13)
 
 
 ### Added
 
-* add stackkit user add/list/remove CLI ([#1047](https://github.com/kombifyio/stackKits/issues/1047)) ([a9ecbd9](https://github.com/kombifyio/stackKits/commit/a9ecbd976fa927dbfdf865d094614d857edc297d))
-* **identity:** enforce Home human and device proofs on the server ([#1049](https://github.com/kombifyio/stackKits/issues/1049)) ([5af26ba](https://github.com/kombifyio/stackKits/commit/5af26baa8af1d18f8dc75470ee5cf552fe7e7224))
-* wire v2 emergency export from generated backup contract ([#1048](https://github.com/kombifyio/stackKits/issues/1048)) ([da04d13](https://github.com/kombifyio/stackKits/commit/da04d13c43c911bc2bc7a4bbe1724da7d541566b))
+* add stackkit user add/list/remove CLI
+* **identity:** enforce Home human and device proofs on the server
+* wire v2 emergency export from generated backup contract
 
 
 ### Fixed
 
-* admit stackkit.setup on Files, Vault, and Media lifecycles ([#1051](https://github.com/kombifyio/stackKits/issues/1051)) ([2748eef](https://github.com/kombifyio/stackKits/commit/2748eefe49f5384bedb0b43e0f729fed8de310de))
-* bind live installer smoke to the admitted release ([#1046](https://github.com/kombifyio/stackKits/issues/1046)) ([a03772d](https://github.com/kombifyio/stackKits/commit/a03772d21b0bba908d59507bb9629abbb375f045))
-* retire --context from native v2 authoring ([#1044](https://github.com/kombifyio/stackKits/issues/1044)) ([0fc1c09](https://github.com/kombifyio/stackKits/commit/0fc1c09a76b051e55d0654b1733f3296032964f7))
-* verify HTTP probes for platform Access routes via kit LAN DNS ([#1052](https://github.com/kombifyio/stackKits/issues/1052)) ([bd73272](https://github.com/kombifyio/stackKits/commit/bd73272444f97bdf8b99e23cf67d64952a9ecbf1))
+* admit stackkit.setup on Files, Vault, and Media lifecycles
+* bind live installer smoke to the admitted release
+* retire --context from native v2 authoring
+* verify HTTP probes for platform Access routes via kit LAN DNS
 
 Notes cover changes after VERSION 0.29.0 (2f73dcd2338914aed27969f1c45c2bb10c026266), the earliest available contiguous 0.29.x VERSION anchor, through selected source bd73272444f97bdf8b99e23cf67d64952a9ecbf1.
 
@@ -192,16 +192,16 @@ Notes cover changes after VERSION 0.29.0 (2f73dcd2338914aed27969f1c45c2bb10c0262
 
 ### Added
 
-* provision household users through PocketID groups ([#1042](https://github.com/kombifyio/stackKits/issues/1042)) ([32b7dd2](https://github.com/kombifyio/stackKits/commit/32b7dd22dba42869137e48ffaafc4865748cba8d))
+* provision household users through PocketID groups
 
 
 ### Fixed
 
-* author Modern local HTTPS beside Edge TLS ([#1040](https://github.com/kombifyio/stackKits/issues/1040)) ([be261b2](https://github.com/kombifyio/stackKits/commit/be261b29b8748cdd83374bac951882854367a3a7))
-* bind internal PKI routes to Traefik ([#1036](https://github.com/kombifyio/stackKits/issues/1036)) ([d2e8afa](https://github.com/kombifyio/stackKits/commit/d2e8afa75db4669ed32b7351330182907906cf42))
-* bind overlapping module image pins to the v2 catalog ([#1043](https://github.com/kombifyio/stackKits/issues/1043)) ([a9bf380](https://github.com/kombifyio/stackKits/commit/a9bf380db02cbb3f91d0a8a742319a076b65d845))
-* **runtime:** complete local Basement apply ([#1033](https://github.com/kombifyio/stackKits/issues/1033)) ([d3f6dd3](https://github.com/kombifyio/stackKits/commit/d3f6dd33548c1f51c58e12ab370c662612dd3229))
-* synchronize Basement renderer authority ([#1038](https://github.com/kombifyio/stackKits/issues/1038)) ([ba5fd4b](https://github.com/kombifyio/stackKits/commit/ba5fd4b4b0ac23989bd8120a469af38d5a912088))
+* author Modern local HTTPS beside Edge TLS
+* bind internal PKI routes to Traefik
+* bind overlapping module image pins to the v2 catalog
+* **runtime:** complete local Basement apply
+* synchronize Basement renderer authority
 
 Notes cover changes after VERSION 0.28.0 (3c0f576563f95904cf3741c8b6ed84e3653be36d), the earliest available contiguous 0.28.x VERSION anchor, through selected source a9bf380db02cbb3f91d0a8a742319a076b65d845.
 
@@ -210,36 +210,36 @@ Notes cover changes after VERSION 0.28.0 (3c0f576563f95904cf3741c8b6ed84e3653be3
 
 ### Fixed
 
-* synchronize Basement renderer authority ([#1038](https://github.com/kombifyio/stackKits/issues/1038)) ([ba5fd4b](https://github.com/kombifyio/stackKits/commit/ba5fd4b4b0ac23989bd8120a469af38d5a912088))
+* synchronize Basement renderer authority
 
 ## [0.28.2](https://github.com/kombifyio/stackKits/compare/v0.28.1...v0.28.2) (2026-09-12)
 
 
 ### Fixed
 
-* bind internal PKI routes to Traefik ([#1036](https://github.com/kombifyio/stackKits/issues/1036)) ([d2e8afa](https://github.com/kombifyio/stackKits/commit/d2e8afa75db4669ed32b7351330182907906cf42))
+* bind internal PKI routes to Traefik
 
 ## [0.28.1](https://github.com/kombifyio/stackKits/compare/v0.28.0...v0.28.1) (2026-09-12)
 
 
 ### Fixed
 
-* **runtime:** complete local Basement apply ([#1033](https://github.com/kombifyio/stackKits/issues/1033)) ([d3f6dd3](https://github.com/kombifyio/stackKits/commit/d3f6dd33548c1f51c58e12ab370c662612dd3229))
+* **runtime:** complete local Basement apply
 
 ## [0.28.0](https://github.com/kombifyio/stackKits/compare/d3ae3ec51edc20c8addbcf5e74448616fdaee744...eab3f1934fcb3da0ca0dc7af745598e863730b97) (2026-09-12)
 
 
 ### Added
 
-* make .home device enrollment the local default ([#1031](https://github.com/kombifyio/stackKits/issues/1031)) ([eab3f19](https://github.com/kombifyio/stackKits/commit/eab3f1934fcb3da0ca0dc7af745598e863730b97))
+* make .home device enrollment the local default
 
 
 ### Fixed
 
-* **cli:** preserve safe executor failure diagnostics in progress ([#1024](https://github.com/kombifyio/stackKits/issues/1024)) ([e691c6e](https://github.com/kombifyio/stackKits/commit/e691c6ed4b30ee39d39465afcca35e916a663ecc))
-* **mcp:** preserve explicit workload data removal policy ([#1025](https://github.com/kombifyio/stackKits/issues/1025)) ([7964ad1](https://github.com/kombifyio/stackKits/commit/7964ad1184db586eaf8ccc6682ceee58ea100f04))
-* **runtime:** align internal PKI issuer lifetime ([#1029](https://github.com/kombifyio/stackKits/issues/1029)) ([1f2e6f2](https://github.com/kombifyio/stackKits/commit/1f2e6f20db6fdc2956ae6a27c5a1e34052800a9e))
-* **runtime:** bind Basement PKI to existing owner and ingress ([#1027](https://github.com/kombifyio/stackKits/issues/1027)) ([ddc022b](https://github.com/kombifyio/stackKits/commit/ddc022bcc330b4552d83753dd9e89179016ee4bf))
+* **cli:** preserve safe executor failure diagnostics in progress
+* **mcp:** preserve explicit workload data removal policy
+* **runtime:** align internal PKI issuer lifetime
+* **runtime:** bind Basement PKI to existing owner and ingress
 
 Notes cover changes after VERSION 0.27.0 (d3ae3ec51edc20c8addbcf5e74448616fdaee744), the earliest available contiguous 0.27.x VERSION anchor, through selected source eab3f1934fcb3da0ca0dc7af745598e863730b97.
 
@@ -248,51 +248,51 @@ Notes cover changes after VERSION 0.27.0 (d3ae3ec51edc20c8addbcf5e74448616fdaee7
 
 ### Fixed
 
-* **runtime:** align internal PKI issuer lifetime ([#1029](https://github.com/kombifyio/stackKits/issues/1029)) ([1f2e6f2](https://github.com/kombifyio/stackKits/commit/1f2e6f20db6fdc2956ae6a27c5a1e34052800a9e))
+* **runtime:** align internal PKI issuer lifetime
 
 ## [0.27.2](https://github.com/kombifyio/stackKits/compare/v0.27.1...v0.27.2) (2026-09-12)
 
 
 ### Fixed
 
-* **runtime:** bind Basement PKI to existing owner and ingress ([#1027](https://github.com/kombifyio/stackKits/issues/1027)) ([ddc022b](https://github.com/kombifyio/stackKits/commit/ddc022bcc330b4552d83753dd9e89179016ee4bf))
+* **runtime:** bind Basement PKI to existing owner and ingress
 
 ## [0.27.1](https://github.com/kombifyio/stackKits/compare/v0.27.0...v0.27.1) (2026-09-12)
 
 
 ### Fixed
 
-* **cli:** preserve safe executor failure diagnostics in progress ([#1024](https://github.com/kombifyio/stackKits/issues/1024)) ([e691c6e](https://github.com/kombifyio/stackKits/commit/e691c6ed4b30ee39d39465afcca35e916a663ecc))
-* **mcp:** preserve explicit workload data removal policy ([#1025](https://github.com/kombifyio/stackKits/issues/1025)) ([7964ad1](https://github.com/kombifyio/stackKits/commit/7964ad1184db586eaf8ccc6682ceee58ea100f04))
+* **cli:** preserve safe executor failure diagnostics in progress
+* **mcp:** preserve explicit workload data removal policy
 
 ## [0.27.0](https://github.com/kombifyio/stackKits/compare/22c35ec004cda5579a66b73558afca1f9c0a6742...1a50d0f13b0e2c813e8cb0fc0883f1dde41c3e67) (2026-09-12)
 
 
 ### Added
 
-* **remove:** retain or explicitly delete standalone workload data ([#1021](https://github.com/kombifyio/stackKits/issues/1021)) ([1a50d0f](https://github.com/kombifyio/stackKits/commit/1a50d0f13b0e2c813e8cb0fc0883f1dde41c3e67))
+* **remove:** retain or explicitly delete standalone workload data
 
 
 ### Fixed
 
-* **catalog:** align platform posture and publish agent handoff ([#1000](https://github.com/kombifyio/stackKits/issues/1000)) ([0cda664](https://github.com/kombifyio/stackKits/commit/0cda6643f19ec5bebf25ae61575bdbd09b629383))
-* **cli:** validate initialized specs without target inventory ([#1020](https://github.com/kombifyio/stackKits/issues/1020)) ([ff29e26](https://github.com/kombifyio/stackKits/commit/ff29e26bc9d79bc8a4ce6e46d660d227b7c07808))
-* **cloud:** declare protected HTTPS access for selected applications ([#1007](https://github.com/kombifyio/stackKits/issues/1007)) ([48408cf](https://github.com/kombifyio/stackKits/commit/48408cf426cf896d9d4ace9c4aeee9c33aa4385a))
-* **coolify:** require upstream status identity ([#1011](https://github.com/kombifyio/stackKits/issues/1011)) ([f99efe8](https://github.com/kombifyio/stackKits/commit/f99efe8bff9c2b8282759291cd1c07721bb37b21))
-* **host:** protect Docker-assigned host publications ([#996](https://github.com/kombifyio/stackKits/issues/996)) ([59630d9](https://github.com/kombifyio/stackKits/commit/59630d91002d769cfdf2762a8efe2ba8abc8fac1))
-* **identity:** verify projected subject and group readback ([#1010](https://github.com/kombifyio/stackKits/issues/1010)) ([f92899a](https://github.com/kombifyio/stackKits/commit/f92899ade082af54b7b952aa267308958f4f0356))
-* **init:** bind selected Basement apps to HTTPS and data authority ([#1003](https://github.com/kombifyio/stackKits/issues/1003)) ([be31f8e](https://github.com/kombifyio/stackKits/commit/be31f8e639afbaa4a46ceee676fbe4ffdb75cc82))
-* **init:** preserve established owner identity during resume ([#1014](https://github.com/kombifyio/stackKits/issues/1014)) ([0ca6e05](https://github.com/kombifyio/stackKits/commit/0ca6e058941c2a4de8598cbfec87596e9653dc64))
-* **komodo:** read upstream stack state ([#1008](https://github.com/kombifyio/stackKits/issues/1008)) ([40a1b48](https://github.com/kombifyio/stackKits/commit/40a1b487ee17a159d6fa8baa3f45547e9cff40d0))
-* **release:** clarify unclaimed HA recovery evidence ([#1006](https://github.com/kombifyio/stackKits/issues/1006)) ([1c80b60](https://github.com/kombifyio/stackKits/commit/1c80b605d450fc6c02f1e09cf5ad543611903b06))
-* **runtime:** preserve host DNS with target-bound LAN listeners ([#1016](https://github.com/kombifyio/stackKits/issues/1016)) ([c58c27a](https://github.com/kombifyio/stackKits/commit/c58c27a06710b2d5e03f63376986aee2b5ca4fd8))
-* **state-console:** retain application evidence on status failure ([#1004](https://github.com/kombifyio/stackKits/issues/1004)) ([93a17f6](https://github.com/kombifyio/stackKits/commit/93a17f692b2912802316aa75559189590590ce84))
-* **webmcp:** remove obsolete v1 contract and publication ([#1012](https://github.com/kombifyio/stackKits/issues/1012)) ([c29faf3](https://github.com/kombifyio/stackKits/commit/c29faf34f5466b9a4a1789f11fc9358fa45fabbb))
+* **catalog:** align platform posture and publish agent handoff
+* **cli:** validate initialized specs without target inventory
+* **cloud:** declare protected HTTPS access for selected applications
+* **coolify:** require upstream status identity
+* **host:** protect Docker-assigned host publications
+* **identity:** verify projected subject and group readback
+* **init:** bind selected Basement apps to HTTPS and data authority
+* **init:** preserve established owner identity during resume
+* **komodo:** read upstream stack state
+* **release:** clarify unclaimed HA recovery evidence
+* **runtime:** preserve host DNS with target-bound LAN listeners
+* **state-console:** retain application evidence on status failure
+* **webmcp:** remove obsolete v1 contract and publication
 
 
 ### Changed
 
-* **delivery:** adopt consolidated source runner ([#1017](https://github.com/kombifyio/stackKits/issues/1017)) ([7ca5dc1](https://github.com/kombifyio/stackKits/commit/7ca5dc1fbec6fa85da643b2217327f965f76d718))
+* **delivery:** adopt consolidated source runner
 
 Notes cover changes after VERSION 0.26.0 (22c35ec004cda5579a66b73558afca1f9c0a6742), the earliest available contiguous 0.26.x VERSION anchor, through selected source 1a50d0f13b0e2c813e8cb0fc0883f1dde41c3e67.
 
@@ -301,107 +301,107 @@ Notes cover changes after VERSION 0.26.0 (22c35ec004cda5579a66b73558afca1f9c0a67
 
 ### Fixed
 
-* **runtime:** preserve host DNS with target-bound LAN listeners ([#1016](https://github.com/kombifyio/stackKits/issues/1016)) ([c58c27a](https://github.com/kombifyio/stackKits/commit/c58c27a06710b2d5e03f63376986aee2b5ca4fd8))
+* **runtime:** preserve host DNS with target-bound LAN listeners
 
 
 ### Changed
 
-* **delivery:** adopt consolidated source runner ([#1017](https://github.com/kombifyio/stackKits/issues/1017)) ([7ca5dc1](https://github.com/kombifyio/stackKits/commit/7ca5dc1fbec6fa85da643b2217327f965f76d718))
+* **delivery:** adopt consolidated source runner
 
 ## [0.26.6](https://github.com/kombifyio/stackKits/compare/v0.26.5...v0.26.6) (2026-09-12)
 
 
 ### Fixed
 
-* **init:** preserve established owner identity during resume ([#1014](https://github.com/kombifyio/stackKits/issues/1014)) ([0ca6e05](https://github.com/kombifyio/stackKits/commit/0ca6e058941c2a4de8598cbfec87596e9653dc64))
+* **init:** preserve established owner identity during resume
 
 ## [0.26.5](https://github.com/kombifyio/stackKits/compare/v0.26.4...v0.26.5) (2026-09-12)
 
 
 ### Fixed
 
-* **webmcp:** remove obsolete v1 contract and publication ([#1012](https://github.com/kombifyio/stackKits/issues/1012)) ([c29faf3](https://github.com/kombifyio/stackKits/commit/c29faf34f5466b9a4a1789f11fc9358fa45fabbb))
+* **webmcp:** remove obsolete v1 contract and publication
 
 ## [0.26.4](https://github.com/kombifyio/stackKits/compare/v0.26.3...v0.26.4) (2026-09-12)
 
 
 ### Fixed
 
-* **coolify:** require upstream status identity ([#1011](https://github.com/kombifyio/stackKits/issues/1011)) ([f99efe8](https://github.com/kombifyio/stackKits/commit/f99efe8bff9c2b8282759291cd1c07721bb37b21))
-* **identity:** verify projected subject and group readback ([#1010](https://github.com/kombifyio/stackKits/issues/1010)) ([f92899a](https://github.com/kombifyio/stackKits/commit/f92899ade082af54b7b952aa267308958f4f0356))
-* **komodo:** read upstream stack state ([#1008](https://github.com/kombifyio/stackKits/issues/1008)) ([40a1b48](https://github.com/kombifyio/stackKits/commit/40a1b487ee17a159d6fa8baa3f45547e9cff40d0))
+* **coolify:** require upstream status identity
+* **identity:** verify projected subject and group readback
+* **komodo:** read upstream stack state
 
 ## [0.26.3](https://github.com/kombifyio/stackKits/compare/v0.26.2...v0.26.3) (2026-09-12)
 
 
 ### Fixed
 
-* **cloud:** declare protected HTTPS access for selected applications ([#1007](https://github.com/kombifyio/stackKits/issues/1007)) ([48408cf](https://github.com/kombifyio/stackKits/commit/48408cf426cf896d9d4ace9c4aeee9c33aa4385a))
-* **release:** clarify unclaimed HA recovery evidence ([#1006](https://github.com/kombifyio/stackKits/issues/1006)) ([1c80b60](https://github.com/kombifyio/stackKits/commit/1c80b605d450fc6c02f1e09cf5ad543611903b06))
-* **state-console:** retain application evidence on status failure ([#1004](https://github.com/kombifyio/stackKits/issues/1004)) ([93a17f6](https://github.com/kombifyio/stackKits/commit/93a17f692b2912802316aa75559189590590ce84))
+* **cloud:** declare protected HTTPS access for selected applications
+* **release:** clarify unclaimed HA recovery evidence
+* **state-console:** retain application evidence on status failure
 
 ## [0.26.2](https://github.com/kombifyio/stackKits/compare/v0.26.1...v0.26.2) (2026-09-12)
 
 
 ### Fixed
 
-* **catalog:** align platform posture and publish agent handoff ([#1000](https://github.com/kombifyio/stackKits/issues/1000)) ([0cda664](https://github.com/kombifyio/stackKits/commit/0cda6643f19ec5bebf25ae61575bdbd09b629383))
-* **init:** bind selected Basement apps to HTTPS and data authority ([#1003](https://github.com/kombifyio/stackKits/issues/1003)) ([be31f8e](https://github.com/kombifyio/stackKits/commit/be31f8e639afbaa4a46ceee676fbe4ffdb75cc82))
+* **catalog:** align platform posture and publish agent handoff
+* **init:** bind selected Basement apps to HTTPS and data authority
 
 ## [0.26.1](https://github.com/kombifyio/stackKits/compare/v0.26.0...v0.26.1) (2026-09-12)
 
 
 ### Fixed
 
-* **host:** protect Docker-assigned host publications ([#996](https://github.com/kombifyio/stackKits/issues/996)) ([59630d9](https://github.com/kombifyio/stackKits/commit/59630d91002d769cfdf2762a8efe2ba8abc8fac1))
+* **host:** protect Docker-assigned host publications
 
 ## [0.26.0](https://github.com/kombifyio/stackKits/compare/5873d56efb664908c49cc8077b4aa35eb9a017c6...22ae1a6b133cb2e15936bd64bbdb914e150dd4b4) (2026-09-12)
 
 
 ### Added
 
-* admit Home-signed Modern remote plan and verify ([#969](https://github.com/kombifyio/stackKits/issues/969)) ([5788300](https://github.com/kombifyio/stackKits/commit/578830009dde39338cdcb5727d2855e5869b16c2))
-* **ai:** add owner-bound local inference with CUE-owned image versions ([#955](https://github.com/kombifyio/stackKits/issues/955)) ([654b105](https://github.com/kombifyio/stackKits/commit/654b105a39ad70b45d7462d2f1876792a9fc6f3d))
-* **backup:** execute isolated Cloud offsite snapshots and restoration ([#954](https://github.com/kombifyio/stackKits/issues/954)) ([0fa0589](https://github.com/kombifyio/stackKits/commit/0fa058959cdebbc950e6152e863fb6896263f05f))
-* **cli:** guide first use and expose application next actions ([#993](https://github.com/kombifyio/stackKits/issues/993)) ([7df1ba0](https://github.com/kombifyio/stackKits/commit/7df1ba0084a3eee70b65664ea27c6053e30cced8))
-* **dev:** add owner-custodied private Git with Gitea ([#966](https://github.com/kombifyio/stackKits/issues/966)) ([cad1fad](https://github.com/kombifyio/stackKits/commit/cad1fadf637b0ab0935a33251e51934773128da6))
-* **documents:** integrate optional Paperless standalone workload ([#992](https://github.com/kombifyio/stackKits/issues/992)) ([52a5c1f](https://github.com/kombifyio/stackKits/commit/52a5c1f1c6cb9ebf1172a85bfa2260bec2db4a38))
-* **host:** preserve existing bindings with scoped pre-Apply evidence ([#995](https://github.com/kombifyio/stackKits/issues/995)) ([22ae1a6](https://github.com/kombifyio/stackKits/commit/22ae1a6b133cb2e15936bd64bbdb914e150dd4b4))
-* **identity:** bind local owner approval to exact remote actions ([#965](https://github.com/kombifyio/stackKits/issues/965)) ([05c26b9](https://github.com/kombifyio/stackKits/commit/05c26b93339026c2d32fadfa6bb3617c861e7b18))
-* **modern:** execute owner-bound WireGuard federation links ([#957](https://github.com/kombifyio/stackKits/issues/957)) ([608ab3a](https://github.com/kombifyio/stackKits/commit/608ab3ada2a0bd09848474192bfcb8ce39b8b1bf))
-* **modern:** execute owner-issued peers and origin lifecycle ([#945](https://github.com/kombifyio/stackKits/issues/945)) ([30d2637](https://github.com/kombifyio/stackKits/commit/30d2637ce8d27331a682f8787783668a2be5e1d7))
-* **modern:** forward bounded application WebSockets ([#950](https://github.com/kombifyio/stackKits/issues/950)) ([f647cad](https://github.com/kombifyio/stackKits/commit/f647cadf5ad30abe785a56f47059a269d873ed63))
-* **runtime:** execute Media and Home Assistant through standalone owners ([#962](https://github.com/kombifyio/stackKits/issues/962)) ([0497ec0](https://github.com/kombifyio/stackKits/commit/0497ec0811e14e5650435323b08e0f7d0301e688))
-* **support:** export redacted rollout diagnostics despite partial logs ([#953](https://github.com/kombifyio/stackKits/issues/953)) ([8d2a822](https://github.com/kombifyio/stackKits/commit/8d2a822d2b55353297bc7aa62e05164174150de8))
+* admit Home-signed Modern remote plan and verify
+* **ai:** add owner-bound local inference with CUE-owned image versions
+* **backup:** execute isolated Cloud offsite snapshots and restoration
+* **cli:** guide first use and expose application next actions
+* **dev:** add owner-custodied private Git with Gitea
+* **documents:** integrate optional Paperless standalone workload
+* **host:** preserve existing bindings with scoped pre-Apply evidence
+* **identity:** bind local owner approval to exact remote actions
+* **modern:** execute owner-bound WireGuard federation links
+* **modern:** execute owner-issued peers and origin lifecycle
+* **modern:** forward bounded application WebSockets
+* **runtime:** execute Media and Home Assistant through standalone owners
+* **support:** export redacted rollout diagnostics despite partial logs
 
 
 ### Fixed
 
-* **backup:** preserve data ownership during snapshot restore ([#944](https://github.com/kombifyio/stackKits/issues/944)) ([45875c2](https://github.com/kombifyio/stackKits/commit/45875c200032af509b15ed9daa254ddf6cebb487))
-* **catalog:** derive legacy core application pins from CUE authority ([#959](https://github.com/kombifyio/stackKits/issues/959)) ([5085f15](https://github.com/kombifyio/stackKits/commit/5085f15a79894ecf009e71b4b81540265d7a0680))
-* **catalog:** keep use cases on upstream application integrations ([#972](https://github.com/kombifyio/stackKits/issues/972)) ([76ab94d](https://github.com/kombifyio/stackKits/commit/76ab94dd89837c82a9a0448dfe3e42da4a610d4e))
-* **cli:** make module scaffolding available to public contributors ([#980](https://github.com/kombifyio/stackKits/issues/980)) ([a6e76d0](https://github.com/kombifyio/stackKits/commit/a6e76d05cf693e6adb784306dd34c25490356438))
-* **cli:** preserve typed product failure reasons safely ([#985](https://github.com/kombifyio/stackKits/issues/985)) ([82988df](https://github.com/kombifyio/stackKits/commit/82988dfebcdf357a6521843548e44bffaae3f70f))
-* **delivery:** authenticate website publication plan authority ([#986](https://github.com/kombifyio/stackKits/issues/986)) ([34fdfdf](https://github.com/kombifyio/stackKits/commit/34fdfdf7eb44f5224da5cc10a427cd72f96df227))
-* **delivery:** sync authenticated plan handoff runtime ([#988](https://github.com/kombifyio/stackKits/issues/988)) ([7418439](https://github.com/kombifyio/stackKits/commit/7418439e14d6f06bff2d4ccbfc4646a49303e402))
-* **dev:** focus implicit kit parity test selection ([#956](https://github.com/kombifyio/stackKits/issues/956)) ([addeb05](https://github.com/kombifyio/stackKits/commit/addeb0580cbc8167b7163a4633bbda5f44a53288))
-* **docs:** link public authoring to exported CUE contracts ([#989](https://github.com/kombifyio/stackKits/issues/989)) ([4a88200](https://github.com/kombifyio/stackKits/commit/4a882008983f4af6065737adb07a561137a3fee0))
-* **execution:** clean rollback staging through the held workspace root ([#967](https://github.com/kombifyio/stackKits/issues/967)) ([791d521](https://github.com/kombifyio/stackKits/commit/791d521cc0cca28b4acb0b975c60973bcff47af6))
-* **files:** bind Cloudreve download origin to declared HTTPS route ([#970](https://github.com/kombifyio/stackKits/issues/970)) ([77f642e](https://github.com/kombifyio/stackKits/commit/77f642e990eb0a5bd5c1dbaed8577734985e7c10))
-* **files:** unblock explicitly authorized first Cloudreve owner ([#968](https://github.com/kombifyio/stackKits/issues/968)) ([3f565f1](https://github.com/kombifyio/stackKits/commit/3f565f1f8235dd609074a5d90cb603786ae558a3))
-* **fixtures:** align canonical plans with embedded authority ([#987](https://github.com/kombifyio/stackKits/issues/987)) ([c571b80](https://github.com/kombifyio/stackKits/commit/c571b80b6cd617c6f97d2b719ed490ebcb23edd9))
-* **init:** bind custom candidate owner to selected node ([#983](https://github.com/kombifyio/stackKits/issues/983)) ([bfa3c54](https://github.com/kombifyio/stackKits/commit/bfa3c540f753f240a67ac3e145dcfb4ddc7b8d5a))
-* **lan:** print exact resolver address ([#978](https://github.com/kombifyio/stackKits/issues/978)) ([7485dc9](https://github.com/kombifyio/stackKits/commit/7485dc9749db1ae6994b884d7774872079efdf80))
-* **release:** adopt central prepared package workflow ([#946](https://github.com/kombifyio/stackKits/issues/946)) ([1872ba9](https://github.com/kombifyio/stackKits/commit/1872ba91df3047a41d3c2ef3c0ea7deb7b9c5811))
-* **release:** clarify sole prepared version authority ([#976](https://github.com/kombifyio/stackKits/issues/976)) ([1208a97](https://github.com/kombifyio/stackKits/commit/1208a973749fc32e99e66b0567e3a44150b78d67))
-* **release:** finalize OSS packages from authenticated plans ([#981](https://github.com/kombifyio/stackKits/issues/981)) ([e9f605c](https://github.com/kombifyio/stackKits/commit/e9f605cb5d14e3af460ba865feebee4adf5277db))
-* restore Basement LAN DNS policy ownership ([#961](https://github.com/kombifyio/stackKits/issues/961)) ([47aac98](https://github.com/kombifyio/stackKits/commit/47aac987db5a968101479700aee6c49a186a8350))
-* **runtime:** preserve Compose literals and full container identities ([#960](https://github.com/kombifyio/stackKits/issues/960)) ([f5ed0aa](https://github.com/kombifyio/stackKits/commit/f5ed0aa90c666d1deae5c3cb9764016236301f9f))
-* **status:** distinguish activated restores from pending data readback ([#984](https://github.com/kombifyio/stackKits/issues/984)) ([22aef2f](https://github.com/kombifyio/stackKits/commit/22aef2f2bfa66971ad97890febec05e60853fd95))
-* **testing:** compile-check generator metadata without broad suites ([#943](https://github.com/kombifyio/stackKits/issues/943)) ([e6d40d9](https://github.com/kombifyio/stackKits/commit/e6d40d94a226ae0948053884dedd1ee66abffa55))
-* **trust:** authenticate client CA handoff against custody ([#982](https://github.com/kombifyio/stackKits/issues/982)) ([6eefae1](https://github.com/kombifyio/stackKits/commit/6eefae1ce5abfb15d01ebd08a5f61e47775c257e))
-* **vault:** support current Bitwarden clients with one version source ([#952](https://github.com/kombifyio/stackKits/issues/952)) ([ea9dc47](https://github.com/kombifyio/stackKits/commit/ea9dc4723f17cf46ec0629dd37679b47e65ac9b6))
-* **website:** align launch claims with current evidence ([#977](https://github.com/kombifyio/stackKits/issues/977)) ([ab9c543](https://github.com/kombifyio/stackKits/commit/ab9c543d0ea3a5d3cde990e4504e3aa5b2674dea))
+* **backup:** preserve data ownership during snapshot restore
+* **catalog:** derive legacy core application pins from CUE authority
+* **catalog:** keep use cases on upstream application integrations
+* **cli:** make module scaffolding available to public contributors
+* **cli:** preserve typed product failure reasons safely
+* **delivery:** authenticate website publication plan authority
+* **delivery:** sync authenticated plan handoff runtime
+* **dev:** focus implicit kit parity test selection
+* **docs:** link public authoring to exported CUE contracts
+* **execution:** clean rollback staging through the held workspace root
+* **files:** bind Cloudreve download origin to declared HTTPS route
+* **files:** unblock explicitly authorized first Cloudreve owner
+* **fixtures:** align canonical plans with embedded authority
+* **init:** bind custom candidate owner to selected node
+* **lan:** print exact resolver address
+* **release:** adopt central prepared package workflow
+* **release:** clarify sole prepared version authority
+* **release:** finalize OSS packages from authenticated plans
+* restore Basement LAN DNS policy ownership
+* **runtime:** preserve Compose literals and full container identities
+* **status:** distinguish activated restores from pending data readback
+* **testing:** compile-check generator metadata without broad suites
+* **trust:** authenticate client CA handoff against custody
+* **vault:** support current Bitwarden clients with one version source
+* **website:** align launch claims with current evidence
 
 Notes cover changes after VERSION 0.25.0 (5873d56efb664908c49cc8077b4aa35eb9a017c6), the earliest available contiguous 0.25.x VERSION anchor, through selected source 22ae1a6b133cb2e15936bd64bbdb914e150dd4b4.
 
@@ -505,45 +505,45 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
 
 ### Added
 
-* integrate recoverable Homelab lifecycle and application experience ([#829](https://github.com/kombifyio/stackKits/issues/829)) ([3f82fd8](https://github.com/kombifyio/stackKits/commit/3f82fd8a343cf5e7f2444f7c6ef49bdf3e00704b))
+* integrate recoverable Homelab lifecycle and application experience
 
 ## [0.23.0](https://github.com/kombifyio/stackKits/compare/v0.22.0...v0.23.0) (2026-09-02)
 
 
 ### Added
 
-* **install:** basement low generate, photos closure, catalog honesty ([#811](https://github.com/kombifyio/stackKits/issues/811)) ([5e8dd03](https://github.com/kombifyio/stackKits/commit/5e8dd037ad19321f044aba10bbcfc6dc23c40604))
-* **media:** architecture v2 jellyfin workload on standard and high ([#813](https://github.com/kombifyio/stackKits/issues/813)) ([8692dca](https://github.com/kombifyio/stackKits/commit/8692dcaa90ec3dfc610f368a2b37154202b9cb00))
-* **planner:** module-local compute profiles and WebMCP ([#827](https://github.com/kombifyio/stackKits/issues/827)) ([88c11f1](https://github.com/kombifyio/stackKits/commit/88c11f16eace96c3c3f6fdcd209783e94ad8eb35))
-* **smart-home:** architecture v2 home assistant container workload ([#815](https://github.com/kombifyio/stackKits/issues/815)) ([334b293](https://github.com/kombifyio/stackKits/commit/334b2933bac989eadcd2f57e53d2bdd8615b9b56))
-* **smart-home:** native MCP client, reverse-proxy baseline, Homelab owner ([#816](https://github.com/kombifyio/stackKits/issues/816)) ([6a1ed48](https://github.com/kombifyio/stackKits/commit/6a1ed4866e5cb38acc8c3ff603d329b0e4667afa))
-* **use-case:** agent surface contract and generate handoff ([#814](https://github.com/kombifyio/stackKits/issues/814)) ([8e37497](https://github.com/kombifyio/stackKits/commit/8e3749722e4e3839635316b79b3f92bdbb26e228))
-* **webmcp:** add compute-tier planner and CLI handoff ([#825](https://github.com/kombifyio/stackKits/issues/825)) ([6a4db37](https://github.com/kombifyio/stackKits/commit/6a4db3772decc2fee2fee08725716ac080bca33d))
+* **install:** basement low generate, photos closure, catalog honesty
+* **media:** architecture v2 jellyfin workload on standard and high
+* **planner:** module-local compute profiles and WebMCP
+* **smart-home:** architecture v2 home assistant container workload
+* **smart-home:** native MCP client, reverse-proxy baseline, Homelab owner
+* **use-case:** agent surface contract and generate handoff
+* **webmcp:** add compute-tier planner and CLI handoff
 
 
 ### Fixed
 
-* **delivery:** align catalog dispatch with module verification ([#830](https://github.com/kombifyio/stackKits/issues/830)) ([652c321](https://github.com/kombifyio/stackKits/commit/652c3219a699c64306596ab9649e21077782e76e))
-* **delivery:** drop hosted snapshot secrets ([#822](https://github.com/kombifyio/stackKits/issues/822)) ([25934c5](https://github.com/kombifyio/stackKits/commit/25934c5c5ff2dcf0145edb09b3d738cac1a74ec4))
-* **release:** authenticate public projection source ([#826](https://github.com/kombifyio/stackKits/issues/826)) ([5add761](https://github.com/kombifyio/stackKits/commit/5add761aa9c16fee6933365ac2fa08bbb7528e7b))
+* **delivery:** align catalog dispatch with module verification
+* **delivery:** drop hosted snapshot secrets
+* **release:** authenticate public projection source
 
 ## [0.22.0](https://github.com/kombifyio/stackKits/compare/v0.21.24...v0.22.0) (2026-08-26)
 
 
 ### Added
 
-* **apply:** attest local CPU/RAM/disk inventory before resolve ([8e4dd83](https://github.com/kombifyio/stackKits/commit/8e4dd83cf390e982bc8f5feb19740678c4cab263))
-* **install:** compute-tier graphs and use-case fits ([#804](https://github.com/kombifyio/stackKits/issues/804)) ([ec34a4d](https://github.com/kombifyio/stackKits/commit/ec34a4d376b8da34bd043747b8ccc388ad152e4e))
-* **plan:** declare core runtime capacity floors ([a242fe1](https://github.com/kombifyio/stackKits/commit/a242fe13ce7c8ea998dde0e6b4c918ec7e0e0a95))
-* **plan:** fail-closed runtime capacity admission before Apply ([dd66527](https://github.com/kombifyio/stackKits/commit/dd66527d9831b54790aee4279e07f6e0e877f55e))
+* **apply:** attest local CPU/RAM/disk inventory before resolve
+* **install:** compute-tier graphs and use-case fits
+* **plan:** declare core runtime capacity floors
+* **plan:** fail-closed runtime capacity admission before Apply
 
 
 ### Fixed
 
-* **apply:** print run-id envelope and resume installer apply ([13fe9f6](https://github.com/kombifyio/stackKits/commit/13fe9f6f5aefe09a88d56b23f938217610d634cc))
-* **ci:** restore deployment standards gate ([#808](https://github.com/kombifyio/stackKits/issues/808)) ([497f1f9](https://github.com/kombifyio/stackKits/commit/497f1f932ca3e68d1a3249049e334d6d04bb0c6c))
-* **contracts:** restore StackAction check task ([#807](https://github.com/kombifyio/stackKits/issues/807)) ([4465395](https://github.com/kombifyio/stackKits/commit/44653952be765aa8566939daeb466fa398b97e8f))
-* **delivery:** repin shared rollout caller ([#803](https://github.com/kombifyio/stackKits/issues/803)) ([8cfb937](https://github.com/kombifyio/stackKits/commit/8cfb93787187d33f082b0e8a56f633a1c49b8bd6))
+* **apply:** print run-id envelope and resume installer apply
+* **ci:** restore deployment standards gate
+* **contracts:** restore StackAction check task
+* **delivery:** repin shared rollout caller
 
 ## [0.21.24](https://github.com/kombifyio/stackKits/compare/v0.21.23...v0.21.24) (2026-08-25)
 
@@ -801,41 +801,41 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
 
 ### Fixed
 
-* **cloud-kit:** keep the Traefik admin API localhost-only in product and public release contracts ([#653](https://github.com/kombifyio/stackKits/issues/653), [#654](https://github.com/kombifyio/stackKits/issues/654))
+* **cloud-kit:** keep the Traefik admin API localhost-only in product and public release contracts
 
 ## [0.18.0](https://github.com/kombifyio/stackKits/compare/v0.17.0...v0.18.0) (2026-08-14)
 
 
 ### Added
 
-* **dev:** host-native website inner loop task (dev:website) ([e38204a](https://github.com/kombifyio/stackKits/commit/e38204a033d4bfd93be2992e0ee5c5d05a979b1f))
+* **dev:** host-native website inner loop task (dev:website)
 
 
 ### Fixed
 
-* **cloud-kit:** own and materialize public TLS routes ([#652](https://github.com/kombifyio/stackKits/issues/652)) ([a5ced29](https://github.com/kombifyio/stackKits/commit/a5ced29c6f15cbba2881cadf887b3cbab368b178))
-* **lifecycle:** drop two operations the standalone registry never had (95p5) ([e239c76](https://github.com/kombifyio/stackKits/commit/e239c764776570b1f643bbd62ed502de7435fe9a))
-* **tests:** bind the host-admission test to the spec its fixture came from ([632eac5](https://github.com/kombifyio/stackKits/commit/632eac5af36ca57e28e27e54e0eca2d79d5780c8))
-* **tests:** stop assuming one home node in the Modern fixture (tnoa) ([6e021bc](https://github.com/kombifyio/stackKits/commit/6e021bcc8937a073702005723caa27fe799b57c5))
+* **cloud-kit:** own and materialize public TLS routes
+* **lifecycle:** drop two operations the standalone registry never had (95p5)
+* **tests:** bind the host-admission test to the spec its fixture came from
+* **tests:** stop assuming one home node in the Modern fixture (tnoa)
 
 ## [0.17.0](https://github.com/kombifyio/stackKits/compare/v0.16.8...v0.17.0) (2026-08-14)
 
 
 ### Added
 
-* **installer,cli:** SUDO_USER-safe kit install; v2 init --use-case/--platform/--enable (nzws.6, nzws.7) ([676117e](https://github.com/kombifyio/stackKits/commit/676117e185ee746482254c321447dde0d7aa1fbe))
-* **installer:** full guided installation to a running homelab (3 modes) (nzws.8, nzws.9, nzws.10) ([66ae2a3](https://github.com/kombifyio/stackKits/commit/66ae2a33886a2fd9b5992aa598c1cbf2cf1faa38))
+* **installer,cli:** SUDO_USER-safe kit install; v2 init --use-case/--platform/--enable (nzws.6, nzws.7)
+* **installer:** full guided installation to a running homelab (3 modes) (nzws.8, nzws.9, nzws.10)
 
 
 ### Fixed
 
-* **api:** restore Architecture v2 OpenAPI projection parity (isv1) ([68df223](https://github.com/kombifyio/stackKits/commit/68df223821b1801e5d53792beff091df41045d6c))
-* **apply:** bind mutation to expected plan hash ([#650](https://github.com/kombifyio/stackKits/issues/650)) ([8706c91](https://github.com/kombifyio/stackKits/commit/8706c91488ca4e519260f39171d803e389f3781d))
-* **architecture:** align Cloud targets with realized renderer ([#648](https://github.com/kombifyio/stackKits/issues/648)) ([1372c5b](https://github.com/kombifyio/stackKits/commit/1372c5b59c6175dea59eb4be347f18d3c5889543))
-* **installer:** bootstrap Docker and storage roots directly; truthful native-v2 credentials (nzws.11, nzws.12) ([4c451e2](https://github.com/kombifyio/stackKits/commit/4c451e25644f41a46c2df9370b1ab429b4cec01e))
-* **kits:** give cloud-kit a real Cloud identity; enforce YAML/CUE metadata parity (nzws.1, nzws.2) ([3eda25c](https://github.com/kombifyio/stackKits/commit/3eda25cccc7d3f5570fd8aece4dfb8f50a865047))
-* **public-surface:** English-only export surface with an enforcing gate (nzws.3, nzws.4) ([0bfae18](https://github.com/kombifyio/stackKits/commit/0bfae18dcf5b7fc87c8ed8d19363d59c82bd0975))
-* **tests:** unrot the plan-shape assertions and run them on CUE changes (dbvm) ([43885be](https://github.com/kombifyio/stackKits/commit/43885beef6c46d45aad201719da7f625ea288d94))
+* **api:** restore Architecture v2 OpenAPI projection parity (isv1)
+* **apply:** bind mutation to expected plan hash
+* **architecture:** align Cloud targets with realized renderer
+* **installer:** bootstrap Docker and storage roots directly; truthful native-v2 credentials (nzws.11, nzws.12)
+* **kits:** give cloud-kit a real Cloud identity; enforce YAML/CUE metadata parity (nzws.1, nzws.2)
+* **public-surface:** English-only export surface with an enforcing gate (nzws.3, nzws.4)
+* **tests:** unrot the plan-shape assertions and run them on CUE changes (dbvm)
 
 ## [Unreleased]
 
@@ -880,45 +880,45 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
 
 ### Fixed
 
-* authenticate public runtime image pulls ([#646](https://github.com/kombifyio/stackKits/issues/646)) ([7e11c01](https://github.com/kombifyio/stackKits/commit/7e11c0120d49de9d1edbe3607302944f911d5990))
+* authenticate public runtime image pulls
 
 ## [0.16.7](https://github.com/kombifyio/stackKits/compare/v0.16.1...v0.16.7) (2026-08-13)
 
 
 ### Fixed
 
-* **ci:** advance StackKits delivery workflow ([#640](https://github.com/kombifyio/stackKits/issues/640)) ([243f627](https://github.com/kombifyio/stackKits/commit/243f62764624a1d27d000fe38c42f005fa7453fb))
-* **ci:** reconcile StackKits development fleet ([#644](https://github.com/kombifyio/stackKits/issues/644)) ([127d9bb](https://github.com/kombifyio/stackKits/commit/127d9bb54aa8ac728b264ebf220a8ce9d387eaa4))
-* **delivery:** detach pre-1.0 publish completion ([#643](https://github.com/kombifyio/stackKits/issues/643)) ([bb4ab36](https://github.com/kombifyio/stackKits/commit/bb4ab36ca0d69276b39f3ce8e55996ccba0eac26))
+* **ci:** advance StackKits delivery workflow
+* **ci:** reconcile StackKits development fleet
+* **delivery:** detach pre-1.0 publish completion
 
 ## [0.16.1](https://github.com/kombifyio/stackKits/compare/v0.16.0...v0.16.1) (2026-08-12)
 
 
 ### Fixed
 
-* **cloud-kit:** make offsite backup opt-in ([#633](https://github.com/kombifyio/stackKits/issues/633)) ([299be35](https://github.com/kombifyio/stackKits/commit/299be35c67269a5bd22d072f96274186147fa12f))
+* **cloud-kit:** make offsite backup opt-in
 
 ## [0.16.0](https://github.com/kombifyio/stackKits/compare/v0.15.9...v0.16.0) (2026-08-10)
 
 
 ### Added
 
-* make StackKit rollout service-controllable ([#631](https://github.com/kombifyio/stackKits/issues/631)) ([086b6ac](https://github.com/kombifyio/stackKits/commit/086b6aca9e5d1957ef850594499c5efe6444520a))
+* make StackKit rollout service-controllable
 
 
 ### Fixed
 
-* **release:** close StackKits release preparation ([#629](https://github.com/kombifyio/stackKits/issues/629)) ([64912d8](https://github.com/kombifyio/stackKits/commit/64912d887ff715ef9ee2a4f830a526f8478f5310))
-* **release:** preserve exact source provenance in notes ([#627](https://github.com/kombifyio/stackKits/issues/627)) ([b9f38a7](https://github.com/kombifyio/stackKits/commit/b9f38a75b60780ceacda93fe6c597bac54f2d3dd))
-* **release:** tolerate forward-only main advances ([#628](https://github.com/kombifyio/stackKits/issues/628)) ([ccb4ee0](https://github.com/kombifyio/stackKits/commit/ccb4ee03cf95d7964600573570e12945c3eae4d4))
+* **release:** close StackKits release preparation
+* **release:** preserve exact source provenance in notes
+* **release:** tolerate forward-only main advances
 
 ## [0.15.9](https://github.com/kombifyio/stackKits/compare/v0.15.8...v0.15.9) (2026-08-10)
 
 
 ### Fixed
 
-* **release:** enforce one normal StackKits release path ([#624](https://github.com/kombifyio/stackKits/issues/624)) ([b9e9d54](https://github.com/kombifyio/stackKits/commit/b9e9d54ac3280a0d64f3b604e65bd8118ebdfdfb))
-* **release:** synchronize StackKits release surfaces ([#626](https://github.com/kombifyio/stackKits/issues/626)) ([7d8317a](https://github.com/kombifyio/stackKits/commit/7d8317a018616ae3299e62dddd1382f4dcd61a44))
+* **release:** enforce one normal StackKits release path
+* **release:** synchronize StackKits release surfaces
 
 ## [0.15.8] - 2026-08-10
 

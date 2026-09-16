@@ -56,17 +56,21 @@ widens when a cited run exists.
 
 - Product site and installers: <https://stackkit.cc>
 - Documentation: <https://docs.kombify.io/stackkits>
-- Questions and ideas: GitHub Discussions on this repository; bugs via the
-  issue templates; vulnerabilities via GitHub Security Advisories (see
-  `SECURITY.md`)
+- The StackKit Open Spec (architecture snapshot, lifecycle verbs, placement
+  taxonomy, verification evidence): [docs/OPEN-SPEC.md](docs/OPEN-SPEC.md)
+- Support: see [SUPPORT.md](SUPPORT.md). Questions and ideas go to GitHub
+  Discussions on this repository, bugs to the issue templates, vulnerabilities
+  to GitHub Security Advisories (see `SECURITY.md`). This repository is a
+  generated release mirror; contributions are ported upstream by maintainers
+  (see `CONTRIBUTING.md`)
 - How the project is built, including the AI-assisted development
   provenance: [docs/BUILT-WITH.md](docs/BUILT-WITH.md)
 
 ## Works with agents
 
-StackKits is agent-native without depending on any AI service. Every release
-ships `llms.txt`, OpenAPI, JSON schemas, prompt Markdown, and the `stackkit-mcp`
-connector:
+StackKits is agent-native without depending on any AI service. The CLI embeds
+the `stackkit-mcp` connector and the prompt Markdown; `llms.txt`, OpenAPI and
+the JSON schemas are published on <https://stackkit.cc> for every release:
 
 ```sh
 stackkit agent mcp-config --client codex   # or claude / generic

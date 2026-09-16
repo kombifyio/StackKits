@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "stackkits-use-case-runtime-evidence/v1",
+  "sourceSha": "d5457f08fe489237be07fd7955355f77ca51d978",
+  "useCases": [
+    {
+      "useCaseRef": "files",
+      "status": "passed",
+      "evidenceRef": "https://github.com/kombifyio/stackKits/blob/main/docs/data/use-case-runtime-evidence/files-v0.32.1-qcjgkljx1z.json"
+    },
+    {
+      "useCaseRef": "photos",
+      "status": "passed",
+      "evidenceRef": "https://github.com/kombifyio/stackKits/blob/main/docs/data/use-case-runtime-evidence/photos-v0.32.1-1bxc7qs935.json"
+    },
+    {
+      "useCaseRef": "vault",
+      "status": "passed",
+      "evidenceRef": "https://github.com/kombifyio/stackKits/blob/main/docs/data/use-case-runtime-evidence/vault-v0.31.5-st9m9cs2xd.json"
+    }
+  ]
+}

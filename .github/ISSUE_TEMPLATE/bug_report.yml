@@ -11,7 +11,7 @@ body:
     attributes:
       label: StackKits version
       description: Output of `stackkit version`.
-      placeholder: "0.31.1"
+      placeholder: "0.32.1"
     validations:
       required: true
   - type: dropdown
