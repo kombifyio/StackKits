@@ -330,16 +330,18 @@ func runBackupInit(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// Native backup commands report failures of a --json run as one actionable
+// command result, like verify and drift detect, instead of plain text.
 func runBackupConfigure(cmd *cobra.Command, args []string) error {
-	return runNativeV2BackupCommand(cmd, nativeV2BackupConfigure, "")
+	return machineAwareCommandError(cmd, runNativeV2BackupCommand(cmd, nativeV2BackupConfigure, ""))
 }
 
 func runBackupStatus(cmd *cobra.Command, args []string) error {
-	return runNativeV2BackupCommand(cmd, nativeV2BackupStatus, "")
+	return machineAwareCommandError(cmd, runNativeV2BackupCommand(cmd, nativeV2BackupStatus, ""))
 }
 
 func runBackupRun(cmd *cobra.Command, args []string) error {
-	return runNativeV2BackupCommand(cmd, nativeV2BackupRun, backupRunOperationID)
+	return machineAwareCommandError(cmd, runNativeV2BackupCommand(cmd, nativeV2BackupRun, backupRunOperationID))
 }
 
 func runBackupList(cmd *cobra.Command, args []string) error {
@@ -383,40 +385,40 @@ func runBackupList(cmd *cobra.Command, args []string) error {
 }
 
 func runBackupRestore(cmd *cobra.Command, args []string) error {
-	return runNativeV2BackupRestoreCommand(
+	return machineAwareCommandError(cmd, runNativeV2BackupRestoreCommand(
 		cmd,
 		args[0],
 		backupRestoreOperationID,
 		backupRestoreOwnerApproved,
-	)
+	))
 }
 
 func runBackupRestoreAbandon(cmd *cobra.Command, args []string) error {
-	return runNativeV2BackupRestoreAbandonCommand(
+	return machineAwareCommandError(cmd, runNativeV2BackupRestoreAbandonCommand(
 		cmd,
 		args[0],
 		backupRestoreAbandonOwnerApproved,
-	)
+	))
 }
 
 func runBackupRestoreActivate(cmd *cobra.Command, args []string) error {
-	return runNativeV2RestoreActivationCommand(
+	return machineAwareCommandError(cmd, runNativeV2RestoreActivationCommand(
 		cmd, args[0], backupActivationOperationID,
 		backupActivationOwnerApproved,
-	)
+	))
 }
 
 func runBackupRestoreRecover(cmd *cobra.Command, args []string) error {
 	rollback, err := cmd.Flags().GetBool("rollback")
 	if err != nil {
-		return err
+		return machineAwareCommandError(cmd, err)
 	}
 	if !rollback {
-		return fmt.Errorf("backup restore recover requires --rollback")
+		return machineAwareCommandError(cmd, fmt.Errorf("backup restore recover requires --rollback"))
 	}
-	return runNativeV2RestoreRecoveryCommand(
+	return machineAwareCommandError(cmd, runNativeV2RestoreRecoveryCommand(
 		cmd, args[0], backupRecoveryOwnerApproved,
-	)
+	))
 }
 
 func runBackupVerify(cmd *cobra.Command, args []string) error {

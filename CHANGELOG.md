@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.33.2](https://github.com/kombifyio/stackKits/compare/v0.33.1...v0.33.2) (2026-09-16)
+
+
+### Fixed
+
+* **cli:** native backup commands report --json failures as command results
+
 ## [0.33.1](https://github.com/kombifyio/stackKits/compare/v0.33.0...v0.33.1) (2026-09-16)
 
 
