@@ -64,6 +64,11 @@ Enter confirms. Files, Photos, and Vault start selected (kit L3 defaults).
 --print writes the selected IDs as a comma-separated line on stdout so
 installers can pass them to stackkit init --use-case. Prompts go to stderr.
 When stdin is not a terminal, the current defaults are returned without a prompt.`,
+	Example: `  # Choose optional use cases in the terminal
+  stackkit use-cases pick
+
+  # Print the selected IDs as one comma-separated line for stackkit init --use-case
+  stackkit use-cases pick --print`,
 	Args: cobra.NoArgs,
 	Annotations: map[string]string{
 		noDeployObservabilityAnnotation: "true",

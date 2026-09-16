@@ -26,14 +26,24 @@ func init() {
 	var enableApproved, disableApproved bool
 	enable := &cobra.Command{Use: "enable", Short: "Approve and enable the exact CUE backup cadence", Args: cobra.NoArgs,
 		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
-		RunE:        func(cmd *cobra.Command, _ []string) error { return enableNativeBackupSchedule(cmd, enableApproved) }}
+		Example: `  # Approve the backup cadence from the applied plan and start its timer
+  stackkit backup schedule enable --owner-approve`,
+		RunE: func(cmd *cobra.Command, _ []string) error { return enableNativeBackupSchedule(cmd, enableApproved) }}
 	enable.Flags().BoolVar(&enableApproved, "owner-approve", false, "Approve this exact Plan, CLI and local backup cadence")
 	disable := &cobra.Command{Use: "disable", Short: "Revoke scheduled backup execution and stop its timer", Args: cobra.NoArgs,
 		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
-		RunE:        func(cmd *cobra.Command, _ []string) error { return disableNativeBackupSchedule(cmd, disableApproved) }}
+		Example: `  # Stop scheduled snapshots and revoke their authorization
+  stackkit backup schedule disable --owner-approve`,
+		RunE: func(cmd *cobra.Command, _ []string) error { return disableNativeBackupSchedule(cmd, disableApproved) }}
 	disable.Flags().BoolVar(&disableApproved, "owner-approve", false, "Revoke local scheduled backup authority")
 	status := &cobra.Command{Use: "status", Short: "Show timer, authorization and last scheduled snapshot separately", Args: cobra.NoArgs,
-		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"}, RunE: statusNativeBackupSchedule}
+		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
+		Example: `  # Show the timer, its authorization, and the last scheduled snapshot
+  stackkit backup schedule status
+
+  # The same status as JSON
+  stackkit backup schedule status --json`,
+		RunE: statusNativeBackupSchedule}
 	schedule.AddCommand(enable, disable, status)
 	backupCmd.AddCommand(schedule)
 	backupRunCmd.Flags().BoolVar(&backupRunScheduled, "scheduled", false, "Execute only through the current signed local schedule authorization")

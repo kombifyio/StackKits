@@ -2,9 +2,9 @@
 //
 // Publishable vocabulary for the placement axis. Realization is LAYERED:
 // StackKits-OSS realizes ONLY S1 (local-only, standard+cloudless). managed-
-// serverless / coupled are NOT StackKit-native — their config lives in the
-// Control-Plane catalog (kombify-DB sk_*), never in this OSS repo.
-// See docs/placement/ and public StackKits standards/PRODUCT-SEGMENTATION.md.
+// serverless / coupled are NOT StackKit-native: their configuration lives in
+// the managed control plane, never in this OSS repo. The published placement
+// vocabulary is described in docs/OPEN-SPEC.md (section 3).
 //
 // Run via: cue vet ./foundation/...
 package foundation

@@ -16,7 +16,12 @@ var operationsJSON bool
 var operationsCmd = &cobra.Command{
 	Use:   "operations",
 	Short: "List the canonical standalone lifecycle operation contracts",
-	Args:  cobra.NoArgs,
+	Example: `  # List each lifecycle operation, its access level, and what it does
+  stackkit operations
+
+  # The same contracts as JSON
+  stackkit operations --json`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		operations := standaloneoperations.All()
 		if operationsJSON {

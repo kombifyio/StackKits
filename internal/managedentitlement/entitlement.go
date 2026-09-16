@@ -27,7 +27,7 @@ const (
 	ReasonCheckFailed       = "entitlement_check_failed"
 	ReasonDenied            = "entitlement_denied"
 
-	supportFeatureSource = "Stripe/FGA/Flagship entitlement chain"
+	supportFeatureSource = "managed entitlement source (Kombify Cloud)"
 )
 
 // Source returns one availability decision for a managed capability.
@@ -66,7 +66,7 @@ func CurrentSource() Source {
 
 // OverrideSource installs source for the current process and returns a restore
 // function. Tests use this to inject an allow; production leaves the source nil
-// until a Flagship/Stripe adapter is wired.
+// until the managed entitlement adapter is wired.
 func OverrideSource(next Source) func() {
 	sourceMu.Lock()
 	prev := source

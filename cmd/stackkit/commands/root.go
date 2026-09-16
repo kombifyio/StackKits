@@ -90,7 +90,7 @@ var rootCmd = &cobra.Command{
 The standalone local path needs no kombify account or Techstack.
 
 Start in a dedicated deployment directory:
-  stackkit init basement-kit --catalog-defaults --owner-source=local
+  stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com
 
 Then review your saved choices and follow the next step printed by init.
 Nothing is installed by init. Catalog defaults come from the selected Kit;

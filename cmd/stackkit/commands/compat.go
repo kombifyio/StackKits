@@ -16,8 +16,9 @@ import (
 var compatCmd = &cobra.Command{
 	Use:   "compat",
 	Short: "Show OS support evidence and host conformance diagnostics",
-	Long: `Show the current operating system's published StackKits compatibility evidence,
-then run non-destructive diagnostics for local container-host prerequisites.
+	Long: `Show the published StackKits compatibility evidence for this operating system
+and its hypervisor, then run non-destructive diagnostics for local container-host
+prerequisites.
 
 The host diagnostics check:
   • Virtualization type (KVM, OpenVZ, LXC, bare metal)
@@ -27,17 +28,16 @@ The host diagnostics check:
   • iptables NAT support
   • Cgroup version
 
-
-StackKits compatibility claims cover operating systems only. Host diagnostics
-do not certify, rank, recommend, or price any server provider.
-
-Example:
-  stackkit compat              Check the current OS and host prerequisites`,
+Published evidence comes from automated lifecycle receipts bound to a release.
+Host diagnostics do not certify, rank, recommend, or price any server provider.`,
+	Example: `  # Check the published OS and hypervisor evidence and the host container prerequisites
+  stackkit compat`,
 	Args: cobra.NoArgs,
 	RunE: runCompat,
 }
 
 func runCompat(cmd *cobra.Command, args []string) error {
+	virtType := detectVirtualization()
 	fmt.Println()
 	fmt.Println(bold("StackKits OS Compatibility"))
 	fmt.Println()
@@ -48,8 +48,6 @@ func runCompat(cmd *cobra.Command, args []string) error {
 	fmt.Println("  Local prerequisite probes only; this is not server-provider certification.")
 	fmt.Println()
 
-	// Detect virtualization
-	virtType := detectVirtualization()
 	printCompatLine("Virtualization", virtType, virtType == models.VirtKVM || virtType == models.VirtNone)
 
 	// Test unshare
@@ -128,11 +126,53 @@ func printCurrentOSEvidence() {
 	}
 
 	if row, ok := findCompatOSEvidence(matrix, identity); ok {
-		fmt.Printf("  Published evidence:   %s (%s)\n", compatEvidenceStatus(row.Grade), matrix.StackKitsVersion)
-		return
+		fmt.Printf("  Published evidence:   %s (%s)%s\n", compatEvidenceStatus(row.Grade), matrix.StackKitsVersion, compatEvidenceNote(row.osMatrixEvidence))
+	} else {
+		fmt.Printf("  Published evidence:   %s — no exact OS family/distribution/version row\n", yellow("unverified"))
 	}
 
-	fmt.Printf("  Published evidence:   %s — no exact OS family/distribution/version row\n", yellow("unverified"))
+	if hypervisorHost := detectCompatHypervisorHost(); hypervisorHost != "" {
+		fmt.Printf("  Hypervisor host:      %s\n", hypervisorHost)
+		fmt.Println("  StackKits run in a guest VM on this hypervisor, not on the host itself.")
+		if row, ok := findCompatHypervisorRow(matrix, hypervisorHost); ok {
+			fmt.Printf("  Hypervisor rollout:   %s (%s)%s\n", compatEvidenceStatus(row.Grade), matrix.StackKitsVersion, compatEvidenceNote(row.osMatrixEvidence))
+			if row.Rollout != "" {
+				fmt.Printf("  How:                  %s\n", row.Rollout)
+			}
+		}
+	}
+}
+
+func compatEvidenceNote(evidence osMatrixEvidence) string {
+	if evidence.Grade == "supported" || len(evidence.ReasonCodes) == 0 {
+		return ""
+	}
+	note := " — " + osMatrixReason(evidence.ReasonCodes[0])
+	if evidence.LastVerifiedRelease != "" {
+		note += "; last verified " + evidence.LastVerifiedRelease
+	}
+	return note
+}
+
+// detectCompatHypervisorHost reports the hypervisor this host itself runs, so
+// the operator learns to install StackKits into a guest VM instead.
+func detectCompatHypervisorHost() string {
+	if _, err := os.Stat("/etc/pve"); err == nil {
+		return "Proxmox VE"
+	}
+	if _, err := exec.LookPath("pveversion"); err == nil {
+		return "Proxmox VE"
+	}
+	return ""
+}
+
+func findCompatHypervisorRow(matrix osMatrixDoc, name string) (osMatrixVirtRow, bool) {
+	for _, row := range matrix.Virtualization {
+		if strings.EqualFold(row.Name, name) {
+			return row, true
+		}
+	}
+	return osMatrixVirtRow{}, false
 }
 
 func findCompatOSEvidence(matrix osMatrixDoc, identity compatOSIdentity) (osMatrixDocRow, bool) {

@@ -227,6 +227,11 @@ func newHostPreflightCommand() *cobra.Command {
 
 Preflight performs read-only probes only: it never installs, starts, or
 configures anything. Apply runs the same admission before it mutates the host.`,
+		Example: `  # Check this host against the kit selected in the current deployment directory
+  stackkit host preflight
+
+  # Also refuse on warnings and unknown facts, and print the report as JSON
+  stackkit host preflight --policy strict --json`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			policy, err := resolveHostPreflightPolicy(hostPreflightPolicyFlag)

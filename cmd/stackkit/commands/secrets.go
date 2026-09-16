@@ -31,8 +31,11 @@ in the current canonical StackSpec.
 Run this explicit, idempotent step after adding a workload to an existing
 standalone workspace and before generate/apply. It never prints secret
 references or material and never replaces invalid or foreign custody.`,
-	Example: "  stackkit secrets materialize\n  stackkit generate\n  stackkit apply",
-	RunE:    runSecretsMaterialize,
+	Example: `  # After adding a workload to stack-spec.yaml, create its secrets, then roll out
+  stackkit secrets materialize
+  stackkit generate
+  stackkit apply`,
+	RunE: runSecretsMaterialize,
 }
 
 func init() {
@@ -86,7 +89,9 @@ func newSecretsRevealCommand() *cobra.Command {
 	var workload, slot string
 	cmd := &cobra.Command{
 		Use: "reveal", Short: "Print one selected workload secret from local owner custody",
-		Long:        "Print the existing value of one secret slot declared by a selected workload in the current CUE-valid StackSpec. Output contains secret material; use it only in a private terminal or an intentional pipe. No value is written to deploy logs or receipts.",
+		Long: "Print the existing value of one secret slot declared by a selected workload in the current CUE-valid StackSpec. Output contains secret material; use it only in a private terminal or an intentional pipe. No value is written to deploy logs or receipts.",
+		Example: `  # Print the Photos database password from local owner custody
+  stackkit secrets reveal --workload photos --slot database-password`,
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 		RunE: func(cmd *cobra.Command, _ []string) error {

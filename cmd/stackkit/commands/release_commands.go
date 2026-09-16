@@ -91,6 +91,17 @@ activation exists; isolated Kopia staging alone does not authorize it.
 A completed target commit keeps its success proof for explicit finalization.
 Fresh upgrades require support in the embedded CUE Kit policy; recovery of an
 existing operation follows its signed journal and checkpoint.`,
+		Example: `  # Verify the newest stable release and preview its plan and artifact diff without applying it
+  stackkit upgrade --dry-run
+
+  # Upgrade to the newest stable release
+  stackkit upgrade
+
+  # Upgrade to the newest beta prerelease
+  stackkit upgrade --to channel:beta
+
+  # Recover an interrupted upgrade by its lifecycle operation ID
+  stackkit upgrade --recover <operation-id>`,
 		RunE: runPublicUpgrade,
 	}
 	if deprecatedAlias {

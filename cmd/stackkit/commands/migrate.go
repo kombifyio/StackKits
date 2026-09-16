@@ -136,13 +136,20 @@ requires an explicit CAS-authorized StackSpec authoring flow.
 
 A ready-for-shadow-resolution result exits successfully. A blocked result is
 still emitted as machine-readable output, then the command exits unsuccessfully.
-Context maps legacy locality and Pi hardware only; it never selects a Kit.
-
-Examples:
+Context maps legacy locality and Pi hardware only; it never selects a Kit.`,
+		Example: `  # Classify a StackSpec v1 and print its migration report
   stackkit migrate stack-spec.yaml
+
+  # Report the migration toward an explicit target Kit
   stackkit migrate legacy.yaml --target-kit cloud-kit
+
+  # Reconcile with a full StackSpec v2 and write the completed canonical spec
   stackkit migrate legacy.yaml --target-kit basement-kit --complete-with explicit-v2.yaml --spec-output stack-spec.v2.json
+
+  # Print the report as YAML
   stackkit migrate legacy.yaml --format yaml
+
+  # Write the report to a file beneath the working directory
   stackkit migrate legacy.yaml --output .stackkit/migration-result.json`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

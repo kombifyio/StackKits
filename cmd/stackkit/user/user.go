@@ -44,11 +44,14 @@ func newCommand(api householdAPI) *cobra.Command {
 
 Add prints a one-time passkey setup URL. TinyAuth continues to admit the
 owners, admins, and household groups already bound on the OIDC client.
-Owner and admin identities cannot be created or removed here.
+Owner and admin identities cannot be created or removed here.`,
+		Example: `  # Invite a household member; share the printed one-time URL only with them
+  stackkit user add alex --email alex@example.com --owner-approve
 
-Examples:
-  stackkit user add alex --email alex@home.test --owner-approve
+  # List household users
   stackkit user list
+
+  # Remove a household user
   stackkit user remove alex --owner-approve`,
 		Annotations: map[string]string{
 			noDeployObservabilityAnnotation: "true",
@@ -59,7 +62,12 @@ Examples:
 	add := &cobra.Command{
 		Use:   "add <username>",
 		Short: "Invite a household user with a one-time passkey setup URL",
-		Args:  cobra.ExactArgs(1),
+		Example: `  # Invite a household member and print their one-time passkey setup URL
+  stackkit user add alex --email alex@example.com --owner-approve
+
+  # Set a display name and return the invitation as JSON
+  stackkit user add sam --email sam@example.com --display-name "Sam Doe" --owner-approve --json`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUserAdd(cmd, api, args[0])
 		},
@@ -72,7 +80,12 @@ Examples:
 	list := &cobra.Command{
 		Use:   "list",
 		Short: "List household users in local PocketID",
-		Args:  cobra.NoArgs,
+		Example: `  # List household users
+  stackkit user list
+
+  # The same list as JSON
+  stackkit user list --json`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runUserList(cmd, api)
 		},
@@ -81,7 +94,9 @@ Examples:
 	remove := &cobra.Command{
 		Use:   "remove <username>",
 		Short: "Remove a household user from local PocketID",
-		Args:  cobra.ExactArgs(1),
+		Example: `  # Remove a household user
+  stackkit user remove alex --owner-approve`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUserRemove(cmd, api, args[0])
 		},

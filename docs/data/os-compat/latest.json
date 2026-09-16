@@ -1,7 +1,51 @@
 {
-  "schemaVersion": 2,
-  "stackkitsVersion": "unreleased",
+  "schemaVersion": 3,
+  "stackkitsVersion": "v0.32.1",
+  "generatedAt": "2026-09-16T12:04:02Z",
   "results": [
+    {
+      "os": {
+        "family": "linux",
+        "distribution": "ubuntu",
+        "version": "24.04"
+      },
+      "architectures": [
+        "amd64"
+      ],
+      "grade": "supported",
+      "reasonCodes": [],
+      "verifiedPhases": [
+        "install",
+        "init",
+        "generate",
+        "apply",
+        "verify",
+        "backup",
+        "restore"
+      ],
+      "lastVerifiedRelease": "v0.32.1"
+    },
+    {
+      "os": {
+        "family": "linux",
+        "distribution": "debian",
+        "version": "13"
+      },
+      "architectures": [
+        "amd64"
+      ],
+      "grade": "preview",
+      "reasonCodes": [
+        "backup-failed"
+      ],
+      "verifiedPhases": [
+        "install",
+        "init",
+        "generate",
+        "apply",
+        "verify"
+      ]
+    },
     {
       "os": {
         "family": "linux",
@@ -10,20 +54,104 @@
       },
       "grade": "unverified",
       "reasonCodes": [
-        "os-policy-not-yet-admitted"
-      ]
-    },
-    {
-      "os": {
-        "family": "linux",
-        "distribution": "ubuntu",
-        "version": "24.04"
-      },
-      "grade": "unverified",
-      "reasonCodes": [
-        "current-candidate-receipt-pending"
+        "no-automated-lane"
       ]
     }
   ],
-  "generatedAt": "2026-07-18T00:00:00Z"
+  "virtualization": [
+    {
+      "id": "proxmox-ve",
+      "name": "Proxmox VE",
+      "rollout": "kombify Techstack enrolls the Proxmox VE host and creates an Ubuntu 24.04 guest VM through its API; the StackKit installs inside that guest.",
+      "grade": "unverified",
+      "reasonCodes": [
+        "no-automated-lane"
+      ]
+    }
+  ],
+  "applications": [
+    {
+      "useCase": "files",
+      "adapter": "standalone-compose",
+      "grade": "supported",
+      "reasonCodes": [],
+      "verifiedPhases": [
+        "install",
+        "init",
+        "generate",
+        "apply",
+        "setup-files",
+        "verify",
+        "backup",
+        "restore"
+      ],
+      "lastVerifiedRelease": "v0.32.1"
+    },
+    {
+      "useCase": "photos",
+      "adapter": "standalone-compose",
+      "grade": "supported",
+      "reasonCodes": [],
+      "verifiedPhases": [
+        "install",
+        "init",
+        "generate",
+        "apply",
+        "setup-photos",
+        "verify",
+        "backup",
+        "restore"
+      ],
+      "lastVerifiedRelease": "v0.32.1"
+    },
+    {
+      "useCase": "vault",
+      "adapter": "standalone-compose",
+      "grade": "unverified",
+      "reasonCodes": [
+        "current-release-receipt-pending"
+      ],
+      "lastVerifiedRelease": "v0.31.5"
+    },
+    {
+      "useCase": "ai",
+      "adapter": "standalone-compose",
+      "grade": "unverified",
+      "reasonCodes": [
+        "no-automated-lane"
+      ]
+    },
+    {
+      "useCase": "dev",
+      "adapter": "standalone-compose",
+      "grade": "unverified",
+      "reasonCodes": [
+        "no-automated-lane"
+      ]
+    },
+    {
+      "useCase": "documents",
+      "adapter": "standalone-compose",
+      "grade": "unverified",
+      "reasonCodes": [
+        "no-automated-lane"
+      ]
+    },
+    {
+      "useCase": "media",
+      "adapter": "standalone-compose",
+      "grade": "unverified",
+      "reasonCodes": [
+        "no-automated-lane"
+      ]
+    },
+    {
+      "useCase": "smart-home",
+      "adapter": "standalone-compose",
+      "grade": "unverified",
+      "reasonCodes": [
+        "no-automated-lane"
+      ]
+    }
+  ]
 }

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "stackkits-depot-run-provenance/v1",
+  "runId": "qx3x3ls1wz",
+  "workflowPath": "stackkits-linux-compat.yml",
+  "trigger": "schedule",
+  "producerSha": "b0f0f335e72bfd2a00ec1ea986c4a499a034864c",
+  "createdAt": "2026-09-16T03:17:35Z",
+  "status": "failed"
+}

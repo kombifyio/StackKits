@@ -4,7 +4,10 @@
 
 This page summarizes the implemented `stackkit` command surface. Cobra command
 definitions under `cmd/stackkit/commands/` and `cmd/stackkit/user/` are the
-source of truth.
+source of truth. Every command, flag, and example is generated from them into
+[`data/cli-reference/latest.json`](data/cli-reference/latest.json), which
+[stackkit.cc/cli](https://stackkit.cc/cli) renders; that reference wins where
+this summary differs.
 
 ## Installation
 

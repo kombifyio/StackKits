@@ -28,12 +28,18 @@ Product Apply executes the canonical ResolvedPlan through its Runtime Owners.
 Standard Mode uses the persisted CUE-owned local Site/node/channel binding
 automatically; Advanced Mode may provide an authenticated service/device
 execution channel. Both paths use the same ResolvedPlan, evidence, and runtime
-validation, and neither prompts: the plan is approved when it is generated.
+validation, and neither prompts: the plan is approved when it is generated.`,
+	Example: `  # Apply the plan written by stackkit generate
+  stackkit apply
 
-Examples:
-  stackkit apply                              Apply the canonical ResolvedPlan
-  stackkit apply --json                       Emit the versioned Apply result
-  stackkit apply --expected-plan-hash <sha>   Refuse to mutate a changed plan`,
+  # Emit the versioned Apply result as JSON
+  stackkit apply --json
+
+  # Refuse to change anything unless the plan still has the hash stackkit plan printed
+  stackkit apply --expected-plan-hash sha256:<plan-hash>
+
+  # Also refuse on host preflight warnings and unknown facts before any change
+  stackkit apply --preflight strict`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runApply,
 }

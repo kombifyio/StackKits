@@ -95,10 +95,6 @@ website-v2/playwright-report/
 website-v2/blob-report/
 
 # Local tool/runtime state
-.beads/backup/
-.beads/embeddeddolt/
-.beads/dolt-server.lock
-.beads/export-state.json
 .wrangler/cache/
 # stackkit-server writes instance identity and enrollment state here on any
 # local run; it is per-machine state, never source.
@@ -136,10 +132,8 @@ coverage.out
 .tmp-*
 *.test
 
-# Beads / Dolt files (added by bd init)
 .dolt/
 *.db
-.beads-credential-key
 
 # On-demand reference checkouts; never commit cached dependencies.
 /.kombify/context-cache/

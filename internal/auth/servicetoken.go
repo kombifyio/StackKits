@@ -46,7 +46,7 @@ type Claims struct {
 //
 //	svc      service slug (the caller; e.g. "stackkits")
 //	target   service slug being called (e.g. "administration")
-//	secret   shared signing secret (SERVICE_AUTH_SECRET in Doppler)
+//	secret   shared signing secret (SERVICE_AUTH_SECRET from the deployment's secret store)
 //	ttl      token lifetime; <=0 falls back to DefaultTokenTTL
 //
 // Returns "header.payload.signature" with each part base64url-encoded

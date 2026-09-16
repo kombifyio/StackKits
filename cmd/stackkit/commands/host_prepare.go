@@ -19,6 +19,10 @@ for diagnostics and for converging a workspace after manual interruption.
 It mints or reuses the workspace-custodied key under
 .stackkit/cloud-host-security/execution-channel/ and installs the matching
 public key on the execution-channel Linux account.`,
+		Example: `  # Converge the execution-channel account after an interrupted Cloud Kit install
+  # (run as root in the Cloud Kit deployment directory)
+  cd my-cloud
+  stackkit host prepare`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			workspace := getWorkDir()

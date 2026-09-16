@@ -1,0 +1,5320 @@
+{
+  "schemaVersion": "stackkits-cli-reference/v1",
+  "program": "stackkit",
+  "usage": "stackkit [flags]",
+  "short": "Set up and care for your own services with portable StackKits",
+  "description": "Run your own services from a portable StackKit definition.\nThe standalone local path needs no kombify account or Techstack.\n\nStart in a dedicated deployment directory:\n  stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com\n\nThen review your saved choices and follow the next step printed by init.\nNothing is installed by init. Catalog defaults come from the selected Kit;\nexplicit flags let you change its choices.\n\nYour local workflow:\n  init       Save your desired configuration\n  validate   Check the configuration\n  generate   Prepare the deployment artifacts\n  plan       Review infrastructure changes\n  apply      Execute the admitted changes\n  verify     Check the result\n  status     Find what is usable and what needs attention\n\nReturning to an existing deployment? Run stackkit status in its directory.\nUse stackkit <command> --help for examples and detailed options.",
+  "globalFlags": [
+    {
+      "name": "chdir",
+      "shorthand": "C",
+      "type": "string",
+      "default": ".",
+      "description": "Change to directory before running",
+      "required": false
+    },
+    {
+      "name": "correlation-id",
+      "type": "string",
+      "description": "Validated caller correlation ID recorded in local rollout evidence",
+      "required": false
+    },
+    {
+      "name": "no-log",
+      "type": "bool",
+      "description": "Disable structured deploy logging",
+      "required": false
+    },
+    {
+      "name": "progress-jsonl",
+      "type": "string",
+      "description": "Write redacted machine-readable rollout progress JSONL to a path, or '-' for stdout",
+      "required": false
+    },
+    {
+      "name": "quiet",
+      "shorthand": "q",
+      "type": "bool",
+      "description": "Suppress non-essential output",
+      "required": false
+    },
+    {
+      "name": "spec",
+      "shorthand": "s",
+      "type": "string",
+      "default": "stack-spec.yaml",
+      "description": "Path to stack specification file (kombination.yaml is accepted when the default is missing)",
+      "required": false
+    },
+    {
+      "name": "verbose",
+      "shorthand": "v",
+      "type": "bool",
+      "description": "Enable verbose output",
+      "required": false
+    }
+  ],
+  "groups": [
+    {
+      "id": "start",
+      "title": "Set up your services"
+    },
+    {
+      "id": "care",
+      "title": "Check, maintain and recover"
+    },
+    {
+      "id": "reference",
+      "title": "Advanced tools and reference"
+    }
+  ],
+  "commands": [
+    {
+      "path": "stackkit address",
+      "name": "address",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit address [flags]",
+      "short": "Plan and bind secret-free public service addresses",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit address bind",
+        "stackkit address plan"
+      ]
+    },
+    {
+      "path": "stackkit address bind",
+      "name": "bind",
+      "parent": "stackkit address",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit address bind [flags]",
+      "short": "Bind an allocated prefix into canonical public routes",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "expected-spec-hash",
+          "type": "string",
+          "description": "Native v2 only: exact current CUE-normalized spec hash required for replacement",
+          "required": false
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "description": "Write the validated bound StackSpec to this path",
+          "required": false
+        },
+        {
+          "name": "prefix",
+          "type": "string",
+          "description": "Allocated DNS-safe subdomain prefix",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit address plan",
+      "name": "plan",
+      "parent": "stackkit address",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit address plan [flags]",
+      "short": "Emit the account-free address registration plan",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit advanced",
+      "name": "advanced",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit advanced [flags]",
+      "short": "Manage offline-authorized Advanced lifecycle operations",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit advanced change-set",
+        "stackkit advanced trust"
+      ]
+    },
+    {
+      "path": "stackkit advanced change-set",
+      "name": "change-set",
+      "parent": "stackkit advanced",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit advanced change-set [flags]",
+      "short": "Manage offline-authorized Terramate change sets",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit advanced change-set apply",
+        "stackkit advanced change-set create"
+      ]
+    },
+    {
+      "path": "stackkit advanced change-set apply",
+      "name": "apply",
+      "parent": "stackkit advanced change-set",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit advanced change-set apply [flags]",
+      "short": "Apply an exact Owner-approved Terramate change set",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "candidate-spec",
+          "type": "string",
+          "description": "Path to the exact candidate StackSpec v2 using generation.target=terramate",
+          "required": false
+        },
+        {
+          "name": "capability",
+          "type": "string",
+          "description": "Path to the canonical stackkit.advanced-capability/v1 used to create the change set",
+          "required": false
+        },
+        {
+          "name": "change-set",
+          "type": "string",
+          "description": "Exact sha256:<hex> Owner-signed change-set content address",
+          "required": false
+        },
+        {
+          "name": "expect-sha256",
+          "type": "string",
+          "description": "Required exact sha256:<hex> digest of the canonical stored change-set bytes",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit advanced change-set create",
+      "name": "create",
+      "parent": "stackkit advanced change-set",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit advanced change-set create [flags]",
+      "short": "Create an Owner-signed Terramate change set",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "candidate-spec",
+          "type": "string",
+          "description": "Path to the candidate StackSpec v2 using generation.target=terramate",
+          "required": false
+        },
+        {
+          "name": "capability",
+          "type": "string",
+          "description": "Path to a canonical stackkit.advanced-capability/v1 file",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit advanced trust",
+      "name": "trust",
+      "parent": "stackkit advanced",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit advanced trust [flags]",
+      "short": "Manage the local Owner-approved Advanced issuer trust",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit advanced trust import",
+        "stackkit advanced trust inspect"
+      ]
+    },
+    {
+      "path": "stackkit advanced trust import",
+      "name": "import",
+      "parent": "stackkit advanced trust",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit advanced trust import [flags]",
+      "short": "Import an exact pinned Advanced issuer trust bundle",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "bundle",
+          "type": "string",
+          "description": "Path to a canonical stackkit.advanced-trust-bundle/v1 file",
+          "required": false
+        },
+        {
+          "name": "expect-sha256",
+          "type": "string",
+          "description": "Required exact sha256:<hex> digest of the trust bundle",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve changing local Advanced issuer trust",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit advanced trust inspect",
+      "name": "inspect",
+      "parent": "stackkit advanced trust",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit advanced trust inspect [flags]",
+      "short": "Inspect the verified local Advanced issuer trust",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit agent",
+      "name": "agent",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit agent [flags]",
+      "short": "Agent-native helpers for StackKits automation",
+      "description": "Agent-native helpers emit install plans, self-checks, prompts, and MCP configuration without mutating a rollout.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit agent install-plan",
+        "stackkit agent mcp-config",
+        "stackkit agent prompt",
+        "stackkit agent self-check"
+      ]
+    },
+    {
+      "path": "stackkit agent install-plan",
+      "name": "install-plan",
+      "parent": "stackkit agent",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit agent install-plan [flags]",
+      "short": "Print a non-interactive StackKits install plan",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit agent install-plan",
+          "description": "Print the install steps for a Basement Kit workspace named my-homelab"
+        },
+        {
+          "command": "stackkit agent install-plan --kit cloud-kit --target ssh --dir my-cloud --json",
+          "description": "A Cloud Kit plan for an agent working over SSH, as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "dir",
+          "type": "string",
+          "default": "my-homelab",
+          "description": "Workspace directory",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit JSON",
+          "required": false
+        },
+        {
+          "name": "kit",
+          "type": "string",
+          "default": "basement-kit",
+          "description": "StackKit to plan for",
+          "required": false
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "default": "local",
+          "description": "Target kind: local, ssh, vm, or ci",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit agent mcp-config",
+      "name": "mcp-config",
+      "parent": "stackkit agent",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit agent mcp-config [flags]",
+      "short": "Print one StackKits MCP client connection config",
+      "description": "Print a ready-to-paste MCP client configuration named \"stackkit\".\n\nFor users this is one StackKits MCP connection. Locally it starts the\nstackkit-mcp adapter; after install the same connector can also be reached as\nstackkit-server /mcp when a protected endpoint is explicitly enabled.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit agent mcp-config --client claude",
+          "description": "Print the connection as Claude mcpServers JSON"
+        },
+        {
+          "command": "stackkit agent mcp-config --client codex",
+          "description": "Print the Codex config.toml block"
+        }
+      ],
+      "flags": [
+        {
+          "name": "client",
+          "type": "string",
+          "default": "generic",
+          "description": "Client format: generic, codex, or claude",
+          "required": false
+        },
+        {
+          "name": "mode",
+          "type": "string",
+          "default": "docs,local,server",
+          "description": "MCP modes",
+          "required": false
+        },
+        {
+          "name": "server-url",
+          "type": "string",
+          "default": "http://localhost:8082",
+          "description": "stackkit-server URL",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit agent prompt",
+      "name": "prompt",
+      "parent": "stackkit agent",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit agent prompt [scenario] [flags]",
+      "short": "Print a copy-ready StackKits agent prompt",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit agent prompt --list",
+          "description": "List the available prompt scenarios"
+        },
+        {
+          "command": "stackkit agent prompt diagnose-failed-rollout",
+          "description": "Print the prompt for diagnosing a failed rollout"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit JSON",
+          "required": false
+        },
+        {
+          "name": "list",
+          "type": "bool",
+          "description": "List available prompt scenarios",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit agent self-check",
+      "name": "self-check",
+      "parent": "stackkit agent",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit agent self-check [flags]",
+      "short": "Check local agent-facing StackKits prerequisites",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit agent self-check",
+          "description": "Check that stackkit, stackkit-server, and stackkit-mcp are on PATH"
+        },
+        {
+          "command": "stackkit agent self-check --json",
+          "description": "The same checks as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit JSON",
+          "required": false
+        },
+        {
+          "name": "server-url",
+          "type": "string",
+          "default": "http://localhost:8082",
+          "description": "stackkit-server URL",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit app",
+      "name": "app",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit app [flags]",
+      "short": "Inspect StackKits application delivery and manage v0.6 handoffs",
+      "description": "Inspect the governed Architecture v2 application-delivery matrix for\nCoolify, Komodo, and standalone Compose.\n\nOptional customer PaaS handoff metadata remains available only on the explicit\nv0.6 StackSpec compatibility line. Architecture v2 has no arbitrary customer-\nworkload mapping; StackKit-owned applications come from the CUE catalog, while\ncustomer-workload desired state belongs to Techstack.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit app add",
+        "stackkit app compatibility"
+      ]
+    },
+    {
+      "path": "stackkit app add",
+      "name": "add",
+      "parent": "stackkit app",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit app add <name> [flags]",
+      "short": "Add or update a v0.6 compatibility PaaS app handoff",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "auth",
+          "type": "string",
+          "default": "login-gateway",
+          "description": "Route auth mode: login-gateway or public",
+          "required": false
+        },
+        {
+          "name": "env",
+          "type": "stringArray",
+          "description": "Plain environment variable as KEY=value; repeatable",
+          "required": false
+        },
+        {
+          "name": "health-path",
+          "type": "string",
+          "default": "/health",
+          "description": "HTTP health path",
+          "required": false
+        },
+        {
+          "name": "host",
+          "type": "string",
+          "description": "Route host for the app",
+          "required": false
+        },
+        {
+          "name": "image",
+          "type": "string",
+          "description": "Container image for the PaaS handoff",
+          "required": false
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "default": "sveltekit",
+          "description": "App kind (currently only sveltekit)",
+          "required": false
+        },
+        {
+          "name": "port",
+          "type": "int",
+          "default": "3000",
+          "description": "Container port exposed by the app",
+          "required": false
+        },
+        {
+          "name": "secret",
+          "type": "stringArray",
+          "description": "Secret reference as KEY=env:NAME, KEY=vault:NAME or KEY=file:PATH; repeatable",
+          "required": false
+        }
+      ],
+      "subcommands": [],
+      "legacy": true
+    },
+    {
+      "path": "stackkit app compatibility",
+      "name": "compatibility",
+      "parent": "stackkit app",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit app compatibility [flags]",
+      "short": "Show the governed application/adapter support matrix",
+      "description": "Show the immutable CUE-owned support rows for StackKits applications.\nThis reports product capability, not the selected plan, live adapter\navailability, or deployment evidence.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit app compatibility",
+          "description": "Show which applications each runtime adapter supports"
+        },
+        {
+          "command": "stackkit app compatibility --json",
+          "description": "The same matrix as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Print the compatibility matrix as JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit apply",
+      "name": "apply",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "start",
+      "usage": "stackkit apply [plan-file] [flags]",
+      "short": "Apply infrastructure changes",
+      "description": "Apply the planned changes to the infrastructure.\n\nProduct Apply executes the canonical ResolvedPlan through its Runtime Owners.\nStandard Mode uses the persisted CUE-owned local Site/node/channel binding\nautomatically; Advanced Mode may provide an authenticated service/device\nexecution channel. Both paths use the same ResolvedPlan, evidence, and runtime\nvalidation, and neither prompts: the plan is approved when it is generated.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit apply",
+          "description": "Apply the plan written by stackkit generate"
+        },
+        {
+          "command": "stackkit apply --json",
+          "description": "Emit the versioned Apply result as JSON"
+        },
+        {
+          "command": "stackkit apply --expected-plan-hash sha256:<plan-hash>",
+          "description": "Refuse to change anything unless the plan still has the hash stackkit plan printed"
+        },
+        {
+          "command": "stackkit apply --preflight strict",
+          "description": "Also refuse on host preflight warnings and unknown facts before any change"
+        }
+      ],
+      "flags": [
+        {
+          "name": "artifact-manifest",
+          "type": "string",
+          "description": "Architecture v2 generation manifest (default: <outputRoot>/.stackkit/generation-manifest.json)",
+          "required": false
+        },
+        {
+          "name": "auto-approve",
+          "type": "bool",
+          "description": "Accepted for compatibility; native Apply never prompts",
+          "required": false
+        },
+        {
+          "name": "expected-plan-hash",
+          "type": "string",
+          "description": "Require the canonical ResolvedPlan to match this sha256 digest immediately before Apply",
+          "required": false
+        },
+        {
+          "name": "generation-receipt",
+          "type": "string",
+          "description": "Architecture v2 generation receipt (default: <outputRoot>/.stackkit/generation-receipt.json)",
+          "required": false
+        },
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Architecture v2 observed Inventory (otherwise one conventional inventory file is selected)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the versioned Apply result and runtime observations as machine-readable JSON",
+          "required": false
+        },
+        {
+          "name": "local-execution-channel",
+          "type": "string",
+          "description": "Architecture v2 execution channel explicitly owned by this local process",
+          "required": false
+        },
+        {
+          "name": "local-node",
+          "type": "string",
+          "description": "Architecture v2 node explicitly owned by this local execution process",
+          "required": false
+        },
+        {
+          "name": "local-site",
+          "type": "string",
+          "description": "Architecture v2 Site explicitly owned by this local execution process",
+          "required": false
+        },
+        {
+          "name": "preflight",
+          "type": "string",
+          "description": "Host admission policy before mutation: strict, warn (default), or skip",
+          "required": false
+        },
+        {
+          "name": "resolved-plan",
+          "type": "string",
+          "description": "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)",
+          "required": false
+        },
+        {
+          "name": "skip-platform-apps",
+          "type": "bool",
+          "description": "No effect: native Apply has no separate platform-app stage",
+          "required": false
+        },
+        {
+          "name": "verify",
+          "type": "bool",
+          "description": "No effect: run stackkit verify after Apply instead",
+          "required": false
+        },
+        {
+          "name": "verify-http",
+          "type": "bool",
+          "description": "No effect: run stackkit verify --http after Apply instead",
+          "required": false
+        },
+        {
+          "name": "verify-strict",
+          "type": "bool",
+          "description": "No effect: run stackkit verify after Apply instead",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup",
+      "name": "backup",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup [flags]",
+      "short": "Manage backups (Kopia engine)",
+      "description": "Manage backups for this StackKit deployment.\n\nBackups are powered by Kopia (see ADR-0016) and run in the local\nkopia-agent service rendered by the Basement core. Native configure, status,\nand run revalidate the exact local Plan, generated artifacts, owner custody,\nand Apply evidence before touching Kopia. Repository, source, exclusions,\nservice identity, and credentials are CUE- or owner-custody-owned.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit backup configure",
+          "description": "Configure the local Kopia repository after stackkit apply"
+        },
+        {
+          "command": "stackkit backup run",
+          "description": "Take a snapshot now"
+        },
+        {
+          "command": "stackkit backup status",
+          "description": "Check repository readiness and the latest snapshot and restore receipts"
+        },
+        {
+          "command": "stackkit backup restore sha256:<snapshot-anchor-id> --owner-approve",
+          "description": "Restore a snapshot into isolated staging"
+        }
+      ],
+      "flags": [],
+      "subcommands": [
+        "stackkit backup configure",
+        "stackkit backup emergency-export",
+        "stackkit backup emergency-restore",
+        "stackkit backup init",
+        "stackkit backup list",
+        "stackkit backup migrate-from-restic",
+        "stackkit backup restore",
+        "stackkit backup run",
+        "stackkit backup schedule",
+        "stackkit backup status",
+        "stackkit backup target",
+        "stackkit backup verify"
+      ]
+    },
+    {
+      "path": "stackkit backup configure",
+      "name": "configure",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup configure [flags]",
+      "short": "Configure the CUE-governed local Kopia repository",
+      "description": "Configure the local Kopia repository from the exact generated StackSpec v2 backup policy.\n\nThe repository path and kopia-agent service are CUE-owned and cannot be\noverridden at the command line.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit backup configure",
+          "description": "Configure the repository once the Basement core is applied"
+        },
+        {
+          "command": "stackkit backup configure --json",
+          "description": "Configure it and print the command result as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup emergency-export",
+      "name": "emergency-export",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup emergency-export [flags]",
+      "short": "Export selected local data as an encrypted portable recovery archive",
+      "description": "Create a portable age-encrypted tar/gzip archive with per-file checksums and a\nrestore runbook. Provide an age recipient public key and a new target directory\noutside the sources. Omit --source to export the generated v2 backup contract\n(CUE emergencyExport classes plus the generate/apply source-policy volumes).\nExplicit CLASS=PATH sources remain the standalone path when no generated\ncontract is present. File copying does not prove application consistency; stop\nwriters or export database-native dumps first. Recovery stages data without the\noriginal host, Kopia, or a Kombify account.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit backup emergency-export --recipient <age-public-key> --target /mnt/usb/stackkit-export",
+          "description": "Export the generated backup contract, encrypted to your age public key, into a new directory"
+        },
+        {
+          "command": "stackkit backup emergency-export --recipient <age-public-key> --target /mnt/usb/stackkit-export --source config=/opt/stacks --source user-content=/opt/data",
+          "description": "Export explicit paths when no generated contract exists"
+        }
+      ],
+      "flags": [
+        {
+          "name": "format",
+          "type": "string",
+          "default": "tar.gz.age",
+          "description": "Portable archive format (tar.gz.age)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Output the archive receipt as JSON",
+          "required": false
+        },
+        {
+          "name": "large-media-mode",
+          "type": "string",
+          "default": "manifest-only",
+          "description": "Media sources: manifest-only, include, or exclude",
+          "required": false
+        },
+        {
+          "name": "recipient",
+          "type": "stringArray",
+          "description": "age X25519 recipient public key; repeat for multiple recovery owners",
+          "required": false
+        },
+        {
+          "name": "source",
+          "type": "stringArray",
+          "description": "Explicit CLASS=PATH source; repeat for config, secrets, platform-state, database, user-content, documents, photos, large-media, telemetry-timeseries, serverless-config or cache-generated",
+          "required": false
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "description": "New output directory; its parent must exist",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup emergency-restore",
+      "name": "emergency-restore",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup emergency-restore [flags]",
+      "short": "Decrypt and verify a portable export into a new staging directory",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit backup emergency-restore --archive <export-dir>/<archive>.tar.gz.age --identity-file ~/.config/age/key.txt --target ./restore-staging",
+          "description": "Decrypt and verify an export into a new staging directory with your age identity file"
+        }
+      ],
+      "flags": [
+        {
+          "name": "archive",
+          "type": "string",
+          "description": "Encrypted emergency archive",
+          "required": false
+        },
+        {
+          "name": "identity-file",
+          "type": "string",
+          "description": "Local age identity file; secret keys never belong on the command line",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Output the verified staging result as JSON",
+          "required": false
+        },
+        {
+          "name": "max-bytes",
+          "type": "int",
+          "default": "549755813888",
+          "description": "Maximum decompressed archive bytes, including metadata",
+          "required": false
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "description": "New isolated restore directory; its parent must exist",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup init",
+      "name": "init",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup init [flags]",
+      "short": "Print first-run setup instructions",
+      "description": "Print the first-run setup steps for the backup addon.\n\nThis command is read-only. It describes the native lifecycle that renders and\napplies the CUE-owned local kopia-agent before repository configuration.",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup list",
+      "name": "list",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup list [flags]",
+      "short": "List snapshots in the local repository",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Output snapshots as JSON",
+          "required": false
+        }
+      ],
+      "subcommands": [],
+      "legacy": true
+    },
+    {
+      "path": "stackkit backup migrate-from-restic",
+      "name": "migrate-from-restic",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup migrate-from-restic [flags]",
+      "short": "Import an existing Restic repository into Kopia (one-shot)",
+      "description": "Drive the one-shot Restic-to-Kopia importer.\n\nReads the Restic repository configured in the v1 addon, walks every\nsnapshot, and re-creates it inside Kopia preserving original timestamps.\nAfter a successful import the addon flips engine: \"restic-import\" to\n\"kopia\" automatically.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "dry-run",
+          "type": "bool",
+          "description": "Print the plan without importing",
+          "required": false
+        }
+      ],
+      "subcommands": [],
+      "legacy": true
+    },
+    {
+      "path": "stackkit backup restore",
+      "name": "restore",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup restore <snapshot-anchor-id> [flags]",
+      "short": "Verify and restore a signed snapshot into isolated staging",
+      "description": "Restore one content-addressed, owner-signed snapshot anchor into the\nCUE-owned isolated staging volume. The raw Kopia snapshot ID and staging path\nare not caller-controlled. --owner-approve records explicit local Owner\nauthorization; this command never requires a Kombify account or Cloud service.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit backup restore sha256:<snapshot-anchor-id> --owner-approve",
+          "description": "Restore a snapshot into isolated staging; the live volumes are not touched"
+        },
+        {
+          "command": "stackkit backup restore sha256:<snapshot-anchor-id> --owner-approve --json",
+          "description": "Print the result as JSON: data.id is the restore result ID for restore activate, data.operationId is the restore operation ID for restore abandon"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        },
+        {
+          "name": "operation-id",
+          "type": "string",
+          "description": "Stable idempotency key for this staged restore operation",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize this staged restore with the established local Owner custody",
+          "required": false
+        }
+      ],
+      "subcommands": [
+        "stackkit backup restore abandon",
+        "stackkit backup restore activate",
+        "stackkit backup restore recover"
+      ]
+    },
+    {
+      "path": "stackkit backup restore abandon",
+      "name": "abandon",
+      "parent": "stackkit backup restore",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup restore abandon <restore-operation-id> [flags]",
+      "short": "Abandon one pending or staged restore operation",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit backup restore abandon <restore-operation-id> --owner-approve",
+          "description": "Discard a staged restore you do not want to activate"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize this restore abandonment with the established local Owner custody",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup restore activate",
+      "name": "activate",
+      "parent": "stackkit backup restore",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup restore activate <restore-result-id> [flags]",
+      "short": "Activate one verified staged restore into the live Basement volumes",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit backup restore activate sha256:<restore-result-id> --owner-approve",
+          "description": "Replace the live volumes with a verified staged restore"
+        },
+        {
+          "command": "stackkit backup restore activate sha256:<restore-result-id> --owner-approve --operation-id restore-activate-2026-09-18",
+          "description": "Name the activation operation so an interrupted run can be recovered by that ID"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        },
+        {
+          "name": "operation-id",
+          "type": "string",
+          "description": "Stable idempotency key for this live restore activation",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize live activation with the established local Owner custody",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup restore recover",
+      "name": "recover",
+      "parent": "stackkit backup restore",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup restore recover <activation-operation-id> [flags]",
+      "short": "Recover an interrupted restore or finish its committed result",
+      "description": "Recover the exact owner-approved restore activation. Before commit, recovery\nrestores the prior live volumes. After commit, it preserves the activated data\nand resumes result cleanup and application finalization. Repeating recovery for\na completed operation returns its original signed result. --rollback is\nrequired.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit backup restore recover restore-activate-2026-09-18 --rollback --owner-approve",
+          "description": "Recover an interrupted activation by its operation ID"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize recovery with the established local Owner custody",
+          "required": false
+        },
+        {
+          "name": "rollback",
+          "type": "bool",
+          "description": "Authorize rollback if the interrupted activation has not committed",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup run",
+      "name": "run",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup run [flags]",
+      "short": "Force a snapshot now (out of band)",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit backup run --json",
+          "description": "Take a snapshot now; data.id in the JSON result is the snapshot anchor ID for backup restore"
+        },
+        {
+          "command": "stackkit backup run --operation-id manual-2026-09-18",
+          "description": "Use your own operation ID so a retry cannot create a second snapshot"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        },
+        {
+          "name": "operation-id",
+          "type": "string",
+          "description": "Stable idempotency key for this snapshot operation",
+          "required": false
+        },
+        {
+          "name": "scheduled",
+          "type": "bool",
+          "description": "Execute only through the current signed local schedule authorization",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup schedule",
+      "name": "schedule",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup schedule [flags]",
+      "short": "Control the Owner-approved local backup timer",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "persistent": true
+        }
+      ],
+      "subcommands": [
+        "stackkit backup schedule disable",
+        "stackkit backup schedule enable",
+        "stackkit backup schedule status"
+      ]
+    },
+    {
+      "path": "stackkit backup schedule disable",
+      "name": "disable",
+      "parent": "stackkit backup schedule",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup schedule disable [flags]",
+      "short": "Revoke scheduled backup execution and stop its timer",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit backup schedule disable --owner-approve",
+          "description": "Stop scheduled snapshots and revoke their authorization"
+        }
+      ],
+      "flags": [
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Revoke local scheduled backup authority",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit backup schedule"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup schedule enable",
+      "name": "enable",
+      "parent": "stackkit backup schedule",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup schedule enable [flags]",
+      "short": "Approve and enable the exact CUE backup cadence",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit backup schedule enable --owner-approve",
+          "description": "Approve the backup cadence from the applied plan and start its timer"
+        }
+      ],
+      "flags": [
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Approve this exact Plan, CLI and local backup cadence",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit backup schedule"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup schedule status",
+      "name": "status",
+      "parent": "stackkit backup schedule",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup schedule status [flags]",
+      "short": "Show timer, authorization and last scheduled snapshot separately",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit backup schedule status",
+          "description": "Show the timer, its authorization, and the last scheduled snapshot"
+        },
+        {
+          "command": "stackkit backup schedule status --json",
+          "description": "The same status as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit backup schedule"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup status",
+      "name": "status",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup status [flags]",
+      "short": "Show local Kopia repository status",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit backup status",
+          "description": "Show repository readiness, coverage, and the latest snapshot and restore receipts"
+        },
+        {
+          "command": "stackkit backup status --json",
+          "description": "The same status as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup target",
+      "name": "target",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup target [flags]",
+      "short": "Bind an owner-supplied S3 target to the generated backup policy",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit backup target import",
+        "stackkit backup target status"
+      ]
+    },
+    {
+      "path": "stackkit backup target import",
+      "name": "import",
+      "parent": "stackkit backup target",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup target import [flags]",
+      "short": "Import encrypted S3 custody from JSON on stdin",
+      "description": "Import JSON fields endpoint, bucket, prefix, region, accessKeyId, secretAccessKey and passphrase from stdin. The passphrase is a string for an existing Kopia repository. Only opaque target references are printed. This imports custody; it does not create a bucket or verify offsite readiness.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit backup target import --owner-approve < s3-target.json",
+          "description": "Import the S3 target from a private JSON file with the fields listed above"
+        }
+      ],
+      "flags": [
+        {
+          "name": "candidate-digest",
+          "type": "string",
+          "description": "Exact sha256 digest of the installed StackKits release candidate",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize this exact local backup target",
+          "required": false
+        },
+        {
+          "name": "rebind",
+          "type": "bool",
+          "description": "Renew Plan/source authority while preserving the existing target and credentials",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup target status",
+      "name": "status",
+      "parent": "stackkit backup target",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup target status [flags]",
+      "short": "Verify local target custody without contacting S3",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit backup target status",
+          "description": "Confirm the imported target custody is intact"
+        }
+      ],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup verify",
+      "name": "verify",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup verify [flags]",
+      "short": "Validate the repository against its storage provider",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": [],
+      "legacy": true
+    },
+    {
+      "path": "stackkit break-glass",
+      "name": "break-glass",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit break-glass [flags]",
+      "short": "Manage break-glass recovery accounts and bundles",
+      "description": "Manage per-node break-glass recovery accounts and the encrypted bundles\nthat hold their credentials.\n\nBundles are written by 'stackkit apply' (Phase 1) into /var/lib/stackkit/recovery/.\nThey are encrypted with the recovery passphrase you set during init.\n\nTo recover a node, decrypt the bundle:\n    age -d -o break-glass.txt break-glass-<node>.age\n\nThen follow the RESTORE INSTRUCTIONS section inside the decrypted YAML.",
+      "runnable": false,
+      "examples": [],
+      "flags": [
+        {
+          "name": "dir",
+          "type": "string",
+          "description": "Override the bundle directory (default: /var/lib/stackkit/recovery)",
+          "required": false,
+          "persistent": true
+        }
+      ],
+      "subcommands": [
+        "stackkit break-glass list",
+        "stackkit break-glass rotate",
+        "stackkit break-glass show-bundle"
+      ]
+    },
+    {
+      "path": "stackkit break-glass list",
+      "name": "list",
+      "parent": "stackkit break-glass",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit break-glass list [flags]",
+      "short": "List break-glass bundles on this host",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit break-glass list",
+          "description": "List the encrypted recovery bundles in /var/lib/stackkit/recovery"
+        },
+        {
+          "command": "stackkit break-glass list --dir ./recovery-copy",
+          "description": "List bundles copied to another directory"
+        }
+      ],
+      "flags": [
+        {
+          "name": "dir",
+          "type": "string",
+          "description": "Override the bundle directory (default: /var/lib/stackkit/recovery)",
+          "required": false,
+          "inheritedFrom": "stackkit break-glass"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit break-glass rotate",
+      "name": "rotate",
+      "parent": "stackkit break-glass",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit break-glass rotate [flags]",
+      "short": "Generate a new break-glass account on this node and re-issue the bundle (Phase 5)",
+      "description": "Rotate the per-node break-glass credentials and re-issue the bundle.\n\nThis is part of Phase 5 of the owner & break-glass-admin roadmap and is\nnot yet implemented. Until it lands, rotate manually by re-running\n'stackkit apply' on the node — the apply orchestrator will regenerate\nthe per-node break-glass admin and write a fresh bundle.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "dir",
+          "type": "string",
+          "description": "Override the bundle directory (default: /var/lib/stackkit/recovery)",
+          "required": false,
+          "inheritedFrom": "stackkit break-glass"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit break-glass show-bundle",
+      "name": "show-bundle",
+      "parent": "stackkit break-glass",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit break-glass show-bundle <node> [flags]",
+      "short": "Print the path to a node's encrypted bundle",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit break-glass show-bundle <node>",
+          "description": "Print the bundle path of a node that stackkit break-glass list showed"
+        }
+      ],
+      "flags": [
+        {
+          "name": "dir",
+          "type": "string",
+          "description": "Override the bundle directory (default: /var/lib/stackkit/recovery)",
+          "required": false,
+          "inheritedFrom": "stackkit break-glass"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit cluster",
+      "name": "cluster",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit cluster [flags]",
+      "short": "Manage StackKits multi-node cluster membership",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit cluster join-token"
+      ]
+    },
+    {
+      "path": "stackkit cluster join-token",
+      "name": "join-token",
+      "parent": "stackkit cluster",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit cluster join-token [flags]",
+      "short": "Create a join token for worker or storage nodes",
+      "description": "Create a join token for worker or storage nodes.\n\nThe token is the only supported path for treating another BaseKit install as a\nmember of this homelab. Coolify remote-server registration and TechStack mirror\nupdates consume this cluster identity in later rollout steps.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "endpoint",
+          "type": "string",
+          "description": "Main node endpoint workers use to join",
+          "required": false
+        },
+        {
+          "name": "homelab-id",
+          "type": "string",
+          "description": "Homelab ID (defaults to stack spec name)",
+          "required": false
+        },
+        {
+          "name": "main-node",
+          "type": "string",
+          "description": "Main node ID/name (defaults to the main-like node in stack spec)",
+          "required": false
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "default": ".stackkit/cluster/join-token.json",
+          "description": "Output path for the token JSON",
+          "required": false
+        },
+        {
+          "name": "ttl",
+          "type": "duration",
+          "default": "24h0m0s",
+          "description": "Token validity duration",
+          "required": false
+        }
+      ],
+      "subcommands": [],
+      "legacy": true
+    },
+    {
+      "path": "stackkit compat",
+      "name": "compat",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit compat [flags]",
+      "short": "Show OS support evidence and host conformance diagnostics",
+      "description": "Show the published StackKits compatibility evidence for this operating system\nand its hypervisor, then run non-destructive diagnostics for local container-host\nprerequisites.\n\nThe host diagnostics check:\n  • Virtualization type (KVM, OpenVZ, LXC, bare metal)\n  • unshare(2) syscall availability\n  • OverlayFS support\n  • Bridge networking support\n  • iptables NAT support\n  • Cgroup version\n\nPublished evidence comes from automated lifecycle receipts bound to a release.\nHost diagnostics do not certify, rank, recommend, or price any server provider.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit compat",
+          "description": "Check the published OS and hypervisor evidence and the host container prerequisites"
+        }
+      ],
+      "flags": [],
+      "subcommands": [
+        "stackkit compat emit-os-matrix"
+      ]
+    },
+    {
+      "path": "stackkit compat emit-os-matrix",
+      "name": "emit-os-matrix",
+      "parent": "stackkit compat",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit compat emit-os-matrix [flags]",
+      "short": "Render the public OS and virtualization compatibility projection",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "archive-dir",
+          "type": "string",
+          "default": "docs/data/os-compat",
+          "description": "directory holding per-release v*.json archives",
+          "required": false
+        },
+        {
+          "name": "docs-out",
+          "type": "string",
+          "default": "docs/OS_COMPATIBILITY.md",
+          "description": "generated markdown output",
+          "required": false
+        },
+        {
+          "name": "input",
+          "type": "string",
+          "default": "docs/data/os-compat/latest.json",
+          "description": "committed public compatibility projection",
+          "required": false
+        },
+        {
+          "name": "website-out",
+          "type": "string",
+          "default": "website/public/os-compat.json",
+          "description": "generated website feed output",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit completion",
+      "name": "completion",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit completion [bash|zsh|fish|powershell]",
+      "short": "Generate shell completion scripts",
+      "description": "Generate shell completion scripts for stackkit.\n\nTo load completions:\n\nBash:\n  $ source <(stackkit completion bash)\n\n  # To load completions for each session, execute once:\n  # Linux:\n  $ stackkit completion bash > /etc/bash_completion.d/stackkit\n  # macOS:\n  $ stackkit completion bash > $(brew --prefix)/etc/bash_completion.d/stackkit\n\nZsh:\n  # If shell completion is not already enabled in your environment,\n  # you will need to enable it. Execute once:\n  $ echo \"autoload -U compinit; compinit\" >> ~/.zshrc\n\n  # To load completions for each session, execute once:\n  $ stackkit completion zsh > \"${fpath[1]}/_stackkit\"\n\n  # You will need to start a new shell for this to take effect.\n\nFish:\n  $ stackkit completion fish | source\n\n  # To load completions for each session, execute once:\n  $ stackkit completion fish > ~/.config/fish/completions/stackkit.fish\n\nPowerShell:\n  PS> stackkit completion powershell | Out-String | Invoke-Expression\n\n  # To load completions for each session, execute once and source this file\n  # from your PowerShell profile.\n  PS> stackkit completion powershell > stackkit.ps1",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit docs",
+      "name": "docs",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit docs [flags]",
+      "short": "Generate deterministic StackKits documentation projections",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit docs emit-cli-reference",
+        "stackkit docs emit-release-manifests",
+        "stackkit docs emit-use-case-overview"
+      ]
+    },
+    {
+      "path": "stackkit docs emit-cli-reference",
+      "name": "emit-cli-reference",
+      "parent": "stackkit docs",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit docs emit-cli-reference [flags]",
+      "short": "Emit the machine-readable stackkit CLI reference",
+      "description": "Write every visible stackkit command, flag, and example as deterministic JSON.\n\nThe stackkit.cc CLI reference renders this file. With --check nothing is\nwritten; the command fails when the file differs from the current command tree.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit docs emit-cli-reference",
+          "description": "Regenerate the committed reference after changing a command, flag, or example"
+        },
+        {
+          "command": "stackkit docs emit-cli-reference --check",
+          "description": "Fail when the committed reference is stale"
+        }
+      ],
+      "flags": [
+        {
+          "name": "check",
+          "type": "bool",
+          "description": "Write nothing; fail when the reference file is missing or stale",
+          "required": false
+        },
+        {
+          "name": "out",
+          "type": "string",
+          "default": "docs/data/cli-reference/latest.json",
+          "description": "Reference JSON path, relative to --chdir",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit docs emit-release-manifests",
+      "name": "emit-release-manifests",
+      "parent": "stackkit docs",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit docs emit-release-manifests [flags]",
+      "short": "Emit release-bound use-case and compatibility manifests",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "output-dir",
+          "type": "string",
+          "description": "manifest output directory",
+          "required": true
+        },
+        {
+          "name": "public-source-sha",
+          "type": "string",
+          "description": "exact public source SHA",
+          "required": true
+        },
+        {
+          "name": "release-tag",
+          "type": "string",
+          "description": "published release tag (vX.Y.Z)",
+          "required": true
+        },
+        {
+          "name": "release-url",
+          "type": "string",
+          "description": "exact public release URL",
+          "required": true
+        },
+        {
+          "name": "source-sha",
+          "type": "string",
+          "description": "exact private source SHA",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit docs emit-use-case-overview",
+      "name": "emit-use-case-overview",
+      "parent": "stackkit docs",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit docs emit-use-case-overview [flags]",
+      "short": "Render the internal derived use-case development overview",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "evidence-output",
+          "type": "string",
+          "description": "evidence manifest output path",
+          "required": false
+        },
+        {
+          "name": "output",
+          "type": "string",
+          "description": "Markdown output path",
+          "required": false
+        },
+        {
+          "name": "source-sha",
+          "type": "string",
+          "description": "exact source SHA",
+          "required": true
+        },
+        {
+          "name": "test-receipt",
+          "type": "string",
+          "description": "source-SHA-bound passed test receipt",
+          "required": false
+        },
+        {
+          "name": "tests-passed-for-source",
+          "type": "bool",
+          "description": "mark tests complete after the caller synchronously passed catalog tests for source-sha",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit drift",
+      "name": "drift",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit drift [flags]",
+      "short": "Observe and reconcile local StackKit drift",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit drift detect",
+        "stackkit drift reconcile"
+      ]
+    },
+    {
+      "path": "stackkit drift detect",
+      "name": "detect",
+      "parent": "stackkit drift",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit drift detect [flags]",
+      "short": "Read the authoritative local state and report drift",
+      "description": "Read and verify the canonical ResolvedPlan, generated artifacts,\nowner-signed Apply evidence, local Owner binding, and live Basement Compose\nruntime without refreshing runtime state. The content-addressed report is\nretained as local Owner evidence for every selected Application Kit.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit drift detect",
+          "description": "Compare the live deployment with the applied plan"
+        },
+        {
+          "command": "stackkit drift detect --json",
+          "description": "The same drift report as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit drift reconcile",
+      "name": "reconcile",
+      "parent": "stackkit drift",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit drift reconcile [flags]",
+      "short": "Reconcile drift through the governed local lifecycle",
+      "description": "Standard mode requires explicit local Owner approval, verifies the\ncurrent local authority, creates a mandatory Kopia and executor-state rollback\ncheckpoint, then runs generate, apply, and verify through the exclusive\nlifecycle journal. A failed target phase automatically restores, reapplies, and\nverifies the captured prior executor state. Advanced mode remains fail-closed\nuntil an offline-verified capability is supplied.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit drift reconcile --owner-approve",
+          "description": "Reconcile drift in standard mode: checkpoint, then generate, apply, and verify"
+        },
+        {
+          "command": "stackkit drift reconcile --owner-approve --json",
+          "description": "The same reconciliation with a JSON result"
+        }
+      ],
+      "flags": [
+        {
+          "name": "candidate-spec",
+          "type": "string",
+          "description": "Advanced: exact Terramate candidate StackSpec",
+          "required": false
+        },
+        {
+          "name": "capability",
+          "type": "string",
+          "description": "Advanced: canonical offline capability file",
+          "required": false
+        },
+        {
+          "name": "change-set",
+          "type": "string",
+          "description": "Advanced: exact Owner-signed change-set ID",
+          "required": false
+        },
+        {
+          "name": "expect-sha256",
+          "type": "string",
+          "description": "Advanced: exact stored change-set byte digest",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        },
+        {
+          "name": "mode",
+          "type": "string",
+          "default": "standard",
+          "description": "Reconcile mode: standard or advanced",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Record explicit local Owner approval for standard reconciliation",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit federation",
+      "name": "federation",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit federation [flags]",
+      "short": "Manage local Federation binding evidence",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit federation binding",
+        "stackkit federation control",
+        "stackkit federation link"
+      ]
+    },
+    {
+      "path": "stackkit federation binding",
+      "name": "binding",
+      "parent": "stackkit federation",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit federation binding [flags]",
+      "short": "Manage opaque external Federation-link bindings",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit federation binding adopt",
+        "stackkit federation binding import"
+      ]
+    },
+    {
+      "path": "stackkit federation binding adopt",
+      "name": "adopt",
+      "parent": "stackkit federation binding",
+      "aliases": [
+        "approve"
+      ],
+      "group": "reference",
+      "usage": "stackkit federation binding adopt [flags]",
+      "short": "Validate, Owner-sign, and atomically adopt an external binding",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "binding",
+          "type": "string",
+          "description": "Workspace-confined unsigned external Federation binding JSON",
+          "required": false
+        },
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Workspace-confined inventory.json to update atomically",
+          "required": false
+        },
+        {
+          "name": "resolved-plan",
+          "type": "string",
+          "description": "Workspace-confined canonical ResolvedPlan (otherwise derived beside Inventory)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit federation binding import",
+      "name": "import",
+      "parent": "stackkit federation binding",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit federation binding import [flags]",
+      "short": "Admit an Owner-signed opaque binding into local Inventory",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "admission",
+          "type": "string",
+          "description": "Workspace-confined Owner-signed Federation binding admission JSON",
+          "required": false
+        },
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Workspace-confined inventory.json to update atomically",
+          "required": false
+        },
+        {
+          "name": "resolved-plan",
+          "type": "string",
+          "description": "Workspace-confined canonical ResolvedPlan (otherwise derived beside Inventory)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit federation control",
+      "name": "control",
+      "parent": "stackkit federation",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit federation control [flags]",
+      "short": "Execute Home-authorized plan and verify at the selected Cloud node",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit federation control bind",
+        "stackkit federation control send",
+        "stackkit federation control sign",
+        "stackkit federation control withdraw"
+      ]
+    },
+    {
+      "path": "stackkit federation control bind",
+      "name": "bind",
+      "parent": "stackkit federation control",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit federation control bind [flags]",
+      "short": "Admit exact public Home authority and local receiver custody",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "file",
+          "type": "string",
+          "description": "Owner-reviewed receiver custody JSON; no private keys",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit federation control send",
+      "name": "send",
+      "parent": "stackkit federation control",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit federation control send [flags]",
+      "short": "Send the signed action over an exact Home-initiated mTLS connection",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "endpoint-file",
+          "type": "string",
+          "description": "Local pinned mTLS endpoint and confined credential paths",
+          "required": false
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "description": "Home-signed action JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit federation control sign",
+      "name": "sign",
+      "parent": "stackkit federation control",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit federation control sign [flags]",
+      "short": "Sign one exact short-lived action with current Home custody",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "file",
+          "type": "string",
+          "description": "Exact action JSON with plan hash, target and bounded timestamps",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit federation control withdraw",
+      "name": "withdraw",
+      "parent": "stackkit federation control",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit federation control withdraw [flags]",
+      "short": "Persistently withdraw receiver authority, including existing TLS sessions",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit federation link",
+      "name": "link",
+      "parent": "stackkit federation",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit federation link [flags]",
+      "short": "Bind and stop the local portion of an external Federation fabric",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit federation link bind",
+        "stackkit federation link stop"
+      ]
+    },
+    {
+      "path": "stackkit federation link bind",
+      "name": "bind",
+      "parent": "stackkit federation link",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit federation link bind [flags]",
+      "short": "Adopt external WireGuard handles into local Owner custody",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "file",
+          "type": "string",
+          "description": "External fabric custody JSON; contains no private keys",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit federation link stop",
+      "name": "stop",
+      "parent": "stackkit federation link",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit federation link stop [flags]",
+      "short": "Stop the adopted interface without deleting the external fabric",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "fabric-ref",
+          "type": "string",
+          "description": "Exact adopted opaque fabric reference",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit generate",
+      "name": "generate",
+      "parent": "stackkit",
+      "aliases": [
+        "gen"
+      ],
+      "group": "start",
+      "usage": "stackkit generate [flags]",
+      "short": "Generate governed deployment artifacts from a stack specification",
+      "description": "Resolve canonical StackSpec v2 intent through the embedded CUE authority,\npersist the exact ResolvedPlan atomically, and render its governed artifacts\ntransactionally beneath the plan-owned outputRoot.\n\nStackSpec v1 generation is retired. Use a published exact-v0.6 binary for a\nhistorical workspace or migrate the intent to StackSpec v2 before generating.\nLegacy --force and --fragments switches are rejected by the native v2 path.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit generate",
+          "description": "Resolve the plan and render deployment artifacts into deploy/"
+        },
+        {
+          "command": "stackkit generate --output ./deploy",
+          "description": "Render into an explicit output root"
+        },
+        {
+          "command": "stackkit generate --local-node main --local-site home",
+          "description": "Name the Site and node this process owns"
+        }
+      ],
+      "flags": [
+        {
+          "name": "force",
+          "shorthand": "f",
+          "type": "bool",
+          "description": "Retired legacy overwrite switch; rejected for StackSpec v2",
+          "required": false
+        },
+        {
+          "name": "fragments",
+          "type": "bool",
+          "description": "Retired legacy fragment switch; rejected for StackSpec v2",
+          "required": false
+        },
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Architecture v2 observed Inventory (otherwise one conventional inventory file is selected)",
+          "required": false
+        },
+        {
+          "name": "local-node",
+          "type": "string",
+          "description": "Architecture v2 node explicitly owned by this local generate process",
+          "required": false
+        },
+        {
+          "name": "local-site",
+          "type": "string",
+          "description": "Architecture v2 Site explicitly owned by this local generate process",
+          "required": false
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "default": "deploy",
+          "description": "Override the plan-owned output root",
+          "required": false
+        },
+        {
+          "name": "resolved-plan",
+          "type": "string",
+          "description": "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit host",
+      "name": "host",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host [flags]",
+      "short": "Provider-neutral host contract operations",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit host attach-conformance",
+        "stackkit host conformance",
+        "stackkit host environment",
+        "stackkit host preflight",
+        "stackkit host prepare",
+        "stackkit host remediate"
+      ]
+    },
+    {
+      "path": "stackkit host attach-conformance",
+      "name": "attach-conformance",
+      "parent": "stackkit host",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host attach-conformance [flags]",
+      "short": "Attach exact host evidence to Inventory before plan generation",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "binding",
+          "type": "string",
+          "description": "Workspace-confined ExternalHostBinding JSON",
+          "required": true
+        },
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Workspace-confined inventory.json to update atomically",
+          "required": true
+        },
+        {
+          "name": "receipt",
+          "type": "string",
+          "description": "Workspace-confined HostConformanceReceipt JSON",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit host conformance",
+      "name": "conformance",
+      "parent": "stackkit host",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host conformance [flags]",
+      "short": "Produce a provider-neutral conformance receipt on this host",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "binding",
+          "type": "string",
+          "description": "Local ExternalHostBinding JSON file",
+          "required": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "default": "-",
+          "description": "Receipt destination ('-' for JSON on stdout)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit host environment",
+      "name": "environment",
+      "parent": "stackkit host",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host environment [flags]",
+      "short": "Observe whether this host looks like a home network or a public server",
+      "description": "Detect the network environment of this machine.\n\nThis is observation, not kit selection. Installers and init use it to ask\nbefore authoring local home addresses on a VPS, or Cloud Kit on a LAN host.\nSTACKKIT_NETWORK_ENV=home|vps|cloud|unknown overrides live detection.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit host environment",
+          "description": "Show whether this host looks like a home network or a public server"
+        },
+        {
+          "command": "stackkit host environment --json",
+          "description": "The same observation as JSON"
+        },
+        {
+          "command": "STACKKIT_NETWORK_ENV=home stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com",
+          "description": "Override a wrong detection for the next command, here Basement Kit init on a home host"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the observation as JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit host preflight",
+      "name": "preflight",
+      "parent": "stackkit host",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host preflight [flags]",
+      "short": "Check whether this host can run the selected StackKit",
+      "description": "Measure this host and compare it against the floor the kit declares.\n\nPreflight performs read-only probes only: it never installs, starts, or\nconfigures anything. Apply runs the same admission before it mutates the host.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit host preflight",
+          "description": "Check this host against the kit selected in the current deployment directory"
+        },
+        {
+          "command": "stackkit host preflight --policy strict --json",
+          "description": "Also refuse on warnings and unknown facts, and print the report as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the versioned preflight report as machine-readable JSON",
+          "required": false
+        },
+        {
+          "name": "local-node",
+          "type": "string",
+          "description": "Exact local Node in the supplied ResolvedPlan",
+          "required": false
+        },
+        {
+          "name": "policy",
+          "type": "string",
+          "description": "Admission policy: strict, warn (default), or skip",
+          "required": false
+        },
+        {
+          "name": "resolved-plan",
+          "type": "string",
+          "description": "Verified canonical ResolvedPlan whose host listeners to check",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit host prepare",
+      "name": "prepare",
+      "parent": "stackkit host",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host prepare [flags]",
+      "short": "Prepare this host before Cloud Kit apply",
+      "description": "Provision the Cloud execution-channel account and SSH key custody\nrequired before host-security disables root login.\n\nCloud Kit installers and apply call this automatically. The command exists\nfor diagnostics and for converging a workspace after manual interruption.\nIt mints or reuses the workspace-custodied key under\n.stackkit/cloud-host-security/execution-channel/ and installs the matching\npublic key on the execution-channel Linux account.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "cd my-cloud\nstackkit host prepare",
+          "description": "Converge the execution-channel account after an interrupted Cloud Kit install (run as root in the Cloud Kit deployment directory)"
+        }
+      ],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit host remediate",
+      "name": "remediate",
+      "parent": "stackkit host",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host remediate [flags]",
+      "short": "Show or carry out fixes for what host preflight found",
+      "description": "List the fixes that answer this host's preflight findings, or carry one out.\n\nWithout --apply nothing is changed: the command measures the host and prints\nwhat each fix would do, whether it can be undone, and whether it needs root.\n\nWith --apply <id> --yes the named fix runs, and the check that justified it is\nmeasured again afterwards so the result states what actually changed rather\nthan that something was attempted.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit host remediate",
+          "description": "List the fixes for this host's preflight findings without changing anything"
+        },
+        {
+          "command": "stackkit host remediate --apply <resolution-id> --yes",
+          "description": "Carry out one fix by the ID the list printed"
+        },
+        {
+          "command": "stackkit host remediate --auto-reversible --yes",
+          "description": "Carry out every undoable fix that may run unattended"
+        }
+      ],
+      "flags": [
+        {
+          "name": "apply",
+          "type": "string",
+          "description": "Carry out the named resolution (requires --yes)",
+          "required": false
+        },
+        {
+          "name": "auto-reversible",
+          "type": "bool",
+          "description": "Carry out every undoable fix that may run unattended (requires --yes)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the remediation plan or record as machine-readable JSON",
+          "required": false
+        },
+        {
+          "name": "policy",
+          "type": "string",
+          "description": "Preflight policy used to find findings: strict or warn (default)",
+          "required": false
+        },
+        {
+          "name": "yes",
+          "type": "bool",
+          "description": "Confirm that the named resolution may change this host",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity",
+      "name": "identity",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity [flags]",
+      "short": "Manage the standalone local identity plane",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit identity projection",
+        "stackkit identity workload-peer"
+      ]
+    },
+    {
+      "path": "stackkit identity projection",
+      "name": "projection",
+      "parent": "stackkit identity",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity projection [flags]",
+      "short": "Inspect and locally approve credential-free desired identity projections",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit identity projection apply",
+        "stackkit identity projection approve",
+        "stackkit identity projection inspect",
+        "stackkit identity projection unlink"
+      ]
+    },
+    {
+      "path": "stackkit identity projection apply",
+      "name": "apply",
+      "parent": "stackkit identity projection",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity projection apply [flags]",
+      "short": "Apply one previously approved projection to local PocketID",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve this local identity operation",
+          "required": false
+        },
+        {
+          "name": "projection-sha256",
+          "type": "string",
+          "description": "Exact sha256:<hex> of a locally approved projection",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity projection approve",
+      "name": "approve",
+      "parent": "stackkit identity projection",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity projection approve [flags]",
+      "short": "Create the local Owner-signed approval without PocketID mutation",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "file",
+          "type": "string",
+          "description": "Path to a canonical stackkit.desired-identity-projection/v1 document",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve importing this desired projection into local custody",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity projection inspect",
+      "name": "inspect",
+      "parent": "stackkit identity projection",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity projection inspect [flags]",
+      "short": "Verify one signed projection without mutation",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "file",
+          "type": "string",
+          "description": "Path to a canonical stackkit.desired-identity-projection/v1 document",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity projection unlink",
+      "name": "unlink",
+      "parent": "stackkit identity projection",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity projection unlink [flags]",
+      "short": "Detach optional sync without deleting any local identity",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve this local identity operation",
+          "required": false
+        },
+        {
+          "name": "projection-sha256",
+          "type": "string",
+          "description": "Exact sha256:<hex> of a locally approved projection",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity workload-peer",
+      "name": "workload-peer",
+      "parent": "stackkit identity",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity workload-peer [flags]",
+      "short": "Exchange owner-approved Cloud workload certificates with Home",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit identity workload-peer enroll",
+        "stackkit identity workload-peer install",
+        "stackkit identity workload-peer probe",
+        "stackkit identity workload-peer request",
+        "stackkit identity workload-peer revoke"
+      ]
+    },
+    {
+      "path": "stackkit identity workload-peer enroll",
+      "name": "enroll",
+      "parent": "stackkit identity workload-peer",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity workload-peer enroll [flags]",
+      "short": "Issue and admit a peer for one installed Home publication",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "address",
+          "type": "string",
+          "description": "Existing federation loopback socket for the Cloud probe",
+          "required": false
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "description": "Public request or credential JSON file",
+          "required": false
+        },
+        {
+          "name": "home-root-sha256",
+          "type": "string",
+          "description": "Home root sha256 fingerprint verified through a separate owner-approved channel",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve this local workload identity operation",
+          "required": false
+        },
+        {
+          "name": "peer-ref",
+          "type": "string",
+          "description": "Explicit workload peer identity",
+          "required": false
+        },
+        {
+          "name": "replace-key",
+          "type": "bool",
+          "description": "Explicitly replace the selected peer key; revoked keys remain denied",
+          "required": false
+        },
+        {
+          "name": "server-name",
+          "type": "string",
+          "description": "Installed Home origin server name",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity workload-peer install",
+      "name": "install",
+      "parent": "stackkit identity workload-peer",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity workload-peer install [flags]",
+      "short": "Install a Home-issued certificate using an independently verified root",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "address",
+          "type": "string",
+          "description": "Existing federation loopback socket for the Cloud probe",
+          "required": false
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "description": "Public request or credential JSON file",
+          "required": false
+        },
+        {
+          "name": "home-root-sha256",
+          "type": "string",
+          "description": "Home root sha256 fingerprint verified through a separate owner-approved channel",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve this local workload identity operation",
+          "required": false
+        },
+        {
+          "name": "peer-ref",
+          "type": "string",
+          "description": "Explicit workload peer identity",
+          "required": false
+        },
+        {
+          "name": "server-name",
+          "type": "string",
+          "description": "Installed Home origin server name",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity workload-peer probe",
+      "name": "probe",
+      "parent": "stackkit identity workload-peer",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity workload-peer probe [flags]",
+      "short": "Request the origin through an existing federation loopback socket",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "address",
+          "type": "string",
+          "description": "Existing federation loopback socket for the Cloud probe",
+          "required": false
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "description": "Public request or credential JSON file",
+          "required": false
+        },
+        {
+          "name": "home-root-sha256",
+          "type": "string",
+          "description": "Home root sha256 fingerprint verified through a separate owner-approved channel",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve this local workload identity operation",
+          "required": false
+        },
+        {
+          "name": "peer-ref",
+          "type": "string",
+          "description": "Explicit workload peer identity",
+          "required": false
+        },
+        {
+          "name": "server-name",
+          "type": "string",
+          "description": "Installed Home origin server name",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity workload-peer request",
+      "name": "request",
+      "parent": "stackkit identity workload-peer",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity workload-peer request [flags]",
+      "short": "Create or reuse a Cloud-held key and export its public CSR",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "address",
+          "type": "string",
+          "description": "Existing federation loopback socket for the Cloud probe",
+          "required": false
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "description": "Public request or credential JSON file",
+          "required": false
+        },
+        {
+          "name": "home-root-sha256",
+          "type": "string",
+          "description": "Home root sha256 fingerprint verified through a separate owner-approved channel",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve this local workload identity operation",
+          "required": false
+        },
+        {
+          "name": "peer-ref",
+          "type": "string",
+          "description": "Explicit workload peer identity",
+          "required": false
+        },
+        {
+          "name": "rotate-key",
+          "type": "bool",
+          "description": "Generate a new Cloud key while preserving the active credential until install",
+          "required": false
+        },
+        {
+          "name": "server-name",
+          "type": "string",
+          "description": "Installed Home origin server name",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity workload-peer revoke",
+      "name": "revoke",
+      "parent": "stackkit identity workload-peer",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity workload-peer revoke [flags]",
+      "short": "Withdraw a peer's current Home admission",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "address",
+          "type": "string",
+          "description": "Existing federation loopback socket for the Cloud probe",
+          "required": false
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "description": "Public request or credential JSON file",
+          "required": false
+        },
+        {
+          "name": "home-root-sha256",
+          "type": "string",
+          "description": "Home root sha256 fingerprint verified through a separate owner-approved channel",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve this local workload identity operation",
+          "required": false
+        },
+        {
+          "name": "peer-ref",
+          "type": "string",
+          "description": "Explicit workload peer identity",
+          "required": false
+        },
+        {
+          "name": "server-name",
+          "type": "string",
+          "description": "Installed Home origin server name",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit init",
+      "name": "init",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "start",
+      "usage": "stackkit init [stackkit] [flags]",
+      "short": "Initialize a new deployment from a StackKit",
+      "description": "Create a stack-spec.yaml in your deployment directory.\nThis saves your choices; it does not install services or change the host.\nThe standalone local path works without a kombify account or Techstack.\n\nStart with the selected Kit's catalog defaults. --owner-source=local keeps the\nowner on this machine and needs --owner-email for the local PocketID owner.\nCloud Kit uses a kombify.me address unless --domain names a domain that\nalready points at this host.\n\nReview the saved configuration before generating or applying it. Defaults\nare recorded as explicit intent and validated by the Kit's CUE contract.\nRequired information, such as a domain, is requested when the Kit needs it.\nUse --non-interactive in scripts to fail instead of prompting.\n\nFor precise control, use --use-case-alternative and --module-compute-profile\ninstead of --catalog-defaults. These selections come from the chosen Kit.\nNative authoring uses stackkit/v2alpha2; --api-version stackkit/v2alpha1\nselects the explicit legacy graph adapter. Flags marked v0.6 compatibility\nare accepted only by an explicitly versioned v0.6 binary.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "mkdir my-homelab && cd my-homelab\nstackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com",
+          "description": "Basement Kit for a home server, with the Kit's catalog defaults"
+        },
+        {
+          "command": "stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com --use-case photos,files",
+          "description": "Basement Kit with the optional Photos and Files use cases"
+        },
+        {
+          "command": "mkdir my-cloud && cd my-cloud\nstackkit init cloud-kit --catalog-defaults --owner-source=local --owner-email you@example.com",
+          "description": "Cloud Kit for a public VPS on a kombify.me address"
+        },
+        {
+          "command": "stackkit init cloud-kit --catalog-defaults --owner-source=local --owner-email you@example.com --domain example.com --non-interactive",
+          "description": "Cloud Kit on your own domain, without prompts (for scripts)"
+        },
+        {
+          "command": "stackkit init basement-kit --owner-source=local --owner-email you@example.com --use-case-alternative basement-core=standalone --module-compute-profile stackkits-basement-core-runtime=standard",
+          "description": "Pick the core alternative and module profile explicitly instead of catalog defaults"
+        }
+      ],
+      "flags": [
+        {
+          "name": "admin-email",
+          "type": "string",
+          "description": "v0.6 compatibility only: admin email for login accounts",
+          "required": false
+        },
+        {
+          "name": "api-version",
+          "type": "string",
+          "default": "stackkit/v2alpha2",
+          "description": "StackSpec contract (stackkit/v2alpha2; explicit legacy adapter: stackkit/v2alpha1)",
+          "required": false
+        },
+        {
+          "name": "candidate-spec",
+          "type": "string",
+          "description": "Native v2 only: preserve a complete CUE-valid StackSpec from a file or - for stdin; excludes authoring overrides",
+          "required": false
+        },
+        {
+          "name": "catalog-defaults",
+          "type": "bool",
+          "description": "Accept CUE catalog defaults for omitted native alternatives and compute profiles; persist explicit intent",
+          "required": false
+        },
+        {
+          "name": "cloud-oidc-client-id",
+          "type": "string",
+          "description": "v0.6 compatibility only: Cloud OIDC client ID",
+          "required": false
+        },
+        {
+          "name": "cloud-oidc-client-secret-ref",
+          "type": "string",
+          "description": "v0.6 compatibility only: Cloud OIDC client secret reference (e.g. secret://)",
+          "required": false
+        },
+        {
+          "name": "cloud-oidc-foreign-subject",
+          "type": "string",
+          "description": "v0.6 compatibility only: Cloud user's foreign subject ID",
+          "required": false
+        },
+        {
+          "name": "cloud-oidc-issuer",
+          "type": "string",
+          "description": "v0.6 compatibility only: Cloud OIDC issuer URL for auto/cloud owner handoff",
+          "required": false
+        },
+        {
+          "name": "cluster-mode",
+          "type": "string",
+          "default": "first",
+          "description": "v0.6 compatibility only: cluster mode (first|join)",
+          "required": false
+        },
+        {
+          "name": "compute-tier",
+          "type": "string",
+          "description": "Legacy v2alpha1 only: declared kit graph (low, standard, high)",
+          "required": false
+        },
+        {
+          "name": "domain",
+          "type": "string",
+          "description": "Domain override for the generated stack spec",
+          "required": false
+        },
+        {
+          "name": "enable",
+          "type": "strings",
+          "description": "Native v2 only: optional kit capabilities to enable (capabilities.enable, e.g. lan-dns,internal-pki)",
+          "required": false
+        },
+        {
+          "name": "expected-spec-hash",
+          "type": "string",
+          "description": "Native v2 only: exact current CUE-normalized spec hash required for replacement",
+          "required": false
+        },
+        {
+          "name": "force",
+          "shorthand": "f",
+          "type": "bool",
+          "description": "v0.6 compatibility only: overwrite existing files",
+          "required": false
+        },
+        {
+          "name": "hardware-profile",
+          "type": "string",
+          "description": "Device class for nodes[0].hardware.profile (standard, pi, gpu, storage). pi is a constrained homelab device, not Raspberry-only. Not auto-detected from inventory",
+          "required": false
+        },
+        {
+          "name": "local-dns",
+          "type": "bool",
+          "description": "v0.6 compatibility only: use Kombify Point local DNS names",
+          "required": false
+        },
+        {
+          "name": "local-name",
+          "type": "string",
+          "description": "v0.6 compatibility only: local DNS short name for --local-dns",
+          "required": false
+        },
+        {
+          "name": "mode",
+          "type": "string",
+          "description": "v0.6 compatibility only: installation mode (bare, bootstrapped, advanced)",
+          "required": false
+        },
+        {
+          "name": "module-accelerator-profile",
+          "type": "stringArray",
+          "description": "Native v2alpha2: module-id=accelerator-profile for a declared accelerator dimension",
+          "required": false
+        },
+        {
+          "name": "module-compute-profile",
+          "type": "stringArray",
+          "description": "Native v2alpha2: module-id=profile; repeat for every selected workload module",
+          "required": false
+        },
+        {
+          "name": "module-storage-profile",
+          "type": "stringArray",
+          "description": "Native v2alpha2: module-id=storage-profile for a declared storage dimension",
+          "required": false
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "Deployment contract ID (defaults to a normalized working-directory name)",
+          "required": false
+        },
+        {
+          "name": "non-interactive",
+          "type": "bool",
+          "description": "Run in non-interactive mode (fail if input is required)",
+          "required": false
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "default": "deploy",
+          "description": "v0.6 compatibility only: output directory for generated files",
+          "required": false
+        },
+        {
+          "name": "owner-bootstrap-mode",
+          "type": "string",
+          "description": "v0.6 compatibility only: owner bootstrap mode (auto|custom|none)",
+          "required": false
+        },
+        {
+          "name": "owner-display-name",
+          "type": "string",
+          "description": "Desired PocketID owner display name for --owner-source=local",
+          "required": false
+        },
+        {
+          "name": "owner-email",
+          "type": "string",
+          "description": "Desired PocketID owner email for --owner-source=local",
+          "required": false
+        },
+        {
+          "name": "owner-source",
+          "type": "string",
+          "description": "Owner custody source (native standalone: local; v0.6 compatibility: local|cloud)",
+          "required": false
+        },
+        {
+          "name": "owner-username",
+          "type": "string",
+          "description": "Desired PocketID owner username for --owner-source=local",
+          "required": false
+        },
+        {
+          "name": "platform",
+          "type": "string",
+          "description": "Native v2 only: selected-provider platform adapter (install.platform.providerRef, e.g. coolify or komodo)",
+          "required": false
+        },
+        {
+          "name": "recovery-material-ref",
+          "type": "string",
+          "description": "v0.6 compatibility only: reference to orchestrator-owned recovery material; plaintext recovery passphrases are never accepted in stack specs",
+          "required": false
+        },
+        {
+          "name": "recovery-passphrase-hash",
+          "type": "string",
+          "description": "v0.6 compatibility only: recovery passphrase hash (argon2id PHC); prompts when missing",
+          "required": false
+        },
+        {
+          "name": "service-profile",
+          "type": "string",
+          "description": "v0.6 compatibility only: BaseKit service profile",
+          "required": false
+        },
+        {
+          "name": "use-case",
+          "type": "strings",
+          "description": "Optional kit workloads to enable (e.g. photos,files,vault); v2alpha2 requires explicit alternatives",
+          "required": false
+        },
+        {
+          "name": "use-case-alternative",
+          "type": "stringArray",
+          "description": "Native v2alpha2: use-case-id=alternative; include required core workloads",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit kit",
+      "name": "kit",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit kit [flags]",
+      "short": "Published StackKit release operations",
+      "description": "Discover, verify, and install published StackKit release artifacts.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit kit list",
+        "stackkit kit upgrade",
+        "stackkit kit verify"
+      ]
+    },
+    {
+      "path": "stackkit kit list",
+      "name": "list",
+      "parent": "stackkit kit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit kit list [flags]",
+      "short": "List published StackKits releases from GitHub",
+      "description": "Resolve the newest published release for every public StackKit on the\ncurrent operating system and architecture. The release index is fetched from\nthe public kombifyio/stackKits GitHub Releases repository.\n\nChannels:\n  stable  newest release that is not a prerelease\n  beta    newest -beta.* prerelease\n  edge    newest -edge.* prerelease",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit kit list",
+          "description": "Show the newest stable release of every public StackKit for this OS and architecture"
+        },
+        {
+          "command": "stackkit kit list --channel beta --json",
+          "description": "Show beta prereleases as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "channel",
+          "type": "string",
+          "default": "stable",
+          "description": "Release channel: stable, beta, or edge.",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON.",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit kit upgrade",
+      "name": "upgrade",
+      "parent": "stackkit kit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit kit upgrade [flags]",
+      "short": "Resolve and install a verified StackKit release",
+      "description": "Resolve a public StackKit release from GitHub, verify its archive,\nSPDX SBOM, GitHub OIDC/Sigstore attestation, and cached trusted root, then\natomically install it under .stackkit/releases/.\n\nWith --dry-run it generates the verified target only in a bounded shadow\nworkspace and reports a canonical plan/artifact diff. Without --dry-run it\nfirst inspects that target, creates a native Kopia snapshot plus an\nowner-signed executor-state recovery checkpoint, stages and verifies the\nrollback data without activating it, and only then installs and executes the\nexact target generate/apply/verify transaction. A failed target transaction\ncan restore and verify the prior executor only before target Apply is admitted.\nAfter Apply, prior-runtime restart is blocked until verified prior-data\nactivation exists; isolated Kopia staging alone does not authorize it.\nA completed target commit keeps its success proof for explicit finalization.\nFresh upgrades require support in the embedded CUE Kit policy; recovery of an\nexisting operation follows its signed journal and checkpoint.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit upgrade --dry-run",
+          "description": "Verify the newest stable release and preview its plan and artifact diff without applying it"
+        },
+        {
+          "command": "stackkit upgrade",
+          "description": "Upgrade to the newest stable release"
+        },
+        {
+          "command": "stackkit upgrade --to channel:beta",
+          "description": "Upgrade to the newest beta prerelease"
+        },
+        {
+          "command": "stackkit upgrade --recover <operation-id>",
+          "description": "Recover an interrupted upgrade by its lifecycle operation ID"
+        }
+      ],
+      "flags": [
+        {
+          "name": "dry-run",
+          "type": "bool",
+          "description": "Verify and inspect target generation in a bounded shadow workspace without applying it.",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON.",
+          "required": false
+        },
+        {
+          "name": "recover",
+          "type": "string",
+          "description": "Explicitly recover one exact interrupted lifecycle operation ID.",
+          "required": false
+        },
+        {
+          "name": "to",
+          "type": "string",
+          "default": "latest",
+          "description": "Target: latest, vX.Y.Z, or channel:stable|beta|edge.",
+          "required": false
+        }
+      ],
+      "subcommands": [],
+      "deprecated": "use stackkit upgrade"
+    },
+    {
+      "path": "stackkit kit verify",
+      "name": "verify",
+      "parent": "stackkit kit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit kit verify [flags]",
+      "short": "Verify cached release receipts and attestations",
+      "description": "Deprecated alias for 'stackkit verify --offline'. No network request is performed.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON.",
+          "required": false
+        }
+      ],
+      "subcommands": [],
+      "deprecated": "use stackkit verify --offline"
+    },
+    {
+      "path": "stackkit logs",
+      "name": "logs",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit logs [run-id] [flags]",
+      "short": "View structured deploy logs",
+      "description": "View and filter structured deploy logs from previous runs.\n\nBy default, shows the most recent log in human-readable format.\nUse filters to narrow down to specific event types.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit logs",
+          "description": "Show the latest log (human-readable)"
+        },
+        {
+          "command": "stackkit logs --json",
+          "description": "Show the latest log as structured JSON"
+        },
+        {
+          "command": "stackkit logs --jsonl",
+          "description": "Show the latest log as raw JSON Lines"
+        },
+        {
+          "command": "stackkit logs --decisions",
+          "description": "Show only decision events"
+        },
+        {
+          "command": "stackkit logs --errors",
+          "description": "Show only errors and warnings"
+        },
+        {
+          "command": "stackkit logs --timing",
+          "description": "Show a timing summary"
+        }
+      ],
+      "flags": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "description": "Opaque digest-bound cursor returned by a prior JSON page",
+          "required": false,
+          "persistent": true
+        },
+        {
+          "name": "decisions",
+          "type": "bool",
+          "description": "Show only decision events",
+          "required": false,
+          "persistent": true
+        },
+        {
+          "name": "errors",
+          "type": "bool",
+          "description": "Show only errors and warnings",
+          "required": false,
+          "persistent": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "persistent": true
+        },
+        {
+          "name": "jsonl",
+          "type": "bool",
+          "description": "Output raw JSON-Lines",
+          "required": false,
+          "persistent": true
+        },
+        {
+          "name": "max-bytes",
+          "type": "int",
+          "default": "262144",
+          "description": "Maximum raw log bytes scanned per JSON page",
+          "required": false,
+          "persistent": true
+        },
+        {
+          "name": "max-events",
+          "type": "int",
+          "default": "200",
+          "description": "Maximum structured events per JSON page",
+          "required": false,
+          "persistent": true
+        },
+        {
+          "name": "timing",
+          "type": "bool",
+          "description": "Show timing summary",
+          "required": false,
+          "persistent": true
+        }
+      ],
+      "subcommands": [
+        "stackkit logs get",
+        "stackkit logs latest",
+        "stackkit logs list"
+      ]
+    },
+    {
+      "path": "stackkit logs get",
+      "name": "get",
+      "parent": "stackkit logs",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit logs get <run-id> [flags]",
+      "short": "Read one exact structured rollout log",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit logs get <run-id>",
+          "description": "Read one run by an ID that stackkit logs list printed"
+        },
+        {
+          "command": "stackkit logs get <run-id> --json --max-events 50",
+          "description": "Read that run as JSON, 50 events per page"
+        },
+        {
+          "command": "stackkit logs get <run-id> --json --max-events 50 --cursor <cursor>",
+          "description": "Continue with the cursor the previous JSON page returned"
+        }
+      ],
+      "flags": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "description": "Opaque digest-bound cursor returned by a prior JSON page",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "decisions",
+          "type": "bool",
+          "description": "Show only decision events",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "errors",
+          "type": "bool",
+          "description": "Show only errors and warnings",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "jsonl",
+          "type": "bool",
+          "description": "Output raw JSON-Lines",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "max-bytes",
+          "type": "int",
+          "default": "262144",
+          "description": "Maximum raw log bytes scanned per JSON page",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "max-events",
+          "type": "int",
+          "default": "200",
+          "description": "Maximum structured events per JSON page",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "timing",
+          "type": "bool",
+          "description": "Show timing summary",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit logs latest",
+      "name": "latest",
+      "parent": "stackkit logs",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit logs latest [flags]",
+      "short": "Read the newest structured rollout log",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit logs latest",
+          "description": "Read the newest rollout log"
+        },
+        {
+          "command": "stackkit logs latest --errors --json",
+          "description": "Only errors and warnings from the newest log, as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "description": "Opaque digest-bound cursor returned by a prior JSON page",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "decisions",
+          "type": "bool",
+          "description": "Show only decision events",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "errors",
+          "type": "bool",
+          "description": "Show only errors and warnings",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "jsonl",
+          "type": "bool",
+          "description": "Output raw JSON-Lines",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "max-bytes",
+          "type": "int",
+          "default": "262144",
+          "description": "Maximum raw log bytes scanned per JSON page",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "max-events",
+          "type": "int",
+          "default": "200",
+          "description": "Maximum structured events per JSON page",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "timing",
+          "type": "bool",
+          "description": "Show timing summary",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit logs list",
+      "name": "list",
+      "parent": "stackkit logs",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit logs list [flags]",
+      "short": "List available log files",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit logs list",
+          "description": "List the run IDs of all local rollout logs"
+        },
+        {
+          "command": "stackkit logs list --json",
+          "description": "The same list as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "description": "Opaque digest-bound cursor returned by a prior JSON page",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "decisions",
+          "type": "bool",
+          "description": "Show only decision events",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "errors",
+          "type": "bool",
+          "description": "Show only errors and warnings",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "jsonl",
+          "type": "bool",
+          "description": "Output raw JSON-Lines",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "max-bytes",
+          "type": "int",
+          "default": "262144",
+          "description": "Maximum raw log bytes scanned per JSON page",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "max-events",
+          "type": "int",
+          "default": "200",
+          "description": "Maximum structured events per JSON page",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        },
+        {
+          "name": "timing",
+          "type": "bool",
+          "description": "Show timing summary",
+          "required": false,
+          "inheritedFrom": "stackkit logs"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit migrate",
+      "name": "migrate",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit migrate [v1-spec-file] [flags]",
+      "short": "Classify a StackSpec v1 and emit its migration report",
+      "description": "Losslessly classify one StackSpec and run the bounded v1 to v2 migration\nadapter. The result always includes the complete migration report and, only\nwhen deterministic, an architecture-only migration projection.\n\nIMPORTANT: without --complete-with, the projection is NOT a CUE-valid StackSpec v2, is NOT a ResolvedPlan,\nand does NOT authorize generation or deployment. Complete the reported manual\nactions and pass a full StackSpec v2 through CUE resolution first.\n\n--complete-with accepts one full explicit StackSpec v2, never a partial overlay.\nIt reconciles deterministic legacy Site, node and hardware bindings, then uses\nthe embedded governed Architecture v2 authority. A completed result contains the\nexplicit canonical candidate and its ResolvedPlan hash. Generator eligibility is\nreported independently from CUE validity and follows ResolvedPlan readiness.\n\n--spec-output writes the exact completed canonical StackSpec v2 as deterministic\nJSON. It is valid only with --complete-with, never defaults to an in-place rewrite,\nand refuses to replace an existing canonical target; canonical replacement\nrequires an explicit CAS-authorized StackSpec authoring flow.\n\nA ready-for-shadow-resolution result exits successfully. A blocked result is\nstill emitted as machine-readable output, then the command exits unsuccessfully.\nContext maps legacy locality and Pi hardware only; it never selects a Kit.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit migrate stack-spec.yaml",
+          "description": "Classify a StackSpec v1 and print its migration report"
+        },
+        {
+          "command": "stackkit migrate legacy.yaml --target-kit cloud-kit",
+          "description": "Report the migration toward an explicit target Kit"
+        },
+        {
+          "command": "stackkit migrate legacy.yaml --target-kit basement-kit --complete-with explicit-v2.yaml --spec-output stack-spec.v2.json",
+          "description": "Reconcile with a full StackSpec v2 and write the completed canonical spec"
+        },
+        {
+          "command": "stackkit migrate legacy.yaml --format yaml",
+          "description": "Print the report as YAML"
+        },
+        {
+          "command": "stackkit migrate legacy.yaml --output .stackkit/migration-result.json",
+          "description": "Write the report to a file beneath the working directory"
+        }
+      ],
+      "flags": [
+        {
+          "name": "complete-with",
+          "type": "string",
+          "description": "Full explicit StackSpec v2 candidate to reconcile and resolve with the embedded authority (never a partial overlay)",
+          "required": false
+        },
+        {
+          "name": "force",
+          "type": "bool",
+          "description": "Atomically replace an existing migration result output; canonical StackSpec output requires a new path",
+          "required": false
+        },
+        {
+          "name": "format",
+          "type": "string",
+          "default": "json",
+          "description": "Machine-readable output format: json or yaml",
+          "required": false
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "description": "Write the migration result beneath the working directory instead of stdout",
+          "required": false
+        },
+        {
+          "name": "spec-output",
+          "type": "string",
+          "description": "Write the completed canonical StackSpec v2 as deterministic JSON beneath the working directory (requires --complete-with)",
+          "required": false
+        },
+        {
+          "name": "target-kit",
+          "type": "string",
+          "description": "Explicit target KitProfile supported by the authority (never inferred from context)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit module",
+      "name": "module",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit module [flags]",
+      "short": "Author and validate local CUE modules",
+      "description": "Render module facts into CUE contracts and validate their deployment configuration.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit module lint",
+        "stackkit module scaffold"
+      ]
+    },
+    {
+      "path": "stackkit module lint",
+      "name": "lint",
+      "parent": "stackkit module",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit module lint [flags]",
+      "short": "Lint module CUE for pin/health/security/access/placement hygiene (ADR-0027 G1/G3)",
+      "description": "Run the deterministic module-hygiene gate over one module (--module) or the\nwhole tree (--all). Checks: image tags pinned (no :latest), daemon healthCheck present\n(bounded automation jobs use restart=no plus process exit status),\nsecurity block (noNewPrivileges + capDrop ALL), accessPolicy for routed services,\nno plaintext secrets, draft modules claim no scenarios, and docker-socket modules\nare not managed-serverless-eligible.\n\nSingle-module runs exit non-zero on any error. --all is advisory (exit 0) unless\n--strict is passed.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "all",
+          "type": "bool",
+          "description": "Lint every module under --modules-dir",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit findings as JSON",
+          "required": false
+        },
+        {
+          "name": "module",
+          "type": "string",
+          "description": "Path to a single module directory (containing module.cue)",
+          "required": false
+        },
+        {
+          "name": "modules-dir",
+          "type": "string",
+          "default": "modules",
+          "description": "Root modules directory (used with --all)",
+          "required": false
+        },
+        {
+          "name": "strict",
+          "type": "bool",
+          "description": "Exit non-zero on any error finding (implied for single --module)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit module scaffold",
+      "name": "scaffold",
+      "parent": "stackkit module",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit module scaffold [flags]",
+      "short": "Render module artifacts deterministically from module_facts.json (ADR-0027)",
+      "description": "Render modules/<slug>/module.cue, tests/reference-compose.yml and the thin\ntests/integration_test.sh from a schema-validated module_facts.json. Output is\ndeterministic (gate G0): the same facts always render byte-identical files.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "catalog",
+          "type": "string",
+          "description": "Compiled CUE catalog.json for imageSource references",
+          "required": false
+        },
+        {
+          "name": "facts",
+          "type": "string",
+          "description": "Path to module_facts.json. Required.",
+          "required": false
+        },
+        {
+          "name": "force",
+          "type": "bool",
+          "description": "Overwrite existing files",
+          "required": false
+        },
+        {
+          "name": "out",
+          "type": "string",
+          "description": "Output module directory (default modules/<slug>)",
+          "required": false
+        },
+        {
+          "name": "print",
+          "type": "bool",
+          "description": "Print rendered artifacts to stdout instead of writing",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit operations",
+      "name": "operations",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit operations [flags]",
+      "short": "List the canonical standalone lifecycle operation contracts",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit operations",
+          "description": "List each lifecycle operation, its access level, and what it does"
+        },
+        {
+          "command": "stackkit operations --json",
+          "description": "The same contracts as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the operation contracts as JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit output-transaction",
+      "name": "output-transaction",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit output-transaction [flags]",
+      "short": "Inspect explicit Architecture v2 output-transaction lifecycle actions",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit output-transaction gc-retired"
+      ]
+    },
+    {
+      "path": "stackkit output-transaction gc-retired",
+      "name": "gc-retired",
+      "parent": "stackkit output-transaction",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit output-transaction gc-retired [flags]",
+      "short": "Inspect or explicitly garbage-collect one retired output transaction tombstone",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "action",
+          "type": "string",
+          "description": "Exact action reported by a prior inspection",
+          "required": false
+        },
+        {
+          "name": "apply",
+          "type": "bool",
+          "description": "Execute the echoed action; inspection is the default",
+          "required": false
+        },
+        {
+          "name": "transaction-id",
+          "type": "string",
+          "description": "Exact lowercase transaction ID",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit plan",
+      "name": "plan",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "start",
+      "usage": "stackkit plan [flags]",
+      "short": "Preview infrastructure changes",
+      "description": "Inspect the governed Architecture v2 plan or preview v0.6 infrastructure changes.\n\nOn native v0.7, this command verifies and inspects the exact ResolvedPlan,\ngeneration manifest, receipt, and generated artifact hashes without invoking\nan executor. Exact v0.6 retains its packaged OpenTofu preview; --out and\n--destroy apply only to that preview and are rejected on the native line.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit plan",
+          "description": "Inspect the generated plan, its readiness, and artifact hashes"
+        },
+        {
+          "command": "stackkit plan --json",
+          "description": "The same inspection as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "artifact-manifest",
+          "type": "string",
+          "description": "Architecture v2 generation manifest (default: <outputRoot>/.stackkit/generation-manifest.json)",
+          "required": false
+        },
+        {
+          "name": "destroy",
+          "type": "bool",
+          "description": "Create destroy plan",
+          "required": false
+        },
+        {
+          "name": "generation-receipt",
+          "type": "string",
+          "description": "Architecture v2 generation receipt (default: <outputRoot>/.stackkit/generation-receipt.json)",
+          "required": false
+        },
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Architecture v2 observed Inventory (otherwise one conventional inventory file is selected)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the native Architecture v2 plan inspection as JSON",
+          "required": false
+        },
+        {
+          "name": "out",
+          "shorthand": "o",
+          "type": "string",
+          "description": "Save plan to file",
+          "required": false
+        },
+        {
+          "name": "resolved-plan",
+          "type": "string",
+          "description": "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit prepare",
+      "name": "prepare",
+      "parent": "stackkit",
+      "aliases": [
+        "prep"
+      ],
+      "group": "start",
+      "usage": "stackkit prepare [flags]",
+      "short": "Prepare a system for StackKit deployment",
+      "description": "Prepare a system for StackKit deployment and inspect the selected StackSpec path.\n\nOn the native Architecture v2 line this command performs read-only local host\nvalidation (Docker, Compose, kernel, resources, storage, and required ports).\nIt never installs or configures host packages and never uses a hosted account.\nThe exact-v0.6 compatibility adapter retains its historical preparation flow.\n\nThis command:\n  1. Selects the versioned StackSpec execution path\n  2. Checks host prerequisites on native Architecture v2\n  3. Retains historical target preparation through the exact-v0.6 compatibility adapter",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit prepare",
+          "description": "Check this host's prerequisites for the StackSpec in the current directory"
+        },
+        {
+          "command": "stackkit prepare -C my-homelab",
+          "description": "Check the prerequisites for the deployment in another directory"
+        },
+        {
+          "command": "stackkit prepare --json",
+          "description": "Emit the host preflight report as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "auto-fix",
+          "type": "bool",
+          "default": "true",
+          "description": "Auto-correct fixable issues (exact-v0.6 only)",
+          "required": false
+        },
+        {
+          "name": "dry-run",
+          "type": "bool",
+          "description": "Show what would be done (exact-v0.6 only)",
+          "required": false
+        },
+        {
+          "name": "force",
+          "type": "bool",
+          "description": "Continue even with insufficient disk space (exact-v0.6 only)",
+          "required": false
+        },
+        {
+          "name": "host",
+          "type": "string",
+          "default": "localhost",
+          "description": "Target host IP/hostname (exact-v0.6 only)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the native-v2 host preflight report as stackkit.command-result/v1 JSON",
+          "required": false
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "description": "SSH private key path (exact-v0.6 only)",
+          "required": false
+        },
+        {
+          "name": "non-interactive",
+          "type": "bool",
+          "description": "Fail instead of prompting when prepare needs operator input (exact-v0.6 only)",
+          "required": false
+        },
+        {
+          "name": "port",
+          "type": "int",
+          "default": "22",
+          "description": "SSH port for remote targets (exact-v0.6 only)",
+          "required": false
+        },
+        {
+          "name": "skip-docker",
+          "type": "bool",
+          "description": "Skip Docker installation check (exact-v0.6 only)",
+          "required": false
+        },
+        {
+          "name": "skip-tofu",
+          "type": "bool",
+          "description": "Skip packaged OpenTofu check (exact-v0.6 only)",
+          "required": false
+        },
+        {
+          "name": "user",
+          "type": "string",
+          "description": "SSH username (exact-v0.6 only)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit registry",
+      "name": "registry",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit registry [flags]",
+      "short": "Manage the embedded StackKits registry snapshot",
+      "description": "Manage the OSS-safe registry snapshot baked into the CLI binary.\n\nThe snapshot lives at internal/registry/data/registry_snapshot.json. Inspect\nthe embedded data or reproduce it deterministically from the local CUE tree.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit registry artifacts",
+        "stackkit registry bake-from-cue",
+        "stackkit registry emit-cue",
+        "stackkit registry emit-mintlify",
+        "stackkit registry info"
+      ]
+    },
+    {
+      "path": "stackkit registry artifacts",
+      "name": "artifacts",
+      "parent": "stackkit registry",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit registry artifacts [flags]",
+      "short": "Print registry/generated artifact pathspecs from the ownership manifest",
+      "description": "Print repository pathspecs from the generated-artifact ownership manifest.\n\nThe generate-cue workflow and CI parity gate use this command so bot-owned\ngenerated files are explicit. Frozen artifacts remain in their existing paths\nbut are not staged or diffed as generated output until their manifest state\nchanges.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "kind",
+          "type": "string",
+          "default": "all",
+          "description": "Artifact kind filter (all, cue, snapshot)",
+          "required": false
+        },
+        {
+          "name": "manifest",
+          "type": "string",
+          "default": "internal/registry/generated_artifacts.json",
+          "description": "Generated artifact ownership manifest",
+          "required": false
+        },
+        {
+          "name": "state",
+          "type": "string",
+          "default": "generated",
+          "description": "Artifact state filter (all, generated, frozen)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit registry bake-from-cue",
+      "name": "bake-from-cue",
+      "parent": "stackkit registry",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit registry bake-from-cue [flags]",
+      "short": "Produce a registry snapshot from the local Git/CUE tree",
+      "description": "Walk modules/<slug>/module.cue plus the canonical product definitions,\ncompute their contract hashes, and\nwrite the resulting Snapshot to internal/registry/data/registry_snapshot.json\n(or --output).\n\nThis command is the offline OSS bootstrap path and works on a pure checkout\nof the public kombifyio/stackKits repo.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "modules-dir",
+          "type": "string",
+          "default": "modules",
+          "description": "Directory containing module/<slug>/module.cue",
+          "required": false
+        },
+        {
+          "name": "output",
+          "type": "string",
+          "default": "internal/registry/data/registry_snapshot.json",
+          "description": "Output path for the snapshot JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit registry emit-cue",
+      "name": "emit-cue",
+      "parent": "stackkit registry",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit registry emit-cue [flags]",
+      "short": "Render foundation/generated CUE artifacts from the registry snapshot",
+      "description": "Render foundation/generated/tool_catalog.cue from the registry snapshot plus the\nlocal CUE module tree.\n\nReads the snapshot JSON (default: internal/registry/data/registry_snapshot.json,\nrefresh it first via 'registry bake-from-cue'), renders\ndeterministically, and writes the artifact. The header records the snapshot's\ncontent_hash and generated_at so drift between snapshot and artifact is\ndetectable; CI regenerates from the committed snapshot and diffs.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "input",
+          "type": "string",
+          "default": "internal/registry/data/registry_snapshot.json",
+          "description": "Snapshot JSON to render from",
+          "required": false
+        },
+        {
+          "name": "modules-dir",
+          "type": "string",
+          "default": "modules",
+          "description": "Directory containing modules/<slug>/module.cue (service catalog source)",
+          "required": false
+        },
+        {
+          "name": "output-dir",
+          "type": "string",
+          "default": "foundation/generated",
+          "description": "Directory for the rendered CUE files",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit registry emit-mintlify",
+      "name": "emit-mintlify",
+      "parent": "stackkit registry",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit registry emit-mintlify [flags]",
+      "short": "Render Mintlify MDX tool documentation from the registry snapshot",
+      "description": "Render guides/stackkits/services/<slug>.mdx for every tool in the snapshot\nthat carries published content (tool.content != null). Tools without content\nare skipped — their handwritten MDX is left untouched.\n\nReads the snapshot JSON (default: internal/registry/data/registry_snapshot.json)\nand renders deterministically. The header carries the content_hash so drift is\ndetectable. CI regenerates from the committed snapshot and diffs.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "input",
+          "type": "string",
+          "default": "internal/registry/data/registry_snapshot.json",
+          "description": "Snapshot JSON to render from",
+          "required": false
+        },
+        {
+          "name": "output-dir",
+          "type": "string",
+          "default": "guides/stackkits/services",
+          "description": "Output directory for generated MDX files",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit registry info",
+      "name": "info",
+      "parent": "stackkit registry",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit registry info [flags]",
+      "short": "Show a summary of the embedded registry snapshot",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Print the full embedded snapshot as JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit remove",
+      "name": "remove",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit remove [flags]",
+      "short": "Uninstall the local StackKits deployment",
+      "description": "Uninstall the StackKits runtime on this machine.\n\nWith no --workload, this is the product uninstall: it stops and deletes every\nCompose project named stackkit-* (Basement core, Cloud core, and selected use\ncases), including their networks and volumes. It looks in the current\ndirectory, then ~/my-homelab or ~/my-cloud-homelab.\n\n--workload removes one exact Architecture v2 workload through its applied\nruntime owner. That path keeps application volumes unless --delete-data is set.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit remove",
+          "description": "Uninstall the whole local deployment after typing yes"
+        },
+        {
+          "command": "stackkit remove --auto-approve",
+          "description": "Uninstall without the confirmation prompt"
+        },
+        {
+          "command": "stackkit remove --workload files",
+          "description": "Remove only the Files workload and keep its data volumes"
+        },
+        {
+          "command": "stackkit remove --workload photos --delete-data --auto-approve --json",
+          "description": "Remove the Photos workload, delete its data volumes, and print the result as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "artifact-manifest",
+          "type": "string",
+          "description": "Architecture v2 generation manifest",
+          "required": false
+        },
+        {
+          "name": "auto-approve",
+          "type": "bool",
+          "description": "Skip interactive approval",
+          "required": false
+        },
+        {
+          "name": "delete-data",
+          "type": "bool",
+          "description": "Delete named volumes owned by this exact applied workload (default keeps application data)",
+          "required": false
+        },
+        {
+          "name": "force",
+          "type": "bool",
+          "description": "Force remove even with errors",
+          "required": false
+        },
+        {
+          "name": "generation-receipt",
+          "type": "string",
+          "description": "Architecture v2 generation receipt",
+          "required": false
+        },
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Architecture v2 observed Inventory (otherwise one conventional inventory file is selected)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the canonical Architecture v2 removal result as JSON",
+          "required": false
+        },
+        {
+          "name": "local-execution-channel",
+          "type": "string",
+          "description": "Exact applied execution channel owned by this removal process",
+          "required": false
+        },
+        {
+          "name": "local-node",
+          "type": "string",
+          "description": "Exact applied node placement owned by this removal process",
+          "required": false
+        },
+        {
+          "name": "local-site",
+          "type": "string",
+          "description": "Exact applied Site placement owned by this removal process",
+          "required": false
+        },
+        {
+          "name": "purge",
+          "type": "bool",
+          "description": "Remove all StackKit data including images, state, and deploy directory",
+          "required": false
+        },
+        {
+          "name": "resolved-plan",
+          "type": "string",
+          "description": "Architecture v2 canonical ResolvedPlan",
+          "required": false
+        },
+        {
+          "name": "terminal-evidence-json",
+          "type": "bool",
+          "description": "Emit bounded canonical Architecture v2 terminal evidence as JSON",
+          "required": false
+        },
+        {
+          "name": "workload",
+          "type": "string",
+          "description": "Exact Architecture v2 ResolvedPlan workload ref to remove",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit resolve",
+      "name": "resolve",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit resolve [spec-file] [flags]",
+      "short": "Resolve Architecture v2 intent into a canonical deployment plan",
+      "description": "Resolve a StackSpec v2 document and optional observed Inventory into the\ncanonical ResolvedPlan consumed by generators and runtimes.\n\nThe command is read-only unless --output is supplied. File output stays beneath\nthe working directory and can replace only an existing valid ResolvedPlan;\nit shares the lifecycle mutation lock. StackSpec v1 is never\nsilently upgraded or compiled: it returns the shared typed migration report and\nrequires an explicit migration workflow.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit resolve --spec stack-spec.yaml",
+          "description": "Print the canonical ResolvedPlan for a StackSpec"
+        },
+        {
+          "command": "stackkit resolve stack-spec.yaml --inventory inventory.yaml",
+          "description": "Resolve against an observed Inventory"
+        },
+        {
+          "command": "stackkit resolve stack-spec.yaml --output deploy/.stackkit/resolved-plan.json",
+          "description": "Replace the existing plan file beneath the working directory"
+        }
+      ],
+      "flags": [
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Path to an optional observed Inventory document",
+          "required": false
+        },
+        {
+          "name": "module-root",
+          "type": "string",
+          "description": "Architecture authority root containing cue.mod, base, and all kit definitions",
+          "required": false
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "description": "Write canonical ResolvedPlan JSON beneath the working directory instead of stdout",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit runtime",
+      "name": "runtime",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit runtime [flags]",
+      "short": "Execute authenticated node-side runtime operations",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit runtime execute"
+      ]
+    },
+    {
+      "path": "stackkit runtime execute",
+      "name": "execute",
+      "parent": "stackkit runtime",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit runtime execute [flags]",
+      "short": "Execute one signed execution-channel-bundle/v1 from stdin",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit secrets",
+      "name": "secrets",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit secrets [flags]",
+      "short": "Manage owner-bound local secret custody",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit secrets materialize",
+        "stackkit secrets reveal"
+      ]
+    },
+    {
+      "path": "stackkit secrets materialize",
+      "name": "materialize",
+      "parent": "stackkit secrets",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit secrets materialize [flags]",
+      "short": "Establish custody for secret references in the current StackSpec",
+      "description": "Establish or reuse owner-bound local custody for every secret:// reference\nin the current canonical StackSpec.\n\nRun this explicit, idempotent step after adding a workload to an existing\nstandalone workspace and before generate/apply. It never prints secret\nreferences or material and never replaces invalid or foreign custody.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit secrets materialize\nstackkit generate\nstackkit apply",
+          "description": "After adding a workload to stack-spec.yaml, create its secrets, then roll out"
+        }
+      ],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit secrets reveal",
+      "name": "reveal",
+      "parent": "stackkit secrets",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit secrets reveal [flags]",
+      "short": "Print one selected workload secret from local owner custody",
+      "description": "Print the existing value of one secret slot declared by a selected workload in the current CUE-valid StackSpec. Output contains secret material; use it only in a private terminal or an intentional pipe. No value is written to deploy logs or receipts.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit secrets reveal --workload photos --slot database-password",
+          "description": "Print the Photos database password from local owner custody"
+        }
+      ],
+      "flags": [
+        {
+          "name": "slot",
+          "type": "string",
+          "description": "Declared workload secret slot",
+          "required": true
+        },
+        {
+          "name": "workload",
+          "type": "string",
+          "description": "Selected workload ID",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit service",
+      "name": "service",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit service [flags]",
+      "short": "Control services declared by the active StackKits plan",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit service logs",
+        "stackkit service restart",
+        "stackkit service start",
+        "stackkit service stop"
+      ]
+    },
+    {
+      "path": "stackkit service logs",
+      "name": "logs",
+      "parent": "stackkit service",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit service logs <service-key> [flags]",
+      "short": "Read bounded, redacted service logs",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit service logs auth --tail 50",
+          "description": "Read the last 50 redacted log entries of the TinyAuth login gateway"
+        },
+        {
+          "command": "stackkit service logs id --json",
+          "description": "Read PocketID logs as JSON"
+        },
+        {
+          "command": "stackkit service logs id --json --cursor <cursor>",
+          "description": "Read the next page with the cursor the previous JSON result returned"
+        }
+      ],
+      "flags": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "description": "Opaque cursor from a previous result",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Write the versioned service log page as JSON",
+          "required": false
+        },
+        {
+          "name": "tail",
+          "type": "int",
+          "default": "100",
+          "description": "Number of redacted log entries to return (1..200)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit service restart",
+      "name": "restart",
+      "parent": "stackkit service",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit service restart <service-key> [flags]",
+      "short": "Restart one managed service",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit service restart id --owner-approve",
+          "description": "Restart the PocketID identity service"
+        },
+        {
+          "command": "stackkit service restart auth --owner-approve --json",
+          "description": "Restart the TinyAuth login gateway and print the result as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Write the versioned service action result as JSON",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve the owner-bound service mutation",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit service start",
+      "name": "start",
+      "parent": "stackkit service",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit service start <service-key> [flags]",
+      "short": "Start one managed service",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit service start coolify --owner-approve",
+          "description": "Start a stopped service again"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Write the versioned service action result as JSON",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve the owner-bound service mutation",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit service stop",
+      "name": "stop",
+      "parent": "stackkit service",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit service stop <service-key> [flags]",
+      "short": "Stop one managed service",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit service stop coolify --owner-approve",
+          "description": "Stop a non-critical service; base, id and auth cannot be stopped"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Write the versioned service action result as JSON",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve the owner-bound service mutation",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit setup",
+      "name": "setup",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "start",
+      "usage": "stackkit setup <workload> [flags]",
+      "short": "Set up the owner account of an applied application",
+      "description": "Run a Plan-declared setup action on the existing local application. Read the private credential JSON fields and file path from the selected application's setup guide or status action. Credentials are never written into lifecycle evidence. Re-running after interruption re-observes the application before completing the same pending setup operation.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit setup photos --owner-approve",
+          "description": "Create the Photos owner from the private credentials in .stackkit/setup/owner.json"
+        },
+        {
+          "command": "stackkit setup photos --owner-approve --complete-onboarding",
+          "description": "Also finish the application's onboarding after the owner login is verified"
+        },
+        {
+          "command": "stackkit setup files --owner-approve --credentials-file private/files-owner.json",
+          "description": "Create the Files owner from a workspace-relative credentials file of your choice"
+        }
+      ],
+      "flags": [
+        {
+          "name": "complete-onboarding",
+          "type": "bool",
+          "description": "Complete the app user and administrator onboarding after verifying the owner login",
+          "required": false
+        },
+        {
+          "name": "credentials-file",
+          "type": "string",
+          "description": "Workspace-relative private owner credential JSON file (defaults to the selected application's setup guide)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the secret-free verified setup result",
+          "required": false
+        },
+        {
+          "name": "operation-id",
+          "type": "string",
+          "description": "Resume a pending setup operation; defaults to the current pending setup or a new ID",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Approve this Plan-bound application setup",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit status",
+      "name": "status",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit status [flags]",
+      "short": "Show deployment status",
+      "description": "Display the current status of the StackKit deployment.\n\nShows:\n  • Deployment state (running, degraded, error)\n  • Service statuses and health\n  • Resource usage\n  • URLs and endpoints",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit status",
+          "description": "Show status"
+        },
+        {
+          "command": "stackkit status --json",
+          "description": "Output as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "http",
+          "type": "bool",
+          "description": "Probe verified service routes from this verifier host",
+          "required": false
+        },
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Architecture v2 observed Inventory used to identify a configured Standard process runtime",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Output as JSON",
+          "required": false
+        },
+        {
+          "name": "resolved-plan",
+          "type": "string",
+          "description": "Canonical Architecture v2 ResolvedPlan (default: deploy/.stackkit/resolved-plan.json)",
+          "required": false
+        }
+      ],
+      "subcommands": [],
+      "legacy": true
+    },
+    {
+      "path": "stackkit support",
+      "name": "support",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit support [flags]",
+      "short": "Export redacted local support evidence",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit support export"
+      ]
+    },
+    {
+      "path": "stackkit support export",
+      "name": "export",
+      "parent": "stackkit support",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit support export [run-id] [flags]",
+      "short": "Export one local rollout log and its receipts",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit support export --output support-evidence.json",
+          "description": "Export the newest rollout log and its receipts to a new file"
+        },
+        {
+          "command": "stackkit support export <run-id> -o support-evidence.json",
+          "description": "Export one run by an ID that stackkit logs list printed"
+        }
+      ],
+      "flags": [
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "description": "New local JSON file to create (required)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit upgrade",
+      "name": "upgrade",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit upgrade [flags]",
+      "short": "Resolve and install a verified StackKit release",
+      "description": "Resolve a public StackKit release from GitHub, verify its archive,\nSPDX SBOM, GitHub OIDC/Sigstore attestation, and cached trusted root, then\natomically install it under .stackkit/releases/.\n\nWith --dry-run it generates the verified target only in a bounded shadow\nworkspace and reports a canonical plan/artifact diff. Without --dry-run it\nfirst inspects that target, creates a native Kopia snapshot plus an\nowner-signed executor-state recovery checkpoint, stages and verifies the\nrollback data without activating it, and only then installs and executes the\nexact target generate/apply/verify transaction. A failed target transaction\ncan restore and verify the prior executor only before target Apply is admitted.\nAfter Apply, prior-runtime restart is blocked until verified prior-data\nactivation exists; isolated Kopia staging alone does not authorize it.\nA completed target commit keeps its success proof for explicit finalization.\nFresh upgrades require support in the embedded CUE Kit policy; recovery of an\nexisting operation follows its signed journal and checkpoint.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit upgrade --dry-run",
+          "description": "Verify the newest stable release and preview its plan and artifact diff without applying it"
+        },
+        {
+          "command": "stackkit upgrade",
+          "description": "Upgrade to the newest stable release"
+        },
+        {
+          "command": "stackkit upgrade --to channel:beta",
+          "description": "Upgrade to the newest beta prerelease"
+        },
+        {
+          "command": "stackkit upgrade --recover <operation-id>",
+          "description": "Recover an interrupted upgrade by its lifecycle operation ID"
+        }
+      ],
+      "flags": [
+        {
+          "name": "dry-run",
+          "type": "bool",
+          "description": "Verify and inspect target generation in a bounded shadow workspace without applying it.",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON.",
+          "required": false
+        },
+        {
+          "name": "recover",
+          "type": "string",
+          "description": "Explicitly recover one exact interrupted lifecycle operation ID.",
+          "required": false
+        },
+        {
+          "name": "to",
+          "type": "string",
+          "default": "latest",
+          "description": "Target: latest, vX.Y.Z, or channel:stable|beta|edge.",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit use-cases",
+      "name": "use-cases",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit use-cases [flags]",
+      "short": "Select optional kit use cases",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit use-cases pick"
+      ]
+    },
+    {
+      "path": "stackkit use-cases pick",
+      "name": "pick",
+      "parent": "stackkit use-cases",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit use-cases pick [flags]",
+      "short": "Interactively select optional use cases",
+      "description": "List the kit-optional use cases and toggle them in the terminal.\n\nArrow keys or j/k move the cursor. Space toggles the highlighted item.\nEnter confirms. Files, Photos, and Vault start selected (kit L3 defaults).\n\n--print writes the selected IDs as a comma-separated line on stdout so\ninstallers can pass them to stackkit init --use-case. Prompts go to stderr.\nWhen stdin is not a terminal, the current defaults are returned without a prompt.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit use-cases pick",
+          "description": "Choose optional use cases in the terminal"
+        },
+        {
+          "command": "stackkit use-cases pick --print",
+          "description": "Print the selected IDs as one comma-separated line for stackkit init --use-case"
+        }
+      ],
+      "flags": [
+        {
+          "name": "print",
+          "type": "bool",
+          "description": "Write selected use-case IDs as a comma-separated line on stdout",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit user",
+      "name": "user",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit user [flags]",
+      "short": "Invite and manage household users in local PocketID",
+      "description": "Create, list, and remove Homelab users in the PocketID household group.\n\nAdd prints a one-time passkey setup URL. TinyAuth continues to admit the\nowners, admins, and household groups already bound on the OIDC client.\nOwner and admin identities cannot be created or removed here.",
+      "runnable": false,
+      "examples": [
+        {
+          "command": "stackkit user add alex --email alex@example.com --owner-approve",
+          "description": "Invite a household member; share the printed one-time URL only with them"
+        },
+        {
+          "command": "stackkit user list",
+          "description": "List household users"
+        },
+        {
+          "command": "stackkit user remove alex --owner-approve",
+          "description": "Remove a household user"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "persistent": true
+        }
+      ],
+      "subcommands": [
+        "stackkit user add",
+        "stackkit user list",
+        "stackkit user remove"
+      ]
+    },
+    {
+      "path": "stackkit user add",
+      "name": "add",
+      "parent": "stackkit user",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit user add <username> [flags]",
+      "short": "Invite a household user with a one-time passkey setup URL",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit user add alex --email alex@example.com --owner-approve",
+          "description": "Invite a household member and print their one-time passkey setup URL"
+        },
+        {
+          "command": "stackkit user add sam --email sam@example.com --display-name \"Sam Doe\" --owner-approve --json",
+          "description": "Set a display name and return the invitation as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "display-name",
+          "type": "string",
+          "description": "Optional display name",
+          "required": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "description": "Household member email",
+          "required": true
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve creating this household user",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit user"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit user list",
+      "name": "list",
+      "parent": "stackkit user",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit user list [flags]",
+      "short": "List household users in local PocketID",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit user list",
+          "description": "List household users"
+        },
+        {
+          "command": "stackkit user list --json",
+          "description": "The same list as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit user"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit user remove",
+      "name": "remove",
+      "parent": "stackkit user",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit user remove <username> [flags]",
+      "short": "Remove a household user from local PocketID",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit user remove alex --owner-approve",
+          "description": "Remove a household user"
+        }
+      ],
+      "flags": [
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve removing this household user",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit user"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit validate",
+      "name": "validate",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "start",
+      "usage": "stackkit validate [file] [flags]",
+      "short": "Validate configuration files",
+      "description": "Validate spec files and CUE schemas.\n\nThis command validates:\n  • stack-spec.yaml against the schema\n  • StackKit CUE definitions\n  • OpenTofu configuration files",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit validate",
+          "description": "Validate stack-spec.yaml in the current directory"
+        },
+        {
+          "command": "stackkit validate candidate-stack-spec.yaml",
+          "description": "Validate another StackSpec file before replacing stack-spec.yaml with it"
+        },
+        {
+          "command": "stackkit validate --all",
+          "description": "Also validate CUE schemas in the working directory"
+        }
+      ],
+      "flags": [
+        {
+          "name": "all",
+          "type": "bool",
+          "description": "Validate all configuration files",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit verify",
+      "name": "verify",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit verify [flags]",
+      "short": "Run post-deployment verification checks",
+      "description": "Run read-only post-deployment checks from the host where the StackKit is deployed.\n\nThe verifier checks the stack spec, deployment state, Docker daemon, StackKit\ncontainers, Docker health status, and optionally HTTP routes from the generated\naccess summary.\n\n--host and its SSH flags (--user, --key, --port, --remote-dir,\n--legacy-remote-transport) drive the retired raw-SSH verifier that only an\nexact v0.6 build still runs; --strict applies to that verifier and the v0.6\nlocal checks. On current releases, run verify on the deployed host.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit verify",
+          "description": "Verify the applied deployment on this host"
+        },
+        {
+          "command": "stackkit verify --http",
+          "description": "Also request the generated service URLs over HTTP"
+        },
+        {
+          "command": "stackkit verify --json",
+          "description": "Emit the verification report as JSON"
+        },
+        {
+          "command": "stackkit verify --offline",
+          "description": "Check recorded Apply evidence and cached release receipts without live probes or network access"
+        }
+      ],
+      "flags": [
+        {
+          "name": "artifact-manifest",
+          "type": "string",
+          "description": "Architecture v2 generation manifest (default: <outputRoot>/.stackkit/generation-manifest.json)",
+          "required": false
+        },
+        {
+          "name": "generation-receipt",
+          "type": "string",
+          "description": "Architecture v2 generation receipt (default: <outputRoot>/.stackkit/generation-receipt.json)",
+          "required": false
+        },
+        {
+          "name": "host",
+          "type": "string",
+          "description": "Remote host to verify over SSH",
+          "required": false
+        },
+        {
+          "name": "http",
+          "type": "bool",
+          "description": "Verify generated service URLs with HTTP requests",
+          "required": false
+        },
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Architecture v2 observed Inventory (otherwise one conventional inventory file is selected)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit machine-readable JSON",
+          "required": false
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "description": "SSH private key path for remote verification",
+          "required": false
+        },
+        {
+          "name": "legacy-remote-transport",
+          "type": "bool",
+          "description": "Explicitly allow the deprecated raw-SSH verifier for a StackSpec v1 target",
+          "required": false
+        },
+        {
+          "name": "offline",
+          "type": "bool",
+          "description": "Verify cached release receipts and attestations without network access",
+          "required": false
+        },
+        {
+          "name": "port",
+          "type": "int",
+          "default": "22",
+          "description": "SSH port for remote verification",
+          "required": false
+        },
+        {
+          "name": "remote-dir",
+          "type": "string",
+          "default": "/opt/stackkit",
+          "description": "Remote StackKit working directory",
+          "required": false
+        },
+        {
+          "name": "resolved-plan",
+          "type": "string",
+          "description": "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)",
+          "required": false
+        },
+        {
+          "name": "strict",
+          "type": "bool",
+          "description": "Treat warnings as verification failure",
+          "required": false
+        },
+        {
+          "name": "user",
+          "type": "string",
+          "description": "SSH username for remote verification",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit version",
+      "name": "version",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit version [flags]",
+      "short": "Print version information",
+      "description": "Print the version, git commit, and build date of stackkit.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit version",
+          "description": "Show the installed CLI version"
+        }
+      ],
+      "flags": [],
+      "subcommands": []
+    }
+  ]
+}

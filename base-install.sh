@@ -80,14 +80,28 @@ err()   { printf '\033[1;31m==> %s\033[0m\n' "$*" >&2; }
 die()   { err "$*"; exit 1; }
 can_prompt() { [ -t 1 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; }
 
+# Native v2 writes stack-spec.yaml as canonical JSON ("kit":{"slug":"cloud-kit"});
+# older workspaces use YAML ("stackkit: cloud-kit").
 workspace_spec_kit() {
   _spec="${1:-}"
   [ -f "$_spec" ] || return 0
-  if grep -Eq '(^|[[:space:]])(stackkit|slug):[[:space:]]*cloud-kit([[:space:]]|$)' "$_spec"; then
-    printf '%s' "cloud-kit"
-  elif grep -Eq '(^|[[:space:]])(stackkit|slug):[[:space:]]*basement-kit([[:space:]]|$)' "$_spec"; then
-    printf '%s' "basement-kit"
-  fi
+  for _kit in cloud-kit basement-kit; do
+    if grep -Eq "(^|[[:space:]])(stackkit|slug):[[:space:]]*$_kit([[:space:]]|\$)|\"(stackkit|slug)\"[[:space:]]*:[[:space:]]*\"$_kit\"" "$_spec"; then
+      printf '%s' "$_kit"
+      return 0
+    fi
+  done
+}
+
+# `stackkit init` replaces an existing StackSpec only under compare-and-swap
+# (--expected-spec-hash). The installer re-initializes on purpose (kit switch or
+# first real owner), so it keeps the previous intent next to the new one.
+set_aside_previous_spec() {
+  _spec="$HOMELAB_DIR/stack-spec.yaml"
+  [ -f "$_spec" ] || return 0
+  _kept="$_spec.replaced-$(date -u +%Y%m%dT%H%M%SZ)"
+  mv "$_spec" "$_kept" || die "Could not move the previous StackSpec aside: $_spec"
+  warn "Kept the previous StackSpec as $(basename "$_kept"); initializing a new one."
 }
 
 read_host_environment() {
@@ -104,6 +118,7 @@ read_host_environment() {
   if [ "$DETECTED_ENV" = "unknown" ] && [ "$PUBLIC_SERVER" = "true" ]; then
     DETECTED_ENV="vps"
   fi
+  refine_home_network_detection
 }
 
 remove_local_stack_if_present() {
@@ -527,6 +542,8 @@ EOF
   ok "  StackKit API image: $STACKKIT_SERVER_IMAGE"
 }
 
+stop_on_hypervisor_host
+
 # --- Step 1: Install CLI + basement-kit definitions -------------------------------
 
 info "Step 1/5 -- Installing stackkit CLI + basement-kit"
@@ -713,6 +730,7 @@ if [ "$RESUME_EXISTING" = "1" ] && ! workspace_needs_owner_identity; then
   fi
 else
   collect_owner_identity
+  set_aside_previous_spec
   # Materialize the release catalog defaults as explicit native intent.
   # Existing workspaces above keep their persisted alternatives and adapters.
   set -- init "$SELECTED_KIT" --catalog-defaults --non-interactive --owner-source=local

@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "stackkits-os-compat-targets/v1",
+  "producer": {
+    "workflowPath": "stackkits-linux-compat.yml"
+  },
+  "lifecyclePhases": ["install", "init", "generate", "apply", "verify", "backup", "restore"],
+  "os": [
+    {
+      "os": { "family": "linux", "distribution": "ubuntu", "version": "24.04" },
+      "cells": ["ubuntu-24.04-amd64-basement-standalone"]
+    },
+    {
+      "os": { "family": "linux", "distribution": "debian", "version": "13" },
+      "cells": ["debian-13-amd64-basement-standalone"]
+    },
+    {
+      "os": { "family": "linux", "distribution": "debian", "version": "12" },
+      "cells": []
+    }
+  ],
+  "virtualization": [
+    {
+      "id": "proxmox-ve",
+      "name": "Proxmox VE",
+      "rollout": "kombify Techstack enrolls the Proxmox VE host and creates an Ubuntu 24.04 guest VM through its API; the StackKit installs inside that guest.",
+      "substrates": []
+    }
+  ],
+  "applications": [
+    { "useCase": "files", "adapter": "standalone-compose", "automated": true },
+    { "useCase": "photos", "adapter": "standalone-compose", "automated": true },
+    { "useCase": "vault", "adapter": "standalone-compose", "automated": true },
+    { "useCase": "ai", "adapter": "standalone-compose", "automated": false },
+    { "useCase": "dev", "adapter": "standalone-compose", "automated": false },
+    { "useCase": "documents", "adapter": "standalone-compose", "automated": false },
+    { "useCase": "media", "adapter": "standalone-compose", "automated": false },
+    { "useCase": "smart-home", "adapter": "standalone-compose", "automated": false }
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": "techstack.depot-vm-run/v1",
+  "attemptId": "516c1a0c-6027-4abd-a4bd-7b5cb49fbf92",
+  "runnerSha256": "8016c91ed3260add2d1ef132caed9060d0baadd23c8fc8cdb7511dce63d1914f",
+  "evidenceScope": "declared-guest-phases-only",
+  "publicSupportGrade": "unverified",
+  "cell": "ubuntu-24.04-amd64-basement-standalone",
+  "status": "passed",
+  "phases": [
+    {
+      "name": "install",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "install.json",
+      "durationSeconds": 19.003
+    },
+    {
+      "name": "init",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "init.json",
+      "durationSeconds": 4.387
+    },
+    {
+      "name": "generate",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "generate.json",
+      "durationSeconds": 16.459
+    },
+    {
+      "name": "apply",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "apply.json",
+      "durationSeconds": 27.94
+    },
+    {
+      "name": "verify",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "verify.json",
+      "durationSeconds": 10.75
+    },
+    {
+      "name": "backup",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "backup.json",
+      "durationSeconds": 53.48
+    },
+    {
+      "name": "restore",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "restore.json",
+      "durationSeconds": 103.058
+    }
+  ],
+  "startedAt": "2026-09-15T22:16:12.031859+00:00",
+  "cleanup": {
+    "status": "passed",
+    "processAbsent": true,
+    "privateDirectoryAbsent": true
+  },
+  "producerCommit": "88234e564e0c571ffe41b05a7ad227107eac2a5a",
+  "configSha256": "24b8ece74c3d38d7452b60652b906ea633195f28bab3f68fac937dd5557dd254",
+  "imageSha256": "d0fe84bb5f80853425fa6be28e2c106f30104c3cfe8611933f2e65c9b63f0e30",
+  "substrate": "qemu-kvm",
+  "arch": "amd64",
+  "guestKind": "linux",
+  "runnerSystem": "Linux",
+  "runnerMachine": "x86_64",
+  "guestScriptSha256": "c94ff21b8cd2f9f2b226de9dcf718939311ecf71e7678b23879202ebf37e56bd",
+  "guestHostKeySha256": "1eb9dec12e68b90afb2555bef26c3b0d844f6008521aa4d5927dbe92190a06c6",
+  "qemuStarted": true,
+  "durationSeconds": 251.204,
+  "finishedAt": "2026-09-15T22:20:23.235582+00:00"
+}

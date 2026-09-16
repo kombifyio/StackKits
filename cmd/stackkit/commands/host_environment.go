@@ -28,6 +28,14 @@ func newHostEnvironmentCommand() *cobra.Command {
 This is observation, not kit selection. Installers and init use it to ask
 before authoring local home addresses on a VPS, or Cloud Kit on a LAN host.
 STACKKIT_NETWORK_ENV=home|vps|cloud|unknown overrides live detection.`,
+		Example: `  # Show whether this host looks like a home network or a public server
+  stackkit host environment
+
+  # The same observation as JSON
+  stackkit host environment --json
+
+  # Override a wrong detection for the next command, here Basement Kit init on a home host
+  STACKKIT_NETWORK_ENV=home stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			detected := netenv.Detect(cmd.Context())

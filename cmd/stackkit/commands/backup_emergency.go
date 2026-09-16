@@ -18,8 +18,10 @@ import (
 )
 
 var backupEmergencyRestoreCmd = &cobra.Command{
-	Use:         "emergency-restore",
-	Short:       "Decrypt and verify a portable export into a new staging directory",
+	Use:   "emergency-restore",
+	Short: "Decrypt and verify a portable export into a new staging directory",
+	Example: `  # Decrypt and verify an export into a new staging directory with your age identity file
+  stackkit backup emergency-restore --archive <export-dir>/<archive>.tar.gz.age --identity-file ~/.config/age/key.txt --target ./restore-staging`,
 	Args:        machineAwareNoArgs,
 	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	RunE:        runBackupEmergencyRestore,

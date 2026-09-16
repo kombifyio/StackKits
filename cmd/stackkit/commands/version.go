@@ -11,6 +11,8 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
 	Long:  `Print the version, git commit, and build date of stackkit.`,
+	Example: `  # Show the installed CLI version
+  stackkit version`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("stackkit version %s\n", version)
 		fmt.Printf("  Git commit: %s\n", gitCommit)

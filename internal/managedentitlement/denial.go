@@ -93,7 +93,7 @@ func deny(reason, capability string, required, missing []string) error {
 		"Use the standalone OSS StackKits path for account-free local operations.",
 		"Ask an account admin to enable managed StackKits, then retry from a host with a wired entitlement source.",
 	}
-	remediation := "Wire a Flagship/Stripe entitlement adapter as the process Source, or use STACKKIT_ENV=development together with STACKKIT_ALLOW_LOCAL_MANAGED_ENTITLEMENT_E2E=1 for an explicit local-dev bypass. HMAC service tokens are not an entitlement decision."
+	remediation := "Wire the managed entitlement adapter as the process Source, or use STACKKIT_ENV=development together with STACKKIT_ALLOW_LOCAL_MANAGED_ENTITLEMENT_E2E=1 for an explicit local-dev bypass. HMAC service tokens are not an entitlement decision."
 	switch reason {
 	case ReasonCheckFailed:
 		title = "Managed StackKits entitlement check failed"

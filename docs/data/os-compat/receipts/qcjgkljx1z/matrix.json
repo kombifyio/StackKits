@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "techstack.depot-linux-summary/v1",
+  "producerCommit": "f938aaaa5155917c390a3598671e8ca36d65cf93",
+  "runId": "440603654137259.1",
+  "configSha256": "01eafd5a34c934dbc7a17ba10dacb3116f90b0deb506bd4bc3c6466e18f37f14",
+  "release": "v0.32.1",
+  "useCases": [
+    "files"
+  ],
+  "evidenceScope": "declared-guest-phases-only",
+  "publicSupportGrade": "unverified",
+  "status": "passed",
+  "results": [
+    {
+      "cell": "ubuntu-24.04-amd64-basement-standalone",
+      "status": "passed",
+      "cleanup": "passed",
+      "phases": [
+        {
+          "name": "install",
+          "status": "passed"
+        },
+        {
+          "name": "init",
+          "status": "passed"
+        },
+        {
+          "name": "generate",
+          "status": "passed"
+        },
+        {
+          "name": "apply",
+          "status": "passed"
+        },
+        {
+          "name": "setup-files",
+          "status": "passed"
+        },
+        {
+          "name": "verify",
+          "status": "passed"
+        },
+        {
+          "name": "backup",
+          "status": "passed"
+        },
+        {
+          "name": "restore",
+          "status": "passed"
+        }
+      ],
+      "attemptId": "ba5ac0c3-208c-4749-9209-b1bab984730e",
+      "applicationProof": {
+        "application": "files",
+        "downloadVantage": "guest-local-loopback-api",
+        "applicationVersion": "4.18.0",
+        "markerURI": "cloudreve://my/depot-d81ade4ec54d10f3f2935732a6254c9e.bin",
+        "originalSha256": "065d2870227bbd85b99ae775d5279da0791c268e0aa5829d92b66f920e1411a2",
+        "mutatedSha256": "37e3d38c576db26100e00511021267dae9bf4443822dba6e42254e4d3371784a",
+        "restoredSha256": "065d2870227bbd85b99ae775d5279da0791c268e0aa5829d92b66f920e1411a2",
+        "snapshotAnchorId": "sha256:02b99d167ff45e6fa129cbed2df2936db4510471752b046ea63c0a19cb992589",
+        "restoreResultId": "sha256:45fc683d6fe4d961f829b3466afcbe790c98f64302de8b6dacb6b6c770edae3d",
+        "snapshotOperationId": "depot-snapshot",
+        "restoreOperationId": "depot-restore",
+        "activationOperationId": "depot-restore-activate",
+        "activationStatus": "activated",
+        "restoredApplicationReadback": "verified"
+      }
+    }
+  ]
+}

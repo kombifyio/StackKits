@@ -451,6 +451,49 @@ else
   echo "  Installing StackKit Blueprint now."
 fi
 
+# Copy of stop_on_hypervisor_host from install-host-bootstrap.sh: StackKits
+# install into a guest VM on a hypervisor, never onto the hypervisor host.
+stop_on_hypervisor_host() {
+  [ -d /etc/pve ] || command -v pveversion >/dev/null 2>&1 || return 0
+  [ "${STACKKIT_ALLOW_HYPERVISOR_HOST:-}" = "1" ] && return 0
+  printf '\033[1;31m==> %s\033[0m\n' "This host is a Proxmox VE hypervisor. StackKits install into a guest VM, not onto the hypervisor host." >&2
+  echo "  Create an Ubuntu 24.04 VM on this host (or let kombify Techstack create it) and run the installer inside that VM:" >&2
+  echo "    curl -sSL https://install.stackkit.cc | sh" >&2
+  echo "  To install on the hypervisor host anyway, rerun with STACKKIT_ALLOW_HYPERVISOR_HOST=1." >&2
+  exit 1
+}
+
+# Copy of refine_home_network_detection from install-host-bootstrap.sh (this
+# installer runs standalone and cannot source it). A dual-stack home server
+# sees its own global IPv6 as the public IP and reads as a public server; a
+# "vps" verdict is re-checked over IPv4 and exported for the kit installer.
+refine_home_network_detection() {
+  [ "${DETECTED_ENV:-}" = "vps" ] || return 0
+  [ -z "${STACKKIT_NETWORK_ENV:-}" ] || return 0
+  command -v curl >/dev/null 2>&1 || return 0
+  if curl -s -o /dev/null --connect-timeout 1 --max-time 2 http://169.254.169.254/ 2>/dev/null; then
+    return 0
+  fi
+  _public_ipv4=$(curl -4 -fsS --max-time 5 https://api.ipify.org 2>/dev/null || true)
+  case "$_public_ipv4" in
+    ''|*[!0-9.]*) return 0 ;;
+  esac
+  if command -v ip >/dev/null 2>&1; then
+    _local_ipv4=$(ip -4 -o addr show 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
+  else
+    _local_ipv4=$(hostname -I 2>/dev/null || true)
+  fi
+  [ -n "$_local_ipv4" ] || return 0
+  if printf '%s\n' $_local_ipv4 | grep -Fxq "$_public_ipv4"; then
+    return 0
+  fi
+  DETECTED_ENV="home"
+  PUBLIC_SERVER="false"
+  STACKKIT_NETWORK_ENV="home"
+  export STACKKIT_NETWORK_ENV
+}
+
+stop_on_hypervisor_host
 echo "  Checking whether this host is a home network or a public server..."
 DETECTED_ENV="${STACKKIT_NETWORK_ENV:-}"
 PUBLIC_SERVER=""
@@ -465,6 +508,7 @@ fi
 if [ "$DETECTED_ENV" = "unknown" ] && [ "$PUBLIC_SERVER" = "true" ]; then
   DETECTED_ENV="vps"
 fi
+refine_home_network_detection
 echo "  Detected network: $DETECTED_ENV"
 
 KIT_INSTALL_URL=""

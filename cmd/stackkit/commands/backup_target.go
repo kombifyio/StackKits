@@ -14,7 +14,9 @@ func init() { backupCmd.AddCommand(newBackupTargetCommand()) }
 
 func newBackupTargetCommand() *cobra.Command {
 	target := &cobra.Command{Use: "target", Short: "Bind an owner-supplied S3 target to the generated backup policy", Args: cobra.NoArgs}
-	importCommand := &cobra.Command{Use: "import", Short: "Import encrypted S3 custody from JSON on stdin", Long: "Import JSON fields endpoint, bucket, prefix, region, accessKeyId, secretAccessKey and passphrase from stdin. The passphrase is a string for an existing Kopia repository. Only opaque target references are printed. This imports custody; it does not create a bucket or verify offsite readiness.", Args: cobra.NoArgs, Annotations: map[string]string{noDeployObservabilityAnnotation: "true"}}
+	importCommand := &cobra.Command{Use: "import", Short: "Import encrypted S3 custody from JSON on stdin", Long: "Import JSON fields endpoint, bucket, prefix, region, accessKeyId, secretAccessKey and passphrase from stdin. The passphrase is a string for an existing Kopia repository. Only opaque target references are printed. This imports custody; it does not create a bucket or verify offsite readiness.", Args: cobra.NoArgs, Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
+		Example: `  # Import the S3 target from a private JSON file with the fields listed above
+  stackkit backup target import --owner-approve < s3-target.json`}
 	approved := false
 	importCommand.Flags().BoolVar(&approved, "owner-approve", false, "Authorize this exact local backup target")
 	var rebind bool
@@ -24,7 +26,8 @@ func newBackupTargetCommand() *cobra.Command {
 	importCommand.RunE = func(cmd *cobra.Command, _ []string) error {
 		return runBackupTargetImport(cmd, approved, rebind, candidateDigest)
 	}
-	status := &cobra.Command{Use: "status", Short: "Verify local target custody without contacting S3", Args: cobra.NoArgs, Annotations: map[string]string{noDeployObservabilityAnnotation: "true"}, RunE: func(cmd *cobra.Command, _ []string) error {
+	status := &cobra.Command{Use: "status", Short: "Verify local target custody without contacting S3", Args: cobra.NoArgs, Annotations: map[string]string{noDeployObservabilityAnnotation: "true"}, Example: `  # Confirm the imported target custody is intact
+  stackkit backup target status`, RunE: func(cmd *cobra.Command, _ []string) error {
 		authority, root, _, err := inspectBackupTargetAuthority(cmd.Context())
 		if err != nil {
 			return err

@@ -592,41 +592,48 @@ func loadOS(path string, release ReleaseIdentity, target *[]OSCompatibility) err
 		return err
 	}
 	var source struct {
-		Results []struct {
-			OS          struct{ Family, Distribution, Version string } `json:"os"`
-			Grade       string                                         `json:"grade"`
-			ReasonCodes []string                                       `json:"reasonCodes"`
-			Receipt     *struct {
-				ReleaseTag      string `json:"releaseTag"`
-				SourceSHA       string `json:"sourceSha"`
-				PublicSourceSHA string `json:"publicSourceSha"`
-				EvidenceRef     string `json:"evidenceRef"`
-			} `json:"receipt"`
+		SchemaVersion    int    `json:"schemaVersion"`
+		StackKitsVersion string `json:"stackkitsVersion"`
+		Results          []struct {
+			OS            struct{ Family, Distribution, Version string } `json:"os"`
+			Architectures []string                                       `json:"architectures"`
+			Grade         string                                         `json:"grade"`
+			ReasonCodes   []string                                       `json:"reasonCodes"`
 		} `json:"results"`
 	}
 	if err := json.Unmarshal(data, &source); err != nil {
 		return err
 	}
+	// Receipts for a release are projected only after that release is
+	// published, so a manifest emitted from the tag's own tree normally sees
+	// the previous release's evidence. Positive grades count only when the
+	// projection is bound to this exact release; otherwise they are pending.
+	boundToRelease := source.SchemaVersion >= 3 && source.StackKitsVersion == release.Tag
 	for _, row := range source.Results {
 		status := row.Grade
-		if status == "pending" {
-			status = "unverified"
-		}
+		reasons := row.ReasonCodes
 		id := row.OS.Distribution + "-" + row.OS.Version
 		evidenceRef := ""
-		if status == "supported" || status == "preview" {
-			receipt := row.Receipt
-			if receipt == nil || receipt.ReleaseTag != release.Tag || receipt.SourceSHA != release.SourceSHA || receipt.PublicSourceSHA != release.PublicSourceSHA || !strings.HasPrefix(receipt.EvidenceRef, "https://") {
-				return fmt.Errorf("OS %s has positive status without an exact release-bound receipt", id)
+		switch status {
+		case "supported", "preview":
+			if boundToRelease {
+				evidenceRef = "https://stackkit.cc/compatibility"
+			} else {
+				status, reasons = "unverified", []string{"current-release-receipt-pending"}
 			}
-			evidenceRef = receipt.EvidenceRef
-		} else if status != "unverified" && status != "unsupported" {
+		case "unverified":
+		case "unsupported":
+			if len(reasons) == 0 {
+				return fmt.Errorf("OS %s is unsupported without a policy reason", id)
+			}
+		default:
 			return fmt.Errorf("OS %s has invalid status %q", id, status)
 		}
-		if status == "unsupported" && len(row.ReasonCodes) == 0 {
-			return fmt.Errorf("OS %s is unsupported without a policy reason", id)
+		architecture := strings.Join(row.Architectures, "/")
+		if architecture == "" {
+			architecture = "untested"
 		}
-		*target = append(*target, OSCompatibility{ID: id, Name: title(row.OS.Distribution), Version: row.OS.Version, Architecture: "amd64/arm64", Status: status, Reason: strings.Join(row.ReasonCodes, ", "), EvidenceRef: evidenceRef})
+		*target = append(*target, OSCompatibility{ID: id, Name: title(row.OS.Distribution), Version: row.OS.Version, Architecture: architecture, Status: status, Reason: strings.Join(reasons, ", "), EvidenceRef: evidenceRef})
 	}
 	sort.Slice(*target, func(i, j int) bool { return (*target)[i].ID < (*target)[j].ID })
 	return nil

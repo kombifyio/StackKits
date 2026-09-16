@@ -50,6 +50,14 @@ what each fix would do, whether it can be undone, and whether it needs root.
 With --apply <id> --yes the named fix runs, and the check that justified it is
 measured again afterwards so the result states what actually changed rather
 than that something was attempted.`,
+		Example: `  # List the fixes for this host's preflight findings without changing anything
+  stackkit host remediate
+
+  # Carry out one fix by the ID the list printed
+  stackkit host remediate --apply <resolution-id> --yes
+
+  # Carry out every undoable fix that may run unattended
+  stackkit host remediate --auto-reversible --yes`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			policy, err := resolveHostPreflightPolicy(hostRemediatePolicy)

@@ -60,7 +60,12 @@ func newSupportCommand() *cobra.Command {
 	export := &cobra.Command{
 		Use:   "export [run-id]",
 		Short: "Export one local rollout log and its receipts",
-		Args:  cobra.MaximumNArgs(1),
+		Example: `  # Export the newest rollout log and its receipts to a new file
+  stackkit support export --output support-evidence.json
+
+  # Export one run by an ID that stackkit logs list printed
+  stackkit support export <run-id> -o support-evidence.json`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			requested := "latest"
 			if len(args) == 1 {

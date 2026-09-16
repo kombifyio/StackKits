@@ -43,11 +43,12 @@ Shows:
   • Deployment state (running, degraded, error)
   • Service statuses and health
   • Resource usage
-  • URLs and endpoints
+  • URLs and endpoints`,
+	Example: `  # Show status
+  stackkit status
 
-Examples:
-  stackkit status            Show status
-  stackkit status --json     Output as JSON`,
+  # Output as JSON
+  stackkit status --json`,
 	RunE: runStatus,
 }
 

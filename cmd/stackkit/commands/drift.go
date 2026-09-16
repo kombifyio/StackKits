@@ -134,6 +134,11 @@ var driftDetectCmd = &cobra.Command{
 owner-signed Apply evidence, local Owner binding, and live Basement Compose
 runtime without refreshing runtime state. The content-addressed report is
 retained as local Owner evidence for every selected Application Kit.`,
+	Example: `  # Compare the live deployment with the applied plan
+  stackkit drift detect
+
+  # The same drift report as JSON
+  stackkit drift detect --json`,
 	Args: cobra.NoArgs,
 	RunE: runDriftDetect,
 }
@@ -147,6 +152,11 @@ checkpoint, then runs generate, apply, and verify through the exclusive
 lifecycle journal. A failed target phase automatically restores, reapplies, and
 verifies the captured prior executor state. Advanced mode remains fail-closed
 until an offline-verified capability is supplied.`,
+	Example: `  # Reconcile drift in standard mode: checkpoint, then generate, apply, and verify
+  stackkit drift reconcile --owner-approve
+
+  # The same reconciliation with a JSON result
+  stackkit drift reconcile --owner-approve --json`,
 	Args: cobra.NoArgs,
 	RunE: runDriftReconcile,
 }

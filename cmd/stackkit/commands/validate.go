@@ -28,12 +28,15 @@ var validateCmd = &cobra.Command{
 This command validates:
   • stack-spec.yaml against the schema
   • StackKit CUE definitions
-  • OpenTofu configuration files
+  • OpenTofu configuration files`,
+	Example: `  # Validate stack-spec.yaml in the current directory
+  stackkit validate
 
-Examples:
-  stackkit validate                  Validate current spec
-  stackkit validate spec.yaml        Validate specific file
-  stackkit validate --all            Validate all files`,
+  # Validate another StackSpec file before replacing stack-spec.yaml with it
+  stackkit validate candidate-stack-spec.yaml
+
+  # Also validate CUE schemas in the working directory
+  stackkit validate --all`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runValidate,
 }

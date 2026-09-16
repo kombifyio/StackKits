@@ -70,7 +70,7 @@ public JSON Schemas; the release ships the instances.
 | `release-evidence.json` (release asset) | [`schemas/release-evidence.schema.json`](../schemas/release-evidence.schema.json): per-check `pass` / `pending` / `not_applicable` with a reason |
 | Standalone OSS end-to-end receipt | [`schemas/standalone-oss-e2e-receipt.schema.json`](../schemas/standalone-oss-e2e-receipt.schema.json) |
 | Compatibility projection | [`schemas/stackkits-compatibility-v1.schema.json`](../schemas/stackkits-compatibility-v1.schema.json), published per release |
-| OS compatibility input and status | [`schemas/stackkits-os-compatibility-input-v1.schema.json`](../schemas/stackkits-os-compatibility-input-v1.schema.json), [`docs/data/os-compat/latest.json`](data/os-compat/latest.json), [`docs/OS_COMPATIBILITY.md`](OS_COMPATIBILITY.md) |
+| OS, hypervisor and application compatibility evidence | [`schemas/os-compat-matrix.schema.json`](../schemas/os-compat-matrix.schema.json), [`docs/data/os-compat/latest.json`](data/os-compat/latest.json), [`docs/OS_COMPATIBILITY.md`](OS_COMPATIBILITY.md) |
 | Use-case runtime evidence | [`docs/data/use-case-runtime-evidence/`](data/use-case-runtime-evidence/): fresh-guest install, setup, verify, backup and restore receipts per use case and release |
 
 Vocabulary:

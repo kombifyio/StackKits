@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "techstack.depot-linux-summary/v1",
+  "producerCommit": "1455d4590c9c5173311878cde27c522a0035516d",
+  "runId": "676413828554864.1",
+  "configSha256": "24b8ece74c3d38d7452b60652b906ea633195f28bab3f68fac937dd5557dd254",
+  "release": "v0.32.1",
+  "useCases": [],
+  "evidenceScope": "declared-guest-phases-only",
+  "publicSupportGrade": "unverified",
+  "status": "incomplete",
+  "results": [
+    {
+      "cell": "ubuntu-24.04-amd64-basement-standalone",
+      "status": "failed",
+      "cleanup": "passed",
+      "phases": [
+        {
+          "name": "install",
+          "status": "passed"
+        },
+        {
+          "name": "init",
+          "status": "failed"
+        },
+        {
+          "name": "generate",
+          "status": "unverified"
+        },
+        {
+          "name": "apply",
+          "status": "unverified"
+        },
+        {
+          "name": "verify",
+          "status": "unverified"
+        },
+        {
+          "name": "backup",
+          "status": "unverified"
+        },
+        {
+          "name": "restore",
+          "status": "unverified"
+        }
+      ],
+      "attemptId": "7def6231-4c5f-4e2f-9c8f-4e1bc1e415de"
+    },
+    {
+      "cell": "debian-13-amd64-basement-standalone",
+      "status": "unverified",
+      "cleanup": "unverified",
+      "phases": [],
+      "reason": "receipt_missing"
+    }
+  ]
+}

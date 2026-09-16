@@ -74,11 +74,21 @@ The verifier checks the stack spec, deployment state, Docker daemon, StackKit
 containers, Docker health status, and optionally HTTP routes from the generated
 access summary.
 
-Examples:
+--host and its SSH flags (--user, --key, --port, --remote-dir,
+--legacy-remote-transport) drive the retired raw-SSH verifier that only an
+exact v0.6 build still runs; --strict applies to that verifier and the v0.6
+local checks. On current releases, run verify on the deployed host.`,
+	Example: `  # Verify the applied deployment on this host
   stackkit verify
+
+  # Also request the generated service URLs over HTTP
   stackkit verify --http
-  stackkit verify --json --strict
-  stackkit verify --host 203.0.113.10 --legacy-remote-transport --user ubuntu --remote-dir /opt/stackkit --json`,
+
+  # Emit the verification report as JSON
+  stackkit verify --json
+
+  # Check recorded Apply evidence and cached release receipts without live probes or network access
+  stackkit verify --offline`,
 	RunE: runVerify,
 }
 

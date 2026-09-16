@@ -49,6 +49,11 @@ var appCompatibilityCmd = &cobra.Command{
 	Long: `Show the immutable CUE-owned support rows for StackKits applications.
 This reports product capability, not the selected plan, live adapter
 availability, or deployment evidence.`,
+	Example: `  # Show which applications each runtime adapter supports
+  stackkit app compatibility
+
+  # The same matrix as JSON
+  stackkit app compatibility --json`,
 	RunE: runAppCompatibility,
 }
 
@@ -72,7 +77,7 @@ func init() {
 	appAddCmd.Flags().StringVar(&appAddAuth, "auth", "login-gateway", "Route auth mode: login-gateway or public")
 	appAddCmd.Flags().StringVar(&appAddHealthPath, "health-path", "/health", "HTTP health path")
 	appAddCmd.Flags().StringArrayVar(&appAddEnv, "env", nil, "Plain environment variable as KEY=value; repeatable")
-	appAddCmd.Flags().StringArrayVar(&appAddSecrets, "secret", nil, "Secret reference as KEY=env:NAME|doppler:NAME|vault:NAME|file:PATH; repeatable")
+	appAddCmd.Flags().StringArrayVar(&appAddSecrets, "secret", nil, "Secret reference as KEY=env:NAME, KEY=vault:NAME or KEY=file:PATH; repeatable")
 	appCompatibilityCmd.Flags().BoolVar(&appCompatibilityJSON, "json", false, "Print the compatibility matrix as JSON")
 	appCmd.AddCommand(appAddCmd)
 	appCmd.AddCommand(appCompatibilityCmd)

@@ -26,16 +26,24 @@ var logsCmd = &cobra.Command{
 	Long: `View and filter structured deploy logs from previous runs.
 
 By default, shows the most recent log in human-readable format.
-Use filters to narrow down to specific event types.
+Use filters to narrow down to specific event types.`,
+	Example: `  # Show the latest log (human-readable)
+  stackkit logs
 
-Examples:
-  stackkit logs                     Show latest log (human-readable)
-  stackkit logs --json              Show latest log as structured JSON
-  stackkit logs --jsonl             Show latest log as raw JSON-Lines
-  stackkit logs --decisions         Show only decision events
-  stackkit logs --errors            Show only errors and warnings
-  stackkit logs --timing            Show timing summary
-  stackkit logs list                List all available log files`,
+  # Show the latest log as structured JSON
+  stackkit logs --json
+
+  # Show the latest log as raw JSON Lines
+  stackkit logs --jsonl
+
+  # Show only decision events
+  stackkit logs --decisions
+
+  # Show only errors and warnings
+  stackkit logs --errors
+
+  # Show a timing summary
+  stackkit logs --timing`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runLogs,
 }
@@ -43,14 +51,27 @@ Examples:
 var logsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List available log files",
-	Args:  cobra.NoArgs,
-	RunE:  runLogsList,
+	Example: `  # List the run IDs of all local rollout logs
+  stackkit logs list
+
+  # The same list as JSON
+  stackkit logs list --json`,
+	Args: cobra.NoArgs,
+	RunE: runLogsList,
 }
 
 var logsGetCmd = &cobra.Command{
 	Use:   "get <run-id>",
 	Short: "Read one exact structured rollout log",
-	Args:  cobra.ExactArgs(1),
+	Example: `  # Read one run by an ID that stackkit logs list printed
+  stackkit logs get <run-id>
+
+  # Read that run as JSON, 50 events per page
+  stackkit logs get <run-id> --json --max-events 50
+
+  # Continue with the cursor the previous JSON page returned
+  stackkit logs get <run-id> --json --max-events 50 --cursor <cursor>`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runLogs(cmd, args)
 	},
@@ -59,7 +80,12 @@ var logsGetCmd = &cobra.Command{
 var logsLatestCmd = &cobra.Command{
 	Use:   "latest",
 	Short: "Read the newest structured rollout log",
-	Args:  cobra.NoArgs,
+	Example: `  # Read the newest rollout log
+  stackkit logs latest
+
+  # Only errors and warnings from the newest log, as JSON
+  stackkit logs latest --errors --json`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runLogs(cmd, nil)
 	},

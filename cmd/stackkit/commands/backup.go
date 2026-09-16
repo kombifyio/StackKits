@@ -86,16 +86,18 @@ Backups are powered by Kopia (see ADR-0016) and run in the local
 kopia-agent service rendered by the Basement core. Native configure, status,
 and run revalidate the exact local Plan, generated artifacts, owner custody,
 and Apply evidence before touching Kopia. Repository, source, exclusions,
-service identity, and credentials are CUE- or owner-custody-owned.
+service identity, and credentials are CUE- or owner-custody-owned.`,
+	Example: `  # Configure the local Kopia repository after stackkit apply
+  stackkit backup configure
 
-Examples:
-  stackkit backup configure --json
+  # Take a snapshot now
+  stackkit backup run
+
+  # Check repository readiness and the latest snapshot and restore receipts
   stackkit backup status
-  stackkit backup run --operation-id nightly-20260727
-  stackkit backup list --json
-  stackkit backup restore sha256:<snapshot-anchor-id> --owner-approve
-  stackkit backup verify
-  stackkit backup migrate-from-restic`,
+
+  # Restore a snapshot into isolated staging
+  stackkit backup restore sha256:<snapshot-anchor-id> --owner-approve`,
 }
 
 var backupInitCmd = &cobra.Command{
@@ -117,6 +119,11 @@ var backupConfigureCmd = &cobra.Command{
 
 The repository path and kopia-agent service are CUE-owned and cannot be
 overridden at the command line.`,
+	Example: `  # Configure the repository once the Basement core is applied
+  stackkit backup configure
+
+  # Configure it and print the command result as JSON
+  stackkit backup configure --json`,
 	RunE: runBackupConfigure,
 }
 
@@ -125,7 +132,12 @@ var backupStatusCmd = &cobra.Command{
 	Short:       "Show local Kopia repository status",
 	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	Args:        cobra.NoArgs,
-	RunE:        runBackupStatus,
+	Example: `  # Show repository readiness, coverage, and the latest snapshot and restore receipts
+  stackkit backup status
+
+  # The same status as JSON
+  stackkit backup status --json`,
+	RunE: runBackupStatus,
 }
 
 var backupRunCmd = &cobra.Command{
@@ -133,7 +145,12 @@ var backupRunCmd = &cobra.Command{
 	Short:       "Force a snapshot now (out of band)",
 	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	Args:        cobra.NoArgs,
-	RunE:        runBackupRun,
+	Example: `  # Take a snapshot now; data.id in the JSON result is the snapshot anchor ID for backup restore
+  stackkit backup run --json
+
+  # Use your own operation ID so a retry cannot create a second snapshot
+  stackkit backup run --operation-id manual-2026-09-18`,
+	RunE: runBackupRun,
 }
 
 var backupListCmd = &cobra.Command{
@@ -152,6 +169,12 @@ var backupRestoreCmd = &cobra.Command{
 CUE-owned isolated staging volume. The raw Kopia snapshot ID and staging path
 are not caller-controlled. --owner-approve records explicit local Owner
 authorization; this command never requires a Kombify account or Cloud service.`,
+	Example: `  # Restore a snapshot into isolated staging; the live volumes are not touched
+  stackkit backup restore sha256:<snapshot-anchor-id> --owner-approve
+
+  # Print the result as JSON: data.id is the restore result ID for restore activate,
+  # data.operationId is the restore operation ID for restore abandon
+  stackkit backup restore sha256:<snapshot-anchor-id> --owner-approve --json`,
 	RunE: runBackupRestore,
 }
 
@@ -160,7 +183,9 @@ var backupRestoreAbandonCmd = &cobra.Command{
 	Short:       "Abandon one pending or staged restore operation",
 	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	Args:        cobra.ExactArgs(1),
-	RunE:        runBackupRestoreAbandon,
+	Example: `  # Discard a staged restore you do not want to activate
+  stackkit backup restore abandon <restore-operation-id> --owner-approve`,
+	RunE: runBackupRestoreAbandon,
 }
 
 var backupRestoreActivateCmd = &cobra.Command{
@@ -168,7 +193,12 @@ var backupRestoreActivateCmd = &cobra.Command{
 	Short:       "Activate one verified staged restore into the live Basement volumes",
 	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	Args:        cobra.ExactArgs(1),
-	RunE:        runBackupRestoreActivate,
+	Example: `  # Replace the live volumes with a verified staged restore
+  stackkit backup restore activate sha256:<restore-result-id> --owner-approve
+
+  # Name the activation operation so an interrupted run can be recovered by that ID
+  stackkit backup restore activate sha256:<restore-result-id> --owner-approve --operation-id restore-activate-2026-09-18`,
+	RunE: runBackupRestoreActivate,
 }
 
 var backupRestoreRecoverCmd = &cobra.Command{
@@ -177,7 +207,10 @@ var backupRestoreRecoverCmd = &cobra.Command{
 	Long: `Recover the exact owner-approved restore activation. Before commit, recovery
 restores the prior live volumes. After commit, it preserves the activated data
 and resumes result cleanup and application finalization. Repeating recovery for
-a completed operation returns its original signed result.`,
+a completed operation returns its original signed result. --rollback is
+required.`,
+	Example: `  # Recover an interrupted activation by its operation ID
+  stackkit backup restore recover restore-activate-2026-09-18 --rollback --owner-approve`,
 	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	Args:        cobra.ExactArgs(1),
 	RunE:        runBackupRestoreRecover,
@@ -202,6 +235,11 @@ Explicit CLASS=PATH sources remain the standalone path when no generated
 contract is present. File copying does not prove application consistency; stop
 writers or export database-native dumps first. Recovery stages data without the
 original host, Kopia, or a Kombify account.`,
+	Example: `  # Export the generated backup contract, encrypted to your age public key, into a new directory
+  stackkit backup emergency-export --recipient <age-public-key> --target /mnt/usb/stackkit-export
+
+  # Export explicit paths when no generated contract exists
+  stackkit backup emergency-export --recipient <age-public-key> --target /mnt/usb/stackkit-export --source config=/opt/stacks --source user-content=/opt/data`,
 	RunE: runBackupEmergencyExport,
 }
 

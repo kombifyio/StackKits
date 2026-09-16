@@ -60,7 +60,18 @@ function extractBulletBlocks(body) {
       continue
     }
 
-    if (!current || !trimmed || trimmed.startsWith('### ') || trimmed.startsWith('## ')) {
+    // A blank line ends the bullet, so a trailing section paragraph (such as
+    // the release-please "Notes cover changes after ..." footer) never merges
+    // into the last entry.
+    if (!trimmed) {
+      if (current) {
+        bullets.push(current)
+      }
+      current = ''
+      continue
+    }
+
+    if (!current || trimmed.startsWith('### ') || trimmed.startsWith('## ')) {
       continue
     }
 
@@ -158,25 +169,84 @@ export function toMinorVersionLabel(version) {
   return minorKey(normalizeVersion(version)) || normalizeVersion(version)
 }
 
-// Keep the website changelog on the current release line. Patch releases
-// update artifacts, while the X.Y.0 entry remains the line-level changelog.
-export function extractLatestMinorReleaseNotes(markdown, options = {}) {
-  const { limit = 3, fallbackVersion = '0.0.0', anchorVersion = '' } = options
+function compareMinorKeys(left, right) {
+  const [leftMajor, leftMinor] = left.split('.').map(Number)
+  const [rightMajor, rightMinor] = right.split('.').map(Number)
+  return leftMajor - rightMajor || leftMinor - rightMinor
+}
+
+function subsectionHeadings(body) {
+  return [...body.matchAll(/^### (.+?)\s*$/gmu)].map((match) => match[1].trim())
+}
+
+// A line entry keeps its conventional-commit scope as the title; unscoped
+// entries get an empty title instead of a synthetic "Update N".
+function toLineEntry(bullet) {
+  const raw = bullet.slice(2).trim()
+  const scoped = raw.match(/^\*\*(.+?):\*\*\s*(.+)$/u)
+  return scoped ? { title: scoped[1].trim(), body: scoped[2].trim() } : { title: '', body: raw }
+}
+
+function normalizeEntry(bullet) {
+  return bullet.replace(/\s+/gu, ' ').trim().toLowerCase()
+}
+
+// The website presents one release line (X.Y) at a time: curated highlights
+// plus every entry that first shipped in that line. An X.Y.0 section restates
+// fixes that patch releases of the previous line already shipped, so those
+// are dropped. Without a curated `### Highlights` list the line's Added
+// entries stand in, never its fixes.
+export function extractReleaseLine(markdown, options = {}) {
+  const { anchorVersion = '', highlightLimit = 4, fallbackVersion = '0.0' } = options
   const sections = parseChangelogSections(markdown)
-  const anchor = normalizeVersion(anchorVersion)
-  const currentMinor = minorKey(anchor) || minorKey(sections.find((section) => minorKey(section.version))?.version || '')
+  const currentMinor = minorKey(normalizeVersion(anchorVersion))
+    || minorKey(sections.find((section) => minorKey(section.version))?.version || '')
   const lineSections = sections.filter((section) => minorKey(section.version) === currentMinor)
-  const highlighted = lineSections.find((section) => getSubsectionBody(section.body, 'Highlights'))
-  const baseline = lineSections.find((section) => /^\d+\.\d+\.0(?:[-+].*)?$/u.test(section.version))
-  const release = highlighted || baseline || lineSections[0]
-  if (!release) {
-    return { version: anchor || fallbackVersion, notes: [] }
+  if (!currentMinor || lineSections.length === 0) {
+    return { version: fallbackVersion, latestVersion: '', previousVersion: '', highlights: [], groups: [] }
   }
 
-  const sourceBody = getSubsectionBody(release.body, 'Highlights') || release.body
+  const earlierSections = sections.filter((section) => {
+    const key = minorKey(section.version)
+    return key && compareMinorKeys(key, currentMinor) < 0
+  })
+  const shippedEarlier = new Set(earlierSections.flatMap((section) => extractBulletBlocks(section.body).map(normalizeEntry)))
+  const previousVersion = earlierSections.map((section) => minorKey(section.version))
+    .sort((left, right) => compareMinorKeys(right, left))[0] ?? ''
+
+  const groups = new Map()
+  const seen = new Set()
+  let curatedHighlights = ''
+  // Oldest section first, so an entry keeps the release that introduced it.
+  for (const section of [...lineSections].reverse()) {
+    for (const heading of subsectionHeadings(section.body)) {
+      const body = getSubsectionBody(section.body, heading)
+      if (heading === 'Highlights') {
+        curatedHighlights ||= body
+        continue
+      }
+      for (const bullet of extractBulletBlocks(body)) {
+        const key = normalizeEntry(bullet)
+        if (shippedEarlier.has(key) || seen.has(key)) continue
+        seen.add(key)
+        if (!groups.has(heading)) groups.set(heading, [])
+        groups.get(heading).push(toLineEntry(bullet))
+      }
+    }
+  }
+
+  const highlights = curatedHighlights
+    ? extractBulletBlocks(curatedHighlights).map(toReleaseNote)
+    : groups.get('Added') ?? []
+  const order = ['Added', 'Changed', 'Fixed', 'Reverted']
   return {
-    version: release.version,
-    notes: extractBulletBlocks(sourceBody).slice(0, limit).map(toReleaseNote),
+    version: currentMinor,
+    latestVersion: lineSections[0].version,
+    previousVersion,
+    highlights: highlights.slice(0, highlightLimit),
+    groups: [...groups.entries()]
+      .sort(([left], [right]) => (order.indexOf(left) + 1 || order.length + 1) - (order.indexOf(right) + 1 || order.length + 1))
+      .map(([title, notes]) => ({ title, notes })),
   }
 }
 

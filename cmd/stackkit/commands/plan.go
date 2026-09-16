@@ -28,12 +28,13 @@ var planCmd = &cobra.Command{
 
 On native v0.7, this command verifies and inspects the exact ResolvedPlan,
 generation manifest, receipt, and generated artifact hashes without invoking
-an executor. Exact v0.6 retains its packaged OpenTofu preview.
+an executor. Exact v0.6 retains its packaged OpenTofu preview; --out and
+--destroy apply only to that preview and are rejected on the native line.`,
+	Example: `  # Inspect the generated plan, its readiness, and artifact hashes
+  stackkit plan
 
-Examples:
-  stackkit plan                    Preview changes
-  stackkit plan -o plan.tfplan     Save plan to file
-  stackkit plan --destroy          Preview destroy`,
+  # The same inspection as JSON
+  stackkit plan --json`,
 	RunE: runPlan,
 }
 

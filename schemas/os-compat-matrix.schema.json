@@ -1,54 +1,132 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://stackkit.cc/schemas/os-compat-matrix.schema.json",
-  "title": "StackKit OS compatibility matrix (public v2)",
-  "description": "Provider-, device-, runtime-, architecture-, and virtualization-neutral public OS support projection. Positive grades will require current HostConformanceReceipts plus versioned OS support policy after the controlled projector exists. Container/VM/bare-metal diagnostics are not valid inputs.",
+  "title": "StackKits compatibility projection (public v3)",
+  "description": "Release-bound compatibility projection written only by the receipt projector (scripts/compat/project-os-compat.mjs) from automated lifecycle receipts. OS rows carry only the OS tuple; hypervisor rows are rollout targets (StackKits run in a guest VM created on that hypervisor) with how the guest is created; application rows state which use cases completed the lifecycle. No row names a server provider, runner, lane, or run identity. Grades: supported = every lifecycle phase and cleanup passed on the bound release; preview = install through verify passed; unverified = no passing receipt for the bound release.",
   "type": "object",
-  "required": ["schemaVersion", "stackkitsVersion", "results", "generatedAt"],
+  "required": ["schemaVersion", "stackkitsVersion", "generatedAt", "results", "virtualization", "applications"],
   "properties": {
-    "schemaVersion": { "const": 2 },
+    "schemaVersion": { "const": 3 },
     "stackkitsVersion": {
       "type": "string",
-      "pattern": "^(unreleased|v(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?)$"
+      "pattern": "^v(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$"
     },
     "generatedAt": { "type": "string", "format": "date-time" },
     "results": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/result" }
+      "items": { "$ref": "#/$defs/osRow" }
+    },
+    "virtualization": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/virtualizationRow" }
+    },
+    "applications": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/applicationRow" }
     }
   },
   "additionalProperties": false,
   "$defs": {
-    "grade": {
-      "const": "unverified",
-      "description": "Positive grades stay disabled until the full HostConformanceReceipt projector is implemented."
+    "release": {
+      "type": "string",
+      "pattern": "^v(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$"
     },
-    "os": {
+    "slug": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]*$" },
+    "reasonCode": {
+      "enum": [
+        "current-release-receipt-pending",
+        "no-automated-lane",
+        "install-failed",
+        "init-failed",
+        "generate-failed",
+        "apply-failed",
+        "setup-failed",
+        "verify-failed",
+        "backup-failed",
+        "restore-failed",
+        "cleanup-failed"
+      ]
+    },
+    "evidence": {
       "type": "object",
-      "required": ["family", "distribution", "version"],
+      "required": ["grade", "reasonCodes"],
       "properties": {
-        "family": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]*$" },
-        "distribution": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]*$" },
-        "version": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }
+        "grade": { "enum": ["supported", "preview", "unverified"] },
+        "reasonCodes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/reasonCode" },
+          "uniqueItems": true
+        },
+        "verifiedPhases": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^(install|init|generate|apply|verify|backup|restore|setup-[a-z0-9-]+)$" },
+          "uniqueItems": true
+        },
+        "lastVerifiedRelease": { "$ref": "#/$defs/release" }
       },
-      "additionalProperties": false
+      "allOf": [
+        {
+          "if": { "properties": { "grade": { "const": "supported" } } },
+          "then": { "properties": { "reasonCodes": { "maxItems": 0 } } },
+          "else": { "properties": { "reasonCodes": { "minItems": 1 } } }
+        }
+      ]
     },
-    "result": {
+    "osRow": {
       "type": "object",
       "required": ["os", "grade", "reasonCodes"],
       "properties": {
-        "os": { "$ref": "#/$defs/os" },
-        "grade": { "$ref": "#/$defs/grade" },
-        "reasonCodes": {
-          "type": "array",
-          "minItems": 1,
-          "items": {
-            "enum": ["current-candidate-receipt-pending", "os-policy-not-yet-admitted"]
+        "os": {
+          "type": "object",
+          "required": ["family", "distribution", "version"],
+          "properties": {
+            "family": { "$ref": "#/$defs/slug" },
+            "distribution": { "$ref": "#/$defs/slug" },
+            "version": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }
           },
+          "additionalProperties": false
+        },
+        "architectures": {
+          "type": "array",
+          "items": { "enum": ["amd64", "arm64"] },
           "uniqueItems": true
-        }
+        },
+        "grade": true,
+        "reasonCodes": true,
+        "verifiedPhases": true,
+        "lastVerifiedRelease": true
       },
+      "allOf": [{ "$ref": "#/$defs/evidence" }],
+      "additionalProperties": false
+    },
+    "virtualizationRow": {
+      "type": "object",
+      "required": ["id", "name", "rollout", "grade", "reasonCodes"],
+      "properties": {
+        "id": { "$ref": "#/$defs/slug" },
+        "name": { "type": "string", "minLength": 1 },
+        "rollout": { "type": "string", "minLength": 1, "maxLength": 240, "pattern": "^[^<>|\n]*\\S[^<>|\n]*$" },
+        "grade": true,
+        "reasonCodes": true,
+        "verifiedPhases": true,
+        "lastVerifiedRelease": true
+      },
+      "allOf": [{ "$ref": "#/$defs/evidence" }],
+      "additionalProperties": false
+    },
+    "applicationRow": {
+      "type": "object",
+      "required": ["useCase", "adapter", "grade", "reasonCodes"],
+      "properties": {
+        "useCase": { "$ref": "#/$defs/slug" },
+        "adapter": { "$ref": "#/$defs/slug" },
+        "grade": true,
+        "reasonCodes": true,
+        "verifiedPhases": true,
+        "lastVerifiedRelease": true
+      },
+      "allOf": [{ "$ref": "#/$defs/evidence" }],
       "additionalProperties": false
     }
   }

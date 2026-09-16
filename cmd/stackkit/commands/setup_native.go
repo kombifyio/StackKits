@@ -38,7 +38,15 @@ func newSetupCommand() *cobra.Command {
 		Args:        cobra.ExactArgs(1),
 		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 		Long:        "Run a Plan-declared setup action on the existing local application. Read the private credential JSON fields and file path from the selected application's setup guide or status action. Credentials are never written into lifecycle evidence. Re-running after interruption re-observes the application before completing the same pending setup operation.",
-		RunE:        func(cmd *cobra.Command, args []string) error { return runNativeSetup(cmd, args[0], *options) },
+		Example: `  # Create the Photos owner from the private credentials in .stackkit/setup/owner.json
+  stackkit setup photos --owner-approve
+
+  # Also finish the application's onboarding after the owner login is verified
+  stackkit setup photos --owner-approve --complete-onboarding
+
+  # Create the Files owner from a workspace-relative credentials file of your choice
+  stackkit setup files --owner-approve --credentials-file private/files-owner.json`,
+		RunE: func(cmd *cobra.Command, args []string) error { return runNativeSetup(cmd, args[0], *options) },
 	}
 	command.Flags().StringVar(&options.credentialsFile, "credentials-file", "", "Workspace-relative private owner credential JSON file (defaults to the selected application's setup guide)")
 	command.Flags().StringVar(&options.operationID, "operation-id", "", "Resume a pending setup operation; defaults to the current pending setup or a new ID")

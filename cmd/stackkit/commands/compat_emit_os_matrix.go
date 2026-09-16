@@ -16,9 +16,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// compat emit-os-matrix renders the committed OS-only public projection into
-// docs and the website feed. Host/runtime diagnostics are separate artifacts
-// and are rejected here even when they have otherwise been redacted.
+// compat emit-os-matrix renders the committed public compatibility projection
+// (docs/data/os-compat/latest.json, written only by the receipt projector
+// scripts/compat/project-os-compat.mjs) into docs and the website feed.
+// Private diagnostics are rejected here even when they have been redacted.
 var (
 	emitOSMatrixInput      string
 	emitOSMatrixArchiveDir string
@@ -28,12 +29,12 @@ var (
 
 var compatEmitOSMatrixCmd = &cobra.Command{
 	Use:   "emit-os-matrix",
-	Short: "Render the public OS-only compatibility projection",
+	Short: "Render the public OS and virtualization compatibility projection",
 	RunE:  runCompatEmitOSMatrix,
 }
 
 func init() {
-	compatEmitOSMatrixCmd.Flags().StringVar(&emitOSMatrixInput, "input", "docs/data/os-compat/latest.json", "committed public OS-only projection")
+	compatEmitOSMatrixCmd.Flags().StringVar(&emitOSMatrixInput, "input", "docs/data/os-compat/latest.json", "committed public compatibility projection")
 	compatEmitOSMatrixCmd.Flags().StringVar(&emitOSMatrixArchiveDir, "archive-dir", "docs/data/os-compat", "directory holding per-release v*.json archives")
 	compatEmitOSMatrixCmd.Flags().StringVar(&emitOSMatrixDocsOut, "docs-out", "docs/OS_COMPATIBILITY.md", "generated markdown output")
 	compatEmitOSMatrixCmd.Flags().StringVar(&emitOSMatrixWebsiteOut, "website-out", "website/public/os-compat.json", "generated website feed output")
@@ -41,16 +42,25 @@ func init() {
 }
 
 type osMatrixDoc struct {
-	SchemaVersion    int              `json:"schemaVersion"`
-	StackKitsVersion string           `json:"stackkitsVersion"`
-	Results          []osMatrixDocRow `json:"results"`
-	GeneratedAt      string           `json:"generatedAt"`
+	SchemaVersion    int               `json:"schemaVersion"`
+	StackKitsVersion string            `json:"stackkitsVersion"`
+	GeneratedAt      string            `json:"generatedAt"`
+	Results          []osMatrixDocRow  `json:"results"`
+	Virtualization   []osMatrixVirtRow `json:"virtualization,omitempty"`
+	Applications     []osMatrixAppRow  `json:"applications,omitempty"`
+}
+
+type osMatrixEvidence struct {
+	Grade               string   `json:"grade"`
+	ReasonCodes         []string `json:"reasonCodes"`
+	VerifiedPhases      []string `json:"verifiedPhases,omitempty"`
+	LastVerifiedRelease string   `json:"lastVerifiedRelease,omitempty"`
 }
 
 type osMatrixDocRow struct {
-	OS          osMatrixDocOS `json:"os"`
-	Grade       string        `json:"grade"`
-	ReasonCodes []string      `json:"reasonCodes"`
+	OS            osMatrixDocOS `json:"os"`
+	Architectures []string      `json:"architectures,omitempty"`
+	osMatrixEvidence
 }
 
 type osMatrixDocOS struct {
@@ -59,14 +69,52 @@ type osMatrixDocOS struct {
 	Version      string `json:"version"`
 }
 
+// osMatrixVirtRow is a hypervisor rollout target: StackKits run in a guest VM
+// created on that hypervisor, and Rollout says how that guest is created.
+type osMatrixVirtRow struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Rollout string `json:"rollout"`
+	osMatrixEvidence
+}
+
+type osMatrixAppRow struct {
+	UseCase string `json:"useCase"`
+	Adapter string `json:"adapter"`
+	osMatrixEvidence
+}
+
 var (
-	osMatrixForbiddenKeys = regexp.MustCompile(`"(runId|lane|stages|stage|overall|target|arch|architecture|kernel|packageMgr|initSystem|virtType|virtTier|virtualization|runtime|engine|osReleaseRaw|evidencePath|mdnsHost|host|hostname|provider|device|resourceId|lease|cleanupState)"\s*:`)
+	osMatrixForbiddenKeys = regexp.MustCompile(`"(runId|lane|stages|stage|overall|target|arch|architecture|kernel|packageMgr|initSystem|virtType|virtTier|runtime|engine|osReleaseRaw|evidencePath|mdnsHost|host|hostname|provider|device|resourceId|lease|cleanupState|producerCommit|attemptId|imageSha256|configSha256)"\s*:`)
 	osMatrixRFC1918       = regexp.MustCompile(`(^|[^0-9.])(10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]{1,3}\.[0-9]{1,3})([^0-9.]|$)`)
-	osMatrixInfraText     = regexp.MustCompile(`(?i)\b(docker|container|wsl2?|proxmox|pico\s*kvm|kvm|hypervisor|bare[ -]?metal|virtual(?:ization| machine)|ionos|centron)\b`)
-	osMatrixSlug          = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*$`)
-	osMatrixVersion       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
-	osMatrixRelease       = regexp.MustCompile(`^(unreleased|v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)$`)
+	// Hypervisor names are public in the virtualization rows only; OS and
+	// application rows stay free of infrastructure vocabulary, and server
+	// providers never appear anywhere.
+	osMatrixInfraText    = regexp.MustCompile(`(?i)\b(docker|container|wsl2?|proxmox|pico\s*kvm|kvm|hypervisor|bare[ -]?metal|virtual(?:ization| machine))\b`)
+	osMatrixProviderText = regexp.MustCompile(`(?i)\b(ionos|centron|hetzner|netcup|contabo|digitalocean|linode|vultr|ovh)\b`)
+	osMatrixSlug         = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*$`)
+	osMatrixVersion      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+	osMatrixRelease      = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
+	osMatrixV2Release    = regexp.MustCompile(`^(unreleased|v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)$`)
+	osMatrixPhase        = regexp.MustCompile(`^(install|init|generate|apply|verify|backup|restore|setup-[a-z0-9-]+)$`)
 )
+
+// Closed public reason codes. The two v2 codes stay readable for archives.
+var osMatrixReasonLabels = map[string]string{
+	"current-release-receipt-pending":   "No lifecycle receipt for this release yet",
+	"no-automated-lane":                 "Not covered by the automated lifecycle tests yet",
+	"install-failed":                    "Install phase failed on this release",
+	"init-failed":                       "Init phase failed on this release",
+	"generate-failed":                   "Generate phase failed on this release",
+	"apply-failed":                      "Apply phase failed on this release",
+	"setup-failed":                      "Application setup failed on this release",
+	"verify-failed":                     "Verify phase failed on this release",
+	"backup-failed":                     "Backup phase failed on this release",
+	"restore-failed":                    "Restore phase failed on this release",
+	"cleanup-failed":                    "Cleanup after the lifecycle run failed",
+	"current-candidate-receipt-pending": "Current candidate receipt pending",
+	"os-policy-not-yet-admitted":        "OS policy not yet admitted",
+}
 
 func runCompatEmitOSMatrix(cmd *cobra.Command, args []string) error {
 	raw, err := os.ReadFile(emitOSMatrixInput)
@@ -77,7 +125,9 @@ func runCompatEmitOSMatrix(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	sort.Slice(matrix.Results, func(i, j int) bool { return osMatrixRowKey(matrix.Results[i]) < osMatrixRowKey(matrix.Results[j]) })
+	if matrix.SchemaVersion != 3 {
+		return fmt.Errorf("matrix input must be public schemaVersion 3; schemaVersion 2 is readable only as an archive")
+	}
 
 	sourceHash := sha256.Sum256(raw)
 	if err := writeGenerated(emitOSMatrixDocsOut, []byte(renderOSMatrixMarkdown(matrix, fmt.Sprintf("%x", sourceHash)))); err != nil {
@@ -90,13 +140,19 @@ func runCompatEmitOSMatrix(cmd *cobra.Command, args []string) error {
 	if err := writeGenerated(emitOSMatrixWebsiteOut, feed); err != nil {
 		return err
 	}
-	fmt.Printf("emitted %s and %s from %s (%d OS rows)\n", emitOSMatrixDocsOut, emitOSMatrixWebsiteOut, emitOSMatrixInput, len(matrix.Results))
+	fmt.Printf("emitted %s and %s from %s (%d OS, %d virtualization, %d application rows)\n", emitOSMatrixDocsOut, emitOSMatrixWebsiteOut, emitOSMatrixInput, len(matrix.Results), len(matrix.Virtualization), len(matrix.Applications))
 	return nil
 }
 
 func decodeOSMatrix(raw []byte) (osMatrixDoc, error) {
-	if err := checkOSMatrixPublishable(raw); err != nil {
-		return osMatrixDoc{}, err
+	if match := osMatrixForbiddenKeys.Find(raw); match != nil {
+		return osMatrixDoc{}, fmt.Errorf("matrix input carries forbidden diagnostic/infrastructure field %s", string(match))
+	}
+	if osMatrixRFC1918.Match(raw) {
+		return osMatrixDoc{}, fmt.Errorf("matrix input contains RFC1918 addresses")
+	}
+	if osMatrixProviderText.Match(raw) {
+		return osMatrixDoc{}, fmt.Errorf("matrix input names a server provider")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
@@ -107,53 +163,125 @@ func decodeOSMatrix(raw []byte) (osMatrixDoc, error) {
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		return osMatrixDoc{}, fmt.Errorf("parse OS compatibility projection: trailing JSON data")
 	}
-	if matrix.SchemaVersion != 2 || !osMatrixRelease.MatchString(matrix.StackKitsVersion) || len(matrix.Results) == 0 {
-		return osMatrixDoc{}, fmt.Errorf("matrix input must be public schemaVersion 2 with version, generation time, and at least one result")
-	}
 	if _, err := time.Parse(time.RFC3339, matrix.GeneratedAt); err != nil {
 		return osMatrixDoc{}, fmt.Errorf("matrix generatedAt must be RFC3339: %w", err)
 	}
-	identities := make(map[string]struct{}, len(matrix.Results))
+	if len(matrix.Results) == 0 {
+		return osMatrixDoc{}, fmt.Errorf("matrix input needs at least one OS result")
+	}
+	switch matrix.SchemaVersion {
+	case 2:
+		if !osMatrixV2Release.MatchString(matrix.StackKitsVersion) || len(matrix.Virtualization) > 0 || len(matrix.Applications) > 0 {
+			return osMatrixDoc{}, fmt.Errorf("schemaVersion 2 archives carry only OS rows and a version")
+		}
+	case 3:
+		if !osMatrixRelease.MatchString(matrix.StackKitsVersion) {
+			return osMatrixDoc{}, fmt.Errorf("schemaVersion 3 must be bound to an exact public release tag, got %q", matrix.StackKitsVersion)
+		}
+	default:
+		return osMatrixDoc{}, fmt.Errorf("unknown compatibility schemaVersion %d", matrix.SchemaVersion)
+	}
+
+	infraText, err := json.Marshal(struct {
+		Results      []osMatrixDocRow `json:"results"`
+		Applications []osMatrixAppRow `json:"applications"`
+	}{matrix.Results, matrix.Applications})
+	if err != nil {
+		return osMatrixDoc{}, err
+	}
+	if osMatrixInfraText.Match(infraText) {
+		return osMatrixDoc{}, fmt.Errorf("OS and application rows must not contain infrastructure/runtime terminology")
+	}
+
+	identities := map[string]struct{}{}
+	unique := func(kind, key string) error {
+		if _, exists := identities[kind+"|"+key]; exists {
+			return fmt.Errorf("matrix duplicates %s identity %s", kind, key)
+		}
+		identities[kind+"|"+key] = struct{}{}
+		return nil
+	}
 	for i, row := range matrix.Results {
 		if !osMatrixSlug.MatchString(row.OS.Family) || !osMatrixSlug.MatchString(row.OS.Distribution) || !osMatrixVersion.MatchString(row.OS.Version) {
 			return osMatrixDoc{}, fmt.Errorf("matrix result %d has an incomplete OS identity", i)
 		}
-		identity := osMatrixRowKey(row)
-		if _, exists := identities[identity]; exists {
-			return osMatrixDoc{}, fmt.Errorf("matrix result %d duplicates OS identity %s", i, identity)
+		if err := unique("os", osMatrixRowKey(row)); err != nil {
+			return osMatrixDoc{}, err
 		}
-		identities[identity] = struct{}{}
-		switch row.Grade {
-		case "unverified":
-		default:
-			return osMatrixDoc{}, fmt.Errorf("matrix result %d must remain unverified until the receipt projector exists", i)
-		}
-		if len(row.ReasonCodes) == 0 {
-			return osMatrixDoc{}, fmt.Errorf("matrix result %d requires a closed reason code", i)
-		}
-		reasons := make(map[string]struct{}, len(row.ReasonCodes))
-		for _, code := range row.ReasonCodes {
-			if code != "current-candidate-receipt-pending" && code != "os-policy-not-yet-admitted" {
-				return osMatrixDoc{}, fmt.Errorf("matrix result %d has unknown public reason code %q", i, code)
+		for _, arch := range row.Architectures {
+			if arch != "amd64" && arch != "arm64" {
+				return osMatrixDoc{}, fmt.Errorf("matrix result %d has unknown architecture %q", i, arch)
 			}
-			if _, exists := reasons[code]; exists {
-				return osMatrixDoc{}, fmt.Errorf("matrix result %d duplicates public reason code %q", i, code)
-			}
-			reasons[code] = struct{}{}
+		}
+		if err := validateOSMatrixEvidence(matrix.SchemaVersion, fmt.Sprintf("OS result %d", i), row.osMatrixEvidence); err != nil {
+			return osMatrixDoc{}, err
+		}
+	}
+	for i, row := range matrix.Virtualization {
+		if !osMatrixSlug.MatchString(row.ID) || strings.TrimSpace(row.Name) == "" {
+			return osMatrixDoc{}, fmt.Errorf("virtualization row %d needs an id and a name", i)
+		}
+		// Where a lifecycle guest happened to run is not a hypervisor claim; a row
+		// exists only as a rollout target that says how the guest VM is created.
+		if strings.TrimSpace(row.Rollout) == "" || len(row.Rollout) > 240 || strings.ContainsAny(row.Rollout, "<>|\n") {
+			return osMatrixDoc{}, fmt.Errorf("virtualization row %d needs a rollout description of how the guest VM is created (at most 240 characters, no markup)", i)
+		}
+		if err := unique("virtualization", row.ID); err != nil {
+			return osMatrixDoc{}, err
+		}
+		if err := validateOSMatrixEvidence(matrix.SchemaVersion, fmt.Sprintf("virtualization row %d", i), row.osMatrixEvidence); err != nil {
+			return osMatrixDoc{}, err
+		}
+	}
+	for i, row := range matrix.Applications {
+		if !osMatrixSlug.MatchString(row.UseCase) || !osMatrixSlug.MatchString(row.Adapter) {
+			return osMatrixDoc{}, fmt.Errorf("application row %d needs a use case and an adapter", i)
+		}
+		if err := unique("application", row.UseCase+"/"+row.Adapter); err != nil {
+			return osMatrixDoc{}, err
+		}
+		if err := validateOSMatrixEvidence(matrix.SchemaVersion, fmt.Sprintf("application row %d", i), row.osMatrixEvidence); err != nil {
+			return osMatrixDoc{}, err
 		}
 	}
 	return matrix, nil
 }
 
-func checkOSMatrixPublishable(raw []byte) error {
-	if match := osMatrixForbiddenKeys.Find(raw); match != nil {
-		return fmt.Errorf("matrix input carries forbidden diagnostic/infrastructure field %s", string(match))
+func validateOSMatrixEvidence(schemaVersion int, label string, evidence osMatrixEvidence) error {
+	switch evidence.Grade {
+	case "unverified":
+	case "supported", "preview":
+		if schemaVersion < 3 {
+			return fmt.Errorf("%s: schemaVersion 2 rows must remain unverified", label)
+		}
+	case "unsupported":
+		return fmt.Errorf("%s: unsupported requires a versioned OS support policy, which does not exist yet", label)
+	default:
+		return fmt.Errorf("%s has unknown grade %q", label, evidence.Grade)
 	}
-	if osMatrixRFC1918.Match(raw) {
-		return fmt.Errorf("matrix input contains RFC1918 addresses")
+	if evidence.Grade == "supported" && len(evidence.ReasonCodes) > 0 {
+		return fmt.Errorf("%s: a supported row carries no reason code", label)
 	}
-	if osMatrixInfraText.Match(raw) {
-		return fmt.Errorf("matrix input contains infrastructure/runtime terminology")
+	if evidence.Grade != "supported" && len(evidence.ReasonCodes) == 0 {
+		return fmt.Errorf("%s requires a closed reason code", label)
+	}
+	seen := map[string]struct{}{}
+	for _, code := range evidence.ReasonCodes {
+		if _, known := osMatrixReasonLabels[code]; !known {
+			return fmt.Errorf("%s has unknown public reason code %q", label, code)
+		}
+		if _, exists := seen[code]; exists {
+			return fmt.Errorf("%s duplicates public reason code %q", label, code)
+		}
+		seen[code] = struct{}{}
+	}
+	for _, phase := range evidence.VerifiedPhases {
+		if !osMatrixPhase.MatchString(phase) {
+			return fmt.Errorf("%s has unknown lifecycle phase %q", label, phase)
+		}
+	}
+	if evidence.LastVerifiedRelease != "" && !osMatrixRelease.MatchString(evidence.LastVerifiedRelease) {
+		return fmt.Errorf("%s has an invalid lastVerifiedRelease %q", label, evidence.LastVerifiedRelease)
 	}
 	return nil
 }
@@ -178,42 +306,81 @@ func osMatrixRowKey(row osMatrixDocRow) string {
 }
 
 func osMatrixReason(code string) string {
-	switch code {
-	case "current-candidate-receipt-pending":
-		return "Current candidate HostConformanceReceipt pending"
-	case "os-policy-not-yet-admitted":
-		return "OS policy not yet admitted"
-	default:
-		return code
+	if label, ok := osMatrixReasonLabels[code]; ok {
+		return label
 	}
+	return code
+}
+
+func osMatrixEvidenceCells(evidence osMatrixEvidence) (string, string) {
+	reasons := make([]string, 0, len(evidence.ReasonCodes))
+	for _, code := range evidence.ReasonCodes {
+		reasons = append(reasons, osMatrixReason(code))
+	}
+	note := strings.Join(reasons, "; ")
+	if evidence.Grade == "supported" {
+		note = "All lifecycle phases passed"
+	}
+	last := "—"
+	if evidence.LastVerifiedRelease != "" {
+		last = "`" + evidence.LastVerifiedRelease + "`"
+	}
+	return note, last
 }
 
 func renderOSMatrixMarkdown(matrix osMatrixDoc, sourceHash string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "<!-- Code generated by 'stackkit compat emit-os-matrix'. DO NOT EDIT. source_hash: %s -->\n\n", sourceHash)
 	b.WriteString("# OS Compatibility\n\n")
-	b.WriteString("This is the public OS-only StackKits support projection. Future positive rows will\n")
-	b.WriteString("be derived from versioned support policy and current `HostConformanceReceipt` evidence; host,\n")
-	b.WriteString("runtime, provider, device, and virtualization diagnostics are not support dimensions.\n\n")
-	fmt.Fprintf(&b, "- StackKits version: `%s`\n- Generated: %s\n\n", matrix.StackKitsVersion, matrix.GeneratedAt)
-	b.WriteString("Positive grades remain disabled until the controlled receipt projector exists.\n\n")
-	b.WriteString("| OS family | Distribution | Version | Grade | Reason |\n")
-	b.WriteString("| --- | --- | --- | :-: | --- |\n")
+	b.WriteString("Where the StackKits lifecycle was tested for the current public release. Every row is projected from\n")
+	b.WriteString("automated lifecycle receipts (install, init, generate, apply, verify, backup, restore) bound to the\n")
+	b.WriteString("exact release; missing evidence is `unverified`, never an implied pass.\n\n")
+	fmt.Fprintf(&b, "- StackKits release: `%s`\n- Last observed: %s\n\n", matrix.StackKitsVersion, matrix.GeneratedAt)
+	b.WriteString("Grades: `supported` = every lifecycle phase passed on this release; `preview` = install through verify\n")
+	b.WriteString("passed, a later phase did not; `unverified` = no passing receipt for this release.\n\n")
+
+	b.WriteString("## Operating systems\n\n")
+	b.WriteString("The lifecycle runs install each operating system fresh in a KVM/QEMU virtual machine.\n\n")
+	b.WriteString("| OS family | Distribution | Version | Tested architecture | Grade | Evidence | Last verified |\n")
+	b.WriteString("| --- | --- | --- | --- | :-: | --- | --- |\n")
 	for _, row := range matrix.Results {
-		reasons := make([]string, 0, len(row.ReasonCodes))
-		for _, code := range row.ReasonCodes {
-			reasons = append(reasons, osMatrixReason(code))
+		note, last := osMatrixEvidenceCells(row.osMatrixEvidence)
+		arch := "—"
+		if len(row.Architectures) > 0 {
+			arch = strings.Join(row.Architectures, ", ")
 		}
-		fmt.Fprintf(&b, "| %s | %s | `%s` | **%s %s** | %s |\n", row.OS.Family, row.OS.Distribution, row.OS.Version, gradeGlyph(row.Grade), row.Grade, strings.Join(reasons, "; "))
+		fmt.Fprintf(&b, "| %s | %s | `%s` | %s | **%s %s** | %s | %s |\n", row.OS.Family, row.OS.Distribution, row.OS.Version, arch, gradeGlyph(row.Grade), row.Grade, note, last)
 	}
+
+	if len(matrix.Virtualization) > 0 {
+		b.WriteString("\n## Hypervisors\n\n")
+		b.WriteString("StackKits run inside a guest VM on your hypervisor, never on the hypervisor host itself. The grade\n")
+		b.WriteString("covers that rollout end to end: the guest is created on the hypervisor and the StackKit lifecycle\n")
+		b.WriteString("runs inside it.\n\n")
+		b.WriteString("| Hypervisor | How the guest is created | Grade | Evidence | Last verified |\n")
+		b.WriteString("| --- | --- | :-: | --- | --- |\n")
+		for _, row := range matrix.Virtualization {
+			note, last := osMatrixEvidenceCells(row.osMatrixEvidence)
+			fmt.Fprintf(&b, "| %s | %s | **%s %s** | %s | %s |\n", row.Name, row.Rollout, gradeGlyph(row.Grade), row.Grade, note, last)
+		}
+	}
+
+	if len(matrix.Applications) > 0 {
+		b.WriteString("\n## Applications\n\n")
+		b.WriteString("Use cases installed and set up during the lifecycle run, with backup and restore of their data.\n\n")
+		b.WriteString("| Use case | Adapter | Grade | Evidence | Last verified |\n")
+		b.WriteString("| --- | --- | :-: | --- | --- |\n")
+		for _, row := range matrix.Applications {
+			note, last := osMatrixEvidenceCells(row.osMatrixEvidence)
+			fmt.Fprintf(&b, "| `%s` | `%s` | **%s %s** | %s | %s |\n", row.UseCase, row.Adapter, gradeGlyph(row.Grade), row.Grade, note, last)
+		}
+	}
+
 	b.WriteString("\n## Authority boundary\n\n")
-	b.WriteString("Missing evidence is `unverified`, never an inferred pass and never a pre-beta release gate.\n")
-	b.WriteString("Positive grades will require a future projector that validates complete CUE receipts,\n")
-	b.WriteString("candidate identity, content hashes, observation windows, and protected producer provenance.\n")
-	b.WriteString("Development diagnostics may exercise containers or controlled hosts, but cannot update this\n")
-	b.WriteString("public support surface. Provider allocation, execution, leases, and cleanup belong to TechStack.\n\n")
-	b.WriteString("Run `stackkit compat` for non-destructive host diagnostics. A clean diagnostic report does\n")
-	b.WriteString("not create an OS support claim.\n")
+	b.WriteString("The only writer of this data is the receipt projector (`scripts/compat/project-os-compat.mjs`) through\n")
+	b.WriteString("an auto-PR. Rows never name a server provider, and host diagnostics never create a claim.\n\n")
+	b.WriteString("Run `stackkit compat` on a target for non-destructive host diagnostics and the published evidence\n")
+	b.WriteString("for its OS and hypervisor.\n")
 	return b.String()
 }
 
@@ -253,7 +420,7 @@ func renderOSMatrixFeed(latest osMatrixDoc, archiveDir string) ([]byte, error) {
 		SchemaVersion int                    `json:"schemaVersion"`
 		Latest        osMatrixDoc            `json:"latest"`
 		History       []osMatrixHistoryEntry `json:"history"`
-	}{SchemaVersion: 2, Latest: latest, History: history}
+	}{SchemaVersion: 3, Latest: latest, History: history}
 	out, err := json.MarshalIndent(feed, "", "  ")
 	if err != nil {
 		return nil, err

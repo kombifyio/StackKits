@@ -322,6 +322,26 @@ func validateArchitectureV2InitFlags(cmd *cobra.Command) error {
 	if apiVersion == stackspecmigration.APIVersionV2Alpha1 && len(initModuleComputeProfiles)+len(initModuleStorageProfiles)+len(initModuleAcceleratorProfiles)+len(initUseCaseAlternatives) > 0 {
 		return fmt.Errorf("module profiles and explicit alternatives require --api-version stackkit/v2alpha2")
 	}
+	unsupported := architectureV2RefusedInitFlags(cmd)
+	if len(unsupported) == 0 {
+		source := strings.TrimSpace(initOwnerSource)
+		if source != "" && source != "local" {
+			return fmt.Errorf("native Architecture v2 standalone init accepts only --owner-source=local")
+		}
+		if source == "" && (strings.TrimSpace(initOwnerEmail) != "" || strings.TrimSpace(initOwnerUsername) != "" || strings.TrimSpace(initOwnerDisplayName) != "") {
+			return fmt.Errorf("--owner-email, --owner-username, and --owner-display-name require --owner-source=local")
+		}
+		return nil
+	}
+	return fmt.Errorf(
+		"native Architecture v2 init does not accept legacy topology, host, identity, service, or output overrides: %s; the selected KitDefinition owns topology and generation output, observed host facts belong in Inventory, and identity is a separate handoff",
+		strings.Join(unsupported, ", "),
+	)
+}
+
+// architectureV2RefusedInitFlags lists the exact-v0.6 init flags that native
+// Architecture v2 init refuses; their help text marks them as v0.6 compatibility only.
+func architectureV2RefusedInitFlags(cmd *cobra.Command) []string {
 	unsupported := make([]string, 0, 12)
 	add := func(flag string, used bool) {
 		if used {
@@ -343,21 +363,8 @@ func validateArchitectureV2InitFlags(cmd *cobra.Command) error {
 	add("recovery-material-ref", strings.TrimSpace(initRecoveryMaterialRef) != "")
 	add("output", initOutputDir != "" && (initOutputDir != "deploy" || commandFlagChanged(cmd, "output")))
 	add("force", initForce)
-	if len(unsupported) == 0 {
-		source := strings.TrimSpace(initOwnerSource)
-		if source != "" && source != "local" {
-			return fmt.Errorf("native Architecture v2 standalone init accepts only --owner-source=local")
-		}
-		if source == "" && (strings.TrimSpace(initOwnerEmail) != "" || strings.TrimSpace(initOwnerUsername) != "" || strings.TrimSpace(initOwnerDisplayName) != "") {
-			return fmt.Errorf("--owner-email, --owner-username, and --owner-display-name require --owner-source=local")
-		}
-		return nil
-	}
 	sort.Strings(unsupported)
-	return fmt.Errorf(
-		"native Architecture v2 init does not accept legacy topology, host, identity, service, or output overrides: %s; the selected KitDefinition owns topology and generation output, observed host facts belong in Inventory, and identity is a separate handoff",
-		strings.Join(unsupported, ", "),
-	)
+	return unsupported
 }
 
 func commandFlagChanged(cmd *cobra.Command, name string) bool {

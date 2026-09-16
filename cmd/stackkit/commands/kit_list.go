@@ -28,6 +28,11 @@ Channels:
   stable  newest release that is not a prerelease
   beta    newest -beta.* prerelease
   edge    newest -edge.* prerelease`,
+	Example: `  # Show the newest stable release of every public StackKit for this OS and architecture
+  stackkit kit list
+
+  # Show beta prereleases as JSON
+  stackkit kit list --channel beta --json`,
 	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	RunE:        runKitList,
 }

@@ -22,13 +22,27 @@ func newServiceCommand() *cobra.Command {
 			noDeployObservabilityAnnotation: "true",
 		},
 	}
+	// Service keys come from the active plan: base, id (PocketID) and auth
+	// (TinyAuth) are critical and cannot be stopped; coolify can.
+	examples := map[string]string{
+		servicecontrol.ActionStart: `  # Start a stopped service again
+  stackkit service start coolify --owner-approve`,
+		servicecontrol.ActionStop: `  # Stop a non-critical service; base, id and auth cannot be stopped
+  stackkit service stop coolify --owner-approve`,
+		servicecontrol.ActionRestart: `  # Restart the PocketID identity service
+  stackkit service restart id --owner-approve
+
+  # Restart the TinyAuth login gateway and print the result as JSON
+  stackkit service restart auth --owner-approve --json`,
+	}
 	for _, action := range []string{servicecontrol.ActionStart, servicecontrol.ActionStop, servicecontrol.ActionRestart} {
 		action := action
 		var ownerApproved, outputJSON bool
 		subcommand := &cobra.Command{
-			Use:   action + " <service-key>",
-			Short: strings.ToUpper(action[:1]) + action[1:] + " one managed service",
-			Args:  cobra.ExactArgs(1),
+			Use:     action + " <service-key>",
+			Short:   strings.ToUpper(action[:1]) + action[1:] + " one managed service",
+			Example: examples[action],
+			Args:    cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return runServiceMutation(cmd, action, args[0], ownerApproved, outputJSON)
 			},
@@ -43,7 +57,15 @@ func newServiceCommand() *cobra.Command {
 	logs := &cobra.Command{
 		Use:   "logs <service-key>",
 		Short: "Read bounded, redacted service logs",
-		Args:  cobra.ExactArgs(1),
+		Example: `  # Read the last 50 redacted log entries of the TinyAuth login gateway
+  stackkit service logs auth --tail 50
+
+  # Read PocketID logs as JSON
+  stackkit service logs id --json
+
+  # Read the next page with the cursor the previous JSON result returned
+  stackkit service logs id --json --cursor <cursor>`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runServiceLogs(cmd, args[0], tail, cursor, outputJSON)
 		},

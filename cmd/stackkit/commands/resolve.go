@@ -40,11 +40,14 @@ The command is read-only unless --output is supplied. File output stays beneath
 the working directory and can replace only an existing valid ResolvedPlan;
 it shares the lifecycle mutation lock. StackSpec v1 is never
 silently upgraded or compiled: it returns the shared typed migration report and
-requires an explicit migration workflow.
-
-Examples:
+requires an explicit migration workflow.`,
+		Example: `  # Print the canonical ResolvedPlan for a StackSpec
   stackkit resolve --spec stack-spec.yaml
+
+  # Resolve against an observed Inventory
   stackkit resolve stack-spec.yaml --inventory inventory.yaml
+
+  # Replace the existing plan file beneath the working directory
   stackkit resolve stack-spec.yaml --output deploy/.stackkit/resolved-plan.json`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -43,12 +43,18 @@ cases), including their networks and volumes. It looks in the current
 directory, then ~/my-homelab or ~/my-cloud-homelab.
 
 --workload removes one exact Architecture v2 workload through its applied
-runtime owner. That path keeps application volumes unless --delete-data is set.
+runtime owner. That path keeps application volumes unless --delete-data is set.`,
+	Example: `  # Uninstall the whole local deployment after typing yes
+  stackkit remove
 
-Examples:
-  stackkit remove                 Uninstall with confirmation
-  stackkit remove --auto-approve  Uninstall without typing yes
-  stackkit remove --workload files --json`,
+  # Uninstall without the confirmation prompt
+  stackkit remove --auto-approve
+
+  # Remove only the Files workload and keep its data volumes
+  stackkit remove --workload files
+
+  # Remove the Photos workload, delete its data volumes, and print the result as JSON
+  stackkit remove --workload photos --delete-data --auto-approve --json`,
 	RunE: runRemove,
 }
 

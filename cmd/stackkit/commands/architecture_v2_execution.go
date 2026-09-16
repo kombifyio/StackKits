@@ -217,10 +217,8 @@ func admitCommandBeforeDeployObservability(cmd *cobra.Command) error {
 			return nil
 		}
 	}
-	for current := cmd; current != nil; current = current.Parent() {
-		if operation := strings.TrimSpace(current.Annotations[legacyV06BeforeObservabilityAnnotation]); operation != "" {
-			return requireLegacyV06Command(operation, "this command still depends on exact-v0.6 operational artifacts and has no governed Architecture v2 implementation")
-		}
+	if operation := legacyV06OnlyOperation(cmd); operation != "" {
+		return requireLegacyV06Command(operation, "this command still depends on exact-v0.6 operational artifacts and has no governed Architecture v2 implementation")
 	}
 	mode, native := map[*cobra.Command]architectureV2ExecutionMode{
 		generateCmd: architectureV2Generate,
@@ -250,6 +248,21 @@ func admitCommandBeforeDeployObservability(cmd *cobra.Command) error {
 		return fmt.Errorf("%s: required local StackSpec has unsupported version %q", mode, sourceVersion)
 	}
 	return nil
+}
+
+// legacyV06OnlyOperation names the exact-v0.6 operation a command depends on,
+// or "" when root admission lets the command run on the native v2 line. The
+// generated CLI reference uses the same rule to label refused commands.
+func legacyV06OnlyOperation(cmd *cobra.Command) string {
+	if cmd == nil || commandDisablesDeployObservability(cmd) {
+		return ""
+	}
+	for current := cmd; current != nil; current = current.Parent() {
+		if operation := strings.TrimSpace(current.Annotations[legacyV06BeforeObservabilityAnnotation]); operation != "" {
+			return operation
+		}
+	}
+	return ""
 }
 
 // requireNativeV2StackSpec prevents native-line commands from interpreting a

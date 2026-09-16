@@ -23,11 +23,14 @@ transactionally beneath the plan-owned outputRoot.
 
 StackSpec v1 generation is retired. Use a published exact-v0.6 binary for a
 historical workspace or migrate the intent to StackSpec v2 before generating.
-Legacy --force and --fragments switches are rejected by the native v2 path.
-
-Examples:
+Legacy --force and --fragments switches are rejected by the native v2 path.`,
+	Example: `  # Resolve the plan and render deployment artifacts into deploy/
   stackkit generate
+
+  # Render into an explicit output root
   stackkit generate --output ./deploy
+
+  # Name the Site and node this process owns
   stackkit generate --local-node main --local-site home`,
 	RunE: runGenerate,
 }

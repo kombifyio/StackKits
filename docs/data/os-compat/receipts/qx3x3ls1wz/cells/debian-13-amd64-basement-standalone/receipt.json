@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "techstack.depot-vm-run/v1",
+  "attemptId": "4d3d9755-e3cb-4029-b757-89f651413dd2",
+  "runnerSha256": "8016c91ed3260add2d1ef132caed9060d0baadd23c8fc8cdb7511dce63d1914f",
+  "evidenceScope": "declared-guest-phases-only",
+  "publicSupportGrade": "unverified",
+  "cell": "debian-13-amd64-basement-standalone",
+  "status": "failed",
+  "phases": [
+    {
+      "name": "install",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "install.json",
+      "durationSeconds": 12.195
+    },
+    {
+      "name": "init",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "init.json",
+      "durationSeconds": 3.584
+    },
+    {
+      "name": "generate",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "generate.json",
+      "durationSeconds": 12.249
+    },
+    {
+      "name": "apply",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "apply.json",
+      "durationSeconds": 56.16
+    },
+    {
+      "name": "verify",
+      "status": "passed",
+      "exitCode": 0,
+      "evidence": "verify.json",
+      "durationSeconds": 8.291
+    },
+    {
+      "name": "backup",
+      "status": "failed",
+      "exitCode": 1,
+      "evidence": "backup.json",
+      "durationSeconds": 19.012
+    }
+  ],
+  "startedAt": "2026-09-16T03:17:58.668146+00:00",
+  "cleanup": {
+    "status": "passed",
+    "processAbsent": true,
+    "privateDirectoryAbsent": true
+  },
+  "producerCommit": "b0f0f335e72bfd2a00ec1ea986c4a499a034864c",
+  "configSha256": "24b8ece74c3d38d7452b60652b906ea633195f28bab3f68fac937dd5557dd254",
+  "imageSha256": "85a969b7e99d7c817414136033df18c58d5c45ac8d27bb36e8ccb67173d2d4e3",
+  "substrate": "qemu-kvm",
+  "arch": "amd64",
+  "guestKind": "linux",
+  "runnerSystem": "Linux",
+  "runnerMachine": "x86_64",
+  "guestScriptSha256": "c94ff21b8cd2f9f2b226de9dcf718939311ecf71e7678b23879202ebf37e56bd",
+  "guestHostKeySha256": "449846ed44b12650291d897dae09a093af9db380f0f75c1c999a4fb72b1fd051",
+  "qemuStarted": true,
+  "failure": "command_failed",
+  "durationSeconds": 129.002,
+  "finishedAt": "2026-09-16T03:20:07.669971+00:00"
+}

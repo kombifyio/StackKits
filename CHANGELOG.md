@@ -4,6 +4,37 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.33.0](https://github.com/kombifyio/stackKits/compare/47e8bbe21ceb53e9207bc2d04dd2170e1678d768...dcaa48b6a56975b39a4071ced0439413872c2e6d) (2026-09-16)
+
+### Highlights
+
+* **Every command documented:** `stackkit <command> --help` now shows examples, and [stackkit.cc/cli](https://stackkit.cc/cli) and the docs list every command with its flags, defaults and examples, generated from the command tree. Flags that only the v0.6 compatibility line accepts are marked as such.
+* **Compatibility from real lifecycle runs:** the compatibility page is projected from automated install-to-restore runs bound to the release, for operating systems, applications and hypervisors. Hypervisors are rollout targets where the StackKit runs in a guest VM; Proxmox VE is the first, and its automated lane is not in place yet.
+* **Safer installers:** the installer checks the downloaded archive against the release checksums, keeps dual-stack home servers on the Basement Kit, sets an existing StackSpec aside instead of failing when you install again, and stops on a Proxmox VE host with directions to install inside a guest VM.
+
+
+### Added
+
+* **cli:** generated CLI reference with examples, drift check and stackkit.cc/cli page
+* **compat:** hypervisor rows are rollout targets, Proxmox VE first; installers stop on a hypervisor host
+* **compat:** project Depot lifecycle receipts into OS, hypervisor and application compatibility
+* **public:** installer checksum verification, mirror contribution truth, support and Open Spec
+
+
+### Fixed
+
+* **cli:** mark v0.6-only init flags and keep secret-store names out of help
+* **install:** keep dual-stack home servers on Basement Kit
+* **install:** make Cloud resume install-only with automatic host prepare
+* **install:** recognize native v2 workspaces and keep the previous StackSpec on re-init
+* **public:** supported vocabulary on the website and no internal residue in the public tree
+* **release:** strip private issue and commit links from public release text
+* **website:** public-beta hygiene for stackkit.cc
+* **website:** publish installers with inlined host bootstrap
+* **website:** vendor logos, release-line highlights, brand logo and layout overlaps
+
+Notes cover changes after VERSION 0.32.0 (47e8bbe21ceb53e9207bc2d04dd2170e1678d768), the earliest available contiguous 0.32.x VERSION anchor, through selected source dcaa48b6a56975b39a4071ced0439413872c2e6d.
+
 ## [0.32.1](https://github.com/kombifyio/stackKits/compare/v0.32.0...v0.32.1) (2026-09-15)
 
 
@@ -13,6 +44,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **website:** publish installers with inlined host bootstrap
 
 ## [0.32.0](https://github.com/kombifyio/stackKits/compare/3f4304864dc437ce91d217502a82574a6147e5eb...927346795e896aebecf57a9a0f3b49433a6cca69) (2026-09-15)
+
+### Highlights
+
+* **One installer for every host:** `curl -sSL https://install.stackkit.cc | sh` detects whether the server sits on a home network or is a public VPS and continues with the Basement Kit or the Cloud Kit. Opening the other kit's installer URL switches to the matching kit instead of stopping.
+* **Cloud Kit without your own domain:** Quick Install on a VPS uses kombify.me when no custom domain already points at the host and needs no API key. On password-only VPS images it mints a workspace-held SSH key for its execution channel before it disables root login, and an interrupted install resumes when you run the same one-liner again.
+* **Your owner account from the first run:** every interactive install asks for the owner email, suggests a login username, and lets you pick the use cases before `stackkit init`, so the PocketID login belongs to you instead of a placeholder account.
+* **One-command uninstall:** `stackkit remove --auto-approve` stops and deletes every StackKits Compose project with its networks and volumes, even without a local `stack-spec.yaml`.
 
 
 ### Added

@@ -54,13 +54,15 @@ The exact-v0.6 compatibility adapter retains its historical preparation flow.
 This command:
   1. Selects the versioned StackSpec execution path
   2. Checks host prerequisites on native Architecture v2
-  3. Retains historical target preparation through the exact-v0.6 compatibility adapter
+  3. Retains historical target preparation through the exact-v0.6 compatibility adapter`,
+	Example: `  # Check this host's prerequisites for the StackSpec in the current directory
+  stackkit prepare
 
-Examples:
-  stackkit prepare                      Inspect local native-v2 host prerequisites
-  stackkit prepare --spec ./spec.yaml   Inspect prerequisites for this StackSpec
-  stackkit prepare --host 192.168.1.100 Prepare an exact-v0.6 remote target
-  stackkit prepare --dry-run            Show what would be done`,
+  # Check the prerequisites for the deployment in another directory
+  stackkit prepare -C my-homelab
+
+  # Emit the host preflight report as JSON
+  stackkit prepare --json`,
 	RunE: runPrepare,
 }
 

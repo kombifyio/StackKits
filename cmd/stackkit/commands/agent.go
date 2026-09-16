@@ -114,6 +114,11 @@ var agentCmd = &cobra.Command{
 var agentInstallPlanCmd = &cobra.Command{
 	Use:   "install-plan",
 	Short: "Print a non-interactive StackKits install plan",
+	Example: `  # Print the install steps for a Basement Kit workspace named my-homelab
+  stackkit agent install-plan
+
+  # A Cloud Kit plan for an agent working over SSH, as JSON
+  stackkit agent install-plan --kit cloud-kit --target ssh --dir my-cloud --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		plan := buildAgentInstallPlan(agentKit, agentTarget, agentWorkspace)
 		if agentInstallPlanJSON {
@@ -142,6 +147,11 @@ var agentInstallPlanCmd = &cobra.Command{
 var agentSelfCheckCmd = &cobra.Command{
 	Use:   "self-check",
 	Short: "Check local agent-facing StackKits prerequisites",
+	Example: `  # Check that stackkit, stackkit-server, and stackkit-mcp are on PATH
+  stackkit agent self-check
+
+  # The same checks as JSON
+  stackkit agent self-check --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		checks := buildAgentSelfChecks(agentServerURL)
 		if agentSelfCheckJSON {
@@ -161,6 +171,11 @@ var agentSelfCheckCmd = &cobra.Command{
 var agentPromptCmd = &cobra.Command{
 	Use:   "prompt [scenario]",
 	Short: "Print a copy-ready StackKits agent prompt",
+	Example: `  # List the available prompt scenarios
+  stackkit agent prompt --list
+
+  # Print the prompt for diagnosing a failed rollout
+  stackkit agent prompt diagnose-failed-rollout`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if agentPromptList {
 			return nil
@@ -204,6 +219,11 @@ var agentMCPConfigCmd = &cobra.Command{
 For users this is one StackKits MCP connection. Locally it starts the
 stackkit-mcp adapter; after install the same connector can also be reached as
 stackkit-server /mcp when a protected endpoint is explicitly enabled.`,
+	Example: `  # Print the connection as Claude mcpServers JSON
+  stackkit agent mcp-config --client claude
+
+  # Print the Codex config.toml block
+  stackkit agent mcp-config --client codex`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		mode := normalizeAgentMode(agentMode)
 		serverURL := strings.TrimSpace(agentServerURL)

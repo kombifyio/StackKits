@@ -52,6 +52,11 @@ Then follow the RESTORE INSTRUCTIONS section inside the decrypted YAML.`,
 var breakGlassListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List break-glass bundles on this host",
+	Example: `  # List the encrypted recovery bundles in /var/lib/stackkit/recovery
+  stackkit break-glass list
+
+  # List bundles copied to another directory
+  stackkit break-glass list --dir ./recovery-copy`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dir := breakGlassDirOrDefault()
 		entries, err := os.ReadDir(dir)
@@ -95,7 +100,9 @@ var breakGlassListCmd = &cobra.Command{
 var breakGlassShowBundleCmd = &cobra.Command{
 	Use:   "show-bundle <node>",
 	Short: "Print the path to a node's encrypted bundle",
-	Args:  cobra.ExactArgs(1),
+	Example: `  # Print the bundle path of a node that stackkit break-glass list showed
+  stackkit break-glass show-bundle <node>`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		node := args[0]
 		// Reject anything that could traverse out of the bundle dir or

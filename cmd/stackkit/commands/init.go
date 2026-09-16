@@ -74,11 +74,10 @@ var initCmd = &cobra.Command{
 This saves your choices; it does not install services or change the host.
 The standalone local path works without a kombify account or Techstack.
 
-Start with the selected Kit's catalog defaults:
-  stackkit init basement-kit --catalog-defaults --owner-source=local
-
-Add a workload declared by the Kit:
-  stackkit init basement-kit --catalog-defaults --owner-source=local --use-case photos
+Start with the selected Kit's catalog defaults. --owner-source=local keeps the
+owner on this machine and needs --owner-email for the local PocketID owner.
+Cloud Kit uses a kombify.me address unless --domain names a domain that
+already points at this host.
 
 Review the saved configuration before generating or applying it. Defaults
 are recorded as explicit intent and validated by the Kit's CUE contract.
@@ -90,6 +89,22 @@ instead of --catalog-defaults. These selections come from the chosen Kit.
 Native authoring uses stackkit/v2alpha2; --api-version stackkit/v2alpha1
 selects the explicit legacy graph adapter. Flags marked v0.6 compatibility
 are accepted only by an explicitly versioned v0.6 binary.`,
+	Example: `  # Basement Kit for a home server, with the Kit's catalog defaults
+  mkdir my-homelab && cd my-homelab
+  stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com
+
+  # Basement Kit with the optional Photos and Files use cases
+  stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com --use-case photos,files
+
+  # Cloud Kit for a public VPS on a kombify.me address
+  mkdir my-cloud && cd my-cloud
+  stackkit init cloud-kit --catalog-defaults --owner-source=local --owner-email you@example.com
+
+  # Cloud Kit on your own domain, without prompts (for scripts)
+  stackkit init cloud-kit --catalog-defaults --owner-source=local --owner-email you@example.com --domain example.com --non-interactive
+
+  # Pick the core alternative and module profile explicitly instead of catalog defaults
+  stackkit init basement-kit --owner-source=local --owner-email you@example.com --use-case-alternative basement-core=standalone --module-compute-profile stackkits-basement-core-runtime=standard`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runInit,
 }
@@ -127,12 +142,12 @@ func init() {
 	initCmd.Flags().StringVar(&initOwnerEmail, "owner-email", "", "Desired PocketID owner email for --owner-source=local")
 	initCmd.Flags().StringVar(&initOwnerUsername, "owner-username", "", "Desired PocketID owner username for --owner-source=local")
 	initCmd.Flags().StringVar(&initOwnerDisplayName, "owner-display-name", "", "Desired PocketID owner display name for --owner-source=local")
-	initCmd.Flags().StringVar(&initCloudOIDCIssuer, "cloud-oidc-issuer", "", "Cloud OIDC issuer URL for auto/cloud owner handoff")
-	initCmd.Flags().StringVar(&initCloudOIDCClientID, "cloud-oidc-client-id", "", "Cloud OIDC client ID")
-	initCmd.Flags().StringVar(&initCloudOIDCSecretRef, "cloud-oidc-client-secret-ref", "", "Cloud OIDC client secret reference (e.g. doppler:// or secret://)")
-	initCmd.Flags().StringVar(&initCloudOIDCForeignSubject, "cloud-oidc-foreign-subject", "", "Cloud user's foreign subject ID")
-	initCmd.Flags().StringVar(&initRecoveryPassphraseHash, "recovery-passphrase-hash", "", "Recovery passphrase hash (argon2id PHC). If missing, prompts interactively.")
-	initCmd.Flags().StringVar(&initRecoveryMaterialRef, "recovery-material-ref", "", "Reference to orchestrator-owned recovery material. Plaintext recovery passphrases are never accepted in stack specs.")
+	initCmd.Flags().StringVar(&initCloudOIDCIssuer, "cloud-oidc-issuer", "", "v0.6 compatibility only: Cloud OIDC issuer URL for auto/cloud owner handoff")
+	initCmd.Flags().StringVar(&initCloudOIDCClientID, "cloud-oidc-client-id", "", "v0.6 compatibility only: Cloud OIDC client ID")
+	initCmd.Flags().StringVar(&initCloudOIDCSecretRef, "cloud-oidc-client-secret-ref", "", "v0.6 compatibility only: Cloud OIDC client secret reference (e.g. secret://)")
+	initCmd.Flags().StringVar(&initCloudOIDCForeignSubject, "cloud-oidc-foreign-subject", "", "v0.6 compatibility only: Cloud user's foreign subject ID")
+	initCmd.Flags().StringVar(&initRecoveryPassphraseHash, "recovery-passphrase-hash", "", "v0.6 compatibility only: recovery passphrase hash (argon2id PHC); prompts when missing")
+	initCmd.Flags().StringVar(&initRecoveryMaterialRef, "recovery-material-ref", "", "v0.6 compatibility only: reference to orchestrator-owned recovery material; plaintext recovery passphrases are never accepted in stack specs")
 }
 
 // selectStackKit prompts the user to pick a StackKit or returns the one
