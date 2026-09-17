@@ -113,7 +113,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "point", nested: "point", flat: "point"}
-		dashboard: {icon: "&#127760;", order: 35, section: "Platform", badge: "L1 \\u00b7 DNS", enableVar: "enable_kombify_point", guideUrl: "https://docs.kombify.io/guides/stackkits/services/kombify-point"}
+		dashboard: {icon: "&#127760;", order: 35, section: "Platform", badge: "L1 \\u00b7 DNS", enableVar: "enable_kombify_point", guideUrl: "https://docs.kombify.io/stackkits/apps/kombify-point"}
 
 		output: {
 			url:         "http://point.{{.domain}}/health"

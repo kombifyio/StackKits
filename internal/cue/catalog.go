@@ -169,28 +169,28 @@ func fallbackCatalogEntries() []CatalogEntry {
 			DisplayName: "Coolify",
 			Description: "Self-hosted Heroku/Vercel alternative with Git deployment and auto-HTTPS.",
 			Icon:        "&#128171;", Badge: "L2 \u00b7 PaaS", Section: "Platform", Order: 42,
-			EnableVar: "enable_coolify", GuideURL: "https://docs.kombify.io/guides/stackkits/services/coolify",
+			EnableVar: "enable_coolify", GuideURL: "https://docs.kombify.io/stackkits/apps/coolify",
 		},
 		{
 			Key: "komodo", Nested: "komodo", Flat: "komodo",
 			DisplayName: "Komodo",
 			Description: "Programmable self-hosted PaaS for Compose stack deployment through API keys.",
 			Icon:        "&#9881;", Badge: "L2 \u00b7 PaaS", Section: "Platform", Order: 41,
-			EnableVar: "enable_komodo", GuideURL: "https://docs.kombify.io/guides/stackkits/services/komodo",
+			EnableVar: "enable_komodo", GuideURL: "https://docs.kombify.io/stackkits/apps/komodo",
 		},
 		{
 			Key: "dockge", Nested: "dockge", Flat: "dockge",
 			DisplayName: "Dockge",
 			Description: "Lightweight Docker Compose manager. Create and manage compose stacks with a simple UI.",
 			Icon:        "&#128230;", Badge: "L2 \u00b7 Compose Manager", Section: "Platform", Order: 43,
-			EnableVar: "enable_dockge", GuideURL: "https://docs.kombify.io/guides/stackkits/services/dockge",
+			EnableVar: "enable_dockge", GuideURL: "https://docs.kombify.io/stackkits/apps/overview",
 		},
 		{
 			Key: "point", Nested: "point", Flat: "point",
 			DisplayName: "kombify Point DNS",
 			Description: "Local LAN DNS resolver for readable home service names.",
 			Icon:        "&#127760;", Badge: "L1 \u00b7 DNS", Section: "Platform", Order: 35,
-			EnableVar: "enable_kombify_point", GuideURL: "https://docs.kombify.io/guides/stackkits/services/kombify-point",
+			EnableVar: "enable_kombify_point", GuideURL: "https://docs.kombify.io/stackkits/apps/kombify-point",
 		},
 	}
 }

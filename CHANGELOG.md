@@ -4,6 +4,19 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.36.0] (2026-09-17)
+
+
+### Added
+
+* **compat:** list Ubuntu 26.04 LTS as an OS compatibility target
+
+
+### Fixed
+
+* **docs:** link services and use cases to canonical docs pages
+* **website:** FAQ recipe refresh and plain-text entity decoding
+
 ## [0.35.0] (2026-09-17)
 
 

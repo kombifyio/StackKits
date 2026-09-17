@@ -151,7 +151,7 @@ Contract: foundation.#ModuleContract & {
 				section:   "Platform"
 				badge:     "L3 \u00b7 Start"
 				enableVar: "enable_homepage"
-				guideUrl:  "https://docs.kombify.io/guides/stackkits/services/homepage"
+				guideUrl:  "https://docs.kombify.io/stackkits/apps/homepage"
 			}
 
 			output: {

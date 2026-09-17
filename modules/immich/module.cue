@@ -170,7 +170,7 @@ Contract: foundation.#ModuleContract & {
 			}
 
 			subdomain: {key: "photos", nested: "photos", flat: "photos"}
-			dashboard: {icon: "&#128247;", order: 50, section: "Applications", badge: "L3 \u00b7 Photos", enableVar: "enable_immich", guideUrl: "https://docs.kombify.io/guides/stackkits/services/immich"}
+			dashboard: {icon: "&#128247;", order: 50, section: "Applications", badge: "L3 \u00b7 Photos", enableVar: "enable_immich", guideUrl: "https://docs.kombify.io/stackkits/apps/immich"}
 
 			output: {
 				url:         "https://photos.{{.domain}}"

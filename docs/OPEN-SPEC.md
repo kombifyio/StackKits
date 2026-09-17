@@ -77,9 +77,12 @@ Vocabulary:
 - Kits: `supported` (a cited verification path exists for the committed
   cell), `preview` (installs, but verification or recovery evidence is
   pending), `alpha` (definition only).
-- Operating systems: `unverified` (no valid receipt for this release) or
-  `unsupported` (policy). Absence of evidence is published as `unverified`,
-  never as support.
+- Compatibility rows (operating systems, hypervisors, kits by environment,
+  applications): `supported` (every lifecycle phase passed in the newest run
+  on the evidence release), `preview` (install through verify passed; a later
+  phase failed) or `unverified` (no completed run on that release yet, or the
+  newest run failed before verify). Absence of evidence is published as
+  `unverified`, never as support.
 - A status widens only when a cited run exists for the exact release.
 
 ## 5. Conformance

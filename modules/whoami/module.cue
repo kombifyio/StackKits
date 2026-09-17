@@ -112,7 +112,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "whoami", nested: "whoami", flat: "whoami"}
-		dashboard: {icon: "&#129302;", order: 20, section: "Platform", badge: "L2 \u00b7 Routing test", enableVar: "enable_whoami", guideUrl: "https://docs.kombify.io/guides/stackkits/services/whoami"}
+		dashboard: {icon: "&#129302;", order: 20, section: "Platform", badge: "L2 \u00b7 Routing test", enableVar: "enable_whoami", guideUrl: "https://docs.kombify.io/stackkits/apps/whoami"}
 
 		output: {
 			url:         "https://whoami.{{.domain}}"

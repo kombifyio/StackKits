@@ -178,7 +178,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "id", nested: "id", flat: "id"}
-		dashboard: {icon: "&#128100;", order: 10, section: "Platform", badge: "L1 \u00b7 IdP", guideUrl: "https://docs.kombify.io/guides/stackkits/services/pocketid"}
+		dashboard: {icon: "&#128100;", order: 10, section: "Platform", badge: "L1 \u00b7 IdP", guideUrl: "https://docs.kombify.io/stackkits/apps/pocketid"}
 
 		output: {
 			url:         "https://id.{{.domain}}"

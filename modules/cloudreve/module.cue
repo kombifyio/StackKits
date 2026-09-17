@@ -151,7 +151,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "files", nested: "files", flat: "files"}
-		dashboard: {icon: "&#128193;", order: 60, section: "Applications", badge: "L3 \u00b7 Files", enableVar: "enable_files", guideUrl: "https://docs.kombify.io/guides/stackkits/services/files"}
+		dashboard: {icon: "&#128193;", order: 60, section: "Applications", badge: "L3 \u00b7 Files", enableVar: "enable_files", guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/files"}
 
 		output: {
 			url:         "https://files.{{.domain}}"

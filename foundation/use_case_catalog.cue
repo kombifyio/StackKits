@@ -177,7 +177,7 @@ UseCaseCatalog: #UseCaseCatalog & {
 			components: {
 				immich: {id: "immich", name: "Immich", role: "primary", kind: "application"}
 			}
-			docs: "/guides/stackkits/use-cases/family-photo-vault"
+			docs: "/guides/stackkits/use-cases/photos"
 			settings: [
 				{
 					id:          "machine-learning"
@@ -211,6 +211,7 @@ UseCaseCatalog: #UseCaseCatalog & {
 			description: "Private media library and streaming intent for household media collections."
 			owner:       "stackkits"
 			components: jellyfin: {id: "jellyfin", name: "Jellyfin", role: "primary", kind: "application"}
+			docs: "/guides/stackkits/use-cases/media"
 			settings: [
 				{
 					id:    "hardware-transcoding"
@@ -249,6 +250,7 @@ UseCaseCatalog: #UseCaseCatalog & {
 			description: "Private password and secure-note vault with owner-controlled lifecycle and recovery."
 			owner:       "stackkits"
 			components: vaultwarden: {id: "vaultwarden", name: "Vaultwarden", role: "primary", kind: "application"}
+			docs: "/guides/stackkits/use-cases/passwords"
 			settings: [
 				{
 					id:          "open-signups"
@@ -271,7 +273,7 @@ UseCaseCatalog: #UseCaseCatalog & {
 				cloudreve: {id: "cloudreve", name: "Cloudreve", role: "primary", kind: "application"}
 				nextcloud: {id: "nextcloud", name: "Nextcloud", role: "alternative", kind: "application"}
 			}
-			docs: "/guides/stackkits/use-cases/private-file-library"
+			docs: "/guides/stackkits/use-cases/files"
 			settings: [
 				{
 					id:    "library-volume"
@@ -298,6 +300,7 @@ UseCaseCatalog: #UseCaseCatalog & {
 				ollama: {id: "ollama", name: "Ollama", role: "primary", kind: "application"}
 				"open-webui": {id: "open-webui", name: "Open WebUI", role: "supporting", kind: "application"}
 			}
+			docs: "/guides/stackkits/use-cases/personal-ai"
 			settings: [
 				{
 					id:    "accelerator"
@@ -337,6 +340,7 @@ UseCaseCatalog: #UseCaseCatalog & {
 			description: "Private source control, developer collaboration, and delivery-platform intent."
 			owner:       "stackkits"
 			components: gitea: {id: "gitea", name: "Gitea", role: "primary", kind: "application"}
+			docs: "/guides/stackkits/use-cases/development"
 			settings: [
 				{
 					id:          "ci-runners"

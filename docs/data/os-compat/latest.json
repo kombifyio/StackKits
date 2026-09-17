@@ -1,8 +1,30 @@
 {
   "schemaVersion": 3,
-  "stackkitsVersion": "v0.33.3",
-  "generatedAt": "2026-09-16T21:03:18Z",
+  "stackkitsVersion": "v0.35.0",
+  "generatedAt": "2026-09-17T09:58:20Z",
   "results": [
+    {
+      "os": {
+        "family": "linux",
+        "distribution": "ubuntu",
+        "version": "26.04"
+      },
+      "architectures": [
+        "amd64"
+      ],
+      "grade": "supported",
+      "reasonCodes": [],
+      "verifiedPhases": [
+        "install",
+        "init",
+        "generate",
+        "apply",
+        "verify",
+        "backup",
+        "restore"
+      ],
+      "lastVerifiedRelease": "v0.35.0"
+    },
     {
       "os": {
         "family": "linux",
@@ -23,7 +45,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.33.3"
+      "lastVerifiedRelease": "v0.35.0"
     },
     {
       "os": {
@@ -34,17 +56,18 @@
       "architectures": [
         "amd64"
       ],
-      "grade": "preview",
-      "reasonCodes": [
-        "backup-failed"
-      ],
+      "grade": "supported",
+      "reasonCodes": [],
       "verifiedPhases": [
         "install",
         "init",
         "generate",
         "apply",
-        "verify"
-      ]
+        "verify",
+        "backup",
+        "restore"
+      ],
+      "lastVerifiedRelease": "v0.35.0"
     },
     {
       "os": {
@@ -75,7 +98,7 @@
         "restore",
         "lan-access"
       ],
-      "lastVerifiedRelease": "v0.33.3"
+      "lastVerifiedRelease": "v0.35.0"
     }
   ],
   "applications": [
@@ -94,25 +117,38 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.33.3"
+      "lastVerifiedRelease": "v0.35.0"
     },
     {
       "useCase": "photos",
       "adapter": "standalone-compose",
       "grade": "unverified",
       "reasonCodes": [
-        "current-release-receipt-pending"
+        "apply-failed"
       ],
-      "lastVerifiedRelease": "v0.32.1"
+      "verifiedPhases": [
+        "install",
+        "init",
+        "generate"
+      ],
+      "lastVerifiedRelease": "v0.33.3"
     },
     {
       "useCase": "vault",
       "adapter": "standalone-compose",
-      "grade": "unverified",
-      "reasonCodes": [
-        "current-release-receipt-pending"
+      "grade": "supported",
+      "reasonCodes": [],
+      "verifiedPhases": [
+        "install",
+        "init",
+        "generate",
+        "apply",
+        "setup-vault",
+        "verify",
+        "backup",
+        "restore"
       ],
-      "lastVerifiedRelease": "v0.33.2"
+      "lastVerifiedRelease": "v0.35.0"
     },
     {
       "useCase": "ai",
@@ -171,7 +207,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.33.3"
+      "lastVerifiedRelease": "v0.35.0"
     },
     {
       "kit": "basement-kit",
@@ -189,7 +225,7 @@
         "restore",
         "lan-access"
       ],
-      "lastVerifiedRelease": "v0.33.3"
+      "lastVerifiedRelease": "v0.35.0"
     },
     {
       "kit": "cloud-kit",

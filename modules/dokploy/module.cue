@@ -161,7 +161,7 @@ Contract: foundation.#ModuleContract & {
 			}
 
 			subdomain: {key: "dokploy", nested: "dokploy", flat: "dokploy"}
-			dashboard: {icon: "&#128640;", order: 40, section: "Platform", badge: "L2 \u00b7 PaaS", enableVar: "enable_dokploy", guideUrl: "https://docs.kombify.io/guides/stackkits/services/dokploy"}
+			dashboard: {icon: "&#128640;", order: 40, section: "Platform", badge: "L2 \u00b7 PaaS", enableVar: "enable_dokploy", guideUrl: "https://docs.kombify.io/stackkits/apps/overview"}
 
 			output: {
 				url:         "https://dokploy.{{.domain}}"

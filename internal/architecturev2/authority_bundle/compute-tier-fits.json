@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:ab0bac1e17cc5588be5bb47e46fd3124b8ae1166092e17b288ac5cdbe373b80f",
+  "contentDigest": "sha256:5bb221377510974486af4eef983f82fdbbc9f5da5c92f37e45925c1270b88dfc",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -59,6 +59,7 @@
         }
       },
       "description": "Private AI workloads, local model serving, and user-facing AI workbench intent.",
+      "docs": "/guides/stackkits/use-cases/personal-ai",
       "id": "ai",
       "settings": [
         {
@@ -168,6 +169,7 @@
         }
       },
       "description": "Private source control, developer collaboration, and delivery-platform intent.",
+      "docs": "/guides/stackkits/use-cases/development",
       "id": "dev",
       "settings": [
         {
@@ -307,7 +309,7 @@
         }
       },
       "description": "Private file storage, sharing, collaboration, and document-management workflows.",
-      "docs": "/guides/stackkits/use-cases/private-file-library",
+      "docs": "/guides/stackkits/use-cases/files",
       "id": "files",
       "settings": [
         {
@@ -450,6 +452,7 @@
         }
       },
       "description": "Private media library and streaming intent for household media collections.",
+      "docs": "/guides/stackkits/use-cases/media",
       "id": "media",
       "settings": [
         {
@@ -569,7 +572,7 @@
         }
       },
       "description": "Family photo and video vault with mobile backup, search, and shared memories.",
-      "docs": "/guides/stackkits/use-cases/family-photo-vault",
+      "docs": "/guides/stackkits/use-cases/photos",
       "id": "photos",
       "settings": [
         {
@@ -823,6 +826,7 @@
         }
       },
       "description": "Private password and secure-note vault with owner-controlled lifecycle and recovery.",
+      "docs": "/guides/stackkits/use-cases/passwords",
       "id": "vault",
       "settings": [
         {

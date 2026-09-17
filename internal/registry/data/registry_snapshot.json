@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-09-17T08:16:33Z",
+  "generated_at": "2026-09-17T15:37:34Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -334,7 +334,7 @@
       "section": "Platform",
       "order": 20,
       "enable_var": "enable_tinyauth",
-      "guide_url": "https://docs.kombify.io/guides/stackkits/services/tinyauth",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/tinyauth",
       "setup_policy": "automatic",
       "delivery": {},
       "default": true
@@ -382,7 +382,7 @@
       "section": "Platform",
       "order": 42,
       "enable_var": "enable_coolify",
-      "guide_url": "https://docs.kombify.io/guides/stackkits/services/coolify",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/coolify",
       "setup_policy": "automatic",
       "delivery": {},
       "default": false
@@ -404,7 +404,7 @@
       "section": "Platform",
       "order": 43,
       "enable_var": "enable_dockge",
-      "guide_url": "https://docs.kombify.io/guides/stackkits/services/dockge",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/overview",
       "setup_policy": "automatic",
       "delivery": {},
       "default": false
@@ -426,7 +426,7 @@
       "section": "Platform",
       "order": 40,
       "enable_var": "enable_dokploy",
-      "guide_url": "https://docs.kombify.io/guides/stackkits/services/dokploy",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/overview",
       "setup_policy": "automatic",
       "delivery": {},
       "default": false
@@ -452,7 +452,7 @@
       "section": "Applications",
       "order": 60,
       "enable_var": "enable_files",
-      "guide_url": "https://docs.kombify.io/guides/stackkits/services/files",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/files",
       "setup_policy": "on_demand",
       "setup_action_label": "Automatisierter Bootstrap",
       "delivery": {},
@@ -478,7 +478,7 @@
       "layer": "L2-platform",
       "section": "Platform",
       "enable_var": "enable_homepage",
-      "guide_url": "https://docs.kombify.io/guides/stackkits/services/homepage",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/homepage",
       "setup_policy": "automatic",
       "delivery": {},
       "default": true
@@ -503,7 +503,7 @@
       "section": "Platform",
       "order": 10,
       "enable_var": "enable_pocketid",
-      "guide_url": "https://docs.kombify.io/guides/stackkits/services/pocketid",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/pocketid",
       "setup_policy": "automatic",
       "delivery": {},
       "default": true
@@ -525,7 +525,7 @@
       "section": "Platform",
       "order": 41,
       "enable_var": "enable_komodo",
-      "guide_url": "https://docs.kombify.io/guides/stackkits/services/komodo",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/komodo",
       "setup_policy": "automatic",
       "delivery": {},
       "default": false
@@ -550,7 +550,7 @@
       "section": "Platform",
       "order": 10,
       "enable_var": "enable_uptime_kuma",
-      "guide_url": "https://docs.kombify.io/guides/stackkits/services/uptime-kuma",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/uptime-kuma",
       "setup_policy": "automatic",
       "delivery": {},
       "default": true
@@ -589,7 +589,7 @@
       "section": "Applications",
       "order": 40,
       "enable_var": "enable_jellyfin",
-      "guide_url": "https://docs.kombify.io/guides/stackkits/services/jellyfin",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/jellyfin",
       "setup_policy": "manual",
       "delivery": {},
       "default": false
@@ -614,7 +614,7 @@
       "section": "Applications",
       "order": 50,
       "enable_var": "enable_immich",
-      "guide_url": "https://docs.kombify.io/guides/stackkits/services/immich",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/immich",
       "setup_policy": "on_demand",
       "setup_action_label": "Automatisierter Bootstrap",
       "delivery": {},
@@ -637,7 +637,7 @@
       "section": "Platform",
       "order": 35,
       "enable_var": "enable_kombify_point",
-      "guide_url": "https://docs.kombify.io/guides/stackkits/services/kombify-point",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/kombify-point",
       "setup_policy": "automatic",
       "delivery": {},
       "default": false
@@ -679,7 +679,7 @@
       "section": "Platform",
       "order": 30,
       "enable_var": "enable_traefik",
-      "guide_url": "https://docs.kombify.io/guides/stackkits/services/traefik",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/traefik",
       "setup_policy": "automatic",
       "delivery": {},
       "default": true
@@ -704,7 +704,7 @@
       "section": "Applications",
       "order": 30,
       "enable_var": "enable_vaultwarden",
-      "guide_url": "https://docs.kombify.io/guides/stackkits/services/vaultwarden",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/vaultwarden",
       "setup_policy": "on_demand",
       "setup_action_label": "Automatisierter Bootstrap",
       "delivery": {},
@@ -727,7 +727,7 @@
       "section": "Platform",
       "order": 20,
       "enable_var": "enable_whoami",
-      "guide_url": "https://docs.kombify.io/guides/stackkits/services/whoami",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/whoami",
       "setup_policy": "automatic",
       "delivery": {},
       "default": true

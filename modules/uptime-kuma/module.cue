@@ -145,7 +145,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "kuma", nested: "kuma", flat: "kuma"}
-		dashboard: {icon: "&#128202;", order: 10, section: "Platform", badge: "L2 \u00b7 Monitoring", enableVar: "enable_uptime_kuma", guideUrl: "https://docs.kombify.io/guides/stackkits/services/uptime-kuma"}
+		dashboard: {icon: "&#128202;", order: 10, section: "Platform", badge: "L2 \u00b7 Monitoring", enableVar: "enable_uptime_kuma", guideUrl: "https://docs.kombify.io/stackkits/apps/uptime-kuma"}
 
 		output: {
 			url:         "https://kuma.{{.domain}}"

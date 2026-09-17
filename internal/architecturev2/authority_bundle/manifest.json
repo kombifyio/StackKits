@@ -1,7 +1,7 @@
 {
   "documentHashes": {
     "catalog.json": "sha256:909b27df9285214ee286c25de57ec63cc20f8e01993b299182f6c2238126c2eb",
-    "compute-tier-fits.json": "sha256:19175f2b9a4fed61f7326d2051919a83f4c4a04354fab12a9bde65adf1842570",
+    "compute-tier-fits.json": "sha256:4412c47934016581e61c1237ff1c91ef684e1b2e3788a2c7b9427ecda95dc1fc",
     "definitions/basement-kit.json": "sha256:929f5165c89ae4e7d02d81549f3913d185b39bcef9d2a61d0b20e03a9c362f7c",
     "definitions/cloud-kit.json": "sha256:be0427293ffe6b8f6b347fa29879052db9cc1bd713351407ecd984e92d8b25d2",
     "definitions/modern-homelab.json": "sha256:8e6743fc5d14c317661b6f6381207635713c37913dacf020e1140d7e6970478d",

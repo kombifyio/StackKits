@@ -5,7 +5,7 @@
 //   stackkit registry bake-from-cue
 //   stackkit registry emit-cue
 //
-// Snapshot: source=cue generated_at=2026-08-28T16:19:57Z
+// Snapshot: source=cue generated_at=2026-09-17T15:12:29Z
 // Snapshot content_hash: (none — CUE-baked snapshot)
 // Services: rendered from CUE module contracts (modules/<slug>/module.cue),
 // the same source 'registry bake-from-cue' uses.
@@ -320,7 +320,7 @@ package foundation
 		section:          "Platform"
 		order:            20
 		enableVar:        "enable_tinyauth"
-		guideUrl:         "https://docs.kombify.io/guides/stackkits/services/tinyauth"
+		guideUrl:         "https://docs.kombify.io/stackkits/apps/tinyauth"
 		setupPolicy:      "automatic"
 		default:          true
 	}
@@ -364,7 +364,7 @@ package foundation
 		section:          "Platform"
 		order:            42
 		enableVar:        "enable_coolify"
-		guideUrl:         "https://docs.kombify.io/guides/stackkits/services/coolify"
+		guideUrl:         "https://docs.kombify.io/stackkits/apps/coolify"
 		setupPolicy:      "automatic"
 		default:          false
 	}
@@ -386,7 +386,7 @@ package foundation
 		section:          "Platform"
 		order:            43
 		enableVar:        "enable_dockge"
-		guideUrl:         "https://docs.kombify.io/guides/stackkits/services/dockge"
+		guideUrl:         "https://docs.kombify.io/stackkits/apps/overview"
 		setupPolicy:      "automatic"
 		default:          false
 	}
@@ -408,7 +408,7 @@ package foundation
 		section:          "Platform"
 		order:            40
 		enableVar:        "enable_dokploy"
-		guideUrl:         "https://docs.kombify.io/guides/stackkits/services/dokploy"
+		guideUrl:         "https://docs.kombify.io/stackkits/apps/overview"
 		setupPolicy:      "automatic"
 		default:          false
 	}
@@ -430,7 +430,7 @@ package foundation
 		section:          "Applications"
 		order:            60
 		enableVar:        "enable_files"
-		guideUrl:         "https://docs.kombify.io/guides/stackkits/services/files"
+		guideUrl:         "https://docs.kombify.io/guides/stackkits/use-cases/files"
 		setupPolicy:      "on_demand"
 		setupActionLabel: "Automatisierter Bootstrap"
 		default:          true
@@ -453,7 +453,7 @@ package foundation
 		section:          "Platform"
 		order:            0
 		enableVar:        "enable_homepage"
-		guideUrl:         "https://docs.kombify.io/guides/stackkits/services/homepage"
+		guideUrl:         "https://docs.kombify.io/stackkits/apps/homepage"
 		setupPolicy:      "automatic"
 		default:          true
 	}
@@ -475,7 +475,7 @@ package foundation
 		section:          "Platform"
 		order:            10
 		enableVar:        "enable_pocketid"
-		guideUrl:         "https://docs.kombify.io/guides/stackkits/services/pocketid"
+		guideUrl:         "https://docs.kombify.io/stackkits/apps/pocketid"
 		setupPolicy:      "automatic"
 		default:          true
 	}
@@ -497,7 +497,7 @@ package foundation
 		section:          "Platform"
 		order:            41
 		enableVar:        "enable_komodo"
-		guideUrl:         "https://docs.kombify.io/guides/stackkits/services/komodo"
+		guideUrl:         "https://docs.kombify.io/stackkits/apps/komodo"
 		setupPolicy:      "automatic"
 		default:          false
 	}
@@ -519,7 +519,7 @@ package foundation
 		section:          "Platform"
 		order:            10
 		enableVar:        "enable_uptime_kuma"
-		guideUrl:         "https://docs.kombify.io/guides/stackkits/services/uptime-kuma"
+		guideUrl:         "https://docs.kombify.io/stackkits/apps/uptime-kuma"
 		setupPolicy:      "automatic"
 		default:          true
 	}
@@ -556,7 +556,7 @@ package foundation
 		section:          "Applications"
 		order:            40
 		enableVar:        "enable_jellyfin"
-		guideUrl:         "https://docs.kombify.io/guides/stackkits/services/jellyfin"
+		guideUrl:         "https://docs.kombify.io/stackkits/apps/jellyfin"
 		setupPolicy:      "manual"
 		default:          false
 	}
@@ -578,7 +578,7 @@ package foundation
 		section:          "Applications"
 		order:            50
 		enableVar:        "enable_immich"
-		guideUrl:         "https://docs.kombify.io/guides/stackkits/services/immich"
+		guideUrl:         "https://docs.kombify.io/stackkits/apps/immich"
 		setupPolicy:      "on_demand"
 		setupActionLabel: "Automatisierter Bootstrap"
 		default:          true
@@ -601,7 +601,7 @@ package foundation
 		section:          "Platform"
 		order:            35
 		enableVar:        "enable_kombify_point"
-		guideUrl:         "https://docs.kombify.io/guides/stackkits/services/kombify-point"
+		guideUrl:         "https://docs.kombify.io/stackkits/apps/kombify-point"
 		setupPolicy:      "automatic"
 		default:          false
 	}
@@ -643,7 +643,7 @@ package foundation
 		section:          "Platform"
 		order:            30
 		enableVar:        "enable_traefik"
-		guideUrl:         "https://docs.kombify.io/guides/stackkits/services/traefik"
+		guideUrl:         "https://docs.kombify.io/stackkits/apps/traefik"
 		setupPolicy:      "automatic"
 		default:          true
 	}
@@ -665,7 +665,7 @@ package foundation
 		section:          "Applications"
 		order:            30
 		enableVar:        "enable_vaultwarden"
-		guideUrl:         "https://docs.kombify.io/guides/stackkits/services/vaultwarden"
+		guideUrl:         "https://docs.kombify.io/stackkits/apps/vaultwarden"
 		setupPolicy:      "on_demand"
 		setupActionLabel: "Automatisierter Bootstrap"
 		default:          true
@@ -688,7 +688,7 @@ package foundation
 		section:          "Platform"
 		order:            20
 		enableVar:        "enable_whoami"
-		guideUrl:         "https://docs.kombify.io/guides/stackkits/services/whoami"
+		guideUrl:         "https://docs.kombify.io/stackkits/apps/whoami"
 		setupPolicy:      "automatic"
 		default:          true
 	}

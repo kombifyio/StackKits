@@ -171,7 +171,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "traefik", nested: "traefik", flat: "traefik"}
-		dashboard: {icon: "&#9889;", order: 30, section: "Platform", badge: "L2 \u00b7 Reverse Proxy", guideUrl: "https://docs.kombify.io/guides/stackkits/services/traefik"}
+		dashboard: {icon: "&#9889;", order: 30, section: "Platform", badge: "L2 \u00b7 Reverse Proxy", guideUrl: "https://docs.kombify.io/stackkits/apps/traefik"}
 
 		output: {
 			url:         "https://traefik.{{.domain}}"

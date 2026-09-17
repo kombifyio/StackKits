@@ -149,7 +149,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "vault", nested: "vault", flat: "vault"}
-		dashboard: {icon: "&#128272;", order: 30, section: "Applications", badge: "L3 \u00b7 Vault", enableVar: "enable_vaultwarden", guideUrl: "https://docs.kombify.io/guides/stackkits/services/vaultwarden"}
+		dashboard: {icon: "&#128272;", order: 30, section: "Applications", badge: "L3 \u00b7 Vault", enableVar: "enable_vaultwarden", guideUrl: "https://docs.kombify.io/stackkits/apps/vaultwarden"}
 
 		output: {
 			url:         "https://vault.{{.domain}}"
