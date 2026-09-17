@@ -436,8 +436,11 @@ func validateDockerV2HostConfig(config docker.ContainerHostConfig, source localb
 		config.PidsLimit != nil {
 		return fmt.Errorf("container process availability policy differs from the governed runtime")
 	}
+	// The baseline is Docker 26.1's default list, the engine Debian 13 ships;
+	// newer engines also mask /proc/interrupts, which the addition rule below
+	// accepts.
 	wantMaskedPaths := []string{
-		"/proc/acpi", "/proc/asound", "/proc/interrupts", "/proc/kcore",
+		"/proc/acpi", "/proc/asound", "/proc/kcore",
 		"/proc/keys", "/proc/latency_stats", "/proc/sched_debug", "/proc/scsi",
 		"/proc/timer_list", "/proc/timer_stats", "/sys/devices/virtual/powercap", "/sys/firmware",
 	}

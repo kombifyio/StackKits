@@ -1,9 +1,0 @@
-{
-  "schemaVersion": "stackkits-depot-run-provenance/v1",
-  "runId": "pve_f11ed7e74d",
-  "workflowPath": "proxmox-lab.py",
-  "trigger": "operator",
-  "producerSha": "3a1682a3ff7f2225c021891a443b3f627399eced",
-  "createdAt": "2026-09-16T20:33:23Z",
-  "status": "finished"
-}

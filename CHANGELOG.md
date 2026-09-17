@@ -4,7 +4,22 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.34.0](https://github.com/kombifyio/stackKits/compare/a931504667f6ac2a088a4665d8c8df762b00717b...b6ec89e38110ac7f4da174a92b3663e5cbb8f38e) (2026-09-16)
+## [0.35.0] (2026-09-17)
+
+
+### Added
+
+* **compat:** one evidence source for every docs surface; no raw receipts or private links in public
+* **website:** FAQ section on stackkit.cc and a /faq page
+
+
+### Fixed
+
+* **backup:** accept Docker 26.1 default proc masking on Debian 13
+* **compat:** honest grades for infrastructure failures, lan-access, prune and hypervisor cells
+* **website:** bring back the cube design elements
+
+## [0.34.0] (2026-09-16)
 
 
 ### Added
@@ -22,23 +37,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **release:** WebMCP live smoke waits for the edge to serve the deployed source
 * **test-planner:** keep over-budget packages inside the affected slice budget
 
-Notes cover changes after VERSION 0.33.0 (a931504667f6ac2a088a4665d8c8df762b00717b), the earliest available contiguous 0.33.x VERSION anchor, through selected source b6ec89e38110ac7f4da174a92b3663e5cbb8f38e.
-
-## [0.33.3](https://github.com/kombifyio/stackKits/compare/v0.33.2...v0.33.3) (2026-09-16)
+## [0.33.3](https://github.com/kombifyio/StackKits/compare/v0.33.2...v0.33.3) (2026-09-16)
 
 
 ### Fixed
 
 * **netenv:** detect a home network by its IPv4 NAT, not a global IPv6 address
 
-## [0.33.2](https://github.com/kombifyio/stackKits/compare/v0.33.1...v0.33.2) (2026-09-16)
+## [0.33.2](https://github.com/kombifyio/StackKits/compare/v0.33.1...v0.33.2) (2026-09-16)
 
 
 ### Fixed
 
 * **cli:** native backup commands report --json failures as command results
 
-## [0.33.1](https://github.com/kombifyio/stackKits/compare/v0.33.0...v0.33.1) (2026-09-16)
+## [0.33.1](https://github.com/kombifyio/StackKits/compare/v0.33.0...v0.33.1) (2026-09-16)
 
 
 ### Fixed
@@ -47,7 +60,7 @@ Notes cover changes after VERSION 0.33.0 (a931504667f6ac2a088a4665d8c8df762b0071
 * **release:** finalize can read the public draft; smoke greps without SIGPIPE
 * **test-planner:** keep over-budget packages inside the affected slice budget
 
-## [0.33.0](https://github.com/kombifyio/stackKits/compare/47e8bbe21ceb53e9207bc2d04dd2170e1678d768...dcaa48b6a56975b39a4071ced0439413872c2e6d) (2026-09-16)
+## [0.33.0] (2026-09-16)
 
 ### Highlights
 
@@ -76,9 +89,7 @@ Notes cover changes after VERSION 0.33.0 (a931504667f6ac2a088a4665d8c8df762b0071
 * **website:** publish installers with inlined host bootstrap
 * **website:** vendor logos, release-line highlights, brand logo and layout overlaps
 
-Notes cover changes after VERSION 0.32.0 (47e8bbe21ceb53e9207bc2d04dd2170e1678d768), the earliest available contiguous 0.32.x VERSION anchor, through selected source dcaa48b6a56975b39a4071ced0439413872c2e6d.
-
-## [0.32.1](https://github.com/kombifyio/stackKits/compare/v0.32.0...v0.32.1) (2026-09-15)
+## [0.32.1](https://github.com/kombifyio/StackKits/compare/v0.32.0...v0.32.1) (2026-09-15)
 
 
 ### Fixed
@@ -86,7 +97,7 @@ Notes cover changes after VERSION 0.32.0 (47e8bbe21ceb53e9207bc2d04dd2170e1678d7
 * **install:** make Cloud resume install-only with automatic host prepare
 * **website:** publish installers with inlined host bootstrap
 
-## [0.32.0](https://github.com/kombifyio/stackKits/compare/3f4304864dc437ce91d217502a82574a6147e5eb...927346795e896aebecf57a9a0f3b49433a6cca69) (2026-09-15)
+## [0.32.0] (2026-09-15)
 
 ### Highlights
 
@@ -123,30 +134,28 @@ Notes cover changes after VERSION 0.32.0 (47e8bbe21ceb53e9207bc2d04dd2170e1678d7
 * **install:** require owner email and suggest the login username
 * **website:** derive Modern alpha status, correct dual-license text, retire BaseKit wording
 
-Notes cover changes after VERSION 0.31.0 (3f4304864dc437ce91d217502a82574a6147e5eb), the earliest available contiguous 0.31.x VERSION anchor, through selected source 927346795e896aebecf57a9a0f3b49433a6cca69.
-
-## [0.31.5](https://github.com/kombifyio/stackKits/compare/v0.31.4...v0.31.5) (2026-09-14)
+## [0.31.5](https://github.com/kombifyio/StackKits/compare/v0.31.4...v0.31.5) (2026-09-14)
 
 
 ### Fixed
 
 * **apply:** wait for certificate issuance before verifying public TLS and PKI leaves
 
-## [0.31.4](https://github.com/kombifyio/stackKits/compare/v0.31.3...v0.31.4) (2026-09-14)
+## [0.31.4](https://github.com/kombifyio/StackKits/compare/v0.31.3...v0.31.4) (2026-09-14)
 
 
 ### Fixed
 
 * **apply:** run internal PKI leaf verification after workload runtime owners
 
-## [0.31.3](https://github.com/kombifyio/stackKits/compare/v0.31.2...v0.31.3) (2026-09-14)
+## [0.31.3](https://github.com/kombifyio/StackKits/compare/v0.31.2...v0.31.3) (2026-09-14)
 
 
 ### Fixed
 
 * **backup:** raise kopia-agent memory limit to 1g and bound verify parallelism
 
-## [0.31.2](https://github.com/kombifyio/stackKits/compare/v0.31.1...v0.31.2) (2026-09-14)
+## [0.31.2](https://github.com/kombifyio/StackKits/compare/v0.31.1...v0.31.2) (2026-09-14)
 
 
 ### Fixed
@@ -154,14 +163,14 @@ Notes cover changes after VERSION 0.31.0 (3f4304864dc437ce91d217502a82574a6147e5
 * **deps:** raise sigstore-go, grpc and rekor floors for the public binary
 * **website:** derive Modern alpha status, correct dual-license text, retire BaseKit wording
 
-## [0.31.1](https://github.com/kombifyio/stackKits/compare/v0.31.0...v0.31.1) (2026-09-14)
+## [0.31.1](https://github.com/kombifyio/StackKits/compare/v0.31.0...v0.31.1) (2026-09-14)
 
 
 ### Fixed
 
 * **backup:** defer application observation to restore activation
 
-## [0.31.0](https://github.com/kombifyio/stackKits/compare/c623eb2ae85003ffb23d96740154881124eb0d22...b186f27e9a9ad6165a63d6a40dfe5e0d9ed8bc35) (2026-09-14)
+## [0.31.0] (2026-09-14)
 
 
 ### Added
@@ -190,58 +199,56 @@ Notes cover changes after VERSION 0.31.0 (3f4304864dc437ce91d217502a82574a6147e5
 * treat docker-stop SIGKILL as a completed quiesce stop
 * **verify:** accept TinyAuth login-gate redirects in HTTP probes
 
-Notes cover changes after VERSION 0.30.0 (c623eb2ae85003ffb23d96740154881124eb0d22), the earliest available contiguous 0.30.x VERSION anchor, through selected source b186f27e9a9ad6165a63d6a40dfe5e0d9ed8bc35.
-
-## [0.30.8](https://github.com/kombifyio/stackKits/compare/v0.30.7...v0.30.8) (2026-09-13)
+## [0.30.8](https://github.com/kombifyio/StackKits/compare/v0.30.7...v0.30.8) (2026-09-13)
 
 
 ### Fixed
 
 * share Compose interpolation env between Apply and restore-activate
 
-## [0.30.7](https://github.com/kombifyio/stackKits/compare/v0.30.6...v0.30.7) (2026-09-13)
+## [0.30.7](https://github.com/kombifyio/StackKits/compare/v0.30.6...v0.30.7) (2026-09-13)
 
 
 ### Fixed
 
 * treat a completed docker stop as quiesced
 
-## [0.30.6](https://github.com/kombifyio/stackKits/compare/v0.30.5...v0.30.6) (2026-09-13)
+## [0.30.6](https://github.com/kombifyio/StackKits/compare/v0.30.5...v0.30.6) (2026-09-13)
 
 
 ### Fixed
 
 * treat docker-stop SIGKILL as a completed quiesce stop
 
-## [0.30.5](https://github.com/kombifyio/stackKits/compare/v0.30.4...v0.30.5) (2026-09-13)
+## [0.30.5](https://github.com/kombifyio/StackKits/compare/v0.30.4...v0.30.5) (2026-09-13)
 
 
 ### Fixed
 
 * generate kopia-agent mounts from the governed backup source
 
-## [0.30.4](https://github.com/kombifyio/stackKits/compare/v0.30.3...v0.30.4) (2026-09-13)
+## [0.30.4](https://github.com/kombifyio/StackKits/compare/v0.30.3...v0.30.4) (2026-09-13)
 
 
 ### Fixed
 
 * interpolate Basement compose env when attaching kopia volumes
 
-## [0.30.3](https://github.com/kombifyio/stackKits/compare/v0.30.2...v0.30.3) (2026-09-13)
+## [0.30.3](https://github.com/kombifyio/StackKits/compare/v0.30.2...v0.30.3) (2026-09-13)
 
 
 ### Fixed
 
 * attach selected application volumes onto kopia-agent
 
-## [0.30.2](https://github.com/kombifyio/stackKits/compare/v0.30.1...v0.30.2) (2026-09-13)
+## [0.30.2](https://github.com/kombifyio/StackKits/compare/v0.30.1...v0.30.2) (2026-09-13)
 
 
 ### Fixed
 
 * synchronize Basement renderer hashes after hub Host TLS
 
-## [0.30.1](https://github.com/kombifyio/stackKits/compare/v0.30.0...v0.30.1) (2026-09-13)
+## [0.30.1](https://github.com/kombifyio/StackKits/compare/v0.30.0...v0.30.1) (2026-09-13)
 
 
 ### Fixed
@@ -249,7 +256,7 @@ Notes cover changes after VERSION 0.30.0 (c623eb2ae85003ffb23d96740154881124eb0d
 * fall back to public GitHub metadata when the smoke token is 401
 * issue step-ca TLS for base.home instead of Traefik default cert
 
-## [0.30.0](https://github.com/kombifyio/stackKits/compare/2f73dcd2338914aed27969f1c45c2bb10c026266...bd73272444f97bdf8b99e23cf67d64952a9ecbf1) (2026-09-13)
+## [0.30.0] (2026-09-13)
 
 
 ### Added
@@ -266,9 +273,7 @@ Notes cover changes after VERSION 0.30.0 (c623eb2ae85003ffb23d96740154881124eb0d
 * retire --context from native v2 authoring
 * verify HTTP probes for platform Access routes via kit LAN DNS
 
-Notes cover changes after VERSION 0.29.0 (2f73dcd2338914aed27969f1c45c2bb10c026266), the earliest available contiguous 0.29.x VERSION anchor, through selected source bd73272444f97bdf8b99e23cf67d64952a9ecbf1.
-
-## [0.29.0](https://github.com/kombifyio/stackKits/compare/3c0f576563f95904cf3741c8b6ed84e3653be36d...a9bf380db02cbb3f91d0a8a742319a076b65d845) (2026-09-13)
+## [0.29.0] (2026-09-13)
 
 
 ### Added
@@ -284,30 +289,28 @@ Notes cover changes after VERSION 0.29.0 (2f73dcd2338914aed27969f1c45c2bb10c0262
 * **runtime:** complete local Basement apply
 * synchronize Basement renderer authority
 
-Notes cover changes after VERSION 0.28.0 (3c0f576563f95904cf3741c8b6ed84e3653be36d), the earliest available contiguous 0.28.x VERSION anchor, through selected source a9bf380db02cbb3f91d0a8a742319a076b65d845.
-
-## [0.28.3](https://github.com/kombifyio/stackKits/compare/v0.28.2...v0.28.3) (2026-09-13)
+## [0.28.3](https://github.com/kombifyio/StackKits/compare/v0.28.2...v0.28.3) (2026-09-13)
 
 
 ### Fixed
 
 * synchronize Basement renderer authority
 
-## [0.28.2](https://github.com/kombifyio/stackKits/compare/v0.28.1...v0.28.2) (2026-09-12)
+## [0.28.2](https://github.com/kombifyio/StackKits/compare/v0.28.1...v0.28.2) (2026-09-12)
 
 
 ### Fixed
 
 * bind internal PKI routes to Traefik
 
-## [0.28.1](https://github.com/kombifyio/stackKits/compare/v0.28.0...v0.28.1) (2026-09-12)
+## [0.28.1](https://github.com/kombifyio/StackKits/compare/v0.28.0...v0.28.1) (2026-09-12)
 
 
 ### Fixed
 
 * **runtime:** complete local Basement apply
 
-## [0.28.0](https://github.com/kombifyio/stackKits/compare/d3ae3ec51edc20c8addbcf5e74448616fdaee744...eab3f1934fcb3da0ca0dc7af745598e863730b97) (2026-09-12)
+## [0.28.0] (2026-09-12)
 
 
 ### Added
@@ -322,23 +325,21 @@ Notes cover changes after VERSION 0.28.0 (3c0f576563f95904cf3741c8b6ed84e3653be3
 * **runtime:** align internal PKI issuer lifetime
 * **runtime:** bind Basement PKI to existing owner and ingress
 
-Notes cover changes after VERSION 0.27.0 (d3ae3ec51edc20c8addbcf5e74448616fdaee744), the earliest available contiguous 0.27.x VERSION anchor, through selected source eab3f1934fcb3da0ca0dc7af745598e863730b97.
-
-## [0.27.3](https://github.com/kombifyio/stackKits/compare/v0.27.2...v0.27.3) (2026-09-12)
+## [0.27.3](https://github.com/kombifyio/StackKits/compare/v0.27.2...v0.27.3) (2026-09-12)
 
 
 ### Fixed
 
 * **runtime:** align internal PKI issuer lifetime
 
-## [0.27.2](https://github.com/kombifyio/stackKits/compare/v0.27.1...v0.27.2) (2026-09-12)
+## [0.27.2](https://github.com/kombifyio/StackKits/compare/v0.27.1...v0.27.2) (2026-09-12)
 
 
 ### Fixed
 
 * **runtime:** bind Basement PKI to existing owner and ingress
 
-## [0.27.1](https://github.com/kombifyio/stackKits/compare/v0.27.0...v0.27.1) (2026-09-12)
+## [0.27.1](https://github.com/kombifyio/StackKits/compare/v0.27.0...v0.27.1) (2026-09-12)
 
 
 ### Fixed
@@ -346,7 +347,7 @@ Notes cover changes after VERSION 0.27.0 (d3ae3ec51edc20c8addbcf5e74448616fdaee7
 * **cli:** preserve safe executor failure diagnostics in progress
 * **mcp:** preserve explicit workload data removal policy
 
-## [0.27.0](https://github.com/kombifyio/stackKits/compare/22c35ec004cda5579a66b73558afca1f9c0a6742...1a50d0f13b0e2c813e8cb0fc0883f1dde41c3e67) (2026-09-12)
+## [0.27.0] (2026-09-12)
 
 
 ### Added
@@ -375,9 +376,7 @@ Notes cover changes after VERSION 0.27.0 (d3ae3ec51edc20c8addbcf5e74448616fdaee7
 
 * **delivery:** adopt consolidated source runner
 
-Notes cover changes after VERSION 0.26.0 (22c35ec004cda5579a66b73558afca1f9c0a6742), the earliest available contiguous 0.26.x VERSION anchor, through selected source 1a50d0f13b0e2c813e8cb0fc0883f1dde41c3e67.
-
-## [0.26.7](https://github.com/kombifyio/stackKits/compare/v0.26.6...v0.26.7) (2026-09-12)
+## [0.26.7](https://github.com/kombifyio/StackKits/compare/v0.26.6...v0.26.7) (2026-09-12)
 
 
 ### Fixed
@@ -389,21 +388,21 @@ Notes cover changes after VERSION 0.26.0 (22c35ec004cda5579a66b73558afca1f9c0a67
 
 * **delivery:** adopt consolidated source runner
 
-## [0.26.6](https://github.com/kombifyio/stackKits/compare/v0.26.5...v0.26.6) (2026-09-12)
+## [0.26.6](https://github.com/kombifyio/StackKits/compare/v0.26.5...v0.26.6) (2026-09-12)
 
 
 ### Fixed
 
 * **init:** preserve established owner identity during resume
 
-## [0.26.5](https://github.com/kombifyio/stackKits/compare/v0.26.4...v0.26.5) (2026-09-12)
+## [0.26.5](https://github.com/kombifyio/StackKits/compare/v0.26.4...v0.26.5) (2026-09-12)
 
 
 ### Fixed
 
 * **webmcp:** remove obsolete v1 contract and publication
 
-## [0.26.4](https://github.com/kombifyio/stackKits/compare/v0.26.3...v0.26.4) (2026-09-12)
+## [0.26.4](https://github.com/kombifyio/StackKits/compare/v0.26.3...v0.26.4) (2026-09-12)
 
 
 ### Fixed
@@ -412,7 +411,7 @@ Notes cover changes after VERSION 0.26.0 (22c35ec004cda5579a66b73558afca1f9c0a67
 * **identity:** verify projected subject and group readback
 * **komodo:** read upstream stack state
 
-## [0.26.3](https://github.com/kombifyio/stackKits/compare/v0.26.2...v0.26.3) (2026-09-12)
+## [0.26.3](https://github.com/kombifyio/StackKits/compare/v0.26.2...v0.26.3) (2026-09-12)
 
 
 ### Fixed
@@ -421,7 +420,7 @@ Notes cover changes after VERSION 0.26.0 (22c35ec004cda5579a66b73558afca1f9c0a67
 * **release:** clarify unclaimed HA recovery evidence
 * **state-console:** retain application evidence on status failure
 
-## [0.26.2](https://github.com/kombifyio/stackKits/compare/v0.26.1...v0.26.2) (2026-09-12)
+## [0.26.2](https://github.com/kombifyio/StackKits/compare/v0.26.1...v0.26.2) (2026-09-12)
 
 
 ### Fixed
@@ -429,14 +428,14 @@ Notes cover changes after VERSION 0.26.0 (22c35ec004cda5579a66b73558afca1f9c0a67
 * **catalog:** align platform posture and publish agent handoff
 * **init:** bind selected Basement apps to HTTPS and data authority
 
-## [0.26.1](https://github.com/kombifyio/stackKits/compare/v0.26.0...v0.26.1) (2026-09-12)
+## [0.26.1](https://github.com/kombifyio/StackKits/compare/v0.26.0...v0.26.1) (2026-09-12)
 
 
 ### Fixed
 
 * **host:** protect Docker-assigned host publications
 
-## [0.26.0](https://github.com/kombifyio/stackKits/compare/5873d56efb664908c49cc8077b4aa35eb9a017c6...22ae1a6b133cb2e15936bd64bbdb914e150dd4b4) (2026-09-12)
+## [0.26.0] (2026-09-12)
 
 
 ### Added
@@ -483,8 +482,6 @@ Notes cover changes after VERSION 0.26.0 (22c35ec004cda5579a66b73558afca1f9c0a67
 * **trust:** authenticate client CA handoff against custody
 * **vault:** support current Bitwarden clients with one version source
 * **website:** align launch claims with current evidence
-
-Notes cover changes after VERSION 0.25.0 (5873d56efb664908c49cc8077b4aa35eb9a017c6), the earliest available contiguous 0.25.x VERSION anchor, through selected source 22ae1a6b133cb2e15936bd64bbdb914e150dd4b4.
 
 ## [0.25.1](https://github.com/kombifyio/StackKits/compare/v0.24.92...v0.25.1) (2026-09-12)
 
@@ -569,11 +566,11 @@ The following notes preserve the previously published release and its exact sour
   a post-upsert deploy/readiness step fails, preventing a duplicate Compose
   fallback deployment.
 
-**Full Changelog**: https://github.com/kombifyio/stackKits/compare/v0.16.8...v0.24.92
+**Full Changelog**: https://github.com/kombifyio/StackKits/compare/v0.16.8...v0.24.92
 
 Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
 
-## [0.24.2](https://github.com/kombifyio/stackKits/compare/v0.23.0...v0.24.2) (2026-09-02)
+## [0.24.2](https://github.com/kombifyio/StackKits/compare/v0.23.0...v0.24.2) (2026-09-02)
 
 ### Fixed
 
@@ -588,7 +585,7 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
 
 * integrate recoverable Homelab lifecycle and application experience
 
-## [0.23.0](https://github.com/kombifyio/stackKits/compare/v0.22.0...v0.23.0) (2026-09-02)
+## [0.23.0](https://github.com/kombifyio/StackKits/compare/v0.22.0...v0.23.0) (2026-09-02)
 
 
 ### Added
@@ -608,7 +605,7 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
 * **delivery:** drop hosted snapshot secrets
 * **release:** authenticate public projection source
 
-## [0.22.0](https://github.com/kombifyio/stackKits/compare/v0.21.24...v0.22.0) (2026-08-26)
+## [0.22.0](https://github.com/kombifyio/StackKits/compare/v0.21.24...v0.22.0) (2026-08-26)
 
 
 ### Added
@@ -626,21 +623,21 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
 * **contracts:** restore StackAction check task
 * **delivery:** repin shared rollout caller
 
-## [0.21.24](https://github.com/kombifyio/stackKits/compare/v0.21.23...v0.21.24) (2026-08-25)
+## [0.21.24](https://github.com/kombifyio/StackKits/compare/v0.21.23...v0.21.24) (2026-08-25)
 
 ### Fixed
 
 - Verify a valid managed-service TLS certificate without following or rejecting
   an application's expected HTTPS login redirect.
 
-## [0.21.23](https://github.com/kombifyio/stackKits/compare/v0.21.22...v0.21.23) (2026-08-25)
+## [0.21.23](https://github.com/kombifyio/StackKits/compare/v0.21.22...v0.21.23) (2026-08-25)
 
 ### Fixed
 
 - Issue managed Cloud Kit certificates with ACME HTTP-01 so the Cloudflare
   gateway can validate origin TLS while normal service traffic remains HTTPS.
 
-## [0.21.22](https://github.com/kombifyio/stackKits/compare/v0.21.21...v0.21.22) (2026-08-25)
+## [0.21.22](https://github.com/kombifyio/StackKits/compare/v0.21.21...v0.21.22) (2026-08-25)
 
 ### Fixed
 
@@ -648,7 +645,7 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
   so public kombify.me service addresses reach the runtime instead of the
   unused cleartext listener.
 
-## [0.21.21](https://github.com/kombifyio/stackKits/compare/v0.21.20...v0.21.21) (2026-08-25)
+## [0.21.21](https://github.com/kombifyio/StackKits/compare/v0.21.20...v0.21.21) (2026-08-25)
 
 ### Fixed
 
@@ -656,14 +653,14 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
   source and embedded authority bundles so the address-bound plan resolves and
   generates under the exact published contract.
 
-## [0.21.20](https://github.com/kombifyio/stackKits/compare/v0.21.19...v0.21.20) (2026-08-25)
+## [0.21.20](https://github.com/kombifyio/StackKits/compare/v0.21.19...v0.21.20) (2026-08-25)
 
 ### Added
 
 - Add a secret-free address-plan and bind contract for managed public service
   names, and render Cloud Core routes from the validated subdomain prefix.
 
-## [0.21.19](https://github.com/kombifyio/stackKits/compare/v0.21.18...v0.21.19) (2026-08-25)
+## [0.21.19](https://github.com/kombifyio/StackKits/compare/v0.21.18...v0.21.19) (2026-08-25)
 
 ### Fixed
 
@@ -671,7 +668,7 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
   lifecycle execution, so CUE's serialized set order cannot make a valid
   multi-route Cloud policy fail Apply.
 
-## [0.21.18](https://github.com/kombifyio/stackKits/compare/v0.21.17...v0.21.18) (2026-08-25)
+## [0.21.18](https://github.com/kombifyio/StackKits/compare/v0.21.17...v0.21.18) (2026-08-25)
 
 ### Fixed
 
@@ -679,7 +676,7 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
   belong to the exact current workspace's Cloud Core Compose definition;
   foreign, stale, and unverified listeners remain blocking.
 
-## [0.21.17](https://github.com/kombifyio/stackKits/compare/v0.21.16...v0.21.17) (2026-08-24)
+## [0.21.17](https://github.com/kombifyio/StackKits/compare/v0.21.16...v0.21.17) (2026-08-24)
 
 ### Fixed
 
@@ -687,7 +684,7 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
   remove its superseded late-order file during Apply, so provider or cloud-init
   defaults cannot keep root key login enabled after hardening.
 
-## [0.21.16](https://github.com/kombifyio/stackKits/compare/v0.21.15...v0.21.16) (2026-08-24)
+## [0.21.16](https://github.com/kombifyio/StackKits/compare/v0.21.15...v0.21.16) (2026-08-24)
 
 ### Added
 
@@ -703,19 +700,19 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
 
 - Focus shared CUE authority changes on the embedded-bundle behavior, renderer compilation, and concrete CUE consumers instead of executing the historical architecture package suite.
 
-## [0.21.13](https://github.com/kombifyio/stackKits/compare/v0.21.12...v0.21.13) (2026-08-22)
+## [0.21.13](https://github.com/kombifyio/StackKits/compare/v0.21.12...v0.21.13) (2026-08-22)
 
 ### Fixed
 
 * **runtime:** preserve the original shared Apply-request digest when narrowing Owner-approved removal to one exact multi-server placement, so every node-local absence receipt remains correlated to the same verified Apply result.
 
-## [0.21.12](https://github.com/kombifyio/stackKits/compare/v0.21.11...v0.21.12) (2026-08-22)
+## [0.21.12](https://github.com/kombifyio/StackKits/compare/v0.21.11...v0.21.12) (2026-08-22)
 
 ### Added
 
 * **runtime:** let Owner-approved workload removal select one exact Site/node/execution-channel placement from a verified multi-node Apply result, preserving node-local absence evidence without widening the sealed runtime authority.
 
-## [0.21.11](https://github.com/kombifyio/stackKits/compare/v0.21.10...v0.21.11) (2026-08-22)
+## [0.21.11](https://github.com/kombifyio/StackKits/compare/v0.21.10...v0.21.11) (2026-08-22)
 
 ### Added
 
@@ -734,50 +731,50 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
 
 * **use cases:** apply the governed empty placement defaults when a StackSpec author selects a workload without a `placement` block, so programmatic consumers no longer need CLI-specific boilerplate.
 
-## [0.21.10](https://github.com/kombifyio/stackKits/compare/v0.21.9...v0.21.10) (2026-08-21)
+## [0.21.10](https://github.com/kombifyio/StackKits/compare/v0.21.9...v0.21.10) (2026-08-21)
 
 ### Fixed
 
 * **apply:** preserve a non-root key-authenticated execution-channel account before Cloud host-security disables `PermitRootLogin`, so Product Apply can still reach the node after hardening.
 
-## [0.21.9](https://github.com/kombifyio/stackKits/compare/v0.21.8...v0.21.9) (2026-08-21)
+## [0.21.9](https://github.com/kombifyio/StackKits/compare/v0.21.8...v0.21.9) (2026-08-21)
 
 ### Fixed
 
 * **apply:** install the packages backing the units Cloud host-security enables and the ruleset it loads, so the owner can reach the posture it declares on a stock Ubuntu host instead of failing on absent `nft` and `fail2ban`.
 * **apply:** reload only a running sshd and ensure the sshd privilege separation directory, so Cloud host-security hardening holds on a socket-activated Ubuntu host.
 
-## [0.21.8](https://github.com/kombifyio/stackKits/compare/v0.21.7...v0.21.8) (2026-08-21)
+## [0.21.8](https://github.com/kombifyio/StackKits/compare/v0.21.7...v0.21.8) (2026-08-21)
 
 ### Fixed
 
 * **runtime:** retain the bounded command and process output when Cloud host-security reconciliation fails so a live target names the exact failing unit.
 
-## [0.21.7](https://github.com/kombifyio/stackKits/compare/v0.21.6...v0.21.7) (2026-08-21)
+## [0.21.7](https://github.com/kombifyio/StackKits/compare/v0.21.6...v0.21.7) (2026-08-21)
 
 ### Fixed
 
 * **cloud:** retain exact runtime-owned public-route health outcomes after validating them against their Cloud core module probes.
 
-## [0.21.6](https://github.com/kombifyio/stackKits/compare/v0.21.5...v0.21.6) (2026-08-21)
+## [0.21.6](https://github.com/kombifyio/StackKits/compare/v0.21.5...v0.21.6) (2026-08-21)
 
 ### Fixed
 
 * **cloud:** accept the shared `not-configured` observation for the intentionally healthcheck-less socket proxy during exact Cloud core verification.
 
-## [0.21.5](https://github.com/kombifyio/stackKits/compare/v0.21.4...v0.21.5) (2026-08-21)
+## [0.21.5](https://github.com/kombifyio/StackKits/compare/v0.21.4...v0.21.5) (2026-08-21)
 
 ### Fixed
 
 * **apply:** execute all-local Cloud Kit owners through their exact local router after managed-channel admission, and preserve a digest-verified process adapter's basename for its closed operations mode.
 
-## [0.21.4](https://github.com/kombifyio/stackKits/compare/v0.21.1...v0.21.4) (2026-08-21)
+## [0.21.4](https://github.com/kombifyio/StackKits/compare/v0.21.1...v0.21.4) (2026-08-21)
 
 ### Fixed
 
 * **apply:** accept dispatcher plan-class metadata on Cloud Kit owners and host-admission so Product Apply no longer fails closed with `health:stackkits-host-admission=executor-failed`.
 
-## [0.21.1](https://github.com/kombifyio/stackKits/compare/v0.18.22...v0.21.1) (2026-08-20)
+## [0.21.1](https://github.com/kombifyio/StackKits/compare/v0.18.22...v0.21.1) (2026-08-20)
 
 ### Changed
 
@@ -804,7 +801,7 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
 
 * **add-ons:** remove every importer-less non-cross-cutting legacy stub: the ten use-case duplicates plus unresolved Authelia and Calendar product definitions. Unimplemented OpenCloud, MQTT/Zigbee, identity, calendar, Mail, Game, AI, Dev, and Remote runtime details remain unclaimed.
 
-## [0.18.22](https://github.com/kombifyio/stackKits/compare/v0.18.14...v0.18.22) (2026-08-18)
+## [0.18.22](https://github.com/kombifyio/StackKits/compare/v0.18.14...v0.18.22) (2026-08-18)
 
 ### Changed
 
@@ -818,25 +815,25 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
 * **release:** keep historical CHANGELOG path mentions as text so the public export no longer links to retired `base/*.cue` files.
 * **release:** require `foundation/stackkit.cue` in published archives instead of the retired `base/stackkit.cue` path.
 
-## [0.18.14](https://github.com/kombifyio/stackKits/compare/v0.18.13...v0.18.14) (2026-08-15)
+## [0.18.14](https://github.com/kombifyio/StackKits/compare/v0.18.13...v0.18.14) (2026-08-15)
 
 ### Fixed
 
 * **release:** include every static schema and compatibility document required by the public GoReleaser archives
 
-## [0.18.13](https://github.com/kombifyio/stackKits/compare/v0.18.12...v0.18.13) (2026-08-15)
+## [0.18.13](https://github.com/kombifyio/StackKits/compare/v0.18.12...v0.18.13) (2026-08-15)
 
 ### Fixed
 
 * **release:** remove deliberately deleted pre-1.0 tests from the public surface policy
 
-## [0.18.12](https://github.com/kombifyio/stackKits/compare/v0.18.11...v0.18.12) (2026-08-15)
+## [0.18.12](https://github.com/kombifyio/StackKits/compare/v0.18.11...v0.18.12) (2026-08-15)
 
 ### Fixed
 
 * **release:** remove the retired distribution-fingerprint option from both public export implementations
 
-## [0.18.11](https://github.com/kombifyio/stackKits/compare/v0.18.9...v0.18.11) (2026-08-15)
+## [0.18.11](https://github.com/kombifyio/StackKits/compare/v0.18.9...v0.18.11) (2026-08-15)
 
 ### Fixed
 
@@ -845,19 +842,19 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
 * **installer:** retain the selected Cloud domain and target the public release repository explicitly
 * **release:** remove deleted pre-1.0 test files from the curated public export manifest
 
-## [0.18.9](https://github.com/kombifyio/stackKits/compare/v0.18.8...v0.18.9) (2026-08-15)
+## [0.18.9](https://github.com/kombifyio/StackKits/compare/v0.18.8...v0.18.9) (2026-08-15)
 
 ### Fixed
 
 * **apply:** expose the bounded leaf cause from failed Product Apply reconciliation so live installer errors reach orchestrator logs
 
-## [0.18.8](https://github.com/kombifyio/stackKits/compare/v0.18.7...v0.18.8) (2026-08-15)
+## [0.18.8](https://github.com/kombifyio/StackKits/compare/v0.18.7...v0.18.8) (2026-08-15)
 
 ### Fixed
 
 * **apply:** retain bounded Standard execution-channel stderr so orchestrators expose the actual installer failure instead of only `executor-failed`
 
-## [0.18.7](https://github.com/kombifyio/stackKits/compare/v0.18.2...v0.18.7) (2026-08-15)
+## [0.18.7](https://github.com/kombifyio/StackKits/compare/v0.18.2...v0.18.7) (2026-08-15)
 
 ### Changed
 
@@ -871,20 +868,20 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
 * **release:** include the shared Use Case identity in public Architecture v2 authority bundles, use one fixture source-list authority in generator and runtime, and refresh canonical fixture plans with the changed readiness semantics
 * **docs:** remove public links to the intentionally private Use Case development projection
 
-## [0.18.2](https://github.com/kombifyio/stackKits/compare/v0.18.1...v0.18.2) (2026-08-14)
+## [0.18.2](https://github.com/kombifyio/StackKits/compare/v0.18.1...v0.18.2) (2026-08-14)
 
 ### Fixed
 
 * **renderer:** accept canonical CUE route ordering while still rejecting duplicate public-edge and public-TLS route identities
 * **cloud-kit:** allow unrouted workload health bindings and declare the Immich model-server health command
 
-## [0.18.1](https://github.com/kombifyio/stackKits/compare/v0.18.0...v0.18.1) (2026-08-14)
+## [0.18.1](https://github.com/kombifyio/StackKits/compare/v0.18.0...v0.18.1) (2026-08-14)
 
 ### Fixed
 
 * **cloud-kit:** keep the Traefik admin API localhost-only in product and public release contracts
 
-## [0.18.0](https://github.com/kombifyio/stackKits/compare/v0.17.0...v0.18.0) (2026-08-14)
+## [0.18.0](https://github.com/kombifyio/StackKits/compare/v0.17.0...v0.18.0) (2026-08-14)
 
 
 ### Added
@@ -899,7 +896,7 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
 * **tests:** bind the host-admission test to the spec its fixture came from
 * **tests:** stop assuming one home node in the Modern fixture (tnoa)
 
-## [0.17.0](https://github.com/kombifyio/stackKits/compare/v0.16.8...v0.17.0) (2026-08-14)
+## [0.17.0](https://github.com/kombifyio/StackKits/compare/v0.16.8...v0.17.0) (2026-08-14)
 
 
 ### Added
@@ -956,14 +953,14 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
   a post-upsert deploy/readiness step fails, preventing a duplicate Compose
   fallback deployment.
 
-## [0.16.8](https://github.com/kombifyio/stackKits/compare/v0.16.7...v0.16.8) (2026-08-13)
+## [0.16.8](https://github.com/kombifyio/StackKits/compare/v0.16.7...v0.16.8) (2026-08-13)
 
 
 ### Fixed
 
 * authenticate public runtime image pulls
 
-## [0.16.7](https://github.com/kombifyio/stackKits/compare/v0.16.1...v0.16.7) (2026-08-13)
+## [0.16.7](https://github.com/kombifyio/StackKits/compare/v0.16.1...v0.16.7) (2026-08-13)
 
 
 ### Fixed
@@ -972,14 +969,14 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
 * **ci:** reconcile StackKits development fleet
 * **delivery:** detach pre-1.0 publish completion
 
-## [0.16.1](https://github.com/kombifyio/stackKits/compare/v0.16.0...v0.16.1) (2026-08-12)
+## [0.16.1](https://github.com/kombifyio/StackKits/compare/v0.16.0...v0.16.1) (2026-08-12)
 
 
 ### Fixed
 
 * **cloud-kit:** make offsite backup opt-in
 
-## [0.16.0](https://github.com/kombifyio/stackKits/compare/v0.15.9...v0.16.0) (2026-08-10)
+## [0.16.0](https://github.com/kombifyio/StackKits/compare/v0.15.9...v0.16.0) (2026-08-10)
 
 
 ### Added
@@ -993,7 +990,7 @@ Built from `9c8f24eb2b1f5a22348439b98c529b9a94526c85`.
 * **release:** preserve exact source provenance in notes
 * **release:** tolerate forward-only main advances
 
-## [0.15.9](https://github.com/kombifyio/stackKits/compare/v0.15.8...v0.15.9) (2026-08-10)
+## [0.15.9](https://github.com/kombifyio/StackKits/compare/v0.15.8...v0.15.9) (2026-08-10)
 
 
 ### Fixed
