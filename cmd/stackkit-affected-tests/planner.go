@@ -529,6 +529,14 @@ func buildPlan(input plannerInput) testPlan {
 			Reason: "fixture-only mode-matrix citation check; live receipts stay a producer/release gate",
 		})
 	}
+	if anyPathUnder(files, "scripts/release/public-release-draft.mjs", "scripts/release/public-release-draft.test.mjs") {
+		commands = append(commands, testCommand{
+			Kind:   "node",
+			Scope:  "public-release-draft",
+			Argv:   []string{"node", "--test", "scripts/release/public-release-draft.test.mjs"},
+			Reason: "fixture-only source binding and draft resume plan; live uploads stay in Publish OSS",
+		})
+	}
 	if anyPathUnder(files,
 		"scripts/derive-status-surfaces.mjs",
 		"scripts/derive-status-surfaces.test.mjs",
