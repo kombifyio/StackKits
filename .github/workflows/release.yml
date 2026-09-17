@@ -232,6 +232,9 @@ jobs:
       - name: Upload archive trust material to the draft
         shell: bash
         env:
+          # uploads.github.com answers HTTP/2 uploads with HTTP 500 (seen
+          # 2026-09-17); force gh (Go) onto HTTP/1.1 for release asset uploads.
+          GODEBUG: http2client=0
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
@@ -252,6 +255,7 @@ jobs:
       - name: Publish and verify the release-index attestation
         shell: bash
         env:
+          GODEBUG: http2client=0 # gh uploads over HTTP/1.1; see the trust material upload step
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
@@ -958,6 +962,7 @@ jobs:
       - name: Revalidate exact receipts and publish stable
         shell: bash
         env:
+          GODEBUG: http2client=0 # gh uploads over HTTP/1.1; see the trust material upload step
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
           STABLE_PREVIOUS_TAG: ${{ inputs.stable_previous_tag }}

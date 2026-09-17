@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/kombifyio/stackkits/internal/productkits"
-	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 )
 
 // Client abstracts the public, embedded registry read path.
@@ -22,8 +21,6 @@ type Client interface {
 
 // ErrNotFound signals an unknown slug. Callers use errors.Is.
 var ErrNotFound = fmt.Errorf("registry: not found")
-
-const retiredHAKitRegistrySlug = stackspecmigration.LegacyHAKitSlug
 
 // activeProductSnapshot removes legacy migration-only rows at the client
 // boundary. Legacy snapshots may retain such a row during controlled cleanup

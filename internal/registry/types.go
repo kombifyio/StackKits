@@ -23,7 +23,10 @@ import (
 //
 // v4 (2026-06-13, CP-2 discovery-to-docs pipeline): extended Tool with vendor,
 // license, documentation_url, repo_url, use_cases and a Content block carrying
-// the published sk_tool_content sections. Powers emit-mintlify (CP-3).
+// the published sk_tool_content sections. Only the retired Administration
+// snapshot endpoint wrote those fields, and only emit-mintlify read them.
+// They were removed on 2026-09-17. The version stays 4 because the CUE bake
+// never emitted them, so every Git-owned v4 snapshot re-bakes unchanged.
 const SnapshotVersion = 4
 
 // Snapshot is the envelope serialized to registry_snapshot.json.
@@ -84,9 +87,8 @@ type Snapshot struct {
 }
 
 // Tool mirrors the subset of sk_tool that the CLI needs: identity +
-// evaluation status + vendor/license metadata + published content.
-// Vulnerability and changelog fields are omitted intentionally because they
-// are not part of the embedded StackKits contract.
+// evaluation status. Vendor, license, content, vulnerability and changelog
+// fields are not part of the embedded StackKits contract.
 type Tool struct {
 	Slug        string   `json:"slug"`
 	DisplayName string   `json:"display_name"`
@@ -98,45 +100,6 @@ type Tool struct {
 	LogoURL     string   `json:"logo_url,omitempty"`
 	ImageURL    string   `json:"image_url,omitempty"`
 	Tags        []string `json:"tags,omitempty"`
-
-	// v4 fields: vendor/license metadata from sk_tool and published content
-	// from sk_tool_content (CP-2, discovery-to-docs pipeline).
-	Vendor           string       `json:"vendor,omitempty"`
-	License          string       `json:"license,omitempty"`
-	LicenseSPDX      string       `json:"license_spdx,omitempty"`
-	DocumentationURL string       `json:"documentation_url,omitempty"`
-	RepoURL          string       `json:"repo_url,omitempty"`
-	UseCases         []string     `json:"use_cases,omitempty"`
-	Content          *ToolContent `json:"content,omitempty"`
-}
-
-// ToolContent carries the published tool documentation content from
-// sk_tool_content. Only content_kind=tool_doc with status=published
-// is embedded in the snapshot.
-type ToolContent struct {
-	ContentKind   string              `json:"content_kind"`
-	Version       int                 `json:"version"`
-	ContentHash   string              `json:"content_hash"`
-	PromptVersion string              `json:"prompt_version,omitempty"`
-	Sections      ToolContentSections `json:"sections"`
-}
-
-// ToolContentSections maps the structured documentation sections of a
-// tool_doc content entry retained in the versioned snapshot wire shape.
-type ToolContentSections struct {
-	Overview        string            `json:"overview,omitempty"`
-	VendorInfo      string            `json:"vendor_info,omitempty"`
-	UseCases        []string          `json:"use_cases,omitempty"`
-	EnableSnippet   string            `json:"enable_snippet,omitempty"`
-	Steps           []ToolContentStep `json:"steps,omitempty"`
-	Verify          []string          `json:"verify,omitempty"`
-	Troubleshooting []ToolContentStep `json:"troubleshooting,omitempty"`
-}
-
-// ToolContentStep is a titled step or troubleshooting entry.
-type ToolContentStep struct {
-	Title string `json:"title"`
-	Body  string `json:"body"`
 }
 
 // Service mirrors the CLI-visible projection of sk_service joined with the

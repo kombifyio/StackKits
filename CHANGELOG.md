@@ -4,6 +4,13 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.36.1](https://github.com/kombifyio/StackKits/compare/v0.36.0...v0.36.1) (2026-09-17)
+
+
+### Fixed
+
+* **cli:** remove the dead registry emit-mintlify command
+
 ## [0.36.0] (2026-09-17)
 
 

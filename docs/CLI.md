@@ -969,7 +969,9 @@ Subcommands:
 The public commands read or deterministically reproduce the embedded
 CUE-derived snapshot. Publisher-only `registry verify-parity` compares its
 Kit-definition hashes with the Git-owned product definitions. The former
-hosted `snapshot` and metadata-callback operations are retired.
+hosted `snapshot` and metadata-callback operations are retired, and so is
+`registry emit-mintlify`: the snapshot carries no tool content, and application
+pages are maintained in the docs site.
 
 ### `stackkit logs`
 

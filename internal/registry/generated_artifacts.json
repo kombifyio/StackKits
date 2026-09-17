@@ -19,13 +19,6 @@
       "state": "frozen",
       "generator": "",
       "note": "Hand-maintained until WS-2 / kombify-StackKits-1if flips setup profiles to snapshot-owned emission."
-    },
-    {
-      "path": "guides/stackkits/services/*.mdx",
-      "kind": "mintlify",
-      "state": "generated",
-      "generator": "stackkit registry emit-mintlify",
-      "note": "Only files with 'generated: true' frontmatter are owned by this generator. Handwritten guides coexist."
     }
   ]
 }

@@ -4131,7 +4131,6 @@
         "stackkit registry artifacts",
         "stackkit registry bake-from-cue",
         "stackkit registry emit-cue",
-        "stackkit registry emit-mintlify",
         "stackkit registry info"
       ]
     },
@@ -4231,35 +4230,6 @@
           "type": "string",
           "default": "foundation/generated",
           "description": "Directory for the rendered CUE files",
-          "required": false
-        }
-      ],
-      "subcommands": []
-    },
-    {
-      "path": "stackkit registry emit-mintlify",
-      "name": "emit-mintlify",
-      "parent": "stackkit registry",
-      "aliases": [],
-      "group": "reference",
-      "usage": "stackkit registry emit-mintlify [flags]",
-      "short": "Render Mintlify MDX tool documentation from the registry snapshot",
-      "description": "Render guides/stackkits/services/<slug>.mdx for every tool in the snapshot\nthat carries published content (tool.content != null). Tools without content\nare skipped — their handwritten MDX is left untouched.\n\nReads the snapshot JSON (default: internal/registry/data/registry_snapshot.json)\nand renders deterministically. The header carries the content_hash so drift is\ndetectable. CI regenerates from the committed snapshot and diffs.",
-      "runnable": true,
-      "examples": [],
-      "flags": [
-        {
-          "name": "input",
-          "type": "string",
-          "default": "internal/registry/data/registry_snapshot.json",
-          "description": "Snapshot JSON to render from",
-          "required": false
-        },
-        {
-          "name": "output-dir",
-          "type": "string",
-          "default": "guides/stackkits/services",
-          "description": "Output directory for generated MDX files",
           "required": false
         }
       ],
