@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
-  "stackkitsVersion": "v0.35.0",
-  "generatedAt": "2026-09-17T09:58:20Z",
+  "stackkitsVersion": "v0.36.2",
+  "generatedAt": "2026-09-19T03:22:20Z",
   "results": [
     {
       "os": {
@@ -23,7 +23,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.35.0"
+      "lastVerifiedRelease": "v0.36.2"
     },
     {
       "os": {
@@ -45,7 +45,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.35.0"
+      "lastVerifiedRelease": "v0.36.2"
     },
     {
       "os": {
@@ -67,7 +67,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.35.0"
+      "lastVerifiedRelease": "v0.36.2"
     },
     {
       "os": {
@@ -86,17 +86,9 @@
       "id": "proxmox-ve",
       "name": "Proxmox VE",
       "rollout": "kombify Techstack or the Proxmox VE API creates a guest VM; the StackKit installs inside that guest and is reached from the home network.",
-      "grade": "supported",
-      "reasonCodes": [],
-      "verifiedPhases": [
-        "install",
-        "init",
-        "generate",
-        "apply",
-        "verify",
-        "backup",
-        "restore",
-        "lan-access"
+      "grade": "unverified",
+      "reasonCodes": [
+        "current-release-receipt-pending"
       ],
       "lastVerifiedRelease": "v0.35.0"
     }
@@ -105,17 +97,9 @@
     {
       "useCase": "files",
       "adapter": "standalone-compose",
-      "grade": "supported",
-      "reasonCodes": [],
-      "verifiedPhases": [
-        "install",
-        "init",
-        "generate",
-        "apply",
-        "setup-files",
-        "verify",
-        "backup",
-        "restore"
+      "grade": "unverified",
+      "reasonCodes": [
+        "current-release-receipt-pending"
       ],
       "lastVerifiedRelease": "v0.35.0"
     },
@@ -124,29 +108,16 @@
       "adapter": "standalone-compose",
       "grade": "unverified",
       "reasonCodes": [
-        "apply-failed"
-      ],
-      "verifiedPhases": [
-        "install",
-        "init",
-        "generate"
+        "current-release-receipt-pending"
       ],
       "lastVerifiedRelease": "v0.33.3"
     },
     {
       "useCase": "vault",
       "adapter": "standalone-compose",
-      "grade": "supported",
-      "reasonCodes": [],
-      "verifiedPhases": [
-        "install",
-        "init",
-        "generate",
-        "apply",
-        "setup-vault",
-        "verify",
-        "backup",
-        "restore"
+      "grade": "unverified",
+      "reasonCodes": [
+        "current-release-receipt-pending"
       ],
       "lastVerifiedRelease": "v0.35.0"
     },
@@ -207,23 +178,15 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.35.0"
+      "lastVerifiedRelease": "v0.36.2"
     },
     {
       "kit": "basement-kit",
       "environment": "home-lan-vm",
       "name": "Virtual machine on a home network",
-      "grade": "supported",
-      "reasonCodes": [],
-      "verifiedPhases": [
-        "install",
-        "init",
-        "generate",
-        "apply",
-        "verify",
-        "backup",
-        "restore",
-        "lan-access"
+      "grade": "unverified",
+      "reasonCodes": [
+        "current-release-receipt-pending"
       ],
       "lastVerifiedRelease": "v0.35.0"
     },

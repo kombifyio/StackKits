@@ -162,7 +162,7 @@ func Default() []Service {
 			DisplayName: "Files", Description: "Document management and file sharing, backed by Cloudreve by default.",
 			LocalSlug: "files", PublicSlug: "files", LegacyAliases: []string{"cloudreve", "nextcloud"},
 			IdentityPolicy: IdentityPolicySelfAuth, OwnerProvisioningPolicy: OwnerProvisioningRequired,
-			Icon: "&#128193;", Badge: "L3 \u00b7 Files", Section: "Applications", Order: 60, EnableVar: "enable_files", GuideURL: "https://docs.kombify.io/guides/stackkits/use-cases/files", SetupPolicy: SetupPolicyOnDemand, Alternatives: []string{"nextcloud"}, Default: true,
+			Icon: "&#128193;", Badge: "L3 \u00b7 Files", Section: "Applications", Order: 60, EnableVar: "enable_files", GuideURL: "https://docs.kombify.io/guides/stackkits/use-cases/files", SetupPolicy: SetupPolicyOnDemand, Default: true,
 		},
 		{
 			Key: "dockge", Name: "dockge", ToolName: "dockge", ModuleSlug: "dockge",

@@ -228,6 +228,9 @@ func LoadUseCaseComputeTiers(repoRoot string) ([]UseCase, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := attachAuthoringVocabulary(&source, source.catalogWorkloads, source.catalogModules); err != nil {
+		return nil, err
+	}
 	return source.UseCases, nil
 }
 
@@ -902,10 +905,16 @@ func attachAuthoringVocabulary(source *sourceCatalog, workloads, modules []map[s
 	for index, useCase := range source.UseCases {
 		workload := source.Workloads[useCase.ID]
 		if workload == nil {
+			if err := validateAlternativeComponents(useCase, AuthoringWorkload{}); err != nil {
+				return err
+			}
 			continue
 		}
 		authoring, err := authoringWorkloadFromCatalog(workload, profiles)
 		if err != nil {
+			return err
+		}
+		if err := validateAlternativeComponents(useCase, authoring); err != nil {
 			return err
 		}
 		source.UseCases[index].DefaultAlternative = authoring.DefaultAlternative
@@ -924,6 +933,19 @@ func attachAuthoringVocabulary(source *sourceCatalog, workloads, modules []map[s
 	}
 	sort.Slice(kitCores, func(i, j int) bool { return kitCores[i].ID < kitCores[j].ID })
 	source.KitCores = kitCores
+	return nil
+}
+
+func validateAlternativeComponents(useCase UseCase, authoring AuthoringWorkload) error {
+	admitted := make(map[string]bool, len(authoring.Alternatives))
+	for _, alternative := range authoring.Alternatives {
+		admitted[alternative.ID] = true
+	}
+	for _, component := range useCase.Components {
+		if component.Role == "alternative" && !admitted[component.ID] {
+			return fmt.Errorf("use case %s publishes alternative component %s without an Architecture v2 alternative", useCase.ID, component.ID)
+		}
+	}
 	return nil
 }
 

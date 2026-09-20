@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-09-17T18:02:44Z",
+  "generated_at": "2026-09-20T15:20:12Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -1247,10 +1247,7 @@
         {
           "service_group_slug": "file-sharing",
           "role": "default",
-          "selected_module_slug": "cloudreve",
-          "alternative_module_slugs": [
-            "nextcloud"
-          ]
+          "selected_module_slug": "cloudreve"
         },
         {
           "service_group_slug": "forward-auth",
@@ -1292,10 +1289,7 @@
         {
           "service_group_slug": "photo-management",
           "role": "default",
-          "selected_module_slug": "immich",
-          "alternative_module_slugs": [
-            "ente-photos"
-          ]
+          "selected_module_slug": "immich"
         },
         {
           "service_group_slug": "remote-desktop",
@@ -1332,7 +1326,7 @@
           "kind": "default",
           "is_default": true,
           "spec_hash": "23424987f6fd7dc188d7f5e8e834b4ffe3c8d05751b72b8fecd4ee2cce1a79c6",
-          "kit_definition_hash": "4119babff548c393beea11ddc88fd76ac368ed6a1aeab2a75fb5935929e613d9",
+          "kit_definition_hash": "49a589b887b93a9b60102865e7c1cba40043c5b788a9b2990d175d881eb51388",
           "module_contract_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
         }
       ]
@@ -1349,7 +1343,7 @@
           "slug": "default",
           "kind": "default",
           "is_default": true,
-          "kit_definition_hash": "02df211ee876de241b5caed39cddb7042fde812ffd757558bd82c2f69f795086"
+          "kit_definition_hash": "5cc58fb1441119b5a0b38e1d2a0c9ca98da8850b36d9c756b6896847c9ba5f95"
         }
       ]
     },

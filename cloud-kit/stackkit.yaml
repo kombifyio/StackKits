@@ -244,7 +244,7 @@ application:
     role: default
     package: files
     defaultTool: cloudreve
-    alternatives: [nextcloud]
+    alternatives: []
     description: "File storage, sharing, and document-management workflows"
     defaultRuntimeProfile: self-hosted-lightweight
     runtimeProfiles:
@@ -254,12 +254,6 @@ application:
         placementModes: [standard]
         contexts: [cloud]
         description: "StackKit deploys Cloudreve as the default file storage and sharing app on the user's node."
-      self-hosted-collaboration:
-        displayName: "Self-hosted Collaboration Suite"
-        realization: oss
-        placementModes: [standard]
-        contexts: [cloud]
-        description: "StackKit deploys Nextcloud as the files provider for collaboration and WebDAV-heavy use."
       kombify-managed-files:
         displayName: "Kombify Managed Files"
         realization: control-plane
@@ -282,7 +276,7 @@ application:
         placementModes: [standard, managed-serverless]
         contexts: [cloud]
         managedServerlessEligible: true
-        description: "An existing Nextcloud, WebDAV, S3-compatible bucket, or file service is connected as the package backend."
+        description: "An existing WebDAV, S3-compatible bucket, or file service is connected as the package backend."
     connectors:
       stackkit:
         kind: stackkit
@@ -305,11 +299,6 @@ application:
         basePath: /api/v4
         auth: cloudreve-auth
         purpose: "Owner bootstrap, health, file metadata, upload/download, and sharing policy checks."
-      nextcloud:
-        protocol: webdav
-        basePath: /remote.php/dav/files
-        auth: nextcloud-auth
-        purpose: "Document and file access for collaboration-oriented provider profiles."
       managed-dms:
         protocol: rest
         basePath: /api/documents

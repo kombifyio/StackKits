@@ -952,6 +952,46 @@ func (e Engine) MaintenanceRunFull(ctx context.Context) (string, error) {
 	return e.Exec(ctx, []string{"kopia", "maintenance", "run", "--full"})
 }
 
+// MaintenanceRunQuick performs index compaction without full garbage
+// collection. It is the cheap, frequent half of Kopia's maintenance pair.
+//
+// Retention is a policy, not a deletion: keepDaily and its siblings decide
+// which snapshots stay referenced, and only maintenance frees the blobs the
+// dropped ones held. A repository that snapshots on a schedule but never runs
+// maintenance grows without bound no matter what the retention policy says.
+//
+// Deletion must happen here and nowhere else. An object-store expiry or
+// lifecycle rule over a Kopia bucket removes pack blobs the index still
+// references, which corrupts the repository silently: nothing fails until a
+// restore needs one of the removed blobs.
+func (e V2Engine) MaintenanceRunQuick(ctx context.Context, password []byte) (string, error) {
+	return e.maintenanceRun(ctx, password, false)
+}
+
+// MaintenanceRunFull compacts and garbage-collects the repository, releasing
+// the storage held by snapshots that retention has dropped. See
+// MaintenanceRunQuick for why this is the only admissible deletion path.
+func (e V2Engine) MaintenanceRunFull(ctx context.Context, password []byte) (string, error) {
+	return e.maintenanceRun(ctx, password, true)
+}
+
+func (e V2Engine) maintenanceRun(ctx context.Context, password []byte, full bool) (string, error) {
+	input, err := repositoryPasswordInput(password, 1)
+	if err != nil {
+		return "", err
+	}
+	defer clear(input)
+	command := []string{"maintenance", "run"}
+	if full {
+		command = append(command, "--full")
+	}
+	out, err := e.invoke(ctx, command, input)
+	if err != nil {
+		return out, fmt.Errorf("run kopia maintenance: %w", err)
+	}
+	return out, nil
+}
+
 // Disconnect detaches the agent from the repository without deleting remote
 // data. backup_wipe calls it last so a wiped node no longer holds
 // repository credentials in its Kopia config.

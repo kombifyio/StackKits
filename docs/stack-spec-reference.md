@@ -127,8 +127,8 @@ services:
 application:
   files:
     enabled: bool          # Basement Kit default: true
-    tool: string           # "cloudreve" (default) or "nextcloud"
-    runtimeProfile: string # self-hosted-lightweight, self-hosted-collaboration, kombify-managed-files, kombify-managed-dms, bring-your-own-storage
+    tool: string           # "cloudreve" for native v2; exact-v0.6 compatibility also accepts "nextcloud"
+    runtimeProfile: string # self-hosted-lightweight, kombify-managed-files, kombify-managed-dms, bring-your-own-storage
     connectors:
       files:
         enabled: bool
@@ -449,7 +449,7 @@ nodes:
     ip: 10.0.0.5
 ```
 
-Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) and StackKit-owned L3 app bundles are registered through Coolify and route through Coolify's Traefik, with no separate StackKit Traefik in the default path. Files is enabled by default at `http(s)://files.<domain>` with Cloudreve as the standard provider; Nextcloud is the explicit standard/high-tier alternative and must not run in parallel with Cloudreve. Uptime Kuma is automatically bootstrapped with monitors for enabled default services, including Node Hub, StackKit API, Homepage, PocketID, TinyAuth, Coolify, Whoami, Vaultwarden, Immich, and Files. In the Coolify path, those monitors target `coolify-proxy` with the service `Host` header so they validate the real router path without depending on client-side `*.home` DNS inside the Kuma container. The fallback path must be explicitly enabled and records fallback state rather than managed Coolify evidence.
+Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) and StackKit-owned L3 app bundles are registered through Coolify and route through Coolify's Traefik, with no separate StackKit Traefik in the default path. Files is enabled by default at `http(s)://files.<domain>` with Cloudreve as its sole admitted native provider. Exact-v0.6 compatibility may still select Nextcloud, but it is not a native v2 alternative. Uptime Kuma is automatically bootstrapped with monitors for enabled default services, including Node Hub, StackKit API, Homepage, PocketID, TinyAuth, Coolify, Whoami, Vaultwarden, Immich, and Files. In the Coolify path, those monitors target `coolify-proxy` with the service `Host` header so they validate the real router path without depending on client-side `*.home` DNS inside the Kuma container. The fallback path must be explicitly enabled and records fallback state rather than managed Coolify evidence.
 
 ## Validation Rules
 
@@ -458,11 +458,10 @@ Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami)
 - `mode` must resolve to `bare`, `bootstrapped`, or `advanced`; legacy `simple` normalizes to `bootstrapped`, and legacy `terramate` / `advanced-terramate` normalize to `advanced`
 - `compute.tier` must be `low`, `standard`, or `high`
 - `paas` must be `coolify` or `komodo` for normal production StackKits (Coolify when omitted); `dokploy` is draft-only
-- `application.files.tool` must be `cloudreve` or `nextcloud`; contradictory `application.files.*` and `services.files.*` provider values fail validation
+- Native v2 Files authoring admits only `cloudreve`. The legacy `application.files.tool` compatibility field still accepts `cloudreve` or `nextcloud`; contradictory legacy `application.files.*` and `services.files.*` provider values fail validation.
 - `application.<useCase>.runtimeProfile` selects the package runtime profile when the kit declares one. For Smart Home, `kombify-managed` and `kombify-managed-hybrid` are Control Plane handoffs, not local OSS deployment fallbacks.
-- For Files/DMS, `self-hosted-lightweight` keeps the existing Cloudreve default, `self-hosted-collaboration` selects the Nextcloud-style collaboration path, and `kombify-managed-files` / `kombify-managed-dms` are Control Plane handoffs.
+- For Files/DMS, `self-hosted-lightweight` uses the admitted Cloudreve workload, while `kombify-managed-files` / `kombify-managed-dms` are Control Plane handoffs. A richer native collaboration workload has not been admitted.
 - `application.smart-home.connectors.home-assistant.endpoint` refers to Home Assistant's native product MCP endpoint (`/api/mcp`), not a second StackKits-owned Home Assistant connector.
-- `nextcloud` is valid only for `standard` and `high` compute tiers; low-tier Basement Kit keeps Cloudreve when Files is enabled
 - `tls.provider` auto-selects `challenge: dns` if set
 - `domain: home` is the local default and must generate Owner-CA HTTPS links consumed by the device-managed scoped DNS/trust enrollment profile
 - local enrollment must not require router/DHCP/hosts-file changes or generate `.local`, `.localhost`, or `.arpa` aliases

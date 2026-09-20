@@ -1,10 +1,10 @@
 {
   "documentHashes": {
     "catalog.json": "sha256:909b27df9285214ee286c25de57ec63cc20f8e01993b299182f6c2238126c2eb",
-    "compute-tier-fits.json": "sha256:4412c47934016581e61c1237ff1c91ef684e1b2e3788a2c7b9427ecda95dc1fc",
-    "definitions/basement-kit.json": "sha256:929f5165c89ae4e7d02d81549f3913d185b39bcef9d2a61d0b20e03a9c362f7c",
-    "definitions/cloud-kit.json": "sha256:be0427293ffe6b8f6b347fa29879052db9cc1bd713351407ecd984e92d8b25d2",
-    "definitions/modern-homelab.json": "sha256:8e6743fc5d14c317661b6f6381207635713c37913dacf020e1140d7e6970478d",
+    "compute-tier-fits.json": "sha256:611479ae59287465d08d1b5240521d6e469f0aa6517ab7218da3503ae5d96557",
+    "definitions/basement-kit.json": "sha256:acfb225effa23bff1055c924190b2a1cd3aed4df767ad709bab1ddba1771e1b0",
+    "definitions/cloud-kit.json": "sha256:916f7e57edfdcc316bb8a6e907dbf084ddb4c99d19ffbde2a14a52b68f5d7581",
+    "definitions/modern-homelab.json": "sha256:f2a395540440d97965791349913250542dcb217085dfdcdf9fdb03caa5b75411",
     "operations.json": "sha256:d182e1caf56c6ca909e326c0db41597ca5d0dadcf8a4e7d6782e3cafc49806c3"
   },
   "documents": {
@@ -23,7 +23,7 @@
   "sourceHashes": {
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee",
     "foundation/application_lifecycle.cue": "sha256:7befc7549306375ef5434a852ad31940fe4924698900db1ccff0c766c0e70cdd",
-    "foundation/architecture_v2.cue": "sha256:851ddacee954bab2535cf96e5a1bd297cad58e02e6f0afb9bddf6c1f74c8686d",
+    "foundation/architecture_v2.cue": "sha256:1a40705be654cafbde19457c81ace21cc0bc20b2e6f01cb26266d8645887652a",
     "foundation/architecture_v2_backup.cue": "sha256:750b23662d20956156394cf61ad1466e651372a18aa06075883a2a70199c93e0",
     "foundation/architecture_v2_catalog.cue": "sha256:7a19189804eb004a0c75cc4bdf5117823e005441a413baac1fa625c6990bdbdc",
     "foundation/architecture_v2_cloud_core.cue": "sha256:557062e98e94a96dc42968b93393d5d08a47b6f2e870c48509fd12eebd3aa7b3",

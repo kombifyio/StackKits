@@ -13,9 +13,9 @@ import (
 	"struct"
 )
 
-#ArchitectureAPIVersion:          "stackkit/v2alpha1"
-#ArchitectureAPIVersionV2Alpha2:  "stackkit/v2alpha2"
-#ArchitectureAPIVersionAny:       #ArchitectureAPIVersion | #ArchitectureAPIVersionV2Alpha2
+#ArchitectureAPIVersion:         "stackkit/v2alpha1"
+#ArchitectureAPIVersionV2Alpha2: "stackkit/v2alpha2"
+#ArchitectureAPIVersionAny:      #ArchitectureAPIVersion | #ArchitectureAPIVersionV2Alpha2
 
 #ContractID:          string & =~"^[a-z][a-z0-9-]*$"
 #RuntimeListenerIDV1: string & =~"^[a-z][a-z0-9-]*(/[a-z][a-z0-9-]*){3}$"
@@ -837,12 +837,44 @@ import (
 
 #BackupDataClassV1: "config" | "secret-material" | "platform-state" | "database" | "user-content" | "documents" | "photos" | "large-media" | "telemetry-timeseries" | "serverless-config"
 
+// #BackupCoverageGroupV1 names the three nested coverage groups the
+// subscription lineup sells: config, content (config plus the data a stack
+// produces), media (content plus the libraries that dominate a repository).
+// The group is the whole config-versus-content-versus-media product
+// distinction and it adds no vocabulary beyond #BackupDataClassV1.
+#BackupCoverageGroupV1: "config" | "content" | "media"
+
+// #BackupCoverageClassesV1 is the one mapping from a coverage group to the
+// classes it admits.
+//
+// documents is content rather than media: a stack whose search index is
+// backed up without the PDFs it indexes has an index of nothing.
+// telemetry-timeseries is content because it restores through the same
+// database hook as database, and because a class that grows unattended has to
+// sit inside a paid group instead of riding along with config.
+#BackupCoverageClassesV1: {
+	config: ["config", "secret-material", "platform-state", "serverless-config"]
+	content: list.Concat([config, ["database", "user-content", "documents", "telemetry-timeseries"]])
+	media: list.Concat([content, ["photos", "large-media"]])
+}
+
+// #BackupCoverageWithinV1 lists the groups one grant admits. A stack may
+// always choose less coverage than it was granted - a Pro customer keeping
+// config only spends less of their quota - and may never choose more.
+#BackupCoverageWithinV1: {
+	config: ["config"]
+	content: ["config", "content"]
+	media: ["config", "content", "media"]
+}
+
+#BackupCadenceV1: "hourly" | "daily" | "weekly"
+
 // #BackupScheduleV1 is deliberately structured instead of accepting an
 // arbitrary cron expression. Runtime owners may lower this UTC cadence into
 // their scheduler, but cannot import commands, environment, or host timezone
 // ambiguity into ResolvedPlan.
 #BackupScheduleV1: {
-	cadence:       *"daily" | "hourly" | "weekly"
+	cadence:       #BackupCadenceV1 | *"daily"
 	minuteUTC:     int & >=0 & <=59 | *0
 	jitterSeconds: int & >=0 & <=1800 | *300
 
@@ -867,6 +899,45 @@ import (
 	keepYearly:  int & >=0 & <=10 | *0
 }
 
+// _backupRetentionCeiling is the upper bound #BackupRetentionV1 declares,
+// written once as a value. It unifies with the contract on purpose: move a
+// bound and this stops compiling, rather than quietly granting more than the
+// contract allows.
+_backupRetentionCeiling: #BackupRetentionV1 & {
+	keepDaily:   365
+	keepWeekly:  104
+	keepMonthly: 60
+	keepYearly:  10
+}
+
+// #BackupRetentionCeilingV1 is how far a grant may let one stack raise its
+// retention. Unset means the contract bound itself, so a stack with no
+// subscription behind it is limited by #BackupRetentionV1 and by nothing else.
+#BackupRetentionCeilingV1: {
+	keepDaily:   int & >=1 & <=_backupRetentionCeiling.keepDaily | *_backupRetentionCeiling.keepDaily
+	keepWeekly:  int & >=0 & <=_backupRetentionCeiling.keepWeekly | *_backupRetentionCeiling.keepWeekly
+	keepMonthly: int & >=0 & <=_backupRetentionCeiling.keepMonthly | *_backupRetentionCeiling.keepMonthly
+	keepYearly:  int & >=0 & <=_backupRetentionCeiling.keepYearly | *_backupRetentionCeiling.keepYearly
+}
+
+// #BackupGrantV1 is the envelope one subscription hands to one stack: how far
+// its coverage, cadence and retention may reach.
+//
+// It is a ceiling and never a value. What a tier selects by default is a
+// value, and values arrive over the entitlement chain from the one published
+// register. They are not restated here: a second register of them is exactly
+// how a published quota and an enforced quota drift apart.
+//
+// Every field defaults to the contract's own maximum, so a stack with no
+// subscription behind it is bounded by #BackupPolicyV1 and by nothing else.
+#BackupGrantV1: {
+	coverage: #BackupCoverageGroupV1 | *"media"
+	cadences: [...#BackupCadenceV1] & list.MinItems(1) | *["hourly", "daily", "weekly"]
+	retention: #BackupRetentionCeilingV1
+
+	_cadencesUnique: list.UniqueItems(cadences) & true
+}
+
 #BackupRestoreVerificationV1: {
 	required:           true
 	cadence:            *"monthly" | "weekly"
@@ -881,14 +952,51 @@ import (
 #BackupPolicyV1: {
 	apiVersion: "stackkit.backup-policy/v1"
 	kind:       "BackupPolicy"
+	grant:      #BackupGrantV1
+
+	// coverage selects the class list; the grant only bounds the choice, so a
+	// stack may always cover less than it was granted and never more.
+	//
+	// The selection defaults to the grant capped at content. Media is opted
+	// into, never defaulted into: photo and video libraries are what fill a
+	// quota, and a customer who did not ask for them should not meet them
+	// first in their bill.
+	coverage: or(#BackupCoverageWithinV1[grant.coverage]) | *_defaultCoverage
+
+	_defaultCoverage: [if grant.coverage == "media" {"content"}, grant.coverage][0]
+
+	schedule: #BackupScheduleV1 & {cadence: or(grant.cadences)}
+	dataClasses: [...or(#BackupCoverageClassesV1[coverage])] & list.MinItems(1) | *#BackupCoverageClassesV1[coverage]
+	retention: #BackupRetentionV1 & {
+		keepDaily:   <=grant.retention.keepDaily
+		keepWeekly:  <=grant.retention.keepWeekly
+		keepMonthly: <=grant.retention.keepMonthly
+		keepYearly:  <=grant.retention.keepYearly
+	}
+	restoreVerification: #BackupRestoreVerificationV1
+
+	_dataClassesUnique: list.UniqueItems(dataClasses) & true
+
+	if schedule.cadence == "weekly" {
+		// A weekly cadence takes one snapshot a week, so the daily bucket can
+		// only ever hold that one snapshot. Leaving keepDaily above 1 lets the
+		// daily and weekly buckets retain the same weekly snapshots twice and
+		// holds the repository open well past the window keepWeekly states.
+		retention: keepDaily: 1
+	}
+}
+
+// #ModuleBackupPolicyProjectionV1 is everything a render unit may see of the
+// backup policy: the cadence it has to honour, the classes it has to cover,
+// the retention it has to apply and the verification it owes. The grant is
+// deliberately absent. A module renders what the plan resolved; the
+// subscription envelope that bounded the resolution is not its business, and
+// a module that could read it could branch on the customer's tier.
+#ModuleBackupPolicyProjectionV1: {
+	apiVersion: "stackkit.backup-policy/v1"
+	kind:       "BackupPolicy"
 	schedule:   #BackupScheduleV1
-	dataClasses: [...#BackupDataClassV1] & list.MinItems(1) | *[
-		"config",
-		"secret-material",
-		"platform-state",
-		"database",
-		"user-content",
-	]
+	dataClasses: [...#BackupDataClassV1] & list.MinItems(1)
 	retention:           #BackupRetentionV1
 	restoreVerification: #BackupRestoreVerificationV1
 
@@ -996,10 +1104,10 @@ import (
 	// v2alpha2 selects the compute profile independently for every module.
 	// v2alpha1 accepts this field only through the explicit compatibility
 	// adapter; the compiler never silently applies it to native intent.
-	computeProfile?:      #ComputeTierV2
+	computeProfile?:     #ComputeTierV2
 	storageProfile?:     #ContractID
 	acceleratorProfile?: #ContractID
-	settings?:       #PublicSettings
+	settings?:           #PublicSettings
 	secretRefs?: [string]: #SecretReference
 }
 
@@ -1044,8 +1152,8 @@ import (
 #HardwareProfileV2: "standard" | "pi" | "gpu" | "storage"
 
 #InstallIntentV2: {
-	mode:        *"bootstrapped" | "bare" | "advanced"
-	runtime:     *"docker" | "native"
+	mode:    *"bootstrapped" | "bare" | "advanced"
+	runtime: *"docker" | "native"
 	// Native v2alpha2 has no kit-wide compute selector. v2alpha1 keeps the
 	// optional field for one explicit compatibility adapter in the compiler.
 	computeTier?: #ComputeTierV2
@@ -1085,7 +1193,7 @@ import (
 		version?: string
 	}
 
-	install:    #InstallIntentV2
+	install: #InstallIntentV2
 	if apiVersion == #ArchitectureAPIVersion {
 		install: computeTier: #ComputeTierV2 | *"standard"
 	}
@@ -1116,7 +1224,7 @@ import (
 	availability: #AvailabilityIntent & {mode: controlPlane.mode}
 	deviceEnrollment?: #DeviceEnrollmentPolicy
 	partitionPolicy:   #PartitionPolicy
-	backupPolicy: #BackupPolicyV1
+	backupPolicy:      #BackupPolicyV1
 	driftPolicy: #DriftPolicyV1 | *{}
 	observability?: #ModuleOTLPBaselineV1
 	workloads?: [#WorkloadID]: #WorkloadSelectionV2
@@ -1362,8 +1470,8 @@ import (
 		route: {
 			exposure: #ServiceExposureV2
 			protocol: "https"
-			port: int & >=1 & <=65535
-			path: string & =~"^/"
+			port:     int & >=1 & <=65535
+			path:     string & =~"^/"
 		}
 		accessPolicies: [string]: #AccessPolicyV2
 	}
@@ -1642,12 +1750,12 @@ import (
 // values are CUE-owned formula outputs; omission keeps demand unknown rather
 // than selecting a profile default.
 #DataCapacityDemandV2: close({
-	initialGiB:          number & >0
-	growthGiBPerMonth:   number & >=0
-	horizonMonths:      int & >=1 & <=120
-	reservePercent:     number & >=0 & <=100
-	projectedGiB:       initialGiB + growthGiBPerMonth * horizonMonths
-	requiredGiB:        projectedGiB * (1 + reservePercent / 100)
+	initialGiB:        number & >0
+	growthGiBPerMonth: number & >=0
+	horizonMonths:     int & >=1 & <=120
+	reservePercent:    number & >=0 & <=100
+	projectedGiB:      initialGiB + growthGiBPerMonth*horizonMonths
+	requiredGiB:       projectedGiB * (1 + reservePercent/100)
 })
 
 // #RecoveryObjectiveV1 is a per-binding recovery goal. It is declarative
@@ -1665,8 +1773,8 @@ import (
 #RecoveryObjectiveProjectionV1: close({
 	apiVersion: "stackkit.recovery-objective-projection/v1"
 	objectives: [...close({
-		bindingRef:          #ContractID
-		workloadRefs:        [...#ContractID] & list.MinItems(1)
+		bindingRef: #ContractID
+		workloadRefs: [...#ContractID] & list.MinItems(1)
 		maxDataLossSeconds:  int & >=0
 		recoveryTimeSeconds: int & >0
 	})] & list.MinItems(1)
@@ -1682,10 +1790,10 @@ import (
 // classified host filesystem. It is a host prerequisite, not a data-capacity
 // promise or a request to create or reconfigure storage.
 #StorageFilesystemRequirementV2: close({
-	sourceRef:               "storage.dataRoot" | "system.container.dataRoot"
-	requiredClass:           #StorageFilesystemClassV2
+	sourceRef:     "storage.dataRoot" | "system.container.dataRoot"
+	requiredClass: #StorageFilesystemClassV2
 	allowedFilesystemTypes?: [...#StorageFilesystemTypeV2] & list.MinItems(1)
-	requireOwnership:        true
+	requireOwnership: true
 })
 
 #InventoryStorageCapacityV2: close({
@@ -1713,9 +1821,9 @@ import (
 	classes: [...#DataClass] & list.MinItems(1)
 	primarySiteRef: #SiteID
 	replicaSiteRefs?: [...#SiteID]
-	cloudCopyAllowed: bool | *false
-	cloudCopyPolicy?: #CloudCopyPolicyV2
-	capacityDemand?: #DataCapacityDemandV2
+	cloudCopyAllowed:   bool | *false
+	cloudCopyPolicy?:   #CloudCopyPolicyV2
+	capacityDemand?:    #DataCapacityDemandV2
 	recoveryObjective?: #RecoveryObjectiveV1
 
 	_classesUnique: list.UniqueItems(classes) & true
@@ -1857,7 +1965,7 @@ import (
 	// ordinary user access. Vault and recovery surfaces therefore retain their
 	// mandatory device-bound owner step-up through compilation and publication.
 	requiredPrivilege: *"user" | "admin" | "identity" | "secrets" | "vault" | "recovery"
-	ingressAuth: *"native" | #IngressAuthModeV2
+	ingressAuth:       *"native" | #IngressAuthModeV2
 	allowedIngressProtocols: [...#NetworkProtocol] & list.MinItems(1)
 	allowedExposures: [...#ServiceExposureV2] & list.MinItems(1)
 	originSelector:   *"single-site" | "control-authority-site" | "multi-zone" | "edge-pool"
@@ -1904,16 +2012,16 @@ import (
 // but they can never create one. componentRef and targetPort keep generated
 // runtime artifacts bound to the same declaration as the host-port inventory.
 #ModuleRuntimeListenerV1: {
-	id:                #ContractID
-	componentRef:      #ContractID
-	transport:         "tcp" | "udp"
-	bindAddress:       #NetworkAddressV2
+	id:                 #ContractID
+	componentRef:       #ContractID
+	transport:          "tcp" | "udp"
+	bindAddress:        #NetworkAddressV2
 	bindAddressSource?: "node-site"
-	port:              int & >=1 & <=65535
-	targetPort:        int & >=1 & <=65535
-	sharing:           "exclusive" | "virtual-host"
-	listenerGroupRef?: #ContractID
-	exposure:          #ServiceExposureV2
+	port:               int & >=1 & <=65535
+	targetPort:         int & >=1 & <=65535
+	sharing:            "exclusive" | "virtual-host"
+	listenerGroupRef?:  #ContractID
+	exposure:           #ServiceExposureV2
 	sourceServiceRefs: [...#ContractID] | *[]
 
 	_sourceServiceRefsUnique: list.UniqueItems(sourceServiceRefs) & true
@@ -3106,10 +3214,10 @@ _servicePublicationShape: {
 	environment?: [string]:       string
 	secretEnvironment?: [string]: #ContractID
 	volumes?: [...{
-		id:     #ContractID
-		target: #AbsolutePath
-		class:  "persistent" | "cache"
-		backup: bool
+		id:        #ContractID
+		target:    #AbsolutePath
+		class:     "persistent" | "cache"
+		backup:    bool
 		readOnly?: bool
 	}]
 	health: {
@@ -3231,7 +3339,7 @@ _servicePublicationShape: {
 	// x86-64-v2 is an amd64-only floor. The observed inventory fact is
 	// optional because arm64 nodes do not have an x86 microarchitecture level.
 	minAMD64MicroarchitectureLevel?: int & >=1 & <=4
-	storageFilesystem?: #StorageFilesystemRequirementV2
+	storageFilesystem?:              #StorageFilesystemRequirementV2
 	allowedVirtualization?: [...#RuntimeVirtualizationV2] & list.MinItems(1)
 	requireInventoryFacts?: [...#ModuleRuntimeInventoryFactV1] & list.MinItems(1)
 
@@ -3250,9 +3358,9 @@ _servicePublicationShape: {
 // selected module profile. Missing axes stay unknown; the compiler must never
 // manufacture a zero or standard value for an undeclared axis.
 #ModuleResourceBudgetV2: {
-	cpuCores?:   number & >0
-	ramGB?:      number & >0
-	storageGB?:  number & >0
+	cpuCores?:  number & >0
+	ramGB?:     number & >0
+	storageGB?: number & >0
 } & struct.MinFields(1)
 
 // #ModuleComputeProfileV2 is the module-local compute authority. A profile is
@@ -3269,21 +3377,21 @@ _servicePublicationShape: {
 	// Only a core module may constrain the install platform it actually ships.
 	// This is read from the selected profile, never inferred from inventory.
 	platformManagement?: "selected-provider" | "standalone" | "native"
-	hostFloor?:   #ModuleRuntimeRequirementsV2
-	reservation?: #ModuleResourceBudgetV2
-	recommended?: #ModuleResourceBudgetV2
-	headroom?:    #ModuleResourceBudgetV2
+	hostFloor?:          #ModuleRuntimeRequirementsV2
+	reservation?:        #ModuleResourceBudgetV2
+	recommended?:        #ModuleResourceBudgetV2
+	headroom?:           #ModuleResourceBudgetV2
 	architectures?: [...("amd64" | "arm64")] | *[]
 	virtualization?: [...#RuntimeVirtualizationV2] | *[]
 	components?: [...#ContractID] | *[]
 	capabilities?: [...#CapabilityID] | *[]
 	degradations?: [...#ContractID] | *[]
 
-	_architecturesUnique: list.UniqueItems(architectures) & true
+	_architecturesUnique:  list.UniqueItems(architectures) & true
 	_virtualizationUnique: list.UniqueItems(virtualization) & true
-	_componentsUnique: list.UniqueItems(components) & true
-	_capabilitiesUnique: list.UniqueItems(capabilities) & true
-	_degradationsUnique: list.UniqueItems(degradations) & true
+	_componentsUnique:     list.UniqueItems(components) & true
+	_capabilitiesUnique:   list.UniqueItems(capabilities) & true
+	_degradationsUnique:   list.UniqueItems(degradations) & true
 }
 
 // Storage and accelerator profiles are optional orthogonal axes. They carry
@@ -3297,8 +3405,8 @@ _servicePublicationShape: {
 	components?: [...#ContractID] | *[]
 	capabilities?: [...#CapabilityID] | *[]
 	degradations?: [...#ContractID] | *[]
-	profileHash?: #ContentHash
-	_componentsUnique: list.UniqueItems(components) & true
+	profileHash?:        #ContentHash
+	_componentsUnique:   list.UniqueItems(components) & true
 	_capabilitiesUnique: list.UniqueItems(capabilities) & true
 	_degradationsUnique: list.UniqueItems(degradations) & true
 }
@@ -3948,7 +4056,7 @@ _servicePublicationShape: {
 	engine:      "docker"
 	rootless:    false
 	// The v1 Core renderer and local backup source share this daemon root.
-	dataRoot:    "/var/lib/docker"
+	dataRoot: "/var/lib/docker"
 }
 
 #ModulePublicHostStorageRootsV1: {
@@ -4024,14 +4132,14 @@ _servicePublicationShape: {
 			lifecycle:    #ModuleRuntimeComponentV2.lifecycle
 			imageRef:     string & =~"^[^[:space:]@]+$"
 			imageDigest:  #ContentHash
-			dependsOn:    [...#ContractID] | *[]
+			dependsOn: [...#ContractID] | *[]
 		})] & list.MinItems(1)
 
 		_componentRefsUnique: list.UniqueItems([for component in components {component.componentRef}]) & true
 		_componentDependenciesClosed: [for component in components for dependencyRef in component.dependsOn {
 			component:  component.componentRef
 			dependency: dependencyRef
-			matches:    [for candidate in components if candidate.componentRef == dependencyRef {candidate.componentRef}] & list.MinItems(1) & list.MaxItems(1)
+			matches: [for candidate in components if candidate.componentRef == dependencyRef {candidate.componentRef}] & list.MinItems(1) & list.MaxItems(1)
 		}]
 	})]
 	if applicationRuntimes != _|_ {
@@ -4974,7 +5082,7 @@ _servicePublicationShape: {
 	federationControlActions?: #ModuleFederationControlActionsV1
 	federationBackupPolicy?:   #ModuleFederationBackupPolicyV1
 	federationObservability?:  #ModuleFederationObservabilityV1
-	backupPolicy?:             #BackupPolicyV1
+	backupPolicy?:             #ModuleBackupPolicyProjectionV1
 	driftPolicy?:              #DriftPolicyV1
 	observability?:            #ModuleOTLPBaselineV1
 	dashboard?:                #ModuleDashboardIntentV1
@@ -5259,12 +5367,12 @@ _servicePublicationShape: {
 	provides: [...#CapabilityID]
 	requires?: [...#ContractID] & list.MinItems(1)
 	supportedSiteKinds: [...#SiteKind] & list.MinItems(1)
-	nodeSelection?:           #ModuleNodeSelectionV2
-	runtimeRequirements?:     #ModuleRuntimeRequirementsV2
+	nodeSelection?:       #ModuleNodeSelectionV2
+	runtimeRequirements?: #ModuleRuntimeRequirementsV2
 	// Module-local profiles replace the kit-wide compute graph in native
 	// v2alpha2 intent. The optional maps are deliberately closed to the three
 	// public profile IDs; absent means undeclared, never standard.
-	computeProfiles?:   #ModuleComputeProfilesV2
+	computeProfiles?: #ModuleComputeProfilesV2
 	// A visible authoring starting point, never an implicit runtime selection.
 	// Every consumer must still send the selected module profile explicitly.
 	defaultComputeProfile?: "low" | "standard" | "high"
@@ -5272,7 +5380,7 @@ _servicePublicationShape: {
 		computeProfiles: #ModuleComputeProfilesV2 & struct.MinFields(1)
 		_defaultComputeProfileExact: [for id, _ in computeProfiles if id == defaultComputeProfile {id}] & list.MinItems(1) & list.MaxItems(1)
 	}
-	storageProfiles?:   [string]: #ModuleAxisProfileV2
+	storageProfiles?: [string]:     #ModuleAxisProfileV2
 	acceleratorProfiles?: [string]: #ModuleAxisProfileV2
 	// Resource-bearing executable workloads must publish module-local compute
 	// authority. Pure policy, plan-only and adapter contracts intentionally do
@@ -5283,6 +5391,7 @@ _servicePublicationShape: {
 	if runtimeRequirements != _|_ {
 		computeProfiles: #ModuleComputeProfilesV2 & struct.MinFields(1)
 	}
+
 	// Orthogonal axes refine a selected executable compute realization. They
 	// cannot create an axis-only module that the renderer and demand model do
 	// not otherwise materialize.
@@ -5922,7 +6031,7 @@ _servicePublicationShape: {
 				}
 				if module.runtime.kind == "external" {
 					externalInstance: module.runtime.settings & #ExternalApplicationInstanceV1
-					serviceMatches: list.MaxItems(0)
+					serviceMatches:   list.MaxItems(0)
 					externalHealth: [for health in module.health if health.id == alternative.route.healthRef && health.kind == "contract" {health.id}] & list.MinItems(1) & list.MaxItems(1)
 				}
 				settingsRefs: [for inputRef in alternative.inputs.settings.allowedRefs {
@@ -6488,17 +6597,17 @@ _servicePublicationShape: {
 		capability: capabilityRef & binding.capabilityRef
 	}]
 	nodes: [#NodeID]: {
-		siteAddress?: #NetworkAddressV2
-		observedSiteKind?:       #SiteKind
-		arch?:                   "amd64" | "arm64"
+		siteAddress?:                 #NetworkAddressV2
+		observedSiteKind?:            #SiteKind
+		arch?:                        "amd64" | "arm64"
 		amd64MicroarchitectureLevel?: int & >=1 & <=4
-		cpuCores?:               int & >=1
-		ramGB?:                  int & >=1
-		storageGB?:              int & >=1
-		storageCapacity?:        #InventoryStorageCapacityV2
-		virtualization?:         #RuntimeVirtualizationV2
-		externalHostBinding?:    #ExternalHostBindingV1
-		hostConformanceReceipt?: #HostConformanceReceiptV1
+		cpuCores?:                    int & >=1
+		ramGB?:                       int & >=1
+		storageGB?:                   int & >=1
+		storageCapacity?:             #InventoryStorageCapacityV2
+		virtualization?:              #RuntimeVirtualizationV2
+		externalHostBinding?:         #ExternalHostBindingV1
+		hostConformanceReceipt?:      #HostConformanceReceiptV1
 		runtimeDaemons: {
 			[#ContractID]: #RuntimeDaemonFactV1
 		} | *{}
@@ -6891,17 +7000,17 @@ _servicePublicationShape: {
 	siteRefs: [...#SiteID] & list.MinItems(1)
 	nodeRefs: [...#NodeID] & list.MinItems(1)
 	requires?: [...#ContractID] & list.MinItems(1)
-	nodeSelection?:           #ModuleNodeSelectionV2
-	runtimeRequirements?:     #ModuleRuntimeRequirementsV2
-	computeProfile?:          #ComputeTierV2
-	computeProfileHash?:      #ContentHash
-	computeProfileBinding?:   #ModuleComputeProfileV2 & {profileHash: #ContentHash}
-	computeProfileSource?:    "catalog" | "legacy-adapter"
-	storageProfile?:          #ContractID
-	storageProfileHash?:      #ContentHash
-	storageProfileBinding?:   #ModuleAxisProfileV2 & {profileHash: #ContentHash}
-	acceleratorProfile?:      #ContractID
-	acceleratorProfileHash?:    #ContentHash
+	nodeSelection?:       #ModuleNodeSelectionV2
+	runtimeRequirements?: #ModuleRuntimeRequirementsV2
+	computeProfile?:      #ComputeTierV2
+	computeProfileHash?:  #ContentHash
+	computeProfileBinding?: #ModuleComputeProfileV2 & {profileHash: #ContentHash}
+	computeProfileSource?: "catalog" | "legacy-adapter"
+	storageProfile?:       #ContractID
+	storageProfileHash?:   #ContentHash
+	storageProfileBinding?: #ModuleAxisProfileV2 & {profileHash: #ContentHash}
+	acceleratorProfile?:     #ContractID
+	acceleratorProfileHash?: #ContentHash
 	acceleratorProfileBinding?: #ModuleAxisProfileV2 & {profileHash: #ContentHash}
 	runtimeAdmission?:        #RuntimeAdmissionV1
 	enforcementRequirement?:  #PolicyEnforcementRequirementV1
@@ -7598,8 +7707,8 @@ _servicePublicationShape: {
 }
 
 #ResolvedInstallPlanV2: {
-	mode:        "bootstrapped" | "bare" | "advanced"
-	runtime:     "docker" | "native"
+	mode:         "bootstrapped" | "bare" | "advanced"
+	runtime:      "docker" | "native"
 	computeTier?: #ComputeTierV2
 	platform: {
 		management:      "selected-provider" | "standalone" | "native"
@@ -7772,14 +7881,14 @@ _servicePublicationShape: {
 // reservations, recommendations and headroom are additive. Omitted axes stay
 // unverified instead of being represented by invented zeroes.
 #ResolvedNodeResourceDemandV2: {
-	nodeRef:      #NodeID
-	moduleRefs:   [...#ContractID] | *[]
+	nodeRef: #NodeID
+	moduleRefs: [...#ContractID] | *[]
 	unverifiedModuleRefs: [...#ContractID] | *[]
-	hostFloor?:   #ModuleResourceBudgetV2
-	reservation?: #ModuleResourceBudgetV2
-	recommended?: #ModuleResourceBudgetV2
-	headroom?:    #ModuleResourceBudgetV2
-	_moduleRefsUnique: list.UniqueItems(moduleRefs) & true
+	hostFloor?:                  #ModuleResourceBudgetV2
+	reservation?:                #ModuleResourceBudgetV2
+	recommended?:                #ModuleResourceBudgetV2
+	headroom?:                   #ModuleResourceBudgetV2
+	_moduleRefsUnique:           list.UniqueItems(moduleRefs) & true
 	_unverifiedModuleRefsUnique: list.UniqueItems(unverifiedModuleRefs) & true
 }
 
@@ -8204,7 +8313,7 @@ _servicePublicationShape: {
 			}
 			if module.runtime.kind == "external" {
 				externalInstance: module.runtime.settings & #ExternalApplicationInstanceV1
-				serviceMatches: list.MaxItems(0)
+				serviceMatches:   list.MaxItems(0)
 				externalHealth: [for health in gates.health if health.targetKind == "module" && health.targetRef == module.id && health.sourceRef == workload.alternative.route.healthRef && health.kind == "contract" {health.id}] & list.MinItems(1)
 			}
 		}] & list.MinItems(1) & list.MaxItems(1)

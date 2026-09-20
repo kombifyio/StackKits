@@ -29,6 +29,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/productkits"
 	"github.com/kombifyio/stackkits/internal/registry"
 	"github.com/kombifyio/stackkits/internal/servicecatalog"
+	"github.com/kombifyio/stackkits/internal/usecasecatalog"
 	"github.com/spf13/cobra"
 )
 
@@ -152,6 +153,17 @@ func runRegistryBakeFromCUE(_ *cobra.Command, _ []string) error {
 }
 
 func registryStackKitsFromGit(embedded []registry.StackKit) ([]registry.StackKit, error) {
+	useCases, err := usecasecatalog.LoadUseCaseComputeTiers(".")
+	if err != nil {
+		return nil, fmt.Errorf("load native use-case alternatives: %w", err)
+	}
+	admittedAlternatives := make(map[string]map[string]bool, len(useCases))
+	for _, useCase := range useCases {
+		admittedAlternatives[useCase.ID] = make(map[string]bool, len(useCase.Alternatives))
+		for _, alternative := range useCase.Alternatives {
+			admittedAlternatives[useCase.ID][alternative.ID] = true
+		}
+	}
 	embeddedBySlug := make(map[string]registry.StackKit, len(embedded))
 	for _, stackKit := range embedded {
 		embeddedBySlug[stackKit.Slug] = stackKit
@@ -182,6 +194,10 @@ func registryStackKitsFromGit(embedded []registry.StackKit) ([]registry.StackKit
 		stackKit.DisplayName = definition.Metadata.DisplayName
 		stackKit.Description = definition.Metadata.Description
 		stackKit.Version = definition.Metadata.Version
+		stackKit.ServiceSelections, err = refreshApplicationServiceSelections(stackKit.ServiceSelections, definition.Application, admittedAlternatives)
+		if err != nil {
+			return nil, fmt.Errorf("refresh product definition %s: %w", path, err)
+		}
 		profiles := append([]registry.StackKitSpecProfile(nil), stackKit.SpecProfiles...)
 		defaultProfileFound := false
 		for index := range profiles {
@@ -205,6 +221,30 @@ func registryStackKitsFromGit(embedded []registry.StackKit) ([]registry.StackKit
 		stackKits = append(stackKits, stackKit)
 	}
 	return stackKits, nil
+}
+
+func refreshApplicationServiceSelections(existing []registry.StackKitServiceSelection, applications map[string]kitio.ApplicationDef, admittedAlternatives map[string]map[string]bool) ([]registry.StackKitServiceSelection, error) {
+	applicationsByGroup := make(map[string]kitio.ApplicationDef, len(applications))
+	for key, application := range applications {
+		for _, alternative := range application.Alternatives {
+			if !admittedAlternatives[key][alternative] {
+				return nil, fmt.Errorf("application %s advertises alternative %s without an Architecture v2 alternative", key, alternative)
+			}
+		}
+		if group, ok := kitio.ApplicationToGroup[key]; ok {
+			applicationsByGroup[group] = application
+		}
+	}
+	refreshed := append([]registry.StackKitServiceSelection(nil), existing...)
+	for index := range refreshed {
+		application, ok := applicationsByGroup[refreshed[index].ServiceGroupSlug]
+		if !ok {
+			continue
+		}
+		refreshed[index].SelectedModuleSlug = application.DefaultTool
+		refreshed[index].AlternativeModuleSlugs = append([]string(nil), application.Alternatives...)
+	}
+	return refreshed, nil
 }
 
 // reproducibleNow returns a deterministic timestamp when SOURCE_DATE_EPOCH is

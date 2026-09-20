@@ -267,12 +267,9 @@ UseCaseCatalog: #UseCaseCatalog & {
 		files: {
 			slug:        "files"
 			displayName: "File Storage and Documents"
-			description: "Private file storage, sharing, collaboration, and document-management workflows."
+			description: "Private file storage and sharing through the native Cloudreve workload."
 			owner:       "stackkits"
-			components: {
-				cloudreve: {id: "cloudreve", name: "Cloudreve", role: "primary", kind: "application"}
-				nextcloud: {id: "nextcloud", name: "Nextcloud", role: "alternative", kind: "application"}
-			}
+			components: cloudreve: {id: "cloudreve", name: "Cloudreve", role: "primary", kind: "application"}
 			docs: "/guides/stackkits/use-cases/files"
 			settings: [
 				{

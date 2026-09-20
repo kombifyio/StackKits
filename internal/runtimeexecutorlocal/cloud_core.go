@@ -146,7 +146,16 @@ func appliedCloudCoreRequest(root runtimeexecutor.ExecutionRequest) (runtimeexec
 		if !belongs {
 			continue
 		}
-		if _, selected := allowedHealth[item.SourceRef]; !selected {
+		_, selectedSource := allowedHealth[item.SourceRef]
+		_, selectedRoute := cloudCoreRouteHealthSources[item.TargetRef]
+		if !selectedSource && !(item.TargetKind == "route" && selectedRoute) {
+			foreignContract := item.Kind == "contract" && (item.TargetKind == "provider" ||
+				item.TargetKind == "module" && item.TargetRef != profile.moduleRef())
+			if foreignContract {
+				// The sealed root request retains plan-only health owned by every
+				// module sharing this runtime. Their own executors verify it.
+				continue
+			}
 			return runtimeexecutor.ExecutionRequest{}, LocalTargetBinding{}, CloudCoreAuthority{}, errors.New("applied Cloud core target contains an unknown health contract")
 		}
 		health = append(health, item)

@@ -29,7 +29,7 @@ As of 2026-06-10 the release default is the slice exercised by the fresh Ubuntu 
 | Routing smoke | `whoami` | TinyAuth-protected routing test |
 | Password vault | `vaultwarden` | enabled default |
 | Photos | `immich` | server, ML, Postgres, and Redis-compatible cache enabled |
-| Files | `cloudreve` | enabled default document-management provider; `nextcloud` is the configured alternative |
+| Files | `cloudreve` | enabled native file-storage and sharing workload; no native alternative is admitted |
 | Host security baseline | UFW, fail2ban, unattended-upgrades, SSH/sysctl hardening | applied by `stackkit apply` on Ubuntu and recorded in `.stackkit/security-baseline.json` |
 
 PocketID is no longer optional in the Basement Kit default: until another passkey-capable identity provider exists, TinyAuth is generated with a PocketID OIDC provider and PocketID is provisioned as the local IdP. `admin-bootstrap`, Smart Home, and AI remain planned or opt-in until their modules can create a working first user and pass the same smoke path.

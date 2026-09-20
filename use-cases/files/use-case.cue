@@ -28,15 +28,7 @@ Package: foundation.#UseCasePackage & {
 			rationale:  "Cloudreve is the lightweight BaseKit default for file storage and sharing."
 			capabilities: ["files", "document-storage", "file-sharing"]
 		}
-		alternatives: [
-			{
-				moduleSlug: "nextcloud"
-				role:       "primary"
-				required:   false
-				rationale:  "Planned collaboration and WebDAV alternative. Native StackKits does not currently accept or deploy Nextcloud."
-				capabilities: ["files", "document-storage", "file-sharing", "collaboration", "webdav"]
-			},
-		]
+		alternatives: []
 	}
 
 	defaultRuntimeProfile: "self-hosted-lightweight"
@@ -49,16 +41,6 @@ Package: foundation.#UseCasePackage & {
 			managedServerlessEligible: false
 			requiresControlPlane:      false
 			requiresLocalBridge:       false
-		}
-		"self-hosted-collaboration": {
-			displayName: "Self-hosted Collaboration Suite"
-			description: "Planned Nextcloud files provider for collaboration and WebDAV-heavy use; not available through native StackKits init, resolve, or apply."
-			realization: "oss"
-			placementModes: ["local-only", "standard"]
-			managedServerlessEligible: false
-			requiresControlPlane:      false
-			requiresLocalBridge:       false
-			notes: ["Product intent only. Cloudreve is the only native Files alternative. Nextcloud needs a workload, runtime adapter, owner setup, routing/auth, backup/restore, and migration contract before admission."]
 		}
 		"kombify-managed-files": {
 			displayName: "Kombify Managed Files"
@@ -81,7 +63,7 @@ Package: foundation.#UseCasePackage & {
 		}
 		"bring-your-own-storage": {
 			displayName: "Bring Your Own Storage"
-			description: "An existing Nextcloud, WebDAV, S3-compatible bucket, or file service is connected as the package backend."
+			description: "An existing WebDAV, S3-compatible bucket, or file service is connected as the package backend."
 			realization: "external"
 			placementModes: ["local-only", "standard", "managed-serverless"]
 			managedServerlessEligible: true
@@ -122,13 +104,6 @@ Package: foundation.#UseCasePackage & {
 			rationale:  "Lightweight default file storage and sharing implementation."
 			capabilities: ["files", "document-storage", "file-sharing", "rest-api"]
 		}
-		nextcloud: {
-			moduleSlug: "nextcloud"
-			role:       "primary"
-			required:   false
-			rationale:  "Planned collaboration alternative with WebDAV and richer document workflows; native rollout is unsupported."
-			capabilities: ["files", "document-storage", "file-sharing", "collaboration", "webdav"]
-		}
 	}
 
 	connectors: {
@@ -157,12 +132,6 @@ Package: foundation.#UseCasePackage & {
 			basePath: "/api/v4"
 			auth:     "cloudreve-auth"
 			purpose:  "Owner bootstrap, health, file metadata, upload/download, and sharing policy checks."
-		}
-		nextcloud: {
-			protocol: "webdav"
-			basePath: "/remote.php/dav/files"
-			auth:     "nextcloud-auth"
-			purpose:  "Document and file access for collaboration-oriented provider profiles."
 		}
 		"managed-dms": {
 			protocol: "rest"

@@ -119,6 +119,60 @@ data/client restore must be demonstrated separately. Accordingly, status keeps
 `offHostRecovery` and `applicationRecovery` at `unverified`; repository readiness,
 HTTP health and a staged restore receipt do not attest either one.
 
+## Coverage groups and the subscription grant
+
+`#BackupPolicyV1` resolves two fields that decide how much of a stack a snapshot
+selects. Both are plan data: neither grants execution, names a provider, or
+carries a credential.
+
+`coverage` is one of three nested groups, and it selects `dataClasses` rather
+than every spec restating them. `#BackupCoverageClassesV1` is the only place the
+mapping exists:
+
+| Group | `#BackupDataClassV1` members |
+| --- | --- |
+| `config` | `config`, `secret-material`, `platform-state`, `serverless-config` |
+| `content` | above plus `database`, `user-content`, `documents`, `telemetry-timeseries` |
+| `media` | above plus `photos`, `large-media` |
+
+`documents` is content and not media: a stack whose search index is captured
+without the files it indexes has an index of nothing. `telemetry-timeseries` is
+content because it restores through the same database hook as `database` and
+grows unattended, so it cannot ride along with a configuration set.
+
+An unset `coverage` resolves to `content`. Media is opted into, never defaulted
+into — photo and video libraries are what fill a repository, and an operator who
+did not ask for them should not discover them in a first seed. A policy may name
+fewer classes than its group admits; it may not name one outside it.
+
+`grant` is `#BackupGrantV1`, the envelope a subscription hands to one stack: a
+coverage ceiling, an allowed cadence set, and a retention ceiling. It is a
+ceiling and never a value, and it carries no quota, price, plan or tier. Every
+field defaults to the contract's own maximum, so a standalone stack with no
+subscription behind it is bounded by `#BackupRetentionV1` and by nothing else —
+exactly as before the field existed.
+
+Three rules are enforced at resolution rather than at run time:
+
+- A policy may not exceed its grant on any axis.
+- A grant may not exceed the contract. The ceiling unifies against
+  `#BackupRetentionV1`, so moving a bound stops the build instead of quietly
+  granting more than the contract allows.
+- A `weekly` cadence pins `keepDaily` to `1`. One snapshot a week can only ever
+  fill one daily slot; leaving it higher lets the daily and weekly buckets
+  retain the same weekly snapshots twice and holds the repository open well past
+  the window `keepWeekly` states.
+
+Render units receive `#ModuleBackupPolicyProjectionV1` — the policy without the
+grant. A module renders what the plan resolved; one that could read the
+subscription envelope could branch on the customer's tier.
+
+> `coverage` in `#BackupPolicyV1` is the data-class group. It is not the
+> `coverage` object in `backup status --json`, which reports the exact selected
+> volumes and exclusions of an authenticated configuration. The group decides
+> what a policy asks for; the status object reports what one configuration
+> actually selected.
+
 ## Portable emergency archive
 
 `stackkit backup emergency-export` now creates actual encrypted bytes. The

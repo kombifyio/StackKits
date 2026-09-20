@@ -5,7 +5,7 @@
 //   stackkit registry bake-from-cue
 //   stackkit registry emit-cue
 //
-// Snapshot: source=cue generated_at=2026-09-17T15:12:29Z
+// Snapshot: source=cue generated_at=2026-09-20T15:05:18Z
 // Snapshot content_hash: (none — CUE-baked snapshot)
 // Services: rendered from CUE module contracts (modules/<slug>/module.cue),
 // the same source 'registry bake-from-cue' uses.

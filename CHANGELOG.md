@@ -4,6 +4,25 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.37.0] (2026-09-20)
+
+
+### Added
+
+* **backup:** add Kopia maintenance to the native v2 engine
+* **backup:** select data classes by coverage group and bound them with a grant
+* **website:** adopt canonical StackKits lockup
+
+
+### Fixed
+
+* **cli:** keep removal evidence portable on Windows
+* **cli:** remove the dead registry emit-mintlify command
+* **files:** remove unadmitted Nextcloud catalog selection
+* **release:** let a sent upload wait for GitHub
+* **release:** resume stalled public draft uploads
+* **verify:** preserve foreign Cloud health custody
+
 ## [0.36.2](https://github.com/kombifyio/StackKits/compare/v0.36.1...v0.36.2) (2026-09-17)
 
 

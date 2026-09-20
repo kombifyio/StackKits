@@ -1,9 +1,24 @@
 {
-  "contentDigest": "sha256:5bb221377510974486af4eef983f82fdbbc9f5da5c92f37e45925c1270b88dfc",
+  "contentDigest": "sha256:09d4bfcd371f0eaf98b643464a30d1d20324991d6583fa4baeea9ca56273eab4",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
     {
+      "alternatives": [
+        {
+          "id": "private-ai",
+          "modules": [
+            {
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-private-ai-runtime"
+            }
+          ],
+          "name": "private-ai"
+        }
+      ],
       "components": [
         {
           "id": "ollama",
@@ -58,6 +73,7 @@
           ]
         }
       },
+      "defaultAlternative": "private-ai",
       "description": "Private AI workloads, local model serving, and user-facing AI workbench intent.",
       "docs": "/guides/stackkits/use-cases/personal-ai",
       "id": "ai",
@@ -120,6 +136,21 @@
       "title": "Private AI"
     },
     {
+      "alternatives": [
+        {
+          "id": "gitea",
+          "modules": [
+            {
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-gitea-runtime"
+            }
+          ],
+          "name": "gitea"
+        }
+      ],
       "components": [
         {
           "id": "gitea",
@@ -168,6 +199,7 @@
           ]
         }
       },
+      "defaultAlternative": "gitea",
       "description": "Private source control, developer collaboration, and delivery-platform intent.",
       "docs": "/guides/stackkits/use-cases/development",
       "id": "dev",
@@ -186,6 +218,21 @@
       "title": "Developer Platform"
     },
     {
+      "alternatives": [
+        {
+          "id": "paperless-ngx",
+          "modules": [
+            {
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-paperless-runtime"
+            }
+          ],
+          "name": "paperless-ngx"
+        }
+      ],
       "components": [
         {
           "id": "paperless-ngx",
@@ -236,23 +283,34 @@
           ]
         }
       },
+      "defaultAlternative": "paperless-ngx",
       "description": "Private document ingestion, OCR, indexing and search through Paperless-ngx.",
       "id": "documents",
       "title": "Documents"
     },
     {
+      "alternatives": [
+        {
+          "id": "cloudreve",
+          "modules": [
+            {
+              "computeProfiles": [
+                "high",
+                "low",
+                "standard"
+              ],
+              "id": "stackkits-cloudreve-runtime"
+            }
+          ],
+          "name": "cloudreve"
+        }
+      ],
       "components": [
         {
           "id": "cloudreve",
           "kind": "application",
           "name": "Cloudreve",
           "role": "primary"
-        },
-        {
-          "id": "nextcloud",
-          "kind": "application",
-          "name": "Nextcloud",
-          "role": "alternative"
         }
       ],
       "computeTiers": {
@@ -308,7 +366,8 @@
           ]
         }
       },
-      "description": "Private file storage, sharing, collaboration, and document-management workflows.",
+      "defaultAlternative": "cloudreve",
+      "description": "Private file storage and sharing through the native Cloudreve workload.",
       "docs": "/guides/stackkits/use-cases/files",
       "id": "files",
       "settings": [
@@ -405,6 +464,21 @@
       "title": "Private Mail"
     },
     {
+      "alternatives": [
+        {
+          "id": "jellyfin",
+          "modules": [
+            {
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-jellyfin-runtime"
+            }
+          ],
+          "name": "jellyfin"
+        }
+      ],
       "components": [
         {
           "id": "jellyfin",
@@ -451,6 +525,7 @@
           ]
         }
       },
+      "defaultAlternative": "jellyfin",
       "description": "Private media library and streaming intent for household media collections.",
       "docs": "/guides/stackkits/use-cases/media",
       "id": "media",
@@ -508,6 +583,33 @@
       "title": "Media Library"
     },
     {
+      "alternatives": [
+        {
+          "id": "immich",
+          "modules": [
+            {
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-immich-runtime"
+            }
+          ],
+          "name": "immich"
+        },
+        {
+          "id": "immich-lite",
+          "modules": [
+            {
+              "computeProfiles": [
+                "low"
+              ],
+              "id": "stackkits-immich-lite-runtime"
+            }
+          ],
+          "name": "immich-lite"
+        }
+      ],
       "components": [
         {
           "id": "immich",
@@ -571,6 +673,7 @@
           ]
         }
       },
+      "defaultAlternative": "immich",
       "description": "Family photo and video vault with mobile backup, search, and shared memories.",
       "docs": "/guides/stackkits/use-cases/photos",
       "id": "photos",
@@ -638,6 +741,58 @@
       "title": "Remote Desktop"
     },
     {
+      "alternatives": [
+        {
+          "id": "home-assistant",
+          "modules": [
+            {
+              "computeProfiles": [
+                "high",
+                "low",
+                "standard"
+              ],
+              "id": "stackkits-home-assistant-runtime"
+            }
+          ],
+          "name": "home-assistant"
+        },
+        {
+          "id": "home-assistant-existing",
+          "modules": [
+            {
+              "computeProfiles": [
+                "standard"
+              ],
+              "id": "stackkits-home-assistant-existing-runtime"
+            }
+          ],
+          "name": "home-assistant-existing"
+        },
+        {
+          "id": "home-assistant-haos",
+          "modules": [
+            {
+              "computeProfiles": [
+                "standard"
+              ],
+              "id": "stackkits-home-assistant-haos-runtime"
+            }
+          ],
+          "name": "home-assistant-haos"
+        },
+        {
+          "id": "home-assistant-imported",
+          "modules": [
+            {
+              "computeProfiles": [
+                "standard"
+              ],
+              "id": "stackkits-home-assistant-imported-runtime"
+            }
+          ],
+          "name": "home-assistant-imported"
+        }
+      ],
       "components": [
         {
           "id": "home-assistant",
@@ -697,6 +852,7 @@
           "moduleSlug": "home-assistant"
         }
       },
+      "defaultAlternative": "home-assistant",
       "description": "Home automation centered on Home Assistant, native product interfaces, and optional local device adjacency.",
       "id": "smart-home",
       "settings": [
@@ -767,6 +923,22 @@
       "title": "Smart Home"
     },
     {
+      "alternatives": [
+        {
+          "id": "vaultwarden",
+          "modules": [
+            {
+              "computeProfiles": [
+                "high",
+                "low",
+                "standard"
+              ],
+              "id": "stackkits-vaultwarden-runtime"
+            }
+          ],
+          "name": "vaultwarden"
+        }
+      ],
       "components": [
         {
           "id": "vaultwarden",
@@ -825,6 +997,7 @@
           "moduleSlug": "vaultwarden"
         }
       },
+      "defaultAlternative": "vaultwarden",
       "description": "Private password and secure-note vault with owner-controlled lifecycle and recovery.",
       "docs": "/guides/stackkits/use-cases/passwords",
       "id": "vault",

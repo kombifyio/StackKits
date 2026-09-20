@@ -1471,11 +1471,20 @@ func persistArchitectureV2Removal(
 	if err != nil {
 		return "", "", "", err
 	}
-	requestPath := filepath.Join(".stackkit", "evidence", "removal", "requests", strings.TrimPrefix(request.RequestDigest, "sha256:")+".json")
-	resultPath := filepath.Join(".stackkit", "evidence", "removal", "results", strings.TrimPrefix(result.ResultDigest, "sha256:")+".json")
-	evidencePath := filepath.Join(".stackkit", "evidence", "removal", "terminal", strings.TrimPrefix(evidence.EvidenceDigest, "sha256:")+".json")
+	requestPath := filepath.ToSlash(filepath.Join(
+		".stackkit", "evidence", "removal", "requests",
+		strings.TrimPrefix(request.RequestDigest, "sha256:")+".json",
+	))
+	resultPath := filepath.ToSlash(filepath.Join(
+		".stackkit", "evidence", "removal", "results",
+		strings.TrimPrefix(result.ResultDigest, "sha256:")+".json",
+	))
+	evidencePath := filepath.ToSlash(filepath.Join(
+		".stackkit", "evidence", "removal", "terminal",
+		strings.TrimPrefix(evidence.EvidenceDigest, "sha256:")+".json",
+	))
 	for path, data := range map[string][]byte{requestPath: requestCanonical, resultPath: resultCanonical, evidencePath: evidenceCanonical} {
-		if err := transaction.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		if err := transaction.MkdirAll(filepath.ToSlash(filepath.Dir(path)), 0o700); err != nil {
 			return "", "", "", fmt.Errorf("create workload-removal evidence directory: %w", err)
 		}
 		if err := transaction.WriteFileExclusive(path, data, 0o600); err != nil {
