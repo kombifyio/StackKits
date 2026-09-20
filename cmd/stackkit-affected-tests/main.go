@@ -102,12 +102,17 @@ func run(args []string, stdout, stderr io.Writer) error {
 		changedTests, changedTestTags, testDiscoveryWarning = loadChangedTestNames(repo, opts.mergeBase, changed)
 	}
 	inertGoFiles := declarationFreeGoFiles(repo, opts.mergeBase, changed)
+	statusSurfaceGate, err := statusSurfaceGateAvailability(repo)
+	if err != nil {
+		return err
+	}
 
 	plan := buildPlan(plannerInput{
 		BaseRef:              opts.baseRef,
 		MergeBase:            opts.mergeBase,
 		ChangedFiles:         changed,
 		CoreCUERoots:         existingCoreCUERoots(repo),
+		StatusSurfaceGate:    statusSurfaceGate,
 		GoPackages:           packages,
 		MaxReverse:           opts.maxReverse,
 		GoListWarning:        goListWarning,
@@ -140,6 +145,73 @@ func run(args []string, stdout, stderr io.Writer) error {
 	encoder := json.NewEncoder(stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(plan)
+}
+
+var statusSurfaceGateFiles = []string{
+	"scripts/derive-status-surfaces.mjs",
+	"scripts/derive-status-surfaces.test.mjs",
+	"STATUS.md",
+	"basement-kit/stackkit.yaml",
+	"cloud-kit/stackkit.yaml",
+	"modern-homelab/stackkit.yaml",
+	".goreleaser.yaml",
+	"README.md",
+	"docs/RELEASE.md",
+	"website/src/content/kit-maturity.generated.ts",
+}
+
+func statusSurfaceGateAvailability(repo string) (bool, error) {
+	markerPath := filepath.Join(repo, ".stackkits-public-export.json")
+	privateMarker := filepath.Join(repo, "scripts", "public", "export-manifest.txt")
+	markerInfo, markerErr := os.Lstat(markerPath)
+	privateInfo, privateErr := os.Lstat(privateMarker)
+	markerExists := markerErr == nil
+	privateExists := privateErr == nil
+	if markerErr != nil && !errors.Is(markerErr, os.ErrNotExist) {
+		return false, fmt.Errorf("read curated public export marker: %w", markerErr)
+	}
+	if privateErr != nil && !errors.Is(privateErr, os.ErrNotExist) {
+		return false, fmt.Errorf("read private export authority: %w", privateErr)
+	}
+	if markerExists == privateExists {
+		return false, fmt.Errorf("repository surface identity must contain exactly one of the curated public marker or private export authority")
+	}
+	if markerExists {
+		if !markerInfo.Mode().IsRegular() {
+			return false, fmt.Errorf("curated public export marker is not a regular file")
+		}
+		markerBytes, err := os.ReadFile(markerPath)
+		if err != nil {
+			return false, fmt.Errorf("read curated public export marker: %w", err)
+		}
+		var marker struct {
+			SchemaVersion string `json:"schemaVersion"`
+			Owner         string `json:"owner"`
+			State         string `json:"state"`
+		}
+		if err := json.Unmarshal(markerBytes, &marker); err != nil {
+			return false, fmt.Errorf("parse curated public export marker: %w", err)
+		}
+		if marker.SchemaVersion != "stackkits.public-export-destination/v1" || marker.Owner != "kombify-stackkits-public-exporter" || marker.State != "complete" {
+			return false, fmt.Errorf("invalid curated public export marker identity")
+		}
+		return false, nil
+	}
+	if !privateInfo.Mode().IsRegular() {
+		return false, fmt.Errorf("private export authority is not a regular file")
+	}
+
+	missing := []string{}
+	for _, relative := range statusSurfaceGateFiles {
+		info, err := os.Stat(filepath.Join(repo, filepath.FromSlash(relative)))
+		if err != nil || info.IsDir() {
+			missing = append(missing, relative)
+		}
+	}
+	if len(missing) > 0 {
+		return false, fmt.Errorf("private status-surface contract is incomplete: missing %s", strings.Join(missing, ", "))
+	}
+	return true, nil
 }
 
 func existingCoreCUERoots(repo string) []string {

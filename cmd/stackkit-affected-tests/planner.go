@@ -269,6 +269,7 @@ type plannerInput struct {
 	MergeBase            string
 	ChangedFiles         []string
 	CoreCUERoots         []string
+	StatusSurfaceGate    bool
 	GoPackages           []goPackage
 	MaxReverse           int
 	GoListWarning        string
@@ -537,7 +538,7 @@ func buildPlan(input plannerInput) testPlan {
 			Reason: "fixture-only source binding and draft resume plan; live uploads stay in Publish OSS",
 		})
 	}
-	if anyPathUnder(files,
+	statusSurfacesChanged := anyPathUnder(files,
 		"scripts/derive-status-surfaces.mjs",
 		"scripts/derive-status-surfaces.test.mjs",
 		"README.md",
@@ -547,7 +548,9 @@ func buildPlan(input plannerInput) testPlan {
 		"website/src/content/kit-maturity.generated.ts",
 		"basement-kit/stackkit.yaml",
 		"cloud-kit/stackkit.yaml",
-	) {
+		"modern-homelab/stackkit.yaml",
+	)
+	if statusSurfacesChanged && input.StatusSurfaceGate {
 		commands = append(commands, testCommand{
 			Kind:   "node",
 			Scope:  "status-surfaces",
@@ -556,6 +559,9 @@ func buildPlan(input plannerInput) testPlan {
 		})
 	}
 	warnings := []string{}
+	if statusSurfacesChanged && !input.StatusSurfaceGate {
+		warnings = append(warnings, "private-only status-surface gate is not applicable to this curated repository surface")
+	}
 	if input.GoListWarning != "" {
 		warnings = append(warnings, input.GoListWarning)
 	}
