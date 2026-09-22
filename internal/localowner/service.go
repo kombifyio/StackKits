@@ -37,6 +37,7 @@ type pocketIDOwnerClient interface {
 	DeleteUser(context.Context, string) error
 	UpdateUserGroups(context.Context, string, []string) (*pocketid.User, error)
 	CreateOneTimeAccessToken(context.Context, string, time.Duration) (string, error)
+	ListUserWebAuthnCredentials(context.Context, string) ([]pocketid.WebAuthnCredential, error)
 	GetOIDCClient(context.Context, string) (*pocketid.OIDCClient, error)
 	RegisterOIDCClient(context.Context, pocketid.RegisterClientRequest) (*pocketid.OIDCClient, error)
 	CreateOIDCClientSecret(context.Context, string) (string, error)
@@ -52,6 +53,94 @@ type Service struct {
 type Result struct {
 	Binding        localevidence.OwnerRuntimeBinding
 	EnrollmentPath string
+}
+
+// OwnerActivation is the owner-bound passkey enrollment state. SetupURL is
+// returned only by the explicit activation operation and must remain transient.
+type OwnerActivation struct {
+	Status    string
+	Origin    string
+	ExpiresAt time.Time
+	SetupURL  string
+}
+
+// OwnerActivationStatus verifies the exact owner runtime binding and reports
+// completion from PocketID's passkey records.
+func (s *Service) OwnerActivationStatus(ctx context.Context) (OwnerActivation, error) {
+	owner, client, err := s.ready(ctx)
+	if err != nil {
+		return OwnerActivation{}, err
+	}
+	binding, err := s.Verify(ctx)
+	if err != nil {
+		return OwnerActivation{}, err
+	}
+	if binding.OwnerRef != owner.OwnerRef {
+		return OwnerActivation{}, errors.New("localowner: owner activation binding mismatch")
+	}
+	runtimeCustody, err := localevidence.LoadBasementRuntimeCustody(s.workspaceRoot)
+	if err != nil {
+		return OwnerActivation{}, err
+	}
+	credentials, err := client.ListUserWebAuthnCredentials(ctx, binding.PocketIDSubject)
+	if err != nil {
+		return OwnerActivation{}, errors.New("localowner: PocketID owner passkey readback failed")
+	}
+	activation := OwnerActivation{Origin: "https://id." + runtimeCustody.Domain}
+	if len(credentials) > 0 {
+		activation.Status = "active"
+		return activation, nil
+	}
+	enrollment, err := localevidence.LoadPocketIDOwnerEnrollment(s.workspaceRoot)
+	if err != nil || enrollment.OwnerRef != owner.OwnerRef || enrollment.PocketIDSubject != binding.PocketIDSubject {
+		return OwnerActivation{}, errors.New("localowner: owner enrollment custody is unavailable")
+	}
+	activation.ExpiresAt = enrollment.ExpiresAt
+	if enrollment.ExpiresAt.After(s.now().UTC()) {
+		activation.Status = "pending"
+	} else {
+		activation.Status = "expired"
+	}
+	return activation, nil
+}
+
+// IssueOwnerActivation returns the current pending one-time URL, or replaces
+// an expired enrollment. It never mints another link for an active owner.
+func (s *Service) IssueOwnerActivation(ctx context.Context) (OwnerActivation, error) {
+	status, err := s.OwnerActivationStatus(ctx)
+	if err != nil || status.Status == "active" {
+		return status, err
+	}
+	owner, client, err := s.ready(ctx)
+	if err != nil {
+		return OwnerActivation{}, err
+	}
+	binding, err := localevidence.LoadOwnerRuntimeBinding(s.workspaceRoot)
+	if err != nil || binding.OwnerRef != owner.OwnerRef {
+		return OwnerActivation{}, errors.New("localowner: owner activation binding is unavailable")
+	}
+	if status.Status == "pending" {
+		enrollment, loadErr := localevidence.LoadPocketIDOwnerEnrollment(s.workspaceRoot)
+		if loadErr != nil {
+			return OwnerActivation{}, loadErr
+		}
+		status.SetupURL = enrollment.SetupURL
+		return status, nil
+	}
+	token, err := client.CreateOneTimeAccessToken(ctx, binding.PocketIDSubject, ownerEnrollmentTTL)
+	if err != nil || strings.TrimSpace(token) == "" {
+		return OwnerActivation{}, errors.New("localowner: PocketID owner activation reissue failed")
+	}
+	status.ExpiresAt = s.now().UTC().Add(ownerEnrollmentTTL).Truncate(time.Second)
+	status.SetupURL = status.Origin + "/setup-account?token=" + url.QueryEscape(token)
+	if _, err := localevidence.PersistPocketIDOwnerEnrollment(s.workspaceRoot, localevidence.PocketIDOwnerEnrollment{
+		OwnerRef: owner.OwnerRef, PocketIDSubject: binding.PocketIDSubject,
+		SetupURL: status.SetupURL, ExpiresAt: status.ExpiresAt,
+	}); err != nil {
+		return OwnerActivation{}, err
+	}
+	status.Status = "pending"
+	return status, nil
 }
 
 func NewService(workspaceRoot string) (*Service, error) {

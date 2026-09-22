@@ -4,6 +4,19 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.38.0] (2026-09-20)
+
+
+### Added
+
+* **identity:** expose owner passkey activation and household status
+
+
+### Fixed
+
+* **brand:** invalidate stale logo assets
+* **ci:** respect curated test capabilities
+
 ## [0.37.1](https://github.com/kombifyio/StackKits/compare/v0.37.0...v0.37.1) (2026-09-20)
 
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/localowner"
 	"github.com/spf13/cobra"
@@ -22,6 +23,8 @@ type householdAPI interface {
 	AddHouseholdUser(context.Context, localowner.HouseholdUserSpec) (localowner.HouseholdUser, error)
 	ListHouseholdUsers(context.Context) ([]localowner.HouseholdUser, error)
 	RemoveHouseholdUser(context.Context, string) error
+	OwnerActivationStatus(context.Context) (localowner.OwnerActivation, error)
+	IssueOwnerActivation(context.Context) (localowner.OwnerActivation, error)
 }
 
 type commandResult struct {
@@ -103,8 +106,62 @@ Owner and admin identities cannot be created or removed here.`,
 	}
 	remove.Flags().Bool("owner-approve", false, "Explicitly approve removing this household user")
 
-	command.AddCommand(add, list, remove)
+	owner := &cobra.Command{Use: "owner", Short: "Inspect and resume the PocketID owner passkey activation"}
+	ownerStatus := &cobra.Command{
+		Use: "status", Short: "Read the owner passkey activation status", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			service, err := resolveHousehold(cmd, api)
+			if err != nil {
+				return err
+			}
+			activation, err := service.OwnerActivationStatus(cmd.Context())
+			if err != nil {
+				return err
+			}
+			return writeOwnerActivation(cmd, activation, false)
+		},
+	}
+	ownerActivate := &cobra.Command{
+		Use: "activate", Short: "Return or reissue the owner-bound one-time passkey activation", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			approved, err := cmd.Flags().GetBool("owner-approve")
+			if err != nil {
+				return err
+			}
+			if !approved {
+				return errors.New("owner activation requires explicit --owner-approve")
+			}
+			service, err := resolveHousehold(cmd, api)
+			if err != nil {
+				return err
+			}
+			activation, err := service.IssueOwnerActivation(cmd.Context())
+			if err != nil {
+				return err
+			}
+			return writeOwnerActivation(cmd, activation, true)
+		},
+	}
+	ownerActivate.Flags().Bool("owner-approve", false, "Explicitly approve revealing or reissuing owner activation")
+	owner.AddCommand(ownerStatus, ownerActivate)
+
+	command.AddCommand(add, list, remove, owner)
 	return command
+}
+
+func writeOwnerActivation(cmd *cobra.Command, activation localowner.OwnerActivation, includeURL bool) error {
+	data := map[string]string{"status": activation.Status, "origin": activation.Origin}
+	if !activation.ExpiresAt.IsZero() {
+		data["expiresAt"] = activation.ExpiresAt.UTC().Format(time.RFC3339)
+	}
+	if includeURL && activation.SetupURL != "" {
+		data["activationURL"] = activation.SetupURL
+	}
+	if jsonOutput(cmd) {
+		return writeJSON(cmd, data)
+	}
+	_, err := fmt.Fprintln(cmd.OutOrStdout(), activation.Status)
+	return err
 }
 
 func runUserAdd(cmd *cobra.Command, api householdAPI, username string) error {
@@ -136,12 +193,19 @@ func runUserAdd(cmd *cobra.Command, api householdAPI, username string) error {
 		return err
 	}
 	if jsonOutput(cmd) {
-		return writeJSON(cmd, map[string]string{
+		data := map[string]string{
 			"username":    invited.Username,
 			"email":       invited.Email,
 			"displayName": invited.DisplayName,
-			"setupURL":    invited.SetupURL,
-		})
+			"status":      invited.Status,
+		}
+		if invited.SetupURL != "" {
+			data["setupURL"] = invited.SetupURL
+		}
+		if !invited.ExpiresAt.IsZero() {
+			data["expiresAt"] = invited.ExpiresAt.UTC().Format(time.RFC3339)
+		}
+		return writeJSON(cmd, data)
 	}
 	_, err = fmt.Fprintf(
 		cmd.OutOrStdout(),
@@ -168,6 +232,7 @@ func runUserList(cmd *cobra.Command, api householdAPI) error {
 				"username":    user.Username,
 				"email":       user.Email,
 				"displayName": user.DisplayName,
+				"status":      user.Status,
 			})
 		}
 		return writeJSON(cmd, map[string]any{"users": items})

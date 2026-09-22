@@ -63,6 +63,29 @@ type PocketIDOwnerEnrollment struct {
 	ExpiresAt       time.Time
 }
 
+// PocketIDOwnerEnrollmentView exposes the verified private enrollment to the
+// local owner service. Callers must keep SetupURL out of logs and durable
+// lifecycle evidence.
+type PocketIDOwnerEnrollmentView struct {
+	OwnerRef        string
+	PocketIDSubject string
+	SetupURL        string
+	ExpiresAt       time.Time
+}
+
+// LoadPocketIDOwnerEnrollment verifies and returns the private owner-bound
+// enrollment record.
+func LoadPocketIDOwnerEnrollment(workspaceRoot string) (PocketIDOwnerEnrollmentView, error) {
+	record, err := loadPocketIDOwnerEnrollment(workspaceRoot)
+	if err != nil {
+		return PocketIDOwnerEnrollmentView{}, err
+	}
+	return PocketIDOwnerEnrollmentView{
+		OwnerRef: record.OwnerRef, PocketIDSubject: record.PocketIDSubject,
+		SetupURL: record.SetupURL, ExpiresAt: record.ExpiresAt,
+	}, nil
+}
+
 type pocketIDOwnerEnrollmentRecord struct {
 	APIVersion      string    `json:"apiVersion"`
 	Kind            string    `json:"kind"`

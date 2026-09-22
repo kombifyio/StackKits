@@ -41,3 +41,24 @@ func (h liveHousehold) RemoveHouseholdUser(ctx context.Context, username string)
 		return service.RemoveHouseholdUser(ctx, username)
 	})
 }
+
+func (h liveHousehold) OwnerActivationStatus(ctx context.Context) (localowner.OwnerActivation, error) {
+	service, err := localowner.NewService(h.workspace)
+	if err != nil {
+		return localowner.OwnerActivation{}, err
+	}
+	return service.OwnerActivationStatus(ctx)
+}
+
+func (h liveHousehold) IssueOwnerActivation(ctx context.Context) (localowner.OwnerActivation, error) {
+	var activation localowner.OwnerActivation
+	err := lifecyclemutation.WithIdleMutation(h.workspace, lifecyclemutation.JoinRequest{Command: "user owner activate"}, func() error {
+		service, err := localowner.NewService(h.workspace)
+		if err != nil {
+			return err
+		}
+		activation, err = service.IssueOwnerActivation(ctx)
+		return err
+	})
+	return activation, err
+}

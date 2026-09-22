@@ -110,6 +110,26 @@ type User struct {
 	UserGroups  []UserGroup `json:"userGroups,omitempty"`
 }
 
+// WebAuthnCredential is the secret-free registration metadata returned by the
+// admin user credential endpoint.
+type WebAuthnCredential struct {
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
+}
+
+// ListUserWebAuthnCredentials returns passkeys registered to one exact user.
+func (c *Client) ListUserWebAuthnCredentials(ctx context.Context, userID string) ([]WebAuthnCredential, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" || strings.ContainsAny(userID, "/?#") {
+		return nil, errors.New("list user WebAuthn credentials: subject is invalid")
+	}
+	var credentials []WebAuthnCredential
+	if err := c.do(ctx, http.MethodGet, "/api/users/"+userID+"/webauthn-credentials", nil, &credentials); err != nil {
+		return nil, fmt.Errorf("list user WebAuthn credentials: %w", err)
+	}
+	return credentials, nil
+}
+
 // FindUsersByUsername searches PocketID and returns only exact username
 // matches. PocketID's server-side search is deliberately fuzzy, so the local
 // owner binder must never accept a near-match as identity evidence.

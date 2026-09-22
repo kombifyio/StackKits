@@ -4976,6 +4976,7 @@
       "subcommands": [
         "stackkit user add",
         "stackkit user list",
+        "stackkit user owner",
         "stackkit user remove"
       ]
     },
@@ -5048,6 +5049,81 @@
           "description": "The same list as JSON"
         }
       ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit user"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit user owner",
+      "name": "owner",
+      "parent": "stackkit user",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit user owner [flags]",
+      "short": "Inspect and resume the PocketID owner passkey activation",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit user"
+        }
+      ],
+      "subcommands": [
+        "stackkit user owner activate",
+        "stackkit user owner status"
+      ]
+    },
+    {
+      "path": "stackkit user owner activate",
+      "name": "activate",
+      "parent": "stackkit user owner",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit user owner activate [flags]",
+      "short": "Return or reissue the owner-bound one-time passkey activation",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve revealing or reissuing owner activation",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit user"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit user owner status",
+      "name": "status",
+      "parent": "stackkit user owner",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit user owner status [flags]",
+      "short": "Read the owner passkey activation status",
+      "description": "",
+      "runnable": true,
+      "examples": [],
       "flags": [
         {
           "name": "json",

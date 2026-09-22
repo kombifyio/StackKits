@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/pocketid"
@@ -18,6 +19,8 @@ type HouseholdUser struct {
 	Username    string
 	Email       string
 	DisplayName string
+	Status      string
+	ExpiresAt   time.Time
 	SetupURL    string
 }
 
@@ -63,7 +66,19 @@ func (s *Service) AddHouseholdUser(ctx context.Context, spec HouseholdUserSpec) 
 		return HouseholdUser{}, errors.New("localowner: household user lookup failed")
 	}
 	if len(existing) > 0 {
-		return HouseholdUser{}, errors.New("localowner: household username already exists")
+		if len(existing) != 1 || existing[0].IsAdmin || !householdMember(existing[0]) ||
+			existing[0].Email != email || effectiveDisplayName(existing[0]) != displayName {
+			return HouseholdUser{}, errors.New("localowner: household username already exists")
+		}
+		credentials, credentialErr := client.ListUserWebAuthnCredentials(ctx, existing[0].ID)
+		if credentialErr != nil {
+			return HouseholdUser{}, errors.New("localowner: household passkey readback failed")
+		}
+		status := "pending"
+		if len(credentials) > 0 {
+			status = "active"
+		}
+		return HouseholdUser{Username: username, Email: email, DisplayName: displayName, Status: status}, nil
 	}
 	created, err := client.CreateUser(ctx, pocketid.CreateUserRequest{
 		Username: username, Email: email, FirstName: displayName, DisplayName: displayName,
@@ -91,8 +106,10 @@ func (s *Service) AddHouseholdUser(ctx context.Context, spec HouseholdUserSpec) 
 	if err != nil {
 		return HouseholdUser{}, err
 	}
+	expiresAt := s.now().UTC().Add(ownerEnrollmentTTL).Truncate(time.Second)
 	return HouseholdUser{
 		Username: readback.Username, Email: readback.Email, DisplayName: effectiveDisplayName(*readback),
+		Status: "pending", ExpiresAt: expiresAt,
 		SetupURL: "https://id." + runtimeCustody.Domain + "/setup-account?token=" + url.QueryEscape(token),
 	}, nil
 }
@@ -115,8 +132,16 @@ func (s *Service) ListHouseholdUsers(ctx context.Context) ([]HouseholdUser, erro
 		if user.IsAdmin || !householdMember(user) {
 			continue
 		}
+		credentials, credentialErr := client.ListUserWebAuthnCredentials(ctx, user.ID)
+		if credentialErr != nil {
+			return nil, errors.New("localowner: household passkey readback failed")
+		}
+		status := "pending"
+		if len(credentials) > 0 {
+			status = "active"
+		}
 		result = append(result, HouseholdUser{
-			Username: user.Username, Email: user.Email, DisplayName: effectiveDisplayName(user),
+			Username: user.Username, Email: user.Email, DisplayName: effectiveDisplayName(user), Status: status,
 		})
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Username < result[j].Username })
