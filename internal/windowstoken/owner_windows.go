@@ -1,12 +1,10 @@
 //go:build windows
 
-// Package windowstoken exposes the two process-token principals Windows uses
-// for local custody: TokenUser receives the private DACL grant, while
-// TokenOwner is stamped as the owner of newly created objects.
 package windowstoken
 
 import (
 	"errors"
+	"runtime"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -39,8 +37,16 @@ func CurrentOwnerSID() (*windows.SID, error) {
 		return nil, errors.New("resolve current Windows token owner")
 	}
 	owner := (*tokenOwner)(unsafe.Pointer(&buffer[0]))
-	if owner.SID == nil {
+	if owner.SID == nil || !owner.SID.IsValid() {
 		return nil, errors.New("resolve current Windows token owner")
 	}
-	return owner.SID, nil
+	// The SID lives inside buffer. The compiler may place this small,
+	// non-escaping buffer on the stack (Go 1.25+), so a pointer into it would
+	// dangle once this function returns; callers get an independent copy.
+	sid, err := owner.SID.Copy()
+	runtime.KeepAlive(buffer)
+	if err != nil {
+		return nil, errors.New("copy current Windows token owner")
+	}
+	return sid, nil
 }

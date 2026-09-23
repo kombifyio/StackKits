@@ -177,9 +177,15 @@ func Run(options Options) error {
 	outputs := []output{
 		{path: filepath.Join(root, filepath.FromSlash(localGoOutput)), data: goOutput},
 		{path: openAPIPath, data: openAPI},
-		{path: filepath.Join(root, filepath.FromSlash(websiteOpenAPIOutput)), data: openAPI},
 	}
-	outputs = append(outputs, bundle.outputs(filepath.Join(root, filepath.FromSlash(bundleOutput)))...)
+	// The website and the neutral contract bundle are private trees that never
+	// reach the public export; their projections exist only where the tree does.
+	if privateTreePresent(root, "website") {
+		outputs = append(outputs, output{path: filepath.Join(root, filepath.FromSlash(websiteOpenAPIOutput)), data: openAPI})
+	}
+	if privateTreePresent(root, "contracts") {
+		outputs = append(outputs, bundle.outputs(filepath.Join(root, filepath.FromSlash(bundleOutput)))...)
+	}
 	if strings.TrimSpace(options.ExternalGoOutput) != "" {
 		external, err := filepath.Abs(options.ExternalGoOutput)
 		if err != nil {
@@ -687,3 +693,8 @@ func renderOpenAPIField(b *strings.Builder, field openAPIFieldSpec, spec generat
 func yamlString(value string) string { return strconv.Quote(value) }
 
 func number(value float64) string { return strconv.FormatFloat(value, 'f', -1, 64) }
+
+func privateTreePresent(root, top string) bool {
+	info, err := os.Lstat(filepath.Join(root, top))
+	return err == nil && info.IsDir()
+}

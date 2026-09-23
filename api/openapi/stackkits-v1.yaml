@@ -1075,6 +1075,7 @@ paths:
                         $ref: "#/components/schemas/StackActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+
   /api/v1/internal/stack-actions/stackkit-verify:
     post:
       operationId: stackActionStackKitVerify
@@ -1105,6 +1106,7 @@ paths:
                         $ref: "#/components/schemas/StackActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+
   /api/v1/internal/stack-actions/restore-drill:
     post:
       operationId: stackActionRestoreDrill
@@ -1135,6 +1137,7 @@ paths:
                         $ref: "#/components/schemas/StackActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+
   /api/v1/internal/stack-actions/backup-run:
     post:
       operationId: stackActionBackupRun
@@ -1165,6 +1168,7 @@ paths:
                         $ref: "#/components/schemas/StackActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+
   /api/v1/internal/stack-actions/backup-status:
     post:
       operationId: stackActionBackupStatus
@@ -1195,6 +1199,7 @@ paths:
                         $ref: "#/components/schemas/StackActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+
   /api/v1/internal/stack-actions/backup-restore:
     post:
       operationId: stackActionBackupRestore
@@ -1225,6 +1230,7 @@ paths:
                         $ref: "#/components/schemas/StackActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+
   /api/v1/internal/stack-actions/backup-wipe:
     post:
       operationId: stackActionBackupWipe
@@ -1255,6 +1261,7 @@ paths:
                         $ref: "#/components/schemas/StackActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+
   /api/v1/internal/stack-actions/service-start:
     post:
       operationId: stackActionServiceStart
@@ -1285,6 +1292,7 @@ paths:
                         $ref: "#/components/schemas/StackActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+
   /api/v1/internal/stack-actions/service-stop:
     post:
       operationId: stackActionServiceStop
@@ -1315,6 +1323,7 @@ paths:
                         $ref: "#/components/schemas/StackActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+
   /api/v1/internal/stack-actions/service-restart:
     post:
       operationId: stackActionServiceRestart
@@ -1345,6 +1354,7 @@ paths:
                         $ref: "#/components/schemas/StackActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+
   /api/v1/internal/stack-actions/service-logs:
     post:
       operationId: stackActionServiceLogs
@@ -1375,7 +1385,7 @@ paths:
                         $ref: "#/components/schemas/StackActionResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
-          # END GENERATED: stackaction paths
+  # END GENERATED: stackaction paths
 components:
   securitySchemes:
     StackKitsAPIKey:
@@ -9159,7 +9169,7 @@ components:
             - "completed_degraded"
             - "failed"
             - "blocked"
-            # END GENERATED: stackaction schemas
+    # END GENERATED: stackaction schemas
   responses:
     HealthResponse:
       description: Service is healthy

@@ -1135,7 +1135,73 @@ func projectOpenAPI(repoRoot, relativePath string, profiles []sourceProfile) err
 	if err := encoder.Close(); err != nil {
 		return err
 	}
-	return writeProjectedSource(repoRoot, relativePath, output.Bytes())
+	projected, err := restoreGeneratedOpenAPIRegions(data, output.Bytes())
+	if err != nil {
+		return err
+	}
+	return writeProjectedSource(repoRoot, relativePath, projected)
+}
+
+// stackActionOpenAPIRegions are owned by the StackAction generator, whose drift
+// check rejects any byte change between the markers. The YAML re-encoder drops
+// their blank lines and re-indents the END markers, so the projection restores
+// them verbatim. The profile projection never edits inside them.
+var stackActionOpenAPIRegions = [][2]string{
+	{"# BEGIN GENERATED: stackaction paths", "# END GENERATED: stackaction paths"},
+	{"# BEGIN GENERATED: stackaction schemas", "# END GENERATED: stackaction schemas"},
+}
+
+func restoreGeneratedOpenAPIRegions(source, projected []byte) ([]byte, error) {
+	for _, markers := range stackActionOpenAPIRegions {
+		sourceStart, sourceEnd, err := markedLineRegion(source, markers)
+		if err != nil {
+			return nil, fmt.Errorf("OpenAPI projection source: %w", err)
+		}
+		projectedStart, projectedEnd, err := markedLineRegion(projected, markers)
+		if err != nil {
+			return nil, fmt.Errorf("projected OpenAPI: %w", err)
+		}
+		region := source[sourceStart:sourceEnd]
+		if !bytes.Equal(significantYAMLLines(region), significantYAMLLines(projected[projectedStart:projectedEnd])) {
+			return nil, fmt.Errorf("OpenAPI projection changed the generated region %q", markers[0])
+		}
+		restored := make([]byte, 0, len(projected)-(projectedEnd-projectedStart)+len(region))
+		restored = append(restored, projected[:projectedStart]...)
+		restored = append(restored, region...)
+		projected = append(restored, projected[projectedEnd:]...)
+	}
+	return projected, nil
+}
+
+// markedLineRegion returns the byte range from the start of the BEGIN marker
+// line through the end of the END marker line; each marker occurs exactly once.
+func markedLineRegion(data []byte, markers [2]string) (int, int, error) {
+	begin, end := []byte(markers[0]), []byte(markers[1])
+	if bytes.Count(data, begin) != 1 || bytes.Count(data, end) != 1 {
+		return 0, 0, fmt.Errorf("marker pair %q is not unique", markers[0])
+	}
+	beginAt, endAt := bytes.Index(data, begin), bytes.Index(data, end)
+	if endAt < beginAt {
+		return 0, 0, fmt.Errorf("marker pair %q is out of order", markers[0])
+	}
+	start := bytes.LastIndexByte(data[:beginAt], '\n') + 1
+	stop := endAt + len(end)
+	if newline := bytes.IndexByte(data[stop:], '\n'); newline >= 0 {
+		stop += newline + 1
+	} else {
+		stop = len(data)
+	}
+	return start, stop, nil
+}
+
+func significantYAMLLines(region []byte) []byte {
+	var lines [][]byte
+	for _, line := range bytes.Split(region, []byte("\n")) {
+		if trimmed := bytes.TrimSpace(line); len(trimmed) != 0 {
+			lines = append(lines, trimmed)
+		}
+	}
+	return bytes.Join(lines, []byte("\n"))
 }
 
 func selectedProfileExists(profiles []sourceProfile, slug string) bool {
