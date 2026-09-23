@@ -228,9 +228,23 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 			}
 		}
 		if !compatible {
-			current, currentErr = newCurrentUpgradeInspection(ctx, workspace, specFile)
-			if currentErr != nil {
-				return fmt.Errorf("inspect authoritative current generation: %w", currentErr)
+			attested, attestedErr := inspectAttestedCurrentGeneration(
+				ctx, workspace, specFile, kit, resolution,
+			)
+			if attestedErr != nil {
+				return fmt.Errorf("inspect attested current generation: %w", attestedErr)
+			}
+			if attested.Enabled {
+				bridge = attested
+				current = attested.Current
+				if publicUpgradeDryRun {
+					return errors.New("cross-release authority requires a checkpointed live upgrade")
+				}
+			} else {
+				current, currentErr = newCurrentUpgradeInspection(ctx, workspace, specFile)
+				if currentErr != nil {
+					return fmt.Errorf("inspect authoritative current generation: %w", currentErr)
+				}
 			}
 		}
 	}

@@ -526,7 +526,12 @@ func withPreparedHistoricalUpgradeCapture(
 						receipt, kit, currentReleasePlatform(),
 					)
 				default:
-					return errors.New("installed release is not an admitted historical stable source")
+					if receipt.Channel != releaseindex.ChannelStable {
+						return errors.New("installed source is not a stable release")
+					}
+					return validateExpectedCurrentReleaseReceipt(
+						receipt, kit, bridge.Receipt.Version, currentReleasePlatform(),
+					)
 				}
 			}
 			return validateExactBeta4ReleaseReceipt(
@@ -596,6 +601,26 @@ func inspectPublicUpgradeSnapshotAuthority(
 	)
 	if currentErr == nil {
 		return current, nil
+	}
+	if targetTag, tagErr := releaseindex.ExactTagForBuildVersion(version); tagErr == nil {
+		attested, attestedErr := inspectAttestedCurrentBackupAuthority(
+			ctx, workspace, requestedSpec, snapshot.Release.Kit,
+			releaseindex.Resolution{Asset: releaseindex.Asset{
+				Kit: snapshot.Release.Kit, Version: targetTag,
+				Channel: releaseindex.ChannelStable, Platform: currentReleasePlatform(),
+			}},
+		)
+		if attestedErr == nil && attested.HistoricalStable != nil {
+			receipt := attested.HistoricalStable.Receipt
+			if receipt.Kit == snapshot.Release.Kit &&
+				receipt.Version == snapshot.Release.Version &&
+				receipt.Channel == snapshot.Release.Channel &&
+				receipt.Platform == snapshot.Release.Platform &&
+				receipt.ArchiveSHA256 == snapshot.Release.ArchiveSHA256 &&
+				receipt.IndexSHA256 == snapshot.Release.IndexSHA256 {
+				return attested, nil
+			}
+		}
 	}
 	if snapshot.Release.Kit == "basement-kit" &&
 		snapshot.Release.Version == publishedV012CurrentVersion &&

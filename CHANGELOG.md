@@ -9,6 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 * **photos:** keep Apply and restore available when optional machine learning is degraded, while reporting its health and retaining blocking checks for core services
+* **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
+
+## [0.39.4](https://github.com/kombifyio/StackKits/compare/v0.39.3...v0.39.4) (2026-09-23)
+
+
+### Fixed
+
+* **upgrade:** inspect attested source generation across releases
 
 ## [0.39.3](https://github.com/kombifyio/StackKits/compare/v0.39.2...v0.39.3) (2026-09-23)
 
