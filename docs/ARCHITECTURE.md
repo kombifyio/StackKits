@@ -1947,7 +1947,7 @@ StackKit must not add a second Traefik instance, an Nginx bridge container, a ho
 
 | Area | Current source |
 | --- | --- |
-| Go | `go.mod` and `mise.toml`: `1.26.5` |
+| Go | `mise.toml` toolchain: `1.26.8`; `go.mod` language minimum: `1.26.5` |
 | CUE library | `cuelang.org/go v0.15.4` |
 | CLI | Cobra `v1.10.2` |
 | HTTP server | Go `net/http` with `ServeMux` |

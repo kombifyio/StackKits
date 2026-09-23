@@ -2,6 +2,7 @@ package runtimeexecutorlocal
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -32,6 +33,10 @@ func waitForCertificateIssuance(ctx context.Context, wait, interval time.Duratio
 		err := attempt()
 		if err == nil {
 			return nil
+		}
+		var terminal interface{ issuanceTerminal() bool }
+		if errors.As(err, &terminal) && terminal.issuanceTerminal() {
+			return err
 		}
 		if wait <= 0 || !time.Now().Add(interval).Before(deadline) {
 			return err

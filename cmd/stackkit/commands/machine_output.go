@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/applyoutcome"
@@ -138,15 +139,20 @@ func writeMachineCommandFailure(cmd *cobra.Command, err error, guidance ...strin
 		}
 		message = "StackKits rejected the command at a typed product boundary."
 	}
+	retryAfter := ""
 	if runtime := applyoutcome.Classify(err.Error()); runtime.Class != applyoutcome.ClassUnknown {
 		status = "failed"
 		reason = string(runtime.Class)
 		retryable = runtime.Retryable
 		guidance = append(append([]string(nil), runtime.Remediation...), guidance...)
+		if retryable && !runtime.RetryAfter.IsZero() {
+			retryAfter = runtime.RetryAfter.UTC().Format(time.RFC3339)
+		}
 	}
 	detail := actionableerror.New(
 		"stackkit_command_failed", reason, message, guidance, retryable,
 	)
+	detail.RetryAfter = retryAfter
 	if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), status, detail); writeErr != nil {
 		return errors.Join(err, fmt.Errorf("write machine-readable command failure: %w", writeErr))
 	}

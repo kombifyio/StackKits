@@ -215,6 +215,18 @@ func verifyArchitectureV2LocalCloudState(
 	if custody.OwnerRef != ownerSummary.OwnerRef || custody.KeyID != ownerSummary.KeyID || custody.Domain != domain {
 		return architectureV2OwnerVerifySummary{}, nil, errors.New("Cloud runtime custody differs from the verified plan or local owner")
 	}
+	binding, err := localevidence.LoadOwnerRuntimeBinding(workspaceRoot)
+	if errors.Is(err, localevidence.ErrOwnerRuntimeBindingMissing) {
+		return architectureV2OwnerVerifySummary{}, nil, errors.New("verify PocketID/step-ca owner binding: the Cloud PocketID owner is not bound yet; run stackkit apply to bind it")
+	}
+	if err != nil {
+		return architectureV2OwnerVerifySummary{}, nil, fmt.Errorf("verify PocketID/step-ca owner binding: %w", err)
+	}
+	if binding.OwnerRef != ownerSummary.OwnerRef {
+		return architectureV2OwnerVerifySummary{}, nil, errors.New("PocketID owner binding differs from local owner custody")
+	}
+	ownerSummary.PocketIDSubject = binding.PocketIDSubject
+	ownerSummary.OwnerBindingDigest = localevidence.OwnerRuntimeBindingDigest(binding)
 	if offline {
 		return ownerSummary, nil, nil
 	}
@@ -233,6 +245,11 @@ func verifyArchitectureV2LocalCloudState(
 	}, operations)
 	if err != nil {
 		return ownerSummary, nil, fmt.Errorf("verify live Cloud core: %w", err)
+	}
+	if observation.OwnerRef != ownerSummary.OwnerRef ||
+		observation.PocketIDSubject != ownerSummary.PocketIDSubject ||
+		observation.OwnerBindingDigest != ownerSummary.OwnerBindingDigest {
+		return architectureV2OwnerVerifySummary{}, nil, errors.New("live Cloud owner observation differs from signed local binding")
 	}
 	return ownerSummary, &architectureV2RuntimeVerifySummary{
 		ExecutionMode: "local-runtime", Live: true,

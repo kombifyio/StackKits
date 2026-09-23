@@ -494,14 +494,45 @@ func basementRuntimeEnvironments(owner OwnerCustody, domain string, sessionTTLSe
 	}, nil
 }
 
+// LocalIdentityRuntimeDomain returns the domain of the one owner-signed
+// runtime custody that carries this workspace's PocketID and TinyAuth inputs.
+// Basement and Cloud install the same identity pair, each from its own custody.
+func LocalIdentityRuntimeDomain(workspaceRoot string) (string, error) {
+	domain, _, err := localIdentityRuntime(workspaceRoot)
+	return domain, err
+}
+
+func localIdentityRuntime(workspaceRoot string) (domain, custodyRelDir string, err error) {
+	basement, basementErr := LoadBasementRuntimeCustody(workspaceRoot)
+	cloud, cloudErr := LoadCloudRuntimeCustody(workspaceRoot)
+	if basementErr != nil && !errors.Is(basementErr, ErrBasementRuntimeCustodyMissing) {
+		return "", "", basementErr
+	}
+	if cloudErr != nil && !errors.Is(cloudErr, ErrCloudRuntimeCustodyMissing) {
+		return "", "", cloudErr
+	}
+	switch {
+	case basementErr == nil && cloudErr == nil:
+		return "", "", errors.New("localevidence: workspace holds both Basement and Cloud runtime custody")
+	case basementErr == nil:
+		return basement.Domain, basementRuntimeCustodyRelDir, nil
+	case cloudErr == nil:
+		return cloud.Domain, cloudRuntimeCustodyRelDir, nil
+	default:
+		return "", "", basementErr
+	}
+}
+
 // ReadBasementRuntimePocketIDAdminKey returns the declarative PocketID
-// bootstrap key only after the complete owner-signed runtime custody has been
-// verified. The key is never included in a public record or diagnostic.
+// bootstrap key only after the complete owner-signed runtime custody (Basement
+// or Cloud) has been verified. The key is never included in a public record or
+// diagnostic.
 func ReadBasementRuntimePocketIDAdminKey(workspaceRoot string) (string, error) {
-	if _, err := LoadBasementRuntimeCustody(workspaceRoot); err != nil {
+	_, custodyRelDir, err := localIdentityRuntime(workspaceRoot)
+	if err != nil {
 		return "", err
 	}
-	directory, err := confinedCustodyPath(workspaceRoot, basementRuntimeCustodyRelDir)
+	directory, err := confinedCustodyPath(workspaceRoot, custodyRelDir)
 	if err != nil {
 		return "", err
 	}

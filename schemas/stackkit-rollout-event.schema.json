@@ -54,6 +54,7 @@
     "failureClass": {
       "type": "string",
       "enum": [
+        "acme_rate_limited",
         "apt_lock_timeout",
         "apt_process_timeout",
         "apt_wait_timeout",

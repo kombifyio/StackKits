@@ -106,7 +106,10 @@ services:
     oom_score_adj: -500
     mem_limit: 256m
     depends_on: [pocketid]
-    env_file: ["${STACKKIT_CUSTODY_DIR:?}/cloud-runtime/tinyauth.env"]
+    env_file:
+      - path: "${STACKKIT_CUSTODY_DIR:?}/cloud-runtime/tinyauth.env"
+      - path: "${STACKKIT_CUSTODY_DIR:?}/tinyauth-pocketid/tinyauth.env"
+        required: false
     volumes: [tinyauth-data:/data]
     ports: ["127.0.0.1:4000:3000"]
     healthcheck: {test: ["CMD", "tinyauth", "healthcheck"], interval: 10s, timeout: 5s, retries: 12, start_period: 10s}

@@ -102,7 +102,7 @@ func (s *Service) AddHouseholdUser(ctx context.Context, spec HouseholdUserSpec) 
 	if err != nil || strings.TrimSpace(token) == "" {
 		return HouseholdUser{}, errors.New("localowner: household enrollment creation failed")
 	}
-	runtimeCustody, err := localevidence.LoadBasementRuntimeCustody(s.workspaceRoot)
+	domain, err := localevidence.LocalIdentityRuntimeDomain(s.workspaceRoot)
 	if err != nil {
 		return HouseholdUser{}, err
 	}
@@ -110,7 +110,7 @@ func (s *Service) AddHouseholdUser(ctx context.Context, spec HouseholdUserSpec) 
 	return HouseholdUser{
 		Username: readback.Username, Email: readback.Email, DisplayName: effectiveDisplayName(*readback),
 		Status: "pending", ExpiresAt: expiresAt,
-		SetupURL: "https://id." + runtimeCustody.Domain + "/setup-account?token=" + url.QueryEscape(token),
+		SetupURL: "https://id." + domain + "/setup-account?token=" + url.QueryEscape(token),
 	}, nil
 }
 

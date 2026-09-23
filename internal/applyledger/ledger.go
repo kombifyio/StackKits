@@ -100,6 +100,9 @@ type Failure struct {
 	Transient   bool     `json:"transient"`
 	Message     string   `json:"message,omitempty"`
 	Remediation []string `json:"remediation,omitempty"`
+	// RetryAfter is the RFC 3339 UTC time an external authority named for the
+	// next attempt. A retry before it cannot succeed.
+	RetryAfter string `json:"retryAfter,omitempty"`
 }
 
 // HealthOutcome is one health target's observed state.
@@ -269,6 +272,9 @@ func failureFor(code runtimeapply.FailureCode, cause string) *Failure {
 		Transient:   classification.Transient,
 		Message:     cause,
 		Remediation: classification.Remediation,
+	}
+	if !classification.RetryAfter.IsZero() {
+		failure.RetryAfter = classification.RetryAfter.UTC().Format(time.RFC3339)
 	}
 	if classification.Class == applyoutcome.ClassUnknown && code == runtimeapply.FailureCancelled {
 		failure.Class = string(applyoutcome.ClassCancelled)

@@ -15,6 +15,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/localowner"
 )
 
 type osCloudCoreOperations struct {
@@ -22,6 +23,7 @@ type osCloudCoreOperations struct {
 	runtimeName   string
 	runner        basementCoreProcessRunner
 	prober        basementCoreProber
+	ownerIdentity basementOwnerIdentity
 }
 
 func NewOSCloudCoreOperations(workspaceRoot string) (CloudCoreOperations, error) {
@@ -43,7 +45,15 @@ func newOSCloudCoreOperations(workspaceRoot, runtimeName string) (CloudCoreOpera
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return nil, errors.New("Cloud core operations require an existing plain workspace directory")
 	}
-	return &osCloudCoreOperations{workspaceRoot: filepath.Clean(absolute), runtimeName: runtimeName, runner: osCloudCoreProcessRunner{}, prober: osBasementCoreProber{}}, nil
+	ownerIdentity, err := localowner.NewService(absolute)
+	if err != nil {
+		return nil, err
+	}
+	return &osCloudCoreOperations{
+		workspaceRoot: filepath.Clean(absolute), runtimeName: runtimeName,
+		runner: osCloudCoreProcessRunner{}, prober: osBasementCoreProber{},
+		ownerIdentity: localBasementOwnerIdentity{service: ownerIdentity},
+	}, nil
 }
 
 func (o *osCloudCoreOperations) ApplyProject(ctx context.Context, project CloudCoreProject) (CloudCoreApplyObservation, error) {
@@ -66,7 +76,24 @@ func (o *osCloudCoreOperations) ApplyProject(ctx context.Context, project CloudC
 	if err := o.waitUntilReady(ctx, composePath, project); err != nil {
 		return CloudCoreApplyObservation{}, err
 	}
-	return CloudCoreApplyObservation{ProjectRef: project.ProjectRef, ArtifactDigest: project.ArtifactDigest, Status: "applied"}, nil
+	binding, err := o.ownerIdentity.Realize(ctx)
+	if err != nil {
+		return CloudCoreApplyObservation{}, fmt.Errorf("Cloud PocketID owner realization did not complete: %w", err)
+	}
+	// Owner realization registers TinyAuth's PocketID client and installs its
+	// secret as a private optional env override. Reconcile Compose once more so
+	// TinyAuth runs with that bound credential before Apply can succeed.
+	if _, err := o.runner.Run(ctx, o.composeArgs(composePath, "up"), filepath.Dir(composePath), o.environment()); err != nil {
+		return CloudCoreApplyObservation{}, fmt.Errorf("Cloud TinyAuth PocketID binding did not complete: %w", err)
+	}
+	if err := o.waitUntilReady(ctx, composePath, project); err != nil {
+		return CloudCoreApplyObservation{}, err
+	}
+	return CloudCoreApplyObservation{
+		ProjectRef: project.ProjectRef, ArtifactDigest: project.ArtifactDigest, Status: "applied",
+		OwnerRef: binding.OwnerRef, PocketIDSubject: binding.PocketIDSubject,
+		OwnerBindingDigest: localevidence.OwnerRuntimeBindingDigest(binding),
+	}, nil
 }
 
 func (o *osCloudCoreOperations) waitUntilReady(ctx context.Context, composePath string, project CloudCoreProject) error {
@@ -163,7 +190,15 @@ func (o *osCloudCoreOperations) VerifyProject(ctx context.Context, project Cloud
 		}
 		probes = append(probes, BasementCoreProbeObservation{RequirementID: expectation.RequirementID, Status: "healthy"})
 	}
-	return CloudCoreVerifyObservation{ProjectRef: project.ProjectRef, ArtifactDigest: project.ArtifactDigest, Status: "ready", Services: services, Probes: probes}, nil
+	binding, err := o.ownerIdentity.Verify(ctx)
+	if err != nil {
+		return CloudCoreVerifyObservation{}, fmt.Errorf("Cloud PocketID owner verification did not complete: %w", err)
+	}
+	return CloudCoreVerifyObservation{
+		ProjectRef: project.ProjectRef, ArtifactDigest: project.ArtifactDigest, Status: "ready", Services: services, Probes: probes,
+		OwnerRef: binding.OwnerRef, PocketIDSubject: binding.PocketIDSubject,
+		OwnerBindingDigest: localevidence.OwnerRuntimeBindingDigest(binding),
+	}, nil
 }
 
 func (o *osCloudCoreOperations) ready(ctx context.Context) error {
@@ -173,7 +208,7 @@ func (o *osCloudCoreOperations) ready(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if o == nil || o.workspaceRoot == "" || o.runner == nil || o.prober == nil {
+	if o == nil || o.workspaceRoot == "" || o.runner == nil || o.prober == nil || o.ownerIdentity == nil {
 		return errors.New("Cloud core operations are not initialized")
 	}
 	if o.name() != "cloud-core" && o.name() != "cloud-core-standalone" {

@@ -8,6 +8,8 @@
 // and redact any text before persisting it alongside a classification.
 package applyoutcome
 
+import "time"
+
 // Class is the closed StackKits failure-class vocabulary. Values are the
 // wire representation used by rollout evidence and apply outcome reporting;
 // they extend the historical rollout failure classes rather than replacing
@@ -24,6 +26,7 @@ const (
 	ClassDiskFull               Class = "disk_full"
 	ClassImageArchMismatch      Class = "image_arch_mismatch"
 	ClassRegistryRateLimited    Class = "registry_rate_limited"
+	ClassACMERateLimited        Class = "acme_rate_limited"
 	ClassRegistryUnreachable    Class = "registry_unreachable"
 	ClassImagePullDenied        Class = "image_pull_denied"
 	ClassImageNotFound          Class = "image_not_found"
@@ -52,12 +55,15 @@ const (
 // Retryable states whether repeating the same operation can succeed once the
 // named condition is addressed. Transient additionally states that the
 // condition may clear on its own, which is the only case an automatic retry
-// may act on.
+// may act on. RetryAfter is the earliest time an external authority named for
+// that retry; it is zero when the authority named none, and a retry before it
+// cannot succeed.
 type Classification struct {
 	Class       Class
 	Retryable   bool
 	Transient   bool
 	Remediation []string
+	RetryAfter  time.Time
 }
 
 // classProfile binds one class to its retry semantics and operator guidance.
@@ -94,6 +100,14 @@ var classProfiles = map[Class]classProfile{
 		remediation: []string{
 			"The container registry rejected the pull with a rate limit.",
 			"Wait for the limit to reset or authenticate to the registry, then retry.",
+		},
+	},
+	ClassACMERateLimited: {
+		retryable: true,
+		transient: true,
+		remediation: []string{
+			"The public certificate authority refused a certificate for a declared route because its issuance rate limit for that name is exhausted.",
+			"Retry after the reported retry-after time; an earlier retry, or a new server for the same address, requests the same certificate and is refused again.",
 		},
 	},
 	ClassRegistryUnreachable: {
@@ -249,6 +263,7 @@ func Retryable(class Class) bool {
 // rollout event schema and documentation can be checked against one source.
 func Classes() []Class {
 	return []Class{
+		ClassACMERateLimited,
 		ClassCancelled,
 		ClassClockSkew,
 		ClassDependencyUnhealthy,

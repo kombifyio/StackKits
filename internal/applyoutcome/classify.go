@@ -1,6 +1,10 @@
 package applyoutcome
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+	"time"
+)
 
 // matcher binds one class to the lowercase substrings that prove it. The
 // table is ordered most specific first: the first matching entry wins, so a
@@ -16,6 +20,12 @@ type matcher struct {
 // on small self-hosted hosts. Every marker is a literal lowercase substring of
 // observed Docker, Compose, containerd, or registry output.
 var matchers = []matcher{
+	// The RFC 8555 problem type is the certificate authority's own closed
+	// signal. It is matched before every runtime class because the refusal
+	// text also carries an HTTP 429 and a certificate vocabulary.
+	{class: ClassACMERateLimited, markers: []string{
+		"urn:ietf:params:acme:error:ratelimited",
+	}},
 	{class: ClassDockerMissing, markers: []string{
 		"docker-not-found",
 		"required local docker runtime is not installed",
@@ -154,10 +164,34 @@ func Classify(text string) Classification {
 			continue
 		}
 		if containsAny(normalized, candidate.markers) {
-			return profile(candidate.class)
+			result := profile(candidate.class)
+			if candidate.class == ClassACMERateLimited {
+				result.RetryAfter, _ = AuthorityRetryAfter(text)
+			}
+			return result
 		}
 	}
 	return Classification{Class: ClassUnknown}
+}
+
+// retryAfterPattern matches the time an ACME certificate authority names in
+// its rate-limit problem detail. Let's Encrypt has emitted both
+// "retry after 2026-09-08 23:59:50 UTC" and "retry after 2026-09-08T23:59:50Z".
+var retryAfterPattern = regexp.MustCompile(`(?i)retry after (\d{4}-\d{2}-\d{2})[t ](\d{2}:\d{2}:\d{2})(?:z| utc)`)
+
+// AuthorityRetryAfter returns the last authority-named retry time in text.
+// Only a complete UTC timestamp is accepted; anything else is no time at all.
+func AuthorityRetryAfter(text string) (time.Time, bool) {
+	matches := retryAfterPattern.FindAllStringSubmatch(text, -1)
+	if len(matches) == 0 {
+		return time.Time{}, false
+	}
+	last := matches[len(matches)-1]
+	parsed, err := time.Parse(time.RFC3339, last[1]+"T"+last[2]+"Z")
+	if err != nil {
+		return time.Time{}, false
+	}
+	return parsed.UTC(), true
 }
 
 // Recognized reports whether Classify produced a closed class for this text.

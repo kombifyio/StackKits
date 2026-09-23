@@ -73,6 +73,7 @@ func NewOSPublicTLSOperations(workspaceRoot string) (*osPublicTLSOperations, err
 			client:        client,
 			issuanceWait:  certificateIssuanceWait,
 			retryInterval: certificateIssuanceInterval,
+			issuance:      dockerTraefikIssuanceEvidence{},
 			now:           func() time.Time { return time.Now().UTC() },
 		},
 		now: func() time.Time { return time.Now().UTC() },
@@ -413,6 +414,9 @@ type traefikPublicTLSProbe struct {
 	now           func() time.Time
 	issuanceWait  time.Duration
 	retryInterval time.Duration
+	// issuance reads the resolver's closed refusal for a route that has no
+	// certificate. It is optional: without it the probe outcome stays generic.
+	issuance publicTLSIssuanceEvidence
 }
 
 type traefikHTTPRouter struct {
@@ -448,12 +452,39 @@ func (p *traefikPublicTLSProbe) Probe(ctx context.Context, route architecturev2r
 			return errors.New("Traefik has no enabled TLS router with an ACME resolver for the declared route")
 		}
 		observation, err = p.verifyHTTPS(ctx, route)
+		if err != nil {
+			if refused := p.issuanceRefusal(ctx, route, err); refused != nil && refused.issuanceTerminal() {
+				return refused
+			}
+		}
 		return err
 	})
 	if err != nil {
+		var refused *publicTLSIssuanceRefusedError
+		if !errors.As(err, &refused) {
+			if found := p.issuanceRefusal(ctx, route, err); found != nil {
+				return publicTLSRouteObservation{}, found
+			}
+		}
 		return publicTLSRouteObservation{}, err
 	}
 	return observation, nil
+}
+
+// issuanceRefusal names the certificate authority's refusal behind a failed
+// HTTPS verification, or returns nil when the resolver recorded none.
+func (p *traefikPublicTLSProbe) issuanceRefusal(ctx context.Context, route architecturev2renderer.PublicTLSRuntimeRoute, probeErr error) *publicTLSIssuanceRefusedError {
+	if p.issuance == nil || probeErr == nil {
+		return nil
+	}
+	refusal, found := p.issuance.IssuanceRefusal(ctx, route.Host)
+	if !found {
+		return nil
+	}
+	return &publicTLSIssuanceRefusedError{
+		routeRef: route.ID, address: net.JoinHostPort(route.Host, strconv.Itoa(route.Port)),
+		probe: strings.Join(strings.Fields(probeErr.Error()), " "), refusal: refusal,
+	}
 }
 
 func (p *traefikPublicTLSProbe) routers(ctx context.Context) ([]traefikHTTPRouter, error) {

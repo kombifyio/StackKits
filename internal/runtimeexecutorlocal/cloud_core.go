@@ -36,12 +36,15 @@ type CloudCoreProject struct {
 
 type CloudCoreApplyObservation struct {
 	ProjectRef, ArtifactDigest, Status string
+	// The Cloud core owns the same local PocketID owner binding as Basement.
+	OwnerRef, PocketIDSubject, OwnerBindingDigest string
 }
 
 type CloudCoreVerifyObservation struct {
-	ProjectRef, ArtifactDigest, Status string
-	Services                           []BasementCoreServiceObservation
-	Probes                             []BasementCoreProbeObservation
+	ProjectRef, ArtifactDigest, Status            string
+	OwnerRef, PocketIDSubject, OwnerBindingDigest string
+	Services                                      []BasementCoreServiceObservation
+	Probes                                        []BasementCoreProbeObservation
 }
 
 type CloudCoreOperations interface {
@@ -190,8 +193,10 @@ func (e *CloudCoreExecutor) Execute(ctx context.Context, request runtimeexecutor
 	if err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("apply exact Cloud core project: %w", err)
 	}
-	if applied.ProjectRef != project.ProjectRef || applied.ArtifactDigest != project.ArtifactDigest || applied.Status != "applied" {
-		return runtimeexecutor.ExecutionOutcome{}, errors.New("Cloud core Apply observation does not prove the exact project and artifact")
+	if applied.ProjectRef != project.ProjectRef || applied.ArtifactDigest != project.ArtifactDigest ||
+		applied.OwnerRef == "" || applied.PocketIDSubject == "" ||
+		!validCoreHostBootstrapDigest(applied.OwnerBindingDigest) || applied.Status != "applied" {
+		return runtimeexecutor.ExecutionOutcome{}, errors.New("Cloud core Apply observation does not prove the exact project, artifact, and owner binding")
 	}
 	verified, err := e.operations.VerifyProject(ctx, cloneCloudCoreProject(project))
 	if err != nil {
@@ -199,6 +204,11 @@ func (e *CloudCoreExecutor) Execute(ctx context.Context, request runtimeexecutor
 	}
 	if err := validateCloudCoreVerification(project, verified); err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, err
+	}
+	if applied.OwnerRef != verified.OwnerRef ||
+		applied.PocketIDSubject != verified.PocketIDSubject ||
+		applied.OwnerBindingDigest != verified.OwnerBindingDigest {
+		return runtimeexecutor.ExecutionOutcome{}, errors.New("Cloud core verification does not prove the applied owner binding")
 	}
 	evidence, err := json.Marshal(struct {
 		SchemaVersion string                     `json:"schemaVersion"`
@@ -377,6 +387,7 @@ func exactCloudCoreProfileHealth(input []runtimeexecutor.HealthTarget, target ru
 
 func validateCloudCoreVerification(project CloudCoreProject, observation CloudCoreVerifyObservation) error {
 	if observation.ProjectRef != project.ProjectRef || observation.ArtifactDigest != project.ArtifactDigest || observation.Status != "ready" ||
+		observation.OwnerRef == "" || observation.PocketIDSubject == "" || !validCoreHostBootstrapDigest(observation.OwnerBindingDigest) ||
 		len(observation.Services) != len(project.Services) || len(observation.Probes) != len(project.Health) {
 		return errors.New("Cloud core verification does not prove the exact ready project")
 	}

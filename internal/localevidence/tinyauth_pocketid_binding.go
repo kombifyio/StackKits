@@ -56,7 +56,7 @@ func BindBasementTinyAuthPocketID(
 	workspaceRoot string,
 	request TinyAuthPocketIDBindingRequest,
 ) (TinyAuthPocketIDBinding, error) {
-	runtimeCustody, err := LoadBasementRuntimeCustody(workspaceRoot)
+	domain, err := LocalIdentityRuntimeDomain(workspaceRoot)
 	if err != nil {
 		return TinyAuthPocketIDBinding{}, err
 	}
@@ -84,8 +84,8 @@ func BindBasementTinyAuthPocketID(
 	if err != nil {
 		return TinyAuthPocketIDBinding{}, err
 	}
-	callbackURL := TinyAuthPocketIDCallbackURL(runtimeCustody.Domain)
-	env := renderTinyAuthPocketIDEnvironment(runtimeCustody.Domain, owner.PocketID.Email, request.ClientID, request.ClientSecret)
+	callbackURL := TinyAuthPocketIDCallbackURL(domain)
+	env := renderTinyAuthPocketIDEnvironment(domain, owner.PocketID.Email, request.ClientID, request.ClientSecret)
 	record := TinyAuthPocketIDBinding{
 		APIVersion:  TinyAuthPocketIDBindingAPIVersion,
 		Kind:        "TinyAuthPocketIDBinding",
@@ -181,7 +181,7 @@ func LoadBasementTinyAuthPocketIDBinding(workspaceRoot string) (TinyAuthPocketID
 	if err != nil || !bytes.Equal(raw, canonical) {
 		return TinyAuthPocketIDBinding{}, errors.New("localevidence: TinyAuth PocketID binding is not canonical")
 	}
-	runtimeCustody, err := LoadBasementRuntimeCustody(workspaceRoot)
+	domain, err := LocalIdentityRuntimeDomain(workspaceRoot)
 	if err != nil {
 		return TinyAuthPocketIDBinding{}, err
 	}
@@ -198,7 +198,7 @@ func LoadBasementTinyAuthPocketIDBinding(workspaceRoot string) (TinyAuthPocketID
 		record.Kind != "TinyAuthPocketIDBinding" ||
 		record.OwnerRef != owner.OwnerRef || record.KeyID != owner.KeyID ||
 		record.ClientID != TinyAuthPocketIDClientID ||
-		record.CallbackURL != TinyAuthPocketIDCallbackURL(runtimeCustody.Domain) ||
+		record.CallbackURL != TinyAuthPocketIDCallbackURL(domain) ||
 		len(record.GroupIDs) != 3 || record.BoundAt.IsZero() ||
 		record.BoundAt.Location() != time.UTC {
 		return TinyAuthPocketIDBinding{}, errors.New("localevidence: TinyAuth PocketID binding is not bound to established custody")
@@ -213,7 +213,7 @@ func LoadBasementTinyAuthPocketIDBinding(workspaceRoot string) (TinyAuthPocketID
 	env, err := os.ReadFile(envPath) //nolint:gosec // fixed custody path
 	if err != nil || requirePrivateRuntimeFile(envPath) != nil ||
 		record.EnvMAC != basementRuntimeFileMAC(key, tinyAuthPocketIDEnvRelPath, env) ||
-		!validTinyAuthPocketIDEnvironment(env, runtimeCustody.Domain, owner.PocketID.Email, record.ClientID) {
+		!validTinyAuthPocketIDEnvironment(env, domain, owner.PocketID.Email, record.ClientID) {
 		return TinyAuthPocketIDBinding{}, errors.New("localevidence: private TinyAuth PocketID environment does not verify")
 	}
 	return record, nil

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 const SchemaVersionV1 = "stackkit.actionable-error/v1"
@@ -16,6 +17,9 @@ type Contract struct {
 	Message       string   `json:"message"`
 	UserGuidance  []string `json:"userGuidance"`
 	Retryable     bool     `json:"retryable"`
+	// RetryAfter is the RFC 3339 UTC time an external authority named for the
+	// next attempt; it is omitted when no authority named one.
+	RetryAfter string `json:"retryAfter,omitempty"`
 }
 
 func New(code, reason, message string, guidance []string, retryable bool) Contract {
@@ -43,6 +47,15 @@ func (c Contract) Validate() error {
 	}
 	if len(c.UserGuidance) == 0 {
 		return errors.New("actionable error requires at least one recovery action")
+	}
+	if c.RetryAfter != "" {
+		parsed, err := time.Parse(time.RFC3339, c.RetryAfter)
+		if err != nil || parsed.Location() != time.UTC || parsed.Format(time.RFC3339) != c.RetryAfter {
+			return errors.New("actionable error retryAfter must be a canonical RFC 3339 UTC time")
+		}
+		if !c.Retryable {
+			return errors.New("actionable error retryAfter requires a retryable condition")
+		}
 	}
 	for index, guidance := range c.UserGuidance {
 		if strings.TrimSpace(guidance) == "" || guidance != strings.TrimSpace(guidance) || strings.ContainsRune(guidance, '\x00') {

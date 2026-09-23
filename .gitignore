@@ -137,3 +137,5 @@ coverage.out
 
 # On-demand reference checkouts; never commit cached dependencies.
 /.kombify/context-cache/
+
+*.gate.lock*

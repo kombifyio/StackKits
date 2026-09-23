@@ -97,4 +97,7 @@ package foundation
 	message:       #NonEmptyString
 	userGuidance: [#NonEmptyString, ...#NonEmptyString]
 	retryable: bool
+	// Earliest time an external authority (for example an ACME certificate
+	// authority rate limit) allows the next attempt; only for retryable errors.
+	retryAfter?: #RuntimeObservationTimestamp
 })

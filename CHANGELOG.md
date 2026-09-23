@@ -4,6 +4,16 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.38.1](https://github.com/kombifyio/StackKits/compare/v0.38.0...v0.38.1) (2026-09-22)
+
+
+### Fixed
+
+* **cloud:** bind the PocketID owner so backup lineage admits Cloud
+* **cloud:** name ACME rate limits behind a missing public certificate
+* **security:** restore the weekly security workflow and schedule CodeQL
+* **website:** sync CLI reference copy in the docs:cli gate, not just at deploy
+
 ## [0.38.0] (2026-09-20)
 
 
