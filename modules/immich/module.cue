@@ -188,7 +188,7 @@ Contract: foundation.#ModuleContract & {
 				track:   "patch"
 				pinLine: "v2.7"
 			}
-			required: true
+			required: false
 			status:   "implemented"
 
 			placement: {

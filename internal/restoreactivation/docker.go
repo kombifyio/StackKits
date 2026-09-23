@@ -1,6 +1,7 @@
 package restoreactivation
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/localevidence"
 )
@@ -244,13 +246,129 @@ func (runtime *dockerRuntime) Start(ctx context.Context, authority Authority) er
 		if err != nil {
 			return err
 		}
-		if _, err = runtime.docker(
-			ctx, append(prefix, "up", "-d", "--wait", "--wait-timeout", "600")...,
-		); err != nil {
+		start := append(prefix, "up", "-d")
+		if len(composeRuntime.Readiness) == 0 {
+			start = append(start, "--wait", "--wait-timeout", "600")
+		}
+		if _, err = runtime.docker(ctx, start...); err != nil {
 			return wrapDocker("start verified Compose runtime "+composeRuntime.Project, err)
+		}
+		if len(composeRuntime.Readiness) != 0 {
+			if err := runtime.waitForBlockingComposeReadiness(ctx, prefix, composeRuntime); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+type composeReadinessStatus struct {
+	Service  string `json:"Service"`
+	State    string `json:"State"`
+	Health   string `json:"Health"`
+	ExitCode int    `json:"ExitCode"`
+}
+
+func (runtime *dockerRuntime) waitForBlockingComposeReadiness(
+	ctx context.Context,
+	prefix []string,
+	composeRuntime ComposeRuntime,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, 600*time.Second)
+	defer cancel()
+	for {
+		raw, err := runtime.docker(ctx, append(prefix, "ps", "--all", "--no-trunc", "--format", "json")...)
+		if err != nil {
+			return wrapDocker("observe verified Compose runtime "+composeRuntime.Project, err)
+		}
+		statuses, err := parseComposeReadinessStatuses(raw)
+		if err != nil {
+			return fmt.Errorf("restoreactivation: observe verified Compose runtime %s: %w", composeRuntime.Project, err)
+		}
+		ready, err := blockingComposeReadiness(composeRuntime.Readiness, statuses)
+		if err != nil {
+			return fmt.Errorf("restoreactivation: start verified Compose runtime %s: %w", composeRuntime.Project, err)
+		}
+		if ready {
+			return nil
+		}
+		timer := time.NewTimer(time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return fmt.Errorf("restoreactivation: start verified Compose runtime %s: blocking component readiness interrupted: %w", composeRuntime.Project, ctx.Err())
+		case <-timer.C:
+		}
+	}
+}
+
+func parseComposeReadinessStatuses(raw []byte) (map[string]composeReadinessStatus, error) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 {
+		return nil, errors.New("Compose returned no component status")
+	}
+	var values []composeReadinessStatus
+	if raw[0] == '[' {
+		if err := json.Unmarshal(raw, &values); err != nil {
+			return nil, errors.New("Compose component status is malformed")
+		}
+	} else {
+		for _, line := range bytes.Split(raw, []byte{'\n'}) {
+			var value composeReadinessStatus
+			if err := json.Unmarshal(bytes.TrimSpace(line), &value); err != nil {
+				return nil, errors.New("Compose component status is malformed")
+			}
+			values = append(values, value)
+		}
+	}
+	statuses := make(map[string]composeReadinessStatus, len(values))
+	for _, value := range values {
+		if value.Service == "" {
+			return nil, errors.New("Compose component status has no service identity")
+		}
+		if _, duplicate := statuses[value.Service]; duplicate {
+			return nil, errors.New("Compose component status repeats a service identity")
+		}
+		statuses[value.Service] = value
+	}
+	return statuses, nil
+}
+
+func blockingComposeReadiness(
+	expected []ComposeRuntimeReadiness,
+	statuses map[string]composeReadinessStatus,
+) (bool, error) {
+	for _, component := range expected {
+		if component.HealthFailure == "degraded" {
+			continue
+		}
+		status, exists := statuses[component.ComponentRef]
+		if !exists {
+			return false, nil
+		}
+		if component.Lifecycle == "one-shot" {
+			if status.State == "exited" && status.ExitCode == 0 {
+				continue
+			}
+			if status.State == "exited" {
+				return false, fmt.Errorf("blocking one-shot component %q failed", component.ComponentRef)
+			}
+			return false, nil
+		}
+		if status.State == "exited" || status.State == "dead" {
+			return false, fmt.Errorf("blocking daemon component %q stopped", component.ComponentRef)
+		}
+		if status.State != "running" {
+			return false, nil
+		}
+		if status.Health != "" && status.Health != "healthy" {
+			if status.Health == "unhealthy" {
+				return false, fmt.Errorf("blocking daemon component %q is unhealthy", component.ComponentRef)
+			}
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func (runtime *dockerRuntime) CleanupRollback(

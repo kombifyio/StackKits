@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -98,7 +99,7 @@ func BindRuntimeRecoveryGraph(graph RuntimeRecoveryGraph, restoreResult backupli
 		ComposeProject:       graph.ComposeProject,
 		ComposePath:          graph.ComposePath,
 		ComposeDigest:        graph.ComposeDigest,
-		ComposeRuntimes:      append([]ComposeRuntime(nil), graph.ComposeRuntimes...),
+		ComposeRuntimes:      cloneComposeRuntimes(graph.ComposeRuntimes),
 		KopiaHelperImage:     graph.KopiaHelperImage,
 		StagingVolume:        graph.StagingVolume,
 		StagingPath:          restoreResult.Request.StagingPath,
@@ -482,8 +483,9 @@ type standaloneComposeCustodyDocument struct {
 }
 
 type standaloneComposeCustodyService struct {
-	Image   string   `yaml:"image"`
-	Volumes []string `yaml:"volumes"`
+	Image   string            `yaml:"image"`
+	Volumes []string          `yaml:"volumes"`
+	Labels  map[string]string `yaml:"labels"`
 }
 
 type standaloneComposeApplicationBinding struct {
@@ -923,11 +925,29 @@ func bindStandaloneComposeCustody(
 		return StandaloneComposeRuntimeCustody{}, errors.New("standalone Compose custody does not bind the expected project")
 	}
 	expectedServices := make(map[string]struct{}, len(expectedRuntime.Components))
+	hasDegradedComponent := slices.ContainsFunc(expectedRuntime.Components, func(component localbackuppolicy.ApplicationRuntimeComponent) bool {
+		return component.HealthFailure == "degraded"
+	})
+	readiness := make([]ComposeRuntimeReadiness, 0, len(expectedRuntime.Components))
 	for _, component := range expectedRuntime.Components {
 		expectedServices[component.ComponentRef] = struct{}{}
 		service, exists := document.Services[component.ComponentRef]
 		if !exists || service.Image != component.ImageRef+"@"+component.ImageDigest {
 			return StandaloneComposeRuntimeCustody{}, fmt.Errorf("standalone Compose service %q does not match its CUE-owned pinned image", component.ComponentRef)
+		}
+		if hasDegradedComponent {
+			healthFailure := component.HealthFailure
+			if healthFailure == "" {
+				healthFailure = "blocking"
+			}
+			if service.Labels["io.stackkit.health-failure"] != healthFailure ||
+				service.Labels["io.stackkit.lifecycle"] != component.Lifecycle {
+				return StandaloneComposeRuntimeCustody{}, fmt.Errorf("standalone Compose service %q does not match its CUE-owned readiness", component.ComponentRef)
+			}
+			readiness = append(readiness, ComposeRuntimeReadiness{
+				ComponentRef: component.ComponentRef, Lifecycle: component.Lifecycle,
+				HealthFailure: healthFailure,
+			})
 		}
 	}
 	if len(document.Services) != len(expectedServices) {
@@ -973,6 +993,7 @@ func bindStandaloneComposeCustody(
 		Runtime: ComposeRuntime{
 			Project: project, Path: relativePath, Digest: "sha256:" + hex.EncodeToString(sum[:]),
 			EnvironmentPath: environmentPath, EnvironmentDigest: "sha256:" + hex.EncodeToString(environmentSum[:]),
+			Readiness: readiness,
 		},
 		Compose:     StandaloneComposeRuntimeFile{Path: relativePath, Mode: "0600", Data: append([]byte(nil), raw...)},
 		Environment: StandaloneComposeRuntimeFile{Path: environmentPath, Mode: "0600", Data: append([]byte(nil), environment...)},

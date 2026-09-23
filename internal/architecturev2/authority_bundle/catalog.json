@@ -17130,7 +17130,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:a84c2f253497052d30677aaecc3b0d73793a5b48ea36c380b01c3c385aa9064e",
+          "contractHash": "sha256:bee5bc6660563dd30c44483b33d6247c501cc2ac5c493ba18c362ed1ea403a12",
           "id": "immich-server",
           "inputBindings": [
             {
@@ -17190,7 +17190,7 @@
             }
           ],
           "templateRef": "builtin://workloads/immich/bundle/v2.json",
-          "version": "3.0.0"
+          "version": "3.1.0"
         }
       ],
       "renderVariants": [
@@ -17372,6 +17372,7 @@
           },
           {
             "dependsOn": [],
+            "egress": true,
             "health": {
               "command": [
                 "python3",
@@ -17379,6 +17380,7 @@
               ],
               "kind": "command"
             },
+            "healthFailure": "degraded",
             "id": "immich-machine-learning",
             "image": {
               "digest": "sha256:aff861526d690bb720130a46bd48ee2827c44d2f601a194e61f31e979a591952",

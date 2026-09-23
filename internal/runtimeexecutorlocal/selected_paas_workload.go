@@ -76,6 +76,7 @@ type SelectedPaaSComponentObservation struct {
 	ImageDigest string `json:"imageDigest"`
 	Status      string `json:"status"`
 	Health      string `json:"health"`
+	Reason      string `json:"reason,omitempty"`
 }
 
 // SelectedPaaSRouteObservation is the provider-neutral service readback.
@@ -215,7 +216,7 @@ func validateStandaloneApplicationObservation(
 		deployment.NodeRef != bundle.NodeRef || deployment.InstanceRef != bundle.InstanceRef ||
 		deployment.Route != bundle.Route || observation.WorkloadRef != deployment.WorkloadRef ||
 		observation.Release != deployment.Release || observation.InstanceRef != deployment.InstanceRef ||
-		observation.ArtifactDigest != deployment.ArtifactDigest || observation.Status != "running" ||
+		observation.ArtifactDigest != deployment.ArtifactDigest ||
 		!exactApplicationDeliveryRouteObservation(observation.Route, bundle.Route) ||
 		observation.Route.Status != "healthy" || !slices.Contains(expectedHTTPStatuses, observation.Route.HTTPStatus) ||
 		len(observation.Components) != len(bundle.Components) {
@@ -226,6 +227,7 @@ func validateStandaloneApplicationObservation(
 		return errors.New("selected-PaaS observation does not prove the exact workload health route")
 	}
 	seen := make(map[string]struct{}, len(observation.Components))
+	degraded := false
 	for _, actual := range observation.Components {
 		if _, duplicate := seen[actual.ID]; duplicate {
 			return errors.New("selected-PaaS observation repeats a workload component")
@@ -239,9 +241,21 @@ func validateStandaloneApplicationObservation(
 		if expected.Lifecycle == "one-shot" {
 			wantStatus, wantHealth = "completed", "completed"
 		}
-		if actual.Status != wantStatus || actual.Health != wantHealth {
+		if actual.Status == wantStatus && actual.Health == wantHealth && actual.Reason == "" {
+			continue
+		}
+		if expected.HealthFailure != "degraded" || actual.Status != "degraded" ||
+			actual.Reason == "" || actual.Health == "healthy" || actual.Health == "completed" {
 			return errors.New("selected-PaaS observation does not prove the exact workload component state")
 		}
+		degraded = true
+	}
+	wantWorkloadStatus := "running"
+	if degraded {
+		wantWorkloadStatus = "degraded"
+	}
+	if observation.Status != wantWorkloadStatus {
+		return errors.New("selected-PaaS observation does not report the workload health impact")
 	}
 	return nil
 }

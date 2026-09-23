@@ -162,21 +162,36 @@ func validateImmichRouteHealthTarget(health runtimeexecutor.HealthTarget, target
 }
 
 func validateImmichSelectedPaaSObservation(observation SelectedPaaSWorkloadObservation, deployment SelectedPaaSWorkloadDeployment, descriptor architecturev2renderer.ImmichWorkloadBundleDescriptor) error {
-	if observation.WorkloadRef != deployment.WorkloadRef || observation.Release != deployment.Release || observation.InstanceRef != deployment.InstanceRef || observation.ArtifactDigest != deployment.ArtifactDigest || observation.Status != "running" ||
+	if observation.WorkloadRef != deployment.WorkloadRef || observation.Release != deployment.Release || observation.InstanceRef != deployment.InstanceRef || observation.ArtifactDigest != deployment.ArtifactDigest ||
 		!exactApplicationDeliveryRouteObservation(observation.Route, descriptor.Route) ||
 		observation.Route.Method != "GET" || observation.Route.Path != "/api/server/ping" ||
 		observation.Route.Status != "healthy" || observation.Route.HTTPStatus != 200 || len(observation.Components) != len(descriptor.Components) {
 		return errors.New("selected-PaaS observation does not prove the exact running Immich workload and route")
 	}
+	degraded := false
 	for index, expected := range descriptor.Components {
 		actual := observation.Components[index]
 		wantStatus, wantHealth := "running", "healthy"
 		if expected.Lifecycle == "one-shot" {
 			wantStatus, wantHealth = "completed", "completed"
 		}
-		if actual.ID != expected.ID || actual.ImageDigest != expected.ImageDigest || actual.Status != wantStatus || actual.Health != wantHealth {
+		if actual.ID != expected.ID || actual.ImageDigest != expected.ImageDigest {
 			return fmt.Errorf("selected-PaaS observation does not prove exact component %q", expected.ID)
 		}
+		if actual.Status == wantStatus && actual.Health == wantHealth && actual.Reason == "" {
+			continue
+		}
+		if expected.HealthFailure != "degraded" || actual.Status != "degraded" || actual.Reason == "" || actual.Health == "healthy" || actual.Health == "completed" {
+			return fmt.Errorf("selected-PaaS observation does not prove exact component %q", expected.ID)
+		}
+		degraded = true
+	}
+	wantStatus := "running"
+	if degraded {
+		wantStatus = "degraded"
+	}
+	if observation.Status != wantStatus {
+		return errors.New("selected-PaaS observation does not report the Immich workload health impact")
 	}
 	return nil
 }

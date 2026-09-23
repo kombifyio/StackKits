@@ -70,7 +70,11 @@ func nativeBackupApplicationDeployments(authority nativeV2BackupAuthority) (map[
 			selected := bundle.Components[index]
 			dependencies := slices.Clone(selected.DependsOn)
 			slices.Sort(dependencies)
-			if selected.Role != component.Role || selected.Lifecycle != component.Lifecycle || selected.ImageRef != component.ImageRef || selected.ImageDigest != component.ImageDigest || !slices.Equal(dependencies, component.DependsOn) {
+			healthFailure := component.HealthFailure
+			if healthFailure == "" {
+				healthFailure = "blocking"
+			}
+			if selected.Role != component.Role || selected.Lifecycle != component.Lifecycle || selected.HealthFailure != healthFailure || selected.ImageRef != component.ImageRef || selected.ImageDigest != component.ImageDigest || !slices.Equal(dependencies, component.DependsOn) {
 				return nil, errors.New("backup graph differs from the signed workload component contract")
 			}
 		}

@@ -71,11 +71,34 @@ type RuntimeRecoveryGraph struct {
 // every selected standalone-compose Application runtime are represented
 // independently; no PaaS or remote runtime is admitted here.
 type ComposeRuntime struct {
-	Project           string `json:"project"`
-	Path              string `json:"path"`
-	Digest            string `json:"digest"`
-	EnvironmentPath   string `json:"environmentPath,omitempty"`
-	EnvironmentDigest string `json:"environmentDigest,omitempty"`
+	Project           string                    `json:"project"`
+	Path              string                    `json:"path"`
+	Digest            string                    `json:"digest"`
+	EnvironmentPath   string                    `json:"environmentPath,omitempty"`
+	EnvironmentDigest string                    `json:"environmentDigest,omitempty"`
+	Readiness         []ComposeRuntimeReadiness `json:"readiness,omitempty"`
+}
+
+// ComposeRuntimeReadiness carries the CUE-owned component health impact into
+// restore activation. It lets activation wait for every blocking component
+// while retaining a degraded component's healthcheck and diagnostics.
+type ComposeRuntimeReadiness struct {
+	ComponentRef  string `json:"componentRef"`
+	Lifecycle     string `json:"lifecycle"`
+	HealthFailure string `json:"healthFailure"`
+}
+
+func cloneComposeRuntimes(runtimes []ComposeRuntime) []ComposeRuntime {
+	if runtimes == nil {
+		return nil
+	}
+	cloned := append([]ComposeRuntime(nil), runtimes...)
+	for index := range cloned {
+		if runtimes[index].Readiness != nil {
+			cloned[index].Readiness = append([]ComposeRuntimeReadiness{}, runtimes[index].Readiness...)
+		}
+	}
+	return cloned
 }
 
 // StandaloneComposeRuntimeFile is one owner-local runtime file that belongs

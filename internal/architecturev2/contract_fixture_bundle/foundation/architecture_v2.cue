@@ -3199,6 +3199,9 @@ _servicePublicationShape: {
 	id:        #ContractID
 	role:      "application" | "machine-learning" | "database" | "cache" | "database-init"
 	lifecycle: "daemon" | "one-shot"
+	// healthFailure controls whether this component's failed health blocks the
+	// workload lifecycle or is retained as an observable degraded capability.
+	healthFailure?: "degraded"
 	image: {
 		ref:    string & =~"^[^[:space:]]+$"
 		digest: #ContentHash
@@ -4130,6 +4133,7 @@ _servicePublicationShape: {
 			componentRef: #ContractID
 			role:         #ModuleRuntimeComponentV2.role
 			lifecycle:    #ModuleRuntimeComponentV2.lifecycle
+			healthFailure?: "degraded"
 			imageRef:     string & =~"^[^[:space:]@]+$"
 			imageDigest:  #ContentHash
 			dependsOn: [...#ContractID] | *[]

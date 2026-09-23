@@ -252,6 +252,10 @@ func localKopiaRuntimeComponents(module map[string]any, path string) ([]localbac
 		if err != nil {
 			return nil, err
 		}
+		healthFailure, _, err := optionalStringField(component, componentPath, "healthFailure")
+		if err != nil {
+			return nil, err
+		}
 		image, err := objectField(component, componentPath, "image")
 		if err != nil {
 			return nil, err
@@ -269,7 +273,7 @@ func localKopiaRuntimeComponents(module map[string]any, path string) ([]localbac
 			return nil, err
 		}
 		components[index] = localbackuppolicy.ApplicationRuntimeComponent{
-			ComponentRef: id, Role: role, Lifecycle: lifecycle,
+			ComponentRef: id, Role: role, Lifecycle: lifecycle, HealthFailure: healthFailure,
 			ImageRef: imageRef, ImageDigest: imageDigest,
 			DependsOn: append([]string(nil), dependsOn...),
 		}

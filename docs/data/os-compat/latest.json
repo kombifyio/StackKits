@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
-  "stackkitsVersion": "v0.39.0",
-  "generatedAt": "2026-09-23T17:19:09Z",
+  "stackkitsVersion": "v0.39.1",
+  "generatedAt": "2026-09-23T19:52:56Z",
   "results": [
     {
       "os": {
@@ -23,7 +23,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.39.0"
+      "lastVerifiedRelease": "v0.39.1"
     },
     {
       "os": {
@@ -45,7 +45,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.39.0"
+      "lastVerifiedRelease": "v0.39.1"
     },
     {
       "os": {
@@ -67,7 +67,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.39.0"
+      "lastVerifiedRelease": "v0.39.1"
     },
     {
       "os": {
@@ -109,22 +109,19 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.39.0"
+      "lastVerifiedRelease": "v0.39.1"
     },
     {
       "useCase": "photos",
       "adapter": "standalone-compose",
-      "grade": "supported",
-      "reasonCodes": [],
+      "grade": "unverified",
+      "reasonCodes": [
+        "apply-failed"
+      ],
       "verifiedPhases": [
         "install",
         "init",
-        "generate",
-        "apply",
-        "setup-photos",
-        "verify",
-        "backup",
-        "restore"
+        "generate"
       ],
       "lastVerifiedRelease": "v0.39.0"
     },
@@ -143,7 +140,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.39.0"
+      "lastVerifiedRelease": "v0.39.1"
     },
     {
       "useCase": "ai",
@@ -202,7 +199,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.39.0"
+      "lastVerifiedRelease": "v0.39.1"
     },
     {
       "kit": "basement-kit",

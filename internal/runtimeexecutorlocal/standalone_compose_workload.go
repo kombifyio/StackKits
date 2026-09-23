@@ -105,12 +105,94 @@ func (o *osStandaloneComposeWorkloadOperations) ApplyWorkload(
 	if _, err := o.runner.Run(ctx, standaloneComposeArgs(project, "up"), project.directory); err != nil {
 		return SelectedPaaSApplyReceipt{}, fmt.Errorf("standalone Docker Compose Apply did not complete: %w", err)
 	}
+	if err := o.waitForBlockingComponents(ctx, project); err != nil {
+		return SelectedPaaSApplyReceipt{}, err
+	}
 	if err := o.waitForApplicationHTTP(ctx, project); err != nil {
 		return SelectedPaaSApplyReceipt{}, err
 	}
 	return SelectedPaaSApplyReceipt{
 		InstanceRef: deployment.InstanceRef, ArtifactDigest: deployment.ArtifactDigest, Status: "applied",
 	}, nil
+}
+
+func (o *osStandaloneComposeWorkloadOperations) waitForBlockingComponents(
+	ctx context.Context,
+	project standaloneComposeProject,
+) error {
+	for {
+		raw, err := o.runner.Run(ctx, standaloneComposeArgs(project, "ps"), project.directory)
+		if err != nil {
+			return fmt.Errorf("standalone Docker Compose readiness observation failed: %w", err)
+		}
+		statuses, err := parseStandaloneComposeStatuses(raw)
+		if err != nil {
+			return err
+		}
+		ready, err := blockingStandaloneComposeReadiness(project.bundle.Components, statuses)
+		if err != nil {
+			return err
+		}
+		if ready {
+			return nil
+		}
+		timer := time.NewTimer(time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return fmt.Errorf("standalone Docker Compose blocking component readiness did not complete: %w", ctx.Err())
+		case <-timer.C:
+		}
+	}
+}
+
+func blockingStandaloneComposeReadiness(
+	components []architecturev2renderer.ApplicationDeliveryComponentDescriptor,
+	statuses map[string]standaloneComposePS,
+) (bool, error) {
+	for _, component := range components {
+		if component.HealthFailure == "degraded" {
+			continue
+		}
+		status, exists := statuses[component.ID]
+		if !exists {
+			return false, nil
+		}
+		if status.Image != component.ImageRef+"@"+component.ImageDigest {
+			return false, fmt.Errorf("standalone Compose blocking component %q differs from its pinned image", component.ID)
+		}
+		if component.Lifecycle == "one-shot" {
+			if status.State == "exited" && status.ExitCode == 0 {
+				continue
+			}
+			if status.State == "exited" {
+				return false, fmt.Errorf("standalone Compose blocking one-shot component %q failed", component.ID)
+			}
+			return false, nil
+		}
+		if status.State == "exited" || status.State == "dead" {
+			return false, fmt.Errorf("standalone Compose blocking daemon component %q stopped", component.ID)
+		}
+		if status.State != "running" {
+			return false, nil
+		}
+		if len(component.HealthCommand) > 0 {
+			if status.Health == "healthy" {
+				continue
+			}
+			if status.Health == "unhealthy" {
+				return false, fmt.Errorf("standalone Compose blocking daemon component %q is unhealthy", component.ID)
+			}
+			return false, nil
+		}
+		if status.Health != "" && status.Health != "healthy" {
+			if status.Health == "unhealthy" {
+				return false, fmt.Errorf("standalone Compose blocking daemon component %q is unhealthy", component.ID)
+			}
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func (o *osStandaloneComposeWorkloadOperations) waitForApplicationHTTP(ctx context.Context, project standaloneComposeProject) error {
@@ -185,10 +267,17 @@ func (o *osStandaloneComposeWorkloadOperations) ObserveWorkload(
 	if err != nil {
 		return SelectedPaaSWorkloadObservation{}, fmt.Errorf("standalone workload route health probe failed: %w", err)
 	}
+	workloadStatus := "running"
+	for _, component := range components {
+		if component.Status == "degraded" {
+			workloadStatus = "degraded"
+			break
+		}
+	}
 	return SelectedPaaSWorkloadObservation{
 		WorkloadRef: deployment.WorkloadRef, Release: deployment.Release,
 		InstanceRef: deployment.InstanceRef, ArtifactDigest: deployment.ArtifactDigest,
-		Status: "running", Components: components,
+		Status: workloadStatus, Components: components,
 		Route: SelectedPaaSRouteObservation{
 			RouteRef: deployment.Route.ID, ServiceRef: deployment.Route.ServiceRef,
 			ModuleRef: deployment.Route.ModuleRef, Exposure: deployment.Route.Exposure,
@@ -425,6 +514,10 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 			Entrypoint:  standaloneComposeLiteralArguments(component.Entrypoint),
 			DependsOn:   map[string]standaloneComposeDependency{},
 			Environment: map[string]string{}, Networks: append([]string(nil), component.NetworkRefs...),
+			Labels: map[string]string{
+				"io.stackkit.health-failure": component.HealthFailure,
+				"io.stackkit.lifecycle":      component.Lifecycle,
+			},
 		}
 		service.Deploy = componentDeploy(component.Resources)
 		if component.Egress {
@@ -514,7 +607,9 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 			if bundle.Route.ID != "" {
 				document.Networks["stackkit-routing"] = standaloneComposeNetwork{Name: routingNetwork, External: true}
 				service.Networks = append(service.Networks, "stackkit-routing")
-				service.Labels = standaloneComposeRouteLabels(bundle.Route)
+				for key, value := range standaloneComposeRouteLabels(bundle.Route) {
+					service.Labels[key] = value
+				}
 			} else {
 				// Docker cannot bind a published port for a container attached
 				// only to internal networks, so the loopback health port the
@@ -710,7 +805,13 @@ func standaloneComposeArgs(project standaloneComposeProject, operation string) [
 	}
 	switch operation {
 	case "up":
-		return append(prefix, "up", "-d", "--wait", "--wait-timeout", "600")
+		args := append(prefix, "up", "-d")
+		for _, component := range project.bundle.Components {
+			if component.HealthFailure == "degraded" {
+				return args
+			}
+		}
+		return append(args, "--wait", "--wait-timeout", "600")
 	case "ps":
 		return append(prefix, "ps", "--all", "--no-trunc", "--format", "json")
 	case "port":
@@ -939,19 +1040,43 @@ func observeStandaloneComposeComponentsWithIdentity(
 		observation := SelectedPaaSComponentObservation{ID: component.ID, ImageDigest: component.ImageDigest}
 		if component.Lifecycle == "one-shot" {
 			if status.State != "exited" || status.ExitCode != 0 {
-				return nil, fmt.Errorf("standalone Compose one-shot component %q did not complete", component.ID)
+				if component.HealthFailure != "degraded" {
+					return nil, fmt.Errorf("standalone Compose one-shot component %q did not complete", component.ID)
+				}
+				observation.Status, observation.Health = "degraded", standaloneComposeObservedHealth(status)
+				observation.Reason = standaloneComposeDegradedReason(status)
+				result[index] = observation
+				continue
 			}
 			observation.Status, observation.Health = "completed", "completed"
 		} else {
 			if status.State != "running" {
-				return nil, fmt.Errorf("standalone Compose daemon component %q is not healthy", component.ID)
+				if component.HealthFailure != "degraded" {
+					return nil, fmt.Errorf("standalone Compose daemon component %q is not healthy", component.ID)
+				}
+				observation.Status, observation.Health = "degraded", standaloneComposeObservedHealth(status)
+				observation.Reason = standaloneComposeDegradedReason(status)
+				result[index] = observation
+				continue
 			}
 			if len(component.HealthCommand) > 0 {
 				if status.Health != "healthy" {
-					return nil, fmt.Errorf("standalone Compose daemon component %q is not healthy", component.ID)
+					if component.HealthFailure != "degraded" {
+						return nil, fmt.Errorf("standalone Compose daemon component %q is not healthy", component.ID)
+					}
+					observation.Status, observation.Health = "degraded", standaloneComposeObservedHealth(status)
+					observation.Reason = standaloneComposeDegradedReason(status)
+					result[index] = observation
+					continue
 				}
 			} else if status.Health != "" && status.Health != "healthy" {
-				return nil, fmt.Errorf("standalone Compose daemon component %q is not healthy", component.ID)
+				if component.HealthFailure != "degraded" {
+					return nil, fmt.Errorf("standalone Compose daemon component %q is not healthy", component.ID)
+				}
+				observation.Status, observation.Health = "degraded", standaloneComposeObservedHealth(status)
+				observation.Reason = standaloneComposeDegradedReason(status)
+				result[index] = observation
+				continue
 			}
 			observation.Status, observation.Health = "running", "healthy"
 		}
@@ -959,6 +1084,29 @@ func observeStandaloneComposeComponentsWithIdentity(
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
 	return result, nil
+}
+
+func standaloneComposeObservedHealth(status standaloneComposePS) string {
+	if status.Health != "" {
+		return status.Health
+	}
+	return "unavailable"
+}
+
+func standaloneComposeDegradedReason(status standaloneComposePS) string {
+	if status.State != "running" {
+		return "container-state-" + normalizedComposeDiagnostic(status.State)
+	}
+	return "container-health-" + normalizedComposeDiagnostic(standaloneComposeObservedHealth(status))
+}
+
+func normalizedComposeDiagnostic(value string) string {
+	switch value {
+	case "created", "exited", "paused", "restarting", "running", "starting", "unhealthy", "unavailable":
+		return value
+	default:
+		return "unknown"
+	}
 }
 
 func standaloneComposeLoopbackAddress(raw []byte) (string, error) {

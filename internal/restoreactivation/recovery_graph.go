@@ -116,7 +116,7 @@ func sortComposeRuntimes(runtimes []ComposeRuntime) {
 }
 
 func cloneRuntimeRecoveryGraph(graph RuntimeRecoveryGraph) RuntimeRecoveryGraph {
-	graph.ComposeRuntimes = append([]ComposeRuntime(nil), graph.ComposeRuntimes...)
+	graph.ComposeRuntimes = cloneComposeRuntimes(graph.ComposeRuntimes)
 	graph.Volumes = append([]string(nil), graph.Volumes...)
 	graph.VolumeDetails = append([]Volume(nil), graph.VolumeDetails...)
 	return graph
@@ -225,10 +225,20 @@ func (graph RuntimeRecoveryGraph) validate() error {
 		}
 		if runtime.Project == graph.ComposeProject {
 			if coreFound || runtime.Path != graph.ComposePath || runtime.Digest != graph.ComposeDigest ||
-				runtime.EnvironmentPath != "" || runtime.EnvironmentDigest != "" {
+				runtime.EnvironmentPath != "" || runtime.EnvironmentDigest != "" || len(runtime.Readiness) != 0 {
 				return errors.New("restoreactivation: runtime recovery graph core Compose binding is ambiguous")
 			}
 			coreFound = true
+		}
+		var previousComponent string
+		for readinessIndex, component := range runtime.Readiness {
+			if !portableNamePattern.MatchString(component.ComponentRef) ||
+				(readinessIndex > 0 && component.ComponentRef <= previousComponent) ||
+				(component.Lifecycle != "daemon" && component.Lifecycle != "one-shot") ||
+				(component.HealthFailure != "blocking" && component.HealthFailure != "degraded") {
+				return errors.New("restoreactivation: runtime recovery graph readiness is invalid")
+			}
+			previousComponent = component.ComponentRef
 		}
 	}
 	if !coreFound {

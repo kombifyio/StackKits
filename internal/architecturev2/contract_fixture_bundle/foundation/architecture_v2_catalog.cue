@@ -4930,11 +4930,12 @@ _architectureV2Modules: list.Concat([[
 				},
 				{
 					id: "immich-machine-learning", role: "machine-learning", lifecycle: "daemon"
+					healthFailure: "degraded"
 					image: {
 						ref:    "ghcr.io/immich-app/immich-machine-learning:v2.7.0"
 						digest: "sha256:aff861526d690bb720130a46bd48ee2827c44d2f601a194e61f31e979a591952"
 					}
-					dependsOn: [], networkRefs: ["immich-internal"]
+					dependsOn: [], networkRefs: ["immich-internal"], egress: true
 					volumes: [for allocation in _architectureV2PhotosInfrastructure.storageAllocation.allocations if allocation.componentRef == "immich-machine-learning" {
 						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
 					}]
@@ -4992,8 +4993,8 @@ _architectureV2Modules: list.Concat([[
 			rendererRef: "stackkit"
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/immich/bundle/v2.json"
-			version:      "3.0.0"
-			contractHash: "sha256:a84c2f253497052d30677aaecc3b0d73793a5b48ea36c380b01c3c385aa9064e"
+			version:      "3.1.0"
+			contractHash: "sha256:bee5bc6660563dd30c44483b33d6247c501cc2ac5c493ba18c362ed1ea403a12"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"

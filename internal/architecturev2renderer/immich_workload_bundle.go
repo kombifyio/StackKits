@@ -15,14 +15,14 @@ const (
 	immichWorkloadUnitID      = "immich-server"
 	immichWorkloadRendererRef = "stackkit"
 	immichWorkloadTemplateRef = "builtin://workloads/immich/bundle/v2.json"
-	immichWorkloadVersion     = "3.0.0"
+	immichWorkloadVersion     = "3.1.0"
 	immichWorkloadOutputRef   = "workloads/immich/bundle.json"
 )
 
 // This fixed schema identity binds the renderer semantics. The rendered
 // document itself also carries the exact plan-owned target and opaque secret
 // references, so its artifact hash remains instance-specific.
-const immichWorkloadRendererSchema = `stackkit.workload-bundle/v2|ImmichWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:server,ml,postgres,postgres-init,valkey|secret-material:not-included`
+const immichWorkloadRendererSchema = `stackkit.workload-bundle/v2|ImmichWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:server,ml,postgres,postgres-init,valkey|component-health-failure:blocking-or-degraded|secret-material:not-included`
 
 type selectedPaaSRuntimeImage struct {
 	Ref    string `json:"ref"`
@@ -49,6 +49,7 @@ type selectedPaaSRuntimeComponent struct {
 	ID                string                      `json:"id"`
 	Role              string                      `json:"role"`
 	Lifecycle         string                      `json:"lifecycle"`
+	HealthFailure     string                      `json:"healthFailure,omitempty"`
 	Image             selectedPaaSRuntimeImage    `json:"image"`
 	DependsOn         []string                    `json:"dependsOn"`
 	NetworkRefs       []string                    `json:"networkRefs"`
@@ -124,10 +125,11 @@ type selectedPaaSConfigFile struct {
 // SelectedPaaSWorkloadComponentDescriptor is the immutable component identity
 // every external selected-PaaS adapter must observe after applying a bundle.
 type SelectedPaaSWorkloadComponentDescriptor struct {
-	ID          string
-	Lifecycle   string
-	ImageRef    string
-	ImageDigest string
+	ID            string
+	Lifecycle     string
+	HealthFailure string
+	ImageRef      string
+	ImageDigest   string
 }
 
 // ImmichWorkloadBundleDescriptor is the safe, credential-free projection of
@@ -193,7 +195,7 @@ func ParseImmichWorkloadBundle(data []byte) (ImmichWorkloadBundleDescriptor, err
 		descriptor.Route = bundle.DeliveryRoute.descriptor()
 	}
 	for index, component := range components {
-		descriptor.Components[index] = SelectedPaaSWorkloadComponentDescriptor{ID: component.ID, Lifecycle: component.Lifecycle, ImageRef: component.Image.Ref, ImageDigest: component.Image.Digest}
+		descriptor.Components[index] = SelectedPaaSWorkloadComponentDescriptor{ID: component.ID, Lifecycle: component.Lifecycle, HealthFailure: component.HealthFailure, ImageRef: component.Image.Ref, ImageDigest: component.Image.Digest}
 	}
 	return descriptor, nil
 }
@@ -355,14 +357,20 @@ func validateImmichRuntimeComponents(raw []byte, path string) ([]selectedPaaSRun
 		return nil, wrap(ErrInvalidPlan, path, "decode closed component graph", err)
 	}
 	sort.Slice(components, func(i, j int) bool { return components[i].ID < components[j].ID })
-	for _, component := range components {
+	for index := range components {
+		component := &components[index]
+		if component.HealthFailure == "" {
+			// Bundles generated before the v3.1 component contract are blocking.
+			component.HealthFailure = "blocking"
+		}
 		for key := range component.Environment {
 			lower := strings.ToLower(key)
 			if strings.Contains(lower, "password") || strings.Contains(lower, "secret") || strings.Contains(lower, "token") || strings.Contains(lower, "key") {
 				return nil, fail(ErrInvalidPlan, path+"["+component.ID+"].environment."+key, "credential-like values must use secretEnvironment")
 			}
 		}
-		if !validSHA256(component.Image.Digest) || component.ID == "" {
+		if !validSHA256(component.Image.Digest) || component.ID == "" ||
+			(component.HealthFailure != "blocking" && component.HealthFailure != "degraded") {
 			return nil, fail(ErrInvalidPlan, path, "components must have exact immutable identities in canonical ID order")
 		}
 	}
@@ -371,7 +379,7 @@ func validateImmichRuntimeComponents(raw []byte, path string) ([]selectedPaaSRun
 
 func expectedImmichRuntimeComponents() []selectedPaaSRuntimeComponent {
 	components := []selectedPaaSRuntimeComponent{
-		{ID: "immich-machine-learning", Role: "machine-learning", Lifecycle: "daemon", Image: selectedPaaSRuntimeImage{Ref: "ghcr.io/immich-app/immich-machine-learning:v2.7.0", Digest: "sha256:aff861526d690bb720130a46bd48ee2827c44d2f601a194e61f31e979a591952"}, DependsOn: []string{}, NetworkRefs: []string{"immich-internal"}, Volumes: []selectedPaaSRuntimeVolume{{ID: "model-cache", Target: "/cache", Class: "cache", Backup: false}}, Health: selectedPaaSRuntimeHealth{Kind: "command", Command: []string{"python3", "healthcheck.py"}}, Resources: &selectedPaaSRuntimeLimits{MemoryLimit: "3g", MemoryReservation: "512m"}},
+		{ID: "immich-machine-learning", Role: "machine-learning", Lifecycle: "daemon", HealthFailure: "degraded", Image: selectedPaaSRuntimeImage{Ref: "ghcr.io/immich-app/immich-machine-learning:v2.7.0", Digest: "sha256:aff861526d690bb720130a46bd48ee2827c44d2f601a194e61f31e979a591952"}, DependsOn: []string{}, NetworkRefs: []string{"immich-internal"}, Egress: true, Volumes: []selectedPaaSRuntimeVolume{{ID: "model-cache", Target: "/cache", Class: "cache", Backup: false}}, Health: selectedPaaSRuntimeHealth{Kind: "command", Command: []string{"python3", "healthcheck.py"}}, Resources: &selectedPaaSRuntimeLimits{MemoryLimit: "3g", MemoryReservation: "512m"}},
 		{ID: "immich-postgres", Role: "database", Lifecycle: "daemon", Image: selectedPaaSRuntimeImage{Ref: "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0", Digest: "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"}, DependsOn: []string{}, NetworkRefs: []string{"immich-internal"}, Environment: map[string]string{"POSTGRES_DB": "immich", "POSTGRES_INITDB_ARGS": "--data-checksums", "POSTGRES_USER": "immich"}, SecretEnvironment: map[string]string{"POSTGRES_PASSWORD": "database-password"}, Volumes: []selectedPaaSRuntimeVolume{{ID: "database", Target: "/var/lib/postgresql/data", Class: "persistent", Backup: true}}, Health: selectedPaaSRuntimeHealth{Kind: "command", Command: []string{"pg_isready", "-U", "immich", "-d", "postgres"}}, Resources: &selectedPaaSRuntimeLimits{MemoryLimit: "2g", MemoryReservation: "256m"}},
 		{ID: "immich-postgres-init", Role: "database-init", Lifecycle: "one-shot", Image: selectedPaaSRuntimeImage{Ref: "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0", Digest: "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"}, DependsOn: []string{"immich-postgres"}, NetworkRefs: []string{"immich-internal"}, Command: []string{"sh", "-c", "until pg_isready -h immich-postgres -U immich -d postgres; do sleep 1; done; psql -h immich-postgres -U immich -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname = 'immich'\" | grep -q 1 || createdb -h immich-postgres -U immich immich"}, Environment: map[string]string{"PGUSER": "immich"}, SecretEnvironment: map[string]string{"PGPASSWORD": "database-password"}, Health: selectedPaaSRuntimeHealth{Kind: "completion"}, Resources: &selectedPaaSRuntimeLimits{MemoryLimit: "256m"}},
 		{ID: "immich-server", Role: "application", Lifecycle: "daemon", Image: selectedPaaSRuntimeImage{Ref: "ghcr.io/immich-app/immich-server:v2.7.0", Digest: "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"}, DependsOn: []string{"immich-machine-learning", "immich-postgres-init", "immich-valkey"}, NetworkRefs: []string{"immich-internal"}, Environment: map[string]string{"DB_DATABASE_NAME": "immich", "DB_HOSTNAME": "immich-postgres", "DB_PORT": "5432", "DB_USERNAME": "immich", "IMMICH_MACHINE_LEARNING_URL": "http://immich-machine-learning:3003", "REDIS_HOSTNAME": "immich-valkey", "REDIS_PORT": "6379"}, SecretEnvironment: map[string]string{"DB_PASSWORD": "database-password"}, Volumes: []selectedPaaSRuntimeVolume{{ID: "library", Target: "/data", Class: "persistent", Backup: true}}, Health: selectedPaaSRuntimeHealth{Kind: "http", Path: "/api/server/ping", Port: 2283}, Resources: &selectedPaaSRuntimeLimits{MemoryLimit: "3g", MemoryReservation: "512m"}},

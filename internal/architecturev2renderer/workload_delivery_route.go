@@ -103,6 +103,7 @@ type ApplicationDeliveryComponentDescriptor struct {
 	ID                string
 	Role              string
 	Lifecycle         string
+	HealthFailure     string
 	ImageRef          string
 	ImageDigest       string
 	DependsOn         []string
@@ -212,6 +213,10 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 	entryFound := false
 	for index, component := range bundle.Components {
 		componentPath := fmt.Sprintf("%s.components[%d]", path, index)
+		if component.HealthFailure == "" {
+			// v2 bundles created before health impact was explicit are blocking.
+			component.HealthFailure = "blocking"
+		}
 		seen[component.ID] = struct{}{}
 		entryFound = entryFound || component.ID == bundle.Workload.EntryComponent
 		for envName, slot := range component.SecretEnvironment {
@@ -231,9 +236,13 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 				ID: volume.ID, Target: volume.Target, Class: volume.Class, Backup: volume.Backup, ReadOnly: volume.ReadOnly, HostPath: volume.HostPath,
 			}
 		}
+		if component.HealthFailure != "blocking" && component.HealthFailure != "degraded" {
+			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".healthFailure", "must be blocking or degraded")
+		}
 		components[index] = ApplicationDeliveryComponentDescriptor{
 			ID: component.ID, Role: component.Role, Lifecycle: component.Lifecycle,
-			ImageRef: component.Image.Ref, ImageDigest: component.Image.Digest,
+			HealthFailure: component.HealthFailure,
+			ImageRef:      component.Image.Ref, ImageDigest: component.Image.Digest,
 			DependsOn:         append([]string(nil), component.DependsOn...),
 			NetworkRefs:       append([]string(nil), component.NetworkRefs...),
 			Egress:            component.Egress,

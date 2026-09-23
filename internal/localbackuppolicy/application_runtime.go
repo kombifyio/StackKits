@@ -25,12 +25,13 @@ type ApplicationRuntime struct {
 // ImageDigest are copied from the selected CUE runtime component; DependsOn
 // is the only source used to derive quiescence order.
 type ApplicationRuntimeComponent struct {
-	ComponentRef string   `json:"componentRef"`
-	Role         string   `json:"role"`
-	Lifecycle    string   `json:"lifecycle"`
-	ImageRef     string   `json:"imageRef"`
-	ImageDigest  string   `json:"imageDigest"`
-	DependsOn    []string `json:"dependsOn"`
+	ComponentRef  string   `json:"componentRef"`
+	Role          string   `json:"role"`
+	Lifecycle     string   `json:"lifecycle"`
+	HealthFailure string   `json:"healthFailure,omitempty"`
+	ImageRef      string   `json:"imageRef"`
+	ImageDigest   string   `json:"imageDigest"`
+	DependsOn     []string `json:"dependsOn"`
 }
 
 func cloneApplicationRuntimes(runtimes []ApplicationRuntime) []ApplicationRuntime {
@@ -119,7 +120,8 @@ func validateApplicationRuntime(runtime ApplicationRuntime) error {
 	for index, component := range runtime.Components {
 		if !contractIDPattern.MatchString(component.ComponentRef) ||
 			!validApplicationRuntimeRole(component.Role) ||
-			!validApplicationRuntimeLifecycle(component.Lifecycle) {
+			!validApplicationRuntimeLifecycle(component.Lifecycle) ||
+			(component.HealthFailure != "" && component.HealthFailure != "degraded") {
 			return fmt.Errorf("component %d has an invalid identity, role, or lifecycle", index)
 		}
 		if !contractIDPattern.MatchString(component.ImageRef) || strings.Contains(component.ImageRef, "@") ||
