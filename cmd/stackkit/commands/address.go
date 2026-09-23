@@ -13,6 +13,7 @@ import (
 
 type addressCommandOptions struct {
 	prefix           string
+	zone             string
 	outputPath       string
 	expectedSpecHash string
 }
@@ -54,7 +55,7 @@ func newAddressBindCommand() *cobra.Command {
 	options := &addressCommandOptions{}
 	command := &cobra.Command{
 		Use:           "bind",
-		Short:         "Bind an allocated prefix into canonical public routes",
+		Short:         "Bind an allocated prefix or install zone into canonical public routes",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.NoArgs,
@@ -62,11 +63,19 @@ func newAddressBindCommand() *cobra.Command {
 			if strings.TrimSpace(options.outputPath) == "" {
 				return fmt.Errorf("--output is required")
 			}
+			if (strings.TrimSpace(options.prefix) == "") == (strings.TrimSpace(options.zone) == "") {
+				return fmt.Errorf("exactly one of --prefix or --zone is required")
+			}
 			canonical, err := validateAddressStackSpec(getWorkDir(), specFile)
 			if err != nil {
 				return err
 			}
-			candidate, err := addressplan.BindPrefix(canonical, options.prefix)
+			bind := addressplan.BindPrefix
+			allocated := options.prefix
+			if strings.TrimSpace(options.zone) != "" {
+				bind, allocated = addressplan.BindZone, options.zone
+			}
+			candidate, err := bind(canonical, allocated)
 			if err != nil {
 				return err
 			}
@@ -88,10 +97,10 @@ func newAddressBindCommand() *cobra.Command {
 			return nil
 		},
 	}
-	command.Flags().StringVar(&options.prefix, "prefix", "", "Allocated DNS-safe subdomain prefix")
+	command.Flags().StringVar(&options.prefix, "prefix", "", "Allocated DNS-safe subdomain prefix: hosts <prefix>-<service>.<domain>")
+	command.Flags().StringVar(&options.zone, "zone", "", "Allocated install zone label: the stack is served from <zone>.<domain> with hosts <service>.<zone>.<domain>")
 	command.Flags().StringVarP(&options.outputPath, "output", "o", "", "Write the validated bound StackSpec to this path")
 	command.Flags().StringVar(&options.expectedSpecHash, "expected-spec-hash", "", "Native v2 only: exact current CUE-normalized spec hash required for replacement")
-	_ = command.MarkFlagRequired("prefix")
 	return command
 }
 

@@ -4,6 +4,31 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.39.0] (2026-09-23)
+
+
+### Added
+
+* **address:** bind a managed install into its own install zone (D-72)
+* **website:** add Status to the stackkit.cc footer (LG-4b)
+
+
+### Fixed
+
+* **api:** publish backup coverage and grant in the OpenAPI contract
+* **ci:** repin the internal updater with the org token
+* **cloud:** bind the PocketID owner so backup lineage admits Cloud
+* **cloud:** keep the dispatcher account for a dispatched Cloud Apply
+* **cloud:** name ACME rate limits behind a missing public certificate
+* **cloud:** serve Cloud identity on the bound subdomain prefix
+* **delivery:** report acknowledged-run progress from the runtime copy
+* **release:** keep the public export's OpenAPI consistent with its generator
+* **runtime:** resolve the staticcheck correctness findings
+* **security:** reject option-shaped SSH destinations from StackActions
+* **security:** restore the weekly security workflow and schedule CodeQL
+* **website:** sync CLI reference copy in the docs:cli gate, not just at deploy
+* **windows:** return an owned copy of the process token owner SID
+
 ## [0.38.3](https://github.com/kombifyio/StackKits/compare/v0.38.2...v0.38.3) (2026-09-23)
 
 

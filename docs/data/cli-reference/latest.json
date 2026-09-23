@@ -93,7 +93,7 @@
       "aliases": [],
       "group": "reference",
       "usage": "stackkit address bind [flags]",
-      "short": "Bind an allocated prefix into canonical public routes",
+      "short": "Bind an allocated prefix or install zone into canonical public routes",
       "description": "",
       "runnable": true,
       "examples": [],
@@ -114,8 +114,14 @@
         {
           "name": "prefix",
           "type": "string",
-          "description": "Allocated DNS-safe subdomain prefix",
-          "required": true
+          "description": "Allocated DNS-safe subdomain prefix: hosts <prefix>-<service>.<domain>",
+          "required": false
+        },
+        {
+          "name": "zone",
+          "type": "string",
+          "description": "Allocated install zone label: the stack is served from <zone>.<domain> with hosts <service>.<zone>.<domain>",
+          "required": false
         }
       ],
       "subcommands": []

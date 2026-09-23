@@ -77,6 +77,54 @@ func FromCanonicalStackSpec(canonical []byte) (Plan, error) {
 	return Plan{APIVersion: APIVersion, Provider: provider, StackName: stackName, Domain: domain, SubdomainPrefix: prefix, Services: ordered}, nil
 }
 
+// BindZone returns a StackSpec candidate served from the allocated install
+// zone <zone>.<domain>: the zone becomes the stack's domain and every public
+// route host is <service>.<zone>.<domain>. Cloud identity, TinyAuth and the
+// renderer then derive their hosts and cookie scope from that domain exactly
+// as for an own domain (decision D-72). The caller must pass the result
+// through CUE validation before persisting or generating artifacts.
+func BindZone(canonical []byte, zone string) ([]byte, error) {
+	zone = strings.ToLower(strings.TrimSpace(zone))
+	if !prefixPattern.MatchString(zone) {
+		return nil, fmt.Errorf("install zone must match %s", prefixPattern.String())
+	}
+	var spec map[string]any
+	if err := json.Unmarshal(canonical, &spec); err != nil {
+		return nil, fmt.Errorf("decode canonical StackSpec: %w", err)
+	}
+	network, _ := spec["network"].(map[string]any)
+	domainIntent, _ := network["domain"].(map[string]any)
+	domain, _ := domainIntent["base"].(string)
+	domain = strings.ToLower(strings.TrimSpace(domain))
+	if domain == "" {
+		return nil, fmt.Errorf("canonical StackSpec has no network domain")
+	}
+	if _, prefixed := domainIntent["subdomainPrefix"]; prefixed {
+		return nil, fmt.Errorf("a StackSpec bound to a subdomain prefix cannot move into an install zone")
+	}
+	zoneDomain := zone + "." + domain
+	domainIntent["base"] = zoneDomain
+	routes, _ := spec["routes"].(map[string]any)
+	bound := 0
+	for routeID, raw := range routes {
+		route, _ := raw.(map[string]any)
+		if route["exposure"] != "public" {
+			continue
+		}
+		serviceKey, _ := route["serviceRef"].(string)
+		serviceKey = strings.TrimSpace(serviceKey)
+		if serviceKey == "" {
+			return nil, fmt.Errorf("public route %q has no service", routeID)
+		}
+		route["host"] = serviceKey + "." + zoneDomain
+		bound++
+	}
+	if bound == 0 {
+		return nil, fmt.Errorf("canonical StackSpec has no public service routes")
+	}
+	return json.Marshal(spec)
+}
+
 // BindPrefix returns a StackSpec candidate whose public route hosts exactly
 // match the allocated prefix. The caller must pass the result through CUE
 // validation before persisting or generating artifacts.

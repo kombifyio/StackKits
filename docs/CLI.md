@@ -718,6 +718,11 @@ candidate beneath the working directory through the shared StackSpec intent
 writer. Replacing an existing different StackSpec requires
 `--expected-spec-hash sha256:<current-cue-normalized-spec-hash>`; retrying the
 same intent is idempotent. An active lifecycle mutation blocks the write.
+`--prefix` gives hosts `<prefix>-<service>.<domain>`. `--zone <label>` instead
+serves the stack from the install zone `<label>.<domain>`: the zone becomes the
+stack's domain and hosts are `<service>.<label>.<domain>`, so Cloud identity
+and TinyAuth derive their URLs and cookie scope from the zone exactly as for an
+own domain. Pass exactly one of the two.
 
 ### `stackkit migrate [v1-spec-file]`
 
