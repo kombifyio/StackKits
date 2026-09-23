@@ -15,6 +15,12 @@ import (
 
 const defaultGitHubAPI = "https://api.github.com"
 
+// maxReleaseListBytes bounds one page of the GitHub release listing. A page
+// carries every asset of up to 100 releases (about 12 MiB for ~50 assets per
+// release), far more than one release index. Releases are decoded one at a
+// time, so only the bound, not the page, is held in memory.
+const maxReleaseListBytes int64 = 64 << 20
+
 type GitHubSource struct {
 	Client     *http.Client
 	APIBaseURL string
@@ -67,22 +73,25 @@ func (source *GitHubSource) ListReleases(ctx context.Context) ([]Release, error)
 	if response.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("GitHub releases returned HTTP %d", response.StatusCode)
 	}
-	var payload []struct {
-		TagName     string    `json:"tag_name"`
-		Prerelease  bool      `json:"prerelease"`
-		Draft       bool      `json:"draft"`
-		PublishedAt time.Time `json:"published_at"`
-		Assets      []struct {
-			Name               string `json:"name"`
-			BrowserDownloadURL string `json:"browser_download_url"`
-		} `json:"assets"`
+	decoder := json.NewDecoder(io.LimitReader(response.Body, maxReleaseListBytes))
+	if err := expectReleaseListDelim(decoder, '['); err != nil {
+		return nil, err
 	}
-	decoder := json.NewDecoder(io.LimitReader(response.Body, maxIndexBytes))
-	if err := decoder.Decode(&payload); err != nil {
-		return nil, fmt.Errorf("decode GitHub releases: %w", err)
-	}
-	releases := make([]Release, 0, len(payload))
-	for _, item := range payload {
+	releases := []Release{}
+	for decoder.More() {
+		var item struct {
+			TagName     string    `json:"tag_name"`
+			Prerelease  bool      `json:"prerelease"`
+			Draft       bool      `json:"draft"`
+			PublishedAt time.Time `json:"published_at"`
+			Assets      []struct {
+				Name               string `json:"name"`
+				BrowserDownloadURL string `json:"browser_download_url"`
+			} `json:"assets"`
+		}
+		if err := decoder.Decode(&item); err != nil {
+			return nil, fmt.Errorf("decode GitHub releases: %w", err)
+		}
 		if item.Draft {
 			continue
 		}
@@ -101,7 +110,21 @@ func (source *GitHubSource) ListReleases(ctx context.Context) ([]Release, error)
 			IndexURL: indexURL, IndexAttestationURL: indexAttestationURL, TrustedRootURL: trustedRootURL,
 		})
 	}
+	if err := expectReleaseListDelim(decoder, ']'); err != nil {
+		return nil, err
+	}
 	return releases, nil
+}
+
+func expectReleaseListDelim(decoder *json.Decoder, delim json.Delim) error {
+	token, err := decoder.Token()
+	if err != nil {
+		return fmt.Errorf("decode GitHub releases: %w", err)
+	}
+	if token != delim {
+		return fmt.Errorf("decode GitHub releases: expected %q in the release array", delim)
+	}
+	return nil
 }
 
 func (source *GitHubSource) Fetch(ctx context.Context, location string, limit int64) ([]byte, error) {

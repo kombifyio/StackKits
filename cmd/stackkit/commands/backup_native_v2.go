@@ -21,6 +21,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 	"github.com/kombifyio/stackkits/internal/localbackupschedule"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/spf13/cobra"
 )
 
@@ -362,12 +363,17 @@ func verifyNativeV2BackupRestore(
 	if err != nil {
 		return backuplifecycle.RestoreVerification{}, err
 	}
+	appliedRequests, err := nativeV2RestoreAppliedRequests(ctx, current.WorkspaceRoot, plan, manifest)
+	if err != nil {
+		return backuplifecycle.RestoreVerification{}, err
+	}
 	owner, runtime, err := verifyArchitectureV2LocalState(
 		ctx,
 		current.WorkspaceRoot,
 		plan,
 		manifest,
 		false,
+		appliedRequests...,
 	)
 	if err != nil {
 		return backuplifecycle.RestoreVerification{}, err
@@ -393,6 +399,32 @@ func verifyNativeV2BackupRestore(
 		ServicesVerified:   true,
 		VerifiedAt:         time.Now().UTC(),
 	}, nil
+}
+
+var loadNativeV2RestoreAppliedRequest = loadArchitectureV2AppliedRuntimeRequest
+
+// nativeV2RestoreAppliedRequests supplies the live Cloud core post-verifier
+// with the sealed request of the verified Apply, exactly as `stackkit verify`
+// does; a zero-value request fails its own validation (kombify-StackKits-v6jg).
+// Basement's live verifier reads its runtime custody instead.
+func nativeV2RestoreAppliedRequests(
+	ctx context.Context,
+	workspace string,
+	plan generationartifact.VerifiedPlan,
+	manifest generationartifact.ArtifactManifest,
+) ([]runtimeexecutor.ExecutionRequest, error) {
+	kitSlug, _, err := architectureV2LocalVerifyIdentity(plan)
+	if err != nil {
+		return nil, err
+	}
+	if kitSlug != "cloud-kit" {
+		return nil, nil
+	}
+	request, err := loadNativeV2RestoreAppliedRequest(ctx, workspace, plan, manifest)
+	if err != nil {
+		return nil, fmt.Errorf("load the applied Cloud runtime request for restore post-verification: %w", err)
+	}
+	return []runtimeexecutor.ExecutionRequest{request}, nil
 }
 
 // nativeV2BackupPolicyRequirement selects the one source-policy artifact and

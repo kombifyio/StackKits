@@ -469,6 +469,50 @@ func printArchitectureV2VerifyReport(w io.Writer, report architectureV2VerifyRep
 	return nil
 }
 
+// loadArchitectureV2AppliedRuntimeRequest reads the sealed runtime request of
+// the current verified Product Apply result from the read-only verify authority.
+func loadArchitectureV2AppliedRuntimeRequest(
+	ctx context.Context,
+	workspaceRoot string,
+	plan generationartifact.VerifiedPlan,
+	manifest generationartifact.ArtifactManifest,
+) (runtimeexecutor.ExecutionRequest, error) {
+	_, _, receiptPath := plan.MetadataPaths(workspaceRoot)
+	receipt, err := generationartifact.ReadReceipt(receiptPath)
+	if err != nil {
+		return runtimeexecutor.ExecutionRequest{}, err
+	}
+	gate := newArchitectureV2ExecutionGate()
+	raw, err := gate.newVerifyAuthority(workspaceRoot, architectureV2ExecutionCLIOptions{})
+	if err != nil {
+		return runtimeexecutor.ExecutionRequest{}, err
+	}
+	if closer, ok := raw.(interface{ Close() error }); ok {
+		defer func() { _ = closer.Close() }()
+	}
+	verifyAuthority, verifies := raw.(architectureV2ProductVerifyAuthority)
+	custody, holdsCustody := raw.(architectureV2AppliedRuntimeCustody)
+	if !verifies || !holdsCustody {
+		return runtimeexecutor.ExecutionRequest{}, errors.New("Architecture v2 verify authority has no applied runtime request custody")
+	}
+	result, err := readCurrentArchitectureV2ApplyResult(workspaceRoot, plan.Binding(), func(data []byte) (architecturev2.VerifiedApplyResult, error) {
+		return verifyAuthority.VerifyProductApplyResult(architecturev2.ProductApplyResultVerificationInput{
+			Plan: plan, Manifest: manifest, Receipt: receipt, Versions: gate.versions, Result: data,
+		})
+	})
+	if err != nil {
+		return runtimeexecutor.ExecutionRequest{}, err
+	}
+	requestDigest, err := architectureV2SharedRequestDigest(result)
+	if err != nil {
+		return runtimeexecutor.ExecutionRequest{}, err
+	}
+	if requestDigest == "" {
+		return runtimeexecutor.ExecutionRequest{}, errors.New("verified Product Apply result has no applied runtime request custody")
+	}
+	return custody.LoadAppliedRuntimeRequest(ctx, requestDigest)
+}
+
 func readCurrentArchitectureV2ApplyResult(
 	workspaceRoot string,
 	binding generationartifact.PlanBinding,

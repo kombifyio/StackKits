@@ -4,6 +4,14 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.39.1](https://github.com/kombifyio/StackKits/compare/v0.39.0...v0.39.1) (2026-09-23)
+
+
+### Fixed
+
+* **backup:** verify Cloud restores against the applied runtime request
+* **release:** list public releases beyond one release-index bound
+
 ## [0.39.0] (2026-09-23)
 
 
