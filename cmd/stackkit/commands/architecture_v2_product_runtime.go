@@ -283,7 +283,11 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return architecturev2.NewProductCloudStandaloneCoreRegistration(runtimeVersion, operations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
-			operations, err := runtimeexecutorlocal.NewOSCloudHostSecurityOperations(workspaceRoot)
+			constructor := runtimeexecutorlocal.NewOSCloudHostSecurityOperations
+			if architectureV2DispatchedLocalChannel(options) {
+				constructor = runtimeexecutorlocal.NewOSCloudHostSecurityOperationsForDispatchedChannel
+			}
+			operations, err := constructor(workspaceRoot)
 			if err != nil {
 				return architecturev2.ProductRuntimeOwnerRegistration{}, err
 			}

@@ -24,8 +24,8 @@ const (
 	TinyAuthPocketIDClientID          = "stackkit-tinyauth"
 )
 
-func TinyAuthPocketIDCallbackURL(domain string) string {
-	return "https://auth." + domain + "/api/oauth/callback/pocketid"
+func TinyAuthPocketIDCallbackURL(address IdentityRuntimeAddress) string {
+	return address.TinyAuthOrigin() + "/api/oauth/callback/pocketid"
 }
 
 var ErrTinyAuthPocketIDBindingMissing = errors.New("localevidence: no TinyAuth PocketID binding")
@@ -56,7 +56,7 @@ func BindBasementTinyAuthPocketID(
 	workspaceRoot string,
 	request TinyAuthPocketIDBindingRequest,
 ) (TinyAuthPocketIDBinding, error) {
-	domain, err := LocalIdentityRuntimeDomain(workspaceRoot)
+	address, err := LocalIdentityRuntimeAddress(workspaceRoot)
 	if err != nil {
 		return TinyAuthPocketIDBinding{}, err
 	}
@@ -84,8 +84,8 @@ func BindBasementTinyAuthPocketID(
 	if err != nil {
 		return TinyAuthPocketIDBinding{}, err
 	}
-	callbackURL := TinyAuthPocketIDCallbackURL(domain)
-	env := renderTinyAuthPocketIDEnvironment(domain, owner.PocketID.Email, request.ClientID, request.ClientSecret)
+	callbackURL := TinyAuthPocketIDCallbackURL(address)
+	env := renderTinyAuthPocketIDEnvironment(address, owner.PocketID.Email, request.ClientID, request.ClientSecret)
 	record := TinyAuthPocketIDBinding{
 		APIVersion:  TinyAuthPocketIDBindingAPIVersion,
 		Kind:        "TinyAuthPocketIDBinding",
@@ -181,7 +181,7 @@ func LoadBasementTinyAuthPocketIDBinding(workspaceRoot string) (TinyAuthPocketID
 	if err != nil || !bytes.Equal(raw, canonical) {
 		return TinyAuthPocketIDBinding{}, errors.New("localevidence: TinyAuth PocketID binding is not canonical")
 	}
-	domain, err := LocalIdentityRuntimeDomain(workspaceRoot)
+	address, err := LocalIdentityRuntimeAddress(workspaceRoot)
 	if err != nil {
 		return TinyAuthPocketIDBinding{}, err
 	}
@@ -198,7 +198,7 @@ func LoadBasementTinyAuthPocketIDBinding(workspaceRoot string) (TinyAuthPocketID
 		record.Kind != "TinyAuthPocketIDBinding" ||
 		record.OwnerRef != owner.OwnerRef || record.KeyID != owner.KeyID ||
 		record.ClientID != TinyAuthPocketIDClientID ||
-		record.CallbackURL != TinyAuthPocketIDCallbackURL(domain) ||
+		record.CallbackURL != TinyAuthPocketIDCallbackURL(address) ||
 		len(record.GroupIDs) != 3 || record.BoundAt.IsZero() ||
 		record.BoundAt.Location() != time.UTC {
 		return TinyAuthPocketIDBinding{}, errors.New("localevidence: TinyAuth PocketID binding is not bound to established custody")
@@ -213,7 +213,7 @@ func LoadBasementTinyAuthPocketIDBinding(workspaceRoot string) (TinyAuthPocketID
 	env, err := os.ReadFile(envPath) //nolint:gosec // fixed custody path
 	if err != nil || requirePrivateRuntimeFile(envPath) != nil ||
 		record.EnvMAC != basementRuntimeFileMAC(key, tinyAuthPocketIDEnvRelPath, env) ||
-		!validTinyAuthPocketIDEnvironment(env, domain, owner.PocketID.Email, record.ClientID) {
+		!validTinyAuthPocketIDEnvironment(env, address, owner.PocketID.Email, record.ClientID) {
 		return TinyAuthPocketIDBinding{}, errors.New("localevidence: private TinyAuth PocketID environment does not verify")
 	}
 	return record, nil
@@ -230,15 +230,15 @@ func normalizeTinyAuthGroupIDs(input []string) []string {
 	return slices.Compact(result)
 }
 
-func renderTinyAuthPocketIDEnvironment(domain, email, clientID, clientSecret string) []byte {
+func renderTinyAuthPocketIDEnvironment(address IdentityRuntimeAddress, email, clientID, clientSecret string) []byte {
 	_ = email // PocketID group restriction replaces the email whitelist.
 	return []byte(strings.Join([]string{
 		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTID=" + clientID,
 		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTSECRET=" + clientSecret,
-		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL=https://id." + domain + "/authorize",
+		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL=" + address.PocketIDOrigin() + "/authorize",
 		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_TOKENURL=http://pocketid:1411/api/oidc/token",
 		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_USERINFOURL=http://pocketid:1411/api/oidc/userinfo",
-		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_REDIRECTURL=" + TinyAuthPocketIDCallbackURL(domain),
+		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_REDIRECTURL=" + TinyAuthPocketIDCallbackURL(address),
 		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_SCOPES=openid email profile groups",
 		"TINYAUTH_OAUTH_PROVIDERS_POCKETID_NAME=Pocket ID",
 		// See runtime_custody.go: provider TLS is verified, never skipped.
@@ -247,8 +247,8 @@ func renderTinyAuthPocketIDEnvironment(domain, email, clientID, clientSecret str
 	}, "\n") + "\n")
 }
 
-func validTinyAuthPocketIDEnvironment(raw []byte, domain, email, clientID string) bool {
-	prefix := renderTinyAuthPocketIDEnvironment(domain, email, clientID, "")
+func validTinyAuthPocketIDEnvironment(raw []byte, address IdentityRuntimeAddress, email, clientID string) bool {
+	prefix := renderTinyAuthPocketIDEnvironment(address, email, clientID, "")
 	secretLine := []byte("TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTSECRET=")
 	lines := bytes.Split(raw, []byte("\n"))
 	if len(lines) != 11 {

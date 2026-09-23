@@ -49,8 +49,8 @@ func platformStorageFreeBytes(path string) (uint64, error) {
 	if err := unix.Statfs(path, &stat); err != nil {
 		return 0, fmt.Errorf("read filesystem free space for %q: %w", path, err)
 	}
-	if stat.Bsize <= 0 || stat.Bavail < 0 {
+	if stat.Bsize <= 0 {
 		return 0, fmt.Errorf("filesystem free space for %q is unobserved", path)
 	}
-	return uint64(stat.Bavail) * uint64(stat.Bsize), nil
+	return stat.Bavail * uint64(stat.Bsize), nil
 }

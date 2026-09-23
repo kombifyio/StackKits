@@ -346,7 +346,7 @@ func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain 
 	if err != nil {
 		return nil, fmt.Errorf("localevidence: encrypt step-ca runtime intermediate key: %w", err)
 	}
-	environments, err := basementRuntimeEnvironments(owner, domain, sessionTTLSeconds)
+	environments, err := basementRuntimeEnvironments(owner, IdentityRuntimeAddress{Domain: domain}, sessionTTLSeconds)
 	if err != nil {
 		return nil, err
 	}
@@ -395,7 +395,7 @@ func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain 
 	return files, nil
 }
 
-func basementRuntimeEnvironments(owner OwnerCustody, domain string, sessionTTLSeconds int) (map[string][]byte, error) {
+func basementRuntimeEnvironments(owner OwnerCustody, address IdentityRuntimeAddress, sessionTTLSeconds int) (map[string][]byte, error) {
 	encryptionKey, err := randomRuntimeSecret(32, base64.StdEncoding)
 	if err != nil {
 		return nil, err
@@ -432,7 +432,7 @@ func basementRuntimeEnvironments(owner OwnerCustody, domain string, sessionTTLSe
 	}
 	return map[string][]byte{
 		"pocketid.env": encode(
-			"APP_URL=https://id."+domain,
+			"APP_URL="+address.PocketIDOrigin(),
 			"ENCRYPTION_KEY="+encryptionKey,
 			"STATIC_API_KEY="+staticAPIKey,
 			"TRUST_PROXY=true",
@@ -440,7 +440,7 @@ func basementRuntimeEnvironments(owner OwnerCustody, domain string, sessionTTLSe
 			"ANALYTICS_DISABLED=true",
 		),
 		"tinyauth.env": encode(
-			"TINYAUTH_APPURL=https://auth."+domain,
+			"TINYAUTH_APPURL="+address.TinyAuthOrigin(),
 			"TINYAUTH_AUTH_SESSIONEXPIRY="+fmt.Sprintf("%d", sessionTTLSeconds),
 			// The router serves application routes websecure-only and redirects
 			// web to websecure, so the browser session cookie must carry the
@@ -450,10 +450,10 @@ func basementRuntimeEnvironments(owner OwnerCustody, domain string, sessionTTLSe
 			"TINYAUTH_ANALYTICS_ENABLED=false",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTID=stackkit-tinyauth",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTSECRET="+tinyAuthBootstrapSecret,
-			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL=https://id."+domain+"/authorize",
+			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL="+address.PocketIDOrigin()+"/authorize",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_TOKENURL=http://pocketid:1411/api/oidc/token",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_USERINFOURL=http://pocketid:1411/api/oidc/userinfo",
-			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_REDIRECTURL=https://auth."+domain+"/api/oauth/callback/pocketid",
+			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_REDIRECTURL="+TinyAuthPocketIDCallbackURL(address),
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_SCOPES=openid email profile groups",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_NAME=Pocket ID",
 			// Provider TLS is verified: server-side provider endpoints are
@@ -494,32 +494,73 @@ func basementRuntimeEnvironments(owner OwnerCustody, domain string, sessionTTLSe
 	}, nil
 }
 
-// LocalIdentityRuntimeDomain returns the domain of the one owner-signed
-// runtime custody that carries this workspace's PocketID and TinyAuth inputs.
-// Basement and Cloud install the same identity pair, each from its own custody.
-func LocalIdentityRuntimeDomain(workspaceRoot string) (string, error) {
-	domain, _, err := localIdentityRuntime(workspaceRoot)
-	return domain, err
+// IdentityRuntimeAddress is the public address of the local PocketID and
+// TinyAuth pair. A subdomain prefix flattens each core service host to
+// <prefix>-<service>.<domain>, exactly as the core Compose routes serve it,
+// so identity URLs must follow the prefix instead of the bare domain.
+type IdentityRuntimeAddress struct {
+	Domain          string
+	SubdomainPrefix string
 }
 
-func localIdentityRuntime(workspaceRoot string) (domain, custodyRelDir string, err error) {
+var identityRuntimePrefixPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+
+// ServiceHost returns the public host of one core service.
+func (a IdentityRuntimeAddress) ServiceHost(service string) string {
+	if a.SubdomainPrefix == "" {
+		return service + "." + a.Domain
+	}
+	return a.SubdomainPrefix + "-" + service + "." + a.Domain
+}
+
+// PocketIDOrigin is PocketID's public URL and therefore its OIDC issuer and
+// passkey relying-party origin.
+func (a IdentityRuntimeAddress) PocketIDOrigin() string {
+	return "https://" + a.ServiceHost("id")
+}
+
+// TinyAuthOrigin is TinyAuth's public URL.
+func (a IdentityRuntimeAddress) TinyAuthOrigin() string {
+	return "https://" + a.ServiceHost("auth")
+}
+
+func (a IdentityRuntimeAddress) valid() bool {
+	if !validBasementRuntimeDomain(a.Domain) {
+		return false
+	}
+	if a.SubdomainPrefix == "" {
+		return true
+	}
+	return identityRuntimePrefixPattern.MatchString(a.SubdomainPrefix) &&
+		validBasementRuntimeDomain(a.ServiceHost("id")) && validBasementRuntimeDomain(a.ServiceHost("auth"))
+}
+
+// LocalIdentityRuntimeAddress returns the address of the one owner-signed
+// runtime custody that carries this workspace's PocketID and TinyAuth inputs.
+// Basement and Cloud install the same identity pair, each from its own custody.
+func LocalIdentityRuntimeAddress(workspaceRoot string) (IdentityRuntimeAddress, error) {
+	address, _, err := localIdentityRuntime(workspaceRoot)
+	return address, err
+}
+
+func localIdentityRuntime(workspaceRoot string) (address IdentityRuntimeAddress, custodyRelDir string, err error) {
 	basement, basementErr := LoadBasementRuntimeCustody(workspaceRoot)
 	cloud, cloudErr := LoadCloudRuntimeCustody(workspaceRoot)
 	if basementErr != nil && !errors.Is(basementErr, ErrBasementRuntimeCustodyMissing) {
-		return "", "", basementErr
+		return IdentityRuntimeAddress{}, "", basementErr
 	}
 	if cloudErr != nil && !errors.Is(cloudErr, ErrCloudRuntimeCustodyMissing) {
-		return "", "", cloudErr
+		return IdentityRuntimeAddress{}, "", cloudErr
 	}
 	switch {
 	case basementErr == nil && cloudErr == nil:
-		return "", "", errors.New("localevidence: workspace holds both Basement and Cloud runtime custody")
+		return IdentityRuntimeAddress{}, "", errors.New("localevidence: workspace holds both Basement and Cloud runtime custody")
 	case basementErr == nil:
-		return basement.Domain, basementRuntimeCustodyRelDir, nil
+		return IdentityRuntimeAddress{Domain: basement.Domain}, basementRuntimeCustodyRelDir, nil
 	case cloudErr == nil:
-		return cloud.Domain, cloudRuntimeCustodyRelDir, nil
+		return cloud.IdentityAddress(), cloudRuntimeCustodyRelDir, nil
 	default:
-		return "", "", basementErr
+		return IdentityRuntimeAddress{}, "", basementErr
 	}
 }
 

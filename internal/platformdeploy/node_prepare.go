@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -48,6 +50,11 @@ func PrepareSupplementalNodeTargets(ctx context.Context, platform string, nodes 
 	}
 	results := []NodePrepareResult{}
 	for _, node := range normalizeSupplementalNodeTargets(nodes) {
+		if node.Bootstrap != nil && node.Bootstrap.SSH != nil {
+			if err := validateSSHBootstrapDestination(*node.Bootstrap.SSH); err != nil {
+				return results, fmt.Errorf("supplemental node %q: %w", node.Name, err)
+			}
+		}
 		result, err := prepareSupplementalNodeTarget(ctx, platform, node, cfg, runner)
 		if result.NodeName != "" {
 			results = append(results, result)
@@ -450,7 +457,36 @@ func nodeSSHArgs(target SSHBootstrap, keyPath string) []string {
 	if target.ProxyJump != "" {
 		args = append(args, "-J", target.ProxyJump)
 	}
-	return append(args, target.User+"@"+target.Host)
+	// "--" ends option parsing so the destination can never become an option.
+	return append(args, "--", target.User+"@"+target.Host)
+}
+
+var (
+	sshBootstrapUserPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}$`)
+	sshBootstrapHostPattern = regexp.MustCompile(`^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.?|\[[0-9A-Fa-f:.]+\])$`)
+	sshBootstrapJumpPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.@:\[\]-]*$`)
+)
+
+// validateSSHBootstrapDestination rejects login, host and jump values that
+// ssh(1) could interpret as options or that carry shell or ssh_config
+// metacharacters, before any runner receives a request-supplied node target.
+func validateSSHBootstrapDestination(target SSHBootstrap) error {
+	if !sshBootstrapUserPattern.MatchString(target.User) {
+		return fmt.Errorf("supplemental node SSH user is invalid")
+	}
+	// An empty host keeps the existing "requires SSH host" error downstream.
+	if _, err := netip.ParseAddr(target.Host); target.Host != "" && err != nil && !sshBootstrapHostPattern.MatchString(target.Host) {
+		return fmt.Errorf("supplemental node SSH host is invalid")
+	}
+	if target.Port > 65535 {
+		return fmt.Errorf("supplemental node SSH port is invalid")
+	}
+	for _, jump := range strings.Split(target.ProxyJump, ",") {
+		if target.ProxyJump != "" && !sshBootstrapJumpPattern.MatchString(jump) {
+			return fmt.Errorf("supplemental node SSH proxy jump is invalid")
+		}
+	}
+	return nil
 }
 
 func shellQuote(value string) string {

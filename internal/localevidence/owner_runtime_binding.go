@@ -241,7 +241,7 @@ func PersistPocketIDOwnerEnrollment(workspaceRoot string, enrollment PocketIDOwn
 		enrollment.ExpiresAt.IsZero() || !enrollment.ExpiresAt.After(time.Now().UTC()) {
 		return "", errors.New("localevidence: PocketID owner enrollment is not bound to the established owner")
 	}
-	domain, err := LocalIdentityRuntimeDomain(workspaceRoot)
+	address, err := LocalIdentityRuntimeAddress(workspaceRoot)
 	if err != nil {
 		return "", err
 	}
@@ -250,7 +250,7 @@ func PersistPocketIDOwnerEnrollment(workspaceRoot string, enrollment PocketIDOwn
 		return "", errors.New("localevidence: PocketID owner enrollment URL is not the fixed local endpoint")
 	}
 	query := parsed.Query()
-	if parsed.Scheme != "https" || parsed.Host != "id."+domain ||
+	if parsed.Scheme != "https" || parsed.Host != address.ServiceHost("id") ||
 		parsed.User != nil || parsed.Fragment != "" || parsed.Path != "/setup-account" ||
 		len(query) != 1 || len(query["token"]) != 1 || query.Get("token") == "" {
 		return "", errors.New("localevidence: PocketID owner enrollment URL is not the fixed local endpoint")

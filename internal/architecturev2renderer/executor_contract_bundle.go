@@ -1052,8 +1052,6 @@ func validateExecutorBundleData(data executorBundleData, sites []executorBundleS
 		if binding.CloudCopyAllowed != (binding.CloudCopyPolicy != nil) {
 			return fail(ErrInvalidPlan, bindingPath+".cloudCopyPolicy", "cloud-copy opt-in and policy must be present together")
 		}
-		if binding.CloudCopyPolicy != nil {
-		}
 	}
 	return nil
 }

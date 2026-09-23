@@ -26,29 +26,43 @@ var (
 // CloudRuntimeCustody is the owner-signed, secret-free index for the
 // provider-neutral services installed on an externally supplied Cloud host.
 // Provider credentials and server lifecycle never enter this bundle.
+// SubdomainPrefix is absent for an unprefixed address, so records established
+// before it existed keep their signature.
 type CloudRuntimeCustody struct {
-	APIVersion    string                       `json:"apiVersion"`
-	Kind          string                       `json:"kind"`
-	OwnerRef      string                       `json:"ownerRef"`
-	KeyID         string                       `json:"keyId"`
-	Domain        string                       `json:"domain"`
-	EstablishedAt time.Time                    `json:"establishedAt"`
-	Files         []BasementRuntimeCustodyFile `json:"files"`
-	Signature     string                       `json:"signature"`
+	APIVersion      string                       `json:"apiVersion"`
+	Kind            string                       `json:"kind"`
+	OwnerRef        string                       `json:"ownerRef"`
+	KeyID           string                       `json:"keyId"`
+	Domain          string                       `json:"domain"`
+	SubdomainPrefix string                       `json:"subdomainPrefix,omitempty"`
+	EstablishedAt   time.Time                    `json:"establishedAt"`
+	Files           []BasementRuntimeCustodyFile `json:"files"`
+	Signature       string                       `json:"signature"`
 }
 
-func EstablishCloudRuntimeCustody(workspaceRoot, domain string) (CloudRuntimeCustody, error) {
-	domain = strings.TrimSpace(strings.ToLower(domain))
-	if !validBasementRuntimeDomain(domain) {
-		return CloudRuntimeCustody{}, errors.New("localevidence: Cloud runtime custody requires a canonical domain")
+// IdentityAddress returns the public address PocketID and TinyAuth serve.
+func (c CloudRuntimeCustody) IdentityAddress() IdentityRuntimeAddress {
+	return IdentityRuntimeAddress{Domain: c.Domain, SubdomainPrefix: c.SubdomainPrefix}
+}
+
+// EstablishCloudRuntimeCustody fixes the identity address once. PocketID binds
+// passkeys to its origin, so a later address change is refused, not adopted.
+func EstablishCloudRuntimeCustody(workspaceRoot string, address IdentityRuntimeAddress) (CloudRuntimeCustody, error) {
+	address.Domain = strings.TrimSpace(strings.ToLower(address.Domain))
+	address.SubdomainPrefix = strings.TrimSpace(address.SubdomainPrefix)
+	if !address.valid() {
+		return CloudRuntimeCustody{}, errors.New("localevidence: Cloud runtime custody requires a canonical domain and subdomain prefix")
 	}
 	owner, err := LoadOwnerCustody(workspaceRoot)
 	if err != nil {
 		return CloudRuntimeCustody{}, err
 	}
 	if existing, loadErr := LoadCloudRuntimeCustody(workspaceRoot); loadErr == nil {
-		if existing.Domain != domain {
-			return CloudRuntimeCustody{}, errors.New("localevidence: Cloud runtime custody domain differs from established custody")
+		if existing.IdentityAddress() != address {
+			return CloudRuntimeCustody{}, fmt.Errorf(
+				"localevidence: Cloud runtime custody serves PocketID at %s, not %s; its address cannot change after init",
+				existing.IdentityAddress().PocketIDOrigin(), address.PocketIDOrigin(),
+			)
 		}
 		return existing, nil
 	} else if !errors.Is(loadErr, ErrCloudRuntimeCustodyMissing) {
@@ -85,7 +99,7 @@ func EstablishCloudRuntimeCustody(workspaceRoot, domain string) (CloudRuntimeCus
 	// The shared default matches both kit human-issuer authorities
 	// (basement-kit and cloud-kit stackfile.cue sessionTTLSeconds 900); a
 	// future per-kit TTL resolution threads the exact issuer value through.
-	files, err := basementRuntimeEnvironments(owner, domain, defaultBasementSessionTTLSeconds)
+	files, err := basementRuntimeEnvironments(owner, address, defaultBasementSessionTTLSeconds)
 	if err != nil {
 		return CloudRuntimeCustody{}, err
 	}
@@ -108,7 +122,7 @@ func EstablishCloudRuntimeCustody(workspaceRoot, domain string) (CloudRuntimeCus
 	}
 	record := CloudRuntimeCustody{
 		APIVersion: CloudRuntimeCustodyAPIVersion, Kind: "CloudRuntimeCustody",
-		OwnerRef: owner.OwnerRef, KeyID: owner.KeyID, Domain: domain,
+		OwnerRef: owner.OwnerRef, KeyID: owner.KeyID, Domain: address.Domain, SubdomainPrefix: address.SubdomainPrefix,
 		EstablishedAt: time.Now().UTC().Truncate(time.Second), Files: manifestFiles,
 	}
 	signingBytes, err := cloudRuntimeSigningBytes(record)
@@ -151,7 +165,7 @@ func LoadCloudRuntimeCustody(workspaceRoot string) (CloudRuntimeCustody, error) 
 		return CloudRuntimeCustody{}, fmt.Errorf("localevidence: decode Cloud runtime custody manifest: %w", err)
 	}
 	if record.APIVersion != CloudRuntimeCustodyAPIVersion || record.Kind != "CloudRuntimeCustody" ||
-		record.OwnerRef == "" || record.KeyID == "" || !validBasementRuntimeDomain(record.Domain) || record.EstablishedAt.IsZero() {
+		record.OwnerRef == "" || record.KeyID == "" || !record.IdentityAddress().valid() || record.EstablishedAt.IsZero() {
 		return CloudRuntimeCustody{}, errors.New("localevidence: Cloud runtime custody is not a recognised record")
 	}
 	owner, err := LoadOwnerCustody(workspaceRoot)

@@ -281,21 +281,29 @@ func ExpectedCloudCoreComposeArtifact() []byte {
 	return RenderCloudCoreComposeForDomain("home.test")
 }
 
-func ValidateCloudCoreComposeArtifact(content []byte) bool {
-	match := regexp.MustCompile("routers[.]pocketid[.]rule=Host\\(`([a-z0-9.-]+)`\\)").FindSubmatch(content)
+var cloudComposePocketIDRoutePattern = regexp.MustCompile("routers[.]pocketid[.]rule=Host\\(`([a-z0-9.-]+)`\\)")
+
+// CloudComposeIdentityAddress returns the domain and optional subdomain prefix
+// a Cloud core Compose artifact routes PocketID to.
+func CloudComposeIdentityAddress(content []byte) (domain, prefix string, ok bool) {
+	match := cloudComposePocketIDRoutePattern.FindSubmatch(content)
 	if len(match) != 2 {
-		return false
+		return "", "", false
 	}
 	host := string(match[1])
-	domain, prefix := strings.TrimPrefix(host, "id."), ""
-	if domain == host {
-		separator := strings.Index(host, "-id.")
-		if separator < 1 {
-			return false
-		}
-		prefix, domain = host[:separator], host[separator+4:]
+	if domain = strings.TrimPrefix(host, "id."); domain != host {
+		return domain, "", true
 	}
-	return bytes.Equal(content, RenderCloudCoreComposeForAddress(domain, prefix))
+	separator := strings.Index(host, "-id.")
+	if separator < 1 {
+		return "", "", false
+	}
+	return host[separator+4:], host[:separator], true
+}
+
+func ValidateCloudCoreComposeArtifact(content []byte) bool {
+	domain, prefix, ok := CloudComposeIdentityAddress(content)
+	return ok && bytes.Equal(content, RenderCloudCoreComposeForAddress(domain, prefix))
 }
 
 func CloudCoreServiceContracts() []BasementCoreServiceContract {

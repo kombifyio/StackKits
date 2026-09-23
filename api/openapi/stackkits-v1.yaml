@@ -1732,7 +1732,31 @@ components:
     ArchitectureV2BackupPolicy:
       type: object
       description: >-
-        Closed provider-free backup intent. Runtime target custody and job, repository, retention, and restore execution remain separate governed authorities.
+        Closed provider-free backup intent. Runtime target custody and job, repository, retention, and restore execution remain separate governed authorities. The grant is a ceiling from the subscription; coverage selects the data classes within it and never exceeds it.
+      additionalProperties: false
+      properties:
+        apiVersion:
+          type: string
+          const: stackkit.backup-policy/v1
+        kind:
+          type: string
+          const: BackupPolicy
+        grant:
+          $ref: "#/components/schemas/ArchitectureV2BackupGrant"
+        coverage:
+          $ref: "#/components/schemas/ArchitectureV2BackupCoverageGroup"
+        schedule:
+          $ref: "#/components/schemas/ArchitectureV2BackupSchedule"
+        dataClasses:
+          $ref: "#/components/schemas/ArchitectureV2BackupDataClasses"
+        retention:
+          $ref: "#/components/schemas/ArchitectureV2BackupRetention"
+        restoreVerification:
+          $ref: "#/components/schemas/ArchitectureV2BackupRestoreVerification"
+    ArchitectureV2ModuleBackupPolicy:
+      type: object
+      description: >-
+        Backup policy a render unit receives. The subscription grant and the coverage selection that bounded the resolution are deliberately absent.
       additionalProperties: false
       properties:
         apiVersion:
@@ -1744,26 +1768,50 @@ components:
         schedule:
           $ref: "#/components/schemas/ArchitectureV2BackupSchedule"
         dataClasses:
+          $ref: "#/components/schemas/ArchitectureV2BackupDataClasses"
+        retention:
+          $ref: "#/components/schemas/ArchitectureV2BackupRetention"
+        restoreVerification:
+          $ref: "#/components/schemas/ArchitectureV2BackupRestoreVerification"
+    ArchitectureV2BackupDataClasses:
+      type: array
+      minItems: 1
+      uniqueItems: true
+      items:
+        type: string
+        enum:
+          - config
+          - secret-material
+          - platform-state
+          - database
+          - user-content
+          - documents
+          - photos
+          - large-media
+          - telemetry-timeseries
+          - serverless-config
+    ArchitectureV2BackupCoverageGroup:
+      type: string
+      description: >-
+        Nested coverage group: config, content (config plus the data a stack produces) or media (content plus photo and large-media libraries).
+      enum: [config, content, media]
+    ArchitectureV2BackupGrant:
+      type: object
+      description: >-
+        Ceiling one subscription grants one stack for coverage, cadence and retention. Every field defaults to the contract maximum; a tier's default values are never restated here.
+      additionalProperties: false
+      properties:
+        coverage:
+          $ref: "#/components/schemas/ArchitectureV2BackupCoverageGroup"
+        cadences:
           type: array
           minItems: 1
           uniqueItems: true
           items:
             type: string
-            enum:
-              - config
-              - secret-material
-              - platform-state
-              - database
-              - user-content
-              - documents
-              - photos
-              - large-media
-              - telemetry-timeseries
-              - serverless-config
+            enum: [daily, hourly, weekly]
         retention:
           $ref: "#/components/schemas/ArchitectureV2BackupRetention"
-        restoreVerification:
-          $ref: "#/components/schemas/ArchitectureV2BackupRestoreVerification"
     ArchitectureV2BackupSchedule:
       type: object
       additionalProperties: false
@@ -5057,7 +5105,7 @@ components:
         federationObservability:
           $ref: "#/components/schemas/ArchitectureV2ModuleFederationObservability"
         backupPolicy:
-          $ref: "#/components/schemas/ArchitectureV2BackupPolicy"
+          $ref: "#/components/schemas/ArchitectureV2ModuleBackupPolicy"
         driftPolicy:
           $ref: "#/components/schemas/ArchitectureV2DriftPolicy"
         observability:

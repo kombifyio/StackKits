@@ -167,7 +167,6 @@ func executePrepared(
 		if err := validateCommittedSnapshot(operation, snapshot, states, running); err != nil {
 			return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("validate running journal snapshot for %q: %w", child.label, err)
 		}
-		operationState = snapshot.State
 		states = indexStepSnapshots(snapshot)
 
 		result, invokeErr := invokePrepared(ctx, child)

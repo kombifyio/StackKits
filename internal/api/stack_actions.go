@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -1170,9 +1171,14 @@ func validateRuntimeTargetHostStackAction(value string) (string, error) {
 	return host, nil
 }
 
+// runtimeTargetSSHUserPattern admits portable POSIX login names only. A
+// leading '-' would let the value reach ssh(1) as an option such as
+// -oProxyCommand, and shell or config metacharacters have no place in a login.
+var runtimeTargetSSHUserPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}$`)
+
 func validateRuntimeTargetSSHUserStackAction(value string) (string, error) {
 	user := strings.TrimSpace(value)
-	if user == "" || strings.ContainsAny(user, " \t\r\n@:/?#\\") {
+	if !runtimeTargetSSHUserPattern.MatchString(user) {
 		return "", fmt.Errorf("runtime target SSH user is invalid")
 	}
 	return user, nil
@@ -1194,8 +1200,10 @@ func runtimeTargetSSHCommandStackAction(target *stackActionTarget, keyPath strin
 	return strings.Join(runtimeTargetSSHBaseArgsStackAction(target, keyPath), " ")
 }
 
+// runtimeTargetSSHArgsStackAction ends option parsing before the destination
+// so a target value can never be read as an ssh(1) option.
 func runtimeTargetSSHArgsStackAction(target *stackActionTarget, keyPath string) []string {
-	return append(runtimeTargetSSHBaseArgsStackAction(target, keyPath), target.User+"@"+target.Host)
+	return append(runtimeTargetSSHBaseArgsStackAction(target, keyPath), "--", target.User+"@"+target.Host)
 }
 
 func syncRuntimeTargetWorkspaceStackAction(ctx context.Context, remote *preparedRuntimeTargetStackAction, tofuDir string) error {

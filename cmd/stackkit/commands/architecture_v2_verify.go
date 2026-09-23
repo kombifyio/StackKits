@@ -134,12 +134,12 @@ func verifyArchitectureV2LocalState(
 	if err != nil {
 		return architectureV2OwnerVerifySummary{}, nil, err
 	}
-	kitSlug, domain, err := architectureV2LocalVerifyIdentity(plan)
+	kitSlug, address, err := architectureV2LocalVerifyIdentity(plan)
 	if err != nil {
 		return architectureV2OwnerVerifySummary{}, nil, err
 	}
 	if kitSlug == "cloud-kit" {
-		return verifyArchitectureV2LocalCloudState(ctx, workspaceRoot, appliedRequest, ownerSummary, localBinding, domain, offline)
+		return verifyArchitectureV2LocalCloudState(ctx, workspaceRoot, appliedRequest, ownerSummary, localBinding, address, offline)
 	}
 	if kitSlug != "basement-kit" {
 		return architectureV2OwnerVerifySummary{}, nil, fmt.Errorf("local Architecture v2 Verify is not implemented for kit %q", kitSlug)
@@ -175,7 +175,7 @@ func verifyArchitectureV2LocalState(
 	}, nil
 }
 
-func architectureV2LocalVerifyIdentity(plan generationartifact.VerifiedPlan) (string, string, error) {
+func architectureV2LocalVerifyIdentity(plan generationartifact.VerifiedPlan) (string, localevidence.IdentityRuntimeAddress, error) {
 	var projection struct {
 		Kit struct {
 			Slug string `json:"slug"`
@@ -183,20 +183,23 @@ func architectureV2LocalVerifyIdentity(plan generationartifact.VerifiedPlan) (st
 		Network struct {
 			Configuration struct {
 				Domain struct {
-					Base string `json:"base"`
+					Base            string `json:"base"`
+					SubdomainPrefix string `json:"subdomainPrefix"`
 				} `json:"domain"`
 			} `json:"configuration"`
 		} `json:"network"`
 	}
 	if err := json.Unmarshal(plan.Canonical(), &projection); err != nil {
-		return "", "", fmt.Errorf("decode verified Architecture v2 local Verify identity: %w", err)
+		return "", localevidence.IdentityRuntimeAddress{}, fmt.Errorf("decode verified Architecture v2 local Verify identity: %w", err)
 	}
 	kitSlug := strings.TrimSpace(projection.Kit.Slug)
 	domain := strings.TrimSpace(strings.ToLower(projection.Network.Configuration.Domain.Base))
 	if kitSlug == "" || domain == "" {
-		return "", "", errors.New("verified Architecture v2 plan lacks its local Verify kit or domain identity")
+		return "", localevidence.IdentityRuntimeAddress{}, errors.New("verified Architecture v2 plan lacks its local Verify kit or domain identity")
 	}
-	return kitSlug, domain, nil
+	return kitSlug, localevidence.IdentityRuntimeAddress{
+		Domain: domain, SubdomainPrefix: strings.TrimSpace(projection.Network.Configuration.Domain.SubdomainPrefix),
+	}, nil
 }
 
 func verifyArchitectureV2LocalCloudState(
@@ -205,14 +208,14 @@ func verifyArchitectureV2LocalCloudState(
 	appliedRequest runtimeexecutor.ExecutionRequest,
 	ownerSummary architectureV2OwnerVerifySummary,
 	localBinding localevidence.LocalBinding,
-	domain string,
+	address localevidence.IdentityRuntimeAddress,
 	offline bool,
 ) (architectureV2OwnerVerifySummary, *architectureV2RuntimeVerifySummary, error) {
 	custody, err := localevidence.LoadCloudRuntimeCustody(workspaceRoot)
 	if err != nil {
 		return architectureV2OwnerVerifySummary{}, nil, fmt.Errorf("verify local Cloud runtime custody: %w", err)
 	}
-	if custody.OwnerRef != ownerSummary.OwnerRef || custody.KeyID != ownerSummary.KeyID || custody.Domain != domain {
+	if custody.OwnerRef != ownerSummary.OwnerRef || custody.KeyID != ownerSummary.KeyID || custody.IdentityAddress() != address {
 		return architectureV2OwnerVerifySummary{}, nil, errors.New("Cloud runtime custody differs from the verified plan or local owner")
 	}
 	binding, err := localevidence.LoadOwnerRuntimeBinding(workspaceRoot)

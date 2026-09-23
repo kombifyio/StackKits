@@ -530,7 +530,7 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 			if err := resolvedplan.ValidateHostConformanceReceiptsForApply(canonicalPlan, now().UTC()); err != nil {
 				return err
 			}
-			if err := maybePrepareCloudExecutionChannelBeforeApply(options.context, wd, canonicalPlanKitSlug(canonicalPlan)); err != nil {
+			if err := maybePrepareCloudExecutionChannelBeforeApply(options.context, wd, canonicalPlanKitSlug(canonicalPlan), architectureV2DispatchedLocalChannel(options)); err != nil {
 				return err
 			}
 			// Admit the host before anything is mutated. This runs inside the
@@ -1665,14 +1665,23 @@ func canonicalPlanKitSlug(plan resolvedplan.ResolvedPlan) string {
 	return slug
 }
 
-func maybePrepareCloudExecutionChannelBeforeApply(ctx context.Context, workspace, kitSlug string) error {
+func maybePrepareCloudExecutionChannelBeforeApply(ctx context.Context, workspace, kitSlug string, dispatched bool) error {
 	if kitSlug != "cloud-kit" {
 		return nil
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return runtimeexecutorlocal.PrepareCloudExecutionChannel(ctx, workspace)
+	return runtimeexecutorlocal.PrepareCloudExecutionChannel(ctx, workspace, dispatched)
+}
+
+// architectureV2DispatchedLocalChannel reports whether this Apply arrives
+// through an Inventory-declared standard execution channel for the local
+// node: a digest-pinned operations process owns transport and login custody,
+// as for an orchestrator's node agent. A standalone install has none.
+func architectureV2DispatchedLocalChannel(options architectureV2ExecutionCLIOptions) bool {
+	configured, declared, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
+	return err == nil && declared && configured != nil
 }
 
 // admitApplyHost measures the target against the floor its kit declares and

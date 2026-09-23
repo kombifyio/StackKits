@@ -541,7 +541,7 @@ func startRuntimePlatformSSHTunnelDefaultStackAction(ctx context.Context, remote
 	args := append(runtimeTargetSSHBaseArgsStackAction(remote.target, remote.keyPath),
 		"-N",
 		"-L", "127.0.0.1:"+strconv.Itoa(localPort)+":"+remoteHost+":"+remotePort,
-		remote.target.User+"@"+remote.target.Host,
+		"--", remote.target.User+"@"+remote.target.Host,
 	)
 	cmd := exec.CommandContext(tunnelCtx, "ssh", args...) // #nosec G204 -- SSH args are assembled without shell interpolation.
 	var output strings.Builder

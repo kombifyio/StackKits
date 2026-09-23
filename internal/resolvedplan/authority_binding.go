@@ -65,7 +65,6 @@ func (v *CUEContractValidator) bindExpectedAuthority(catalog Catalog, definition
 			"specAPIVersion": "stackkit/v2alpha1", "planAPIVersion": ResolvedPlanAPIVersion,
 		},
 	}
-	normalizedDefinitions := make([]KitDefinition, 0, len(definitions))
 	for index, definition := range definitions {
 		normalized, err := v.normalizeDefinition(definition)
 		if err != nil {
@@ -97,7 +96,6 @@ func (v *CUEContractValidator) bindExpectedAuthority(catalog Catalog, definition
 		binding.definitions[slug] = authorityDefinitionIdentity{
 			version: version, hash: hash, evidence: sortStringsUnique(evidence), normalized: normalized,
 		}
-		normalizedDefinitions = append(normalizedDefinitions, normalized)
 	}
 	if authority.Class == "product" && len(v.authoritySource) == 0 {
 		return PlanAuthority{}, fmt.Errorf("product authority requires immutable in-memory authority sources")

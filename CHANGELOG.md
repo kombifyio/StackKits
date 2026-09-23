@@ -4,6 +4,18 @@ All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.38.2](https://github.com/kombifyio/StackKits/compare/v0.38.1...v0.38.2) (2026-09-23)
+
+
+### Fixed
+
+* **api:** publish backup coverage and grant in the OpenAPI contract
+* **ci:** repin the internal updater with the org token
+* **cloud:** keep the dispatcher account for a dispatched Cloud Apply
+* **cloud:** serve Cloud identity on the bound subdomain prefix
+* **runtime:** resolve the staticcheck correctness findings
+* **security:** reject option-shaped SSH destinations from StackActions
+
 ## [0.38.1](https://github.com/kombifyio/StackKits/compare/v0.38.0...v0.38.1) (2026-09-22)
 
 

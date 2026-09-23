@@ -33,7 +33,7 @@ public key on the execution-channel Linux account.`,
 				}
 				return fmt.Errorf("host prepare is for Cloud Kit workspaces; this workspace selected %q", kit)
 			}
-			if err := runtimeexecutorlocal.PrepareCloudExecutionChannel(cmd.Context(), workspace); err != nil {
+			if err := runtimeexecutorlocal.PrepareCloudExecutionChannel(cmd.Context(), workspace, false); err != nil {
 				return err
 			}
 			if !humanOutputSuppressed() {

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/localowner"
@@ -63,8 +64,12 @@ func (o *osCloudCoreOperations) ApplyProject(ctx context.Context, project CloudC
 	if err := o.validateModule(project); err != nil {
 		return CloudCoreApplyObservation{}, err
 	}
-	if _, err := localevidence.LoadCloudRuntimeCustody(o.workspaceRoot); err != nil {
+	custody, err := localevidence.LoadCloudRuntimeCustody(o.workspaceRoot)
+	if err != nil {
 		return CloudCoreApplyObservation{}, fmt.Errorf("verify Cloud runtime custody before Apply: %w", err)
+	}
+	if err := requireCloudIdentityAddress(custody, project.Definition); err != nil {
+		return CloudCoreApplyObservation{}, err
 	}
 	composePath, err := o.persistCompose(project)
 	if err != nil {
@@ -94,6 +99,24 @@ func (o *osCloudCoreOperations) ApplyProject(ctx context.Context, project CloudC
 		OwnerRef: binding.OwnerRef, PocketIDSubject: binding.PocketIDSubject,
 		OwnerBindingDigest: localevidence.OwnerRuntimeBindingDigest(binding),
 	}, nil
+}
+
+// requireCloudIdentityAddress keeps PocketID and TinyAuth on the hosts the
+// Compose routes serve. Init fixes their public URLs in runtime custody and
+// PocketID binds passkeys to that origin, so a later address is refused.
+func requireCloudIdentityAddress(custody localevidence.CloudRuntimeCustody, definition []byte) error {
+	domain, prefix, ok := architecturev2renderer.CloudComposeIdentityAddress(definition)
+	if !ok {
+		return errors.New("Cloud core Compose project has no PocketID route")
+	}
+	routed := localevidence.IdentityRuntimeAddress{Domain: domain, SubdomainPrefix: prefix}
+	if routed != custody.IdentityAddress() {
+		return fmt.Errorf(
+			"Cloud identity runtime was initialized for %s, but this plan routes PocketID to %s; run stackkit init with the address-bound StackSpec in a new workspace",
+			custody.IdentityAddress().PocketIDOrigin(), routed.PocketIDOrigin(),
+		)
+	}
+	return nil
 }
 
 func (o *osCloudCoreOperations) waitUntilReady(ctx context.Context, composePath string, project CloudCoreProject) error {
@@ -164,8 +187,12 @@ func (o *osCloudCoreOperations) VerifyProject(ctx context.Context, project Cloud
 	if err := o.validateModule(project); err != nil {
 		return CloudCoreVerifyObservation{}, err
 	}
-	if _, err := localevidence.LoadCloudRuntimeCustody(o.workspaceRoot); err != nil {
+	custody, err := localevidence.LoadCloudRuntimeCustody(o.workspaceRoot)
+	if err != nil {
 		return CloudCoreVerifyObservation{}, fmt.Errorf("verify Cloud runtime custody before observation: %w", err)
+	}
+	if err := requireCloudIdentityAddress(custody, project.Definition); err != nil {
+		return CloudCoreVerifyObservation{}, err
 	}
 	composePath := filepath.Join(o.workspaceRoot, ".stackkit", "runtime", o.name(), "compose.yaml")
 	content, err := readStablePrivateBasementRuntimeFile(o.workspaceRoot, composePath)

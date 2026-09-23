@@ -444,9 +444,15 @@ func executionChannelUserFromOwnerCustody(workspaceRoot string) string {
 
 // PrepareCloudExecutionChannel provisions the non-root execution-channel account
 // and workspace-custodied SSH key before Cloud host-security disables root
-// login. Installers and `stackkit host prepare` call this idempotently.
-func PrepareCloudExecutionChannel(ctx context.Context, workspaceRoot string) error {
-	operations, err := NewOSCloudHostSecurityOperations(workspaceRoot)
+// login. Installers and `stackkit host prepare` call this idempotently. A
+// dispatched Apply (see NewOSCloudHostSecurityOperationsForDispatchedChannel)
+// keeps the default execution account.
+func PrepareCloudExecutionChannel(ctx context.Context, workspaceRoot string, dispatched bool) error {
+	constructor := NewOSCloudHostSecurityOperations
+	if dispatched {
+		constructor = NewOSCloudHostSecurityOperationsForDispatchedChannel
+	}
+	operations, err := constructor(workspaceRoot)
 	if err != nil {
 		return err
 	}
@@ -463,7 +469,7 @@ func (o *osCloudHostSecurityOperations) preserveExecutionChannelAccount(ctx cont
 	if strings.TrimSpace(layout.user) == "" {
 		layout = defaultCloudHostSecurityExecutionLayout()
 	}
-	if layout.user == cloudHostSecurityExecutionUser {
+	if layout.user == cloudHostSecurityExecutionUser && !o.dispatchedChannel {
 		if owner := executionChannelUserFromOwnerCustody(o.workspaceRoot); owner != "" {
 			layout.user = owner
 		}

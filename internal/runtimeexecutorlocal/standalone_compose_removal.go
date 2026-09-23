@@ -1097,13 +1097,13 @@ func (r standaloneComposeRemover) containerIDAbsent(ctx context.Context, id stri
 	if err != nil {
 		return false, fmt.Errorf("observe admitted container absence: %w", err)
 	}
-	for _, actual := range strings.Fields(string(raw)) {
+	observed := strings.Fields(string(raw))
+	for _, actual := range observed {
 		if actual != id {
 			return false, errors.New("container absence readback escaped the exact identity filter")
 		}
-		return false, nil
 	}
-	return true, nil
+	return len(observed) == 0, nil
 }
 
 func (r standaloneComposeRemover) deleteOwnedVolumes(

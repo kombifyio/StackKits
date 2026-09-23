@@ -42,8 +42,14 @@ type osCloudHostSecurityOperations struct {
 	workspaceRoot string
 	runner        cloudHostSecurityProcessRunner
 	execution     cloudHostSecurityExecutionLayout
-	mu            sync.Mutex
-	now           func() time.Time
+	// dispatchedChannel marks an Apply that arrives through an
+	// Inventory-declared standard execution channel: a digest-pinned operations
+	// process (for example an orchestrator's node agent) already logs in as the
+	// default execution account. The Owner identity then belongs only to the
+	// PocketID owner binding, never to the Linux execution account name.
+	dispatchedChannel bool
+	mu                sync.Mutex
+	now               func() time.Time
 }
 
 // NewOSCloudHostSecurityOperations explicitly selects the local operating
@@ -51,6 +57,20 @@ type osCloudHostSecurityOperations struct {
 // executor does not grant this authority; product composition must opt in.
 func NewOSCloudHostSecurityOperations(workspaceRoot string) (*osCloudHostSecurityOperations, error) {
 	return newOSCloudHostSecurityOperations(workspaceRoot, osCloudHostSecurityProcessRunner{})
+}
+
+// NewOSCloudHostSecurityOperationsForDispatchedChannel selects the same owner
+// for an Apply dispatched through an Inventory-declared standard execution
+// channel. That channel's operations process keeps its own login account, so
+// host security preserves the default execution account instead of creating
+// one named after the Owner.
+func NewOSCloudHostSecurityOperationsForDispatchedChannel(workspaceRoot string) (*osCloudHostSecurityOperations, error) {
+	operations, err := NewOSCloudHostSecurityOperations(workspaceRoot)
+	if err != nil {
+		return nil, err
+	}
+	operations.dispatchedChannel = true
+	return operations, nil
 }
 
 func newOSCloudHostSecurityOperations(workspaceRoot string, runner cloudHostSecurityProcessRunner) (*osCloudHostSecurityOperations, error) {

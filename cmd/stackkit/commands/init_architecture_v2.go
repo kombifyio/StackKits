@@ -180,12 +180,14 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		}
 		printSuccess("Established local owner custody: %s", custody.OwnerRef)
 		if stackkitName == "basement-kit" || stackkitName == "cloud-kit" {
-			runtimeDomain, err := architectureV2CanonicalDomain(validation.CanonicalStackSpec)
+			runtimeAddress, err := architectureV2CanonicalAddress(validation.CanonicalStackSpec)
 			if err != nil {
 				return fmt.Errorf("read %s runtime domain: %w", stackkitName, err)
 			}
 			if stackkitName == "cloud-kit" {
-				runtimeCustody, err := localevidence.EstablishCloudRuntimeCustody(wd, runtimeDomain)
+				// The Cloud core routes flatten a bound prefix into every
+				// service host; PocketID and TinyAuth must serve the same hosts.
+				runtimeCustody, err := localevidence.EstablishCloudRuntimeCustody(wd, runtimeAddress)
 				if err != nil {
 					return fmt.Errorf("establish Cloud runtime custody: %w", err)
 				}
@@ -193,7 +195,7 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 			} else {
 				// 0 selects the kit human-issuer default from the CUE authority
 				// (basement-kit/stackfile.cue sessionTTLSeconds, currently 900).
-				runtimeCustody, err := localevidence.EstablishBasementRuntimeCustody(wd, runtimeDomain, 0)
+				runtimeCustody, err := localevidence.EstablishBasementRuntimeCustody(wd, runtimeAddress.Domain, 0)
 				if err != nil {
 					return fmt.Errorf("establish Basement runtime custody: %w", err)
 				}
@@ -293,22 +295,23 @@ func architectureV2RequireRealOwnerEmail(email string) error {
 	return nil
 }
 
-func architectureV2CanonicalDomain(canonicalStackSpec []byte) (string, error) {
+func architectureV2CanonicalAddress(canonicalStackSpec []byte) (localevidence.IdentityRuntimeAddress, error) {
 	var spec struct {
 		Network struct {
 			Domain struct {
-				Base string `json:"base"`
+				Base            string `json:"base"`
+				SubdomainPrefix string `json:"subdomainPrefix"`
 			} `json:"domain"`
 		} `json:"network"`
 	}
 	if err := json.Unmarshal(canonicalStackSpec, &spec); err != nil {
-		return "", err
+		return localevidence.IdentityRuntimeAddress{}, err
 	}
 	domain := strings.TrimSpace(spec.Network.Domain.Base)
 	if domain == "" {
-		return "", errors.New("canonical StackSpec is missing network.domain.base")
+		return localevidence.IdentityRuntimeAddress{}, errors.New("canonical StackSpec is missing network.domain.base")
 	}
-	return domain, nil
+	return localevidence.IdentityRuntimeAddress{Domain: domain, SubdomainPrefix: strings.TrimSpace(spec.Network.Domain.SubdomainPrefix)}, nil
 }
 
 func validateArchitectureV2InitFlags(cmd *cobra.Command) error {

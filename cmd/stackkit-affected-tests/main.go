@@ -439,7 +439,8 @@ func isGoTestName(name string) bool {
 
 // declarationFreeGoFiles returns changed Go files whose selected base revision
 // and current revision contain only a package clause, ordinary comments and
-// go:generate directives. Other compiler directives retain normal tests.
+// generate directives (go:generate). Other compiler directives retain normal
+// tests.
 // Read/parse failures or declarations on either side also retain normal tests.
 func declarationFreeGoFiles(repo, mergeBase string, files []string) []string {
 	result := []string{}

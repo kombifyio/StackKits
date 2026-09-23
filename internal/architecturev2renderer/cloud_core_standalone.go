@@ -231,18 +231,9 @@ func ExpectedCloudStandaloneCoreComposeArtifact() []byte {
 // ValidateCloudStandaloneCoreComposeArtifact validates both the standalone
 // graph and its resolved domain/prefix substitution.
 func ValidateCloudStandaloneCoreComposeArtifact(content []byte) bool {
-	match := regexp.MustCompile("routers[.]pocketid[.]rule=Host\\(`([a-z0-9.-]+)`\\)").FindSubmatch(content)
-	if len(match) != 2 {
+	domain, prefix, ok := CloudComposeIdentityAddress(content)
+	if !ok {
 		return false
-	}
-	host := string(match[1])
-	domain, prefix := strings.TrimPrefix(host, "id."), ""
-	if domain == host {
-		separator := strings.Index(host, "-id.")
-		if separator < 1 {
-			return false
-		}
-		prefix, domain = host[:separator], host[separator+4:]
 	}
 	expected := RenderCloudStandaloneCoreComposeForAddress(domain, prefix)
 	core, err := localbackuppolicy.GovernedSourceForCoreModule(cloudStandaloneCoreModuleID)
