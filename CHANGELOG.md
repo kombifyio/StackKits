@@ -10,6 +10,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 * **photos:** keep Apply and restore available when optional machine learning is degraded, while reporting its health and retaining blocking checks for core services
 
+## [0.39.3](https://github.com/kombifyio/StackKits/compare/v0.39.2...v0.39.3) (2026-09-23)
+
+
+### Fixed
+
+* **upgrade:** validate shadow Owner custody before target execution
+
 ## [0.39.2](https://github.com/kombifyio/StackKits/compare/v0.39.1...v0.39.2) (2026-09-23)
 
 

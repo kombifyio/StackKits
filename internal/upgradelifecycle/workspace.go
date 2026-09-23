@@ -30,11 +30,15 @@ func copyWorkspace(source, target string, maxFiles int, maxBytes int64) error {
 			return nil
 		}
 		portable := filepath.ToSlash(relative)
+		// Target generation needs the same verified Owner custody to sign its
+		// shadow artifacts. Prior mutation and upgrade journals are bound to the
+		// source workspace and must not be replayed in this disposable root.
 		if portable == ".git" || strings.HasPrefix(portable, ".git/") ||
 			portable == ".stackkit/releases" || strings.HasPrefix(portable, ".stackkit/releases/") ||
 			portable == ".stackkit/logs" || strings.HasPrefix(portable, ".stackkit/logs/") ||
 			portable == ".stackkit/evidence" || strings.HasPrefix(portable, ".stackkit/evidence/") ||
-			portable == ".stackkit/custody" || strings.HasPrefix(portable, ".stackkit/custody/") {
+			portable == ".stackkit/upgrades" || strings.HasPrefix(portable, ".stackkit/upgrades/") ||
+			portable == ".stackkit/lifecycle-mutations" || strings.HasPrefix(portable, ".stackkit/lifecycle-mutations/") {
 			if info.IsDir() {
 				return filepath.SkipDir
 			}

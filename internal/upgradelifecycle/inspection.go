@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )
@@ -175,6 +176,9 @@ func (inspector Inspector) Inspect(ctx context.Context, resolution releaseindex.
 		}
 		if err := copyWorkspace(workspace, shadow, maxFiles, maxWorkspace); err != nil {
 			return fmt.Errorf("create bounded shadow workspace: %w", err)
+		}
+		if _, err := localevidence.LoadOwnerCustody(shadow); err != nil {
+			return fmt.Errorf("verify shadow Owner custody before target execution: %w", err)
 		}
 
 		runCtx, cancel := context.WithTimeout(ctx, inspector.Timeout)
