@@ -282,7 +282,7 @@ if [ -z "$INSTALL_MODE" ]; then
   fi
 fi
 if [ "$INSTALL_MODE" != "auto" ] && ! can_prompt; then
-  die "STACKKIT_INSTALL_MODE=$INSTALL_MODE needs an interactive terminal. Without one, run the auto mode or drive the CLI directly: stackkit init basement-kit --catalog-defaults --non-interactive --owner-source=local && stackkit generate && stackkit apply --auto-approve"
+  die "STACKKIT_INSTALL_MODE=$INSTALL_MODE needs an interactive terminal. Without one, run the auto mode or drive the CLI directly: stackkit init basement-kit --catalog-defaults --non-interactive --owner-source=local --owner-email you@example.com && stackkit generate && stackkit apply --auto-approve"
 fi
 info "Install mode: $INSTALL_MODE"
 

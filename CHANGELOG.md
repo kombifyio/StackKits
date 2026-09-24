@@ -13,6 +13,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
 
+## [0.39.8](https://github.com/kombifyio/StackKits/compare/v0.39.7...v0.39.8) (2026-09-24)
+
+
+### Fixed
+
+* **website:** restore Logo Link, runnable init hints and Markdown-only agent prompt headers
+
 ## [0.39.7](https://github.com/kombifyio/StackKits/compare/v0.39.6...v0.39.7) (2026-09-24)
 
 
