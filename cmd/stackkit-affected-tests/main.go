@@ -113,6 +113,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		ChangedFiles:         changed,
 		CoreCUERoots:         existingCoreCUERoots(repo),
 		StatusSurfaceGate:    statusSurfaceGate,
+		WebsiteSource:        websiteSourcePresent(repo),
 		GoPackages:           packages,
 		MaxReverse:           opts.maxReverse,
 		GoListWarning:        goListWarning,
@@ -212,6 +213,11 @@ func statusSurfaceGateAvailability(repo string) (bool, error) {
 		return false, fmt.Errorf("private status-surface contract is incomplete: missing %s", strings.Join(missing, ", "))
 	}
 	return true, nil
+}
+
+func websiteSourcePresent(repo string) bool {
+	_, err := os.Stat(filepath.Join(repo, "website", "package.json"))
+	return err == nil
 }
 
 func existingCoreCUERoots(repo string) []string {

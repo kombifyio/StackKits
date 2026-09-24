@@ -106,7 +106,7 @@ archives:
         info:
           mode: 0755
       - README.md
-      - LICENSE
+      - LICENSING.md
       - LICENSE-APACHE
       - LICENSE-GPL-3.0-or-later
       - docs/CLI.md
@@ -163,7 +163,7 @@ archives:
         info:
           mode: 0755
       - README.md
-      - LICENSE
+      - LICENSING.md
       - LICENSE-APACHE
       - LICENSE-GPL-3.0-or-later
       - docs/CLI.md
@@ -217,7 +217,7 @@ archives:
         info:
           mode: 0755
       - README.md
-      - LICENSE
+      - LICENSING.md
       - LICENSE-APACHE
       - LICENSE-GPL-3.0-or-later
       - docs/CLI.md
@@ -271,7 +271,7 @@ archives:
         info:
           mode: 0755
       - README.md
-      - LICENSE
+      - LICENSING.md
       - LICENSE-APACHE
       - LICENSE-GPL-3.0-or-later
       - docs/CLI.md
@@ -314,8 +314,8 @@ nfpms:
     section: utils
     priority: optional
     contents:
-      - src: LICENSE
-        dst: /usr/share/doc/kombify-stackkits/LICENSE
+      - src: LICENSING.md
+        dst: /usr/share/doc/kombify-stackkits/LICENSING.md
         type: doc
       - src: LICENSE-APACHE
         dst: /usr/share/doc/kombify-stackkits/LICENSE-APACHE

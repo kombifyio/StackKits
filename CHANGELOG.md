@@ -13,6 +13,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
 
+## [0.39.9](https://github.com/kombifyio/StackKits/compare/v0.39.8...v0.39.9) (2026-09-24)
+
+
+### Fixed
+
+* **ci:** skip website checks where website/ is not shipped
+* **launch:** stackkit.cc and v0.39.7 release-asset fixes for the live public beta
+
 ## [0.39.8](https://github.com/kombifyio/StackKits/compare/v0.39.7...v0.39.8) (2026-09-24)
 
 

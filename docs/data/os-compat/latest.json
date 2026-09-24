@@ -172,18 +172,36 @@
     {
       "useCase": "media",
       "adapter": "standalone-compose",
-      "grade": "unverified",
-      "reasonCodes": [
-        "no-automated-lane"
-      ]
+      "grade": "supported",
+      "reasonCodes": [],
+      "verifiedPhases": [
+        "install",
+        "init",
+        "generate",
+        "apply",
+        "setup-media",
+        "verify",
+        "backup",
+        "restore"
+      ],
+      "lastVerifiedRelease": "v0.39.7"
     },
     {
       "useCase": "smart-home",
       "adapter": "standalone-compose",
-      "grade": "unverified",
-      "reasonCodes": [
-        "no-automated-lane"
-      ]
+      "grade": "supported",
+      "reasonCodes": [],
+      "verifiedPhases": [
+        "install",
+        "init",
+        "generate",
+        "apply",
+        "setup-smart-home",
+        "verify",
+        "backup",
+        "restore"
+      ],
+      "lastVerifiedRelease": "v0.39.7"
     }
   ],
   "environments": [

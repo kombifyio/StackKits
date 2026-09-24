@@ -1,4 +1,4 @@
-# Dual License: Apache 2.0 + GPLv3
+# Licensing: Apache-2.0 OR GPL-3.0-or-later
 
 Copyright (c) 2024-2026 kombify
 

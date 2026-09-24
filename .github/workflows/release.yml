@@ -305,6 +305,9 @@ jobs:
       }}
     runs-on: ubuntu-24.04
     timeout-minutes: 2
+    permissions:
+      actions: write
+      contents: write
     steps:
       - name: Publish the source- and artifact-verified release
         shell: bash
@@ -318,6 +321,20 @@ jobs:
             --draft=false \
             --prerelease=false \
             --latest
+
+      # A release published with github.token emits no `release: published`
+      # workflow event, so the image workflow must be dispatched explicitly.
+      - name: Dispatch the release image for the published tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh workflow run publish-image.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$TAG" \
+            -f "tag=$TAG"
 
   runtime-e2e:
     name: Prove exact stable Day-2 Basement archive

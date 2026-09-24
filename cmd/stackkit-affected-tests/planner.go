@@ -265,11 +265,14 @@ type goPackage struct {
 }
 
 type plannerInput struct {
-	BaseRef              string
-	MergeBase            string
-	ChangedFiles         []string
-	CoreCUERoots         []string
-	StatusSurfaceGate    bool
+	BaseRef           string
+	MergeBase         string
+	ChangedFiles      []string
+	CoreCUERoots      []string
+	StatusSurfaceGate bool
+	// WebsiteSource is false in the curated public export, which ships the
+	// installers but not website/ or its dependency scripts.
+	WebsiteSource        bool
 	GoPackages           []goPackage
 	MaxReverse           int
 	GoListWarning        string
@@ -458,7 +461,7 @@ func buildPlan(input plannerInput) testPlan {
 		})
 	}
 
-	if classes.Website {
+	if classes.Website && input.WebsiteSource {
 		commands = append(commands,
 			testCommand{
 				Kind:   "website",
@@ -559,6 +562,9 @@ func buildPlan(input plannerInput) testPlan {
 		})
 	}
 	warnings := []string{}
+	if classes.Website && !input.WebsiteSource {
+		warnings = append(warnings, "website checks are not applicable to a repository surface without website/")
+	}
 	if statusSurfacesChanged && !input.StatusSurfaceGate {
 		warnings = append(warnings, "private-only status-surface gate is not applicable to this curated repository surface")
 	}

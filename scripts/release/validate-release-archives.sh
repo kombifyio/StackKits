@@ -75,7 +75,7 @@ check_archive_contents() {
     tofu \
     terramate \
     README.md \
-    LICENSE \
+    LICENSING.md \
     LICENSE-APACHE \
     LICENSE-GPL-3.0-or-later \
     cue.mod/module.cue \
