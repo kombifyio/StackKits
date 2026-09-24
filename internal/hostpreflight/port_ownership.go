@@ -1,6 +1,7 @@
 package hostpreflight
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/netip"
@@ -290,8 +291,17 @@ func runtimeConfigHashWithFile(ctx context.Context, root, runtimeDir, composePat
 	if projectDirectory {
 		args = append(args, "--project-directory", runtimeDir)
 	}
-	args = append(args, "-f", composePath, "config", "--hash", service)
-	raw, ok := boundedDockerOutput(ctx, runtimeDir, environment, args...)
+	// Compose's config --hash does not resolve env_file the same way as up:
+	// its hash can differ from the running container's config-hash label even
+	// when both use this exact definition. Resolve the complete model first,
+	// then hash that model without persisting its secret environment values.
+	args = append(args, "-f", composePath, "config")
+	resolved, ok := boundedDockerOutput(ctx, runtimeDir, environment, args...)
+	if !ok || len(resolved) == 0 {
+		return "", false
+	}
+	raw, ok := boundedDockerOutputWithInput(ctx, runtimeDir, environment, resolved,
+		"compose", "--project-name", project, "-f", "-", "config", "--hash", service)
 	fields := strings.Fields(string(raw))
 	if !ok || len(fields) != 2 || fields[0] != service || len(fields[1]) != 64 {
 		return "", false
@@ -305,12 +315,19 @@ func runtimeConfigHashWithFile(ctx context.Context, root, runtimeDir, composePat
 }
 
 func boundedDockerOutput(ctx context.Context, directory string, environment []string, args ...string) ([]byte, bool) {
+	return boundedDockerOutputWithInput(ctx, directory, environment, nil, args...)
+}
+
+func boundedDockerOutputWithInput(ctx context.Context, directory string, environment []string, input []byte, args ...string) ([]byte, bool) {
 	bounded, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
 	command := exec.CommandContext(bounded, "docker", args...) //nolint:gosec // fixed command plus validated Docker object/port data
 	command.Dir = directory
 	if environment != nil {
 		command.Env = environment
+	}
+	if input != nil {
+		command.Stdin = bytes.NewReader(input)
 	}
 	output, err := command.Output()
 	return output, err == nil && len(output) <= 1<<20 && bounded.Err() == nil
