@@ -72,13 +72,19 @@ func continueNativeV2BackupProduction(
 	case nativeV2BackupRun:
 		operationContext, cancel := nativeV2BackupOperationContext(ctx, backupLongOperationTimeout)
 		defer cancel()
-		return service.Run(operationContext, backuplifecycle.RunInput{
-			OwnerRef:       authority.OwnerRef,
-			AuthorityRef:   authority.AuthorityRef,
-			Lineage:        authority.Lineage,
-			PolicyArtifact: append([]byte(nil), authority.PolicyArtifact...),
-			OperationID:    request.OperationID,
+		var anchor any
+		err := withGameServersHeld(ctx, authority.WorkspaceRoot, false, func() error {
+			var runErr error
+			anchor, runErr = service.Run(operationContext, backuplifecycle.RunInput{
+				OwnerRef:       authority.OwnerRef,
+				AuthorityRef:   authority.AuthorityRef,
+				Lineage:        authority.Lineage,
+				PolicyArtifact: append([]byte(nil), authority.PolicyArtifact...),
+				OperationID:    request.OperationID,
+			})
+			return runErr
 		})
+		return anchor, err
 	case nativeV2BackupRestore:
 		operationContext, cancel := nativeV2BackupOperationContext(ctx, backupLongOperationTimeout)
 		defer cancel()

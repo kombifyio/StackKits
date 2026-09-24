@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "2c0e74dcd5fa5fcb1ba590f96f8f7708229d6333",
-  "authority_bundle_sha256": "0a2935d86f698c15ab87ee7bd759e28d2e04dba1c272ea5e46884c6b30010d2f",
+  "source_sha": "5787b51ce58bae869f8a25c6ce156bd316ff4086",
+  "authority_bundle_sha256": "b93d337a3757af46e84523ccb5b69523c0b46dee802eda6dbaacf44c82b9469a",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -29,7 +29,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent, the hub and the StackKits server with its MCP endpoint using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -49,6 +49,7 @@
                 "pocketid",
                 "router",
                 "socket-proxy",
+                "stackkit-server",
                 "step-ca",
                 "tinyauth"
               ],
@@ -56,7 +57,7 @@
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "2ab670d92f50464fd1b09a9488ddd42934f7a94dcab94ac6f9684cd6cf7dc1ff"
+              "profile_sha256": "38e638ea65c77fd66939b0a83334bd7d56655bbeac5aeb4221153277a4a59f2b"
             },
             {
               "id": "standard",
@@ -64,7 +65,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent, the hub and the StackKits server with its MCP endpoint using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -84,6 +85,7 @@
                 "pocketid",
                 "router",
                 "socket-proxy",
+                "stackkit-server",
                 "step-ca",
                 "tinyauth"
               ],
@@ -91,7 +93,7 @@
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "c981d2ec760cd4bb2cd9319ede8819f526a8c1c6589f62a681504cd7ddae0a3c"
+              "profile_sha256": "5270dcfce467fac0a6a63696fad809343342709d768cb4a03381035c047f33e6"
             },
             {
               "id": "high",
@@ -99,7 +101,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent, the hub and the StackKits server with its MCP endpoint using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -119,6 +121,7 @@
                 "pocketid",
                 "router",
                 "socket-proxy",
+                "stackkit-server",
                 "step-ca",
                 "tinyauth"
               ],
@@ -126,7 +129,7 @@
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "edcd3410f052ca1c2ae37d5654509a95ac38257b42c15720a8a33f5934f0a4ea"
+              "profile_sha256": "90c6e4ab2a11d8125ac203ee85127ecfbee6df1ea969fb69db4fe4b7757ecd62"
             }
           ],
           "storage_profiles": [],
@@ -150,7 +153,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent, the hub and the StackKits server with its MCP endpoint. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -174,12 +177,13 @@
                 "pocketid",
                 "router",
                 "socket-proxy",
+                "stackkit-server",
                 "step-ca",
                 "tinyauth"
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "970655524705f95579e2f7ac8533cf03a697fe5a899630452de2f9f53bfda139"
+              "profile_sha256": "8357a34440510df8e44ea55bd523c9aa7ba5c1f598e9e16f1dd7fb54bcfa03fb"
             },
             {
               "id": "high",
@@ -187,7 +191,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent, the hub and the StackKits server with its MCP endpoint. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -211,12 +215,13 @@
                 "pocketid",
                 "router",
                 "socket-proxy",
+                "stackkit-server",
                 "step-ca",
                 "tinyauth"
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "23178dd4d2ddb4f2bee85fe582606173784a451212b940c9d4a3e692642f3b43"
+              "profile_sha256": "11080957497bbd508041238383cd3320e36d9023badc9150ff9a6b1e783ad0ce"
             }
           ],
           "storage_profiles": [],
@@ -1464,7 +1469,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Cloud routing, owner identity, application management and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
+              "description": "Cloud routing, owner identity, application management, the hub and the StackKits server with its MCP endpoint. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1486,11 +1491,12 @@
                 "pocketid",
                 "router",
                 "socket-proxy",
+                "stackkit-server",
                 "tinyauth"
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "28030ce550cf82706713ccb312ac95c370eadbdd73374743c019fba31a17603e"
+              "profile_sha256": "82940841b8e1fa46d7e5a659ebb2aed4875e33a1d4c6ed36e9d5b76520b3dcd6"
             },
             {
               "id": "high",
@@ -1498,7 +1504,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Cloud routing, owner identity, application management and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
+              "description": "Cloud routing, owner identity, application management, the hub and the StackKits server with its MCP endpoint. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1520,11 +1526,12 @@
                 "pocketid",
                 "router",
                 "socket-proxy",
+                "stackkit-server",
                 "tinyauth"
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "dfe59a6ced2383b1cf47956b872c8f6da6b85fb9011ee4f26eb7554735b81b74"
+              "profile_sha256": "dfc59a30807fed8e4996349eb7f3f8d45536bd72a013c31bc8ccf824e73d9d9d"
             }
           ],
           "storage_profiles": [],
@@ -1548,7 +1555,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Cloud routing, owner identity, public edge and the hub using standalone Compose. Coolify and Komodo are omitted; public TLS, offsite backup and provider lifecycle remain separately owned contracts.",
+              "description": "Cloud routing, owner identity, public edge, the hub and the StackKits server with its MCP endpoint using standalone Compose. Coolify and Komodo are omitted; public TLS, offsite backup and provider lifecycle remain separately owned contracts.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1567,13 +1574,14 @@
                 "pocketid",
                 "router",
                 "socket-proxy",
+                "stackkit-server",
                 "tinyauth"
               ],
               "capabilities": [],
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "ef89142bd5a62852f5f274f141beaeab72ec89f2729182c72e76927ca823e966"
+              "profile_sha256": "338845eecf0147e1d116838541540994c57d7b3043e4caa2a2d315cbc307be10"
             },
             {
               "id": "high",
@@ -1581,7 +1589,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Cloud routing, owner identity, public edge and the hub using standalone Compose. Coolify and Komodo are omitted; public TLS, offsite backup and provider lifecycle remain separately owned contracts.",
+              "description": "Cloud routing, owner identity, public edge, the hub and the StackKits server with its MCP endpoint using standalone Compose. Coolify and Komodo are omitted; public TLS, offsite backup and provider lifecycle remain separately owned contracts.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1600,13 +1608,14 @@
                 "pocketid",
                 "router",
                 "socket-proxy",
+                "stackkit-server",
                 "tinyauth"
               ],
               "capabilities": [],
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "06d82a11934d9cd11b59ca977bb29eb6311da95a2c390aec4a30a35059dd1969"
+              "profile_sha256": "a1a18642e90a17892da7cb17b7beab3c14da138cee903f3e9b8f7c792c62b745"
             }
           ],
           "storage_profiles": [],
@@ -2850,7 +2859,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent, the hub and the StackKits server with its MCP endpoint using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -2870,6 +2879,7 @@
                 "pocketid",
                 "router",
                 "socket-proxy",
+                "stackkit-server",
                 "step-ca",
                 "tinyauth"
               ],
@@ -2877,7 +2887,7 @@
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "2ab670d92f50464fd1b09a9488ddd42934f7a94dcab94ac6f9684cd6cf7dc1ff"
+              "profile_sha256": "38e638ea65c77fd66939b0a83334bd7d56655bbeac5aeb4221153277a4a59f2b"
             },
             {
               "id": "standard",
@@ -2885,7 +2895,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent, the hub and the StackKits server with its MCP endpoint using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -2905,6 +2915,7 @@
                 "pocketid",
                 "router",
                 "socket-proxy",
+                "stackkit-server",
                 "step-ca",
                 "tinyauth"
               ],
@@ -2912,7 +2923,7 @@
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "c981d2ec760cd4bb2cd9319ede8819f526a8c1c6589f62a681504cd7ddae0a3c"
+              "profile_sha256": "5270dcfce467fac0a6a63696fad809343342709d768cb4a03381035c047f33e6"
             },
             {
               "id": "high",
@@ -2920,7 +2931,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent, the hub and the StackKits server with its MCP endpoint using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -2940,6 +2951,7 @@
                 "pocketid",
                 "router",
                 "socket-proxy",
+                "stackkit-server",
                 "step-ca",
                 "tinyauth"
               ],
@@ -2947,7 +2959,7 @@
               "degradations": [
                 "paas-management-omitted"
               ],
-              "profile_sha256": "edcd3410f052ca1c2ae37d5654509a95ac38257b42c15720a8a33f5934f0a4ea"
+              "profile_sha256": "90c6e4ab2a11d8125ac203ee85127ecfbee6df1ea969fb69db4fe4b7757ecd62"
             }
           ],
           "storage_profiles": [],
@@ -2971,7 +2983,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent, the hub and the StackKits server with its MCP endpoint. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -2995,12 +3007,13 @@
                 "pocketid",
                 "router",
                 "socket-proxy",
+                "stackkit-server",
                 "step-ca",
                 "tinyauth"
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "970655524705f95579e2f7ac8533cf03a697fe5a899630452de2f9f53bfda139"
+              "profile_sha256": "8357a34440510df8e44ea55bd523c9aa7ba5c1f598e9e16f1dd7fb54bcfa03fb"
             },
             {
               "id": "high",
@@ -3008,7 +3021,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
+              "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent, the hub and the StackKits server with its MCP endpoint. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -3032,12 +3045,13 @@
                 "pocketid",
                 "router",
                 "socket-proxy",
+                "stackkit-server",
                 "step-ca",
                 "tinyauth"
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "23178dd4d2ddb4f2bee85fe582606173784a451212b940c9d4a3e692642f3b43"
+              "profile_sha256": "11080957497bbd508041238383cd3320e36d9023badc9150ff9a6b1e783ad0ce"
             }
           ],
           "storage_profiles": [],
@@ -4755,6 +4769,53 @@
       "owner_approval": true
     },
     {
+      "id": "stackkit.game.allow",
+      "tool_name": "stackkit_game_allow",
+      "title": "Admit game player",
+      "description": "Admit one player on a StackKits allow-list game server and read the game's allow list back.",
+      "command": [
+        "game",
+        "allow",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.game.list",
+      "tool_name": "stackkit_game_list",
+      "title": "List game servers",
+      "description": "List the owner's game servers on the installed Game workload with state and port.",
+      "command": [
+        "game",
+        "list",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.game.power",
+      "tool_name": "stackkit_game_power",
+      "title": "Game server power",
+      "description": "Start, stop or restart one game server and wait for the observed state.",
+      "command": [
+        "game",
+        "power",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
       "id": "stackkit.generate",
       "tool_name": "stackkit_generate",
       "title": "Generate",
@@ -5421,5 +5482,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "c89eb5595e1bf5d7acb68cd2e692dcb90513c1c9260049c5198a7f14d9a36d57"
+  "catalog_sha256": "4fcad2b4d996e4e7607d12a5515653c2a02c765d492ed762699ae119e43719be"
 }

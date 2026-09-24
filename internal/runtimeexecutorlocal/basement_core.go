@@ -429,6 +429,8 @@ var basementCoreHealthSpecs = []basementCoreHealthSpec{
 	{source: "coolify-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/", port: 8000, timeout: 30, statuses: []int{200, 302}},
 	{source: "local-kopia-runtime-container", kind: "container", targetKind: "module", targetRef: basementCoreModuleRef},
 	{source: "pocketid-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/", port: 1411, timeout: 30, statuses: []int{200, 302}},
+	{source: "stackkit-mcp-route", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/api/http/routers/stackkit-mcp@docker", port: 8080, timeout: 30, statuses: []int{200}},
+	{source: "stackkit-server-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/health", port: 8082, timeout: 30, statuses: []int{200}},
 	{source: "step-ca-tcp", kind: "tcp", targetKind: "module", targetRef: basementCoreModuleRef, port: 9000, timeout: 30},
 	{source: "tinyauth-http", kind: "http", targetKind: "module", targetRef: basementCoreModuleRef, path: "/", port: 4000, timeout: 30, statuses: []int{200, 302}},
 }

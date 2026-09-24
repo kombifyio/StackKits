@@ -19,9 +19,9 @@ func ComposeInterpolationEnvironment(workspaceRoot string) ([]string, error) {
 	if email == "" {
 		return nil, errors.New("owner custody carries no contact email for Compose interpolation")
 	}
-	return []string{
+	return append([]string{
 		"LANG=C", "LC_ALL=C",
 		"STACKKIT_CUSTODY_DIR=" + filepath.Join(workspaceRoot, ".stackkit", "custody"),
 		"STACKKIT_OWNER_EMAIL=" + email,
-	}, nil
+	}, StackKitServerComposeEnvironment(workspaceRoot)...), nil
 }

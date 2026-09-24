@@ -78,11 +78,16 @@ type ExecutorStateBlob struct {
 
 type ExecutorStateExecutableInput struct {
 	Blob ExecutorStateBlobInput
+	// Server is the release's stackkit-server. The v2 Core stages it from
+	// beside the executing stackkit, so a recovery Apply needs it too.
+	// Releases that predate the Core server ship none.
+	Server *ExecutorStateBlobInput
 }
 
 type ExecutorStateExecutable struct {
-	Version string            `json:"version"`
-	Blob    ExecutorStateBlob `json:"blob"`
+	Version string             `json:"version"`
+	Blob    ExecutorStateBlob  `json:"blob"`
+	Server  *ExecutorStateBlob `json:"server,omitempty"`
 }
 
 type ExecutorStateCaptureInput struct {
@@ -393,6 +398,9 @@ func prepareExecutorStateSnapshot(
 		return ExecutorStateSnapshot{}, nil, err
 	}
 	payloadInputs := []ExecutorStateBlobInput{input.Executable.Blob, input.StackSpec}
+	if input.Executable.Server != nil {
+		payloadInputs = append(payloadInputs, *input.Executable.Server)
+	}
 	if input.Inventory != nil {
 		payloadInputs = append(payloadInputs, *input.Inventory)
 	}
@@ -433,6 +441,15 @@ func prepareExecutorStateSnapshot(
 	}
 	stackSpec := payloads[1].identity
 	index := 2
+	var server *ExecutorStateBlob
+	if input.Executable.Server != nil {
+		value := payloads[index].identity
+		if value.Path != executorStateServerExecutablePath(release.Platform) || value.Mode != "0755" {
+			return ExecutorStateSnapshot{}, nil, errors.New("executor state: recovery stackkit-server path or mode differs from its release platform")
+		}
+		server = &value
+		index++
+	}
 	var inventory *ExecutorStateBlob
 	if input.Inventory != nil {
 		value := payloads[index].identity
@@ -481,7 +498,7 @@ func prepareExecutorStateSnapshot(
 		CoreComposeArtifactID: strings.TrimSpace(input.CoreComposeArtifactID),
 		CorePolicyArtifactID:  strings.TrimSpace(input.CorePolicyArtifactID),
 		Executable: ExecutorStateExecutable{
-			Version: release.Version, Blob: executable,
+			Version: release.Version, Blob: executable, Server: server,
 		},
 		Lineage: input.Lineage, StackSpec: stackSpec, Inventory: inventory,
 		Artifacts: artifacts, RuntimeCompose: runtimeCompose,
@@ -552,7 +569,10 @@ func (store ExecutorStateStore) verifySnapshot(
 	if !executorStateVersionPattern.MatchString(snapshot.Executable.Version) ||
 		snapshot.Executable.Version != snapshot.Release.Version ||
 		snapshot.Executable.Blob.Path != executorStateExecutablePath(snapshot.Release.Platform) ||
-		snapshot.Executable.Blob.Mode != "0755" {
+		snapshot.Executable.Blob.Mode != "0755" ||
+		(snapshot.Executable.Server != nil &&
+			(snapshot.Executable.Server.Path != executorStateServerExecutablePath(snapshot.Release.Platform) ||
+				snapshot.Executable.Server.Mode != "0755")) {
 		return errors.New("executor state: executor or Owner lineage is invalid")
 	}
 	requestHash, err := executorStateRequestHash(snapshot)
@@ -645,6 +665,9 @@ func (store ExecutorStateStore) verifySnapshot(
 
 func executorStateBlobs(snapshot ExecutorStateSnapshot) []ExecutorStateBlob {
 	result := []ExecutorStateBlob{snapshot.Executable.Blob, snapshot.StackSpec}
+	if snapshot.Executable.Server != nil {
+		result = append(result, *snapshot.Executable.Server)
+	}
 	if snapshot.Inventory != nil {
 		result = append(result, *snapshot.Inventory)
 	}
@@ -672,14 +695,18 @@ func validateExecutorStateRelease(release ExecutorStateRelease) error {
 	return nil
 }
 
+// verifyExecutorStateReleaseProof binds the captured executables to the
+// verified installed release. A release that ships stackkit-server must be
+// captured with exactly that server, so its recovery Apply can run the Core.
 func verifyExecutorStateReleaseProof(
 	proof releaseindex.VerifiedInstallation,
-	executableBytes []byte,
+	executable ExecutorStateExecutableInput,
 ) (ExecutorStateRelease, error) {
+	executableBytes := executable.Blob.Data
 	if len(executableBytes) == 0 || len(executableBytes) > executorStateMaxBlobBytes {
 		return ExecutorStateRelease{}, errors.New("executor state: exact recovery executable bytes are required")
 	}
-	release, archiveExecutable, err := inspectExecutorStateReleaseProof(proof)
+	release, archiveExecutable, archiveServer, err := inspectVerifiedReleaseExecutables(proof)
 	if err != nil {
 		return ExecutorStateRelease{}, err
 	}
@@ -688,26 +715,41 @@ func verifyExecutorStateReleaseProof(
 			"executor state: recovery executable differs from verified installed release",
 		)
 	}
+	var capturedServer []byte
+	if executable.Server != nil {
+		capturedServer = executable.Server.Data
+	}
+	if (archiveServer == nil) != (executable.Server == nil) || !bytes.Equal(archiveServer, capturedServer) {
+		return ExecutorStateRelease{}, errors.New(
+			"executor state: recovery stackkit-server differs from verified installed release",
+		)
+	}
 	return release, nil
 }
 
-// RecoveryExecutableFromVerifiedRelease returns the exact canonical stackkit
-// executable from an already offline-verified installed release proof.
-func RecoveryExecutableFromVerifiedRelease(
+// ReleaseExecutablesFromVerifiedRelease returns the exact stackkit and
+// stackkit-server executables of an offline-verified installed release. The
+// server is nil for a release that does not ship one. The v2 Core runs that
+// server, so an upgrade stages it beside the target stackkit executable.
+func ReleaseExecutablesFromVerifiedRelease(
 	proof releaseindex.VerifiedInstallation,
-) ([]byte, error) {
-	_, executable, err := inspectExecutorStateReleaseProof(proof)
-	if err != nil {
-		return nil, err
-	}
-	return executable, nil
+) (cli, server []byte, err error) {
+	_, cli, server, err = inspectVerifiedReleaseExecutables(proof)
+	return cli, server, err
 }
 
 func inspectExecutorStateReleaseProof(
 	proof releaseindex.VerifiedInstallation,
 ) (ExecutorStateRelease, []byte, error) {
+	release, executable, _, err := inspectVerifiedReleaseExecutables(proof)
+	return release, executable, err
+}
+
+func inspectVerifiedReleaseExecutables(
+	proof releaseindex.VerifiedInstallation,
+) (ExecutorStateRelease, []byte, []byte, error) {
 	var verifiedRelease ExecutorStateRelease
-	var verifiedExecutable []byte
+	var verifiedExecutable, verifiedServer []byte
 	err := proof.Inspect(func(
 		receipt releaseindex.Receipt,
 		asset releaseindex.Asset,
@@ -775,20 +817,32 @@ func inspectExecutorStateReleaseProof(
 		if err != nil {
 			return fmt.Errorf("executor state: read exact executable from verified release: %w", err)
 		}
+		server, err := os.ReadFile(filepath.Join(extractRoot, executorStateServerExecutablePath(release.Platform)))
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("executor state: read stackkit-server from verified release: %w", err)
+		}
 		verifiedRelease = release
 		verifiedExecutable = append([]byte(nil), archiveExecutable...)
+		verifiedServer = server
 		return nil
 	})
 	if err != nil {
-		return ExecutorStateRelease{}, nil, fmt.Errorf(
+		return ExecutorStateRelease{}, nil, nil, fmt.Errorf(
 			"executor state: verified installed release proof: %w", err,
 		)
 	}
-	return verifiedRelease, verifiedExecutable, nil
+	return verifiedRelease, verifiedExecutable, verifiedServer, nil
 }
 
 func executorStateReleaseDigest(raw string) string {
 	return "sha256:" + raw
+}
+
+func executorStateServerExecutablePath(platform releaseindex.Platform) string {
+	if platform.OS == "windows" {
+		return "stackkit-server.exe"
+	}
+	return "stackkit-server"
 }
 
 func executorStateExecutablePath(platform releaseindex.Platform) string {

@@ -278,11 +278,16 @@ func createPublicUpgradeSnapshot(
 	snapshotContext, cancelSnapshot := nativeV2BackupOperationContext(
 		ctx, backupLongOperationTimeout,
 	)
-	anchor, err := service.Run(snapshotContext, backuplifecycle.RunInput{
-		OwnerRef: authority.OwnerRef, AuthorityRef: authority.AuthorityRef,
-		Lineage: authority.Lineage, PolicyArtifact: append([]byte(nil), authority.PolicyArtifact...),
-		OperationID:     "backup-" + operationID,
-		ProtectRecovery: true,
+	var anchor backuplifecycle.SnapshotAnchor
+	err = withGameServersHeld(ctx, authority.WorkspaceRoot, false, func() error {
+		var runErr error
+		anchor, runErr = service.Run(snapshotContext, backuplifecycle.RunInput{
+			OwnerRef: authority.OwnerRef, AuthorityRef: authority.AuthorityRef,
+			Lineage: authority.Lineage, PolicyArtifact: append([]byte(nil), authority.PolicyArtifact...),
+			OperationID:     "backup-" + operationID,
+			ProtectRecovery: true,
+		})
+		return runErr
 	})
 	cancelSnapshot()
 	if err != nil {
@@ -485,7 +490,7 @@ func withPreparedPublicUpgradeCapture(
 		}); inspectErr != nil {
 			return inspectErr
 		}
-		executableBytes, executableErr := upgradelifecycle.RecoveryExecutableFromVerifiedRelease(proof)
+		executableBytes, serverBytes, executableErr := upgradelifecycle.ReleaseExecutablesFromVerifiedRelease(proof)
 		if executableErr != nil {
 			return executableErr
 		}
@@ -494,7 +499,7 @@ func withPreparedPublicUpgradeCapture(
 			Executable: upgradelifecycle.ExecutorStateExecutableInput{Blob: upgradelifecycle.ExecutorStateBlobInput{
 				ID: "stackkit", Path: executorRecoveryBinaryPath(currentReceipt.Platform),
 				Mode: "0755", Data: executableBytes,
-			}},
+			}, Server: executorRecoveryServerBlob(currentReceipt.Platform, serverBytes)},
 			Lineage: authority.Lineage,
 			StackSpec: upgradelifecycle.ExecutorStateBlobInput{
 				ID: "stack-spec", Path: filepath.ToSlash(specRelative), Mode: "0600",
@@ -661,6 +666,20 @@ func equalExactStrings(left, right []string) bool {
 		}
 	}
 	return true
+}
+
+// executorRecoveryServerBlob captures the release's stackkit-server beside
+// stackkit so a rollback Apply can run the v2 Core. Releases without one
+// return nil.
+func executorRecoveryServerBlob(platform releaseindex.Platform, data []byte) *upgradelifecycle.ExecutorStateBlobInput {
+	if len(data) == 0 {
+		return nil
+	}
+	path := "stackkit-server"
+	if platform.OS == "windows" {
+		path += ".exe"
+	}
+	return &upgradelifecycle.ExecutorStateBlobInput{ID: "stackkit-server", Path: path, Mode: "0755", Data: data}
 }
 
 func executorRecoveryBinaryPath(platform releaseindex.Platform) string {

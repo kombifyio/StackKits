@@ -1103,7 +1103,25 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		return options.applySink(applyOutput)
 	}
 	printSuccess("Architecture v2 Apply completed: %s", result.ResultHash())
+	printStackKitsMCPAccess(wd, access)
 	return nil
+}
+
+// printStackKitsMCPAccess tells the owner where the Core's MCP endpoint and
+// its apply-minted token are. It prints the token's location, never its value.
+func printStackKitsMCPAccess(wd string, access *accessSummary) {
+	tokenPath, err := localevidence.StackKitServerMCPTokenPath(wd)
+	if err != nil {
+		return
+	}
+	if _, err := os.Stat(tokenPath); err != nil {
+		return
+	}
+	endpoint := "POST /mcp on the base host"
+	if access != nil && strings.TrimSpace(access.HubURL) != "" {
+		endpoint = strings.TrimRight(access.HubURL, "/") + "/mcp"
+	}
+	printInfo("StackKits MCP: %s (send the token from %s as 'Authorization: Bearer <token>')", endpoint, tokenPath)
 }
 
 func (g architectureV2ExecutionGate) removeV2Workload(
@@ -1168,6 +1186,7 @@ func removeLabeledDockerResources(wd string, ctx context.Context, reason error) 
 		return fmt.Errorf("remove labeled Docker resources: %w", err)
 	}
 	cleanupFiles(wd, false)
+	removeCoreMCPCredentials(wd)
 	printSuccess("Removed labeled Docker resources in %s", wd)
 	return nil
 }

@@ -192,6 +192,19 @@ func (store ExecutorStateStore) prepareExecutorStateRecovery(
 	if err != nil {
 		return "", nil, err
 	}
+	// The recovered stackkit stages the Core's stackkit-server from beside
+	// itself, so the captured server is materialized next to it.
+	if snapshot.Executable.Server != nil {
+		server, err := readExecutorStateRecoveryBlob(transaction, *snapshot.Executable.Server)
+		if err != nil {
+			return "", nil, err
+		}
+		if _, err := materializeExecutorStateRecoveryExecutable(
+			tempRoot, *snapshot.Executable.Server, server,
+		); err != nil {
+			return "", nil, err
+		}
+	}
 	view, err := root.View(".")
 	if err != nil {
 		return "", nil, err

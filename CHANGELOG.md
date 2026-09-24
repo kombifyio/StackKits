@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+* **game:** `stackkit game list|power|allow` and the matching MCP tools operate game servers through the installed Panel with custody-derived keys, so neither the owner nor an agent handles a Panel key
+* **game:** backups and restores stop the owner's running game servers with their own stop command (so worlds are saved) and start them again afterwards; an interrupted hold is resumed by the next backup or restore
 * **game:** `stackkit setup game` runs the first steps of a real client join and prints the result: Minecraft Java must demand online-mode authentication, Bedrock must accept a RakNet connection, and Terraria must admit the owner's join password
 * **game:** curated Minecraft Paper, Terraria and Valheim profiles next to Minecraft Java and Bedrock; Terraria and Valheim require an owner-chosen join password, Valheim stays off the public list and crossplay, and each server is confirmed by its own protocol
 * **game:** `stackkit setup game` refuses a server the node's game memory cannot hold instead of overcommitting the host
@@ -31,7 +33,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
 
+## [0.46.1](https://github.com/kombifyio/StackKits/compare/v0.46.0...v0.46.1) (2026-09-24)
+
+
+### Fixed
+
+* **release:** keep the private ADR-0044 link out of the public export
+
+## [0.46.0] (2026-09-24)
+
+### Highlights
+
+* **Every installation runs its own StackKits MCP:** each Core now runs the StackKits server and publishes a token-protected `/mcp` endpoint on the base host through the existing router, so an AI agent can connect straight to the server. Apply creates the MCP token in the owner-only credential store, the endpoint rejects the API key and any unauthenticated call, and the server speaks the stateless MCP 2026-07-28 protocol.
+* **Game servers from the Panel:** the installed game Panel now drives the StackKits game server operations, so starting, stopping and managing game servers happens through one place.
+* **Safer game backups:** game servers are held stopped around backup and restore, so a backup or restore does not run against a live game world.
+
+
+### Added
+
+* **core:** run the StackKits server MCP on every installation and route /mcp
+* **game:** game server operations through the installed Panel
+* **game:** hold game servers stopped around backup and restore
+
+
+### Fixed
+
+* **release:** document the allowed path for corrected release-line notes
+
+
+### Documentation
+
+* **release:** publish corrected release-line notes through a patch release
+
 ## [0.45.0] (2026-09-24)
+
+### Highlights
+
+* **Game servers checked by a real client join:** `stackkit setup game` now runs the first steps of a real client join and prints the result. Minecraft Java and Paper must demand online-mode account authentication, Bedrock must accept a RakNet connection, and Terraria must admit the owner's join password.
+* **Game Panel fixes:** the Panel's live console reaches the game servers again. The Panel login no longer loads Google reCAPTCHA, which sent every owner login to Google and failed on offline home networks.
+* **Config changes reach running services:** when a generated config file changes, the standalone service that mounts it is now recreated. Before, the container kept the old file.
+* **Public releases resume:** no 0.44 release reached the public GitHub releases because the public export failed. 0.45.0 is the first public release since 0.43.0 and also carries the 0.44 line: every public CLI operation as an MCP tool or a listed exception, a dedicated MCP token, and host memory rounded to the nearest GiB so a 4 GB server meets a 4 GB minimum.
 
 
 ### Added
@@ -76,6 +117,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.44.0] (2026-09-24)
 
+### Highlights
+
+* **The CLI through MCP:** 58 more `stackkit` commands are MCP tools, covering host, service, user, identity, backup recovery, drift, logs, migration and support export. Every public command is now either a tool or a listed exception with a reason. Commands that would pass a secret value through an agent transcript, such as `secrets reveal`, stay CLI-only, and write tools keep the existing write switch and owner approval.
+* **A dedicated MCP token:** the HTTP MCP endpoint accepts only its own MCP token, no longer the API key. Without a configured token it refuses every request, also under `--allow-unauthenticated`, with an error that says how to set one; `STACKKIT_MCP_TOKEN_FILE` reads the token from a file. The endpoint serves the stateless MCP 2026-07-28 protocol.
+* **4 GB servers meet a 4 GB minimum:** installed memory is rounded to the nearest GiB instead of truncated, so a server sold as 4 GB (about 3.8 GiB visible to the system) is no longer refused by the Cloud Kit's 4 GB floor. Genuinely smaller hosts are still refused.
+* **First public release in 0.45.0:** the 0.44 releases did not reach the public GitHub releases; 0.44.2 to 0.44.4 repaired the public export, and these changes ship publicly in 0.45.0.
+
 
 ### Added
 
@@ -87,6 +135,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **mcp:** serve the stateless 2026-07-28 transport and require a dedicated MCP token
 
 ## [0.43.0] (2026-09-24)
+
+### Highlights
+
+* **More game servers:** `stackkit setup game` adds curated Minecraft Paper, Terraria and Valheim profiles next to Minecraft Java and Bedrock. Terraria and Valheim have no account allow list, so they require an owner-chosen join password; Valheim stays off the public server list and crossplay relays. Each server's readiness is checked with its own game protocol.
+* **No overcommitted game hosts:** setup refuses a server that the node's game memory cannot hold and keeps memory free for the platform, instead of letting several servers push the host into swapping.
 
 
 ### Added
@@ -107,12 +160,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.42.0] (2026-09-24)
 
+### Highlights
+
+* **Use cases grouped by what you want to do:** the use case catalog groups every use case under one of eleven main use cases, such as Photos, Documents & Files, Vault, Media, Smart Home and Game, and every entry links a guide on docs.kombify.io.
+* **Game backups restore:** `stackkit backup restore activate` now works for the Game use case, and an activation that fails before it starts is recorded as failed instead of leaving the workload waiting for a recovery that cannot run. Game worlds are backed up while the servers run, so a restored world is crash-consistent.
+
 
 ### Added
 
 * **catalog:** group use cases under the accepted main use cases and link every guide
 
 ## [0.41.0] (2026-09-24)
+
+### Highlights
+
+* **Game servers:** a new optional Game use case for the Basement, Cloud and Modern Homelab kits runs the Pterodactyl Panel with a Wings node. `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults (online mode, allow list, no RCON or operators), requires the owner to accept the Minecraft EULA, and checks readiness with a real server ping. Game worlds live in a normal backed-up volume.
+* **Cloud Kit on a public VPS graded supported:** the compatibility page grades the Cloud Kit on a public VPS as supported, from a managed run on a real Centron VPS with 0.39.7 that passed install, init, generate, apply, verify, backup and restore and then deleted the server. The Cloud Kit itself stays in preview.
+* **Smaller fixes:** the stackkit.cc mobile menu now dims the page and closes on tap, and the OpenTelemetry libraries move to 1.46.0 for a published security fix.
 
 
 ### Added
@@ -125,6 +189,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * launch-day polish and fewer wasted CI runs
 
 ## [0.40.0] (2026-09-24)
+
+### Highlights
+
+* **Cloud Kit public-VPS row from real provider runs:** the compatibility page can now grade the Cloud Kit on a public VPS from managed runs on real Centron and IONOS servers. Only runs that confirmed the server was deleted afterwards count. Until the first result is imported, the row says a result is pending instead of "not covered".
+* **Runnable commands on the kit pages:** the Basement Kit and Cloud Kit pages show a `stackkit init` command that works as printed (catalog defaults and a local owner email, plus a domain for the Cloud Kit) instead of a bare command that failed.
+* **The 0.39 patch fixes in one line:** upgrades from earlier releases, an HTTPS route for every selectable application, Photos that keep working while optional machine learning is degraded, and Cloud Kit restores that verify against the applied runtime.
 
 
 ### Added
@@ -216,6 +286,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.39.0] (2026-09-23)
 
+### Highlights
+
+* **Every application reachable:** Media, Smart Home, AI, Dev and Documents get the same HTTPS route and data binding as Photos, Files and Vault; before, they were installed but unreachable through the StackKit router. The compatibility page grades Media and Smart Home as supported from automated install-to-restore runs on 0.39.7.
+* **Upgrades from earlier releases:** `stackkit upgrade` and `stackkit kit list` no longer fail with `unexpected EOF` while listing releases. An upgrade validates the installed generation with the exact release that produced it and recognizes its own running services instead of reporting their ports as taken. CLIs up to 0.39.0 still carry the listing defect, so install a current CLI before you upgrade.
+* **Photos and Cloud Kit restores:** Photos keeps Apply and restore available while its optional machine learning is degraded, for example during first model downloads, and still reports its health. Cloud Kit restores are verified against the applied runtime and no longer fail on every run.
+* **Launch fixes:** installers and stackkit.cc print `stackkit init` commands that run as shown, the Cloud Kit page shows the Cloud addresses after install, every release publishes its container image, and GitHub detects the project license.
+
 
 ### Added
 
@@ -272,6 +349,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.38.0] (2026-09-20)
 
+### Highlights
+
+* **Owner passkey activation:** `stackkit user owner status` shows whether the owner passkey is still pending or registered, and `stackkit user owner activate` returns or reissues the one-time activation link after owner approval. Adding a household user can be repeated safely.
+* **Cloud Kit backups and sign-in:** backup configure, status and run work on the Cloud Kit because its PocketID owner is now bound. Owner login works when an install uses a subdomain prefix, and a Let's Encrypt rate limit is reported by name with its retry time instead of a generic HTTPS failure.
+* **Security fixes:** release builds move to Go 1.26.8 for published standard-library advisories, and SSH users, hosts and jump hosts that look like command-line options are rejected before any SSH call.
+* **Windows and API:** elevated Windows sessions can initialize a StackKit again, and the published OpenAPI contract includes the backup coverage and grant fields that every StackSpec carries.
+
 
 ### Added
 
@@ -291,6 +375,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **ci:** respect curated test capabilities
 
 ## [0.37.0] (2026-09-20)
+
+### Highlights
+
+* **Backup coverage groups:** a backup policy selects its data classes by group: `config`, `content` (adds databases, user content and documents) or `media` (adds photos and large media). An unset coverage resolves to `content`, so media is always an explicit choice. An optional grant caps coverage, cadence and retention; a standalone stack without one is bounded as before.
+* **Files catalog matches what runs:** Files no longer offers Nextcloud in the native catalogs, because only Cloudreve runs there; the v0.6 compatibility line keeps Nextcloud.
+* **Verify and removal fixes:** `stackkit verify` on the Cloud Kit no longer fails a healthy deployment because of backup contracts on the same runtime, and removing a workload on Windows records its evidence with portable paths.
 
 
 ### Added
@@ -325,6 +415,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.36.0] (2026-09-17)
 
+### Highlights
+
+* **Ubuntu 26.04 LTS as a compatibility target:** the compatibility page lists Ubuntu 26.04 LTS. Only automated lifecycle runs grade it, so it shows as unverified until one passes.
+* **Links to current docs:** the Node Hub and the use case catalog link each service and use case to its current page on docs.kombify.io instead of old or missing paths.
+* **Smaller fixes:** the stackkit.cc FAQ shows its list markers again, and `stackkit registry emit-mintlify`, which rendered nothing, is removed.
+
 
 ### Added
 
@@ -337,6 +433,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **website:** FAQ recipe refresh and plain-text entity decoding
 
 ## [0.35.0] (2026-09-17)
+
+### Highlights
+
+* **Backups on Debian 13:** `stackkit backup configure` works on Debian 13 with the distribution's Docker 26.1. A home-network lab run on a Debian 13 VM then passed install, init, generate, apply, verify, LAN access, backup and restore.
+* **More accurate compatibility grades:** a run that failed for infrastructure reasons, such as an image download or boot timeout, no longer demotes a passing row, and the reason names the first phase that did not pass. The documentation now shows compatibility evidence for the newest public release even when lifecycle runs finish after the release is published.
+* **FAQ on stackkit.cc:** the home page answers common questions, and [stackkit.cc/faq](https://stackkit.cc/faq) lists every answer by topic with search and deep links.
 
 
 ### Added
@@ -352,6 +454,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **website:** bring back the cube design elements
 
 ## [0.34.0] (2026-09-16)
+
+### Highlights
+
+* **Compatibility per kit and environment:** the compatibility page grades each kit per environment: Basement Kit on a CI VM and on a home-network VM, Cloud Kit on a public VPS, and Modern Homelab on a home VM plus VPS. Home-network runs add a LAN access check.
+* **Dual-stack home networks recognized:** `stackkit init basement-kit` no longer mistakes a home network with a global IPv6 address for a public server; detection now uses IPv4 NAT. The installers already handled this, and direct CLI use now does too.
+* **Init and CLI fixes:** `stackkit init` checks the owner email before it writes a StackSpec, so a retry with `--owner-email` works. `drift detect --json` and the native backup commands report failures as one JSON command result, `stackkit logs latest` shows the latest run instead of its own empty log, and agent install plans hand out a runnable init command.
 
 
 ### Added

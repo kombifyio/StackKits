@@ -1893,7 +1893,7 @@ by StackKits are projected from the exact pinned module during OSS export.
 | Container | Location | Responsibility |
 | --- | --- | --- |
 | CLI | `cmd/stackkit`, `internal/*` | Standalone operator workflow: init, validate, generate, plan, apply, verify, upgrade, drift, registry inspection, logs, and recovery commands. |
-| API server | `cmd/stackkit-server`, `internal/api` | HTTP surface for catalog, canonical `stackfile.cue` schemas, versioned validation, logs, capabilities, and OpenAPI. Legacy generation/setup/registry operations are exact-v0.6 compatibility surfaces and are absent from native-v0.7 capability discovery. |
+| API server | `cmd/stackkit-server`, `internal/api` | HTTP surface for catalog, canonical `stackfile.cue` schemas, versioned validation, logs, capabilities, and OpenAPI, plus the StackKits MCP at `POST /mcp`. Every v2 Core runs it as a component and routes only `/mcp` (see [StackKits MCP on every Core](#stackkits-mcp-on-every-core)). Legacy generation/setup/registry operations are exact-v0.6 compatibility surfaces and are absent from native-v0.7 capability discovery. |
 | CUE contracts | `foundation/`, `basement-kit/`, `cloud-kit/`, `modern-homelab/`, `modules/`, `use-cases/` | Schemas, defaults, constraints, module and use-case contracts, and deployment shape. |
 | Composition/generation | `internal/cue`, `internal/composition`, `internal/iac`, `internal/tofu`, `internal/terramate` | Bind CUE/spec data into generated deployment artifacts and execution adapters. |
 | Public docs | `README.md`, `docs/` | Homelab/BaseKit OSS documentation and CLI install contract. |
@@ -1942,6 +1942,33 @@ but remains unpromoted.
 Komodo is the first explicit exception: the initial `paas: komodo` contract uses exactly one StackKit-owned Traefik while Komodo owns Compose Stack deployment. The generated dashboard/status output and release evidence must label that routing ownership as StackKit-owned, not Komodo-owned.
 
 StackKit must not add a second Traefik instance, an Nginx bridge container, a host-side proxy, or a browser/test-only forwarding workaround to make service URLs appear reachable. Such a path is a routing bypass, not production evidence. If StackKit later supports another PaaS without an integrated router, that adapter contract must explicitly include one StackKit-owned router and the generated dashboard/status output must label it as such.
+
+### StackKits MCP on every Core
+
+Every v2 Core module (Basement, Basement lite, Cloud and Cloud standalone)
+runs a `stackkit-server` component. The Core's own router publishes its MCP
+endpoint at `POST /mcp` on the base host. This is the owner principle that
+every installation carries the StackKits MCP, just as it carries the CLI
+(the private ADR-0044 decision record).
+
+- The container runs the `stackkit-server` binary of the release that applied
+  it, on a digest-pinned `alpine` base. Apply stages the binary from beside
+  the running CLI. No `stackkit-server` image is published.
+- The route matches the base host and the exact `/mcp` path. It has a router
+  rate limit and no TinyAuth forward-auth. The server's dedicated MCP token is
+  the only credential, and the REST API is not routed.
+- Apply mints the MCP token once, into
+  `.stackkit/custody/stackkit-server/mcp/token` (owner-only). The server reads
+  it through `STACKKIT_MCP_TOKEN_FILE` on a read-only mount. Re-apply keeps
+  it, and `stackkit remove` deletes it.
+- `/mcp` inherits the base host's exposure: the site LAN address on
+  Basement, the public edge on Cloud. On the host, the server listens only on
+  `127.0.0.1:8082`.
+- The container runs as the account that owns the credentials, drops every
+  capability and has a read-only root filesystem.
+- Verify probes `/health` on that listener and the router admin API for the
+  `stackkit-mcp` router. Traefik loads that router only from a running,
+  healthy server container, so a missing or unrouted endpoint fails Verify.
 
 ## Current Technical Stack
 

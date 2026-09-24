@@ -13083,9 +13083,10 @@
             "coolify-postgres",
             "coolify-redis",
             "coolify-realtime",
-            "hub"
+            "hub",
+            "stackkit-server"
           ],
-          "description": "Cloud routing, owner identity, application management and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
+          "description": "Cloud routing, owner identity, application management, the hub and the StackKits server with its MCP endpoint. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -13111,9 +13112,10 @@
             "coolify-postgres",
             "coolify-redis",
             "coolify-realtime",
-            "hub"
+            "hub",
+            "stackkit-server"
           ],
-          "description": "Cloud routing, owner identity, application management and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
+          "description": "Cloud routing, owner identity, application management, the hub and the StackKits server with its MCP endpoint. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -13192,6 +13194,28 @@
           "phase": "post-apply",
           "port": 80,
           "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "cloud-stackkit-server-http",
+          "kind": "http",
+          "path": "/health",
+          "phase": "post-apply",
+          "port": 8082,
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "cloud-stackkit-mcp-route",
+          "kind": "http",
+          "path": "/api/http/routers/stackkit-mcp@docker",
+          "phase": "post-apply",
+          "port": 8080,
+          "timeoutSeconds": 30
         }
       ],
       "metadata": {
@@ -13264,7 +13288,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:ba75ad9944dcff185ce65c091eccb700894a258c782de7fb9cfc05433e6c2e00",
+          "contractHash": "sha256:83325050d81ead6719540e46890319df32fe2e3b1d8884c40dc3143da1a36c9d",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -13347,6 +13371,17 @@
               "sharing": "exclusive",
               "sourceServiceRefs": [],
               "targetPort": 8080,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "stackkit-server",
+              "exposure": "remote-private",
+              "id": "stackkit-server-direct",
+              "port": 8082,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8082,
               "transport": "tcp"
             },
             {
@@ -13442,7 +13477,7 @@
           "artifactRefs": [
             "cloud-core-compose"
           ],
-          "contractHash": "sha256:ba75ad9944dcff185ce65c091eccb700894a258c782de7fb9cfc05433e6c2e00",
+          "contractHash": "sha256:83325050d81ead6719540e46890319df32fe2e3b1d8884c40dc3143da1a36c9d",
           "id": "compose",
           "planInputRefs": [],
           "publicInputRefs": [],
@@ -13735,6 +13770,27 @@
               "memoryLimit": "256m"
             },
             "role": "application"
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "http",
+              "path": "/health",
+              "port": 8082
+            },
+            "id": "stackkit-server",
+            "image": {
+              "digest": "sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6",
+              "ref": "docker.io/library/alpine:3.24"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "cloud-core"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "application"
           }
         ],
         "delivery": "stackkit",
@@ -13812,7 +13868,8 @@
           "componentRefs": [
             "router",
             "socket-proxy",
-            "hub"
+            "hub",
+            "stackkit-server"
           ],
           "critical": true,
           "key": "base",
@@ -13833,12 +13890,13 @@
             "pocketid",
             "tinyauth",
             "hub",
+            "stackkit-server",
             "kopia-agent"
           ],
           "degradations": [
             "paas-management-omitted"
           ],
-          "description": "Cloud routing, owner identity, public edge and the hub using standalone Compose. Coolify and Komodo are omitted; public TLS, offsite backup and provider lifecycle remain separately owned contracts.",
+          "description": "Cloud routing, owner identity, public edge, the hub and the StackKits server with its MCP endpoint using standalone Compose. Coolify and Komodo are omitted; public TLS, offsite backup and provider lifecycle remain separately owned contracts.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -13861,12 +13919,13 @@
             "pocketid",
             "tinyauth",
             "hub",
+            "stackkit-server",
             "kopia-agent"
           ],
           "degradations": [
             "paas-management-omitted"
           ],
-          "description": "Cloud routing, owner identity, public edge and the hub using standalone Compose. Coolify and Komodo are omitted; public TLS, offsite backup and provider lifecycle remain separately owned contracts.",
+          "description": "Cloud routing, owner identity, public edge, the hub and the StackKits server with its MCP endpoint using standalone Compose. Coolify and Komodo are omitted; public TLS, offsite backup and provider lifecycle remain separately owned contracts.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -13932,6 +13991,28 @@
           "path": "/healthz",
           "phase": "post-apply",
           "port": 80,
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "cloud-stackkit-server-http",
+          "kind": "http",
+          "path": "/health",
+          "phase": "post-apply",
+          "port": 8082,
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "cloud-stackkit-mcp-route",
+          "kind": "http",
+          "path": "/api/http/routers/stackkit-mcp@docker",
+          "phase": "post-apply",
+          "port": 8080,
           "timeoutSeconds": 30
         }
       ],
@@ -14032,7 +14113,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:749b51ca2a8762c29dc788ff4682d72191b3c77383b189679e9ccdc42be27fcf",
+          "contractHash": "sha256:ddcb305343a3c7ae836234d300e67077c4a7b1a3f0cff9781c72dd5d4e03907f",
           "id": "compose",
           "inputBindings": [
             {
@@ -14114,6 +14195,17 @@
               "sharing": "exclusive",
               "sourceServiceRefs": [],
               "targetPort": 3000,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "stackkit-server",
+              "exposure": "remote-private",
+              "id": "stackkit-server-direct",
+              "port": 8082,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8082,
               "transport": "tcp"
             },
             {
@@ -14240,7 +14332,7 @@
             "cloud-core-standalone-compose",
             "cloud-kopia-backup-source-policy"
           ],
-          "contractHash": "sha256:749b51ca2a8762c29dc788ff4682d72191b3c77383b189679e9ccdc42be27fcf",
+          "contractHash": "sha256:ddcb305343a3c7ae836234d300e67077c4a7b1a3f0cff9781c72dd5d4e03907f",
           "id": "compose",
           "planInputRefs": [
             "stackId",
@@ -14400,6 +14492,27 @@
           {
             "dependsOn": [],
             "health": {
+              "kind": "http",
+              "path": "/health",
+              "port": 8082
+            },
+            "id": "stackkit-server",
+            "image": {
+              "digest": "sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6",
+              "ref": "docker.io/library/alpine:3.24"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "cloud-core"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "application"
+          },
+          {
+            "dependsOn": [],
+            "health": {
               "command": [
                 "kopia",
                 "--version"
@@ -14503,7 +14616,8 @@
           "componentRefs": [
             "router",
             "socket-proxy",
-            "hub"
+            "hub",
+            "stackkit-server"
           ],
           "critical": true,
           "key": "base",
@@ -14530,9 +14644,10 @@
             "coolify-redis",
             "coolify-realtime",
             "kopia-agent",
-            "hub"
+            "hub",
+            "stackkit-server"
           ],
-          "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
+          "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent, the hub and the StackKits server with its MCP endpoint. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -14561,9 +14676,10 @@
             "coolify-redis",
             "coolify-realtime",
             "kopia-agent",
-            "hub"
+            "hub",
+            "stackkit-server"
           ],
-          "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
+          "description": "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent, the hub and the StackKits server with its MCP endpoint. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -14656,6 +14772,28 @@
           "path": "/healthz",
           "phase": "post-apply",
           "port": 80,
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "stackkit-server-http",
+          "kind": "http",
+          "path": "/health",
+          "phase": "post-apply",
+          "port": 8082,
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "stackkit-mcp-route",
+          "kind": "http",
+          "path": "/api/http/routers/stackkit-mcp@docker",
+          "phase": "post-apply",
+          "port": 8080,
           "timeoutSeconds": 30
         }
       ],
@@ -14830,7 +14968,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:93db0348d65bb07212d059ef0d28eb62be8cbab3b819ae7ee655572f1acffc63",
+          "contractHash": "sha256:5f9513fc2a4482d42ef0e0eb8b28f848fa1f13cdc561ff124dc36effa82c6f76",
           "id": "compose",
           "inputBindings": [
             {
@@ -14923,6 +15061,17 @@
               "sharing": "exclusive",
               "sourceServiceRefs": [],
               "targetPort": 8080,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "stackkit-server",
+              "exposure": "remote-private",
+              "id": "stackkit-server-direct",
+              "port": 8082,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8082,
               "transport": "tcp"
             },
             {
@@ -15041,7 +15190,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:f311830cfe6341e71b65f28b20d7a50defdf98b5fe53f3a07b5dbd92877950a4",
+          "contractHash": "sha256:c9795b613c65f78c5f1b9fb9b59596d501a367be5a6e37b3e91cdba01fd20d81",
           "id": "opentofu",
           "inputBindings": [],
           "kind": "opentofu",
@@ -15124,6 +15273,17 @@
               "sharing": "exclusive",
               "sourceServiceRefs": [],
               "targetPort": 8080,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "stackkit-server",
+              "exposure": "remote-private",
+              "id": "stackkit-server-direct",
+              "port": 8082,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8082,
               "transport": "tcp"
             },
             {
@@ -15327,6 +15487,17 @@
               "sharing": "exclusive",
               "sourceServiceRefs": [],
               "targetPort": 8080,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "stackkit-server",
+              "exposure": "remote-private",
+              "id": "stackkit-server-direct",
+              "port": 8082,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8082,
               "transport": "tcp"
             },
             {
@@ -15969,6 +16140,27 @@
               "memoryLimit": "256m"
             },
             "role": "application"
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "http",
+              "path": "/health",
+              "port": 8082
+            },
+            "id": "stackkit-server",
+            "image": {
+              "digest": "sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6",
+              "ref": "docker.io/library/alpine:3.24"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "application"
           }
         ],
         "delivery": "stackkit",
@@ -16049,7 +16241,8 @@
             "step-ca",
             "kopia-agent",
             "hub",
-            "lan-dns"
+            "lan-dns",
+            "stackkit-server"
           ],
           "critical": true,
           "key": "base",
@@ -16072,12 +16265,13 @@
             "step-ca",
             "lan-dns",
             "kopia-agent",
-            "hub"
+            "hub",
+            "stackkit-server"
           ],
           "degradations": [
             "paas-management-omitted"
           ],
-          "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+          "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent, the hub and the StackKits server with its MCP endpoint using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -16102,12 +16296,13 @@
             "step-ca",
             "lan-dns",
             "kopia-agent",
-            "hub"
+            "hub",
+            "stackkit-server"
           ],
           "degradations": [
             "paas-management-omitted"
           ],
-          "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+          "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent, the hub and the StackKits server with its MCP endpoint using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -16132,12 +16327,13 @@
             "step-ca",
             "lan-dns",
             "kopia-agent",
-            "hub"
+            "hub",
+            "stackkit-server"
           ],
           "degradations": [
             "paas-management-omitted"
           ],
-          "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
+          "description": "Local routing, owner identity, internal certificates, the site resolver, backup agent, the hub and the StackKits server with its MCP endpoint using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -16218,6 +16414,28 @@
           "path": "/healthz",
           "phase": "post-apply",
           "port": 80,
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "stackkit-server-http",
+          "kind": "http",
+          "path": "/health",
+          "phase": "post-apply",
+          "port": 8082,
+          "timeoutSeconds": 30
+        },
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "stackkit-mcp-route",
+          "kind": "http",
+          "path": "/api/http/routers/stackkit-mcp@docker",
+          "phase": "post-apply",
+          "port": 8080,
           "timeoutSeconds": 30
         }
       ],
@@ -16392,7 +16610,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:f80eeaa47831affe18a39d93cfd86695bee872552da3e1a8b8084fb6fd2fd793",
+          "contractHash": "sha256:9347b8814c03c8e33f0120768078f82bc4d02ab5e490983a7931abfe0ea65b4c",
           "id": "compose",
           "inputBindings": [
             {
@@ -16474,6 +16692,17 @@
               "sharing": "exclusive",
               "sourceServiceRefs": [],
               "targetPort": 3000,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "stackkit-server",
+              "exposure": "remote-private",
+              "id": "stackkit-server-direct",
+              "port": 8082,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8082,
               "transport": "tcp"
             },
             {
@@ -16575,7 +16804,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:dc9f98f6d5db29e9c6b1911fbce4fa26bfe82fbe01d67fe19be89394d22ba9f9",
+          "contractHash": "sha256:fffc0f31982e35e2b7382acc5653f1382f4ea73cc630fa7e671005ec098c4ede",
           "id": "opentofu",
           "inputBindings": [],
           "kind": "opentofu",
@@ -16647,6 +16876,17 @@
               "sharing": "exclusive",
               "sourceServiceRefs": [],
               "targetPort": 3000,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "stackkit-server",
+              "exposure": "remote-private",
+              "id": "stackkit-server-direct",
+              "port": 8082,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8082,
               "transport": "tcp"
             },
             {
@@ -16822,6 +17062,17 @@
               "sharing": "exclusive",
               "sourceServiceRefs": [],
               "targetPort": 3000,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "stackkit-server",
+              "exposure": "remote-private",
+              "id": "stackkit-server-direct",
+              "port": 8082,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8082,
               "transport": "tcp"
             },
             {
@@ -17293,6 +17544,27 @@
               "memoryLimit": "256m"
             },
             "role": "application"
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "http",
+              "path": "/health",
+              "port": 8082
+            },
+            "id": "stackkit-server",
+            "image": {
+              "digest": "sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6",
+              "ref": "docker.io/library/alpine:3.24"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "application"
           }
         ],
         "delivery": "stackkit",
@@ -17354,7 +17626,8 @@
             "step-ca",
             "kopia-agent",
             "hub",
-            "lan-dns"
+            "lan-dns",
+            "stackkit-server"
           ],
           "critical": true,
           "key": "base",

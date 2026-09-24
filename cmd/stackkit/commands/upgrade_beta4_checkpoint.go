@@ -598,7 +598,7 @@ func withPreparedHistoricalUpgradeCapture(
 		if currentReceipt != bridge.Receipt {
 			return errors.New("beta.4 installed release changed before capture")
 		}
-		executableBytes, err := upgradelifecycle.RecoveryExecutableFromVerifiedRelease(proof)
+		executableBytes, serverBytes, err := upgradelifecycle.ReleaseExecutablesFromVerifiedRelease(proof)
 		if err != nil {
 			return err
 		}
@@ -614,6 +614,7 @@ func withPreparedHistoricalUpgradeCapture(
 					Path: executorRecoveryBinaryPath(currentReceipt.Platform),
 					Mode: "0755", Data: executableBytes,
 				},
+				Server: executorRecoveryServerBlob(currentReceipt.Platform, serverBytes),
 			},
 			Lineage: authority.Lineage,
 			StackSpec: upgradelifecycle.ExecutorStateBlobInput{

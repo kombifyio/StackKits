@@ -40,6 +40,61 @@
         "reason": "Files runtime is the digest-pinned selected-PaaS bundle. StackKits does not author a separate Cloudreve configuration file."
       }
     },
+    "game": {
+      "ref": "game",
+      "equipPolicy": "on-generate",
+      "lifecycleMcp": {
+        "ref": "stackkit",
+        "owner": "stackkit",
+        "endpoint": "/mcp",
+        "transport": "streamable-http",
+        "auth": "stackkit-mcp-token",
+        "generateClientConfig": true
+      },
+      "productMcps": [],
+      "apis": [
+        {
+          "id": "pterodactyl-client",
+          "protocol": "rest",
+          "purpose": "Scoped owner operations on selected game servers. Pterodactyl has no native product MCP; the Application API stays with the setup action.",
+          "auth": "pterodactyl-client-api-key"
+        }
+      ],
+      "skills": [
+        {
+          "id": "game-server",
+          "audience": "product-user",
+          "source": "stackkits",
+          "path": "use-cases/game/agent/game-server/SKILL.md"
+        }
+      ],
+      "cliHelpers": [
+        {
+          "command": "stackkit setup game",
+          "purpose": "Create a curated game server after owner approval and EULA acceptance."
+        },
+        {
+          "command": "stackkit game list",
+          "purpose": "List the owner's game servers with state and port."
+        },
+        {
+          "command": "stackkit game power",
+          "purpose": "Start, stop or restart one game server after owner approval."
+        },
+        {
+          "command": "stackkit game allow",
+          "purpose": "Admit one player on an allow-list server after owner approval."
+        },
+        {
+          "command": "stackkit agent mcp-config",
+          "purpose": "Print the stackkit lifecycle MCP client connection."
+        }
+      ],
+      "configBaseline": {
+        "status": "omitted",
+        "reason": "Game servers are configured through the Pterodactyl APIs by the setup action; StackKits does not author a separate game configuration file."
+      }
+    },
     "media": {
       "ref": "media",
       "equipPolicy": "on-generate",

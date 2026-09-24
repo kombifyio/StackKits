@@ -6,6 +6,27 @@ package standaloneoperations
 // mutation always requires the exact operation confirmation plus local Owner
 // approval before the adapter adds a CLI approval flag such as --owner-approve.
 var operatorOperations = []Contract{
+	// Game servers on the installed Game workload (ADR-0043). The CLI derives
+	// the Panel keys from owner custody; no key crosses the MCP transcript.
+	{ID: "stackkit.game.list", ToolName: "stackkit_game_list", Title: "List game servers", Description: "List the owner's game servers on the installed Game workload with state and port.", Command: []string{"game", "list", "--json"}, Idempotent: true},
+	{
+		ID: "stackkit.game.power", ToolName: "stackkit_game_power", Title: "Game server power",
+		Description: "Start, stop or restart one game server and wait for the observed state.",
+		Command:     []string{"game", "power", "--json", "--owner-approve"}, Mutation: true, Destructive: true, Idempotent: true, OwnerApproval: true,
+		Arguments: []Argument{
+			positionalArg("server", "game server identifier from stackkit_game_list"),
+			{Name: "signal", Kind: ArgumentString, Flag: "--signal", Required: true, Enum: []string{"start", "stop", "restart"}, Description: "power signal"},
+		},
+	},
+	{
+		ID: "stackkit.game.allow", ToolName: "stackkit_game_allow", Title: "Admit game player",
+		Description: "Admit one player on a StackKits allow-list game server and read the game's allow list back.",
+		Command:     []string{"game", "allow", "--json", "--owner-approve"}, Mutation: true, Idempotent: true, OwnerApproval: true,
+		Arguments: []Argument{
+			positionalArg("server", "game server identifier from stackkit_game_list"),
+			requiredFlagArg("player", ArgumentString, "--player", "exact game account name (Minecraft account name or Xbox gamertag)"),
+		},
+	},
 	// Add-ons, addresses and application delivery.
 	{ID: "stackkit.address.plan", ToolName: "stackkit_address_plan", Title: "Plan public addresses", Description: "Emit the account-free, secret-free public address registration plan for the current StackSpec.", Command: []string{"address", "plan"}, Idempotent: true},
 	{

@@ -112,7 +112,7 @@ func NewVerifiedLegacyExecutorStateCapture(
 		)
 	}
 	release, err := verifyExecutorStateReleaseProof(
-		input.Capture.Release, input.Capture.Executable.Blob.Data,
+		input.Capture.Release, input.Capture.Executable,
 	)
 	if err != nil {
 		return VerifiedExecutorStateCapture{}, err

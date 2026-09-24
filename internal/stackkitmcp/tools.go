@@ -1052,7 +1052,14 @@ func (a *App) workspaceDir(raw string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve workspace: %w", err)
 	}
-	return filepath.Clean(abs), nil
+	abs = filepath.Clean(abs)
+	if a.opts.PinBaseDir {
+		pinned, err := filepath.Abs(firstNonEmpty(a.opts.BaseDir, "."))
+		if err != nil || abs != filepath.Clean(pinned) {
+			return "", errors.New("this StackKits MCP endpoint serves only its configured workspace; omit base_dir")
+		}
+	}
+	return abs, nil
 }
 
 func commandTimeout(in stackkitCommandInput) time.Duration {

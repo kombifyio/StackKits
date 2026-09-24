@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/localowner"
@@ -90,6 +91,7 @@ type osBasementCoreOperations struct {
 	runner        basementCoreProcessRunner
 	prober        basementCoreProber
 	ownerIdentity basementOwnerIdentity
+	serverBinary  stackKitServerBinarySource
 }
 
 type basementOwnerIdentity interface {
@@ -123,6 +125,7 @@ func NewOSBasementCoreOperations(workspaceRoot string) (BasementCoreOperations, 
 		runner:        osBasementCoreProcessRunner{},
 		prober:        osBasementCoreProber{},
 		ownerIdentity: localBasementOwnerIdentity{service: ownerIdentity},
+		serverBinary:  releaseStackKitServerBinary,
 	}, nil
 }
 
@@ -137,6 +140,16 @@ func (o *osBasementCoreOperations) ApplyProject(ctx context.Context, project Bas
 	if err != nil {
 		return BasementCoreApplyObservation{}, fmt.Errorf("verify local Basement runtime custody before Apply: %w", err)
 	}
+	serverBinary, err := resolveCoreStackKitServerBinary(o.serverBinary)
+	if err != nil {
+		return BasementCoreApplyObservation{}, fmt.Errorf("resolve the Basement core stackkit-server: %w", err)
+	}
+	// Stage the server before compose.yaml names it, so a failure never
+	// leaves a Compose project pointing at a missing ./stackkit-server.
+	recreateServer, err := prepareCoreStackKitServer(o.workspaceRoot, filepath.Join(o.workspaceRoot, ".stackkit", "runtime", "basement-core"), serverBinary)
+	if err != nil {
+		return BasementCoreApplyObservation{}, fmt.Errorf("prepare the Basement core stackkit-server: %w", err)
+	}
 	composePath, err := o.persistCompose(project)
 	if err != nil {
 		return BasementCoreApplyObservation{}, err
@@ -147,6 +160,14 @@ func (o *osBasementCoreOperations) ApplyProject(ctx context.Context, project Bas
 	}
 	if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), environment); err != nil {
 		return BasementCoreApplyObservation{}, fmt.Errorf("local Docker Compose Apply did not complete: %w", err)
+	}
+	if recreateServer {
+		if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "recreate-server"), filepath.Dir(composePath), environment); err != nil {
+			return BasementCoreApplyObservation{}, fmt.Errorf("recreate the local stackkit-server with its new release or token: %w", err)
+		}
+		if err := completeCoreStackKitServerRecreate(filepath.Dir(composePath)); err != nil {
+			return BasementCoreApplyObservation{}, err
+		}
 	}
 	if originReload {
 		args := []string{"compose", "--project-name", "stackkit-basement-core", "-f", composePath, "up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "600", "step-ca"}
@@ -357,10 +378,17 @@ func (o *osBasementCoreOperations) environment() ([]string, error) {
 
 func basementCoreComposeArgs(composePath, operation string) []string {
 	prefix := []string{"compose", "--project-name", "stackkit-basement-core", "-f", composePath}
-	if operation == "up" {
+	switch operation {
+	case "up":
 		return append(prefix, "up", "-d", "--wait", "--wait-timeout", "600")
+	case "recreate-server":
+		return append(prefix, basementCoreRecreateServerArgs...)
 	}
 	return append(prefix, "ps", "--all", "--format", "json")
+}
+
+var basementCoreRecreateServerArgs = []string{
+	"up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "600", architecturev2renderer.StackKitServerComponentRef,
 }
 
 type osBasementCoreProcessRunner struct{}
@@ -396,7 +424,8 @@ func (osBasementCoreProcessRunner) Run(ctx context.Context, args []string, direc
 		filepath.Clean(args[4]) != args[4] || filepath.Base(args[4]) != "compose.yaml" ||
 		filepath.Dir(args[4]) != directory ||
 		(!slices.Equal(args[5:], []string{"up", "-d", "--wait", "--wait-timeout", "600"}) &&
-			!slices.Equal(args[5:], []string{"ps", "--all", "--format", "json"})) {
+			!slices.Equal(args[5:], []string{"ps", "--all", "--format", "json"}) &&
+			!slices.Equal(args[5:], basementCoreRecreateServerArgs)) {
 		return nil, &basementCoreProcessError{output: "closed-contract-rejected", cause: errors.New("invalid process contract")}
 	}
 	executable, err := exec.LookPath("docker")

@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:78db3c2e3228d38d85eac3e016c28a8ee0e7d036074f2dfad1114ace336539ca",
+  "contentDigest": "sha256:75b8f7b2ddf9542ab4eeee68c0aa45390f872979c77d32141a21ddc64c8eb7e9",
   "operations": [
     {
       "command": [
@@ -870,6 +870,91 @@
       "ownerApproval": true,
       "title": "Stop Federation link",
       "toolName": "stackkit_federation_link_stop"
+    },
+    {
+      "arguments": [
+        {
+          "description": "game server identifier from stackkit_game_list",
+          "kind": "string",
+          "name": "server",
+          "required": true
+        },
+        {
+          "description": "exact game account name (Minecraft account name or Xbox gamertag)",
+          "flag": "--player",
+          "kind": "string",
+          "name": "player",
+          "required": true
+        }
+      ],
+      "command": [
+        "game",
+        "allow",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Admit one player on a StackKits allow-list game server and read the game's allow list back.",
+      "destructive": false,
+      "id": "stackkit.game.allow",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Admit game player",
+      "toolName": "stackkit_game_allow"
+    },
+    {
+      "command": [
+        "game",
+        "list",
+        "--json"
+      ],
+      "description": "List the owner's game servers on the installed Game workload with state and port.",
+      "destructive": false,
+      "id": "stackkit.game.list",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "List game servers",
+      "toolName": "stackkit_game_list"
+    },
+    {
+      "arguments": [
+        {
+          "description": "game server identifier from stackkit_game_list",
+          "kind": "string",
+          "name": "server",
+          "required": true
+        },
+        {
+          "description": "power signal",
+          "enum": [
+            "start",
+            "stop",
+            "restart"
+          ],
+          "flag": "--signal",
+          "kind": "string",
+          "name": "signal",
+          "required": true
+        }
+      ],
+      "command": [
+        "game",
+        "power",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Start, stop or restart one game server and wait for the observed state.",
+      "destructive": true,
+      "id": "stackkit.game.power",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Game server power",
+      "toolName": "stackkit_game_power"
     },
     {
       "command": [

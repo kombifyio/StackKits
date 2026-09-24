@@ -217,6 +217,7 @@ func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int,
 		FilesSessionBridgeToken:           strings.TrimSpace(os.Getenv("STACKKIT_FILES_SESSION_BRIDGE_TOKEN")),
 		MCPToken:                          mcpTok,
 		MCPAllowWrite:                     mcpWrite,
+		MCPPinBaseDir:                     envBool("STACKKIT_MCP_PIN_BASE_DIR"),
 	}, nil
 }
 
@@ -303,6 +304,17 @@ func resolveAPIKey(flagVal string, allowUnauthenticated bool, productionGuards b
 	key := flagVal
 	if key == "" {
 		key = os.Getenv("STACKKITS_API_KEY")
+	}
+	// A file keeps the key out of the process environment, which container
+	// inspection and the Docker socket proxy would otherwise expose.
+	if path := strings.TrimSpace(os.Getenv("STACKKITS_API_KEY_FILE")); key == "" && path != "" {
+		raw, err := os.ReadFile(path) //nolint:gosec // operator-configured credential file
+		if err != nil {
+			return "", fmt.Errorf("STACKKITS_API_KEY_FILE: %w", err)
+		}
+		if key = strings.TrimSpace(string(raw)); key == "" {
+			return "", fmt.Errorf("STACKKITS_API_KEY_FILE: %s is empty", path)
+		}
 	}
 	bypassRequested := allowUnauthenticated || envBool("STACKKITS_ALLOW_UNAUTHENTICATED")
 	if productionGuards && bypassRequested {

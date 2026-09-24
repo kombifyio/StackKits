@@ -2191,6 +2191,123 @@
       "subcommands": []
     },
     {
+      "path": "stackkit game",
+      "name": "game",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit game [flags]",
+      "short": "Operate the owner's game servers on the installed Game workload",
+      "description": "List game servers and run the routine owner operations (power, allow list) through the Pterodactyl Panel of the applied Game workload. Creating a server is `stackkit setup game`.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit game allow",
+        "stackkit game list",
+        "stackkit game power"
+      ]
+    },
+    {
+      "path": "stackkit game allow",
+      "name": "allow",
+      "parent": "stackkit game",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit game allow <server> [flags]",
+      "short": "Admit one player on a StackKits allow-list game server",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit game allow 92c66407 --player Notch --owner-approve"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize the allow-list change with the established local Owner custody",
+          "required": false
+        },
+        {
+          "name": "player",
+          "type": "string",
+          "description": "Exact game account name (Minecraft account name or Xbox gamertag)",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit game list",
+      "name": "list",
+      "parent": "stackkit game",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit game list [flags]",
+      "short": "List the owner's game servers with state and port",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit game list --json"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit game power",
+      "name": "power",
+      "parent": "stackkit game",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit game power <server> [flags]",
+      "short": "Start, stop or restart one game server and wait for the result",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit game power 92c66407 --signal restart --owner-approve"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize the power change with the established local Owner custody",
+          "required": false
+        },
+        {
+          "name": "signal",
+          "type": "string",
+          "description": "Power signal: start, stop or restart",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit generate",
       "name": "generate",
       "parent": "stackkit",

@@ -218,9 +218,9 @@ _architectureV2GameInfrastructure: #WorkloadInfrastructureV1 & {
 		{componentRef: "panel-bootstrap", volumeRef: "stackkit", target: "/stackkit", class: "cache", backup: false, dataClasses: []},
 		{componentRef: "wings", volumeRef: "logs", target: "/var/log/pterodactyl", class: "cache", backup: false, dataClasses: []},
 	]}
-	// The application-runtime snapshot owner quiesces the Compose graph; Wings
-	// owned game containers keep running, so world copies are crash-consistent
-	// until the game-server quiesce hook lands (ADR-0043 consequences).
+	// The application-runtime snapshot owner quiesces the Compose graph; the
+	// CLI first stops running Wings-owned game servers with their own stop
+	// command and starts them again afterwards (ADR-0043 consequences).
 	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
 	snapshot: moduleRef: "stackkits-snapshot"
 	restore: moduleRef:  "stackkits-restore"
@@ -3061,6 +3061,9 @@ _cloudCoreRuntimeListeners: [
 	{id: "pocketid-direct", componentRef: "pocketid", transport: "tcp", bindAddress: "127.0.0.1", port: 1411, targetPort: 1411, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
 	{id: "tinyauth-direct", componentRef: "tinyauth", transport: "tcp", bindAddress: "127.0.0.1", port: 4000, targetPort: 3000, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
 	{id: "coolify-direct", componentRef: "coolify", transport: "tcp", bindAddress: "127.0.0.1", port: 8000, targetPort: 8080, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+	// Owner-local MCP and Verify probes; remote agents reach /mcp only through
+	// the router on the base host.
+	{id: "stackkit-server-direct", componentRef: "stackkit-server", transport: "tcp", bindAddress: "127.0.0.1", port: 8082, targetPort: 8082, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
 ]
 
 _cloudCoreVerificationRuntimeListeners: list.Concat([_cloudCoreRuntimeListeners, [
@@ -3100,11 +3103,11 @@ _sharedCoreServiceControls: [
 ]
 
 _cloudCoreServiceControls: list.Concat([_sharedCoreServiceControls, [
-	{key: "base", serviceRef: "base", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["router", "socket-proxy", "hub"], allowedActions: ["start", "restart", "logs"], critical: true},
+	{key: "base", serviceRef: "base", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["router", "socket-proxy", "hub", "stackkit-server"], allowedActions: ["start", "restart", "logs"], critical: true},
 ]])
 
 _basementCoreServiceControls: list.Concat([_sharedCoreServiceControls, [
-	{key: "base", serviceRef: "basement-hub", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["router", "socket-proxy", "step-ca", "kopia-agent", "hub", "lan-dns"], allowedActions: ["start", "restart", "logs"], critical: true},
+	{key: "base", serviceRef: "basement-hub", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["router", "socket-proxy", "step-ca", "kopia-agent", "hub", "lan-dns", "stackkit-server"], allowedActions: ["start", "restart", "logs"], critical: true},
 ]])
 
 _architectureV2LocalKopiaComponent: {
@@ -4292,7 +4295,7 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "compose", kind:                                 "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core/compose/v1.yaml", version: "1.0.0"
-			contractHash: "sha256:ba75ad9944dcff185ce65c091eccb700894a258c782de7fb9cfc05433e6c2e00"
+			contractHash: "sha256:83325050d81ead6719540e46890319df32fe2e3b1d8884c40dc3143da1a36c9d"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/cloud-core/compose.yaml"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -4301,7 +4304,7 @@ _architectureV2Modules: list.Concat([[
 		}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
-			contractHash: "sha256:ba75ad9944dcff185ce65c091eccb700894a258c782de7fb9cfc05433e6c2e00"
+			contractHash: "sha256:83325050d81ead6719540e46890319df32fe2e3b1d8884c40dc3143da1a36c9d"
 			unitRefs: ["compose"], artifactRefs: ["cloud-core-compose"]
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 		}]
@@ -4361,7 +4364,7 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "compose", kind:                                            "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core-standalone/compose/v1.yaml", version: "1.0.0"
-			contractHash: "sha256:749b51ca2a8762c29dc788ff4682d72191b3c77383b189679e9ccdc42be27fcf"
+			contractHash: "sha256:ddcb305343a3c7ae836234d300e67077c4a7b1a3f0cff9781c72dd5d4e03907f"
 			publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
 			secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
 			planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
@@ -4373,7 +4376,7 @@ _architectureV2Modules: list.Concat([[
 		}, _architectureV2LocalKopiaSourceRenderUnit & {_outputRef: "cloud/backup/kopia-source-policy.json"}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
-			contractHash: "sha256:749b51ca2a8762c29dc788ff4682d72191b3c77383b189679e9ccdc42be27fcf"
+			contractHash: "sha256:ddcb305343a3c7ae836234d300e67077c4a7b1a3f0cff9781c72dd5d4e03907f"
 			unitRefs: ["compose", "source-policy"], artifactRefs: ["cloud-core-standalone-compose", "cloud-kopia-backup-source-policy"]
 			publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 		}]
@@ -4570,6 +4573,7 @@ _architectureV2Modules: list.Concat([[
 					health: {kind: "http", path: "/healthz", port: 80}
 					resources: {memoryLimit: "256m"}
 				},
+				_architectureV2StackKitServerComponent & {_networkRef: "basement-core"},
 			]
 		}
 		serviceControls: _basementCoreServiceControls
@@ -4577,7 +4581,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "compose", kind:                                    "compose", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash: "sha256:93db0348d65bb07212d059ef0d28eb62be8cbab3b819ae7ee655572f1acffc63"
+				contractHash: "sha256:5f9513fc2a4482d42ef0e0eb8b28f848fa1f13cdc561ff124dc36effa82c6f76"
 				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
@@ -4590,7 +4594,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:f311830cfe6341e71b65f28b20d7a50defdf98b5fe53f3a07b5dbd92877950a4"
+				contractHash: "sha256:c9795b613c65f78c5f1b9fb9b59596d501a367be5a6e37b3e91cdba01fd20d81"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -4730,6 +4734,8 @@ _architectureV2Modules: list.Concat([[
 			{id: "coolify-http", kind: "http", path: "/", port: 8000, expectedStatuses: [200, 302]},
 			{id: "local-kopia-runtime-container", kind: "container", scope: "each-node"},
 			{id: "basement-hub-http", kind: "http", path: "/healthz", port: 80, expectedStatuses: [200, 301]},
+			{id: "stackkit-server-http", kind: "http", path: "/health", port: 8082, expectedStatuses: [200]},
+			{id: "stackkit-mcp-route", kind: "http", path: "/api/http/routers/stackkit-mcp@docker", port: 8080, expectedStatuses: [200]},
 		]
 		evidence: ["basement-core-runtime-evidence"]
 	},
@@ -4852,6 +4858,7 @@ _architectureV2Modules: list.Concat([[
 					health: {kind: "http", path: "/healthz", port: 80}
 					resources: {memoryLimit: "256m"}
 				},
+				_architectureV2StackKitServerComponent & {_networkRef: "basement-core"},
 			]
 		}
 		serviceControls: _basementCoreLiteServiceControls
@@ -4859,7 +4866,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "compose", kind:                                         "compose", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core-lite/compose/v1.yaml", version: "1.0.0"
-				contractHash: "sha256:f80eeaa47831affe18a39d93cfd86695bee872552da3e1a8b8084fb6fd2fd793"
+				contractHash: "sha256:9347b8814c03c8e33f0120768078f82bc4d02ab5e490983a7931abfe0ea65b4c"
 				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
@@ -4872,7 +4879,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "opentofu", kind:                                       "opentofu", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core-lite/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:dc9f98f6d5db29e9c6b1911fbce4fa26bfe82fbe01d67fe19be89394d22ba9f9"
+				contractHash: "sha256:fffc0f31982e35e2b7382acc5653f1382f4ea73cc630fa7e671005ec098c4ede"
 				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 				outputs: ["platform/basement-core-lite/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -5008,6 +5015,8 @@ _architectureV2Modules: list.Concat([[
 			{id: "step-ca-tcp", kind: "tcp", port: 9000},
 			{id: "local-kopia-runtime-container", kind: "container", scope: "each-node"},
 			{id: "basement-hub-http", kind: "http", path: "/healthz", port: 80, expectedStatuses: [200, 301]},
+			{id: "stackkit-server-http", kind: "http", path: "/health", port: 8082, expectedStatuses: [200]},
+			{id: "stackkit-mcp-route", kind: "http", path: "/api/http/routers/stackkit-mcp@docker", port: 8080, expectedStatuses: [200]},
 		]
 		evidence: ["basement-core-runtime-evidence"]
 	},

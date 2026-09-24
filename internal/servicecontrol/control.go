@@ -838,7 +838,8 @@ func (osRunner) Run(ctx context.Context, request runtimeCommandRequest) (runtime
 	command := exec.CommandContext(ctx, "docker", append(prefix, request.Args...)...) //nolint:gosec // finite arguments validated above
 	command.Dir = filepath.Dir(request.ComposePath)
 	workspace := filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(request.ComposePath))))
-	command.Env = []string{"LANG=C", "LC_ALL=C", "STACKKIT_CUSTODY_DIR=" + filepath.Join(workspace, ".stackkit", "custody")}
+	command.Env = append([]string{"LANG=C", "LC_ALL=C", "STACKKIT_CUSTODY_DIR=" + filepath.Join(workspace, ".stackkit", "custody")},
+		localevidence.StackKitServerComposeEnvironment(workspace)...)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return runtimeCommandOutput{}, fmt.Errorf("docker compose: %s", logging.RedactText(string(output)))

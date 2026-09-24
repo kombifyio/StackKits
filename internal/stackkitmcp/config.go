@@ -11,6 +11,9 @@ type Options struct {
 	MCPToken   string
 	AllowWrite bool
 	BaseDir    string
+	// PinBaseDir confines every tool to BaseDir. A remote caller then cannot
+	// point base_dir at other paths of the host or container.
+	PinBaseDir bool
 	Binary     string
 	Version    string
 	GitCommit  string

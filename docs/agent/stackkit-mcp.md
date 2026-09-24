@@ -5,7 +5,7 @@ StackKits exposes one user-facing MCP connection named `stackkit`.
 Implementation has two entrypoints for that same connector:
 
 - local adapter: `stackkit-mcp` over stdio or loopback HTTP;
-- durable endpoint: `stackkit-server POST /mcp` after install.
+- durable endpoint: `POST /mcp` on the installation's base host, served by the `stackkit-server` that every v2 Core runs.
 
 The user should not have to choose between two MCP products. They give their agent one `stackkit` MCP connection. The runtime chooses the local adapter or the protected server endpoint depending on where the agent runs.
 
@@ -37,7 +37,8 @@ Transport stance:
 - `stdio` is the local adapter path for MCP clients that launch `stackkit-mcp` as a subprocess.
 - Streamable HTTP is the standards-based remote-capable transport for `POST /mcp`. It is stateless and serves MCP protocol `2026-07-28`: no `initialize` handshake is required, `server/discover` reports the supported protocol versions, and each request carries its protocol version and client capabilities in `_meta` with matching `Mcp-Protocol-Version` and `Mcp-Method` (plus `Mcp-Name` for named calls) headers. The server never issues an `Mcp-Session-Id` and ignores one a client sends. There is no GET stream (`GET /mcp` returns 405). Clients on older protocol versions that still send `initialize` are served per request.
 - WebSocket is not the default StackKits MCP surface; it would be a custom transport or gateway layer.
-- Durable external access to `stackkit-server /mcp` is a target StackKit-owned day-2 capability after install, not the current default first-install path.
+- Every v2 Core runs `stackkit-server` as a Core component, and the Core's own router publishes `POST /mcp` on the base host (`https://base.<domain>/mcp`). The route matches only that path, carries a router rate limit and no browser forward-auth, and inherits the base host's exposure: the site LAN on Basement, the public edge on Cloud. The REST API is not routed. On the host the server listens only on `127.0.0.1:8082`.
+- The Core container runs the `stackkit-server` binary of the release that applied it and sees no host workspace, Docker or systemd. Documentation and embedded tools work there; CLI-backed operation tools that need the host workspace run through a local `stackkit-mcp` until host execution for the Core endpoint is decided.
 
 Default stance:
 
@@ -54,7 +55,16 @@ MCP HTTP authentication:
 - `stackkit-server` fails closed: without an MCP token, `POST /mcp` stays mounted and answers every request with `401` and a structured `mcp_token_not_configured` error that explains how to configure the token. `--allow-unauthenticated` relaxes only the REST API key, never `/mcp`.
 - `stackkit-mcp --transport http` may run without a token only on a loopback listen address such as `127.0.0.1:8091`. Any other listen address requires a token and the process refuses to start without one.
 
-For non-loopback access, the connector must be behind a protected path such as VPN, SSH tunnel, private network, mTLS/reverse proxy, or an OAuth-aware gateway. Remote write access also needs explicit write mode and should log run IDs, actor, target, tool inputs, and evidence locations.
+Core MCP token lifecycle:
+
+- `stackkit apply` mints the dedicated MCP token once (32 random bytes) into `.stackkit/custody/stackkit-server/mcp/token` (directory `0700`, file `0600`) and prints the endpoint and the file's location, never the value. The server reads it through `STACKKIT_MCP_TOKEN_FILE` on a read-only mount, and its API key the same way.
+- The Core endpoint serves only its configured workspace; a tool call that names another `base_dir` is refused.
+- Run `stackkit apply` as the workspace owner in the `docker` group, not under `sudo`; the server container runs as the account that owns the credentials.
+- Re-apply keeps the token. To rotate it, delete the file and apply again; Apply mints a new token and recreates the server.
+- `stackkit remove` deletes the token and the server's API key once the runtime is gone.
+- `stackkit verify` fails when the server is unhealthy or the router has not loaded the `/mcp` route.
+
+A separately started `stackkit-server` or `stackkit-mcp` on a non-loopback address must be behind a protected path such as VPN, SSH tunnel, private network, mTLS/reverse proxy, or an OAuth-aware gateway. Remote write access also needs explicit write mode and should log run IDs, actor, target, tool inputs, and evidence locations.
 
 ## StackKits State Console
 
@@ -227,11 +237,12 @@ command = "stackkit-mcp"
 args = ["--mode", "docs,local,server,actions"]
 ```
 
-Protected durable endpoint after install (send `Authorization: Bearer <mcp-token>`):
+Core endpoint after `stackkit apply` (send `Authorization: Bearer <mcp-token>`, with the token from `.stackkit/custody/stackkit-server/mcp/token`):
 
 ```text
-POST http://localhost:8082/mcp
-GET  http://localhost:8082/openmcp.json
+POST https://base.<domain>/mcp        # through the Core router
+POST http://127.0.0.1:8082/mcp        # owner-local, on the host
+GET  http://127.0.0.1:8082/openmcp.json
 ```
 
 Mint a dedicated MCP token and enable write-capable local agent mode:

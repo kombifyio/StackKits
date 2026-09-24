@@ -230,26 +230,7 @@ func executePterodactylGameServerSetup(ctx context.Context, client *http.Client,
 	if err := readNativeSetupCredentialJSON(workspace, options.credentialsFile, &credentials); err != nil {
 		return nativeOwnerSetupObservation{}, err
 	}
-	bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(deployment.Bundle)
-	if err != nil {
-		return nativeOwnerSetupObservation{}, err
-	}
-	derive := func(slot, prefix string) (string, error) {
-		material, err := localevidence.ResolveLocalSecretMaterial(workspace, bundle.SecretRefs[slot])
-		if err != nil {
-			return "", fmt.Errorf("resolve the owner-custodied %s: %w", slot, err)
-		}
-		defer clear(material)
-		if len(material) < 43 {
-			return "", fmt.Errorf("custody material for %s is too short", slot)
-		}
-		return prefix + string(material[:11]) + string(material[11:43]), nil
-	}
-	applicationKey, err := derive("application-api-key", "ptla_")
-	if err != nil {
-		return nativeOwnerSetupObservation{}, err
-	}
-	clientKey, err := derive("client-api-key", "ptlc_")
+	applicationKey, clientKey, err := pterodactylCustodyKeys(workspace, deployment)
 	if err != nil {
 		return nativeOwnerSetupObservation{}, err
 	}
@@ -266,4 +247,33 @@ func executePterodactylGameServerSetup(ctx context.Context, client *http.Client,
 	}
 	printInfo("Game server %s is ready on port %d/%s; join check: %s", result.Identifier, result.Port, result.Protocol, result.Reachable)
 	return nativeOwnerSetupObservation{AccountRef: result.ServerUUID, Initialized: true, AdminLoginVerified: true, OnboardingComplete: true}, nil
+}
+
+// pterodactylCustodyKeys derives the Panel's Application and Client API keys
+// from owner custody exactly as the bootstrap minted them (ADR-0043).
+func pterodactylCustodyKeys(workspace string, deployment runtimeexecutorlocal.SelectedPaaSWorkloadDeployment) (string, string, error) {
+	bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(deployment.Bundle)
+	if err != nil {
+		return "", "", err
+	}
+	derive := func(slot, prefix string) (string, error) {
+		material, err := localevidence.ResolveLocalSecretMaterial(workspace, bundle.SecretRefs[slot])
+		if err != nil {
+			return "", fmt.Errorf("resolve the owner-custodied %s: %w", slot, err)
+		}
+		defer clear(material)
+		if len(material) < 43 {
+			return "", fmt.Errorf("custody material for %s is too short", slot)
+		}
+		return prefix + string(material[:11]) + string(material[11:43]), nil
+	}
+	applicationKey, err := derive("application-api-key", "ptla_")
+	if err != nil {
+		return "", "", err
+	}
+	clientKey, err := derive("client-api-key", "ptlc_")
+	if err != nil {
+		return "", "", err
+	}
+	return applicationKey, clientKey, nil
 }

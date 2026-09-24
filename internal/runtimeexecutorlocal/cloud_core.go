@@ -313,6 +313,8 @@ var cloudCoreHealthSpecs = []basementCoreHealthSpec{
 	{source: "cloud-hub-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/healthz", port: 80, probePort: 8081, timeout: 30, statuses: []int{200}},
 	{source: "cloud-pocketid-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/", port: 1411, probePort: 1411, timeout: 30, statuses: []int{200, 302}},
 	{source: "cloud-router-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/ping", port: 8080, probePort: 8080, timeout: 30, statuses: []int{200}},
+	{source: "cloud-stackkit-mcp-route", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/api/http/routers/stackkit-mcp@docker", port: 8080, probePort: 8080, timeout: 30, statuses: []int{200}},
+	{source: "cloud-stackkit-server-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/health", port: 8082, probePort: 8082, timeout: 30, statuses: []int{200}},
 	{source: "cloud-tinyauth-http", kind: "http", targetKind: "module", targetRef: cloudCoreModuleRef, path: "/", port: 3000, probePort: 4000, timeout: 30, statuses: []int{200, 302}},
 }
 

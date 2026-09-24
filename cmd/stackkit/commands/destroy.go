@@ -13,6 +13,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/docker"
 	"github.com/kombifyio/stackkits/internal/iac"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/workloadremoval"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
@@ -217,6 +218,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 	// Phase 3: File cleanup
 	cleanupFiles(wd, removePurge)
+	removeCoreMCPCredentials(wd)
 
 	deployLog.Event("remove.files_cleanup",
 		slog.Bool("purge", removePurge),
@@ -353,6 +355,7 @@ func removeWholeLocalDeployment(ctx context.Context, wd string, deleteVolumes, p
 	if len(failed) > 0 && !removeForce {
 		return fmt.Errorf("remove incomplete: %s", strings.Join(failed, "; "))
 	}
+	removeCoreMCPCredentials(wd)
 	printSuccess("Remove complete")
 	printInfo("Re-install with the installer, or stackkit init then apply")
 	return nil
@@ -449,6 +452,15 @@ func removeStackKitImages(ctx context.Context) {
 		} else {
 			printSuccess("  Removed image %s", img)
 		}
+	}
+}
+
+// removeCoreMCPCredentials deletes the Core's MCP credentials once the runtime
+// that served them is gone, so an uninstalled stack leaves no valid agent
+// credential behind. Callers invoke it only after the runtime was removed.
+func removeCoreMCPCredentials(wd string) {
+	if err := localevidence.RemoveStackKitServerCredentials(wd); err != nil {
+		printWarning("Failed to remove the StackKits MCP credentials: %v", err)
 	}
 }
 

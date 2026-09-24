@@ -123,6 +123,15 @@ Package: foundation.#UseCasePackage & {
 			command: "stackkit setup game"
 			purpose: "Create a curated game server after owner approval and EULA acceptance."
 		}, {
+			command: "stackkit game list"
+			purpose: "List the owner's game servers with state and port."
+		}, {
+			command: "stackkit game power"
+			purpose: "Start, stop or restart one game server after owner approval."
+		}, {
+			command: "stackkit game allow"
+			purpose: "Admit one player on an allow-list server after owner approval."
+		}, {
 			command: "stackkit agent mcp-config"
 			purpose: "Print the stackkit lifecycle MCP client connection."
 		}]

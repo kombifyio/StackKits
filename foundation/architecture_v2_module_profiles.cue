@@ -16,8 +16,8 @@ _architectureV2CoreComputeProfile: #ModuleComputeProfileV2 & {
 }
 
 _architectureV2CloudCoreComputeProfile: _architectureV2CoreComputeProfile & {
-	description: "Cloud routing, owner identity, application management and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability."
-	components: ["router", "socket-proxy", "pocketid", "tinyauth", "coolify", "coolify-postgres", "coolify-redis", "coolify-realtime", "hub"]
+	description: "Cloud routing, owner identity, application management, the hub and the StackKits server with its MCP endpoint. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability."
+	components: ["router", "socket-proxy", "pocketid", "tinyauth", "coolify", "coolify-postgres", "coolify-redis", "coolify-realtime", "hub", "stackkit-server"]
 }
 _architectureV2CloudCoreComputeProfiles: {
 	standard: _architectureV2CloudCoreComputeProfile
@@ -25,12 +25,12 @@ _architectureV2CloudCoreComputeProfiles: {
 }
 
 _architectureV2CloudStandaloneCoreComputeProfile: #ModuleComputeProfileV2 & {
-	description:        "Cloud routing, owner identity, public edge and the hub using standalone Compose. Coolify and Komodo are omitted; public TLS, offsite backup and provider lifecycle remain separately owned contracts."
+	description:        "Cloud routing, owner identity, public edge, the hub and the StackKits server with its MCP endpoint using standalone Compose. Coolify and Komodo are omitted; public TLS, offsite backup and provider lifecycle remain separately owned contracts."
 	maturity:           "supported", executable: true, realization: "apply-ready"
 	platformManagement: "standalone"
 	hostFloor:          _architectureV2CoreComputeProfile.hostFloor
 	recommended:        _architectureV2CoreComputeProfile.recommended
-	components: ["router", "socket-proxy", "pocketid", "tinyauth", "hub", "kopia-agent"]
+	components: ["router", "socket-proxy", "pocketid", "tinyauth", "hub", "stackkit-server", "kopia-agent"]
 	degradations: ["paas-management-omitted"]
 }
 _architectureV2CloudStandaloneCoreComputeProfiles: {
@@ -39,8 +39,8 @@ _architectureV2CloudStandaloneCoreComputeProfiles: {
 }
 
 _architectureV2BasementCoreComputeProfile: _architectureV2CoreComputeProfile & {
-	description: "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent and the hub. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability."
-	components: ["router", "socket-proxy", "pocketid", "tinyauth", "step-ca", "lan-dns", "coolify", "coolify-postgres", "coolify-redis", "coolify-realtime", "kopia-agent", "hub"]
+	description: "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent, the hub and the StackKits server with its MCP endpoint. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability."
+	components: ["router", "socket-proxy", "pocketid", "tinyauth", "step-ca", "lan-dns", "coolify", "coolify-postgres", "coolify-redis", "coolify-realtime", "kopia-agent", "hub", "stackkit-server"]
 }
 _architectureV2BasementCoreComputeProfiles: {
 	standard: _architectureV2BasementCoreComputeProfile
@@ -48,12 +48,12 @@ _architectureV2BasementCoreComputeProfiles: {
 }
 
 _architectureV2BasementStandaloneCoreComputeProfile: #ModuleComputeProfileV2 & {
-	description:        "Local routing, owner identity, internal certificates, the site resolver, backup agent and the hub using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles."
+	description:        "Local routing, owner identity, internal certificates, the site resolver, backup agent, the hub and the StackKits server with its MCP endpoint using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles."
 	maturity:           "supported", executable: true, realization: "apply-ready"
 	platformManagement: "standalone"
 	hostFloor: {minCpuCores: 2, minRamGB: 2, minStorageGB: 10}
 	recommended: {cpuCores: 2, ramGB: 2, storageGB: 10}
-	components: ["router", "socket-proxy", "pocketid", "tinyauth", "step-ca", "lan-dns", "kopia-agent", "hub"]
+	components: ["router", "socket-proxy", "pocketid", "tinyauth", "step-ca", "lan-dns", "kopia-agent", "hub", "stackkit-server"]
 	degradations: ["paas-management-omitted"]
 }
 

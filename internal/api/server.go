@@ -48,6 +48,9 @@ type ServerConfig struct {
 	FilesSessionBridgeToken           string
 	MCPToken                          string
 	MCPAllowWrite                     bool
+	// MCPPinBaseDir rejects MCP tool calls that name a workspace other
+	// than BaseDir; the routed Core endpoint sets it.
+	MCPPinBaseDir bool
 	// ArchitectureV2ResolveConcurrency limits concurrent governed CUE
 	// resolutions per server. Values <= 0 use the fail-safe default.
 	ArchitectureV2ResolveConcurrency int
@@ -209,6 +212,7 @@ func (s *Server) registerMCPRoutes() {
 		APIKey:     s.config.APIKey,
 		MCPToken:   s.config.MCPToken,
 		AllowWrite: s.config.MCPAllowWrite,
+		PinBaseDir: s.config.MCPPinBaseDir,
 		BaseDir:    s.config.BaseDir,
 		Binary:     cliBinary,
 		Version:    s.config.Version,

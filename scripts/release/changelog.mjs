@@ -186,6 +186,21 @@ function normalizeEntry(bullet) {
 // fixes that patch releases of the previous line already shipped, so those
 // are dropped. Without a curated `### Highlights` list the line's Added
 // entries stand in, never its fixes.
+// Every public release line (X.Y.0) needs a curated `### Highlights` list:
+// CI-CD-PLATFORM-STANDARD §4.2 requires understandable notes and a concise
+// summary per new line, and the website and GitHub releases render these
+// highlights instead of raw commit subjects. Returns the X.Y.0 versions, at or
+// after `sinceVersion`, whose section has no Highlights.
+export function releaseLinesMissingHighlights(markdown, options = {}) {
+  const { sinceVersion = '0.32.0' } = options
+  const since = minorKey(sinceVersion)
+  return parseChangelogSections(markdown)
+    .filter((section) => /^\d+\.\d+\.0$/u.test(section.version))
+    .filter((section) => compareMinorKeys(minorKey(section.version), since) >= 0)
+    .filter((section) => !subsectionHeadings(section.body).includes('Highlights'))
+    .map((section) => section.version)
+}
+
 export function extractReleaseLine(markdown, options = {}) {
   const { anchorVersion = '', highlightLimit = 4, fallbackVersion = '0.0' } = options
   const sections = parseChangelogSections(markdown)

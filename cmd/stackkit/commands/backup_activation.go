@@ -97,47 +97,52 @@ func runNativeV2RestoreActivationCommand(
 	if err != nil {
 		return err
 	}
-	result, err := service.Activate(ctx, restoreactivation.ActivateInput{
-		WorkspaceRoot:  workspace,
-		OperationID:    operationID,
-		OwnerApproved:  ownerApproved,
-		Plan:           plan,
-		Manifest:       manifest,
-		RestoreResult:  restoreResult,
-		CurrentLineage: authority.Lineage,
-		CreateSafetySnapshot: func(
-			snapshotContext context.Context,
-			_ string,
-		) (backuplifecycle.SnapshotAnchor, error) {
-			return backupService.Run(snapshotContext, backuplifecycle.RunInput{
-				OwnerRef: authority.OwnerRef, AuthorityRef: authority.AuthorityRef,
-				Lineage: authority.Lineage,
-				PolicyArtifact: append(
-					[]byte(nil), authority.PolicyArtifact...,
-				),
-				OperationID:     safetySnapshotOperationID(operationID),
-				ProtectRecovery: true,
-			})
-		},
-		VerifyLive: nativeV2RestoreActivationVerifier(
-			workspace, restoreResult,
-		),
-		FinalizeResult: func(_ context.Context, finalized restoreactivation.Result, _ error) error {
-			evidence, evidenceRef, finalizeErr := restoreActivationApplicationLifecycleEvidence(workspace, finalized)
-			if finalizeErr != nil {
-				return finalizeErr
-			}
-			if finalized.Status == "recovered" {
-				return recoverArchitectureV2ApplicationLifecycles(
-					workspace, lifecycleRuns,
-					"restore activation failed; the prior application state was restored automatically",
-					evidenceRef, evidence, time.Now().UTC(), nil,
+	var result restoreactivation.Result
+	err = withGameServersHeld(ctx, workspace, true, func() error {
+		var activateErr error
+		result, activateErr = service.Activate(ctx, restoreactivation.ActivateInput{
+			WorkspaceRoot:  workspace,
+			OperationID:    operationID,
+			OwnerApproved:  ownerApproved,
+			Plan:           plan,
+			Manifest:       manifest,
+			RestoreResult:  restoreResult,
+			CurrentLineage: authority.Lineage,
+			CreateSafetySnapshot: func(
+				snapshotContext context.Context,
+				_ string,
+			) (backuplifecycle.SnapshotAnchor, error) {
+				return backupService.Run(snapshotContext, backuplifecycle.RunInput{
+					OwnerRef: authority.OwnerRef, AuthorityRef: authority.AuthorityRef,
+					Lineage: authority.Lineage,
+					PolicyArtifact: append(
+						[]byte(nil), authority.PolicyArtifact...,
+					),
+					OperationID:     safetySnapshotOperationID(operationID),
+					ProtectRecovery: true,
+				})
+			},
+			VerifyLive: nativeV2RestoreActivationVerifier(
+				workspace, restoreResult,
+			),
+			FinalizeResult: func(_ context.Context, finalized restoreactivation.Result, _ error) error {
+				evidence, evidenceRef, finalizeErr := restoreActivationApplicationLifecycleEvidence(workspace, finalized)
+				if finalizeErr != nil {
+					return finalizeErr
+				}
+				if finalized.Status == "recovered" {
+					return recoverArchitectureV2ApplicationLifecycles(
+						workspace, lifecycleRuns,
+						"restore activation failed; the prior application state was restored automatically",
+						evidenceRef, evidence, time.Now().UTC(), nil,
+					)
+				}
+				return succeedArchitectureV2ApplicationLifecycles(
+					workspace, lifecycleRuns, evidence, time.Now().UTC(),
 				)
-			}
-			return succeedArchitectureV2ApplicationLifecycles(
-				workspace, lifecycleRuns, evidence, time.Now().UTC(),
-			)
-		},
+			},
+		})
+		return activateErr
 	})
 	if err != nil {
 		var recovered *restoreactivation.ActivationRecoveredError

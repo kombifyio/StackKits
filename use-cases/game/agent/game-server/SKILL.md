@@ -50,7 +50,17 @@ forwarding as a default.
 
 ## Routine operations
 
-Use the Pterodactyl Client API (`/api/client`) with the owner's client key for
-state, resources, power signals, allow-list edits and bounded file edits. Do
-not use the Application API, arbitrary console commands or operator grants
-without an explicit owner request.
+Use the StackKits game operations; they reach the Panel with keys derived from
+owner custody, so you never handle a Panel key:
+
+| MCP tool | CLI | Effect |
+| --- | --- | --- |
+| `stackkit_game_list` | `stackkit game list --json` | Servers with identifier, name, state and port |
+| `stackkit_game_power` | `stackkit game power <server> --signal start\|stop\|restart --owner-approve` | Power change; returns the observed state |
+| `stackkit_game_allow` | `stackkit game allow <server> --player <name> --owner-approve` | Admits a player and reads the allow list back |
+
+Power and allow-list changes need the owner's explicit approval. Terraria and
+Valheim have no account allow list; they use the join password chosen at
+setup. Backups and restores stop and restart running servers themselves.
+Use the Panel UI for anything else; do not run arbitrary console commands or
+grant operator rights without an explicit owner request.

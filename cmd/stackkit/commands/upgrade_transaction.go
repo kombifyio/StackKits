@@ -792,7 +792,9 @@ func withVerifiedPublicUpgradeExecutable(
 		if !reflect.DeepEqual(verifiedReceipt, receipt) {
 			return errors.New("verified installed target receipt changed before execution")
 		}
-		executable, err := upgradelifecycle.RecoveryExecutableFromVerifiedRelease(proof)
+		// The target Apply stages the v2 Core's stackkit-server from beside
+		// its own executable, so the same verified release supplies both.
+		executable, server, err := upgradelifecycle.ReleaseExecutablesFromVerifiedRelease(proof)
 		if err != nil {
 			return err
 		}
@@ -812,6 +814,15 @@ func withVerifiedPublicUpgradeExecutable(
 		}
 		if err := requireUpgradeTargetBinary(binary); err != nil {
 			return err
+		}
+		if len(server) > 0 {
+			serverName := "stackkit-server"
+			if receipt.Platform.OS == "windows" {
+				serverName += ".exe"
+			}
+			if err := os.WriteFile(filepath.Join(tempRoot, serverName), server, 0o700); err != nil { //nolint:gosec // verified release executable
+				return fmt.Errorf("materialize the verified target stackkit-server: %w", err)
+			}
 		}
 		return invoke(binary)
 	})

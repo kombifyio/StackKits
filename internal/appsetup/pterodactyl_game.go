@@ -1089,3 +1089,180 @@ func bedrockJoinCheck(host string, port int, _ string) (string, error) {
 	}
 	return answer + " connection accepted", nil
 }
+
+// OwnedGameServers lists the identifiers of every game server the owner's
+// client key can operate, with its current power state.
+func OwnedGameServers(ctx context.Context, client *http.Client, baseURL, clientKey string) (map[string]string, error) {
+	c := pterodactylClient{http: client, baseURL: baseURL, userKey: clientKey}
+	states := map[string]string{}
+	for page := 1; page <= 20; page++ {
+		var list struct {
+			Data []struct {
+				Attributes struct {
+					Identifier string `json:"identifier"`
+				} `json:"attributes"`
+			} `json:"data"`
+			Meta struct {
+				Pagination struct {
+					TotalPages int `json:"total_pages"`
+				} `json:"pagination"`
+			} `json:"meta"`
+		}
+		if _, err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/client?page=%d", page), c.userKey, nil, "", &list); err != nil {
+			return nil, fmt.Errorf("list game servers: %w", err)
+		}
+		for _, server := range list.Data {
+			state, err := c.currentState(ctx, server.Attributes.Identifier)
+			if err != nil {
+				return nil, fmt.Errorf("read game server %s state: %w", server.Attributes.Identifier, err)
+			}
+			states[server.Attributes.Identifier] = state
+		}
+		if page >= list.Meta.Pagination.TotalPages {
+			break
+		}
+	}
+	return states, nil
+}
+
+// StopGameServer asks the game to shut down with its own stop command (which
+// saves the world) and waits until Wings reports it offline.
+func StopGameServer(ctx context.Context, client *http.Client, baseURL, clientKey, identifier string, limit time.Duration) error {
+	c := pterodactylClient{http: client, baseURL: baseURL, userKey: clientKey}
+	if _, err := c.do(ctx, http.MethodPost, "/api/client/servers/"+identifier+"/power", c.userKey, map[string]string{"signal": "stop"}, "", nil); err != nil {
+		return fmt.Errorf("stop game server %s: %w", identifier, err)
+	}
+	return c.waitState(ctx, identifier, "offline", limit)
+}
+
+// StartGameServer sends the start signal without waiting for the world to load.
+func StartGameServer(ctx context.Context, client *http.Client, baseURL, clientKey, identifier string) error {
+	c := pterodactylClient{http: client, baseURL: baseURL, userKey: clientKey}
+	if _, err := c.do(ctx, http.MethodPost, "/api/client/servers/"+identifier+"/power", c.userKey, map[string]string{"signal": "start"}, "", nil); err != nil {
+		return fmt.Errorf("start game server %s: %w", identifier, err)
+	}
+	return nil
+}
+
+// GameServerSummary is the secret-free view of one owner game server.
+type GameServerSummary struct {
+	Identifier string `json:"identifier"`
+	Name       string `json:"name"`
+	State      string `json:"state"`
+	Port       int    `json:"port,omitempty"`
+}
+
+// ListGameServers returns every game server the owner's client key operates.
+func ListGameServers(ctx context.Context, client *http.Client, baseURL, clientKey string) ([]GameServerSummary, error) {
+	c := pterodactylClient{http: client, baseURL: baseURL, userKey: clientKey}
+	var out []GameServerSummary
+	for page := 1; page <= 20; page++ {
+		var list struct {
+			Data []struct {
+				Attributes struct {
+					Identifier    string `json:"identifier"`
+					Name          string `json:"name"`
+					Relationships struct {
+						Allocations struct {
+							Data []struct {
+								Attributes struct {
+									Port      int  `json:"port"`
+									IsDefault bool `json:"is_default"`
+								} `json:"attributes"`
+							} `json:"data"`
+						} `json:"allocations"`
+					} `json:"relationships"`
+				} `json:"attributes"`
+			} `json:"data"`
+			Meta struct {
+				Pagination struct {
+					TotalPages int `json:"total_pages"`
+				} `json:"pagination"`
+			} `json:"meta"`
+		}
+		if _, err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/client?page=%d", page), c.userKey, nil, "", &list); err != nil {
+			return nil, fmt.Errorf("list game servers: %w", err)
+		}
+		for _, server := range list.Data {
+			summary := GameServerSummary{Identifier: server.Attributes.Identifier, Name: server.Attributes.Name}
+			for _, allocation := range server.Attributes.Relationships.Allocations.Data {
+				if allocation.Attributes.IsDefault {
+					summary.Port = allocation.Attributes.Port
+				}
+			}
+			state, err := c.currentState(ctx, summary.Identifier)
+			if err != nil {
+				return nil, fmt.Errorf("read game server %s state: %w", summary.Identifier, err)
+			}
+			summary.State = state
+			out = append(out, summary)
+		}
+		if page >= list.Meta.Pagination.TotalPages {
+			break
+		}
+	}
+	return out, nil
+}
+
+// GameServerPower sends one power signal and, for start/stop/restart, waits
+// for the resulting state so the caller reports an observed outcome.
+func GameServerPower(ctx context.Context, client *http.Client, baseURL, clientKey, identifier, signal string) (string, error) {
+	want := map[string]string{"start": "running", "restart": "running", "stop": "offline"}[signal]
+	if want == "" {
+		return "", fmt.Errorf("power signal %q is not admitted; use start, stop or restart", signal)
+	}
+	c := pterodactylClient{http: client, baseURL: baseURL, userKey: clientKey}
+	if _, err := c.do(ctx, http.MethodPost, "/api/client/servers/"+url.PathEscape(identifier)+"/power", c.userKey, map[string]string{"signal": signal}, "", nil); err != nil {
+		return "", fmt.Errorf("send %s to game server %s: %w", signal, identifier, err)
+	}
+	if err := c.waitState(ctx, identifier, want, 8*time.Minute); err != nil {
+		return "", err
+	}
+	return want, nil
+}
+
+// AllowGamePlayer admits one player on a curated allow-list server and reads
+// the game's own allow list back. Servers not created by StackKits are
+// refused, because their admission command is unknown.
+func AllowGamePlayer(ctx context.Context, client *http.Client, baseURL, applicationKey, clientKey, identifier, player string) error {
+	if !gamePlayerName.MatchString(player) {
+		return fmt.Errorf("player name %q is not a valid game account name", player)
+	}
+	c := pterodactylClient{http: client, baseURL: baseURL, appKey: applicationKey, userKey: clientKey}
+	var servers pterodactylList[struct {
+		Identifier string `json:"identifier"`
+		ExternalID string `json:"external_id"`
+	}]
+	if _, err := c.do(ctx, http.MethodGet, "/api/application/servers?per_page=500", c.appKey, nil, "", &servers); err != nil {
+		return fmt.Errorf("look up the game server: %w", err)
+	}
+	var profile *GameProfile
+	for _, server := range servers.Data {
+		if server.Attributes.Identifier != identifier {
+			continue
+		}
+		for id, candidate := range GameProfiles {
+			if strings.HasPrefix(server.Attributes.ExternalID, "stackkit-game-"+id+"-") {
+				candidate := candidate
+				profile = &candidate
+			}
+		}
+	}
+	if profile == nil {
+		return fmt.Errorf("game server %s was not created by stackkit setup game; manage its players in the Panel", identifier)
+	}
+	if profile.Access != "allow-list" {
+		return fmt.Errorf("%s has no account allow list; players join with the server's join password", profile.DisplayName)
+	}
+	if _, err := c.do(ctx, http.MethodPost, "/api/client/servers/"+url.PathEscape(identifier)+"/command", c.userKey, map[string]string{"command": fmt.Sprintf(profile.AllowCommand, player)}, "", nil); err != nil {
+		return fmt.Errorf("admit player %q (the server must be running): %w", player, err)
+	}
+	missing, err := c.verifyAllowList(ctx, identifier, *profile, []string{player})
+	if err != nil {
+		return err
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("the game did not admit %s; check the exact %s", player, profile.AccountHint)
+	}
+	return nil
+}

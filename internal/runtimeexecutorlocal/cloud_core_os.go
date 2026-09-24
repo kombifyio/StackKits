@@ -25,6 +25,7 @@ type osCloudCoreOperations struct {
 	runner        basementCoreProcessRunner
 	prober        basementCoreProber
 	ownerIdentity basementOwnerIdentity
+	serverBinary  stackKitServerBinarySource
 }
 
 func NewOSCloudCoreOperations(workspaceRoot string) (CloudCoreOperations, error) {
@@ -54,6 +55,7 @@ func newOSCloudCoreOperations(workspaceRoot, runtimeName string) (CloudCoreOpera
 		workspaceRoot: filepath.Clean(absolute), runtimeName: runtimeName,
 		runner: osCloudCoreProcessRunner{}, prober: osBasementCoreProber{},
 		ownerIdentity: localBasementOwnerIdentity{service: ownerIdentity},
+		serverBinary:  releaseStackKitServerBinary,
 	}, nil
 }
 
@@ -71,12 +73,30 @@ func (o *osCloudCoreOperations) ApplyProject(ctx context.Context, project CloudC
 	if err := requireCloudIdentityAddress(custody, project.Definition); err != nil {
 		return CloudCoreApplyObservation{}, err
 	}
+	serverBinary, err := resolveCoreStackKitServerBinary(o.serverBinary)
+	if err != nil {
+		return CloudCoreApplyObservation{}, fmt.Errorf("resolve the Cloud core stackkit-server: %w", err)
+	}
+	// Stage the server before compose.yaml names it, so a failure never
+	// leaves a Compose project pointing at a missing ./stackkit-server.
+	recreateServer, err := prepareCoreStackKitServer(o.workspaceRoot, filepath.Join(o.workspaceRoot, ".stackkit", "runtime", o.name()), serverBinary)
+	if err != nil {
+		return CloudCoreApplyObservation{}, fmt.Errorf("prepare the Cloud core stackkit-server: %w", err)
+	}
 	composePath, err := o.persistCompose(project)
 	if err != nil {
 		return CloudCoreApplyObservation{}, err
 	}
 	if _, err := o.runner.Run(ctx, o.composeArgs(composePath, "up"), filepath.Dir(composePath), o.environment()); err != nil {
 		return CloudCoreApplyObservation{}, fmt.Errorf("Cloud Docker Compose Apply did not complete: %w", err)
+	}
+	if recreateServer {
+		if _, err := o.runner.Run(ctx, o.composeArgs(composePath, "recreate-server"), filepath.Dir(composePath), o.environment()); err != nil {
+			return CloudCoreApplyObservation{}, fmt.Errorf("recreate the Cloud core stackkit-server with its new release or token: %w", err)
+		}
+		if err := completeCoreStackKitServerRecreate(filepath.Dir(composePath)); err != nil {
+			return CloudCoreApplyObservation{}, err
+		}
 	}
 	if err := o.waitUntilReady(ctx, composePath, project); err != nil {
 		return CloudCoreApplyObservation{}, err
@@ -282,7 +302,8 @@ func (o *osCloudCoreOperations) persistCompose(project CloudCoreProject) (string
 }
 
 func (o *osCloudCoreOperations) environment() []string {
-	return []string{"LANG=C", "LC_ALL=C", "STACKKIT_CUSTODY_DIR=" + filepath.Join(o.workspaceRoot, ".stackkit", "custody")}
+	return append([]string{"LANG=C", "LC_ALL=C", "STACKKIT_CUSTODY_DIR=" + filepath.Join(o.workspaceRoot, ".stackkit", "custody")},
+		localevidence.StackKitServerComposeEnvironment(o.workspaceRoot)...)
 }
 
 func cloudCoreComposeArgs(composePath, operation string) []string {
@@ -309,18 +330,24 @@ func (o *osCloudCoreOperations) validateModule(project CloudCoreProject) error {
 
 func (o *osCloudCoreOperations) composeArgs(composePath, operation string) []string {
 	prefix := []string{"compose", "--project-name", "stackkit-" + o.name(), "-f", composePath}
-	if operation == "up" {
+	switch operation {
+	case "up":
 		return append(prefix, "up", "-d")
+	case "recreate-server":
+		return append(prefix, cloudCoreRecreateServerArgs...)
 	}
 	return append(prefix, "ps", "--all", "--format", "json")
 }
+
+var cloudCoreRecreateServerArgs = []string{"up", "-d", "--no-deps", "--force-recreate", architecturev2renderer.StackKitServerComponentRef}
 
 type osCloudCoreProcessRunner struct{}
 
 func (osCloudCoreProcessRunner) Run(ctx context.Context, args []string, directory string, environment []string) ([]byte, error) {
 	if len(args) < 6 || args[0] != "compose" || args[1] != "--project-name" || (args[2] != "stackkit-cloud-core" && args[2] != "stackkit-cloud-core-standalone") ||
 		args[3] != "-f" || filepath.Clean(args[4]) != args[4] || filepath.Base(args[4]) != "compose.yaml" || filepath.Dir(args[4]) != directory ||
-		(!slices.Equal(args[5:], []string{"up", "-d"}) && !slices.Equal(args[5:], []string{"ps", "--all", "--format", "json"})) {
+		(!slices.Equal(args[5:], []string{"up", "-d"}) && !slices.Equal(args[5:], []string{"ps", "--all", "--format", "json"}) &&
+			!slices.Equal(args[5:], cloudCoreRecreateServerArgs)) {
 		return nil, errors.New("Cloud core process runner rejected an unbounded command")
 	}
 	command := exec.CommandContext(ctx, "docker", args...) //nolint:gosec // exact finite arguments validated above

@@ -113,8 +113,24 @@ _architectureV2CloudCoreHubComponent: {
 	resources: {memoryLimit: "256m"}
 }
 
-_architectureV2CloudCoreStandaloneComponents: list.Concat([_architectureV2CloudCoreBaseComponents, [_architectureV2CloudCoreHubComponent, _architectureV2LocalKopiaComponent & {_networkRef: "cloud-backup"}]])
-_architectureV2CloudCoreFullComponents: list.Concat([_architectureV2CloudCoreBaseComponents, _architectureV2CloudCorePlatformComponents, [_architectureV2CloudCoreHubComponent]])
+// Every Core runs the StackKits server so the installation's own router can
+// publish its MCP endpoint (ADR-0044). The image is only a pinned runtime
+// base; the executable is the stackkit-server binary of the release that
+// applies, staged next to the Compose project and mounted read-only.
+_architectureV2StackKitServerComponent: {
+	_networkRef: string | *"cloud-core"
+	id:          "stackkit-server", role: "application", lifecycle: "daemon"
+	image: {
+		ref:    "docker.io/library/alpine:3.24"
+		digest: "sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
+	}
+	dependsOn: [], networkRefs: [_networkRef]
+	health: {kind: "http", path: "/health", port: 8082}
+	resources: {memoryLimit: "256m"}
+}
+
+_architectureV2CloudCoreStandaloneComponents: list.Concat([_architectureV2CloudCoreBaseComponents, [_architectureV2CloudCoreHubComponent, _architectureV2StackKitServerComponent, _architectureV2LocalKopiaComponent & {_networkRef: "cloud-backup"}]])
+_architectureV2CloudCoreFullComponents: list.Concat([_architectureV2CloudCoreBaseComponents, _architectureV2CloudCorePlatformComponents, [_architectureV2CloudCoreHubComponent, _architectureV2StackKitServerComponent]])
 
 // These contracts remain shared with the explicit full graph. Standalone
 // removes only the PaaS-owned route, listener, controls and health source.
@@ -124,6 +140,10 @@ _architectureV2CloudCoreHealthContracts: [
 	{id: "cloud-tinyauth-http", kind: "http", path: "/", port: 3000, expectedStatuses: [200, 302]},
 	{id: "cloud-coolify-http", kind: "http", path: "/", port: 8080, expectedStatuses: [200, 302]},
 	{id: "cloud-hub-http", kind: "http", path: "/healthz", port: 80, expectedStatuses: [200]},
+	{id: "cloud-stackkit-server-http", kind: "http", path: "/health", port: 8082, expectedStatuses: [200]},
+	// The router admin API answers 200 only while Traefik serves the MCP
+	// router, so a missing or unrouted /mcp fails Verify.
+	{id: "cloud-stackkit-mcp-route", kind: "http", path: "/api/http/routers/stackkit-mcp@docker", port: 8080, expectedStatuses: [200]},
 ]
 
 _architectureV2CloudStandaloneServiceEndpoints: [

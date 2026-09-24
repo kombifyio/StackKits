@@ -18,7 +18,7 @@ const (
 	cloudCoreComposeOutputRef = "platform/cloud-core/compose.yaml"
 	cloudCoreRendererRef      = "stackkit"
 	cloudCoreVersion          = "1.0.0"
-	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:10|resolved-network-domain:required|resolved-subdomain-prefix:optional|runtime-listeners:catalog-bound,direct-loopback-only|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-http-01|ingress:forward-auth-bound|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
+	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:11|resolved-network-domain:required|resolved-subdomain-prefix:optional|runtime-listeners:catalog-bound,direct-loopback-only|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub,stackkit-server|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-http-01|ingress:forward-auth-bound|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
 )
 
 const cloudCoreComponentsJSON = `[
@@ -30,7 +30,8 @@ const cloudCoreComponentsJSON = `[
 {"id":"coolify-postgres","role":"database","lifecycle":"daemon","image":{"ref":"docker.io/library/postgres:15-alpine","digest":"sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f"},"dependsOn":[],"networkRefs":["cloud-control"],"volumes":[{"id":"coolify-postgres-data","target":"/var/lib/postgresql/data","class":"persistent","backup":true}],"health":{"kind":"command","command":["pg_isready","-U","coolify"]},"resources":{"memoryLimit":"512m"}},
 {"id":"coolify-redis","role":"cache","lifecycle":"daemon","image":{"ref":"docker.io/library/redis:7-alpine","digest":"sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99"},"dependsOn":[],"networkRefs":["cloud-control"],"volumes":[{"id":"coolify-redis-data","target":"/data","class":"persistent","backup":true}],"health":{"kind":"command","command":["redis-cli","ping"]},"resources":{"memoryLimit":"256m"}},
 {"id":"coolify-realtime","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/coollabsio/coolify-realtime:1.0.16","digest":"sha256:b5bb9d1c95d9b4ca59773b82d1e1a2bf4ccac5fbed33be19b9b3906574db3629"},"dependsOn":["coolify-redis"],"networkRefs":["cloud-control"],"health":{"kind":"http","path":"/ready","port":6001}},
-{"id":"hub","role":"application","lifecycle":"daemon","image":{"ref":"docker.io/library/nginx:alpine","digest":"sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"},"dependsOn":["tinyauth"],"networkRefs":["cloud-core"],"health":{"kind":"http","path":"/healthz","port":80},"resources":{"memoryLimit":"256m"}}
+{"id":"hub","role":"application","lifecycle":"daemon","image":{"ref":"docker.io/library/nginx:alpine","digest":"sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"},"dependsOn":["tinyauth"],"networkRefs":["cloud-core"],"health":{"kind":"http","path":"/healthz","port":80},"resources":{"memoryLimit":"256m"}},
+{"id":"stackkit-server","role":"application","lifecycle":"daemon","image":{"ref":"docker.io/library/alpine:3.24","digest":"sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"},"dependsOn":[],"networkRefs":["cloud-core"],"health":{"kind":"http","path":"/health","port":8082},"resources":{"memoryLimit":"256m"}}
 ]`
 
 const cloudCoreCompose = `name: stackkit-cloud-core
@@ -229,7 +230,7 @@ services:
       - traefik.http.services.hub.loadbalancer.server.port=80
     healthcheck: {test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz | grep '\"status\":\"ok\"'"], interval: 5s, timeout: 2s, retries: 12, start_period: 5s}
     networks: [cloud-core]
-networks:
+` + cloudStackKitServerComposeService + `networks:
   cloud-core: {name: stackkit-cloud-core}
   cloud-control: {name: stackkit-cloud-control, internal: true}
 volumes:
