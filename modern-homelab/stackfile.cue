@@ -253,7 +253,8 @@ Definition: foundation.#ProductKitDefinition & {
 		initialSpecStatus: "preview"
 		requiredOverrides: ["network.domain.base"]
 		selectedWorkloadAccess: {
-			workloadRefs: ["photos", "files", "vault"]
+			// Every selectable application gets its initial HTTPS route and data binding.
+			workloadRefs: workloads.optional
 			enableCapabilities: ["internal-pki"]
 			route: {exposure: "local", protocol: "https", port: 443, path: "/"}
 			accessPolicies: {

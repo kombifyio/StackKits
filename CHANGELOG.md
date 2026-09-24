@@ -8,9 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+* **init:** give Media, Smart Home, AI, Dev and Documents the same initial HTTPS route and data binding as Photos, Files and Vault; they were installed but unreachable through the StackKit router
 * **photos:** keep Apply and restore available when optional machine learning is degraded, while reporting its health and retaining blocking checks for core services
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
+
+## [0.39.7](https://github.com/kombifyio/StackKits/compare/v0.39.6...v0.39.7) (2026-09-24)
+
+
+### Fixed
+
+* **init:** route every selectable application, not only Photos, Files and Vault
 
 ## [0.39.6](https://github.com/kombifyio/StackKits/compare/v0.39.5...v0.39.6) (2026-09-24)
 

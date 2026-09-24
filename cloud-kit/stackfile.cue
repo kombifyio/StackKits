@@ -241,7 +241,8 @@ Definition: foundation.#ProductKitDefinition & {
 		initialSpecStatus: "supported"
 		requiredOverrides: ["network.domain.base"]
 		selectedWorkloadAccess: {
-			workloadRefs: ["photos", "files", "vault"]
+			// Every selectable application gets its initial HTTPS route and data binding.
+			workloadRefs: workloads.optional
 			enableCapabilities: []
 			route: {exposure: "public", protocol: "https", port: 443, path: "/"}
 			accessPolicies: {

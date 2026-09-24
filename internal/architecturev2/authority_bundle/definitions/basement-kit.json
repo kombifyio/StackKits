@@ -232,9 +232,14 @@
         "protocol": "https"
       },
       "workloadRefs": [
-        "photos",
         "files",
-        "vault"
+        "photos",
+        "vault",
+        "media",
+        "smart-home",
+        "ai",
+        "dev",
+        "documents"
       ]
     },
     "standaloneOwner": {
