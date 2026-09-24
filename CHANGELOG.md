@@ -6,12 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Added
+
+* **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
+
 ### Fixed
 
 * **init:** give Media, Smart Home, AI, Dev and Documents the same initial HTTPS route and data binding as Photos, Files and Vault; they were installed but unreachable through the StackKit router
 * **photos:** keep Apply and restore available when optional machine learning is degraded, while reporting its health and retaining blocking checks for core services
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
+
+## [0.40.0] (2026-09-24)
+
+
+### Added
+
+* **compat:** grade the Cloud Kit public-VPS row from managed provider lanes
+
+
+### Fixed
+
+* **backup:** verify Cloud restores against the applied runtime request
+* **ci:** skip website checks where website/ is not shipped
+* **init:** route every selectable application, not only Photos, Files and Vault
+* **launch:** stackkit.cc and v0.39.7 release-asset fixes for the live public beta
+* **photos:** tolerate optional ML degradation
+* **release:** list public releases beyond one release-index bound
+* **upgrade:** inspect attested source generation across releases
+* **upgrade:** recognize env-file runtime port ownership
+* **upgrade:** validate shadow Owner custody before target execution
+* **upgrade:** verify historical source and admit owned runtime ports
+* **website:** load the nav lockup from the WebP web tier
+* **website:** restore Logo Link, runnable init hints and Markdown-only agent prompt headers
+* **website:** runnable init commands on the kit pages
 
 ## [0.39.9](https://github.com/kombifyio/StackKits/compare/v0.39.8...v0.39.9) (2026-09-24)
 

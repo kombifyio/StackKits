@@ -238,7 +238,7 @@
       "name": "Public VPS with a kombify.me address",
       "grade": "unverified",
       "reasonCodes": [
-        "no-automated-lane"
+        "current-release-receipt-pending"
       ]
     },
     {
