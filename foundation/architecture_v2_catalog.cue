@@ -211,6 +211,12 @@ _architectureV2GameInfrastructure: #WorkloadInfrastructureV1 & {
 		{componentRef: "panel-database", volumeRef: "database", target: "/var/lib/mysql", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "game"},
 		{componentRef: "panel", volumeRef: "var", target: "/app/var", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "game"},
 		{componentRef: "panel-cache", volumeRef: "cache", target: "/data", class: "cache", backup: false, dataClasses: []},
+		// Reproducible startup and log space; declared so restore activation
+		// can account for every Compose volume of the workload.
+		{componentRef: "panel", volumeRef: "nginx", target: "/etc/nginx/http.d", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "panel", volumeRef: "stackkit", target: "/stackkit", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "panel-bootstrap", volumeRef: "stackkit", target: "/stackkit", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "wings", volumeRef: "logs", target: "/var/log/pterodactyl", class: "cache", backup: false, dataClasses: []},
 	]}
 	// The application-runtime snapshot owner quiesces the Compose graph; Wings
 	// owned game containers keep running, so world copies are crash-consistent
@@ -5919,8 +5925,6 @@ _architectureV2Modules: list.Concat([[
 						for allocation in _architectureV2GameInfrastructure.storageAllocation.allocations if allocation.componentRef == "panel" {
 							id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
 						},
-						{id: "nginx", target: "/etc/nginx/http.d", class: "cache", backup: false},
-						{id: "stackkit", target: "/stackkit", class: "cache", backup: false},
 					]
 					health: {kind: "http", path: "/auth/login", port: 80}
 					resources: {memoryLimit: "1g", memoryReservation: "384m"}
@@ -5998,9 +6002,8 @@ _architectureV2Modules: list.Concat([[
 					volumes: [
 						for allocation in _architectureV2GameInfrastructure.storageAllocation.allocations if allocation.componentRef == "wings" {
 							id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
-							selfPath: true
+							if allocation.volumeRef == "data" {selfPath: true}
 						},
-						{id: "logs", target: "/var/log/pterodactyl", class: "cache", backup: false},
 					]
 					health: {kind: "image"}
 					resources: {memoryLimit: "512m", memoryReservation: "128m"}

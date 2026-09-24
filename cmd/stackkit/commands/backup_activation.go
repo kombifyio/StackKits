@@ -144,6 +144,14 @@ func runNativeV2RestoreActivationCommand(
 		if errors.As(err, &recovered) {
 			return err
 		}
+		var notStarted *restoreactivation.ActivationNotStartedError
+		if errors.As(err, &notStarted) {
+			return failArchitectureV2ApplicationLifecycles(
+				workspace, lifecycleRuns,
+				"restore activation did not start; live application state is unchanged",
+				time.Now().UTC(), err,
+			)
+		}
 		return requireArchitectureV2ApplicationLifecycleRecovery(
 			workspace,
 			lifecycleRuns,

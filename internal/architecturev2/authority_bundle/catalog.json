@@ -30039,6 +30039,38 @@
                   "dataClasses": [],
                   "target": "/data",
                   "volumeRef": "cache"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "panel",
+                  "dataClasses": [],
+                  "target": "/etc/nginx/http.d",
+                  "volumeRef": "nginx"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "panel",
+                  "dataClasses": [],
+                  "target": "/stackkit",
+                  "volumeRef": "stackkit"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "panel-bootstrap",
+                  "dataClasses": [],
+                  "target": "/stackkit",
+                  "volumeRef": "stackkit"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "wings",
+                  "dataClasses": [],
+                  "target": "/var/log/pterodactyl",
+                  "volumeRef": "logs"
                 }
               ],
               "moduleRef": "stackkits-storage-allocation"

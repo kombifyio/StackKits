@@ -483,8 +483,10 @@ type standaloneComposeCustodyDocument struct {
 }
 
 type standaloneComposeCustodyService struct {
-	Image   string            `yaml:"image"`
-	Volumes []string          `yaml:"volumes"`
+	Image string `yaml:"image"`
+	// Volumes holds short "name:target" mounts and long-form binds; only named
+	// volumes count as logical storage (ADR-0043 game node binds its socket).
+	Volumes []any             `yaml:"volumes"`
 	Labels  map[string]string `yaml:"labels"`
 }
 
@@ -964,10 +966,18 @@ func bindStandaloneComposeCustody(
 	}
 	mounted := map[string]struct{}{}
 	for _, service := range document.Services {
-		for _, mount := range service.Volumes {
-			name, _, found := strings.Cut(mount, ":")
-			if found {
-				mounted[name] = struct{}{}
+		for _, raw := range service.Volumes {
+			switch mount := raw.(type) {
+			case string:
+				if name, _, found := strings.Cut(mount, ":"); found {
+					mounted[name] = struct{}{}
+				}
+			case map[string]any:
+				if kind, _ := mount["type"].(string); kind == "volume" {
+					if name, _ := mount["source"].(string); name != "" {
+						mounted[name] = struct{}{}
+					}
+				}
 			}
 		}
 	}

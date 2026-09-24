@@ -78,6 +78,19 @@ func (err *ActivationRecoveredError) Error() string {
 
 func (err *ActivationRecoveredError) Unwrap() error { return err.Cause }
 
+// ActivationNotStartedError reports that activation failed before its
+// recovery journal existed, so no live volume was touched and there is nothing
+// to recover. Callers record the requested restore as failed.
+type ActivationNotStartedError struct {
+	Cause error
+}
+
+func (err *ActivationNotStartedError) Error() string {
+	return "restore activation did not start; live application state is unchanged: " + err.Cause.Error()
+}
+
+func (err *ActivationNotStartedError) Unwrap() error { return err.Cause }
+
 type Runtime interface {
 	Inspect(context.Context, Authority) error
 	ValidateStaging(context.Context, Authority) error
@@ -126,7 +139,7 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (Resu
 		input.WorkspaceRoot, input.Plan, input.Manifest, input.RestoreResult, input.OperationID,
 	)
 	if err != nil {
-		return Result{}, err
+		return Result{}, &ActivationNotStartedError{Cause: err}
 	}
 	bounded, cancel := boundedContext(ctx)
 	defer cancel()
@@ -154,7 +167,7 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (Resu
 		},
 	)
 	if err != nil {
-		return Result{}, err
+		return Result{}, &ActivationNotStartedError{Cause: err}
 	}
 	defer func() { _ = session.Close() }()
 

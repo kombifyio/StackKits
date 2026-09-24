@@ -14,10 +14,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+* **game:** restore activation binds the Game runtime: every Compose volume of the workload is a declared storage allocation, and long-form volume mounts are read
+* **restore:** an activation that fails before its recovery journal exists is recorded as failed, not as needing a recovery that cannot run
 * **init:** give Media, Smart Home, AI, Dev and Documents the same initial HTTPS route and data binding as Photos, Files and Vault; they were installed but unreachable through the StackKit router
 * **photos:** keep Apply and restore available when optional machine learning is degraded, while reporting its health and retaining blocking checks for core services
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
+
+## [0.42.1](https://github.com/kombifyio/StackKits/compare/v0.42.0...v0.42.1) (2026-09-24)
+
+
+### Fixed
+
+* **game:** bind the Game runtime for restore activation
 
 ## [0.42.0] (2026-09-24)
 
