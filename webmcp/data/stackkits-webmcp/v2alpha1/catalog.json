@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "6b3519a58da773fe08a24c8494b415028e9e81b1",
-  "authority_bundle_sha256": "1d20f66a45c1c6bebf9aec3399c68480100c2d5c8c84355f9324dd91d08d4ffa",
+  "source_sha": "c23c496be674131d7eb5643b218c789cb1dd1b12",
+  "authority_bundle_sha256": "6601df6dc93c0fcd2b9baa74ca3e1d403a5918a7756d432e75e8f5e670edaf3f",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -1250,7 +1250,7 @@
         {
           "use_case_id": "game",
           "title": "Game Server",
-          "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java and Bedrock profiles.",
+          "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles.",
           "required": false,
           "selected_by_default": false,
           "default_alternative_id": "pterodactyl",
@@ -2646,7 +2646,7 @@
         {
           "use_case_id": "game",
           "title": "Game Server",
-          "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java and Bedrock profiles.",
+          "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles.",
           "required": false,
           "selected_by_default": false,
           "default_alternative_id": "pterodactyl",
@@ -4071,7 +4071,7 @@
         {
           "use_case_id": "game",
           "title": "Game Server",
-          "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java and Bedrock profiles.",
+          "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles.",
           "required": false,
           "selected_by_default": false,
           "default_alternative_id": "pterodactyl",
@@ -4541,5 +4541,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "b9ef438b3fadb9153278f9d18d1142ef2e87ee81bed7f10ad1adb66773b6e6ce"
+  "catalog_sha256": "8e72ee1ecef5eef03f1d5b5f83f350c996ef3f8878aa8cf0e3ed48c26e358f1d"
 }

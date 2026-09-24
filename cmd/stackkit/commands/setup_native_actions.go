@@ -225,6 +225,7 @@ func executePterodactylGameServerSetup(ctx context.Context, client *http.Client,
 		Name       string   `json:"name"`
 		AcceptEULA bool     `json:"acceptEula"`
 		AllowList  []string `json:"allowList"`
+		Password   string   `json:"password"`
 	}
 	if err := readNativeSetupCredentialJSON(workspace, options.credentialsFile, &credentials); err != nil {
 		return nativeOwnerSetupObservation{}, err
@@ -258,7 +259,7 @@ func executePterodactylGameServerSetup(ctx context.Context, client *http.Client,
 	}
 	result, err := appsetup.CreatePterodactylGameServer(ctx, client, baseURL, appsetup.GameServerRequest{
 		Profile: credentials.Profile, Name: credentials.Name, AcceptEULA: credentials.AcceptEULA, AllowList: credentials.AllowList,
-		OwnerEmail: owner.PocketID.Email, ApplicationKey: applicationKey, ClientKey: clientKey, ExpectedVersion: release,
+		Password: credentials.Password, OwnerEmail: owner.PocketID.Email, ApplicationKey: applicationKey, ClientKey: clientKey, ExpectedVersion: release,
 	})
 	if err != nil {
 		return nativeOwnerSetupObservation{}, err

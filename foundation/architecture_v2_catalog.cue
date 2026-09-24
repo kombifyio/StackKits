@@ -6014,7 +6014,7 @@ _architectureV2Modules: list.Concat([[
 			id: "pterodactyl", kind: "native-config", rendererRef: "stackkit"
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/pterodactyl/bundle/v1.json", version: "1.0.0"
-			contractHash: "sha256:b006fa9d214d13e7cbc1c148f2a07d102f9464dcf6fee02830c4c4fdc3115b7c"
+			contractHash: "sha256:a4eeeece20a25a8a41e3bacc209b4dbbe1d3ff6e6bfd56c9326ac057a4463769"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
 			secretInputRefs: _architectureV2PterodactylSecretSlots

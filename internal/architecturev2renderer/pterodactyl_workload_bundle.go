@@ -30,14 +30,32 @@ const (
 	// PterodactylBedrockEggSHA256 pins the imported official Bedrock Egg
 	// (pterodactyl/game-eggs 342628869f5e145b4e99691a6bedacfc06d3ec02).
 	PterodactylBedrockEggSHA256 = "7723befb387894afeccc042f25560550a22785bc867e12a2d0254f0259f75e6b"
+	// PterodactylTerrariaEggSHA256 and PterodactylValheimEggSHA256 pin the
+	// official vanilla Eggs (pterodactyl/game-eggs c637a6d1e0449b167efeff81bb9a0177aa3df6c2).
+	PterodactylTerrariaEggSHA256 = "977a25b86d7613b62ca00403528ee41ecd131fee4fe75f99543393b558047ac4"
+	PterodactylValheimEggSHA256  = "6b027d661b24523a67630d5f96482eaaa83897af7c446fbb17eb8bf270d10ed7"
 )
 
-//go:embed assets/pterodactyl/egg-minecraft-bedrock.json
-var pterodactylBedrockEgg string
+var (
+	//go:embed assets/pterodactyl/egg-minecraft-bedrock.json
+	pterodactylBedrockEgg string
+	//go:embed assets/pterodactyl/egg-terraria-vanilla.json
+	pterodactylTerrariaEgg string
+	//go:embed assets/pterodactyl/egg-valheim-vanilla.json
+	pterodactylValheimEgg string
+)
+
+// pterodactylEggs are the imported Eggs beyond the Panel's seeded catalog,
+// each pinned by content digest.
+var pterodactylEggs = []struct{ Path, Body, SHA256 string }{
+	{Path: "/stackkit/eggs/minecraft-bedrock.json", Body: pterodactylBedrockEgg, SHA256: PterodactylBedrockEggSHA256},
+	{Path: "/stackkit/eggs/terraria-vanilla.json", Body: pterodactylTerrariaEgg, SHA256: PterodactylTerrariaEggSHA256},
+	{Path: "/stackkit/eggs/valheim-vanilla.json", Body: pterodactylValheimEgg, SHA256: PterodactylValheimEggSHA256},
+}
 
 var pterodactylSecretSlots = []string{"database-password", "database-root-password", "app-key", "hashids-salt", "owner-password", "application-api-key", "client-api-key"}
 
-const pterodactylWorkloadRendererSchema = `stackkit.workload-bundle/v2|PterodactylWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:panel,panel-database,panel-cache,panel-bootstrap,wings|wings:docker-socket-direct-v1/lifecycle-owner|game-data:self-path|panel:route-host-loopback,node-tls-local,nginx-node-proxy|egg:minecraft-bedrock/` + PterodactylBedrockEggSHA256 + `|release:` + pterodactylPanelRelease + `+wings-` + pterodactylWingsRelease + `|secret-material:not-included`
+const pterodactylWorkloadRendererSchema = `stackkit.workload-bundle/v2|PterodactylWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:panel,panel-database,panel-cache,panel-bootstrap,wings|wings:docker-socket-direct-v1/lifecycle-owner|game-data:self-path|panel:route-host-loopback,node-tls-local,nginx-node-proxy|egg:minecraft-bedrock/` + PterodactylBedrockEggSHA256 + `,terraria-vanilla/` + PterodactylTerrariaEggSHA256 + `,valheim-vanilla/` + PterodactylValheimEggSHA256 + `|release:` + pterodactylPanelRelease + `+wings-` + pterodactylWingsRelease + `|secret-material:not-included`
 
 // PterodactylWorkloadBundleDescriptor is the closed runtime artifact accepted
 // by the standalone application adapter for the Game workload (ADR-0043).
@@ -426,13 +444,16 @@ func validPterodactylSecretRefs(refs map[string]string) bool {
 // pterodactylConfigFiles are the governed startup files. They carry no secret
 // material; custody values reach the containers only as secret environment.
 func pterodactylConfigFiles() []selectedPaaSConfigFile {
-	return []selectedPaaSConfigFile{
+	files := []selectedPaaSConfigFile{
 		{Path: "/stackkit/panel-entrypoint.sh", Body: pterodactylPanelEntrypoint},
 		{Path: "/stackkit/nginx-panel.conf", Body: pterodactylNginxTemplate},
 		{Path: "/stackkit/bootstrap.sh", Body: pterodactylBootstrapShell},
 		{Path: "/stackkit/bootstrap.php", Body: pterodactylBootstrapPHP},
-		{Path: "/stackkit/eggs/minecraft-bedrock.json", Body: pterodactylBedrockEgg},
 	}
+	for _, egg := range pterodactylEggs {
+		files = append(files, selectedPaaSConfigFile{Path: egg.Path, Body: egg.Body})
+	}
+	return files
 }
 
 // The Panel derives Laravel's key from custody material, serves its node paths
@@ -580,7 +601,9 @@ $location = Location::query()->firstOrCreate(['short' => 'home'], ['long' => 'St
 $memoryMb = 4096;
 foreach (file('/proc/meminfo') ?: [] as $line) {
     if (preg_match('/^MemTotal:\s+(\d+)\s+kB/', $line, $m)) {
-        $memoryMb = max(2048, intdiv((int) $m[1], 1024) - 2048);
+        // The platform (Panel, database, cache, Wings) and the Basement core
+        // keep 3 GB; the rest is game memory the Panel may allocate.
+        $memoryMb = max(2048, intdiv((int) $m[1], 1024) - 3072);
     }
 }
 $diskMb = max(10240, (int) floor(((float) disk_total_space('/stackkit/game-data')) / 1048576 * 0.8));
@@ -621,7 +644,8 @@ $full = ['r_servers' => 3, 'r_nodes' => 3, 'r_allocations' => 3, 'r_users' => 3,
 $ensureKey(envOrFail('STACKKIT_APPLICATION_API_KEY'), 'ptla_', ApiKey::TYPE_APPLICATION, $full);
 $ensureKey(envOrFail('STACKKIT_CLIENT_API_KEY'), 'ptlc_', ApiKey::TYPE_ACCOUNT, []);
 
-$ports = ['19132', '25565', '25566', '25567', '25568', '25569', '25570'];
+// Minecraft Bedrock and Java, Terraria, and Valheim (game plus query port).
+$ports = ['19132', '25565', '25566', '25567', '25568', '25569', '25570', '7777', '2456', '2457'];
 $existing = Allocation::query()->where('node_id', $node->id)->pluck('port')->map(fn ($p) => (string) $p)->all();
 $missing = array_values(array_diff($ports, $existing));
 if ($missing !== []) {
@@ -633,7 +657,13 @@ foreach (glob('/stackkit/eggs/*.json') ?: [] as $eggFile) {
     if (Egg::query()->where('name', $definition['name'])->exists()) {
         continue;
     }
-    $nest = Pterodactyl\Models\Nest::query()->where('name', 'Minecraft')->firstOrFail();
+    $nestName = ['Vanilla Bedrock' => 'Minecraft', 'Terraria Vanilla' => 'Terraria', 'Valheim' => 'Valheim'][$definition['name']] ?? null;
+    if ($nestName === null) {
+        fwrite(STDERR, "stackkit: Egg {$definition['name']} has no curated nest\n");
+        exit(1);
+    }
+    $nest = Pterodactyl\Models\Nest::query()->where('name', $nestName)->first()
+        ?? app(Pterodactyl\Services\Nests\NestCreationService::class)->handle(['name' => $nestName, 'description' => 'Curated by StackKits'], 'stackkits@kombify.io');
     app(Pterodactyl\Services\Eggs\Sharing\EggImporterService::class)
         ->handle(new UploadedFile($eggFile, basename($eggFile), 'application/json', null, true), $nest->id);
 }

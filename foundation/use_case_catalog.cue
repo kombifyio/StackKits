@@ -419,7 +419,7 @@ UseCaseCatalog: #UseCaseCatalog & {
 		game: {
 			slug:        "game"
 			displayName: "Game Server"
-			description: "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java and Bedrock profiles."
+			description: "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles."
 			owner:       "stackkits"
 			mainUseCase: id: "game"
 			docs: "/guides/stackkits/use-cases/game"

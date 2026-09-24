@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:b3aac32b3e3bd57e9b89bd9dd9b640b1f4dcdba4835a02a4f7ea58e65f43c1d4",
+  "contentDigest": "sha256:c2e4841f299e078f06881f5658d6efd29283f00270e02b89acc5c29868151c3c",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -471,12 +471,12 @@
           },
           "moduleSlug": "pterodactyl",
           "notes": [
-            "Each running world needs its own memory: about 2 GB for Minecraft Java and 1.5 GB for Bedrock."
+            "Each running world needs its own memory: about 2 GB for Minecraft Java, 3 GB for Paper, 1.5 GB for Bedrock and Terraria, and 4 GB for Valheim."
           ]
         }
       },
       "defaultAlternative": "pterodactyl",
-      "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java and Bedrock profiles.",
+      "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles.",
       "docs": "/guides/stackkits/use-cases/game",
       "id": "game",
       "mainUseCase": {

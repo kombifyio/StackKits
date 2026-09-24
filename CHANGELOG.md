@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+* **game:** curated Minecraft Paper, Terraria and Valheim profiles next to Minecraft Java and Bedrock; Terraria and Valheim require an owner-chosen join password, Valheim stays off the public list and crossplay, and each server is confirmed by its own protocol
+* **game:** `stackkit setup game` refuses a server the node's game memory cannot hold instead of overcommitting the host
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
@@ -20,6 +22,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **photos:** keep Apply and restore available when optional machine learning is degraded, while reporting its health and retaining blocking checks for core services
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
+
+## [0.43.0] (2026-09-24)
+
+
+### Added
+
+* **game:** curated Paper, Terraria and Valheim profiles
+
+
+### Fixed
+
+* **game:** bind the Game runtime for restore activation
 
 ## [0.42.1](https://github.com/kombifyio/StackKits/compare/v0.42.0...v0.42.1) (2026-09-24)
 

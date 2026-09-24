@@ -16,7 +16,7 @@ Package: foundation.#UseCasePackage & {
 		layer:       "application"
 		category:    "game"
 		lifecycle:   "experimental"
-		description: "Game servers for friends and family through Pterodactyl, with curated Minecraft Java and Bedrock profiles and secure defaults."
+		description: "Game servers for friends and family through Pterodactyl, with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles and secure defaults."
 	}
 
 	selection: {
@@ -48,7 +48,7 @@ Package: foundation.#UseCasePackage & {
 
 	computeTiers: {
 		low: {included: false, reason: "Game servers need the standard profile and their own memory budget."}
-		standard: {included: true, moduleSlug: "pterodactyl", functions: ["game-server-hosting", "game-server-management"], load: {residency: "on-demand", baseline: "idle-resident", burst: "interactive"}, notes: ["Each running world needs its own memory: about 2 GB for Minecraft Java and 1.5 GB for Bedrock."]}
+		standard: {included: true, moduleSlug: "pterodactyl", functions: ["game-server-hosting", "game-server-management"], load: {residency: "on-demand", baseline: "idle-resident", burst: "interactive"}, notes: ["Each running world needs its own memory: about 2 GB for Minecraft Java, 3 GB for Paper, 1.5 GB for Bedrock and Terraria, and 4 GB for Valheim."]}
 		high: {included: true, moduleSlug: "pterodactyl", functions: ["game-server-hosting", "game-server-management"], load: {residency: "on-demand", baseline: "idle-resident", burst: "interactive"}, notes: ["Same platform graph as standard; more worlds fit with more host memory."]}
 	}
 
@@ -90,7 +90,7 @@ Package: foundation.#UseCasePackage & {
 		drops: [{
 			name:        "game-server"
 			policy:      "on_demand"
-			description: "Create a curated game server (Minecraft Java or Bedrock) with secure defaults after the owner approves and accepts the game's EULA."
+			description: "Create a curated game server (Minecraft Java, Paper or Bedrock, Terraria or Valheim) with secure defaults after the owner approves and accepts the game's EULA."
 		}]
 	}
 

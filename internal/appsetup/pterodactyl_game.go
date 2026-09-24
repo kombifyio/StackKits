@@ -19,72 +19,156 @@ import (
 )
 
 // GameProfile is one curated game-server recipe (ADR-0043). Images are pinned
-// by digest; secure defaults are edition-specific and never copied between
-// editions.
+// by digest; secure defaults are game-specific and never copied between games.
 type GameProfile struct {
 	ID          string
+	DisplayName string
+	DefaultName string
 	EggName     string
 	NestName    string
 	DockerImage string
 	Port        int
-	Protocol    string // "tcp" (Java Server List Ping) or "udp" (Bedrock RakNet)
-	MemoryMB    int
-	DiskMB      int
-	CPUPercent  int
-	Environment func(name string) map[string]string
-	// Properties are applied to server.properties before first start.
-	Properties map[string]string
+	// ExtraPorts are further node ports the game needs (for example a query port).
+	ExtraPorts []int
+	Protocol   string // transport of Port: "tcp" or "udp"
+	MemoryMB   int
+	DiskMB     int
+	CPUPercent int
+	// Environment overlays the Egg's own variable defaults.
+	Environment func(name, password string) map[string]string
+	// PropertiesFile receives Properties before first start; empty when the
+	// Egg renders its configuration from the environment.
+	PropertiesFile string
+	Properties     map[string]string
+	// NameProperty carries the world name into PropertiesFile.
+	NameProperty string
+	// Access is "allow-list" (named accounts) or "password" (owner-chosen
+	// join password shared with friends).
+	Access string
 	// AllowCommand is the console command that admits one player.
 	AllowCommand string
-	// WritesEULA reports whether the server reads eula.txt.
-	WritesEULA bool
 	// AllowListFile is where the server records admitted players.
 	AllowListFile string
-	// NameProperty carries the world name into server.properties.
-	NameProperty string
+	// WritesEULA reports whether the server reads eula.txt.
+	WritesEULA bool
+	// AccountHint names the account kind players are admitted by.
+	AccountHint string
+	// PasswordFile is where the Egg renders the join password as a
+	// "password=" line, read back after start.
+	PasswordFile string
+	// Probe observes the game's own discovery protocol on the node.
+	Probe     func(host string, port int) (string, error)
+	ProbePort int
+}
+
+var minecraftJavaProperties = map[string]string{
+	"online-mode": "true", "white-list": "true", "enforce-whitelist": "true", "enable-rcon": "false",
+	"enable-query": "false", "difficulty": "normal", "max-players": "10", "server-port": "25565",
 }
 
 // GameProfiles is the curated catalog. Adding a game is a reviewed change:
-// Egg source, image digest, secure defaults, ports and resources.
+// Egg source, image digest, secure defaults, ports, resources and a probe.
 var GameProfiles = map[string]GameProfile{
 	"minecraft-java": {
-		ID: "minecraft-java", EggName: "Vanilla Minecraft", NestName: "Minecraft",
+		ID: "minecraft-java", DisplayName: "Minecraft Java (Vanilla)", DefaultName: "Family Survival",
+		EggName: "Vanilla Minecraft", NestName: "Minecraft",
 		DockerImage: "ghcr.io/pterodactyl/yolks:java_25@sha256:bc301e4696f5c4fc1bb21214f960ebdfd0ae05ffceaf5cd68511bf6e493757c3",
 		Port:        25565, Protocol: "tcp", MemoryMB: 2048, DiskMB: 10240, CPUPercent: 200,
-		Environment: func(string) map[string]string {
+		Environment: func(string, string) map[string]string {
 			return map[string]string{"SERVER_JARFILE": "server.jar", "VANILLA_VERSION": "latest"}
 		},
-		Properties: map[string]string{
-			"online-mode": "true", "white-list": "true", "enforce-whitelist": "true", "enable-rcon": "false",
-			"enable-query": "false", "difficulty": "normal", "max-players": "10", "server-port": "25565",
+		PropertiesFile: "/server.properties", Properties: minecraftJavaProperties, NameProperty: "motd",
+		Access: "allow-list", AllowCommand: "whitelist add %s", AllowListFile: "/whitelist.json", WritesEULA: true,
+		AccountHint: "Minecraft account names", Probe: javaServerListPing, ProbePort: 25565,
+	},
+	// Paper is the performance fork most family servers run; it keeps the
+	// vanilla protocol, so Java clients join without mods.
+	"minecraft-paper": {
+		ID: "minecraft-paper", DisplayName: "Minecraft Java (Paper)", DefaultName: "Family Paper",
+		EggName: "Paper", NestName: "Minecraft",
+		DockerImage: "ghcr.io/pterodactyl/yolks:java_25@sha256:bc301e4696f5c4fc1bb21214f960ebdfd0ae05ffceaf5cd68511bf6e493757c3",
+		Port:        25566, Protocol: "tcp", MemoryMB: 3072, DiskMB: 10240, CPUPercent: 200,
+		Environment: func(string, string) map[string]string {
+			return map[string]string{"SERVER_JARFILE": "server.jar", "MINECRAFT_VERSION": "latest", "BUILD_NUMBER": "latest"}
 		},
-		AllowCommand: "whitelist add %s", WritesEULA: true, AllowListFile: "/whitelist.json", NameProperty: "motd",
+		PropertiesFile: "/server.properties", Properties: withProperty(minecraftJavaProperties, "server-port", "25566"), NameProperty: "motd",
+		Access: "allow-list", AllowCommand: "whitelist add %s", AllowListFile: "/whitelist.json", WritesEULA: true,
+		AccountHint: "Minecraft account names", Probe: javaServerListPing, ProbePort: 25566,
 	},
 	"minecraft-bedrock": {
-		ID: "minecraft-bedrock", EggName: "Vanilla Bedrock", NestName: "Minecraft",
+		ID: "minecraft-bedrock", DisplayName: "Minecraft Bedrock", DefaultName: "Family Bedrock",
+		EggName: "Vanilla Bedrock", NestName: "Minecraft",
 		DockerImage: "ghcr.io/ptero-eggs/yolks:debian@sha256:d7b83c285632be9c9dd03b909378200c4f4c664035d72ad4b5b694af03dc75ac",
 		Port:        19132, Protocol: "udp", MemoryMB: 1536, DiskMB: 8192, CPUPercent: 200,
-		Environment: func(name string) map[string]string {
+		Environment: func(name, _ string) map[string]string {
 			return map[string]string{
 				"BEDROCK_VERSION": "latest", "LD_LIBRARY_PATH": ".", "SERVERNAME": name,
 				"GAMEMODE": "survival", "DIFFICULTY": "normal", "CHEATS": "false",
 			}
 		},
 		// Bedrock 1.26 defaults to NetherNet; direct IP joins need RakNet.
+		PropertiesFile: "/server.properties",
 		Properties: map[string]string{
 			"online-mode": "true", "allow-list": "true", "transport": "raknet", "server-port": "19132",
 			"max-players": "10", "default-player-permission-level": "member",
 		},
-		AllowCommand: "allowlist add %s", WritesEULA: false, AllowListFile: "/allowlist.json", NameProperty: "server-name",
+		NameProperty: "server-name",
+		Access:       "allow-list", AllowCommand: "allowlist add %s", AllowListFile: "/allowlist.json",
+		AccountHint: "Xbox gamertags", Probe: bedrockRakNetPing, ProbePort: 19132,
 	},
+	// Terraria has no account-based allow list; a join password is required.
+	"terraria": {
+		ID: "terraria", DisplayName: "Terraria", DefaultName: "Family Terraria",
+		EggName: "Terraria Vanilla", NestName: "Terraria",
+		DockerImage: "ghcr.io/ptero-eggs/yolks:debian@sha256:d7b83c285632be9c9dd03b909378200c4f4c664035d72ad4b5b694af03dc75ac",
+		Port:        7777, Protocol: "tcp", MemoryMB: 1536, DiskMB: 4096, CPUPercent: 200,
+		Environment: func(name, password string) map[string]string {
+			return map[string]string{
+				"TERRARIA_VERSION": "latest", "WORLD_NAME": worldSlug(name, 20), "MAX_PLAYERS": "8",
+				"WORLD_SIZE": "2", "WORLD_DIFFICULTY": "0", "SERVER_MOTD": name, "PASSWORD": password,
+			}
+		},
+		Access: "password", PasswordFile: "/serverconfig.txt", Probe: terrariaHandshake, ProbePort: 7777,
+	},
+	// Valheim stays off the public server list and off crossplay relays;
+	// friends join by address and password. Port+1 is Steam's query port.
+	"valheim": {
+		ID: "valheim", DisplayName: "Valheim", DefaultName: "Family Valheim",
+		EggName: "Valheim", NestName: "Valheim",
+		DockerImage: "ghcr.io/ptero-eggs/games:valheim@sha256:5ade5bcfc0c00ad26fd1bac8ff35b6e5e48d8c6cb70ddb5ba72f448520956e24",
+		Port:        2456, ExtraPorts: []int{2457}, Protocol: "udp", MemoryMB: 4096, DiskMB: 10240, CPUPercent: 300,
+		Environment: func(name, password string) map[string]string {
+			return map[string]string{
+				"SERVER_NAME": name, "WORLD": worldSlug(name, 20), "PASSWORD": password,
+				"PUBLIC_SERVER": "0", "ENABLE_CROSSPLAY": "0", "AUTO_UPDATE": "1",
+			}
+		},
+		Access: "password", Probe: steamNetworkingChallenge, ProbePort: 2456,
+	},
+}
+
+func withProperty(base map[string]string, key, value string) map[string]string {
+	out := make(map[string]string, len(base))
+	for k, v := range base {
+		out[k] = v
+	}
+	out[key] = value
+	return out
+}
+
+// GameProfileIDs lists the curated profiles in a stable order.
+func GameProfileIDs() []string {
+	return []string{"minecraft-java", "minecraft-paper", "minecraft-bedrock", "terraria", "valheim"}
 }
 
 // GameServerRequest is the owner's private setup input.
 type GameServerRequest struct {
-	Profile         string
-	Name            string
-	AcceptEULA      bool
-	AllowList       []string
+	Profile    string
+	Name       string
+	AcceptEULA bool
+	AllowList  []string
+	// Password is the owner-chosen join password for password-access games.
+	Password        string
 	OwnerEmail      string
 	ApplicationKey  string
 	ClientKey       string
@@ -188,21 +272,34 @@ func (s pterodactylServer) installed() bool {
 func CreatePterodactylGameServer(ctx context.Context, client *http.Client, baseURL string, request GameServerRequest) (GameServerResult, error) {
 	profile, ok := GameProfiles[request.Profile]
 	if !ok {
-		return GameServerResult{}, fmt.Errorf("unknown game profile %q; choose minecraft-java or minecraft-bedrock", request.Profile)
+		return GameServerResult{}, fmt.Errorf("unknown game profile %q; choose one of %s", request.Profile, strings.Join(GameProfileIDs(), ", "))
 	}
 	if !request.AcceptEULA {
 		return GameServerResult{}, errors.New("creating a game server requires the owner's own acceptance of the game's EULA (acceptEula: true)")
 	}
 	name := strings.TrimSpace(request.Name)
 	if name == "" {
-		name = "Family " + map[string]string{"minecraft-java": "Survival", "minecraft-bedrock": "Bedrock"}[profile.ID]
+		name = profile.DefaultName
 	}
-	if len(name) > 64 || strings.ContainsAny(name, "\r\n") {
-		return GameServerResult{}, errors.New("server name must be a single line of at most 64 characters")
+	if len(name) > 60 || strings.ContainsAny(name, "\r\n\"") {
+		return GameServerResult{}, errors.New("server name must be a single line of at most 60 characters without quotes")
 	}
-	for _, player := range request.AllowList {
-		if !gamePlayerName.MatchString(player) {
-			return GameServerResult{}, fmt.Errorf("player name %q is not a valid game account name", player)
+	switch profile.Access {
+	case "allow-list":
+		if request.Password != "" {
+			return GameServerResult{}, fmt.Errorf("%s admits players by %s; use allowList instead of a password", profile.DisplayName, profile.AccountHint)
+		}
+		for _, player := range request.AllowList {
+			if !gamePlayerName.MatchString(player) {
+				return GameServerResult{}, fmt.Errorf("player name %q is not a valid game account name", player)
+			}
+		}
+	case "password":
+		if len(request.AllowList) > 0 {
+			return GameServerResult{}, fmt.Errorf("%s has no account allow list; share a join password instead", profile.DisplayName)
+		}
+		if err := validateGamePassword(request.Password, name); err != nil {
+			return GameServerResult{}, err
 		}
 	}
 	c := pterodactylClient{http: client, baseURL: baseURL, appKey: request.ApplicationKey, userKey: request.ClientKey}
@@ -218,7 +315,7 @@ func CreatePterodactylGameServer(ctx context.Context, client *http.Client, baseU
 	case err == nil:
 		server = existing.Attributes
 	case status == http.StatusNotFound:
-		server, err = c.createServer(ctx, profile, name, externalID, request.OwnerEmail)
+		server, err = c.createServer(ctx, profile, name, request.Password, externalID, request.OwnerEmail)
 		if err != nil {
 			return GameServerResult{}, err
 		}
@@ -227,7 +324,15 @@ func CreatePterodactylGameServer(ctx context.Context, client *http.Client, baseU
 		return GameServerResult{}, fmt.Errorf("look up existing game server: %w", err)
 	}
 
-	deadline := time.Now().Add(10 * time.Minute)
+	if !created {
+		// Converge the curated environment (for example a changed join
+		// password) on an existing server before it restarts.
+		if err := c.updateStartup(ctx, server.ID, profile, name, request.Password); err != nil {
+			return GameServerResult{}, err
+		}
+	}
+
+	deadline := time.Now().Add(20 * time.Minute)
 	reinstalled := false
 	for !server.installed() {
 		// A failed or abandoned installation (for example interrupted by a
@@ -242,7 +347,7 @@ func CreatePterodactylGameServer(ctx context.Context, client *http.Client, baseU
 			reinstalled = true
 		}
 		if time.Now().After(deadline) {
-			return GameServerResult{}, errors.New("game server installation did not complete within 10 minutes")
+			return GameServerResult{}, errors.New("game server installation did not complete within 20 minutes")
 		}
 		time.Sleep(5 * time.Second)
 		var current struct {
@@ -282,16 +387,21 @@ func CreatePterodactylGameServer(ctx context.Context, client *http.Client, baseU
 	if missing, err := c.verifyAllowList(ctx, server.Identifier, profile, request.AllowList); err != nil {
 		return GameServerResult{}, err
 	} else if len(missing) > 0 {
-		return GameServerResult{}, fmt.Errorf("the game did not admit %s; check the exact account names (Java uses Minecraft account names, Bedrock uses Xbox gamertags) and run setup again", strings.Join(missing, ", "))
+		return GameServerResult{}, fmt.Errorf("the game did not admit %s; check the exact %s and run setup again", strings.Join(missing, ", "), profile.AccountHint)
 	}
-	answer, err := observeGameProtocol(ctx, profile, 3*time.Minute)
+	if profile.PasswordFile != "" {
+		if err := c.verifyPasswordSet(ctx, server.Identifier, profile.PasswordFile); err != nil {
+			return GameServerResult{}, err
+		}
+	}
+	answer, err := observeGameProtocol(ctx, profile, 5*time.Minute)
 	if err != nil {
 		return GameServerResult{}, err
 	}
 	return GameServerResult{ServerUUID: server.UUID, Identifier: server.Identifier, Port: profile.Port, Protocol: profile.Protocol, Reachable: answer, Created: created}, nil
 }
 
-func (c pterodactylClient) createServer(ctx context.Context, profile GameProfile, name, externalID, ownerEmail string) (pterodactylServer, error) {
+func (c pterodactylClient) createServer(ctx context.Context, profile GameProfile, name, password, externalID, ownerEmail string) (pterodactylServer, error) {
 	var users pterodactylList[struct {
 		ID    int    `json:"id"`
 		Email string `json:"email"`
@@ -308,20 +418,20 @@ func (c pterodactylClient) createServer(ctx context.Context, profile GameProfile
 	if userID == 0 {
 		return pterodactylServer{}, errors.New("the Panel owner account is missing; re-run apply so the bootstrap converges")
 	}
-	eggID, startup, err := c.findEgg(ctx, profile)
+	egg, err := c.findEgg(ctx, profile)
 	if err != nil {
 		return pterodactylServer{}, err
 	}
-	allocationID, err := c.freeAllocation(ctx, profile.Port)
+	allocations, err := c.freeAllocations(ctx, profile, append([]int{profile.Port}, profile.ExtraPorts...))
 	if err != nil {
 		return pterodactylServer{}, err
 	}
 	body := map[string]any{
-		"name": name, "user": userID, "egg": eggID, "docker_image": profile.DockerImage, "startup": startup,
-		"environment":    profile.Environment(name),
+		"name": name, "user": userID, "egg": egg.ID, "docker_image": profile.DockerImage, "startup": egg.Startup,
+		"environment":    egg.environment(profile.Environment(name, password)),
 		"limits":         map[string]int{"memory": profile.MemoryMB, "swap": 0, "disk": profile.DiskMB, "io": 500, "cpu": profile.CPUPercent},
-		"feature_limits": map[string]int{"databases": 0, "allocations": 1, "backups": 3},
-		"allocation":     map[string]int{"default": allocationID},
+		"feature_limits": map[string]int{"databases": 0, "allocations": len(allocations), "backups": 3},
+		"allocation":     map[string]any{"default": allocations[0], "additional": allocations[1:]},
 		"external_id":    externalID, "start_on_completion": false,
 	}
 	var createdServer struct {
@@ -333,63 +443,129 @@ func (c pterodactylClient) createServer(ctx context.Context, profile GameProfile
 	return createdServer.Attributes, nil
 }
 
-func (c pterodactylClient) findEgg(ctx context.Context, profile GameProfile) (int, string, error) {
+type pterodactylEgg struct {
+	ID        int
+	Startup   string
+	Variables map[string]string
+}
+
+// environment starts from the Egg's own defaults so every variable the Panel
+// validates is present, then applies the curated profile values.
+func (egg pterodactylEgg) environment(overlay map[string]string) map[string]string {
+	out := make(map[string]string, len(egg.Variables)+len(overlay))
+	for key, value := range egg.Variables {
+		out[key] = value
+	}
+	for key, value := range overlay {
+		out[key] = value
+	}
+	return out
+}
+
+func (c pterodactylClient) findEgg(ctx context.Context, profile GameProfile) (pterodactylEgg, error) {
 	var nests pterodactylList[struct {
 		ID   int    `json:"id"`
 		Name string `json:"name"`
 	}]
-	if _, err := c.do(ctx, http.MethodGet, "/api/application/nests", c.appKey, nil, "", &nests); err != nil {
-		return 0, "", err
+	if _, err := c.do(ctx, http.MethodGet, "/api/application/nests?per_page=100", c.appKey, nil, "", &nests); err != nil {
+		return pterodactylEgg{}, err
 	}
 	for _, nest := range nests.Data {
 		if nest.Attributes.Name != profile.NestName {
 			continue
 		}
 		var eggs pterodactylList[struct {
-			ID      int    `json:"id"`
-			Name    string `json:"name"`
-			Startup string `json:"startup"`
+			ID            int    `json:"id"`
+			Name          string `json:"name"`
+			Startup       string `json:"startup"`
+			Relationships struct {
+				Variables pterodactylList[struct {
+					EnvVariable  string `json:"env_variable"`
+					DefaultValue string `json:"default_value"`
+				}] `json:"variables"`
+			} `json:"relationships"`
 		}]
-		if _, err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/application/nests/%d/eggs", nest.Attributes.ID), c.appKey, nil, "", &eggs); err != nil {
-			return 0, "", err
+		if _, err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/application/nests/%d/eggs?include=variables", nest.Attributes.ID), c.appKey, nil, "", &eggs); err != nil {
+			return pterodactylEgg{}, err
 		}
 		for _, egg := range eggs.Data {
-			if egg.Attributes.Name == profile.EggName {
-				return egg.Attributes.ID, egg.Attributes.Startup, nil
+			if egg.Attributes.Name != profile.EggName {
+				continue
 			}
+			variables := map[string]string{}
+			for _, variable := range egg.Attributes.Relationships.Variables.Data {
+				variables[variable.Attributes.EnvVariable] = variable.Attributes.DefaultValue
+			}
+			return pterodactylEgg{ID: egg.Attributes.ID, Startup: egg.Attributes.Startup, Variables: variables}, nil
 		}
 	}
-	return 0, "", fmt.Errorf("curated Egg %q is not installed; re-run apply so the bootstrap imports it", profile.EggName)
+	return pterodactylEgg{}, fmt.Errorf("curated Egg %q is not installed; re-run apply so the bootstrap imports it", profile.EggName)
 }
 
-func (c pterodactylClient) freeAllocation(ctx context.Context, port int) (int, error) {
+func (c pterodactylClient) updateStartup(ctx context.Context, serverID int, profile GameProfile, name, password string) error {
+	egg, err := c.findEgg(ctx, profile)
+	if err != nil {
+		return err
+	}
+	body := map[string]any{
+		"startup": egg.Startup, "egg": egg.ID, "image": profile.DockerImage, "skip_scripts": false,
+		"environment": egg.environment(profile.Environment(name, password)),
+	}
+	if _, err := c.do(ctx, http.MethodPatch, fmt.Sprintf("/api/application/servers/%d/startup", serverID), c.appKey, body, "", nil); err != nil {
+		return fmt.Errorf("converge the curated game settings: %w", err)
+	}
+	return nil
+}
+
+// freeAllocations reserves the profile's ports and refuses a server the node
+// cannot hold next to the existing ones: the Panel enforces node capacity
+// only for automatic deployment, not for an explicit allocation.
+func (c pterodactylClient) freeAllocations(ctx context.Context, profile GameProfile, ports []int) ([]int, error) {
 	var nodes pterodactylList[struct {
-		ID   int    `json:"id"`
-		Name string `json:"name"`
+		ID                 int    `json:"id"`
+		Name               string `json:"name"`
+		Memory             int    `json:"memory"`
+		AllocatedResources struct {
+			Memory int `json:"memory"`
+		} `json:"allocated_resources"`
 	}]
 	if _, err := c.do(ctx, http.MethodGet, "/api/application/nodes", c.appKey, nil, "", &nodes); err != nil {
-		return 0, err
+		return nil, err
 	}
 	for _, node := range nodes.Data {
 		if node.Attributes.Name != "stackkit-node" {
 			continue
+		}
+		if free := node.Attributes.Memory - node.Attributes.AllocatedResources.Memory; profile.MemoryMB > free {
+			return nil, fmt.Errorf("the game node has %d MB of game memory left and %s needs %d MB; delete an unused server in the Panel or add memory to the node", max(free, 0), profile.DisplayName, profile.MemoryMB)
 		}
 		var allocations pterodactylList[struct {
 			ID       int  `json:"id"`
 			Port     int  `json:"port"`
 			Assigned bool `json:"assigned"`
 		}]
-		if _, err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/application/nodes/%d/allocations?per_page=100", node.Attributes.ID), c.appKey, nil, "", &allocations); err != nil {
-			return 0, err
+		if _, err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/application/nodes/%d/allocations?per_page=500", node.Attributes.ID), c.appKey, nil, "", &allocations); err != nil {
+			return nil, err
 		}
-		for _, allocation := range allocations.Data {
-			if allocation.Attributes.Port == port && !allocation.Attributes.Assigned {
-				return allocation.Attributes.ID, nil
+		ids := make([]int, 0, len(ports))
+		for _, port := range ports {
+			id := 0
+			for _, allocation := range allocations.Data {
+				if allocation.Attributes.Port == port {
+					if allocation.Attributes.Assigned {
+						return nil, fmt.Errorf("port %d is already used by another game server on this node", port)
+					}
+					id = allocation.Attributes.ID
+				}
 			}
+			if id == 0 {
+				return nil, fmt.Errorf("port %d is not offered by the StackKits game node; re-run apply so the bootstrap converges", port)
+			}
+			ids = append(ids, id)
 		}
-		return 0, fmt.Errorf("port %d is already used by another game server on this node", port)
+		return ids, nil
 	}
-	return 0, errors.New("the StackKits game node is missing; re-run apply so the bootstrap converges")
+	return nil, errors.New("the StackKits game node is missing; re-run apply so the bootstrap converges")
 }
 
 func (c pterodactylClient) applyDefaults(ctx context.Context, identifier string, profile GameProfile, name string) error {
@@ -398,8 +574,12 @@ func (c pterodactylClient) applyDefaults(ctx context.Context, identifier string,
 			return fmt.Errorf("record the owner's EULA acceptance: %w", err)
 		}
 	}
+	if profile.PropertiesFile == "" {
+		return nil
+	}
+	file := url.QueryEscape(profile.PropertiesFile)
 	current := ""
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(c.baseURL, "/")+"/api/client/servers/"+identifier+"/files/contents?file=%2Fserver.properties", nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(c.baseURL, "/")+"/api/client/servers/"+identifier+"/files/contents?file="+file, nil)
 	if err != nil {
 		return err
 	}
@@ -416,7 +596,7 @@ func (c pterodactylClient) applyDefaults(ctx context.Context, identifier string,
 		values[key] = value
 	}
 	updated := mergeServerProperties(current, values)
-	if _, err := c.do(ctx, http.MethodPost, "/api/client/servers/"+identifier+"/files/write?file=%2Fserver.properties", c.userKey, updated, "text/plain", nil); err != nil {
+	if _, err := c.do(ctx, http.MethodPost, "/api/client/servers/"+identifier+"/files/write?file="+file, c.userKey, updated, "text/plain", nil); err != nil {
 		return fmt.Errorf("apply secure server defaults: %w", err)
 	}
 	return nil
@@ -510,13 +690,7 @@ func observeGameProtocol(ctx context.Context, profile GameProfile, limit time.Du
 	deadline := time.Now().Add(limit)
 	var lastErr error
 	for time.Now().Before(deadline) {
-		var answer string
-		var err error
-		if profile.Protocol == "tcp" {
-			answer, err = javaServerListPing("127.0.0.1", profile.Port)
-		} else {
-			answer, err = bedrockRakNetPing("127.0.0.1", profile.Port)
-		}
+		answer, err := profile.Probe("127.0.0.1", profile.ProbePort)
 		if err == nil {
 			return answer, nil
 		}
@@ -527,7 +701,7 @@ func observeGameProtocol(ctx context.Context, profile GameProfile, limit time.Du
 		case <-time.After(5 * time.Second):
 		}
 	}
-	return "", fmt.Errorf("game port %d/%s did not answer its discovery protocol: %w", profile.Port, profile.Protocol, lastErr)
+	return "", fmt.Errorf("game port %d did not answer its discovery protocol: %w", profile.ProbePort, lastErr)
 }
 
 func javaServerListPing(host string, port int) (string, error) {
@@ -675,4 +849,125 @@ func (c pterodactylClient) verifyAllowList(ctx context.Context, identifier strin
 		}
 		time.Sleep(3 * time.Second)
 	}
+}
+
+// worldSlug is a filesystem-safe world name within the game's length limit.
+func worldSlug(name string, limit int) string {
+	slug := slugGameName(name)
+	if len(slug) > limit {
+		slug = strings.TrimRight(slug[:limit], "-")
+	}
+	return slug
+}
+
+// validateGamePassword admits a join password friends can type: 8 to 20
+// printable characters without quotes, not contained in the server name
+// (Valheim refuses such passwords).
+func validateGamePassword(password, name string) error {
+	if len(password) < 8 || len(password) > 20 {
+		return errors.New("a join password of 8 to 20 characters is required (password)")
+	}
+	for _, r := range password {
+		if r < 0x21 || r > 0x7e || r == '"' || r == '\'' || r == '\\' {
+			return errors.New("the join password may only use printable ASCII characters without spaces, quotes or backslashes")
+		}
+	}
+	if strings.Contains(strings.ToLower(name), strings.ToLower(password)) {
+		return errors.New("the join password must not be part of the server name")
+	}
+	return nil
+}
+
+// terrariaHandshake sends a client hello and accepts only the password
+// challenge: a Terraria server that admits a client without a password is
+// not a curated server.
+func terrariaHandshake(host string, port int) (string, error) {
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), 5*time.Second)
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
+	version := "Terraria326" // 1.4.5 protocol
+	payload := append([]byte{1, byte(len(version))}, version...)
+	packet := binary.LittleEndian.AppendUint16(nil, uint16(len(payload)+2))
+	packet = append(packet, payload...)
+	if _, err := conn.Write(packet); err != nil {
+		return "", err
+	}
+	header := make([]byte, 3)
+	if _, err := io.ReadFull(conn, header); err != nil {
+		return "", err
+	}
+	switch header[2] {
+	case 37:
+		return "terraria password-protected", nil
+	case 2:
+		// The server rejected the probe's client version, which still proves
+		// a Terraria server answers; the password is set by the curated Egg.
+		return "terraria answered", nil
+	case 3:
+		return "", errors.New("the Terraria server admitted a client without a password")
+	}
+	return "", fmt.Errorf("unexpected Terraria answer type %d", header[2])
+}
+
+// steamNetworkingChallenge sends a Steam networking sockets challenge request
+// to the game port. An unlisted Valheim server does not answer Steam A2S
+// queries, but it answers this handshake with a reply echoing our connection.
+func steamNetworkingChallenge(host string, port int) (string, error) {
+	conn, err := net.DialTimeout("udp", net.JoinHostPort(host, strconv.Itoa(port)), 5*time.Second)
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	connectionID := make([]byte, 4)
+	_, _ = rand.Read(connectionID)
+	connectionID[0] |= 1
+	// CMsgSteamSockets_UDP_ChallengeRequest: connection_id (fixed32, field 1),
+	// my_timestamp (fixed64, field 3), protocol_version (varint, field 4).
+	message := append([]byte{0x0d}, connectionID...)
+	message = binary.LittleEndian.AppendUint64(append(message, 0x19), uint64(time.Now().UnixMicro()))
+	message = append(message, 0x20, 11)
+	packet := binary.LittleEndian.AppendUint16([]byte{32}, uint16(len(message)))
+	packet = append(packet, message...)
+	packet = append(packet, make([]byte, 512-len(packet))...)
+	if _, err := conn.Write(packet); err != nil {
+		return "", err
+	}
+	buffer := make([]byte, 2048)
+	n, err := conn.Read(buffer)
+	if err != nil {
+		return "", err
+	}
+	if n < 6 || buffer[0] != 33 || buffer[1] != 0x0d || !bytes.Equal(buffer[2:6], connectionID) {
+		return "", errors.New("the game port did not answer the Steam networking challenge")
+	}
+	return "steam-networking challenge-reply", nil
+}
+
+// verifyPasswordSet reads the rendered configuration back and fails unless a
+// non-empty join password is in force. The value itself is never returned.
+func (c pterodactylClient) verifyPasswordSet(ctx context.Context, identifier, file string) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(c.baseURL, "/")+"/api/client/servers/"+identifier+"/files/contents?file="+url.QueryEscape(file), nil)
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Authorization", "Bearer "+c.userKey)
+	response, err := c.http.Do(request)
+	if err != nil {
+		return fmt.Errorf("read back the join password setting: %w", err)
+	}
+	defer response.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if err != nil || response.StatusCode != http.StatusOK {
+		return fmt.Errorf("read back the join password setting: HTTP %d", response.StatusCode)
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if value, found := strings.CutPrefix(strings.TrimSpace(line), "password="); found && value != "" {
+			return nil
+		}
+	}
+	return errors.New("the game server started without a join password; setup refuses an open server")
 }
