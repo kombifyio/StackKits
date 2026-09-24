@@ -75,7 +75,8 @@ type architectureV2CommandInput struct {
 
 type architectureV2VerifyInput struct {
 	architectureV2CommandInput
-	HTTP bool `json:"http,omitempty" jsonschema:"probe verified Access routes from this verifier host"`
+	HTTP    bool `json:"http,omitempty" jsonschema:"probe verified Access routes from this verifier host"`
+	Offline bool `json:"offline,omitempty" jsonschema:"verify cached release receipts and attestations without network access"`
 }
 
 type architectureV2StatusInput struct {
@@ -762,6 +763,9 @@ func (a *App) stackkitVerifyV2(ctx context.Context, req *mcp.CallToolRequest, in
 	args := []string{"verify", "--json"}
 	if in.HTTP {
 		args = append(args, "--http")
+	}
+	if in.Offline {
+		args = append(args, "--offline")
 	}
 	return a.runRegisteredReadOnlyTool(ctx, standaloneoperations.Verify, in.commandInput(), args, nil)
 }

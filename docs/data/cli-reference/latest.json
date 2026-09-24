@@ -430,8 +430,8 @@
         {
           "name": "mode",
           "type": "string",
-          "default": "docs,local,server",
-          "description": "MCP modes",
+          "default": "docs,local,server,actions",
+          "description": "MCP modes; actions adds the read-only lifecycle tools, and write tools still need STACKKIT_MCP_ALLOW_WRITE=true",
           "required": false
         },
         {

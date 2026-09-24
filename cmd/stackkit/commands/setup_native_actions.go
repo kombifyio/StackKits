@@ -264,5 +264,6 @@ func executePterodactylGameServerSetup(ctx context.Context, client *http.Client,
 	if err != nil {
 		return nativeOwnerSetupObservation{}, err
 	}
+	printInfo("Game server %s is ready on port %d/%s; join check: %s", result.Identifier, result.Port, result.Protocol, result.Reachable)
 	return nativeOwnerSetupObservation{AccountRef: result.ServerUUID, Initialized: true, AdminLoginVerified: true, OnboardingComplete: true}, nil
 }

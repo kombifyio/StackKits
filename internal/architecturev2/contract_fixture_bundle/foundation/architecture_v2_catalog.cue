@@ -5911,6 +5911,7 @@ _architectureV2Modules: list.Concat([[
 						MAIL_DRIVER:          "log"
 						TRUSTED_PROXIES:      "*"
 						PTERODACTYL_TELEMETRY_ENABLED: "false"
+						RECAPTCHA_ENABLED:             "false"
 					}
 					ownerEnvironment: {APP_SERVICE_AUTHOR: "email"}
 					secretEnvironment: {
@@ -5974,6 +5975,7 @@ _architectureV2Modules: list.Concat([[
 						MAIL_DRIVER:          "log"
 						TRUSTED_PROXIES:      "*"
 						PTERODACTYL_TELEMETRY_ENABLED: "false"
+						RECAPTCHA_ENABLED:             "false"
 					}
 					ownerEnvironment: {STACKKIT_OWNER_EMAIL: "email"}
 					secretEnvironment: {

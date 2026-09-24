@@ -325,7 +325,7 @@ func observeCapacity(ctx context.Context, source LocalSource, storagePath string
 		var ramBytes uint64
 		ramBytes, ramErr = platformMemoryBytes()
 		if ramErr == nil {
-			ramGB, ramErr = bytesToGiB(ramBytes)
+			ramGB, ramErr = memoryToNominalGiB(ramBytes)
 		}
 	}
 	if storageErr != nil {
@@ -382,7 +382,7 @@ func ramGBFromSource(source LocalSource) (int, error) {
 		if parseErr != nil || kib == 0 {
 			break
 		}
-		return bytesToGiB(kib * 1024)
+		return memoryToNominalGiB(kib * 1024)
 	}
 	return 0, errors.New("host RAM is unobserved")
 }
@@ -491,6 +491,15 @@ func parsePOSIXDFSize(output []byte) (uint64, error) {
 		return size, nil
 	}
 	return 0, errors.New("host storage is unobserved")
+}
+
+// memoryToNominalGiB reports installed memory in whole GiB. MemTotal excludes
+// kernel and firmware reservations, so a 4 GB machine reports about 3.8 GiB;
+// truncating that to 3 failed every host that exactly meets a 4 GB floor (an
+// IONOS Basic Cube S was refused runtime-capacity-unsatisfied). Host floors
+// name the installed size, so memory rounds to the nearest GiB.
+func memoryToNominalGiB(bytes uint64) (int, error) {
+	return bytesToGiB(bytes + bytesPerGiB/2)
 }
 
 func bytesToGiB(bytes uint64) (int, error) {

@@ -26,16 +26,24 @@ func main() {
 	apiKey := flag.String("api-key", "", "stackkit-server API key")
 	transport := flag.String("transport", "stdio", "transport: stdio or http")
 	addr := flag.String("addr", "127.0.0.1:8091", "HTTP listen address when --transport=http")
-	mcpToken := flag.String("mcp-token", "", "Bearer token required by MCP HTTP transport")
+	mcpToken := flag.String("mcp-token", "", "Bearer token required by MCP HTTP transport (or set STACKKIT_MCP_TOKEN or STACKKIT_MCP_TOKEN_FILE)")
 	flag.Parse()
 
+	transportName := strings.ToLower(strings.TrimSpace(*transport))
+	token := ""
+	if transportName == "http" {
+		var err error
+		if token, err = stackkitmcp.ResolveMCPToken(*mcpToken); err != nil {
+			log.Fatal(err)
+		}
+	}
 	cliBinary, _ := stackkitmcp.SiblingStackkitBinary()
 	opts := stackkitmcp.Options{
 		Modes:      stackkitmcp.ParseModes(*modeFlag),
 		ServerURL:  strings.TrimRight(*serverURL, "/"),
 		APIKey:     stackkitmcp.FirstNonEmpty(*apiKey, os.Getenv("STACKKITS_API_KEY")),
-		Transport:  strings.ToLower(strings.TrimSpace(*transport)),
-		MCPToken:   stackkitmcp.FirstNonEmpty(*mcpToken, os.Getenv("STACKKIT_MCP_TOKEN")),
+		Transport:  transportName,
+		MCPToken:   token,
 		AllowWrite: stackkitmcp.EnvBoolValue(os.Getenv("STACKKIT_MCP_ALLOW_WRITE")),
 		Binary:     cliBinary,
 		Version:    Version,
@@ -45,10 +53,17 @@ func main() {
 
 	switch opts.Transport {
 	case "http":
-		if (opts.Modes["server"] || opts.Modes["actions"]) && !stackkitmcp.IsLoopbackListenAddr(*addr) && opts.MCPToken == "" {
-			log.Fatal("--mcp-token or STACKKIT_MCP_TOKEN is required when management or action tools are exposed over non-loopback HTTP")
+		handler := app.ProtectedStreamableHTTPHandler()
+		if opts.MCPToken == "" {
+			// Only a loopback listener may run without a token; every
+			// non-loopback listener fails closed regardless of mode.
+			if !stackkitmcp.IsLoopbackListenAddr(*addr) {
+				log.Fatal("--mcp-token, STACKKIT_MCP_TOKEN or STACKKIT_MCP_TOKEN_FILE is required for a non-loopback MCP HTTP listener")
+			}
+			log.Printf("serving MCP HTTP on loopback %s without a token", *addr)
+			handler = app.StreamableHTTPHandler()
 		}
-		log.Fatal(stackkitmcp.NewHTTPServer(*addr, app.ProtectedStreamableHTTPHandler()).ListenAndServe())
+		log.Fatal(stackkitmcp.NewHTTPServer(*addr, handler).ListenAndServe())
 	default:
 		if err := app.Server().Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 			log.Fatal(err)

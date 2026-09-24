@@ -90,3 +90,34 @@ test('unknown authority versions and sensitive public strings fail closed', asyn
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
   await assert.rejects(projectAuthorityBundle(root, sourceSha), /public (?:text|string)|sensitive|URL/i)
 })
+
+test('product MCP operation metadata is accepted and never projected into the public catalog', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'stackkits-webmcp-operations-'))
+  context.after(() => rm(root, { recursive: true, force: true }))
+  await cp(authorityRoot, root, { recursive: true })
+  const operationsPath = join(root, 'operations.json')
+  const operations = JSON.parse(await readFile(operationsPath, 'utf8'))
+  const rows = operations.operations
+  rows[0].openWorld = true
+  rows[0].arguments = [{ name: 'target', kind: 'string', required: true }]
+  delete operations.contentDigest
+  const canonical = (value) => Array.isArray(value)
+    ? `[${value.map(canonical).join(',')}]`
+    : value !== null && typeof value === 'object'
+      ? `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`
+      : JSON.stringify(value)
+  operations.contentDigest = `sha256:${createHash('sha256').update(canonical(operations)).digest('hex')}`
+  const bytes = Buffer.from(`${JSON.stringify(operations, null, 2)}\n`)
+  await writeFile(operationsPath, bytes)
+  const manifestPath = join(root, 'manifest.json')
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+  if (manifest.documentHashes?.['operations.json']) {
+    manifest.documentHashes['operations.json'] = `sha256:${createHash('sha256').update(bytes).digest('hex')}`
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+  }
+
+  const catalog = await projectAuthorityBundle(root, sourceSha)
+  const projected = catalog.operations.find((operation) => operation.id === rows[0].id)
+  assert.equal('openWorld' in projected || 'open_world' in projected, false)
+  assert.equal('arguments' in projected, false)
+})

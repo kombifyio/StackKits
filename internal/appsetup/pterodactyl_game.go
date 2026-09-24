@@ -1,6 +1,7 @@
 package appsetup
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -56,8 +57,9 @@ type GameProfile struct {
 	// PasswordFile is where the Egg renders the join password as a
 	// "password=" line, read back after start.
 	PasswordFile string
-	// Probe observes the game's own discovery protocol on the node.
-	Probe     func(host string, port int) (string, error)
+	// Probe performs the first steps of a real client join on the node with
+	// the game's own protocol; password is the owner's join password, if any.
+	Probe     func(host string, port int, password string) (string, error)
 	ProbePort int
 }
 
@@ -79,7 +81,7 @@ var GameProfiles = map[string]GameProfile{
 		},
 		PropertiesFile: "/server.properties", Properties: minecraftJavaProperties, NameProperty: "motd",
 		Access: "allow-list", AllowCommand: "whitelist add %s", AllowListFile: "/whitelist.json", WritesEULA: true,
-		AccountHint: "Minecraft account names", Probe: javaServerListPing, ProbePort: 25565,
+		AccountHint: "Minecraft account names", Probe: javaJoinCheck, ProbePort: 25565,
 	},
 	// Paper is the performance fork most family servers run; it keeps the
 	// vanilla protocol, so Java clients join without mods.
@@ -93,7 +95,7 @@ var GameProfiles = map[string]GameProfile{
 		},
 		PropertiesFile: "/server.properties", Properties: withProperty(minecraftJavaProperties, "server-port", "25566"), NameProperty: "motd",
 		Access: "allow-list", AllowCommand: "whitelist add %s", AllowListFile: "/whitelist.json", WritesEULA: true,
-		AccountHint: "Minecraft account names", Probe: javaServerListPing, ProbePort: 25566,
+		AccountHint: "Minecraft account names", Probe: javaJoinCheck, ProbePort: 25566,
 	},
 	"minecraft-bedrock": {
 		ID: "minecraft-bedrock", DisplayName: "Minecraft Bedrock", DefaultName: "Family Bedrock",
@@ -114,7 +116,7 @@ var GameProfiles = map[string]GameProfile{
 		},
 		NameProperty: "server-name",
 		Access:       "allow-list", AllowCommand: "allowlist add %s", AllowListFile: "/allowlist.json",
-		AccountHint: "Xbox gamertags", Probe: bedrockRakNetPing, ProbePort: 19132,
+		AccountHint: "Xbox gamertags", Probe: bedrockJoinCheck, ProbePort: 19132,
 	},
 	// Terraria has no account-based allow list; a join password is required.
 	"terraria": {
@@ -394,7 +396,7 @@ func CreatePterodactylGameServer(ctx context.Context, client *http.Client, baseU
 			return GameServerResult{}, err
 		}
 	}
-	answer, err := observeGameProtocol(ctx, profile, 5*time.Minute)
+	answer, err := observeGameProtocol(ctx, profile, request.Password, 5*time.Minute)
 	if err != nil {
 		return GameServerResult{}, err
 	}
@@ -686,11 +688,11 @@ func slugGameName(name string) string {
 
 // observeGameProtocol asks the published node port with the game's own
 // discovery protocol, as a client on the node would.
-func observeGameProtocol(ctx context.Context, profile GameProfile, limit time.Duration) (string, error) {
+func observeGameProtocol(ctx context.Context, profile GameProfile, password string, limit time.Duration) (string, error) {
 	deadline := time.Now().Add(limit)
 	var lastErr error
 	for time.Now().Before(deadline) {
-		answer, err := profile.Probe("127.0.0.1", profile.ProbePort)
+		answer, err := profile.Probe("127.0.0.1", profile.ProbePort, password)
 		if err == nil {
 			return answer, nil
 		}
@@ -704,10 +706,71 @@ func observeGameProtocol(ctx context.Context, profile GameProfile, limit time.Du
 	return "", fmt.Errorf("game port %d did not answer its discovery protocol: %w", profile.ProbePort, lastErr)
 }
 
-func javaServerListPing(host string, port int) (string, error) {
+// javaJoinCheck reads the server status, then starts a login as a joining
+// player: an online-mode server must answer with an encryption request, the
+// step that hands the join to Microsoft account authentication.
+func javaJoinCheck(host string, port int, _ string) (string, error) {
+	version, protocol, err := javaServerListPing(host, port)
+	if err != nil {
+		return "", err
+	}
 	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), 5*time.Second)
 	if err != nil {
 		return "", err
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
+	handshake := append(minecraftVarint(0), minecraftVarint(protocol)...)
+	handshake = append(handshake, minecraftVarint(len(host))...)
+	handshake = append(handshake, host...)
+	handshake = binary.BigEndian.AppendUint16(handshake, uint16(port))
+	handshake = append(handshake, minecraftVarint(2)...)
+	name := "StackKitsProbe"
+	login := append(minecraftVarint(0), minecraftVarint(len(name))...)
+	login = append(login, name...)
+	login = append(login, make([]byte, 16)...)
+	packet := append(minecraftVarint(len(handshake)), handshake...)
+	packet = append(packet, minecraftVarint(len(login))...)
+	packet = append(packet, login...)
+	if _, err := conn.Write(packet); err != nil {
+		return "", err
+	}
+	reader := bufio.NewReader(conn)
+	if _, err := binary.ReadUvarint(reader); err != nil {
+		return "", err
+	}
+	id, err := binary.ReadUvarint(reader)
+	if err != nil {
+		return "", err
+	}
+	switch id {
+	case 0x01:
+		return "minecraft-java " + version + " online-mode login", nil
+	case 0x02, 0x03:
+		return "", errors.New("the Minecraft server admitted an unauthenticated login; online mode is off")
+	}
+	return "", fmt.Errorf("unexpected Minecraft login answer 0x%02x", id)
+}
+
+func minecraftVarint(n int) []byte {
+	var out []byte
+	for {
+		b := byte(n & 0x7f)
+		n >>= 7
+		if n != 0 {
+			b |= 0x80
+		}
+		out = append(out, b)
+		if n == 0 {
+			return out
+		}
+	}
+}
+
+func javaServerListPing(host string, port int) (string, int, error) {
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), 5*time.Second)
+	if err != nil {
+		return "", 0, err
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
@@ -734,7 +797,7 @@ func javaServerListPing(host string, port int) (string, error) {
 	packet = append(packet, varint(1)...)
 	packet = append(packet, varint(0)...)
 	if _, err := conn.Write(packet); err != nil {
-		return "", err
+		return "", 0, err
 	}
 	readVarint := func() (int, error) {
 		value := 0
@@ -751,28 +814,29 @@ func javaServerListPing(host string, port int) (string, error) {
 		return 0, errors.New("invalid varint")
 	}
 	if _, err := readVarint(); err != nil {
-		return "", err
+		return "", 0, err
 	}
 	if _, err := readVarint(); err != nil {
-		return "", err
+		return "", 0, err
 	}
 	length, err := readVarint()
 	if err != nil || length <= 0 || length > 1<<20 {
-		return "", errors.New("invalid status length")
+		return "", 0, errors.New("invalid status length")
 	}
 	data := make([]byte, length)
 	if _, err := io.ReadFull(conn, data); err != nil {
-		return "", err
+		return "", 0, err
 	}
 	var status struct {
 		Version struct {
-			Name string `json:"name"`
+			Name     string `json:"name"`
+			Protocol int    `json:"protocol"`
 		} `json:"version"`
 	}
 	if err := json.Unmarshal(data, &status); err != nil {
-		return "", err
+		return "", 0, err
 	}
-	return "minecraft-java " + status.Version.Name, nil
+	return status.Version.Name, status.Version.Protocol, nil
 }
 
 func bedrockRakNetPing(host string, port int) (string, error) {
@@ -782,7 +846,7 @@ func bedrockRakNetPing(host string, port int) (string, error) {
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
-	magic := []byte{0x00, 0xff, 0xff, 0x00, 0xfe, 0xfe, 0xfe, 0xfe, 0xfd, 0xfd, 0xfd, 0xfd, 0x12, 0x34, 0x56, 0x78}
+	magic := rakNetMagic
 	guid := make([]byte, 8)
 	_, _ = rand.Read(guid)
 	packet := []byte{0x01}
@@ -881,7 +945,7 @@ func validateGamePassword(password, name string) error {
 // terrariaHandshake sends a client hello and accepts only the password
 // challenge: a Terraria server that admits a client without a password is
 // not a curated server.
-func terrariaHandshake(host string, port int) (string, error) {
+func terrariaHandshake(host string, port int, password string) (string, error) {
 	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), 5*time.Second)
 	if err != nil {
 		return "", err
@@ -901,21 +965,42 @@ func terrariaHandshake(host string, port int) (string, error) {
 	}
 	switch header[2] {
 	case 37:
-		return "terraria password-protected", nil
 	case 2:
 		// The server rejected the probe's client version, which still proves
-		// a Terraria server answers; the password is set by the curated Egg.
-		return "terraria answered", nil
+		// a Terraria server answers; setup reads the password setting back.
+		return "terraria answered (client protocol differs)", nil
 	case 3:
 		return "", errors.New("the Terraria server admitted a client without a password")
+	default:
+		return "", fmt.Errorf("unexpected Terraria answer type %d", header[2])
 	}
-	return "", fmt.Errorf("unexpected Terraria answer type %d", header[2])
+	if length := int(binary.LittleEndian.Uint16(header[:2])); length > 3 {
+		if _, err := io.CopyN(io.Discard, conn, int64(length-3)); err != nil {
+			return "", err
+		}
+	}
+	// Answer the challenge as a joining player would; the server assigns a
+	// player slot only for the owner's password.
+	if len(password) > 127 {
+		return "", errors.New("join password is too long")
+	}
+	answer := append([]byte{38, byte(len(password))}, password...)
+	if _, err := conn.Write(append(binary.LittleEndian.AppendUint16(nil, uint16(len(answer)+2)), answer...)); err != nil {
+		return "", err
+	}
+	if _, err := io.ReadFull(conn, header); err != nil {
+		return "", err
+	}
+	if header[2] != 3 {
+		return "", fmt.Errorf("the Terraria server did not admit the join password (answer type %d)", header[2])
+	}
+	return "terraria join accepted with password", nil
 }
 
 // steamNetworkingChallenge sends a Steam networking sockets challenge request
 // to the game port. An unlisted Valheim server does not answer Steam A2S
 // queries, but it answers this handshake with a reply echoing our connection.
-func steamNetworkingChallenge(host string, port int) (string, error) {
+func steamNetworkingChallenge(host string, port int, _ string) (string, error) {
 	conn, err := net.DialTimeout("udp", net.JoinHostPort(host, strconv.Itoa(port)), 5*time.Second)
 	if err != nil {
 		return "", err
@@ -970,4 +1055,37 @@ func (c pterodactylClient) verifyPasswordSet(ctx context.Context, identifier, fi
 		}
 	}
 	return errors.New("the game server started without a join password; setup refuses an open server")
+}
+
+var rakNetMagic = []byte{0x00, 0xff, 0xff, 0x00, 0xfe, 0xfe, 0xfe, 0xfe, 0xfd, 0xfd, 0xfd, 0xfd, 0x12, 0x34, 0x56, 0x78}
+
+// bedrockJoinCheck pings the server, then opens a RakNet connection as a
+// joining client would; the server must offer its MTU in an open-connection
+// reply.
+func bedrockJoinCheck(host string, port int, _ string) (string, error) {
+	answer, err := bedrockRakNetPing(host, port)
+	if err != nil {
+		return "", err
+	}
+	conn, err := net.DialTimeout("udp", net.JoinHostPort(host, strconv.Itoa(port)), 5*time.Second)
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	packet := append([]byte{0x05}, rakNetMagic...)
+	packet = append(packet, 11)
+	packet = append(packet, make([]byte, 1400-len(packet))...)
+	if _, err := conn.Write(packet); err != nil {
+		return "", err
+	}
+	buffer := make([]byte, 2048)
+	n, err := conn.Read(buffer)
+	if err != nil {
+		return "", err
+	}
+	if n < 1 || buffer[0] != 0x06 {
+		return "", errors.New("the Bedrock server did not accept a RakNet connection")
+	}
+	return answer + " connection accepted", nil
 }

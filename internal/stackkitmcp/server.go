@@ -2,13 +2,13 @@ package stackkitmcp
 
 import (
 	"context"
-	"crypto/sha256"
-	"crypto/subtle"
 	_ "embed"
 	"encoding/json"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -28,6 +28,9 @@ type App struct {
 	docs            map[string]string
 	cliBinding      *cliBinaryBinding
 	cliBindingError error
+
+	discoveryOnce  sync.Once
+	discoveryTools []map[string]any
 }
 
 // New creates a configured StackKits MCP app.
@@ -75,74 +78,27 @@ func (a *App) Server() *mcp.Server {
 	return server
 }
 
-// StreamableHTTPHandler returns a Streamable HTTP MCP handler.
+// StreamableHTTPHandler returns the stateless MCP 2026-07-28 Streamable HTTP
+// handler. Each POST is served from that request alone: the SDK issues no
+// Mcp-Session-Id, ignores one a client sends, and answers GET and DELETE with
+// 405. Clients on older protocol versions are still served, one request at a
+// time, with SDK-synthesized initialization defaults.
 func (a *App) StreamableHTTPHandler() http.Handler {
 	server := a.Server()
 	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{
-		SessionTimeout: 30 * time.Minute,
+		Stateless: true,
 	})
 }
 
-// ProtectedStreamableHTTPHandler wraps the MCP handler with token auth when configured.
+// ProtectedStreamableHTTPHandler requires the dedicated MCP token on every
+// request. Without a configured token it denies every request; it never falls
+// back to an open endpoint or to another credential.
 func (a *App) ProtectedStreamableHTTPHandler() http.Handler {
-	handler := a.StreamableHTTPHandler()
-	if a.opts.MCPToken != "" {
-		handler = RequireMCPToken(a.opts.MCPToken, handler)
-	}
-	return handler
+	return RequireMCPToken(a.opts.MCPToken, a.StreamableHTTPHandler())
 }
 
 // OpenMCP returns agent-native discovery metadata for the local MCP surface.
 func (a *App) OpenMCP() map[string]any {
-	tools := []map[string]any{
-		toolDefinition("stackkit_docs_search", true, false, true),
-		toolDefinition("stackkit_api_overview", true, false, true),
-		toolDefinition("stackkit_api_endpoint", true, false, true),
-		toolDefinition("stackkit_get_openapi_spec", true, false, true),
-		toolDefinition("stackkit_install_plan", true, false, true),
-		toolDefinition("stackkit_self_check_plan", true, false, true),
-		toolDefinition("stackkit_state_console", true, false, true),
-		toolDefinition("stackkit_module_profiles", true, false, false),
-	}
-	if a.opts.Modes["local"] {
-		tools = append(tools,
-			toolDefinition("stackkit_validate_spec", true, false, true),
-			toolDefinition("stackkit_generate_preview", true, false, true),
-			toolDefinition("stackkit_compat_check", true, false, true),
-			toolDefinition("stackkit_config_get", true, false, true),
-		)
-	}
-	nativeActions := a.opts.Modes["actions"] && a.cliBinding != nil && stackspecadmission.RejectOperationalV1(a.opts.Version)
-	if a.opts.Modes["server"] && !nativeActions {
-		tools = append(tools,
-			toolDefinition("stackkit_status", true, false, true),
-			toolDefinition("stackkit_logs_list", true, false, true),
-			toolDefinition("stackkit_log_get", true, false, true),
-		)
-		if !stackspecadmission.RejectOperationalV1(a.opts.Version) {
-			tools = append(tools,
-				toolDefinition("stackkit_verify", true, false, false),
-				toolDefinition("stackkit_doctor", true, false, false),
-			)
-		}
-	}
-	if nativeActions {
-		for _, operation := range standaloneoperations.All() {
-			if !operation.Mutation {
-				tools = append(tools, operationToolDefinition(operation))
-			}
-		}
-	}
-	if a.opts.Modes["actions"] && a.opts.AllowWrite && stackspecadmission.RejectOperationalV1(a.opts.Version) {
-		tools = append(tools, toolDefinition("stackkit_config_set", false, true, true))
-		if a.cliBinding != nil {
-			for _, operation := range standaloneoperations.All() {
-				if operation.Mutation {
-					tools = append(tools, operationToolDefinition(operation))
-				}
-			}
-		}
-	}
 	return map[string]any{
 		"schemaVersion": "2026-06-08",
 		"name":          "stackkit",
@@ -156,12 +112,15 @@ func (a *App) OpenMCP() map[string]any {
 			"appAuthority":     "embedded CUE Definition metadata; not a second production connector",
 		},
 		"transport": map[string]any{
-			"type":     "streamable-http",
-			"endpoint": "/mcp",
+			"type":      "streamable-http",
+			"endpoint":  "/mcp",
+			"stateless": true,
 		},
 		"auth": map[string]any{
-			"loopbackDefault": "token optional for loopback-only local use",
-			"nonLoopback":     "Bearer token or X-StackKit-MCP-Token required when configured beyond loopback",
+			"credential":      "dedicated MCP token as Authorization: Bearer or X-StackKit-MCP-Token; the stackkit-server API key is never accepted",
+			"tokenSources":    []string{"--mcp-token", MCPTokenEnv, MCPTokenFileEnv},
+			"serverEndpoint":  "stackkit-server POST /mcp denies every request until an MCP token is configured",
+			"loopbackAdapter": "stackkit-mcp --transport http serves without a token only on a loopback listen address",
 			"writeGate":       "STACKKIT_MCP_ALLOW_WRITE=true",
 		},
 		"policy": map[string]any{
@@ -173,7 +132,7 @@ func (a *App) OpenMCP() map[string]any {
 		"modes":      enabledModes(a.opts.Modes),
 		"allowWrite": a.opts.AllowWrite,
 		"serverURL":  a.opts.ServerURL,
-		"tools":      tools,
+		"tools":      a.registeredTools(),
 		"resources":  a.openMCPResources(),
 		"prompts":    stackkitPrompts(),
 		"appResources": []map[string]any{{
@@ -303,6 +262,7 @@ func (a *App) addActions(server *mcp.Server) {
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.RestoreAbandon), a.stackkitRestoreAbandonV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Upgrade), a.stackkitUpgradeV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Remove), a.stackkitRemoveV2)
+	a.addCatalogOperationTools(server, true)
 }
 
 func (a *App) addReadOnlyActions(server *mcp.Server) {
@@ -317,6 +277,7 @@ func (a *App) addReadOnlyActions(server *mcp.Server) {
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.BackupStatus), a.stackkitBackupStatusV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Logs), a.stackkitLogsV2)
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Drift), a.stackkitDriftV2)
+	a.addCatalogOperationTools(server, false)
 }
 
 func operationMCPTool(id standaloneoperations.ID) *mcp.Tool {
@@ -324,15 +285,90 @@ func operationMCPTool(id standaloneoperations.ID) *mcp.Tool {
 	if !ok {
 		panic("missing standalone operation: " + string(id))
 	}
-	return mcpTool(operation.ToolName, operation.Description, !operation.Mutation, operation.Destructive, operation.Idempotent)
+	tool := mcpTool(operation.ToolName, operation.Description, !operation.Mutation, operation.Destructive, operation.Idempotent)
+	tool.Annotations.OpenWorldHint = boolPtr(operation.OpenWorld)
+	return tool
 }
 
-func operationToolDefinition(operation standaloneoperations.Contract) map[string]any {
-	definition := toolDefinition(operation.ToolName, !operation.Mutation, operation.Destructive, operation.Idempotent)
-	definition["operation"] = operation.ID
-	definition["command"] = operation.Command
-	definition["ownerApproval"] = operation.OwnerApproval
-	return definition
+// registeredTools lists exactly the tools Server() registers, read back over an
+// in-memory MCP connection, so /openmcp.json cannot drift from registration.
+// The result is computed once because the options are fixed after New.
+func (a *App) registeredTools() []map[string]any {
+	a.discoveryOnce.Do(func() {
+		tools, err := a.listRegisteredTools()
+		if err != nil {
+			slog.Error("StackKits MCP discovery could not list registered tools", "error", err)
+			tools = []map[string]any{}
+		}
+		a.discoveryTools = tools
+	})
+	return a.discoveryTools
+}
+
+func (a *App) listRegisteredTools() ([]map[string]any, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	clientTransport, serverTransport := mcp.NewInMemoryTransports()
+	serverSession, err := a.Server().Connect(ctx, serverTransport, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = serverSession.Close() }()
+	client := mcp.NewClient(&mcp.Implementation{Name: "stackkit-openmcp", Version: a.opts.Version}, nil)
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = clientSession.Close() }()
+
+	// Operation tools share names with the exact-v0.6 HTTP compatibility tools,
+	// so contract metadata applies only when the native operations are the ones
+	// registered.
+	operations := map[string]standaloneoperations.Contract{}
+	if a.opts.Modes["actions"] && a.cliBinding != nil && stackspecadmission.RejectOperationalV1(a.opts.Version) {
+		for _, operation := range standaloneoperations.All() {
+			operations[operation.ToolName] = operation
+		}
+	}
+	tools := []map[string]any{}
+	for tool, err := range clientSession.Tools(ctx, nil) {
+		if err != nil {
+			return nil, err
+		}
+		definition := registeredToolDefinition(tool)
+		if operation, ok := operations[tool.Name]; ok {
+			definition["operation"] = operation.ID
+			definition["command"] = operation.Command
+			definition["ownerApproval"] = operation.OwnerApproval
+		}
+		tools = append(tools, definition)
+	}
+	return tools, nil
+}
+
+func registeredToolDefinition(tool *mcp.Tool) map[string]any {
+	annotations := tool.Annotations
+	if annotations == nil {
+		annotations = &mcp.ToolAnnotations{}
+	}
+	return map[string]any{
+		"name":             tool.Name,
+		"widgetAccessible": tool.Meta["openai/widgetAccessible"] == true,
+		"annotations": map[string]any{
+			"readOnly":    annotations.ReadOnlyHint,
+			"destructive": hintValue(annotations.DestructiveHint, true),
+			"idempotent":  annotations.IdempotentHint,
+			"openWorld":   hintValue(annotations.OpenWorldHint, true),
+		},
+	}
+}
+
+// hintValue applies the MCP default for an absent optional annotation hint.
+func hintValue(hint *bool, absent bool) bool {
+	if hint == nil {
+		return absent
+	}
+	return *hint
 }
 
 func mcpTool(name, description string, readOnly, destructive, idempotent bool) *mcp.Tool {
@@ -433,33 +469,6 @@ func IsLoopbackListenAddr(addr string) bool {
 	return strings.EqualFold(host, "localhost")
 }
 
-// RequireMCPToken requires a bearer or X-StackKit-MCP-Token value.
-func RequireMCPToken(token string, next http.Handler) http.Handler {
-	token = strings.TrimSpace(token)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
-		if got == "" {
-			got = strings.TrimSpace(r.Header.Get("X-StackKit-MCP-Token"))
-		}
-		if !mcpTokenMatches(token, got) {
-			http.Error(w, "mcp token required", http.StatusUnauthorized)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-func mcpTokenMatches(expected, presented string) bool {
-	expected = strings.TrimSpace(expected)
-	presented = strings.TrimSpace(presented)
-	if expected == "" || presented == "" {
-		return false
-	}
-	expectedHash := sha256.Sum256([]byte(expected))
-	presentedHash := sha256.Sum256([]byte(presented))
-	return subtle.ConstantTimeCompare(expectedHash[:], presentedHash[:]) == 1
-}
-
 func (a *App) openMCPResources() []map[string]any {
 	resources := []map[string]any{
 		{"uri": "api/openapi.v1.yaml", "mimeType": "application/yaml"},
@@ -495,18 +504,5 @@ func stackkitPrompts() []map[string]any {
 		{"name": "stackkit_diagnose_failed_rollout"},
 		{"name": "stackkit_enable_monitoring_addon"},
 		{"name": "stackkit_ssh_rollout"},
-	}
-}
-
-func toolDefinition(name string, readOnly, destructive, idempotent bool) map[string]any {
-	return map[string]any{
-		"name":             name,
-		"widgetAccessible": isWidgetAccessibleTool(name),
-		"annotations": map[string]any{
-			"readOnly":    readOnly,
-			"destructive": destructive,
-			"idempotent":  idempotent,
-			"openWorld":   false,
-		},
 	}
 }

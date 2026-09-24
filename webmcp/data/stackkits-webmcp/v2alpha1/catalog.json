@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "c23c496be674131d7eb5643b218c789cb1dd1b12",
-  "authority_bundle_sha256": "6601df6dc93c0fcd2b9baa74ca3e1d403a5918a7756d432e75e8f5e670edaf3f",
+  "source_sha": "2c0e74dcd5fa5fcb1ba590f96f8f7708229d6333",
+  "authority_bundle_sha256": "0a2935d86f698c15ab87ee7bd759e28d2e04dba1c272ea5e46884c6b30010d2f",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -4252,6 +4252,128 @@
   ],
   "operations": [
     {
+      "id": "stackkit.addon.list",
+      "tool_name": "stackkit_addon_list",
+      "title": "List add-ons",
+      "description": "List the governed add-ons for the current StackKit.",
+      "command": [
+        "addon",
+        "list"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.address.bind",
+      "tool_name": "stackkit_address_bind",
+      "title": "Bind public addresses",
+      "description": "Bind an allocated prefix or install zone into canonical public routes and persist the validated StackSpec.",
+      "command": [
+        "address",
+        "bind"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.address.plan",
+      "tool_name": "stackkit_address_plan",
+      "title": "Plan public addresses",
+      "description": "Emit the account-free, secret-free public address registration plan for the current StackSpec.",
+      "command": [
+        "address",
+        "plan"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.advanced.change-set.apply",
+      "tool_name": "stackkit_advanced_change_set_apply",
+      "title": "Apply Advanced change set",
+      "description": "Checkpoint, apply and verify one exact Owner-signed Terramate change set with automatic verified rollback.",
+      "command": [
+        "advanced",
+        "change-set",
+        "apply",
+        "--json"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.advanced.change-set.create",
+      "tool_name": "stackkit_advanced_change_set_create",
+      "title": "Create Advanced change set",
+      "description": "Create a content-addressed Owner-signed Terramate change set from an offline capability and a candidate StackSpec.",
+      "command": [
+        "advanced",
+        "change-set",
+        "create",
+        "--json"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.advanced.trust.import",
+      "tool_name": "stackkit_advanced_trust_import",
+      "title": "Import Advanced trust",
+      "description": "Import an exact pinned Advanced issuer trust bundle into local Owner trust.",
+      "command": [
+        "advanced",
+        "trust",
+        "import",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.advanced.trust.inspect",
+      "tool_name": "stackkit_advanced_trust_inspect",
+      "title": "Inspect Advanced trust",
+      "description": "Inspect the verified local Advanced issuer trust.",
+      "command": [
+        "advanced",
+        "trust",
+        "inspect",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.app.compatibility",
+      "tool_name": "stackkit_app_compatibility",
+      "title": "Application compatibility",
+      "description": "Show the governed application and delivery-adapter support matrix.",
+      "command": [
+        "app",
+        "compatibility",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
       "id": "stackkit.apply",
       "tool_name": "stackkit_apply",
       "title": "Apply",
@@ -4277,6 +4399,86 @@
       ],
       "mutation": true,
       "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.backup.configure",
+      "tool_name": "stackkit_backup_configure",
+      "title": "Configure backup repository",
+      "description": "Configure the CUE-governed local Kopia repository from the generated backup policy.",
+      "command": [
+        "backup",
+        "configure",
+        "--json"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.backup.emergency-export",
+      "tool_name": "stackkit_backup_emergency_export",
+      "title": "Emergency export",
+      "description": "Export local data as a portable archive encrypted to age recipient public keys into a new directory.",
+      "command": [
+        "backup",
+        "emergency-export",
+        "--json"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.backup.emergency-restore",
+      "tool_name": "stackkit_backup_emergency_restore",
+      "title": "Emergency restore",
+      "description": "Decrypt and verify a portable emergency archive into a new staging directory without activating it.",
+      "command": [
+        "backup",
+        "emergency-restore",
+        "--json"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.backup.restore.activate",
+      "tool_name": "stackkit_backup_restore_activate",
+      "title": "Activate restore",
+      "description": "Activate one verified staged restore into the live volumes behind an automatic safety snapshot.",
+      "command": [
+        "backup",
+        "restore",
+        "activate",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.backup.restore.recover",
+      "tool_name": "stackkit_backup_restore_recover",
+      "title": "Recover restore",
+      "description": "Roll back an interrupted restore activation or finish its committed result.",
+      "command": [
+        "backup",
+        "restore",
+        "recover",
+        "--json",
+        "--owner-approve",
+        "--rollback"
+      ],
+      "mutation": true,
+      "destructive": true,
       "idempotent": true,
       "owner_approval": true
     },
@@ -4346,6 +4548,62 @@
       "owner_approval": false
     },
     {
+      "id": "stackkit.backup.target.status",
+      "tool_name": "stackkit_backup_target_status",
+      "title": "Backup target status",
+      "description": "Verify local backup target custody without contacting S3; returns opaque references only.",
+      "command": [
+        "backup",
+        "target",
+        "status"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.break-glass.list",
+      "tool_name": "stackkit_break_glass_list",
+      "title": "List break-glass bundles",
+      "description": "List the encrypted break-glass bundles on this host.",
+      "command": [
+        "break-glass",
+        "list"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.break-glass.show-bundle",
+      "tool_name": "stackkit_break_glass_show_bundle",
+      "title": "Show break-glass bundle",
+      "description": "Return the path of one node's still-encrypted break-glass bundle.",
+      "command": [
+        "break-glass",
+        "show-bundle"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.compat",
+      "tool_name": "stackkit_compat",
+      "title": "Compatibility diagnostics",
+      "description": "Show published OS support evidence and run non-destructive local container-host diagnostics.",
+      "command": [
+        "compat"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
       "id": "stackkit.drift",
       "tool_name": "stackkit_drift",
       "title": "Drift",
@@ -4361,6 +4619,142 @@
       "owner_approval": false
     },
     {
+      "id": "stackkit.drift.reconcile",
+      "tool_name": "stackkit_drift_reconcile",
+      "title": "Reconcile drift",
+      "description": "Checkpoint, then generate, apply and verify through the governed local lifecycle with automatic verified rollback.",
+      "command": [
+        "drift",
+        "reconcile",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.federation.binding.adopt",
+      "tool_name": "stackkit_federation_binding_adopt",
+      "title": "Adopt Federation binding",
+      "description": "Validate, Owner-sign and atomically adopt an external Federation-link binding.",
+      "command": [
+        "federation",
+        "binding",
+        "adopt"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.federation.binding.import",
+      "tool_name": "stackkit_federation_binding_import",
+      "title": "Import Federation binding",
+      "description": "Admit an Owner-signed opaque Federation binding into local Inventory.",
+      "command": [
+        "federation",
+        "binding",
+        "import"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.federation.control.bind",
+      "tool_name": "stackkit_federation_control_bind",
+      "title": "Bind Federation control receiver",
+      "description": "Admit exact public Home authority and local receiver custody, replacing the previous receiver authority.",
+      "command": [
+        "federation",
+        "control",
+        "bind"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.federation.control.send",
+      "tool_name": "stackkit_federation_control_send",
+      "title": "Send Federation control action",
+      "description": "Send one Home-signed action to the selected Cloud node over an exact Home-initiated mTLS connection.",
+      "command": [
+        "federation",
+        "control",
+        "send"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.federation.control.sign",
+      "tool_name": "stackkit_federation_control_sign",
+      "title": "Sign Federation control action",
+      "description": "Sign one exact short-lived plan or verify action with current Home custody.",
+      "command": [
+        "federation",
+        "control",
+        "sign"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.federation.control.withdraw",
+      "tool_name": "stackkit_federation_control_withdraw",
+      "title": "Withdraw Federation control receiver",
+      "description": "Persistently withdraw receiver authority, including existing TLS sessions.",
+      "command": [
+        "federation",
+        "control",
+        "withdraw"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.federation.link.bind",
+      "tool_name": "stackkit_federation_link_bind",
+      "title": "Bind Federation link",
+      "description": "Adopt external WireGuard handles into local Owner custody.",
+      "command": [
+        "federation",
+        "link",
+        "bind"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.federation.link.stop",
+      "tool_name": "stackkit_federation_link_stop",
+      "title": "Stop Federation link",
+      "description": "Stop the adopted Federation interface without deleting the external fabric.",
+      "command": [
+        "federation",
+        "link",
+        "stop"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
       "id": "stackkit.generate",
       "tool_name": "stackkit_generate",
       "title": "Generate",
@@ -4370,6 +4764,240 @@
       ],
       "mutation": true,
       "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.host.attach-conformance",
+      "tool_name": "stackkit_host_attach_conformance",
+      "title": "Attach host conformance",
+      "description": "Attach exact host binding and conformance evidence to Inventory before plan generation.",
+      "command": [
+        "host",
+        "attach-conformance"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.host.conformance",
+      "tool_name": "stackkit_host_conformance",
+      "title": "Host conformance receipt",
+      "description": "Produce a provider-neutral host conformance receipt, on stdout or as a workspace file.",
+      "command": [
+        "host",
+        "conformance"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.host.environment",
+      "tool_name": "stackkit_host_environment",
+      "title": "Host environment",
+      "description": "Observe whether this host looks like a home network or a public server.",
+      "command": [
+        "host",
+        "environment",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.host.preflight",
+      "tool_name": "stackkit_host_preflight",
+      "title": "Host preflight",
+      "description": "Check whether this host can run the selected StackKit.",
+      "command": [
+        "host",
+        "preflight",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.host.prepare",
+      "tool_name": "stackkit_host_prepare",
+      "title": "Prepare Cloud host",
+      "description": "Provision the Cloud Kit execution-channel account, its privileges and workspace-custodied SSH key before apply.",
+      "command": [
+        "host",
+        "prepare"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.host.remediate",
+      "tool_name": "stackkit_host_remediate",
+      "title": "Remediate host",
+      "description": "Show the reversible fixes for host preflight findings, or carry out one named fix or every unattended reversible fix.",
+      "command": [
+        "host",
+        "remediate",
+        "--json",
+        "--yes"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.identity.projection.apply",
+      "tool_name": "stackkit_identity_projection_apply",
+      "title": "Apply identity projection",
+      "description": "Apply one previously approved identity projection to local PocketID.",
+      "command": [
+        "identity",
+        "projection",
+        "apply",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.identity.projection.approve",
+      "tool_name": "stackkit_identity_projection_approve",
+      "title": "Approve identity projection",
+      "description": "Create the local Owner-signed approval of one projection without changing PocketID.",
+      "command": [
+        "identity",
+        "projection",
+        "approve",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.identity.projection.inspect",
+      "tool_name": "stackkit_identity_projection_inspect",
+      "title": "Inspect identity projection",
+      "description": "Verify one signed, credential-free identity projection without mutation.",
+      "command": [
+        "identity",
+        "projection",
+        "inspect",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.identity.projection.unlink",
+      "tool_name": "stackkit_identity_projection_unlink",
+      "title": "Unlink identity projection",
+      "description": "Detach optional identity sync without deleting any local identity.",
+      "command": [
+        "identity",
+        "projection",
+        "unlink",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.identity.workload-peer.enroll",
+      "tool_name": "stackkit_identity_workload_peer_enroll",
+      "title": "Enroll workload peer",
+      "description": "Issue and admit a workload peer for one installed Home publication; returns only public certificate documents.",
+      "command": [
+        "identity",
+        "workload-peer",
+        "enroll",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.identity.workload-peer.install",
+      "tool_name": "stackkit_identity_workload_peer_install",
+      "title": "Install workload peer",
+      "description": "Install a Home-issued workload certificate using an independently verified Home root.",
+      "command": [
+        "identity",
+        "workload-peer",
+        "install",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.identity.workload-peer.probe",
+      "tool_name": "stackkit_identity_workload_peer_probe",
+      "title": "Probe workload peer",
+      "description": "Request the workload origin through an existing loopback Federation socket.",
+      "command": [
+        "identity",
+        "workload-peer",
+        "probe"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.identity.workload-peer.request",
+      "tool_name": "stackkit_identity_workload_peer_request",
+      "title": "Request workload peer",
+      "description": "Create or reuse a locally held workload key and return only its public CSR.",
+      "command": [
+        "identity",
+        "workload-peer",
+        "request",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.identity.workload-peer.revoke",
+      "tool_name": "stackkit_identity_workload_peer_revoke",
+      "title": "Revoke workload peer",
+      "description": "Withdraw a workload peer's current Home admission.",
+      "command": [
+        "identity",
+        "workload-peer",
+        "revoke",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": true,
       "idempotent": true,
       "owner_approval": true
     },
@@ -4387,6 +5015,21 @@
       "owner_approval": true
     },
     {
+      "id": "stackkit.kit.list",
+      "tool_name": "stackkit_kit_list",
+      "title": "List releases",
+      "description": "List published StackKits releases from the public release index.",
+      "command": [
+        "kit",
+        "list",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
       "id": "stackkit.logs",
       "tool_name": "stackkit_logs",
       "title": "Logs",
@@ -4402,6 +5045,76 @@
       "owner_approval": false
     },
     {
+      "id": "stackkit.logs.read",
+      "tool_name": "stackkit_logs_read",
+      "title": "Read logs",
+      "description": "Read one structured rollout log page, the newest by default.",
+      "command": [
+        "logs",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.migrate",
+      "tool_name": "stackkit_migrate",
+      "title": "Migrate StackSpec v1",
+      "description": "Classify a StackSpec v1, emit its migration report and optionally write the completed canonical StackSpec v2 to a new path.",
+      "command": [
+        "migrate"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.module.lint",
+      "tool_name": "stackkit_module_lint",
+      "title": "Lint modules",
+      "description": "Lint local module CUE for pin, health, security, access and placement hygiene.",
+      "command": [
+        "module",
+        "lint",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.module.scaffold",
+      "tool_name": "stackkit_module_scaffold",
+      "title": "Scaffold module",
+      "description": "Render module artifacts deterministically from module_facts.json.",
+      "command": [
+        "module",
+        "scaffold"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.output-transaction.gc-retired",
+      "tool_name": "stackkit_output_transaction_gc_retired",
+      "title": "Collect retired output transaction",
+      "description": "Inspect, or explicitly garbage-collect, one retired Architecture v2 output-transaction tombstone.",
+      "command": [
+        "output-transaction",
+        "gc-retired"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
       "id": "stackkit.plan",
       "tool_name": "stackkit_plan",
       "title": "Plan",
@@ -4409,6 +5122,35 @@
       "command": [
         "plan",
         "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.prepare",
+      "tool_name": "stackkit_prepare",
+      "title": "Prepare check",
+      "description": "Run the read-only native host preflight that Apply uses on this host.",
+      "command": [
+        "prepare",
+        "--json",
+        "--non-interactive"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.registry.info",
+      "tool_name": "stackkit_registry_info",
+      "title": "Registry info",
+      "description": "Summarize the embedded StackKits registry snapshot.",
+      "command": [
+        "registry",
+        "info"
       ],
       "mutation": false,
       "destructive": false,
@@ -4472,6 +5214,83 @@
       "owner_approval": true
     },
     {
+      "id": "stackkit.secrets.materialize",
+      "tool_name": "stackkit_secrets_materialize",
+      "title": "Materialize secret custody",
+      "description": "Establish or reuse owner-bound local custody for every secret the current StackSpec declares; never returns values.",
+      "command": [
+        "secrets",
+        "materialize"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.service.logs",
+      "tool_name": "stackkit_service_logs",
+      "title": "Service logs",
+      "description": "Read bounded, redacted logs of one managed service.",
+      "command": [
+        "service",
+        "logs",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.service.restart",
+      "tool_name": "stackkit_service_restart",
+      "title": "Restart service",
+      "description": "Restart one managed service declared by the active plan.",
+      "command": [
+        "service",
+        "restart",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.service.start",
+      "tool_name": "stackkit_service_start",
+      "title": "Start service",
+      "description": "Start one managed service declared by the active plan.",
+      "command": [
+        "service",
+        "start",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.service.stop",
+      "tool_name": "stackkit_service_stop",
+      "title": "Stop service",
+      "description": "Stop one managed, non-critical service declared by the active plan.",
+      "command": [
+        "service",
+        "stop",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
       "id": "stackkit.setup",
       "tool_name": "stackkit_setup",
       "title": "Set up application",
@@ -4500,6 +5319,20 @@
       "owner_approval": false
     },
     {
+      "id": "stackkit.support.export",
+      "tool_name": "stackkit_support_export",
+      "title": "Export support evidence",
+      "description": "Export one redacted local rollout log and its receipts to a new local file.",
+      "command": [
+        "support",
+        "export"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
       "id": "stackkit.upgrade",
       "tool_name": "stackkit_upgrade",
       "title": "Upgrade",
@@ -4507,6 +5340,53 @@
       "command": [
         "upgrade",
         "--json"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.user.list",
+      "tool_name": "stackkit_user_list",
+      "title": "List users",
+      "description": "List household users in local PocketID.",
+      "command": [
+        "user",
+        "list",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.user.owner.status",
+      "tool_name": "stackkit_user_owner_status",
+      "title": "Owner activation status",
+      "description": "Read the owner passkey activation status without its activation URL.",
+      "command": [
+        "user",
+        "owner",
+        "status",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.user.remove",
+      "tool_name": "stackkit_user_remove",
+      "title": "Remove user",
+      "description": "Remove one household user from local PocketID; owner and admin identities are refused.",
+      "command": [
+        "user",
+        "remove",
+        "--json",
+        "--owner-approve"
       ],
       "mutation": true,
       "destructive": true,
@@ -4541,5 +5421,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "8e72ee1ecef5eef03f1d5b5f83f350c996ef3f8878aa8cf0e3ed48c26e358f1d"
+  "catalog_sha256": "c89eb5595e1bf5d7acb68cd2e692dcb90513c1c9260049c5198a7f14d9a36d57"
 }

@@ -598,7 +598,10 @@ function parseOperations(source) {
   const ids = new Set();
   const result = raw.map((row, index) => {
     if (!isObject(row)) fail(`operations.json operation ${index} is not an object`);
-    rejectUnknownKeys(row, `operations.${index}`, new Set(["command", "description", "destructive", "id", "idempotent", "mutation", "ownerApproval", "owner_approval", "title", "toolName", "tool_name"]));
+    // `openWorld` and `arguments` are product-MCP tool metadata (#1311). The
+    // public catalog schema does not carry them, so they are accepted here and
+    // intentionally not projected.
+    rejectUnknownKeys(row, `operations.${index}`, new Set(["arguments", "command", "description", "destructive", "id", "idempotent", "mutation", "openWorld", "open_world", "ownerApproval", "owner_approval", "title", "toolName", "tool_name"]));
     const id = row.id;
     const toolName = aliasValue(row.toolName, row.tool_name, `operations.${index}.toolName`);
     if (typeof id !== "string" || !OPERATION_ID.test(id)) fail(`operations.json operation ${index} has an invalid id`);

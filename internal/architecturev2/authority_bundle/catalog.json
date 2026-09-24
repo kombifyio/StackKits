@@ -20287,6 +20287,7 @@
               "MAIL_DRIVER": "log",
               "PTERODACTYL_TELEMETRY_ENABLED": "false",
               "QUEUE_DRIVER": "redis",
+              "RECAPTCHA_ENABLED": "false",
               "REDIS_HOST": "panel-cache",
               "SESSION_DRIVER": "redis",
               "TRUSTED_PROXIES": "*"
@@ -20438,6 +20439,7 @@
               "MAIL_DRIVER": "log",
               "PTERODACTYL_TELEMETRY_ENABLED": "false",
               "QUEUE_DRIVER": "redis",
+              "RECAPTCHA_ENABLED": "false",
               "REDIS_HOST": "panel-cache",
               "SESSION_DRIVER": "redis",
               "TRUSTED_PROXIES": "*"

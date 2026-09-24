@@ -35,7 +35,7 @@ Core public resources:
 Transport stance:
 
 - `stdio` is the local adapter path for MCP clients that launch `stackkit-mcp` as a subprocess.
-- Streamable HTTP is the standards-based remote-capable transport for `POST /mcp`.
+- Streamable HTTP is the standards-based remote-capable transport for `POST /mcp`. It is stateless and serves MCP protocol `2026-07-28`: no `initialize` handshake is required, `server/discover` reports the supported protocol versions, and each request carries its protocol version and client capabilities in `_meta` with matching `Mcp-Protocol-Version` and `Mcp-Method` (plus `Mcp-Name` for named calls) headers. The server never issues an `Mcp-Session-Id` and ignores one a client sends. There is no GET stream (`GET /mcp` returns 405). Clients on older protocol versions that still send `initialize` are served per request.
 - WebSocket is not the default StackKits MCP surface; it would be a custom transport or gateway layer.
 - Durable external access to `stackkit-server /mcp` is a target StackKit-owned day-2 capability after install, not the current default first-install path.
 
@@ -43,9 +43,16 @@ Default stance:
 
 - docs/read-only tools are available by default;
 - mutating tools require `STACKKIT_MCP_ALLOW_WRITE=true` or `stackkit-server --mcp-allow-write`;
-- MCP HTTP token auth uses `STACKKIT_MCP_TOKEN` or `stackkit-server --mcp-token`;
-- when no explicit MCP token is configured, `stackkit-server` uses the API key as local MCP token fallback;
-- all tools are annotated with read-only, idempotent, destructive, and closed-world policy hints.
+- every tool declares truthful read-only, idempotent, destructive, and open-world hints; only tools that reach beyond the local host (for example `stackkit_upgrade`, `stackkit_kit_list`, `stackkit_federation_control_send`) are open-world;
+- `GET /openmcp.json` lists exactly the tools the running server registers.
+
+MCP HTTP authentication:
+
+- `POST /mcp` accepts only a dedicated MCP token, sent as `Authorization: Bearer <token>` or in the `X-StackKit-MCP-Token` header. Tokens are compared in constant time.
+- Token sources, first match wins: `--mcp-token`, `STACKKIT_MCP_TOKEN`, then `STACKKIT_MCP_TOKEN_FILE`. The file variant lets an installer mint the token into a file (for example mode `0600`) instead of passing it on a command line; surrounding whitespace is trimmed, and an unreadable or empty file stops the process at startup.
+- The `stackkit-server` API key is never an MCP credential. There is no API-key fallback, `/mcp` does not require the API key, and `stackkit-server` refuses to start when the MCP token equals the API key.
+- `stackkit-server` fails closed: without an MCP token, `POST /mcp` stays mounted and answers every request with `401` and a structured `mcp_token_not_configured` error that explains how to configure the token. `--allow-unauthenticated` relaxes only the REST API key, never `/mcp`.
+- `stackkit-mcp --transport http` may run without a token only on a loopback listen address such as `127.0.0.1:8091`. Any other listen address requires a token and the process refuses to start without one.
 
 For non-loopback access, the connector must be behind a protected path such as VPN, SSH tunnel, private network, mTLS/reverse proxy, or an OAuth-aware gateway. Remote write access also needs explicit write mode and should log run IDs, actor, target, tool inputs, and evidence locations.
 
@@ -81,50 +88,86 @@ Use [../INSTALLATION_PROCESSES.md](../INSTALLATION_PROCESSES.md) to decide wheth
 
 ## Native standalone tools
 
-Read-only and diagnostic tools:
+Every server rolled out with StackKits runs this connector, and the `stackkit`
+CLI is controllable through it: each public CLI command is either projected as
+an MCP tool from the shared operation catalog or recorded as an explicit
+exception with reason, scope and removal criterion. The regression test
+`TestEveryPublicCLICommandIsAnMCPToolOrAnExplicitException` walks the real
+Cobra command tree and fails on any command that is neither.
 
-- `stackkit_docs_search`
-- `stackkit_api_overview`
-- `stackkit_api_endpoint`
-- `stackkit_get_openapi_spec`
-- `stackkit_install_plan`
-- `stackkit_self_check_plan`
-- `stackkit_state_console`
-- `stackkit_validate_spec`
-- `stackkit_generate_preview`
-- `stackkit_config_get`
-- `stackkit_validate`
-- `stackkit_plan`
-- `stackkit_verify`
-- `stackkit_status`
-- `stackkit_logs`
-- `stackkit_drift`
-- `stackkit_logs_list`
-- `stackkit_log_get`
-- `stackkit_compat_check`
+Built-in read-only and diagnostic tools:
+
+- `stackkit_docs_search`, `stackkit_api_overview`, `stackkit_api_endpoint`,
+  `stackkit_get_openapi_spec`
+- `stackkit_install_plan`, `stackkit_self_check_plan`, `stackkit_state_console`
+- `stackkit_module_profiles`, `stackkit_application_delivery_compatibility`
+- `stackkit_validate_spec`, `stackkit_generate_preview`, `stackkit_config_get`,
+  `stackkit_compat_check`
+- `stackkit_status`, `stackkit_logs_list`, `stackkit_log_get` as HTTP calls to
+  `stackkit-server` in `server` mode, only when the process-backed CLI is not
+  bound
 
 Create-only CUE authoring:
 
 - `stackkit_config_set` validates through the embedded CUE authority, creates a missing canonical v2 spec without invoking the CLI, and replaces existing v2 intent only through `expected_spec_hash` compare-and-swap.
 
-Process-backed write, artifact, and plan-verification tools:
+### Process-backed operation tools
 
-These tools are registered only when write mode is enabled and the MCP process cryptographically binds the packaged sibling CLI with the identical version, commit, and startup digest:
+`internal/standaloneoperations` is the one catalog shared by the CLI, this
+connector and the State Console. Each contract names a stable `stackkit.*`
+operation ID, a `stackkit_*` tool name, the exact CLI command, truthful
+mutation/destructive/idempotent/open-world facts, and the typed arguments an
+agent may pass. `stackkit operations --json` prints the full catalog, and MCP
+`tools/list` shows the tools this process registered.
 
-- `stackkit_init`
-- `stackkit_resolve`
-- `stackkit_generate`
-- `stackkit_apply`
-- `stackkit_backup`
-- `stackkit_restore`
-- `stackkit_upgrade`
-- `stackkit_remove`
+The connector registers these tools only when the `actions` mode is enabled and
+the MCP process cryptographically binds the packaged sibling CLI with the
+identical version, commit, and startup digest:
 
-Every tool above is projected from the common standalone operation registry and
-delegates to the exact bound sibling CLI. Mutations require the exact operation
-ID plus local Owner approval. `stackkit_remove` additionally requires one exact
-`workload_ref`; it invokes native v2 workload-removal authority and never the
-legacy whole-deployment cleanup.
+- read-only operations (for example `stackkit_status`, `stackkit_verify`,
+  `stackkit_logs_read`, `stackkit_host_preflight`, `stackkit_service_logs`,
+  `stackkit_user_list`) register in `actions` mode;
+- mutating operations (for example `stackkit_apply`, `stackkit_service_restart`,
+  `stackkit_identity_projection_apply`, `stackkit_backup_restore_activate`)
+  additionally require `STACKKIT_MCP_ALLOW_WRITE=true`, the exact operation ID
+  as `operation_confirmation`, and `owner_approved=true`. Only then does the
+  adapter add the CLI's own approval flag such as `--owner-approve`.
+
+Most operation tools are generated from their catalog contract: the input
+schema is closed (`additionalProperties: false`), carries `base_dir`,
+`spec_path`, `correlation_id` and `timeout_seconds`, and adds each typed
+argument. Flag values are passed as `--flag=value` and positional values may not
+start with `-`, so an input can never become another CLI flag. The original
+lifecycle tools (`stackkit_init`, `stackkit_resolve`, `stackkit_generate`,
+`stackkit_plan`, `stackkit_apply`, `stackkit_verify`, `stackkit_status`,
+`stackkit_setup`, `stackkit_logs`, `stackkit_backup*`, `stackkit_restore*`,
+`stackkit_upgrade`, `stackkit_drift`, `stackkit_remove`) keep their hand-written
+typed adapters. `stackkit_remove` requires one exact `workload_ref`; it invokes
+native v2 workload-removal authority and never the legacy whole-deployment
+cleanup.
+
+### Secret values never cross MCP
+
+Tool inputs carry values, file paths and references by name, never passwords,
+API keys, tokens, private keys or passphrases. Commands that would put a secret
+value into the MCP transcript stay CLI-only exceptions: `secrets reveal`,
+`backup target import` (S3 keys and passphrase on stdin), `cluster join-token`,
+`user add` (one-time passkey setup URL) and `user owner activate` (activation
+URL). `stackkit_user_owner_status`, `stackkit_backup_target_status` and
+`stackkit_secrets_materialize` cover the non-secret parts.
+
+### Explicit exceptions
+
+`internal/standaloneoperations/exceptions.go` records every command that is not
+a tool, grouped by scope: CLI user experience (`help`, `completion`,
+`version`, `operations`, help-only groups, the interactive `use-cases pick`),
+agent bootstrap (`agent *`), aliases of projected operations (`logs get`,
+`logs latest`, `kit upgrade`, `kit verify`), exact-v0.6 compatibility verbs,
+the secret-bearing commands above, the signed `runtime execute` channel, and
+StackKits source-repository tooling (`docs emit-*`, `registry` generators,
+`compat emit-os-matrix`).
+
+### Results and evidence
 
 CLI-backed tools publish parsed JSON through MCP `structuredContent`; they do
 not require clients to scrape text. Apply, Status, Verify, and Logs preserve
@@ -181,18 +224,31 @@ Recommended single local connection:
 ```toml
 [mcp_servers.stackkit]
 command = "stackkit-mcp"
-args = ["--mode", "docs,local,server"]
+args = ["--mode", "docs,local,server,actions"]
 ```
 
-Protected durable endpoint after install:
+Protected durable endpoint after install (send `Authorization: Bearer <mcp-token>`):
 
 ```text
 POST http://localhost:8082/mcp
 GET  http://localhost:8082/openmcp.json
 ```
 
-Enable write-capable local agent mode:
+Mint a dedicated MCP token and enable write-capable local agent mode:
 
 ```sh
-STACKKIT_MCP_ALLOW_WRITE=true STACKKIT_MCP_TOKEN=<local-token> stackkit-server --api-key <api-key>
+umask 077 && openssl rand -hex 32 > /etc/stackkit/mcp-token
+STACKKIT_MCP_ALLOW_WRITE=true STACKKIT_MCP_TOKEN_FILE=/etc/stackkit/mcp-token stackkit-server --api-key <api-key>
+```
+
+Stateless probe with curl:
+
+```sh
+curl -s -X POST http://localhost:8082/mcp \
+  -H "Authorization: Bearer $(cat /etc/stackkit/mcp-token)" \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H 'Mcp-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: server/discover' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}'
 ```

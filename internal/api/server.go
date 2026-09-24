@@ -214,13 +214,24 @@ func (s *Server) registerMCPRoutes() {
 		Version:    s.config.Version,
 		GitCommit:  s.config.GitCommit,
 	})
+	// The dedicated MCP token is the only /mcp credential; the handler denies
+	// every request while no token is configured.
 	mcpHandler := app.ProtectedStreamableHTTPHandler()
-	s.mux.Handle("POST /mcp", withoutWriteDeadline(mcpHandler))
+	s.mux.Handle("POST "+mcpRoutePath, withoutWriteDeadline(mcpHandler))
 	s.mux.HandleFunc("GET /openmcp.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(app.OpenMCPJSON())
 	})
+}
+
+const mcpRoutePath = "/mcp"
+
+// isMCPTokenAuthenticatedRoute marks the MCP endpoint, whose fail-closed MCP
+// token boundary replaces the API key: an MCP client holds only the MCP token,
+// and the API key is never accepted there.
+func isMCPTokenAuthenticatedRoute(r *http.Request) bool {
+	return r.Method == http.MethodPost && r.URL.Path == mcpRoutePath
 }
 
 func withoutWriteDeadline(next http.Handler) http.Handler {
@@ -555,7 +566,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 func apiKeyMiddleware(validKey string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if isPublicAPIKeyExemptRoute(r) || isServiceAuthenticatedRoute(r) || isOwnerStepUpBrowserRoute(r) {
+			if isPublicAPIKeyExemptRoute(r) || isServiceAuthenticatedRoute(r) || isOwnerStepUpBrowserRoute(r) || isMCPTokenAuthenticatedRoute(r) {
 				next.ServeHTTP(w, r)
 				return
 			}

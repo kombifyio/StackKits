@@ -49,6 +49,11 @@ var (
 	agentPromptList      bool
 )
 
+// defaultAgentMCPModes includes actions so the generated connection exposes
+// the read-only lifecycle tools (status, verify, logs, drift and the other
+// read operations). Mutating tools stay behind STACKKIT_MCP_ALLOW_WRITE.
+const defaultAgentMCPModes = "docs,local,server,actions"
+
 var agentPromptBodies = map[string]string{
 	"basekit-autonomous-rollout": `You are operating StackKits autonomously on a fresh controlled host. Deploy BaseKit only.
 
@@ -271,7 +276,7 @@ func init() {
 	agentPromptCmd.Flags().BoolVar(&agentPromptList, "list", false, "List available prompt scenarios")
 
 	agentMCPConfigCmd.Flags().StringVar(&agentClient, "client", "generic", "Client format: generic, codex, or claude")
-	agentMCPConfigCmd.Flags().StringVar(&agentMode, "mode", "docs,local,server", "MCP modes")
+	agentMCPConfigCmd.Flags().StringVar(&agentMode, "mode", defaultAgentMCPModes, "MCP modes; actions adds the read-only lifecycle tools, and write tools still need STACKKIT_MCP_ALLOW_WRITE=true")
 	agentMCPConfigCmd.Flags().StringVar(&agentServerURL, "server-url", stackkitmcp.DefaultLocalServerURL, "stackkit-server URL")
 }
 
@@ -362,7 +367,7 @@ func normalizeAgentMode(mode string) string {
 		}
 	}
 	if len(out) == 0 {
-		return "docs,local,server"
+		return defaultAgentMCPModes
 	}
 	return strings.Join(out, ",")
 }

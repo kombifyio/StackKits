@@ -711,7 +711,7 @@ Codex-style stdio example:
 ```toml
 [mcp_servers.stackkit]
 command = "stackkit-mcp"
-args = ["--mode", "docs,local,server"]
+args = ["--mode", "docs,local,server,actions"]
 ```
 
 Use when:

@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+* **game:** `stackkit setup game` runs the first steps of a real client join and prints the result: Minecraft Java must demand online-mode authentication, Bedrock must accept a RakNet connection, and Terraria must admit the owner's join password
 * **game:** curated Minecraft Paper, Terraria and Valheim profiles next to Minecraft Java and Bedrock; Terraria and Valheim require an owner-chosen join password, Valheim stays off the public list and crossplay, and each server is confirmed by its own protocol
 * **game:** `stackkit setup game` refuses a server the node's game memory cannot hold instead of overcommitting the host
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
@@ -16,12 +17,74 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+* **release:** the public CLI no longer panics at startup binding `stackkit.addon.list` to the private-only `addon` command; the add-on operation lives in `internal/standaloneoperations/addon_operations.go`, which the public export removes with `addon.go` and the public surface policy forbids
+* **release:** the public export no longer rejects `stackkit.secrets.materialize` (its description matched the public projection's sensitive-reference guard), and the committed authority bundle is regenerated from the operation registry; `internal/standaloneoperations` is now a bundle input, so a stale `operations.json` can no longer hide a projection failure until the public release
+* **webmcp:** the public WebMCP catalog generator accepts the product-MCP operation fields `openWorld` and `arguments` (added in #1311) without projecting them, so the public export and every StackKits release since 0.44.0 no longer fail with `operations.0.openWorld is not supported by the public projection`
+* **workloads:** a changed config file now recreates the standalone service that mounts it; before, Compose saw no change and the container kept the old file
+* **game:** the Panel's live console reaches Wings again: the image's stock nginx site answered the router and hid the node proxy
+* **game:** the Panel login no longer loads Google reCAPTCHA, which sent every owner login to Google and blocked offline home networks
+* **host-conformance:** attest installed RAM to the nearest GiB instead of truncating MemTotal, so a host that exactly meets a RAM floor passes runtime admission; a 4 GB IONOS Basic Cube (MemTotal about 3.8 GiB) was refused `runtime-capacity-unsatisfied` for the Cloud core's 4 GB floor
 * **game:** restore activation binds the Game runtime: every Compose volume of the workload is a declared storage allocation, and long-form volume mounts are read
 * **restore:** an activation that fails before its recovery journal exists is recorded as failed, not as needing a recovery that cannot run
 * **init:** give Media, Smart Home, AI, Dev and Documents the same initial HTTPS route and data binding as Photos, Files and Vault; they were installed but unreachable through the StackKit router
 * **photos:** keep Apply and restore available when optional machine learning is degraded, while reporting its health and retaining blocking checks for core services
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
+
+## [0.45.0] (2026-09-24)
+
+
+### Added
+
+* **game:** validate game servers by a real client join
+
+
+### Fixed
+
+* **host-conformance:** attest installed RAM to the nearest GiB
+* **release:** keep the private add-on operation out of the public CLI
+* **release:** unblock the public export and keep operations.json current
+* **webmcp:** accept product-MCP operation metadata in the public catalog
+
+## [0.44.4](https://github.com/kombifyio/StackKits/compare/v0.44.3...v0.44.4) (2026-09-24)
+
+
+### Fixed
+
+* **release:** keep the private add-on operation out of the public CLI
+
+## [0.44.3](https://github.com/kombifyio/StackKits/compare/v0.44.2...v0.44.3) (2026-09-24)
+
+
+### Fixed
+
+* **release:** unblock the public export and keep operations.json current
+
+## [0.44.2](https://github.com/kombifyio/StackKits/compare/v0.44.1...v0.44.2) (2026-09-24)
+
+
+### Fixed
+
+* **webmcp:** accept product-MCP operation metadata in the public catalog
+
+## [0.44.1](https://github.com/kombifyio/StackKits/compare/v0.44.0...v0.44.1) (2026-09-24)
+
+
+### Fixed
+
+* **host-conformance:** attest installed RAM to the nearest GiB
+
+## [0.44.0] (2026-09-24)
+
+
+### Added
+
+* **mcp:** project every public stackkit CLI operation as an MCP tool
+
+
+### Fixed
+
+* **mcp:** serve the stateless 2026-07-28 transport and require a dedicated MCP token
 
 ## [0.43.0] (2026-09-24)
 

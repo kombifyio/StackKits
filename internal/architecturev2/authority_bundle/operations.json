@@ -1,6 +1,225 @@
 {
-  "contentDigest": "sha256:1d39365901dabf6e954b5f6cd400ce667bd9b89f927068f346f1de86cadb60a7",
+  "contentDigest": "sha256:78db3c2e3228d38d85eac3e016c28a8ee0e7d036074f2dfad1114ace336539ca",
   "operations": [
+    {
+      "command": [
+        "addon",
+        "list"
+      ],
+      "description": "List the governed add-ons for the current StackKit.",
+      "destructive": false,
+      "id": "stackkit.addon.list",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "List add-ons",
+      "toolName": "stackkit_addon_list"
+    },
+    {
+      "arguments": [
+        {
+          "description": "allocated DNS-safe subdomain prefix; exactly one of prefix or zone",
+          "flag": "--prefix",
+          "kind": "string",
+          "name": "prefix"
+        },
+        {
+          "description": "allocated install zone label; exactly one of prefix or zone",
+          "flag": "--zone",
+          "kind": "string",
+          "name": "zone"
+        },
+        {
+          "description": "workspace path for the validated bound StackSpec",
+          "flag": "--output",
+          "kind": "string",
+          "name": "output",
+          "required": true
+        },
+        {
+          "description": "exact current CUE-normalized spec hash required to replace existing intent",
+          "flag": "--expected-spec-hash",
+          "kind": "string",
+          "name": "expected_spec_hash"
+        }
+      ],
+      "command": [
+        "address",
+        "bind"
+      ],
+      "description": "Bind an allocated prefix or install zone into canonical public routes and persist the validated StackSpec.",
+      "destructive": true,
+      "id": "stackkit.address.bind",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Bind public addresses",
+      "toolName": "stackkit_address_bind"
+    },
+    {
+      "command": [
+        "address",
+        "plan"
+      ],
+      "description": "Emit the account-free, secret-free public address registration plan for the current StackSpec.",
+      "destructive": false,
+      "id": "stackkit.address.plan",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Plan public addresses",
+      "toolName": "stackkit_address_plan"
+    },
+    {
+      "arguments": [
+        {
+          "description": "path to the capability used to create the change set",
+          "flag": "--capability",
+          "kind": "string",
+          "name": "capability_file",
+          "required": true
+        },
+        {
+          "description": "path to the exact candidate StackSpec v2",
+          "flag": "--candidate-spec",
+          "kind": "string",
+          "name": "candidate_spec",
+          "required": true
+        },
+        {
+          "description": "exact sha256:\u003chex\u003e change-set content address",
+          "flag": "--change-set",
+          "kind": "string",
+          "name": "change_set",
+          "required": true
+        },
+        {
+          "description": "exact sha256:\u003chex\u003e digest of the stored change-set bytes",
+          "flag": "--expect-sha256",
+          "kind": "string",
+          "name": "expect_sha256",
+          "required": true
+        }
+      ],
+      "command": [
+        "advanced",
+        "change-set",
+        "apply",
+        "--json"
+      ],
+      "description": "Checkpoint, apply and verify one exact Owner-signed Terramate change set with automatic verified rollback.",
+      "destructive": true,
+      "id": "stackkit.advanced.change-set.apply",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Apply Advanced change set",
+      "toolName": "stackkit_advanced_change_set_apply"
+    },
+    {
+      "arguments": [
+        {
+          "description": "path to a canonical stackkit.advanced-capability/v1 file",
+          "flag": "--capability",
+          "kind": "string",
+          "name": "capability_file",
+          "required": true
+        },
+        {
+          "description": "path to the candidate StackSpec v2 using generation.target=terramate",
+          "flag": "--candidate-spec",
+          "kind": "string",
+          "name": "candidate_spec",
+          "required": true
+        }
+      ],
+      "command": [
+        "advanced",
+        "change-set",
+        "create",
+        "--json"
+      ],
+      "description": "Create a content-addressed Owner-signed Terramate change set from an offline capability and a candidate StackSpec.",
+      "destructive": false,
+      "id": "stackkit.advanced.change-set.create",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Create Advanced change set",
+      "toolName": "stackkit_advanced_change_set_create"
+    },
+    {
+      "arguments": [
+        {
+          "description": "path to the public issuer trust bundle",
+          "flag": "--bundle",
+          "kind": "string",
+          "name": "bundle_file",
+          "required": true
+        },
+        {
+          "description": "exact sha256:\u003chex\u003e digest of the bundle",
+          "flag": "--expect-sha256",
+          "kind": "string",
+          "name": "expect_sha256",
+          "required": true
+        }
+      ],
+      "command": [
+        "advanced",
+        "trust",
+        "import",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Import an exact pinned Advanced issuer trust bundle into local Owner trust.",
+      "destructive": true,
+      "id": "stackkit.advanced.trust.import",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Import Advanced trust",
+      "toolName": "stackkit_advanced_trust_import"
+    },
+    {
+      "command": [
+        "advanced",
+        "trust",
+        "inspect",
+        "--json"
+      ],
+      "description": "Inspect the verified local Advanced issuer trust.",
+      "destructive": false,
+      "id": "stackkit.advanced.trust.inspect",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Inspect Advanced trust",
+      "toolName": "stackkit_advanced_trust_inspect"
+    },
+    {
+      "command": [
+        "app",
+        "compatibility",
+        "--json"
+      ],
+      "description": "Show the governed application and delivery-adapter support matrix.",
+      "destructive": false,
+      "id": "stackkit.app.compatibility",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Application compatibility",
+      "toolName": "stackkit_app_compatibility"
+    },
     {
       "command": [
         "apply",
@@ -11,6 +230,7 @@
       "id": "stackkit.apply",
       "idempotent": false,
       "mutation": true,
+      "openWorld": false,
       "ownerApproval": true,
       "title": "Apply",
       "toolName": "stackkit_apply"
@@ -26,9 +246,188 @@
       "id": "stackkit.backup",
       "idempotent": true,
       "mutation": true,
+      "openWorld": false,
       "ownerApproval": true,
       "title": "Backup",
       "toolName": "stackkit_backup"
+    },
+    {
+      "command": [
+        "backup",
+        "configure",
+        "--json"
+      ],
+      "description": "Configure the CUE-governed local Kopia repository from the generated backup policy.",
+      "destructive": false,
+      "id": "stackkit.backup.configure",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Configure backup repository",
+      "toolName": "stackkit_backup_configure"
+    },
+    {
+      "arguments": [
+        {
+          "description": "age X25519 recipient public keys",
+          "flag": "--recipient",
+          "kind": "string-list",
+          "name": "recipients",
+          "required": true
+        },
+        {
+          "description": "new output directory whose parent exists",
+          "flag": "--target",
+          "kind": "string",
+          "name": "target",
+          "required": true
+        },
+        {
+          "description": "portable archive format",
+          "enum": [
+            "tar.gz.age"
+          ],
+          "flag": "--format",
+          "kind": "string",
+          "name": "format"
+        },
+        {
+          "description": "handling of large media sources",
+          "enum": [
+            "manifest-only",
+            "include",
+            "exclude"
+          ],
+          "flag": "--large-media-mode",
+          "kind": "string",
+          "name": "large_media_mode"
+        },
+        {
+          "description": "explicit CLASS=PATH sources; omit to export the generated backup contract",
+          "flag": "--source",
+          "kind": "string-list",
+          "name": "sources"
+        }
+      ],
+      "command": [
+        "backup",
+        "emergency-export",
+        "--json"
+      ],
+      "description": "Export local data as a portable archive encrypted to age recipient public keys into a new directory.",
+      "destructive": false,
+      "id": "stackkit.backup.emergency-export",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Emergency export",
+      "toolName": "stackkit_backup_emergency_export"
+    },
+    {
+      "arguments": [
+        {
+          "description": "path to the encrypted emergency archive",
+          "flag": "--archive",
+          "kind": "string",
+          "name": "archive",
+          "required": true
+        },
+        {
+          "description": "path to the local age identity file; the key itself never crosses MCP",
+          "flag": "--identity-file",
+          "kind": "string",
+          "name": "identity_file",
+          "required": true
+        },
+        {
+          "description": "new isolated restore directory whose parent exists",
+          "flag": "--target",
+          "kind": "string",
+          "name": "target",
+          "required": true
+        },
+        {
+          "description": "maximum decompressed archive bytes",
+          "flag": "--max-bytes",
+          "kind": "integer",
+          "name": "max_bytes"
+        }
+      ],
+      "command": [
+        "backup",
+        "emergency-restore",
+        "--json"
+      ],
+      "description": "Decrypt and verify a portable emergency archive into a new staging directory without activating it.",
+      "destructive": false,
+      "id": "stackkit.backup.emergency-restore",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Emergency restore",
+      "toolName": "stackkit_backup_emergency_restore"
+    },
+    {
+      "arguments": [
+        {
+          "description": "exact staged restore result ID",
+          "kind": "string",
+          "name": "restore_result_id",
+          "required": true
+        },
+        {
+          "description": "stable idempotency key for this activation",
+          "flag": "--operation-id",
+          "kind": "string",
+          "name": "operation_id"
+        }
+      ],
+      "command": [
+        "backup",
+        "restore",
+        "activate",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Activate one verified staged restore into the live volumes behind an automatic safety snapshot.",
+      "destructive": true,
+      "id": "stackkit.backup.restore.activate",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Activate restore",
+      "toolName": "stackkit_backup_restore_activate"
+    },
+    {
+      "arguments": [
+        {
+          "description": "exact interrupted activation operation ID",
+          "kind": "string",
+          "name": "activation_operation_id",
+          "required": true
+        }
+      ],
+      "command": [
+        "backup",
+        "restore",
+        "recover",
+        "--json",
+        "--owner-approve",
+        "--rollback"
+      ],
+      "description": "Roll back an interrupted restore activation or finish its committed result.",
+      "destructive": true,
+      "id": "stackkit.backup.restore.recover",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Recover restore",
+      "toolName": "stackkit_backup_restore_recover"
     },
     {
       "command": [
@@ -43,6 +442,7 @@
       "id": "stackkit.backup.schedule.disable",
       "idempotent": true,
       "mutation": true,
+      "openWorld": false,
       "ownerApproval": true,
       "title": "Disable backup schedule",
       "toolName": "stackkit_backup_schedule_disable"
@@ -60,6 +460,7 @@
       "id": "stackkit.backup.schedule.enable",
       "idempotent": true,
       "mutation": true,
+      "openWorld": false,
       "ownerApproval": true,
       "title": "Enable backup schedule",
       "toolName": "stackkit_backup_schedule_enable"
@@ -76,6 +477,7 @@
       "id": "stackkit.backup.schedule.status",
       "idempotent": true,
       "mutation": false,
+      "openWorld": false,
       "ownerApproval": false,
       "title": "Backup schedule status",
       "toolName": "stackkit_backup_schedule_status"
@@ -91,9 +493,92 @@
       "id": "stackkit.backup.status",
       "idempotent": true,
       "mutation": false,
+      "openWorld": false,
       "ownerApproval": false,
       "title": "Backup status",
       "toolName": "stackkit_backup_status"
+    },
+    {
+      "command": [
+        "backup",
+        "target",
+        "status"
+      ],
+      "description": "Verify local backup target custody without contacting S3; returns opaque references only.",
+      "destructive": false,
+      "id": "stackkit.backup.target.status",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Backup target status",
+      "toolName": "stackkit_backup_target_status"
+    },
+    {
+      "arguments": [
+        {
+          "description": "break-glass bundle directory",
+          "flag": "--dir",
+          "kind": "string",
+          "name": "dir"
+        }
+      ],
+      "command": [
+        "break-glass",
+        "list"
+      ],
+      "description": "List the encrypted break-glass bundles on this host.",
+      "destructive": false,
+      "id": "stackkit.break-glass.list",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "List break-glass bundles",
+      "toolName": "stackkit_break_glass_list"
+    },
+    {
+      "arguments": [
+        {
+          "description": "node name",
+          "kind": "string",
+          "name": "node",
+          "required": true
+        },
+        {
+          "description": "break-glass bundle directory",
+          "flag": "--dir",
+          "kind": "string",
+          "name": "dir"
+        }
+      ],
+      "command": [
+        "break-glass",
+        "show-bundle"
+      ],
+      "description": "Return the path of one node's still-encrypted break-glass bundle.",
+      "destructive": false,
+      "id": "stackkit.break-glass.show-bundle",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Show break-glass bundle",
+      "toolName": "stackkit_break_glass_show_bundle"
+    },
+    {
+      "command": [
+        "compat"
+      ],
+      "description": "Show published OS support evidence and run non-destructive local container-host diagnostics.",
+      "destructive": false,
+      "id": "stackkit.compat",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Compatibility diagnostics",
+      "toolName": "stackkit_compat"
     },
     {
       "command": [
@@ -106,9 +591,285 @@
       "id": "stackkit.drift",
       "idempotent": true,
       "mutation": false,
+      "openWorld": false,
       "ownerApproval": false,
       "title": "Drift",
       "toolName": "stackkit_drift"
+    },
+    {
+      "arguments": [
+        {
+          "description": "reconcile mode",
+          "enum": [
+            "standard",
+            "advanced"
+          ],
+          "flag": "--mode",
+          "kind": "string",
+          "name": "mode"
+        },
+        {
+          "description": "advanced: canonical offline capability file",
+          "flag": "--capability",
+          "kind": "string",
+          "name": "capability_file"
+        },
+        {
+          "description": "advanced: exact Terramate candidate StackSpec",
+          "flag": "--candidate-spec",
+          "kind": "string",
+          "name": "candidate_spec"
+        },
+        {
+          "description": "advanced: exact Owner-signed change-set ID",
+          "flag": "--change-set",
+          "kind": "string",
+          "name": "change_set"
+        },
+        {
+          "description": "advanced: exact stored change-set byte digest",
+          "flag": "--expect-sha256",
+          "kind": "string",
+          "name": "expect_sha256"
+        }
+      ],
+      "command": [
+        "drift",
+        "reconcile",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Checkpoint, then generate, apply and verify through the governed local lifecycle with automatic verified rollback.",
+      "destructive": true,
+      "id": "stackkit.drift.reconcile",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Reconcile drift",
+      "toolName": "stackkit_drift_reconcile"
+    },
+    {
+      "arguments": [
+        {
+          "description": "external binding JSON",
+          "flag": "--binding",
+          "kind": "string",
+          "name": "binding_file",
+          "required": true
+        },
+        {
+          "description": "local Inventory path",
+          "flag": "--inventory",
+          "kind": "string",
+          "name": "inventory"
+        },
+        {
+          "description": "local canonical ResolvedPlan path",
+          "flag": "--resolved-plan",
+          "kind": "string",
+          "name": "resolved_plan"
+        }
+      ],
+      "command": [
+        "federation",
+        "binding",
+        "adopt"
+      ],
+      "description": "Validate, Owner-sign and atomically adopt an external Federation-link binding.",
+      "destructive": false,
+      "id": "stackkit.federation.binding.adopt",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Adopt Federation binding",
+      "toolName": "stackkit_federation_binding_adopt"
+    },
+    {
+      "arguments": [
+        {
+          "description": "Owner-signed binding admission JSON",
+          "flag": "--admission",
+          "kind": "string",
+          "name": "admission_file",
+          "required": true
+        },
+        {
+          "description": "local Inventory path",
+          "flag": "--inventory",
+          "kind": "string",
+          "name": "inventory"
+        },
+        {
+          "description": "local canonical ResolvedPlan path",
+          "flag": "--resolved-plan",
+          "kind": "string",
+          "name": "resolved_plan"
+        }
+      ],
+      "command": [
+        "federation",
+        "binding",
+        "import"
+      ],
+      "description": "Admit an Owner-signed opaque Federation binding into local Inventory.",
+      "destructive": false,
+      "id": "stackkit.federation.binding.import",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Import Federation binding",
+      "toolName": "stackkit_federation_binding_import"
+    },
+    {
+      "arguments": [
+        {
+          "description": "Owner-reviewed receiver custody JSON without private keys",
+          "flag": "--file",
+          "kind": "string",
+          "name": "file",
+          "required": true
+        }
+      ],
+      "command": [
+        "federation",
+        "control",
+        "bind"
+      ],
+      "description": "Admit exact public Home authority and local receiver custody, replacing the previous receiver authority.",
+      "destructive": true,
+      "id": "stackkit.federation.control.bind",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Bind Federation control receiver",
+      "toolName": "stackkit_federation_control_bind"
+    },
+    {
+      "arguments": [
+        {
+          "description": "Home-signed action JSON",
+          "flag": "--file",
+          "kind": "string",
+          "name": "file",
+          "required": true
+        },
+        {
+          "description": "local pinned mTLS endpoint and confined credential paths",
+          "flag": "--endpoint-file",
+          "kind": "string",
+          "name": "endpoint_file",
+          "required": true
+        }
+      ],
+      "command": [
+        "federation",
+        "control",
+        "send"
+      ],
+      "description": "Send one Home-signed action to the selected Cloud node over an exact Home-initiated mTLS connection.",
+      "destructive": false,
+      "id": "stackkit.federation.control.send",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": true,
+      "ownerApproval": true,
+      "title": "Send Federation control action",
+      "toolName": "stackkit_federation_control_send"
+    },
+    {
+      "arguments": [
+        {
+          "description": "exact action JSON with plan hash, target and bounded timestamps",
+          "flag": "--file",
+          "kind": "string",
+          "name": "file",
+          "required": true
+        }
+      ],
+      "command": [
+        "federation",
+        "control",
+        "sign"
+      ],
+      "description": "Sign one exact short-lived plan or verify action with current Home custody.",
+      "destructive": false,
+      "id": "stackkit.federation.control.sign",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Sign Federation control action",
+      "toolName": "stackkit_federation_control_sign"
+    },
+    {
+      "command": [
+        "federation",
+        "control",
+        "withdraw"
+      ],
+      "description": "Persistently withdraw receiver authority, including existing TLS sessions.",
+      "destructive": true,
+      "id": "stackkit.federation.control.withdraw",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Withdraw Federation control receiver",
+      "toolName": "stackkit_federation_control_withdraw"
+    },
+    {
+      "arguments": [
+        {
+          "description": "external fabric custody JSON without private keys",
+          "flag": "--file",
+          "kind": "string",
+          "name": "file",
+          "required": true
+        }
+      ],
+      "command": [
+        "federation",
+        "link",
+        "bind"
+      ],
+      "description": "Adopt external WireGuard handles into local Owner custody.",
+      "destructive": false,
+      "id": "stackkit.federation.link.bind",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Bind Federation link",
+      "toolName": "stackkit_federation_link_bind"
+    },
+    {
+      "arguments": [
+        {
+          "description": "exact adopted opaque fabric reference",
+          "flag": "--fabric-ref",
+          "kind": "string",
+          "name": "fabric_ref",
+          "required": true
+        }
+      ],
+      "command": [
+        "federation",
+        "link",
+        "stop"
+      ],
+      "description": "Stop the adopted Federation interface without deleting the external fabric.",
+      "destructive": true,
+      "id": "stackkit.federation.link.stop",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Stop Federation link",
+      "toolName": "stackkit_federation_link_stop"
     },
     {
       "command": [
@@ -119,9 +880,467 @@
       "id": "stackkit.generate",
       "idempotent": true,
       "mutation": true,
+      "openWorld": false,
       "ownerApproval": true,
       "title": "Generate",
       "toolName": "stackkit_generate"
+    },
+    {
+      "arguments": [
+        {
+          "description": "workspace-confined inventory.json to update",
+          "flag": "--inventory",
+          "kind": "string",
+          "name": "inventory",
+          "required": true
+        },
+        {
+          "description": "workspace-confined ExternalHostBinding JSON",
+          "flag": "--binding",
+          "kind": "string",
+          "name": "binding_file",
+          "required": true
+        },
+        {
+          "description": "workspace-confined HostConformanceReceipt JSON",
+          "flag": "--receipt",
+          "kind": "string",
+          "name": "receipt_file",
+          "required": true
+        }
+      ],
+      "command": [
+        "host",
+        "attach-conformance"
+      ],
+      "description": "Attach exact host binding and conformance evidence to Inventory before plan generation.",
+      "destructive": false,
+      "id": "stackkit.host.attach-conformance",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Attach host conformance",
+      "toolName": "stackkit_host_attach_conformance"
+    },
+    {
+      "arguments": [
+        {
+          "description": "local ExternalHostBinding JSON",
+          "flag": "--binding",
+          "kind": "string",
+          "name": "binding_file",
+          "required": true
+        },
+        {
+          "description": "receipt destination; omit for JSON on stdout",
+          "flag": "--output",
+          "kind": "string",
+          "name": "output"
+        }
+      ],
+      "command": [
+        "host",
+        "conformance"
+      ],
+      "description": "Produce a provider-neutral host conformance receipt, on stdout or as a workspace file.",
+      "destructive": false,
+      "id": "stackkit.host.conformance",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Host conformance receipt",
+      "toolName": "stackkit_host_conformance"
+    },
+    {
+      "command": [
+        "host",
+        "environment",
+        "--json"
+      ],
+      "description": "Observe whether this host looks like a home network or a public server.",
+      "destructive": false,
+      "id": "stackkit.host.environment",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Host environment",
+      "toolName": "stackkit_host_environment"
+    },
+    {
+      "arguments": [
+        {
+          "description": "verified canonical ResolvedPlan whose host listeners to check",
+          "flag": "--resolved-plan",
+          "kind": "string",
+          "name": "resolved_plan"
+        },
+        {
+          "description": "exact local Node in the supplied ResolvedPlan",
+          "flag": "--local-node",
+          "kind": "string",
+          "name": "local_node"
+        },
+        {
+          "description": "admission policy",
+          "enum": [
+            "strict",
+            "warn",
+            "skip"
+          ],
+          "flag": "--policy",
+          "kind": "string",
+          "name": "policy"
+        }
+      ],
+      "command": [
+        "host",
+        "preflight",
+        "--json"
+      ],
+      "description": "Check whether this host can run the selected StackKit.",
+      "destructive": false,
+      "id": "stackkit.host.preflight",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Host preflight",
+      "toolName": "stackkit_host_preflight"
+    },
+    {
+      "command": [
+        "host",
+        "prepare"
+      ],
+      "description": "Provision the Cloud Kit execution-channel account, its privileges and workspace-custodied SSH key before apply.",
+      "destructive": true,
+      "id": "stackkit.host.prepare",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Prepare Cloud host",
+      "toolName": "stackkit_host_prepare"
+    },
+    {
+      "arguments": [
+        {
+          "description": "named resolution to carry out; omit both apply and auto_reversible to only plan",
+          "flag": "--apply",
+          "kind": "string",
+          "name": "apply"
+        },
+        {
+          "description": "carry out every undoable fix that may run unattended",
+          "flag": "--auto-reversible",
+          "kind": "boolean",
+          "name": "auto_reversible"
+        },
+        {
+          "description": "preflight policy used to find findings",
+          "enum": [
+            "strict",
+            "warn"
+          ],
+          "flag": "--policy",
+          "kind": "string",
+          "name": "policy"
+        }
+      ],
+      "command": [
+        "host",
+        "remediate",
+        "--json",
+        "--yes"
+      ],
+      "description": "Show the reversible fixes for host preflight findings, or carry out one named fix or every unattended reversible fix.",
+      "destructive": true,
+      "id": "stackkit.host.remediate",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Remediate host",
+      "toolName": "stackkit_host_remediate"
+    },
+    {
+      "arguments": [
+        {
+          "description": "exact approved projection digest",
+          "flag": "--projection-sha256",
+          "kind": "string",
+          "name": "projection_sha256",
+          "required": true
+        }
+      ],
+      "command": [
+        "identity",
+        "projection",
+        "apply",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Apply one previously approved identity projection to local PocketID.",
+      "destructive": true,
+      "id": "stackkit.identity.projection.apply",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Apply identity projection",
+      "toolName": "stackkit_identity_projection_apply"
+    },
+    {
+      "arguments": [
+        {
+          "description": "signed projection JSON",
+          "flag": "--file",
+          "kind": "string",
+          "name": "file",
+          "required": true
+        }
+      ],
+      "command": [
+        "identity",
+        "projection",
+        "approve",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Create the local Owner-signed approval of one projection without changing PocketID.",
+      "destructive": false,
+      "id": "stackkit.identity.projection.approve",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Approve identity projection",
+      "toolName": "stackkit_identity_projection_approve"
+    },
+    {
+      "arguments": [
+        {
+          "description": "signed projection JSON",
+          "flag": "--file",
+          "kind": "string",
+          "name": "file",
+          "required": true
+        }
+      ],
+      "command": [
+        "identity",
+        "projection",
+        "inspect",
+        "--json"
+      ],
+      "description": "Verify one signed, credential-free identity projection without mutation.",
+      "destructive": false,
+      "id": "stackkit.identity.projection.inspect",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Inspect identity projection",
+      "toolName": "stackkit_identity_projection_inspect"
+    },
+    {
+      "arguments": [
+        {
+          "description": "exact linked projection digest",
+          "flag": "--projection-sha256",
+          "kind": "string",
+          "name": "projection_sha256",
+          "required": true
+        }
+      ],
+      "command": [
+        "identity",
+        "projection",
+        "unlink",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Detach optional identity sync without deleting any local identity.",
+      "destructive": true,
+      "id": "stackkit.identity.projection.unlink",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Unlink identity projection",
+      "toolName": "stackkit_identity_projection_unlink"
+    },
+    {
+      "arguments": [
+        {
+          "description": "explicit workload peer identity",
+          "flag": "--peer-ref",
+          "kind": "string",
+          "name": "peer_ref",
+          "required": true
+        },
+        {
+          "description": "public peer request JSON",
+          "flag": "--file",
+          "kind": "string",
+          "name": "file",
+          "required": true
+        },
+        {
+          "description": "installed Home origin server name",
+          "flag": "--server-name",
+          "kind": "string",
+          "name": "server_name",
+          "required": true
+        },
+        {
+          "description": "explicitly replace the selected peer key",
+          "flag": "--replace-key",
+          "kind": "boolean",
+          "name": "replace_key"
+        }
+      ],
+      "command": [
+        "identity",
+        "workload-peer",
+        "enroll",
+        "--owner-approve"
+      ],
+      "description": "Issue and admit a workload peer for one installed Home publication; returns only public certificate documents.",
+      "destructive": false,
+      "id": "stackkit.identity.workload-peer.enroll",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Enroll workload peer",
+      "toolName": "stackkit_identity_workload_peer_enroll"
+    },
+    {
+      "arguments": [
+        {
+          "description": "public peer credential JSON",
+          "flag": "--file",
+          "kind": "string",
+          "name": "file",
+          "required": true
+        },
+        {
+          "description": "Home root sha256 fingerprint verified through a separate Owner-approved channel",
+          "flag": "--home-root-sha256",
+          "kind": "string",
+          "name": "home_root_sha256",
+          "required": true
+        }
+      ],
+      "command": [
+        "identity",
+        "workload-peer",
+        "install",
+        "--owner-approve"
+      ],
+      "description": "Install a Home-issued workload certificate using an independently verified Home root.",
+      "destructive": true,
+      "id": "stackkit.identity.workload-peer.install",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Install workload peer",
+      "toolName": "stackkit_identity_workload_peer_install"
+    },
+    {
+      "arguments": [
+        {
+          "description": "explicit workload peer identity",
+          "flag": "--peer-ref",
+          "kind": "string",
+          "name": "peer_ref",
+          "required": true
+        },
+        {
+          "description": "existing loopback Federation socket address",
+          "flag": "--address",
+          "kind": "string",
+          "name": "address",
+          "required": true
+        }
+      ],
+      "command": [
+        "identity",
+        "workload-peer",
+        "probe"
+      ],
+      "description": "Request the workload origin through an existing loopback Federation socket.",
+      "destructive": false,
+      "id": "stackkit.identity.workload-peer.probe",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Probe workload peer",
+      "toolName": "stackkit_identity_workload_peer_probe"
+    },
+    {
+      "arguments": [
+        {
+          "description": "explicit workload peer identity",
+          "flag": "--peer-ref",
+          "kind": "string",
+          "name": "peer_ref",
+          "required": true
+        },
+        {
+          "description": "generate a new key while preserving the active credential until install",
+          "flag": "--rotate-key",
+          "kind": "boolean",
+          "name": "rotate_key"
+        }
+      ],
+      "command": [
+        "identity",
+        "workload-peer",
+        "request",
+        "--owner-approve"
+      ],
+      "description": "Create or reuse a locally held workload key and return only its public CSR.",
+      "destructive": false,
+      "id": "stackkit.identity.workload-peer.request",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Request workload peer",
+      "toolName": "stackkit_identity_workload_peer_request"
+    },
+    {
+      "arguments": [
+        {
+          "description": "explicit workload peer identity",
+          "flag": "--peer-ref",
+          "kind": "string",
+          "name": "peer_ref",
+          "required": true
+        }
+      ],
+      "command": [
+        "identity",
+        "workload-peer",
+        "revoke",
+        "--owner-approve"
+      ],
+      "description": "Withdraw a workload peer's current Home admission.",
+      "destructive": true,
+      "id": "stackkit.identity.workload-peer.revoke",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Revoke workload peer",
+      "toolName": "stackkit_identity_workload_peer_revoke"
     },
     {
       "command": [
@@ -132,9 +1351,39 @@
       "id": "stackkit.init",
       "idempotent": false,
       "mutation": true,
+      "openWorld": false,
       "ownerApproval": true,
       "title": "Init",
       "toolName": "stackkit_init"
+    },
+    {
+      "arguments": [
+        {
+          "description": "release channel",
+          "enum": [
+            "stable",
+            "beta",
+            "edge"
+          ],
+          "flag": "--channel",
+          "kind": "string",
+          "name": "channel"
+        }
+      ],
+      "command": [
+        "kit",
+        "list",
+        "--json"
+      ],
+      "description": "List published StackKits releases from the public release index.",
+      "destructive": false,
+      "id": "stackkit.kit.list",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": true,
+      "ownerApproval": false,
+      "title": "List releases",
+      "toolName": "stackkit_kit_list"
     },
     {
       "command": [
@@ -147,9 +1396,249 @@
       "id": "stackkit.logs",
       "idempotent": true,
       "mutation": false,
+      "openWorld": false,
       "ownerApproval": false,
       "title": "Logs",
       "toolName": "stackkit_logs"
+    },
+    {
+      "arguments": [
+        {
+          "description": "run ID; omit for the newest log",
+          "kind": "string",
+          "name": "run_id"
+        },
+        {
+          "description": "only decision events",
+          "flag": "--decisions",
+          "kind": "boolean",
+          "name": "decisions"
+        },
+        {
+          "description": "only errors and warnings",
+          "flag": "--errors",
+          "kind": "boolean",
+          "name": "errors"
+        },
+        {
+          "description": "timing summary",
+          "flag": "--timing",
+          "kind": "boolean",
+          "name": "timing"
+        },
+        {
+          "description": "opaque cursor returned by a prior page",
+          "flag": "--cursor",
+          "kind": "string",
+          "name": "cursor"
+        },
+        {
+          "description": "maximum structured events per page",
+          "flag": "--max-events",
+          "kind": "integer",
+          "name": "max_events"
+        },
+        {
+          "description": "maximum raw log bytes scanned per page",
+          "flag": "--max-bytes",
+          "kind": "integer",
+          "name": "max_bytes"
+        }
+      ],
+      "command": [
+        "logs",
+        "--json"
+      ],
+      "description": "Read one structured rollout log page, the newest by default.",
+      "destructive": false,
+      "id": "stackkit.logs.read",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Read logs",
+      "toolName": "stackkit_logs_read"
+    },
+    {
+      "arguments": [
+        {
+          "description": "StackSpec v1 path; defaults to the workspace spec",
+          "kind": "string",
+          "name": "v1_spec_file"
+        },
+        {
+          "description": "explicit target KitProfile",
+          "flag": "--target-kit",
+          "kind": "string",
+          "name": "target_kit"
+        },
+        {
+          "description": "full explicit StackSpec v2 candidate path",
+          "flag": "--complete-with",
+          "kind": "string",
+          "name": "complete_with"
+        },
+        {
+          "description": "write the migration result to this new workspace path instead of stdout",
+          "flag": "--output",
+          "kind": "string",
+          "name": "output"
+        },
+        {
+          "description": "write the completed canonical StackSpec v2 to this new workspace path",
+          "flag": "--spec-output",
+          "kind": "string",
+          "name": "spec_output"
+        },
+        {
+          "description": "output format",
+          "enum": [
+            "json",
+            "yaml"
+          ],
+          "flag": "--format",
+          "kind": "string",
+          "name": "format"
+        }
+      ],
+      "command": [
+        "migrate"
+      ],
+      "description": "Classify a StackSpec v1, emit its migration report and optionally write the completed canonical StackSpec v2 to a new path.",
+      "destructive": false,
+      "id": "stackkit.migrate",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Migrate StackSpec v1",
+      "toolName": "stackkit_migrate"
+    },
+    {
+      "arguments": [
+        {
+          "description": "path to one module directory",
+          "flag": "--module",
+          "kind": "string",
+          "name": "module"
+        },
+        {
+          "description": "lint every module under modules_dir",
+          "flag": "--all",
+          "kind": "boolean",
+          "name": "all"
+        },
+        {
+          "description": "root modules directory",
+          "flag": "--modules-dir",
+          "kind": "string",
+          "name": "modules_dir"
+        },
+        {
+          "description": "fail on any error finding",
+          "flag": "--strict",
+          "kind": "boolean",
+          "name": "strict"
+        }
+      ],
+      "command": [
+        "module",
+        "lint",
+        "--json"
+      ],
+      "description": "Lint local module CUE for pin, health, security, access and placement hygiene.",
+      "destructive": false,
+      "id": "stackkit.module.lint",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Lint modules",
+      "toolName": "stackkit_module_lint"
+    },
+    {
+      "arguments": [
+        {
+          "description": "path to module_facts.json",
+          "flag": "--facts",
+          "kind": "string",
+          "name": "facts_file",
+          "required": true
+        },
+        {
+          "description": "output module directory",
+          "flag": "--out",
+          "kind": "string",
+          "name": "out"
+        },
+        {
+          "description": "overwrite existing files",
+          "flag": "--force",
+          "kind": "boolean",
+          "name": "force"
+        },
+        {
+          "description": "return the rendered artifacts instead of writing them",
+          "flag": "--print",
+          "kind": "boolean",
+          "name": "print"
+        },
+        {
+          "description": "compiled CUE catalog.json for imageSource references",
+          "flag": "--catalog",
+          "kind": "string",
+          "name": "catalog"
+        }
+      ],
+      "command": [
+        "module",
+        "scaffold"
+      ],
+      "description": "Render module artifacts deterministically from module_facts.json.",
+      "destructive": true,
+      "id": "stackkit.module.scaffold",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Scaffold module",
+      "toolName": "stackkit_module_scaffold"
+    },
+    {
+      "arguments": [
+        {
+          "description": "exact lowercase transaction ID",
+          "flag": "--transaction-id",
+          "kind": "string",
+          "name": "transaction_id",
+          "required": true
+        },
+        {
+          "description": "exact action reported by a prior inspection; required with apply",
+          "flag": "--action",
+          "kind": "string",
+          "name": "action"
+        },
+        {
+          "description": "execute the echoed action; inspection is the default",
+          "flag": "--apply",
+          "kind": "boolean",
+          "name": "apply"
+        }
+      ],
+      "command": [
+        "output-transaction",
+        "gc-retired"
+      ],
+      "description": "Inspect, or explicitly garbage-collect, one retired Architecture v2 output-transaction tombstone.",
+      "destructive": true,
+      "id": "stackkit.output-transaction.gc-retired",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Collect retired output transaction",
+      "toolName": "stackkit_output_transaction_gc_retired"
     },
     {
       "command": [
@@ -161,9 +1650,41 @@
       "id": "stackkit.plan",
       "idempotent": true,
       "mutation": false,
+      "openWorld": false,
       "ownerApproval": false,
       "title": "Plan",
       "toolName": "stackkit_plan"
+    },
+    {
+      "command": [
+        "prepare",
+        "--json",
+        "--non-interactive"
+      ],
+      "description": "Run the read-only native host preflight that Apply uses on this host.",
+      "destructive": false,
+      "id": "stackkit.prepare",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Prepare check",
+      "toolName": "stackkit_prepare"
+    },
+    {
+      "command": [
+        "registry",
+        "info"
+      ],
+      "description": "Summarize the embedded StackKits registry snapshot.",
+      "destructive": false,
+      "id": "stackkit.registry.info",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Registry info",
+      "toolName": "stackkit_registry_info"
     },
     {
       "command": [
@@ -175,6 +1696,7 @@
       "id": "stackkit.remove",
       "idempotent": true,
       "mutation": true,
+      "openWorld": false,
       "ownerApproval": true,
       "title": "Remove",
       "toolName": "stackkit_remove"
@@ -188,6 +1710,7 @@
       "id": "stackkit.resolve",
       "idempotent": true,
       "mutation": true,
+      "openWorld": false,
       "ownerApproval": true,
       "title": "Resolve",
       "toolName": "stackkit_resolve"
@@ -202,6 +1725,7 @@
       "id": "stackkit.restore",
       "idempotent": true,
       "mutation": true,
+      "openWorld": false,
       "ownerApproval": true,
       "title": "Restore",
       "toolName": "stackkit_restore"
@@ -217,9 +1741,136 @@
       "id": "stackkit.restore.abandon",
       "idempotent": true,
       "mutation": true,
+      "openWorld": false,
       "ownerApproval": true,
       "title": "Abandon restore",
       "toolName": "stackkit_restore_abandon"
+    },
+    {
+      "command": [
+        "secrets",
+        "materialize"
+      ],
+      "description": "Establish or reuse owner-bound local custody for every secret the current StackSpec declares; never returns values.",
+      "destructive": false,
+      "id": "stackkit.secrets.materialize",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Materialize secret custody",
+      "toolName": "stackkit_secrets_materialize"
+    },
+    {
+      "arguments": [
+        {
+          "description": "managed service key",
+          "kind": "string",
+          "name": "service_key",
+          "required": true
+        },
+        {
+          "description": "number of redacted log entries (1..200)",
+          "flag": "--tail",
+          "kind": "integer",
+          "name": "tail"
+        },
+        {
+          "description": "opaque cursor from a previous page",
+          "flag": "--cursor",
+          "kind": "string",
+          "name": "cursor"
+        }
+      ],
+      "command": [
+        "service",
+        "logs",
+        "--json"
+      ],
+      "description": "Read bounded, redacted logs of one managed service.",
+      "destructive": false,
+      "id": "stackkit.service.logs",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Service logs",
+      "toolName": "stackkit_service_logs"
+    },
+    {
+      "arguments": [
+        {
+          "description": "managed service key",
+          "kind": "string",
+          "name": "service_key",
+          "required": true
+        }
+      ],
+      "command": [
+        "service",
+        "restart",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Restart one managed service declared by the active plan.",
+      "destructive": true,
+      "id": "stackkit.service.restart",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Restart service",
+      "toolName": "stackkit_service_restart"
+    },
+    {
+      "arguments": [
+        {
+          "description": "managed service key",
+          "kind": "string",
+          "name": "service_key",
+          "required": true
+        }
+      ],
+      "command": [
+        "service",
+        "start",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Start one managed service declared by the active plan.",
+      "destructive": false,
+      "id": "stackkit.service.start",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Start service",
+      "toolName": "stackkit_service_start"
+    },
+    {
+      "arguments": [
+        {
+          "description": "managed service key",
+          "kind": "string",
+          "name": "service_key",
+          "required": true
+        }
+      ],
+      "command": [
+        "service",
+        "stop",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Stop one managed, non-critical service declared by the active plan.",
+      "destructive": true,
+      "id": "stackkit.service.stop",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Stop service",
+      "toolName": "stackkit_service_stop"
     },
     {
       "command": [
@@ -231,6 +1882,7 @@
       "id": "stackkit.setup",
       "idempotent": true,
       "mutation": true,
+      "openWorld": false,
       "ownerApproval": true,
       "title": "Set up application",
       "toolName": "stackkit_setup"
@@ -245,9 +1897,39 @@
       "id": "stackkit.status",
       "idempotent": true,
       "mutation": false,
+      "openWorld": false,
       "ownerApproval": false,
       "title": "Status",
       "toolName": "stackkit_status"
+    },
+    {
+      "arguments": [
+        {
+          "description": "run ID; omit for the newest log",
+          "kind": "string",
+          "name": "run_id"
+        },
+        {
+          "description": "new local JSON file to create",
+          "flag": "--output",
+          "kind": "string",
+          "name": "output",
+          "required": true
+        }
+      ],
+      "command": [
+        "support",
+        "export"
+      ],
+      "description": "Export one redacted local rollout log and its receipts to a new local file.",
+      "destructive": false,
+      "id": "stackkit.support.export",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Export support evidence",
+      "toolName": "stackkit_support_export"
     },
     {
       "command": [
@@ -259,9 +1941,68 @@
       "id": "stackkit.upgrade",
       "idempotent": false,
       "mutation": true,
+      "openWorld": true,
       "ownerApproval": true,
       "title": "Upgrade",
       "toolName": "stackkit_upgrade"
+    },
+    {
+      "command": [
+        "user",
+        "list",
+        "--json"
+      ],
+      "description": "List household users in local PocketID.",
+      "destructive": false,
+      "id": "stackkit.user.list",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "List users",
+      "toolName": "stackkit_user_list"
+    },
+    {
+      "command": [
+        "user",
+        "owner",
+        "status",
+        "--json"
+      ],
+      "description": "Read the owner passkey activation status without its activation URL.",
+      "destructive": false,
+      "id": "stackkit.user.owner.status",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Owner activation status",
+      "toolName": "stackkit_user_owner_status"
+    },
+    {
+      "arguments": [
+        {
+          "description": "household username",
+          "kind": "string",
+          "name": "username",
+          "required": true
+        }
+      ],
+      "command": [
+        "user",
+        "remove",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Remove one household user from local PocketID; owner and admin identities are refused.",
+      "destructive": true,
+      "id": "stackkit.user.remove",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Remove user",
+      "toolName": "stackkit_user_remove"
     },
     {
       "command": [
@@ -272,6 +2013,7 @@
       "id": "stackkit.validate",
       "idempotent": true,
       "mutation": false,
+      "openWorld": false,
       "ownerApproval": false,
       "title": "Validate",
       "toolName": "stackkit_validate"
@@ -286,6 +2028,7 @@
       "id": "stackkit.verify",
       "idempotent": true,
       "mutation": false,
+      "openWorld": false,
       "ownerApproval": false,
       "title": "Verify",
       "toolName": "stackkit_verify"

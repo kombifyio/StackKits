@@ -3,6 +3,8 @@ package runtimeexecutorlocal
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -661,6 +663,7 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 				service.Environment[architecturev2renderer.PterodactylGameDataHostPathEnv] = hostPath
 			}
 		}
+		configDigest, mountedConfig := sha256.New(), 0
 		for _, file := range bundle.ConfigFiles {
 			if !standaloneComposeVolumeOwnsPath(component.Volumes, file.Path) {
 				continue
@@ -669,6 +672,14 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 			service.Volumes = append(service.Volumes, "./"+rel+":"+file.Path+":ro")
 			configFiles[rel] = []byte(file.Body)
 			assignedConfig[file.Path] = struct{}{}
+			fmt.Fprintf(configDigest, "%s\x00%d\x00%s", file.Path, len(file.Body), file.Body)
+			mountedConfig++
+		}
+		if mountedConfig > 0 {
+			// A changed config file keeps the Compose file identical and the
+			// running container keeps the replaced file's old inode; the
+			// digest label makes Compose recreate exactly the affected service.
+			service.Labels["io.stackkit.config-digest"] = "sha256:" + hex.EncodeToString(configDigest.Sum(nil))
 		}
 		if component.DockerLifecycleOwner {
 			if !gameNode || component.ID != "wings" || bundle.DaemonSocketPath == "" || dockerRoot == "" {

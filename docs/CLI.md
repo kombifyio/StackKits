@@ -919,7 +919,7 @@ Examples:
 ```bash
 stackkit agent install-plan --json
 stackkit agent prompt basekit-autonomous-rollout
-stackkit agent mcp-config --client codex --mode docs,local,server
+stackkit agent mcp-config --client codex
 ```
 
 `stackkit-server` also mounts the native local MCP connector at `POST /mcp` and publishes local discovery at `GET /openmcp.json`. `stackkit-mcp` is the local stdio or loopback adapter for the same user-facing `stackkit` MCP connection and uses the same registration. Both runtime forms support `docs`, `local`, `server`, and optional `actions` modes. Write tools stay disabled unless `STACKKIT_MCP_ALLOW_WRITE=true` or `stackkit-server --mcp-allow-write` is set. MCP HTTP auth uses `STACKKIT_MCP_TOKEN` or `stackkit-server --mcp-token`. Non-loopback MCP access is a protected day-2 target posture, not the default first-install path.

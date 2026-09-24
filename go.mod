@@ -9,6 +9,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/getsentry/sentry-go v0.46.2
 	github.com/go-jose/go-jose/v4 v4.1.5
+	github.com/google/jsonschema-go v0.4.3
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/modelcontextprotocol/go-sdk v1.7.0
@@ -74,7 +75,6 @@ require (
 	github.com/google/certificate-transparency-go v1.3.3 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-containerregistry v0.21.6 // indirect
-	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/in-toto/attestation v1.2.0 // indirect
 	github.com/in-toto/in-toto-golang v0.11.0 // indirect

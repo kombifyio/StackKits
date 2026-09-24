@@ -287,6 +287,9 @@ var pterodactylPanelEnvironment = map[string]string{
 	"REDIS_HOST": "panel-cache", "DB_HOST": "panel-database", "DB_PORT": "3306",
 	"DB_DATABASE": "panel", "DB_USERNAME": "pterodactyl", "MAIL_DRIVER": "log",
 	"TRUSTED_PROXIES": "*", "PTERODACTYL_TELEMETRY_ENABLED": "false",
+	// No third-party CAPTCHA on the owner login: it calls Google and blocks
+	// offline home networks; the Panel throttles failed logins itself.
+	"RECAPTCHA_ENABLED": "false",
 }
 
 func pterodactylExpectedEnvironment(componentID, origin string) map[string]string {
@@ -470,6 +473,10 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj "/CN=${STACKKIT_ROUTE
 cat /etc/ssl/certs/ca-certificates.crt /stackkit-local/tls/node.crt > /stackkit-local/ca-bundle.pem
 printf 'curl.cainfo=/stackkit-local/ca-bundle.pem\nopenssl.cafile=/stackkit-local/ca-bundle.pem\n' > /usr/local/etc/php/conf.d/zz-stackkit.ini
 cp /stackkit/nginx-panel.conf /etc/nginx/http.d/panel.conf
+# The upstream entrypoint removes the stock site only when it writes its own
+# config; with ours in place the stock default server would answer port 80
+# and hide the node proxy (and the live console) from the router.
+rm -f /etc/nginx/http.d/default.conf
 exec /bin/ash .github/docker/entrypoint.sh "$@"
 `
 

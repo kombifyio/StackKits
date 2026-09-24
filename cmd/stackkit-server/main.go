@@ -31,6 +31,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/federationcontrol"
 	"github.com/kombifyio/stackkits/internal/localorigin"
 	"github.com/kombifyio/stackkits/internal/localowner"
+	"github.com/kombifyio/stackkits/internal/stackkitmcp"
 	"github.com/kombifyio/stackkits/internal/telemetry"
 )
 
@@ -54,7 +55,7 @@ func main() {
 	trustedProxies := flag.String("trusted-proxies", "", "Comma-separated trusted proxy IPs/CIDRs for X-Forwarded-For rate limiting (or set STACKKITS_TRUSTED_PROXIES)")
 	logDir := flag.String("log-dir", "", "Directory containing deploy logs (or set STACKKITS_LOG_DIR)")
 	logLevel := flag.String("log-level", "info", "Log level: debug, info, warn, error")
-	mcpToken := flag.String("mcp-token", "", "Bearer token for POST /mcp (or set STACKKIT_MCP_TOKEN)")
+	mcpToken := flag.String("mcp-token", "", "Dedicated bearer token for POST /mcp (or set STACKKIT_MCP_TOKEN or STACKKIT_MCP_TOKEN_FILE); without one /mcp denies every request")
 	mcpAllowWrite := flag.Bool("mcp-allow-write", false, "Enable mutating MCP tools (or set STACKKIT_MCP_ALLOW_WRITE=true)")
 	originListen := flag.String("origin-listen", "", "Optional loopback socket for owner-bound origin mTLS; disabled by default")
 	controlListen := flag.String("federation-control-listen", "", "Optional owner-bound Cloud mTLS receiver socket for Home plan/verify actions")
@@ -181,7 +182,10 @@ func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int,
 	rl := resolveRateLimit(rateLimit)
 	ld := resolveLogDir(logDir, dir)
 	proxies := resolveTrustedProxies(trustedProxies)
-	mcpTok := firstNonEmpty(mcpToken, os.Getenv("STACKKIT_MCP_TOKEN"), key)
+	mcpTok, err := resolveMCPToken(mcpToken, key)
+	if err != nil {
+		return api.ServerConfig{}, err
+	}
 	mcpWrite := mcpAllowWrite || envBool("STACKKIT_MCP_ALLOW_WRITE")
 	if mcpWrite {
 		slog.Warn("StackKits MCP write tools are enabled")
@@ -316,6 +320,25 @@ func resolveAPIKey(flagVal string, allowUnauthenticated bool, productionGuards b
 	return key, nil
 }
 
+// resolveMCPToken returns the dedicated credential for POST /mcp. The API key
+// is never a fallback and may not double as the MCP token; without a token the
+// route stays mounted and denies every request.
+func resolveMCPToken(flagVal, apiKey string) (string, error) {
+	token, err := stackkitmcp.ResolveMCPToken(flagVal)
+	if err != nil {
+		return "", fmt.Errorf("MCP token configuration rejected: %w", err)
+	}
+	if token == "" {
+		slog.Warn("no MCP token configured; POST /mcp denies every request until STACKKIT_MCP_TOKEN_FILE, STACKKIT_MCP_TOKEN or --mcp-token is set")
+		return "", nil
+	}
+	if apiKey = strings.TrimSpace(apiKey); apiKey != "" && token == apiKey {
+		return "", fmt.Errorf("the MCP token must differ from the API key; configure a dedicated MCP token")
+	}
+	slog.Info("MCP token authentication enabled")
+	return token, nil
+}
+
 func resolveCORSOrigins(flagVal string, allowWildcard bool, productionGuards bool) ([]string, error) {
 	corsStr := flagVal
 	if corsStr == "" {
@@ -377,15 +400,6 @@ func envBool(name string) bool {
 	default:
 		return false
 	}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
 }
 
 func firstEnv(keys ...string) string {

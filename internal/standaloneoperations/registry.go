@@ -36,19 +36,58 @@ const (
 
 // Contract describes one operation without owning its lifecycle
 // implementation. Command is the exact public CLI path that executes it.
+// Destructive means the operation may replace, stop, revoke or delete
+// existing state rather than only add to it. OpenWorld means it may reach
+// systems beyond the local host.
 type Contract struct {
-	ID            ID       `json:"id"`
-	ToolName      string   `json:"toolName"`
-	Title         string   `json:"title"`
-	Description   string   `json:"description"`
-	Command       []string `json:"command"`
-	Mutation      bool     `json:"mutation"`
-	Destructive   bool     `json:"destructive"`
-	Idempotent    bool     `json:"idempotent"`
-	OwnerApproval bool     `json:"ownerApproval"`
+	ID            ID         `json:"id"`
+	ToolName      string     `json:"toolName"`
+	Title         string     `json:"title"`
+	Description   string     `json:"description"`
+	Command       []string   `json:"command"`
+	Mutation      bool       `json:"mutation"`
+	Destructive   bool       `json:"destructive"`
+	Idempotent    bool       `json:"idempotent"`
+	OpenWorld     bool       `json:"openWorld"`
+	OwnerApproval bool       `json:"ownerApproval"`
+	Arguments     []Argument `json:"arguments,omitempty"`
 }
 
-var catalog = []Contract{
+// ArgumentKind is the JSON type of one typed operation input.
+type ArgumentKind string
+
+const (
+	ArgumentString     ArgumentKind = "string"
+	ArgumentBoolean    ArgumentKind = "boolean"
+	ArgumentInteger    ArgumentKind = "integer"
+	ArgumentStringList ArgumentKind = "string-list"
+)
+
+// Argument maps one typed, secret-free input onto the exact CLI argument.
+// An empty Flag makes it a positional argument, appended in declaration
+// order. Arguments carry values, file paths or references by name; they never
+// carry secret values, so a command that needs one stays an Exception.
+type Argument struct {
+	Name        string       `json:"name"`
+	Kind        ArgumentKind `json:"kind"`
+	Flag        string       `json:"flag,omitempty"`
+	Required    bool         `json:"required,omitempty"`
+	Enum        []string     `json:"enum,omitempty"`
+	Description string       `json:"description"`
+}
+
+// Adapter-owned inputs shared by every process-backed MCP tool; operation
+// arguments must not reuse them.
+var reservedArgumentNames = []string{
+	"base_dir", "spec_path", "correlation_id", "timeout_seconds",
+	"operation_confirmation", "owner_approved",
+}
+
+// Argument names that would suggest a secret value crossing the MCP
+// transcript. File paths to local custody use neutral names (*_file).
+var secretArgumentMarkers = []string{"password", "passphrase", "token", "secret", "api_key", "private_key", "credential"}
+
+var catalog = append([]Contract{
 	{ID: Init, ToolName: "stackkit_init", Title: "Init", Description: "Materialize a native StackSpec from the embedded CUE authoring contract.", Command: []string{"init"}, Mutation: true, Idempotent: false, OwnerApproval: true},
 	{ID: Validate, ToolName: "stackkit_validate", Title: "Validate", Description: "Validate desired StackSpec intent without mutating lifecycle state.", Command: []string{"validate"}, Idempotent: true},
 	{ID: Resolve, ToolName: "stackkit_resolve", Title: "Resolve", Description: "Resolve StackSpec and observed Inventory into the canonical ResolvedPlan.", Command: []string{"resolve"}, Mutation: true, Idempotent: true, OwnerApproval: true},
@@ -66,10 +105,10 @@ var catalog = []Contract{
 	{ID: BackupScheduleStatus, ToolName: "stackkit_backup_schedule_status", Title: "Backup schedule status", Description: "Read the local backup timer and signed schedule authorization without changing either.", Command: []string{"backup", "schedule", "status", "--json"}, Idempotent: true},
 	{ID: Restore, ToolName: "stackkit_restore", Title: "Restore", Description: "Verify and restore one signed snapshot into isolated staging.", Command: []string{"backup", "restore"}, Mutation: true, Destructive: true, Idempotent: true, OwnerApproval: true},
 	{ID: RestoreAbandon, ToolName: "stackkit_restore_abandon", Title: "Abandon restore", Description: "Close one pending or staged restore journal with explicit local Owner approval without touching repository or live volumes.", Command: []string{"backup", "restore", "abandon"}, Mutation: true, Destructive: false, Idempotent: true, OwnerApproval: true},
-	{ID: Upgrade, ToolName: "stackkit_upgrade", Title: "Upgrade", Description: "Resolve, verify, checkpoint, install, apply, and verify a StackKits release.", Command: []string{"upgrade", "--json"}, Mutation: true, Destructive: true, Idempotent: false, OwnerApproval: true},
+	{ID: Upgrade, ToolName: "stackkit_upgrade", Title: "Upgrade", Description: "Resolve, verify, checkpoint, install, apply, and verify a StackKits release.", Command: []string{"upgrade", "--json"}, Mutation: true, Destructive: true, Idempotent: false, OpenWorld: true, OwnerApproval: true},
 	{ID: Drift, ToolName: "stackkit_drift", Title: "Drift", Description: "Observe desired-versus-applied standalone state drift.", Command: []string{"drift", "detect", "--json"}, Idempotent: true},
 	{ID: Remove, ToolName: "stackkit_remove", Title: "Remove", Description: "Remove one governed workload from its exact applied ResolvedPlan after local Owner approval.", Command: []string{"remove", "--json"}, Mutation: true, Destructive: true, Idempotent: true, OwnerApproval: true},
-}
+}, operatorOperations...)
 
 // All returns fresh contracts in stable catalog order.
 func All() []Contract {
@@ -124,6 +163,7 @@ func ConfirmMutation(id ID, confirmation string, ownerApproved bool) error {
 func ValidateCatalog() error {
 	ids := make([]string, 0, len(catalog))
 	tools := make([]string, 0, len(catalog))
+	projected := make(map[string]ID, len(catalog))
 	for index, operation := range catalog {
 		if strings.TrimSpace(string(operation.ID)) == "" ||
 			strings.TrimSpace(operation.ToolName) == "" ||
@@ -135,6 +175,17 @@ func ValidateCatalog() error {
 		if operation.Mutation != operation.OwnerApproval {
 			return fmt.Errorf("standalone operation %q must require Owner approval exactly when it mutates", operation.ID)
 		}
+		if !strings.HasPrefix(string(operation.ID), "stackkit.") || !validToolName(operation.ToolName) {
+			return fmt.Errorf("standalone operation %q needs a stackkit.* ID and a stackkit_* tool name of at most 64 characters", operation.ID)
+		}
+		if err := validateArguments(operation); err != nil {
+			return err
+		}
+		path := strings.Join(operation.Path(), " ")
+		if existing, ok := projected[path]; ok {
+			return fmt.Errorf("standalone operations %q and %q bind the same CLI command %q", existing, operation.ID, path)
+		}
+		projected[path] = operation.ID
 		ids = append(ids, string(operation.ID))
 		tools = append(tools, operation.ToolName)
 	}
@@ -144,11 +195,91 @@ func ValidateCatalog() error {
 	if hasDuplicate(tools) {
 		return fmt.Errorf("standalone operation catalog contains duplicate tool names")
 	}
+	return validateExceptions(projected)
+}
+
+// Path returns the exact CLI command path, without the fixed flags.
+func (operation Contract) Path() []string {
+	for index, argument := range operation.Command {
+		if strings.HasPrefix(argument, "-") {
+			return slices.Clone(operation.Command[:index])
+		}
+	}
+	return slices.Clone(operation.Command)
+}
+
+// FixedFlags returns the flags every invocation of the operation passes.
+func (operation Contract) FixedFlags() []string {
+	return slices.Clone(operation.Command[len(operation.Path()):])
+}
+
+func validToolName(name string) bool {
+	if !strings.HasPrefix(name, "stackkit_") || len(name) > 64 {
+		return false
+	}
+	for _, r := range name {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '_' {
+			return false
+		}
+	}
+	return true
+}
+
+func validateArguments(operation Contract) error {
+	names := map[string]bool{}
+	for _, reserved := range reservedArgumentNames {
+		names[reserved] = true
+	}
+	for _, argument := range operation.Arguments {
+		if names[argument.Name] || !validArgumentName(argument.Name) || strings.TrimSpace(argument.Description) == "" {
+			return fmt.Errorf("standalone operation %q has an invalid, reserved or duplicate argument %q", operation.ID, argument.Name)
+		}
+		names[argument.Name] = true
+		for _, marker := range secretArgumentMarkers {
+			if strings.Contains(argument.Name, marker) {
+				return fmt.Errorf("standalone operation %q argument %q looks secret-bearing; secret values never cross MCP", operation.ID, argument.Name)
+			}
+		}
+		switch argument.Kind {
+		case ArgumentString, ArgumentBoolean, ArgumentInteger, ArgumentStringList:
+		default:
+			return fmt.Errorf("standalone operation %q argument %q has unknown kind %q", operation.ID, argument.Name, argument.Kind)
+		}
+		if argument.Flag == "" && argument.Kind != ArgumentString {
+			return fmt.Errorf("standalone operation %q positional argument %q must be a string", operation.ID, argument.Name)
+		}
+		if argument.Flag != "" && (!strings.HasPrefix(argument.Flag, "--") || strings.Contains(argument.Flag, "=")) {
+			return fmt.Errorf("standalone operation %q argument %q needs a long CLI flag", operation.ID, argument.Name)
+		}
+		if len(argument.Enum) > 0 && argument.Kind != ArgumentString {
+			return fmt.Errorf("standalone operation %q argument %q may only enumerate strings", operation.ID, argument.Name)
+		}
+	}
 	return nil
+}
+
+func validArgumentName(name string) bool {
+	if name == "" || name[0] < 'a' || name[0] > 'z' {
+		return false
+	}
+	for _, r := range name {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '_' {
+			return false
+		}
+	}
+	return true
 }
 
 func clone(operation Contract) Contract {
 	operation.Command = slices.Clone(operation.Command)
+	if operation.Arguments != nil {
+		arguments := make([]Argument, len(operation.Arguments))
+		for index, argument := range operation.Arguments {
+			argument.Enum = slices.Clone(argument.Enum)
+			arguments[index] = argument
+		}
+		operation.Arguments = arguments
+	}
 	return operation
 }
 

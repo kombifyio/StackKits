@@ -30,7 +30,7 @@ Agent-facing helpers:
 stackkit agent install-plan --json
 stackkit agent self-check --json
 stackkit agent prompt basekit-autonomous-rollout
-stackkit agent mcp-config --client codex --mode docs,local,server
+stackkit agent mcp-config --client codex
 ```
 
 ## Evidence
