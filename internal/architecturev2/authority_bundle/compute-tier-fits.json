@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:977bb305cb5e26875359a84d5dd62724b2df67a4d809a76cd6eb43e44081df88",
+  "contentDigest": "sha256:b3aac32b3e3bd57e9b89bd9dd9b640b1f4dcdba4835a02a4f7ea58e65f43c1d4",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -77,6 +77,10 @@
       "description": "Private AI workloads, local model serving, and user-facing AI workbench intent.",
       "docs": "/guides/stackkits/use-cases/personal-ai",
       "id": "ai",
+      "mainUseCase": {
+        "id": "ai",
+        "title": "AI"
+      },
       "settings": [
         {
           "default": "cpu",
@@ -203,6 +207,10 @@
       "description": "Private source control, developer collaboration, and delivery-platform intent.",
       "docs": "/guides/stackkits/use-cases/development",
       "id": "dev",
+      "mainUseCase": {
+        "id": "dev",
+        "title": "Dev"
+      },
       "settings": [
         {
           "default": false,
@@ -285,7 +293,12 @@
       },
       "defaultAlternative": "paperless-ngx",
       "description": "Private document ingestion, OCR, indexing and search through Paperless-ngx.",
+      "docs": "/guides/stackkits/use-cases/documents-and-files",
       "id": "documents",
+      "mainUseCase": {
+        "id": "documents-files",
+        "title": "Documents \u0026 Files"
+      },
       "title": "Documents"
     },
     {
@@ -368,8 +381,12 @@
       },
       "defaultAlternative": "cloudreve",
       "description": "Private file storage and sharing through the native Cloudreve workload.",
-      "docs": "/guides/stackkits/use-cases/files",
+      "docs": "/guides/stackkits/use-cases/documents-and-files",
       "id": "files",
+      "mainUseCase": {
+        "id": "documents-files",
+        "title": "Documents \u0026 Files"
+      },
       "settings": [
         {
           "default": "kit-storage",
@@ -460,7 +477,12 @@
       },
       "defaultAlternative": "pterodactyl",
       "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java and Bedrock profiles.",
+      "docs": "/guides/stackkits/use-cases/game",
       "id": "game",
+      "mainUseCase": {
+        "id": "game",
+        "title": "Game"
+      },
       "title": "Game Server"
     },
     {
@@ -487,7 +509,12 @@
         }
       },
       "description": "Private mail delivery, mailbox, and communication intent.",
+      "docs": "/guides/stackkits/use-cases/mail",
       "id": "mail",
+      "mainUseCase": {
+        "id": "mail",
+        "title": "Mail"
+      },
       "settings": [
         {
           "default": "",
@@ -569,6 +596,10 @@
       "description": "Private media library and streaming intent for household media collections.",
       "docs": "/guides/stackkits/use-cases/media",
       "id": "media",
+      "mainUseCase": {
+        "id": "media",
+        "title": "Media"
+      },
       "settings": [
         {
           "default": "auto",
@@ -717,6 +748,10 @@
       "description": "Family photo and video vault with mobile backup, search, and shared memories.",
       "docs": "/guides/stackkits/use-cases/photos",
       "id": "photos",
+      "mainUseCase": {
+        "id": "photos",
+        "title": "Photos"
+      },
       "settings": [
         {
           "default": true,
@@ -777,7 +812,12 @@
         }
       },
       "description": "Private remote desktop and browser-accessible workspace intent.",
+      "docs": "/guides/stackkits/use-cases/development",
       "id": "remote",
+      "mainUseCase": {
+        "id": "dev",
+        "title": "Dev"
+      },
       "title": "Remote Desktop"
     },
     {
@@ -894,7 +934,12 @@
       },
       "defaultAlternative": "home-assistant",
       "description": "Home automation centered on Home Assistant, native product interfaces, and optional local device adjacency.",
+      "docs": "/guides/stackkits/use-cases/smart-home",
       "id": "smart-home",
+      "mainUseCase": {
+        "id": "smart-home",
+        "title": "Smart Home"
+      },
       "settings": [
         {
           "default": "container",
@@ -1039,8 +1084,12 @@
       },
       "defaultAlternative": "vaultwarden",
       "description": "Private password and secure-note vault with owner-controlled lifecycle and recovery.",
-      "docs": "/guides/stackkits/use-cases/passwords",
+      "docs": "/guides/stackkits/use-cases/vault",
       "id": "vault",
+      "mainUseCase": {
+        "id": "vault",
+        "title": "Vault"
+      },
       "settings": [
         {
           "default": false,

@@ -77,12 +77,39 @@ package foundation
 	realization: "install" | "recorded"
 }
 
+// The owner-accepted main use cases (docs/use-case-expansion/portfolio.md,
+// 2026-09-24), keyed by id. Several catalog slugs share one main use case
+// until their compatibility migrations merge them (files + documents, dev +
+// remote); network and automation have no catalog entry yet.
+#MainUseCaseTitles: {
+	photos:            "Photos"
+	"documents-files": "Documents & Files"
+	vault:             "Vault"
+	media:             "Media"
+	"smart-home":      "Smart Home"
+	dev:               "Dev"
+	mail:              "Mail"
+	game:              "Game"
+	network:           "Network"
+	automation:        "Automation"
+	ai:                "AI"
+}
+
+#MainUseCase: {
+	id: or([for id, _ in #MainUseCaseTitles {id}])
+	title: #MainUseCaseTitles[id]
+}
+
 #UseCaseCatalogEntry: {
 	slug:        #UseCaseSlug
 	displayName: string & =~"^.+$"
 	description: string & =~"^.+$"
 	owner:       "stackkits"
 	components: [ComponentID=#UseCaseSlug]: #UseCaseCatalogComponent & {id: ComponentID}
+
+	// The main use case this entry is grouped under on consumer surfaces. Set
+	// only the id; the title is derived from #MainUseCaseTitles.
+	mainUseCase: #MainUseCase
 
 	// Gates are derived, never manually marked complete. This map is the only
 	// permitted exception and is validated to carry an explanatory reason.
@@ -94,10 +121,9 @@ package foundation
 	// package's computeTiers, so they never drift from the workload graph.
 	settings?: [...#UseCaseSetting]
 
-	// Path of this use case's guide on docs.kombify.io, when one exists. A
-	// consumer with no path falls back to the use-case overview; it never
-	// invents a URL.
-	docs?: =~"^/[a-z0-9/-]+$"
+	// Path of this use case's guide on docs.kombify.io. Entries sharing a main
+	// use case share its guide.
+	docs: =~"^/[a-z0-9/-]+$"
 }
 
 #UseCaseCatalog: {
@@ -115,6 +141,8 @@ UseCaseCatalog: #UseCaseCatalog & {
 			displayName: "Smart Home"
 			description: "Home automation centered on Home Assistant, native product interfaces, and optional local device adjacency."
 			owner:       "stackkits"
+			mainUseCase: id: "smart-home"
+			docs: "/guides/stackkits/use-cases/smart-home"
 			components: {
 				"home-assistant": {id: "home-assistant", name: "Home Assistant", role: "primary", kind: "application"}
 			}
@@ -174,10 +202,11 @@ UseCaseCatalog: #UseCaseCatalog & {
 			displayName: "Photos and Memories"
 			description: "Family photo and video vault with mobile backup, search, and shared memories."
 			owner:       "stackkits"
+			mainUseCase: id: "photos"
+			docs: "/guides/stackkits/use-cases/photos"
 			components: {
 				immich: {id: "immich", name: "Immich", role: "primary", kind: "application"}
 			}
-			docs: "/guides/stackkits/use-cases/photos"
 			settings: [
 				{
 					id:          "machine-learning"
@@ -210,8 +239,9 @@ UseCaseCatalog: #UseCaseCatalog & {
 			displayName: "Media Library"
 			description: "Private media library and streaming intent for household media collections."
 			owner:       "stackkits"
-			components: jellyfin: {id: "jellyfin", name: "Jellyfin", role: "primary", kind: "application"}
+			mainUseCase: id: "media"
 			docs: "/guides/stackkits/use-cases/media"
+			components: jellyfin: {id: "jellyfin", name: "Jellyfin", role: "primary", kind: "application"}
 			settings: [
 				{
 					id:    "hardware-transcoding"
@@ -249,8 +279,9 @@ UseCaseCatalog: #UseCaseCatalog & {
 			displayName: "Password Vault"
 			description: "Private password and secure-note vault with owner-controlled lifecycle and recovery."
 			owner:       "stackkits"
+			mainUseCase: id: "vault"
+			docs: "/guides/stackkits/use-cases/vault"
 			components: vaultwarden: {id: "vaultwarden", name: "Vaultwarden", role: "primary", kind: "application"}
-			docs: "/guides/stackkits/use-cases/passwords"
 			settings: [
 				{
 					id:          "open-signups"
@@ -269,8 +300,9 @@ UseCaseCatalog: #UseCaseCatalog & {
 			displayName: "File Storage and Documents"
 			description: "Private file storage and sharing through the native Cloudreve workload."
 			owner:       "stackkits"
+			mainUseCase: id: "documents-files"
+			docs: "/guides/stackkits/use-cases/documents-and-files"
 			components: cloudreve: {id: "cloudreve", name: "Cloudreve", role: "primary", kind: "application"}
-			docs: "/guides/stackkits/use-cases/files"
 			settings: [
 				{
 					id:    "library-volume"
@@ -293,11 +325,12 @@ UseCaseCatalog: #UseCaseCatalog & {
 			displayName: "Private AI"
 			description: "Private AI workloads, local model serving, and user-facing AI workbench intent."
 			owner:       "stackkits"
+			mainUseCase: id: "ai"
+			docs: "/guides/stackkits/use-cases/personal-ai"
 			components: {
 				ollama: {id: "ollama", name: "Ollama", role: "primary", kind: "application"}
 				"open-webui": {id: "open-webui", name: "Open WebUI", role: "supporting", kind: "application"}
 			}
-			docs: "/guides/stackkits/use-cases/personal-ai"
 			settings: [
 				{
 					id:    "accelerator"
@@ -336,8 +369,9 @@ UseCaseCatalog: #UseCaseCatalog & {
 			displayName: "Developer Platform"
 			description: "Private source control, developer collaboration, and delivery-platform intent."
 			owner:       "stackkits"
-			components: gitea: {id: "gitea", name: "Gitea", role: "primary", kind: "application"}
+			mainUseCase: id: "dev"
 			docs: "/guides/stackkits/use-cases/development"
+			components: gitea: {id: "gitea", name: "Gitea", role: "primary", kind: "application"}
 			settings: [
 				{
 					id:          "ci-runners"
@@ -356,6 +390,8 @@ UseCaseCatalog: #UseCaseCatalog & {
 			displayName: "Documents"
 			description: "Private document ingestion, OCR, indexing and search through Paperless-ngx."
 			owner:       "stackkits"
+			mainUseCase: id: "documents-files"
+			docs: "/guides/stackkits/use-cases/documents-and-files"
 			components: "paperless-ngx": {id: "paperless-ngx", name: "Paperless-ngx", role: "primary", kind: "application"}
 		}
 		mail: {
@@ -363,6 +399,8 @@ UseCaseCatalog: #UseCaseCatalog & {
 			displayName: "Private Mail"
 			description: "Private mail delivery, mailbox, and communication intent."
 			owner:       "stackkits"
+			mainUseCase: id: "mail"
+			docs: "/guides/stackkits/use-cases/mail"
 			components: stalwart: {id: "stalwart", name: "Stalwart Mail Server", role: "primary", kind: "application"}
 			settings: [
 				{
@@ -383,6 +421,8 @@ UseCaseCatalog: #UseCaseCatalog & {
 			displayName: "Game Server"
 			description: "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java and Bedrock profiles."
 			owner:       "stackkits"
+			mainUseCase: id: "game"
+			docs: "/guides/stackkits/use-cases/game"
 			components: pterodactyl: {id: "pterodactyl", name: "Pterodactyl", role: "primary", kind: "application"}
 		}
 		remote: {
@@ -390,6 +430,8 @@ UseCaseCatalog: #UseCaseCatalog & {
 			displayName: "Remote Desktop"
 			description: "Private remote desktop and browser-accessible workspace intent."
 			owner:       "stackkits"
+			mainUseCase: id: "dev"
+			docs: "/guides/stackkits/use-cases/development"
 			components: guacamole: {id: "guacamole", name: "Apache Guacamole", role: "primary", kind: "application"}
 		}
 	}

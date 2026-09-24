@@ -188,7 +188,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "smart_home", nested: "smart-home", flat: "smart-home"}
-		dashboard: {icon: "&#127968;", order: 55, section: "Applications", badge: "L3 · Smart Home", enableVar: "enable_home_assistant", guideUrl: "https://docs.kombify.io/stackkits/reference/use-case-catalog"}
+		dashboard: {icon: "&#127968;", order: 55, section: "Applications", badge: "L3 · Smart Home", enableVar: "enable_home_assistant", guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/smart-home"}
 
 		output: {
 			url:         "https://smart-home.{{.domain}}"

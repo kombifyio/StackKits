@@ -115,7 +115,7 @@ func projectionContentDigest(value any) (string, error) {
 		return "", err
 	}
 	delete(document, "contentDigest")
-	canonical, err := json.Marshal(document)
+	canonical, err := usecasecatalog.MarshalCanonical(document)
 	if err != nil {
 		return "", err
 	}

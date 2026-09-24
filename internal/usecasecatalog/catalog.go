@@ -1,6 +1,7 @@
 package usecasecatalog
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -71,6 +72,13 @@ type Setting struct {
 	Realization string          `json:"realization"`
 }
 
+// MainUseCase is the owner-accepted main use case a catalog entry is grouped
+// under; CUE constrains the id and derives the title.
+type MainUseCase struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
 type AuthoringModule struct {
 	ID              string   `json:"id"`
 	ComputeProfiles []string `json:"computeProfiles"`
@@ -93,6 +101,7 @@ type UseCase struct {
 	Title              string                           `json:"title"`
 	Description        string                           `json:"description"`
 	Components         []Component                      `json:"components"`
+	MainUseCase        MainUseCase                      `json:"mainUseCase"`
 	ComputeTiers       map[string]UseCaseComputeTierFit `json:"computeTiers,omitempty"`
 	Settings           []Setting                        `json:"settings,omitempty"`
 	Docs               string                           `json:"docs,omitempty"`
@@ -342,12 +351,27 @@ func contentDigest(value any) (string, error) {
 		return "", err
 	}
 	delete(document, "contentDigest")
-	canonical, err := json.Marshal(document)
+	canonical, err := MarshalCanonical(document)
 	if err != nil {
 		return "", err
 	}
 	sum := sha256.Sum256(canonical)
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+// MarshalCanonical encodes a decoded document the way JavaScript consumers
+// recompute contentDigest (JSON.stringify with sorted keys): encoding/json
+// sorts map keys, but its default HTML escaping of &, < and > would make any
+// title such as "Documents & Files" fail their digest check.
+func MarshalCanonical(document any) ([]byte, error) {
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(document); err != nil {
+		return nil, err
+	}
+	// Encode appends a newline that is not part of the canonical form.
+	return bytes.TrimSuffix(buffer.Bytes(), []byte("\n")), nil
 }
 
 func validateRelease(release ReleaseIdentity) error {
@@ -400,8 +424,9 @@ func loadSource(root string, release ReleaseIdentity) (sourceCatalog, error) {
 			NotApplicable map[string]struct {
 				Reason string `json:"reason"`
 			} `json:"notApplicable"`
-			Settings []Setting `json:"settings"`
-			Docs     string    `json:"docs"`
+			Settings    []Setting   `json:"settings"`
+			Docs        string      `json:"docs"`
+			MainUseCase MainUseCase `json:"mainUseCase"`
 		} `json:"entries"`
 	}
 	if err := loadCUE(root, "foundation", "UseCaseCatalog", &registry); err != nil {
@@ -436,7 +461,7 @@ func loadSource(root string, release ReleaseIdentity) (sourceCatalog, error) {
 			}
 			seenSettings[setting.ID] = true
 		}
-		result.UseCases = append(result.UseCases, UseCase{ID: key, Title: entry.DisplayName, Description: entry.Description, Components: components, Settings: settings, Docs: entry.Docs})
+		result.UseCases = append(result.UseCases, UseCase{ID: key, Title: entry.DisplayName, Description: entry.Description, Components: components, MainUseCase: entry.MainUseCase, Settings: settings, Docs: entry.Docs})
 		if len(entry.NotApplicable) > 0 {
 			result.NotApplicable[key] = map[string]string{}
 			for gateID, exception := range entry.NotApplicable {

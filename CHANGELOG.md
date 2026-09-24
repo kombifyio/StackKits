@@ -19,6 +19,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
 
+## [0.42.0] (2026-09-24)
+
+
+### Added
+
+* **catalog:** group use cases under the accepted main use cases and link every guide
+
 ## [0.41.0] (2026-09-24)
 
 
