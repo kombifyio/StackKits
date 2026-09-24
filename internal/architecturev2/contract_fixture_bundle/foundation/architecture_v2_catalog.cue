@@ -21,6 +21,14 @@ _architectureV2PaperlessImage: {ref: "ghcr.io/paperless-ngx/paperless-ngx:3.1.3"
 _architectureV2PaperlessPostgresImage: {ref: "docker.io/library/postgres:18", digest: "sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280"}
 _architectureV2PaperlessValkeyImage: {ref: "docker.io/valkey/valkey:9-alpine", digest: "sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b"}
 
+// Pterodactyl (ADR-0043) is the single Game platform version authority. The
+// Panel and Wings releases are the upstream pair; MariaDB and Valkey follow
+// the upstream Panel Compose example and are pinned independently.
+_architectureV2PterodactylPanelImage: {ref: "ghcr.io/pterodactyl/panel:v1.15.1", digest: "sha256:bbf51a5501ff1492946816490d5275250570d3358124bad12c6b75f0077facf2"}
+_architectureV2PterodactylWingsImage: {ref: "ghcr.io/pterodactyl/wings:v1.13.3", digest: "sha256:c89b9b9a48a992d8cfd488837bfd76426c2af07579699b4fe41f9e910701405c"}
+_architectureV2PterodactylDatabaseImage: {ref: "docker.io/library/mariadb:11.8", digest: "sha256:de4cf325ed1fc8a22460b4f285de7b9e06d89edbd593505e678ec480f86e501b"}
+_architectureV2PterodactylCacheImage: {ref: "docker.io/valkey/valkey:8.1-alpine", digest: "sha256:32627109abf6f741121096b45c732f758876803efd7b2e1018ebc0350d117119"}
+
 _architectureV2CoreCapabilities: [
 	"topology-core",
 	"host-bootstrap",
@@ -187,6 +195,26 @@ _architectureV2DocumentsInfrastructure: #WorkloadInfrastructureV1 & {
 	]}
 	// The existing application-runtime snapshot owner quiesces the complete
 	// workload, including PostgreSQL, before copying these related allocations.
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Game data: Wings keeps worlds, install scratch space and passwd files in its
+// data volume, mounted at its own host path so Wings can hand that path to the
+// Docker daemon (ADR-0043). The Panel database holds servers, users and keys.
+_architectureV2GameInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "game", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "wings", volumeRef: "data", target: "/stackkit/game-data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "game"},
+		{componentRef: "panel-database", volumeRef: "database", target: "/var/lib/mysql", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "game"},
+		{componentRef: "panel", volumeRef: "var", target: "/app/var", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "game"},
+		{componentRef: "panel-cache", volumeRef: "cache", target: "/data", class: "cache", backup: false, dataClasses: []},
+	]}
+	// The application-runtime snapshot owner quiesces the Compose graph; Wings
+	// owned game containers keep running, so world copies are crash-consistent
+	// until the game-server quiesce hook lands (ADR-0043 consequences).
 	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
 	snapshot: moduleRef: "stackkits-snapshot"
 	restore: moduleRef:  "stackkits-restore"
@@ -815,6 +843,51 @@ _architectureV2WorkloadContracts: [
 	},
 	#WorkloadContractV2 & {
 		metadata: {
+			id:          "game"
+			version:     "1.0.0"
+			description: "Self-hosted game servers through upstream Pterodactyl Panel and Wings with curated Minecraft profiles (ADR-0043)."
+		}
+		kind:       "application"
+		useCaseRef: "game"
+		functionalCapabilities: ["game-server-hosting", "game-server-management"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "pterodactyl"
+		computeTiers: {
+			low: {included: false, reason: "Game servers need the standard profile and their own memory budget."}
+			standard: {included: true, alternativeID: "pterodactyl"}
+			high: {included: true, alternativeID: "pterodactyl"}
+		}
+		alternatives: [{
+			id:          "pterodactyl"
+			providerRef: "stackkits-pterodactyl"
+			moduleRef:   "stackkits-pterodactyl-runtime"
+			route: {serviceRef: "game", healthRef: "pterodactyl-panel-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// The bootstrap component creates the owner, node and API keys from
+			// custody; game servers are created by the owner-approved setup action.
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["pterodactyl-game-server-setup"]}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: _architectureV2PterodactylSecretSlots
+					requiredRefs: _architectureV2PterodactylSecretSlots
+				}
+			}
+			infrastructure: _architectureV2GameInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
 			id:          "media"
 			version:     "1.0.0"
 			description: "Self-hosted media library selected independently from kit architecture capabilities."
@@ -901,6 +974,11 @@ _architectureV2WorkloadContracts: [
 
 _architectureV2ApplicationLifecycleContracts: [
 	#ApplicationLifecycleContractV1 & {metadata: {id: "dev", version: "1.0.0", description: "Private Git lifecycle; CI runners are a separate selection."}, workloadRef: "dev", useCaseRef: "dev", packageRef: "dev", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {
+		metadata: {id: "game", version: "1.0.0", description: "Owner-controlled Pterodactyl game lifecycle; game servers are created by the owner-approved setup action (ADR-0043)."}
+		workloadRef: "game", useCaseRef: "game", packageRef: "game"
+		lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
+	},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "documents", version: "1.0.0", description: "Owner-controlled Paperless-ngx document lifecycle using the shared application operations."}, workloadRef: "documents", useCaseRef: "documents", packageRef: "documents", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {
 		metadata: {id: "ai", version: "1.0.0", description: "Owner-controlled Private AI lifecycle; model download is an explicit owner operation."}
@@ -1707,6 +1785,23 @@ _architectureV2Providers: list.Concat([[
 			moduleRefs: {required: [], optional: ["stackkits-paperless-runtime"]}
 		}
 		evidence: ["paperless-generated-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-pterodactyl", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["game"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {required: [], optional: ["stackkits-pterodactyl-runtime"]}
+		}
+		evidence: ["pterodactyl-generated-runtime-contract"]
 	},
 	{
 		metadata: {id: "stackkits-jellyfin", version: "1.0.0"}
@@ -2565,6 +2660,27 @@ _architectureV2VaultwardenSupport: #ModuleRealizationSupportV2 & {
 		}]
 	}
 	evidence: requiredRefs: ["vaultwarden-selected-paas-runtime-contract"]
+}
+
+_architectureV2PterodactylSecretSlots: ["database-password", "database-root-password", "app-key", "hashids-salt", "owner-password", "application-api-key", "client-api-key"]
+
+_architectureV2PterodactylSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: _architectureV2PterodactylSecretSlots}
+	artifacts: {
+		requiredRefs: ["pterodactyl-workload-bundle"]
+		outputBindings: [{artifactRef: "pterodactyl-workload-bundle", unitRef: "pterodactyl", outputRef: "workloads/pterodactyl/bundle.json"}]
+		contracts: [{
+			id: "pterodactyl-workload-bundle", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"], unitRef: "pterodactyl", outputRef: "workloads/pterodactyl/bundle.json"
+		}]
+	}
+	// A renderable runtime contract only; game joins, world persistence and
+	// restore stay pending until exercised against the pinned upstream pair.
+	evidence: requiredRefs: ["pterodactyl-generated-runtime-contract"]
 }
 
 // Jellyfin is the Media Library vertical. Config is a StackKits backup source;
@@ -5751,6 +5867,185 @@ _architectureV2Modules: list.Concat([[
 	},
 	{
 		metadata: {
+			id:          "stackkits-pterodactyl-runtime"
+			version:     "1.0.0"
+			description: "Pterodactyl Panel with MariaDB and Valkey plus the Wings node daemon, which owns game-server containers through a governed Docker approval (ADR-0043)."
+		}
+		role:        "workload"
+		providerRef: "stackkits-pterodactyl"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {authority: "control-authority-site", requiredRoles: ["worker"]}
+		computeProfiles:       _architectureV2PterodactylComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:              "container", delivery: "application-adapter", engine: "docker"
+			image:             _architectureV2PterodactylPanelImage
+			entryComponentRef: "panel"
+			components: [
+				{
+					id:    "panel", role: "application", lifecycle: "daemon"
+					image: _architectureV2PterodactylPanelImage
+					dependsOn: ["panel-cache", "panel-database"]
+					networkRefs: ["game-internal"]
+					entrypoint: ["/bin/ash", "/stackkit/panel-entrypoint.sh"]
+					command: ["supervisord", "-n", "-c", "/etc/supervisord.conf"]
+					environment: {
+						APP_ENV:              "production"
+						APP_ENVIRONMENT_ONLY: "false"
+						APP_TIMEZONE:         "UTC"
+						CACHE_DRIVER:         "redis"
+						SESSION_DRIVER:       "redis"
+						QUEUE_DRIVER:         "redis"
+						REDIS_HOST:           "panel-cache"
+						DB_HOST:              "panel-database"
+						DB_PORT:              "3306"
+						DB_DATABASE:          "panel"
+						DB_USERNAME:          "pterodactyl"
+						MAIL_DRIVER:          "log"
+						TRUSTED_PROXIES:      "*"
+						PTERODACTYL_TELEMETRY_ENABLED: "false"
+					}
+					ownerEnvironment: {APP_SERVICE_AUTHOR: "email"}
+					secretEnvironment: {
+						DB_PASSWORD:              "database-password"
+						STACKKIT_APP_KEY:         "app-key"
+						STACKKIT_HASHIDS_SALT:    "hashids-salt"
+					}
+					// The Panel reaches its node under its own route host on
+					// loopback, so console and API calls never cross the router.
+					routeHostLoopback: true
+					volumes: [
+						for allocation in _architectureV2GameInfrastructure.storageAllocation.allocations if allocation.componentRef == "panel" {
+							id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+						},
+						{id: "nginx", target: "/etc/nginx/http.d", class: "cache", backup: false},
+						{id: "stackkit", target: "/stackkit", class: "cache", backup: false},
+					]
+					health: {kind: "http", path: "/auth/login", port: 80}
+					resources: {memoryLimit: "1g", memoryReservation: "384m"}
+				},
+				{
+					id:    "panel-database", role: "database", lifecycle: "daemon"
+					image: _architectureV2PterodactylDatabaseImage
+					dependsOn: [], networkRefs: ["game-internal"]
+					environment: {MARIADB_DATABASE: "panel", MARIADB_USER: "pterodactyl"}
+					secretEnvironment: {MARIADB_PASSWORD: "database-password", MARIADB_ROOT_PASSWORD: "database-root-password"}
+					volumes: [for allocation in _architectureV2GameInfrastructure.storageAllocation.allocations if allocation.componentRef == "panel-database" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "command", command: ["healthcheck.sh", "--connect", "--innodb_initialized"]}
+					resources: {memoryLimit: "768m", memoryReservation: "256m"}
+				},
+				{
+					id:    "panel-cache", role: "cache", lifecycle: "daemon"
+					image: _architectureV2PterodactylCacheImage
+					dependsOn: [], networkRefs: ["game-internal"]
+					command: ["valkey-server"]
+					volumes: [for allocation in _architectureV2GameInfrastructure.storageAllocation.allocations if allocation.componentRef == "panel-cache" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "command", command: ["valkey-cli", "ping"]}
+					resources: {memoryLimit: "256m", memoryReservation: "64m"}
+				},
+				{
+					id:    "panel-bootstrap", role: "database-init", lifecycle: "one-shot"
+					image: _architectureV2PterodactylPanelImage
+					dependsOn: ["panel"]
+					networkRefs: ["game-internal"]
+					entrypoint: ["/bin/ash"]
+					command: ["/stackkit/bootstrap.sh"]
+					environment: {
+						APP_ENV:              "production"
+						APP_ENVIRONMENT_ONLY: "false"
+						APP_TIMEZONE:         "UTC"
+						CACHE_DRIVER:         "redis"
+						SESSION_DRIVER:       "redis"
+						QUEUE_DRIVER:         "redis"
+						REDIS_HOST:           "panel-cache"
+						DB_HOST:              "panel-database"
+						DB_PORT:              "3306"
+						DB_DATABASE:          "panel"
+						DB_USERNAME:          "pterodactyl"
+						MAIL_DRIVER:          "log"
+						TRUSTED_PROXIES:      "*"
+						PTERODACTYL_TELEMETRY_ENABLED: "false"
+					}
+					ownerEnvironment: {STACKKIT_OWNER_EMAIL: "email"}
+					secretEnvironment: {
+						DB_PASSWORD:                  "database-password"
+						STACKKIT_APP_KEY:             "app-key"
+						STACKKIT_HASHIDS_SALT:        "hashids-salt"
+						STACKKIT_OWNER_PASSWORD:      "owner-password"
+						STACKKIT_APPLICATION_API_KEY: "application-api-key"
+						STACKKIT_CLIENT_API_KEY:      "client-api-key"
+					}
+					volumes: [
+						{id: "stackkit", target: "/stackkit", class: "cache", backup: false},
+						{id: "data", target: "/stackkit/game-data", class: "persistent", backup: true, sharedFrom: {componentRef: "wings", volumeRef: "data"}},
+					]
+					health: {kind: "completion"}
+				},
+				{
+					id:    "wings", role: "application", lifecycle: "daemon"
+					image: _architectureV2PterodactylWingsImage
+					dependsOn: ["panel-bootstrap"]
+					networkRefs: ["game-internal"]
+					command: ["--config", "/stackkit/game-data/config.yml"]
+					environment: {TZ: "UTC", WINGS_UID: "988", WINGS_GID: "988", WINGS_USERNAME: "pterodactyl"}
+					// ADR-0043: the one component that owns game containers.
+					dockerLifecycleOwner: {daemonRef: "docker-default", policyProfile: "docker-game-node-lifecycle"}
+					volumes: [
+						for allocation in _architectureV2GameInfrastructure.storageAllocation.allocations if allocation.componentRef == "wings" {
+							id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+							selfPath: true
+						},
+						{id: "logs", target: "/var/log/pterodactyl", class: "cache", backup: false},
+					]
+					health: {kind: "image"}
+					resources: {memoryLimit: "512m", memoryReservation: "128m"}
+				},
+			]
+		}
+		renderUnits: [{
+			id: "pterodactyl", kind: "native-config", rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/pterodactyl/bundle/v1.json", version: "1.0.0"
+			contractHash: "sha256:b006fa9d214d13e7cbc1c148f2a07d102f9464dcf6fee02830c4c4fdc3115b7c"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
+			secretInputRefs: _architectureV2PterodactylSecretSlots
+			outputs: ["workloads/pterodactyl/bundle.json"]
+			placement: {scope: "node-local", cardinality: "one-per-daemon", daemonRef: "docker-default"}
+			requiresInterfaces: [{
+				id:       "docker-game-node-lifecycle"
+				kind:     "docker-socket-direct-v1"
+				protocol: "docker-engine"
+				version:  "v1"
+				endpoint: {visibility: "node-local", transport: "unix-socket", pathSource: "daemon-binding"}
+				scopes: ["docker-api:full"]
+				coLocation:    "same-node"
+				daemonRef:     "docker-default"
+				policyProfile: "docker-game-node-lifecycle"
+			}]
+			serviceEndpoints: [{
+				serviceRef:        "game", upstreamProtocol: "http", targetPort: 80
+				requiredPrivilege: "user", ingressAuth: "native", allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site", healthRef: "pterodactyl-panel-http"
+				data: {bindingRef: _architectureV2GameInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2GameInfrastructure.dataBinding.classes, locality: _architectureV2GameInfrastructure.dataBinding.locality}
+			}]
+		}]
+		renderVariants: [
+			{id: "compose", target: "compose", rendererRef: "stackkit", contractHash: "sha256:72697f2471dbafff7f7cd938c36e4f89393862fc28d19ac1d61c603afd3e010f", unitRefs: ["pterodactyl"], artifactRefs: ["pterodactyl-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: _architectureV2PterodactylSecretSlots, planInputRefs: []},
+			{id: "opentofu", target: "opentofu", rendererRef: "stackkit", contractHash: "sha256:a92e513ff795fb638fa85451c5b55b26ac9ecbfeb62a27cd12090f135095305a", unitRefs: ["pterodactyl"], artifactRefs: ["pterodactyl-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: _architectureV2PterodactylSecretSlots, planInputRefs: []},
+		]
+		realizationSupport: _architectureV2PterodactylSupport
+		health: [{id: "pterodactyl-panel-http", phase: "continuous", kind: "http", path: "/auth/login", port: 80, timeoutSeconds: 10, expectedStatuses: [200]}]
+		evidence: ["pterodactyl-generated-runtime-contract", "pterodactyl-wings-lifecycle-owner-governance"]
+	},
+	{
+		metadata: {
 			id:          "stackkits-jellyfin-runtime"
 			version:     "1.0.0"
 			description: "Jellyfin media-library contract bound to one selected site; the media library volume is owner-custodied and not a StackKits backup source."
@@ -6245,6 +6540,19 @@ _architectureV2PrivilegedInterfaceApprovals: list.Concat([[
 		policyProfile: "docker-provider-backing"
 		reasonCode:    "provider-backing"
 		evidenceRef:   "socket-proxy-provider-backing-governance"
+	},
+	{
+		// ADR-0043: Wings owns game-server containers; no other workload
+		// component can request the Docker socket.
+		id:            "approve-pterodactyl-wings-lifecycle-owner"
+		kind:          "docker-socket-direct-v1"
+		moduleRef:     "stackkits-pterodactyl-runtime"
+		unitRef:       "pterodactyl"
+		providerRef:   "stackkits-pterodactyl"
+		daemonRef:     "docker-default"
+		policyProfile: "docker-game-node-lifecycle"
+		reasonCode:    "lifecycle-owner"
+		evidenceRef:   "pterodactyl-wings-lifecycle-owner-governance"
 	},
 ], _architectureV2ProfileExtensionPrivilegedInterfaceApprovals])
 

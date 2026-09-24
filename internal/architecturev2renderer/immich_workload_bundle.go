@@ -36,6 +36,20 @@ type selectedPaaSRuntimeVolume struct {
 	Class    string `json:"class"`
 	Backup   bool   `json:"backup"`
 	ReadOnly bool   `json:"readOnly,omitempty"`
+	// SelfPath and SharedFrom are ADR-0043 game-node mounts. The common
+	// parser admits them only for the Pterodactyl workload.
+	SelfPath   bool                      `json:"selfPath,omitempty"`
+	SharedFrom *selectedPaaSVolumeSource `json:"sharedFrom,omitempty"`
+}
+
+type selectedPaaSVolumeSource struct {
+	ComponentRef string `json:"componentRef"`
+	VolumeRef    string `json:"volumeRef"`
+}
+
+type selectedPaaSDockerLifecycleOwner struct {
+	DaemonRef     string `json:"daemonRef"`
+	PolicyProfile string `json:"policyProfile"`
 }
 
 type selectedPaaSRuntimeHealth struct {
@@ -62,6 +76,9 @@ type selectedPaaSRuntimeComponent struct {
 	Volumes           []selectedPaaSRuntimeVolume `json:"volumes,omitempty"`
 	Health            selectedPaaSRuntimeHealth   `json:"health"`
 	Resources         *selectedPaaSRuntimeLimits  `json:"resources,omitempty"`
+	// ADR-0043 game-node fields; admitted only for the Pterodactyl workload.
+	RouteHostLoopback    bool                              `json:"routeHostLoopback,omitempty"`
+	DockerLifecycleOwner *selectedPaaSDockerLifecycleOwner `json:"dockerLifecycleOwner,omitempty"`
 }
 
 // selectedPaaSRuntimeLimits is the declared per-container ceiling. Absent
@@ -115,6 +132,9 @@ type selectedPaaSWorkloadBundle struct {
 	Route         selectedPaaSServiceEndpoint    `json:"route"`
 	DeliveryRoute *applicationDeliveryRoute      `json:"deliveryRoute,omitempty"`
 	ConfigFiles   []selectedPaaSConfigFile       `json:"configFiles,omitempty"`
+	// DaemonSocketPath is the approved Docker socket of an ADR-0043 lifecycle
+	// owner; absent for every other workload.
+	DaemonSocketPath string `json:"daemonSocketPath,omitempty"`
 }
 
 type selectedPaaSConfigFile struct {

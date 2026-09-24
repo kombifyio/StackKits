@@ -7,13 +7,11 @@ import (
 )
 
 type ownerBootstrapForApply struct {
-	Owner                   models.OwnerConfig
-	RecoveryPassphraseHash  string
-	RecoveryPassphrasePlain string
-	Managed                 bool
+	Owner                  models.OwnerConfig
+	RecoveryPassphraseHash string
 }
 
-func resolveOwnerBootstrapForApply(wd string, spec *models.StackSpec) (ownerBootstrapForApply, bool, error) {
+func resolveOwnerBootstrapForApply(_ string, spec *models.StackSpec) (ownerBootstrapForApply, bool, error) {
 	if spec == nil {
 		return ownerBootstrapForApply{}, false, nil
 	}
@@ -27,7 +25,10 @@ func resolveOwnerBootstrapForApply(wd string, spec *models.StackSpec) (ownerBoot
 			RecoveryPassphraseHash: spec.Owner.RecoveryPassphraseHash,
 		}, true, nil
 	case models.OwnerBootstrapModeAuto:
-		return resolveAutoOwnerBootstrapForApply(wd)
+		return ownerBootstrapForApply{}, false, fmt.Errorf(
+			"owner bootstrap mode %q requires an external orchestrator; standalone apply accepts local owner custody only",
+			models.OwnerBootstrapModeAuto,
+		)
 	default:
 		return ownerBootstrapForApply{}, false, fmt.Errorf("invalid owner bootstrapMode %q", mode)
 	}

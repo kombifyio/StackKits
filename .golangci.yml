@@ -128,7 +128,7 @@ linters:
       - path: "cmd/stackkit-server/main\\.go"
         linters:
           - goconst
-      - path: "cmd/stackkit/commands/(access_summary|agent|app|prepare_docker|tenant_deployment_events)\\.go"
+      - path: "cmd/stackkit/commands/(access_summary|agent|app|prepare_docker)\\.go"
         linters:
           - goconst
       - path: "cmd/stackkit/commands/.*\\.go"
@@ -196,7 +196,7 @@ linters:
       # they normalize CLI/API input into a compact model and then report
       # all validation failures at once. The follow-up is architectural,
       # not a release blocker.
-      - path: "cmd/stackkit/commands/(app|init_owner|tenant_spec_fetch)\\.go"
+      - path: "cmd/stackkit/commands/(app|init_owner)\\.go"
         linters:
           - gocyclo
       - path: "internal/cue/validator\\.go"

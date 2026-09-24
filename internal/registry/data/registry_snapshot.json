@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-09-24T12:32:30Z",
+  "generated_at": "2026-09-24T12:58:02Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -1036,6 +1036,19 @@
         "pi"
       ],
       "core": true
+    },
+    {
+      "slug": "pterodactyl",
+      "display_name": "Pterodactyl",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Pterodactyl Panel and Wings upstream catalog. The native-v2 game workload owns executable configuration, owner bootstrap and the governed Wings lifecycle-owner approval (ADR-0043).",
+      "contract_hash": "6f89d7a3d91adb48cb834a4c06b6b40eea299983919dd8a7f09a6f8b04d70017",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
     },
     {
       "slug": "security-baseline",

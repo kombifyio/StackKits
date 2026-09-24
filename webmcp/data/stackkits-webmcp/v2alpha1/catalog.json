@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "45ec19690be3eb5f47cc6452702a4e2b948f1abd",
-  "authority_bundle_sha256": "1e49b748e4f4c65504399b7dd42d5a7350f44a7a5fadf88b273735d7faf4a3af",
+  "source_sha": "7dc6b9443776336a19224551f42a800eb18d5fcc",
+  "authority_bundle_sha256": "c92a77ffec9fde54d0d74b85e60a64ae84c7119c98196daab788ae620bb3a5e4",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -927,6 +927,76 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-pterodactyl-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "game"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Pterodactyl Panel with MariaDB and Valkey plus the Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "panel-cache",
+                "panel-database",
+                "wings"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "00af02a49a977e8d042ba939ee18b8e0661bef11ec2a1376ae7153c0789e85c5"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Pterodactyl Panel with MariaDB and Valkey plus the Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "panel-cache",
+                "panel-database",
+                "wings"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "e7631e15d41333dee98b6c263e521ff5e9029c470789edee1021f03c944c52c5"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-vaultwarden-runtime",
           "role": "workload",
           "required": false,
@@ -1171,6 +1241,30 @@
               ],
               "load": {
                 "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "game",
+          "title": "Game Server",
+          "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java and Bedrock profiles.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "pterodactyl",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "pterodactyl",
+              "module_id": "stackkits-pterodactyl-runtime",
+              "functions": [
+                "game-server-hosting",
+                "game-server-management"
+              ],
+              "load": {
+                "residency": "on-demand",
                 "baseline": "idle-resident",
                 "burst": "interactive"
               }
@@ -2236,6 +2330,76 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-pterodactyl-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "game"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Pterodactyl Panel with MariaDB and Valkey plus the Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "panel-cache",
+                "panel-database",
+                "wings"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "00af02a49a977e8d042ba939ee18b8e0661bef11ec2a1376ae7153c0789e85c5"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Pterodactyl Panel with MariaDB and Valkey plus the Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "panel-cache",
+                "panel-database",
+                "wings"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "e7631e15d41333dee98b6c263e521ff5e9029c470789edee1021f03c944c52c5"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-public-tls-contract",
           "role": "platform",
           "required": false,
@@ -2473,6 +2637,30 @@
               ],
               "load": {
                 "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "game",
+          "title": "Game Server",
+          "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java and Bedrock profiles.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "pterodactyl",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "pterodactyl",
+              "module_id": "stackkits-pterodactyl-runtime",
+              "functions": [
+                "game-server-hosting",
+                "game-server-management"
+              ],
+              "load": {
+                "residency": "on-demand",
                 "baseline": "idle-resident",
                 "burst": "interactive"
               }
@@ -3560,6 +3748,76 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-pterodactyl-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "game"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Pterodactyl Panel with MariaDB and Valkey plus the Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "panel-cache",
+                "panel-database",
+                "wings"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "00af02a49a977e8d042ba939ee18b8e0661bef11ec2a1376ae7153c0789e85c5"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Pterodactyl Panel with MariaDB and Valkey plus the Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "panel-cache",
+                "panel-database",
+                "wings"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "e7631e15d41333dee98b6c263e521ff5e9029c470789edee1021f03c944c52c5"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-vaultwarden-runtime",
           "role": "workload",
           "required": false,
@@ -3804,6 +4062,30 @@
               ],
               "load": {
                 "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "game",
+          "title": "Game Server",
+          "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java and Bedrock profiles.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "pterodactyl",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "pterodactyl",
+              "module_id": "stackkits-pterodactyl-runtime",
+              "functions": [
+                "game-server-hosting",
+                "game-server-management"
+              ],
+              "load": {
+                "residency": "on-demand",
                 "baseline": "idle-resident",
                 "burst": "interactive"
               }
@@ -4259,5 +4541,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "438a127b1ee2586ae58d4b46e8327c22d450ccd512e68e67990cc5c84b61f213"
+  "catalog_sha256": "2464ba1a38884e6512c1fe67d3fe8a5d3e1400444770e43e571518cd65378aef"
 }

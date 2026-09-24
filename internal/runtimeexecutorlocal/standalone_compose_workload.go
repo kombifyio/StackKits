@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -104,6 +105,13 @@ func (o *osStandaloneComposeWorkloadOperations) ApplyWorkload(
 	}
 	if _, err := o.runner.Run(ctx, standaloneComposeArgs(project, "up"), project.directory); err != nil {
 		return SelectedPaaSApplyReceipt{}, fmt.Errorf("standalone Docker Compose Apply did not complete: %w", err)
+	}
+	if project.bundle.ModuleRef == standaloneComposeGameNodeModuleRef {
+		// Wings reads the configuration its bootstrap just converged only at
+		// start. Recreating Wings leaves running game servers attached.
+		if _, err := o.runner.Run(ctx, standaloneComposeArgs(project, "recreate-wings"), project.directory); err != nil {
+			return SelectedPaaSApplyReceipt{}, fmt.Errorf("restart the game node with its converged configuration: %w", err)
+		}
 	}
 	if err := o.waitForBlockingComponents(ctx, project); err != nil {
 		return SelectedPaaSApplyReceipt{}, err
@@ -344,7 +352,18 @@ func (o *osStandaloneComposeWorkloadOperations) prepare(
 		(bundle.Route.ID != "" && entry.HealthPort != bundle.Route.TargetPort) {
 		return standaloneComposeProject{}, errors.New("standalone workload entry component has no exact HTTP health contract")
 	}
-	compose, environment, configFiles, err := o.render(bundle)
+	dockerRoot := ""
+	if standaloneComposeNeedsDockerRoot(bundle) {
+		raw, err := o.runner.Run(ctx, standaloneComposeDockerRootArgs, o.workspaceRoot)
+		if err != nil {
+			return standaloneComposeProject{}, fmt.Errorf("observe Docker root for the game node data volume: %w", err)
+		}
+		dockerRoot = strings.TrimSpace(string(raw))
+		if !filepath.IsAbs(dockerRoot) || filepath.Clean(dockerRoot) != dockerRoot {
+			return standaloneComposeProject{}, errors.New("Docker root directory is not a clean absolute path")
+		}
+	}
+	compose, environment, configFiles, err := o.renderWithDockerRoot(bundle, dockerRoot)
 	if err != nil {
 		return standaloneComposeProject{}, err
 	}
@@ -377,6 +396,8 @@ type standaloneComposeService struct {
 	Volumes     []any                                  `yaml:"volumes,omitempty"`
 	Networks    []string                               `yaml:"networks"`
 	Ports       []string                               `yaml:"ports,omitempty"`
+	ExtraHosts  []string                               `yaml:"extra_hosts,omitempty"`
+	StopSignal  string                                 `yaml:"stop_signal,omitempty"`
 	Labels      map[string]string                      `yaml:"labels,omitempty"`
 	Healthcheck *standaloneComposeHealthcheck          `yaml:"healthcheck,omitempty"`
 }
@@ -480,8 +501,35 @@ type standaloneComposeHealthcheck struct {
 	StartPeriod string   `yaml:"start_period"`
 }
 
+// standaloneComposeGameNodeModuleRef is the only workload admitted to the
+// ADR-0043 game-node mounts: Wings' Docker socket, its self-path data volume
+// and the Panel's loopback route host.
+const standaloneComposeGameNodeModuleRef = "stackkits-pterodactyl-runtime"
+
+func standaloneComposeNeedsDockerRoot(bundle architecturev2renderer.ApplicationDeliveryBundleDescriptor) bool {
+	for _, component := range bundle.Components {
+		for _, volume := range component.Volumes {
+			if volume.SelfPath {
+				return true
+			}
+		}
+		if component.DockerLifecycleOwner {
+			return true
+		}
+	}
+	return false
+}
+
 func (o *osStandaloneComposeWorkloadOperations) render(
 	bundle architecturev2renderer.ApplicationDeliveryBundleDescriptor,
+) ([]byte, []byte, map[string][]byte, error) {
+	return o.renderWithDockerRoot(bundle, "")
+}
+
+//nolint:gocyclo // One renderer keeps every admitted mount and exception visible together.
+func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
+	bundle architecturev2renderer.ApplicationDeliveryBundleDescriptor,
+	dockerRoot string,
 ) ([]byte, []byte, map[string][]byte, error) {
 	routingNetwork := ""
 	if bundle.Route.ID != "" {
@@ -502,6 +550,20 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 		lifecycle[component.ID] = component.Lifecycle
 		for _, networkRef := range component.NetworkRefs {
 			document.Networks[networkRef] = standaloneComposeNetwork{Internal: true}
+		}
+	}
+	gameNode := bundle.ModuleRef == standaloneComposeGameNodeModuleRef
+	selfPaths := map[string]string{}
+	for _, component := range bundle.Components {
+		for _, volume := range component.Volumes {
+			if !volume.SelfPath {
+				continue
+			}
+			if !gameNode || component.ID != "wings" || volume.ID != "data" || dockerRoot == "" {
+				return nil, nil, nil, errors.New("a self-path volume is admitted only for the game node's Wings data")
+			}
+			ref := component.ID + "-" + volume.ID
+			selfPaths[ref] = filepath.Join(dockerRoot, "volumes", document.Name+"_"+ref, "_data")
 		}
 	}
 	secretValues := map[string]string{}
@@ -580,12 +642,24 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 				continue
 			}
 			ref := component.ID + "-" + volume.ID
+			if volume.SharedFromComponent != "" {
+				if !gameNode || component.ID != "panel-bootstrap" || volume.SharedFromComponent != "wings" || volume.SharedFromVolume != "data" {
+					return nil, nil, nil, errors.New("a shared volume is admitted only for the game node bootstrap")
+				}
+				ref = volume.SharedFromComponent + "-" + volume.SharedFromVolume
+			}
 			document.Volumes[ref] = map[string]any{}
 			mount := ref + ":" + volume.Target
 			if volume.ReadOnly {
 				mount += ":ro"
 			}
 			service.Volumes = append(service.Volumes, mount)
+			if hostPath, ok := selfPaths[ref]; ok {
+				// Wings hands this path to the daemon for game containers, so
+				// the same volume is also visible at its own host path.
+				service.Volumes = append(service.Volumes, ref+":"+hostPath)
+				service.Environment[architecturev2renderer.PterodactylGameDataHostPathEnv] = hostPath
+			}
 		}
 		for _, file := range bundle.ConfigFiles {
 			if !standaloneComposeVolumeOwnsPath(component.Volumes, file.Path) {
@@ -595,6 +669,26 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 			service.Volumes = append(service.Volumes, "./"+rel+":"+file.Path+":ro")
 			configFiles[rel] = []byte(file.Body)
 			assignedConfig[file.Path] = struct{}{}
+		}
+		if component.DockerLifecycleOwner {
+			if !gameNode || component.ID != "wings" || bundle.DaemonSocketPath == "" || dockerRoot == "" {
+				return nil, nil, nil, errors.New("Docker lifecycle ownership is admitted only for the game node's Wings")
+			}
+			service.Volumes = append(service.Volumes,
+				map[string]any{"type": "bind", "source": bundle.DaemonSocketPath, "target": "/var/run/docker.sock", "bind": map[string]any{"create_host_path": false}},
+				map[string]any{"type": "bind", "source": filepath.Join(dockerRoot, "containers"), "target": filepath.Join(dockerRoot, "containers"), "read_only": true, "bind": map[string]any{"create_host_path": false}},
+			)
+		}
+		if gameNode && (component.ID == "panel" || component.ID == "panel-bootstrap") {
+			// The Panel image declares SIGQUIT; supervisord stops cleanly on
+			// SIGTERM, which the backup quiesce owner admits.
+			service.StopSignal = "SIGTERM"
+		}
+		if component.RouteHostLoopback {
+			if !gameNode || component.ID != "panel" || bundle.Route.Host == "" {
+				return nil, nil, nil, errors.New("a loopback route host is admitted only for the game node Panel")
+			}
+			service.ExtraHosts = []string{bundle.Route.Host + ":127.0.0.1"}
 		}
 		if len(component.HealthCommand) > 0 {
 			service.Healthcheck = &standaloneComposeHealthcheck{
@@ -812,6 +906,8 @@ func standaloneComposeArgs(project standaloneComposeProject, operation string) [
 			}
 		}
 		return append(args, "--wait", "--wait-timeout", "600")
+	case "recreate-wings":
+		return append(prefix, "up", "-d", "--no-deps", "--force-recreate", "wings")
 	case "ps":
 		return append(prefix, "ps", "--all", "--no-trunc", "--format", "json")
 	case "port":
@@ -821,6 +917,10 @@ func standaloneComposeArgs(project standaloneComposeProject, operation string) [
 	}
 }
 
+// standaloneComposeDockerRootArgs is the one read-only non-Compose query the
+// runner admits: the daemon's data root for the game node's self-path volume.
+var standaloneComposeDockerRootArgs = []string{"info", "--format", "{{.DockerRootDir}}"}
+
 type osStandaloneComposeProcessRunner struct{}
 
 func (osStandaloneComposeProcessRunner) Run(
@@ -828,10 +928,11 @@ func (osStandaloneComposeProcessRunner) Run(
 	args []string,
 	directory string,
 ) ([]byte, error) {
-	if len(args) < 9 || args[0] != "compose" || args[1] != "--project-name" ||
+	dockerRootQuery := slices.Equal(args, standaloneComposeDockerRootArgs)
+	if !dockerRootQuery && (len(args) < 9 || args[0] != "compose" || args[1] != "--project-name" ||
 		args[3] != "--env-file" || filepath.Dir(args[4]) != directory ||
 		filepath.Base(args[4]) != ".env" || args[5] != "-f" ||
-		filepath.Dir(args[6]) != directory || filepath.Base(args[6]) != "compose.yaml" {
+		filepath.Dir(args[6]) != directory || filepath.Base(args[6]) != "compose.yaml") {
 		return nil, &standaloneComposeProcessError{
 			output: "closed-contract-rejected", cause: errors.New("invalid process contract"),
 		}

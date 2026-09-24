@@ -263,7 +263,7 @@ func volumeMatches(volume selectedPaaSRuntimeVolume, id, target string, backup b
 	if id == "cache" {
 		class = "cache"
 	}
-	return volume.ID == id && volume.Target == target && volume.Class == class && volume.Backup == backup && !volume.ReadOnly && volume.HostPath == ""
+	return volume.ID == id && volume.Target == target && volume.Class == class && volume.Backup == backup && !volume.ReadOnly && volume.HostPath == "" && !volume.SelfPath && volume.SharedFrom == nil
 }
 
 func validatePaperlessServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path string) error {

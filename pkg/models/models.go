@@ -559,20 +559,6 @@ func (b BreakGlassConfig) EffectiveScope() string {
 	return BreakGlassScopeFullEmergencyAdmin
 }
 
-// OwnerAdminBootstrapEnvelope is the private runtime handoff delivered by
-// kombify Administration to a freshly booted VM. It must never be exported as a
-// public/default StackSpec because it can contain one-time secret material.
-type OwnerAdminBootstrapEnvelope struct {
-	Owner                   OwnerConfig      `yaml:"owner,omitempty" json:"owner,omitempty"`
-	AdminEmail              string           `yaml:"adminEmail,omitempty" json:"adminEmail,omitempty"`
-	AdminUsername           string           `yaml:"adminUsername,omitempty" json:"adminUsername,omitempty"`
-	AdminCredentialRef      string           `yaml:"adminCredentialRef,omitempty" json:"adminCredentialRef,omitempty"`
-	RecoveryMaterialRef     string           `yaml:"recoveryMaterialRef,omitempty" json:"recoveryMaterialRef,omitempty"`
-	RecoveryPassphraseHash  string           `yaml:"recoveryPassphraseHash,omitempty" json:"recoveryPassphraseHash,omitempty"`
-	RecoveryPassphrasePlain string           `yaml:"-" json:"recoveryPassphrasePlain,omitempty"`
-	BreakGlass              BreakGlassConfig `yaml:"breakGlass,omitempty" json:"breakGlass,omitempty"`
-}
-
 // AppSpec describes a user application deployed behind the StackKits platform.
 type AppSpec struct {
 	Kind    string            `yaml:"kind,omitempty" json:"kind,omitempty"`

@@ -381,9 +381,9 @@ UseCaseCatalog: #UseCaseCatalog & {
 		game: {
 			slug:        "game"
 			displayName: "Game Server"
-			description: "Self-hosted multiplayer game-server intent for a household or community."
+			description: "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java and Bedrock profiles."
 			owner:       "stackkits"
-			components: gameserver: {id: "gameserver", name: "Game Server Runtime", role: "primary", kind: "application"}
+			components: pterodactyl: {id: "pterodactyl", name: "Pterodactyl", role: "primary", kind: "application"}
 		}
 		remote: {
 			slug:        "remote"

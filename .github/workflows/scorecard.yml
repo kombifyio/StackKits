@@ -6,15 +6,18 @@ on:
     - cron: "41 4 * * 2"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  security-events: write
-  id-token: write
+# The Scorecard API rejects published results when write permissions are
+# granted at workflow level; grant them on the job only.
+permissions: read-all
 
 jobs:
   scorecard:
     name: Scorecard
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+      id-token: write
     timeout-minutes: 15
     steps:
       - name: Checkout

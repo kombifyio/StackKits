@@ -312,16 +312,14 @@ must never contain a plaintext recovery passphrase.
 
 | Mode | Lane | Required fields | Behavior |
 | --- | --- | --- | --- |
-| `auto` | TechStack SaaS / kombify Cloud | `source: cloud` or `source: first-run`; managed rollouts receive private recovery material through Admin | Admin resolves the real Owner for the tenant deployment and sends a private identity-bootstrap envelope to the VM. `owner.email` and `owner.username` are not required or invented in the public spec. |
+| `auto` | TechStack SaaS / kombify Cloud | `source: cloud` or `source: first-run` | The owner comes from an external orchestrator; `stackkit apply` rejects this mode. `owner.email` and `owner.username` are not required or invented in the public spec. |
 | `custom` | Self-hosted / explicit local Owner | `source: local`, `email`, `username`, `recoveryPassphraseHash` | StackKits provisions the PocketID `owners` user locally and emits the one-time passkey setup URL. |
 | `none` | OSS/BYOS or manual identity | no owner identity or recovery fields | StackKits skips owner bootstrap. Use this only when another accepted process owns first-user setup. |
 
 `adminEmail` remains accepted for compatibility, but the Owner is the normal admin identity. When `owner.email` is present, generated `admin_email` values for Coolify, Kuma, StackKit Server, and bootstrap-only credentials resolve to that Owner email.
 
-The public `stackkit apply` command rejects external auto-owner bootstrap and
-requires local owner custody. Legacy managed identity-bootstrap envelopes are
-not part of public/default StackSpec exports and compile only into the
-Publisher/migration build.
+`stackkit apply` rejects external auto-owner bootstrap and requires local owner
+custody. Identity-bootstrap envelopes are not part of StackSpec exports.
 
 ### SaaS auto-owner
 

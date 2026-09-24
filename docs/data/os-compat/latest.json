@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
   "stackkitsVersion": "v0.39.7",
-  "generatedAt": "2026-09-24T07:06:57Z",
+  "generatedAt": "2026-09-24T12:40:38Z",
   "results": [
     {
       "os": {
@@ -236,10 +236,18 @@
       "kit": "cloud-kit",
       "environment": "public-vps",
       "name": "Public VPS with a kombify.me address",
-      "grade": "unverified",
-      "reasonCodes": [
-        "current-release-receipt-pending"
-      ]
+      "grade": "supported",
+      "reasonCodes": [],
+      "verifiedPhases": [
+        "install",
+        "init",
+        "generate",
+        "apply",
+        "verify",
+        "backup",
+        "restore"
+      ],
+      "lastVerifiedRelease": "v0.39.7"
     },
     {
       "kit": "modern-homelab",

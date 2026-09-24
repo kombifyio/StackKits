@@ -187,3 +187,12 @@ _architectureV2PaperlessComputeProfile: #ModuleComputeProfileV2 & {
 	components: ["paperless", "paperless-postgres", "paperless-valkey"]
 }
 _architectureV2PaperlessComputeProfiles: {standard: _architectureV2PaperlessComputeProfile, high: _architectureV2PaperlessComputeProfile}
+
+_architectureV2PterodactylComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Pterodactyl Panel with MariaDB and Valkey plus the Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor: {minCpuCores: 2, minRamGB: 4, minStorageGB: _architectureV2CoreComputeProfile.hostFloor.minStorageGB}
+	reservation: ramGB: 1.25
+	components: ["panel", "panel-database", "panel-cache", "panel-bootstrap", "wings"]
+}
+_architectureV2PterodactylComputeProfiles: {standard: _architectureV2PterodactylComputeProfile, high: _architectureV2PterodactylComputeProfile}

@@ -20,6 +20,7 @@ type SelectedPaaSApplication string
 const (
 	SelectedPaaSApplicationGitea         SelectedPaaSApplication = "gitea"
 	SelectedPaaSApplicationPaperless     SelectedPaaSApplication = "paperless-ngx"
+	SelectedPaaSApplicationPterodactyl   SelectedPaaSApplication = "pterodactyl"
 	SelectedPaaSApplicationJellyfin      SelectedPaaSApplication = "jellyfin"
 	SelectedPaaSApplicationHomeAssistant SelectedPaaSApplication = "home-assistant"
 )
@@ -50,6 +51,11 @@ type selectedPaaSApplicationSpec struct {
 	expectedStatuses []int
 	rendererContract func() architecturev2renderer.RendererContract
 	parse            func([]byte) (selectedPaaSApplicationIdentity, error)
+	// dockerLifecycleOwner marks the one workload whose render unit is bound
+	// to the approved docker-default daemon (ADR-0043, Pterodactyl Wings).
+	dockerLifecycleOwner bool
+	// entryComponent names the routed component when it differs from unitRef.
+	entryComponent string
 }
 
 func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (selectedPaaSApplicationSpec, bool) {
@@ -63,6 +69,21 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
 				descriptor, err := architecturev2renderer.ParseGiteaWorkloadBundle(content)
 				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationPterodactyl:
+		return selectedPaaSApplicationSpec{
+			name: "Pterodactyl", providerRef: "stackkits-pterodactyl", moduleRef: "stackkits-pterodactyl-runtime",
+			unitRef: "pterodactyl", workloadRef: "game", artifactRef: "pterodactyl-workload-bundle",
+			outputRef: "workloads/pterodactyl/bundle.json", healthRef: "pterodactyl-panel-http", expectedStatuses: []int{200},
+			dockerLifecycleOwner: true, entryComponent: "panel",
+			rendererContract: architecturev2renderer.PterodactylWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParsePterodactylWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{
+					workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef,
+					siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef,
+				}, err
 			},
 		}, true
 	case SelectedPaaSApplicationPaperless:
@@ -192,6 +213,18 @@ func (spec selectedPaaSApplicationSpec) validate(
 		return selectedPaaSValidatedRequest{}, fmt.Errorf("%s selected-PaaS workload artifact is absent", spec.name)
 	}
 	instanceRef := spec.unitRef + "-node-" + binding.NodeRef
+	daemonBindings := len(target.DaemonBindings)
+	if spec.dockerLifecycleOwner {
+		if len(target.DaemonBindings) != 1 {
+			return selectedPaaSValidatedRequest{}, fmt.Errorf("%s requires exactly one approved Docker daemon binding", spec.name)
+		}
+		daemon := target.DaemonBindings[0]
+		if daemon.Ref != "docker-default" || daemon.Engine != "docker" || daemon.SocketPath != "/var/run/docker.sock" || daemon.InstanceRef == "" {
+			return selectedPaaSValidatedRequest{}, fmt.Errorf("%s daemon binding is not the approved docker-default socket", spec.name)
+		}
+		instanceRef += "-daemon-" + daemon.InstanceRef
+		daemonBindings = 0
+	}
 	if target.OwnerKind != "module" || target.OwnerRef != spec.moduleRef || target.OwnerContractHash != authority.ModuleContractHash ||
 		target.ProviderRef != spec.providerRef || target.ProviderContractHash != authority.ProviderContractHash ||
 		target.ModuleRef != spec.moduleRef || target.ModuleContractHash != authority.ModuleContractHash ||
@@ -201,7 +234,7 @@ func (spec selectedPaaSApplicationSpec) validate(
 		target.WorkloadRef != spec.workloadRef || target.InstanceRef != instanceRef ||
 		target.ExecutionChannelRef != binding.ExecutionChannelRef ||
 		!slices.Equal(target.SiteRefs, []string{binding.SiteRef}) || !slices.Equal(target.NodeRefs, []string{binding.NodeRef}) ||
-		len(target.DaemonBindings) != 0 || len(target.AccessCapabilities) != 0 || len(target.AccessBindingRefs) != 0 ||
+		daemonBindings != 0 || len(target.AccessCapabilities) != 0 || len(target.AccessBindingRefs) != 0 ||
 		len(target.BackupTargetCapabilities) != 0 || len(target.BackupTargetBindingRefs) != 0 ||
 		!slices.Equal(target.ArtifactRefs, []string{artifact.ID}) {
 		return selectedPaaSValidatedRequest{}, fmt.Errorf("runtime target is not the exact bound %s selected-PaaS contract", spec.name)
@@ -234,11 +267,15 @@ func (spec selectedPaaSApplicationSpec) validate(
 		return selectedPaaSValidatedRequest{}, fmt.Errorf("validate %s workload delivery envelope: %w", spec.name, err)
 	}
 	entry, found := standaloneApplicationComponent(bundle.Components, bundle.EntryComponent)
+	entryComponent := spec.unitRef
+	if spec.entryComponent != "" {
+		entryComponent = spec.entryComponent
+	}
 	if identity.workloadRef != target.WorkloadRef || identity.moduleRef != target.ModuleRef ||
 		identity.siteRef != binding.SiteRef || identity.nodeRef != binding.NodeRef || identity.instanceRef != instanceRef ||
 		bundle.WorkloadRef != identity.workloadRef || bundle.ModuleRef != identity.moduleRef ||
 		bundle.SiteRef != identity.siteRef || bundle.NodeRef != identity.nodeRef || bundle.InstanceRef != identity.instanceRef ||
-		!found || entry.ID != spec.unitRef || entry.HealthKind != "http" ||
+		!found || entry.ID != entryComponent || entry.HealthKind != "http" ||
 		target.ImageRef != entry.ImageRef || target.ImageDigest != entry.ImageDigest {
 		return selectedPaaSValidatedRequest{}, fmt.Errorf("%s workload bundle differs from the authorized runtime target", spec.name)
 	}

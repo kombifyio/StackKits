@@ -29,6 +29,17 @@ func NewProductJellyfinSelectedPaaSRegistration(
 	)
 }
 
+// NewProductPterodactylSelectedPaaSRegistration binds the Game workload to the
+// existing standalone application adapter and lifecycle owner (ADR-0043).
+func NewProductPterodactylSelectedPaaSRegistration(
+	runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef string,
+	operations runtimeexecutorlocal.SelectedPaaSWorkloadOperations,
+) (ProductRuntimeOwnerRegistration, error) {
+	return newProductApplicationSelectedPaaSRegistration(
+		runtimeexecutorlocal.SelectedPaaSApplicationPterodactyl, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations,
+	)
+}
+
 // NewProductPaperlessSelectedPaaSRegistration binds the Documents workload to
 // the existing standalone application adapter and lifecycle owner.
 func NewProductPaperlessSelectedPaaSRegistration(

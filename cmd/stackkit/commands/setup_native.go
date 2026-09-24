@@ -62,7 +62,12 @@ func runNativeSetup(cmd *cobra.Command, workload string, options nativeSetupOpti
 	if !options.ownerApproved {
 		return errors.New("application setup requires --owner-approve")
 	}
-	ctx, cancel := context.WithTimeout(commandContext(cmd), 3*time.Minute)
+	timeout := 3 * time.Minute
+	if workload == "game" {
+		// Installing and first-starting a game server downloads its release.
+		timeout = 20 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(commandContext(cmd), timeout)
 	defer cancel()
 	workspace := getWorkDir()
 	initial, err := inspectNativeV2AppliedAuthority(ctx, workspace, specFile)
@@ -298,7 +303,12 @@ func nativeAppliedWorkloadDeployment(authority nativeV2AppliedAuthority, workloa
 			if !slices.Contains(applied.Artifacts, architecturev2.AppliedArtifactIdentity{Ref: artifact.ID, Digest: artifact.SHA256}) {
 				return runtimeexecutorlocal.SelectedPaaSWorkloadDeployment{}, errors.New("application setup artifact differs from the signed applied workload")
 			}
-			if bundle.WorkloadRef != workload || bundle.ModuleRef != target.ModuleRef || bundle.InstanceRef != target.InstanceRef || bundle.EntryComponent != target.UnitRef || bundle.SiteRef != target.SiteRefs[0] || bundle.NodeRef != target.NodeRefs[0] {
+			expectedEntry := target.UnitRef
+			if target.ModuleRef == "stackkits-pterodactyl-runtime" {
+				// ADR-0043: the Panel is the routed entry of the game unit.
+				expectedEntry = "panel"
+			}
+			if bundle.WorkloadRef != workload || bundle.ModuleRef != target.ModuleRef || bundle.InstanceRef != target.InstanceRef || bundle.EntryComponent != expectedEntry || bundle.SiteRef != target.SiteRefs[0] || bundle.NodeRef != target.NodeRefs[0] {
 				return runtimeexecutorlocal.SelectedPaaSWorkloadDeployment{}, errors.New("application bundle is outside its exact applied workload contract")
 			}
 			if selected != nil {

@@ -234,14 +234,13 @@ The fields below describe only the bounded v1 compatibility/migration contract:
 
 `owner.bootstrapMode` is the lane selector for first-user setup:
 
-- `auto` is the TechStack SaaS path. The public/default StackSpec carries `source: cloud` or `source: first-run` plus policy only. `owner.email` and `owner.username` are not required or invented in the public spec because Admin resolves the real Owner from the tenant deployment and sends it as a private identity-bootstrap envelope.
+- `auto` is the TechStack SaaS path. The public/default StackSpec carries `source: cloud` or `source: first-run` plus policy only. `owner.email` and `owner.username` are not required or invented in the public spec. `stackkit apply` rejects `auto` because the owner must come from an external orchestrator; standalone apply accepts local owner custody only.
 - `custom` is the self-hosted explicit Owner path. It requires `source: local`, `owner.email`, `owner.username`, and an argon2id `recoveryPassphraseHash`.
 - `none` is the OSS/BYOS or manual setup path. It must not carry owner identity or recovery fields.
 
 The Owner is the normal daily admin for PocketID, Coolify, StackKit Server, Kuma, and later tool setup. `adminEmail` is a compatibility alias only: when `owner.email` is available, the generated `admin_email` for Coolify/Kuma/bootstrap credentials resolves to the Owner email.
 
-Legacy managed identity-bootstrap envelopes are Publisher-only and are never
-part of public StackSpec exports. Plaintext recovery passphrases are never
+Identity-bootstrap envelopes are never part of StackSpec exports. Plaintext recovery passphrases are never
 valid public StackSpec fields. Cloud passwords, passkeys, sessions, and private
 keys are never user-sync fields.
 

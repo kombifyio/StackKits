@@ -50,6 +50,14 @@ func DescribeNativeAction(action, adapter string) (NativeActionDescription, bool
 			GuideURL:                     "https://github.com/kombifyio/stackKits/blob/main/use-cases/smart-home/agent/homelab-mcp/SKILL.md#owner-setup",
 			SupportsOnboardingCompletion: false,
 		}, true
+	case "pterodactyl-game-server-setup":
+		return NativeActionDescription{
+			Title:                        "Game server setup",
+			CredentialFields:             []string{"profile", "name", "acceptEula", "allowList"},
+			CredentialsFile:              ".stackkit/setup/game.json",
+			GuideURL:                     "https://github.com/kombifyio/stackKits/blob/main/use-cases/game/agent/game-server/SKILL.md#create-a-server",
+			SupportsOnboardingCompletion: false,
+		}, true
 	case "vault-owner-invite":
 		return NativeActionDescription{
 			Title:                        "Vault owner invitation",

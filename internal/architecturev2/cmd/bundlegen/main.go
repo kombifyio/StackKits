@@ -185,6 +185,10 @@ var rendererWorkloadImages = []struct{ moduleID, goPrefix, componentRef string }
 	{moduleID: "stackkits-paperless-runtime", goPrefix: "paperlessPostgres", componentRef: "paperless-postgres"},
 	{moduleID: "stackkits-paperless-runtime", goPrefix: "paperlessValkey", componentRef: "paperless-valkey"},
 	{moduleID: "stackkits-private-ai-runtime", goPrefix: "ollama", componentRef: "ollama"},
+	{moduleID: "stackkits-pterodactyl-runtime", goPrefix: "pterodactylPanel"},
+	{moduleID: "stackkits-pterodactyl-runtime", goPrefix: "pterodactylWings", componentRef: "wings"},
+	{moduleID: "stackkits-pterodactyl-runtime", goPrefix: "pterodactylDatabase", componentRef: "panel-database"},
+	{moduleID: "stackkits-pterodactyl-runtime", goPrefix: "pterodactylCache", componentRef: "panel-cache"},
 }
 
 type catalogImage struct {

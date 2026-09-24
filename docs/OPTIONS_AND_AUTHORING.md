@@ -47,6 +47,7 @@ their native rollout support.
 | Photos | `immich` | `immich-lite` is an explicit alternative without ML search. Core Lite does not select it implicitly. |
 | Media | `jellyfin` | No bundled `*arr` stack; the owner supplies and retains custody of the media library. |
 | Smart Home | `home-assistant` | Container mode has no Supervisor or automatic MQTT/Zigbee provisioning. Use the explicitly admitted HAOS alternative for appliance integration. Planned MQTT/Zigbee integration uses existing upstream services. Cloud placement grants no Home LAN access. |
+| Game | `pterodactyl` | Minecraft Java and Bedrock are curated profiles created by `stackkit setup game`. Wings holds a governed Docker lifecycle-owner approval (ADR-0043); world backups are crash-consistent until a game quiesce hook exists. |
 | Vault | `vaultwarden` | The owner creates the encrypted account through the official client; StackKits does not handle the master password. |
 
 These defaults identify the implementation to select for an enabled application;

@@ -375,6 +375,219 @@
               "state-console"
             ]
           },
+          "setup": {
+            "destructive": false,
+            "evidence": [
+              "setup-result"
+            ],
+            "mutation": true,
+            "name": "setup",
+            "operations": [
+              "stackkit.setup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "configure",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Owner-controlled Pterodactyl game lifecycle; game servers are created by the owner-approved setup action (ADR-0043).",
+        "id": "game",
+        "version": "1.0.0"
+      },
+      "packageRef": "game",
+      "useCaseRef": "game",
+      "workloadRef": "game"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
           "upgrade": {
             "destructive": true,
             "evidence": [
@@ -4059,6 +4272,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-pterodactyl-runtime"
+        ],
+        "matches": [
+          "stackkits-pterodactyl"
+        ],
+        "module": "stackkits-pterodactyl-runtime",
+        "provider": "stackkits-pterodactyl"
+      },
+      {
+        "governanceMatches": [
           "stackkits-jellyfin-runtime"
         ],
         "matches": [
@@ -4869,6 +5092,12 @@
             "documents"
           ],
           "providerID": "stackkits-paperless-ngx"
+        },
+        {
+          "contracts": [
+            "game"
+          ],
+          "providerID": "stackkits-pterodactyl"
         },
         {
           "contracts": [
@@ -5746,6 +5975,13 @@
       },
       {
         "matches": [
+          "stackkits-pterodactyl-runtime"
+        ],
+        "module": "stackkits-pterodactyl-runtime",
+        "provider": "stackkits-pterodactyl"
+      },
+      {
+        "matches": [
           "stackkits-jellyfin-runtime"
         ],
         "module": "stackkits-jellyfin-runtime",
@@ -6591,6 +6827,34 @@
         "matches": [
           "runtime-paas"
         ],
+        "provider": "stackkits-pterodactyl"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-pterodactyl"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-pterodactyl"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-pterodactyl"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
         "provider": "stackkits-jellyfin"
       },
       {
@@ -7308,6 +7572,12 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-paperless-ngx"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-pterodactyl"
         },
         {
           "capabilityBindings": [],
@@ -8452,6 +8722,136 @@
             }
           ],
           "workloadID": "documents"
+        },
+        {
+          "alternativeID": "pterodactyl",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-pterodactyl-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "pterodactyl"
+                  ],
+                  "ref": "database-password"
+                },
+                {
+                  "matches": [
+                    "pterodactyl"
+                  ],
+                  "ref": "database-root-password"
+                },
+                {
+                  "matches": [
+                    "pterodactyl"
+                  ],
+                  "ref": "app-key"
+                },
+                {
+                  "matches": [
+                    "pterodactyl"
+                  ],
+                  "ref": "hashids-salt"
+                },
+                {
+                  "matches": [
+                    "pterodactyl"
+                  ],
+                  "ref": "owner-password"
+                },
+                {
+                  "matches": [
+                    "pterodactyl"
+                  ],
+                  "ref": "application-api-key"
+                },
+                {
+                  "matches": [
+                    "pterodactyl"
+                  ],
+                  "ref": "client-api-key"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "game",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "pterodactyl",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-pterodactyl",
+              "workloadOwnership": [
+                "game"
+              ]
+            }
+          ],
+          "workloadID": "game"
         },
         {
           "alternativeID": "jellyfin",
@@ -19581,6 +19981,582 @@
       "computeProfiles": {
         "high": {
           "components": [
+            "panel",
+            "panel-database",
+            "panel-cache",
+            "panel-bootstrap",
+            "wings"
+          ],
+          "description": "Pterodactyl Panel with MariaDB and Valkey plus the Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 1.25
+          }
+        },
+        "standard": {
+          "components": [
+            "panel",
+            "panel-database",
+            "panel-cache",
+            "panel-bootstrap",
+            "wings"
+          ],
+          "description": "Pterodactyl Panel with MariaDB and Valkey plus the Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 1.25
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "pterodactyl-generated-runtime-contract",
+        "pterodactyl-wings-lifecycle-owner-governance"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "pterodactyl-panel-http",
+          "kind": "http",
+          "path": "/auth/login",
+          "phase": "continuous",
+          "port": 80,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Pterodactyl Panel with MariaDB and Valkey plus the Wings node daemon, which owns game-server containers through a governed Docker approval (ADR-0043).",
+        "id": "stackkits-pterodactyl-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-pterodactyl",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "pterodactyl-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/pterodactyl/bundle.json",
+              "required": true,
+              "unitRef": "pterodactyl"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "pterodactyl-workload-bundle",
+              "outputRef": "workloads/pterodactyl/bundle.json",
+              "unitRef": "pterodactyl"
+            }
+          ],
+          "requiredRefs": [
+            "pterodactyl-workload-bundle"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "pterodactyl-generated-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "database-password",
+            "database-root-password",
+            "app-key",
+            "hashids-salt",
+            "owner-password",
+            "application-api-key",
+            "client-api-key"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:b006fa9d214d13e7cbc1c148f2a07d102f9464dcf6fee02830c4c4fdc3115b7c",
+          "id": "pterodactyl",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/pterodactyl/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-daemon",
+            "daemonRef": "docker-default",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [
+            {
+              "coLocation": "same-node",
+              "daemonRef": "docker-default",
+              "endpoint": {
+                "pathSource": "daemon-binding",
+                "transport": "unix-socket",
+                "visibility": "node-local"
+              },
+              "id": "docker-game-node-lifecycle",
+              "kind": "docker-socket-direct-v1",
+              "policyProfile": "docker-game-node-lifecycle",
+              "protocol": "docker-engine",
+              "scopes": [
+                "docker-api:full"
+              ],
+              "version": "v1"
+            }
+          ],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "database-password",
+            "database-root-password",
+            "app-key",
+            "hashids-salt",
+            "owner-password",
+            "application-api-key",
+            "client-api-key"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "game",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "pterodactyl-panel-http",
+              "ingressAuth": "native",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "game",
+              "targetPort": 80,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/pterodactyl/bundle/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "pterodactyl-workload-bundle"
+          ],
+          "contractHash": "sha256:72697f2471dbafff7f7cd938c36e4f89393862fc28d19ac1d61c603afd3e010f",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "database-root-password",
+            "app-key",
+            "hashids-salt",
+            "owner-password",
+            "application-api-key",
+            "client-api-key"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "pterodactyl"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "pterodactyl-workload-bundle"
+          ],
+          "contractHash": "sha256:a92e513ff795fb638fa85451c5b55b26ac9ecbfeb62a27cd12090f135095305a",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "database-root-password",
+            "app-key",
+            "hashids-salt",
+            "owner-password",
+            "application-api-key",
+            "client-api-key"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "pterodactyl"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "command": [
+              "supervisord",
+              "-n",
+              "-c",
+              "/etc/supervisord.conf"
+            ],
+            "dependsOn": [
+              "panel-cache",
+              "panel-database"
+            ],
+            "entrypoint": [
+              "/bin/ash",
+              "/stackkit/panel-entrypoint.sh"
+            ],
+            "environment": {
+              "APP_ENV": "production",
+              "APP_ENVIRONMENT_ONLY": "false",
+              "APP_TIMEZONE": "UTC",
+              "CACHE_DRIVER": "redis",
+              "DB_DATABASE": "panel",
+              "DB_HOST": "panel-database",
+              "DB_PORT": "3306",
+              "DB_USERNAME": "pterodactyl",
+              "MAIL_DRIVER": "log",
+              "PTERODACTYL_TELEMETRY_ENABLED": "false",
+              "QUEUE_DRIVER": "redis",
+              "REDIS_HOST": "panel-cache",
+              "SESSION_DRIVER": "redis",
+              "TRUSTED_PROXIES": "*"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/auth/login",
+              "port": 80
+            },
+            "id": "panel",
+            "image": {
+              "digest": "sha256:bbf51a5501ff1492946816490d5275250570d3358124bad12c6b75f0077facf2",
+              "ref": "ghcr.io/pterodactyl/panel:v1.15.1"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "game-internal"
+            ],
+            "ownerEnvironment": {
+              "APP_SERVICE_AUTHOR": "email"
+            },
+            "resources": {
+              "memoryLimit": "1g",
+              "memoryReservation": "384m"
+            },
+            "role": "application",
+            "routeHostLoopback": true,
+            "secretEnvironment": {
+              "DB_PASSWORD": "database-password",
+              "STACKKIT_APP_KEY": "app-key",
+              "STACKKIT_HASHIDS_SALT": "hashids-salt"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "var",
+                "target": "/app/var"
+              },
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "nginx",
+                "target": "/etc/nginx/http.d"
+              },
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "stackkit",
+                "target": "/stackkit"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "environment": {
+              "MARIADB_DATABASE": "panel",
+              "MARIADB_USER": "pterodactyl"
+            },
+            "health": {
+              "command": [
+                "healthcheck.sh",
+                "--connect",
+                "--innodb_initialized"
+              ],
+              "kind": "command"
+            },
+            "id": "panel-database",
+            "image": {
+              "digest": "sha256:de4cf325ed1fc8a22460b4f285de7b9e06d89edbd593505e678ec480f86e501b",
+              "ref": "docker.io/library/mariadb:11.8"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "game-internal"
+            ],
+            "resources": {
+              "memoryLimit": "768m",
+              "memoryReservation": "256m"
+            },
+            "role": "database",
+            "secretEnvironment": {
+              "MARIADB_PASSWORD": "database-password",
+              "MARIADB_ROOT_PASSWORD": "database-root-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "database",
+                "target": "/var/lib/mysql"
+              }
+            ]
+          },
+          {
+            "command": [
+              "valkey-server"
+            ],
+            "dependsOn": [],
+            "health": {
+              "command": [
+                "valkey-cli",
+                "ping"
+              ],
+              "kind": "command"
+            },
+            "id": "panel-cache",
+            "image": {
+              "digest": "sha256:32627109abf6f741121096b45c732f758876803efd7b2e1018ebc0350d117119",
+              "ref": "docker.io/valkey/valkey:8.1-alpine"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "game-internal"
+            ],
+            "resources": {
+              "memoryLimit": "256m",
+              "memoryReservation": "64m"
+            },
+            "role": "cache",
+            "volumes": [
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "cache",
+                "target": "/data"
+              }
+            ]
+          },
+          {
+            "command": [
+              "/stackkit/bootstrap.sh"
+            ],
+            "dependsOn": [
+              "panel"
+            ],
+            "entrypoint": [
+              "/bin/ash"
+            ],
+            "environment": {
+              "APP_ENV": "production",
+              "APP_ENVIRONMENT_ONLY": "false",
+              "APP_TIMEZONE": "UTC",
+              "CACHE_DRIVER": "redis",
+              "DB_DATABASE": "panel",
+              "DB_HOST": "panel-database",
+              "DB_PORT": "3306",
+              "DB_USERNAME": "pterodactyl",
+              "MAIL_DRIVER": "log",
+              "PTERODACTYL_TELEMETRY_ENABLED": "false",
+              "QUEUE_DRIVER": "redis",
+              "REDIS_HOST": "panel-cache",
+              "SESSION_DRIVER": "redis",
+              "TRUSTED_PROXIES": "*"
+            },
+            "health": {
+              "kind": "completion"
+            },
+            "id": "panel-bootstrap",
+            "image": {
+              "digest": "sha256:bbf51a5501ff1492946816490d5275250570d3358124bad12c6b75f0077facf2",
+              "ref": "ghcr.io/pterodactyl/panel:v1.15.1"
+            },
+            "lifecycle": "one-shot",
+            "networkRefs": [
+              "game-internal"
+            ],
+            "ownerEnvironment": {
+              "STACKKIT_OWNER_EMAIL": "email"
+            },
+            "role": "database-init",
+            "secretEnvironment": {
+              "DB_PASSWORD": "database-password",
+              "STACKKIT_APPLICATION_API_KEY": "application-api-key",
+              "STACKKIT_APP_KEY": "app-key",
+              "STACKKIT_CLIENT_API_KEY": "client-api-key",
+              "STACKKIT_HASHIDS_SALT": "hashids-salt",
+              "STACKKIT_OWNER_PASSWORD": "owner-password"
+            },
+            "volumes": [
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "stackkit",
+                "target": "/stackkit"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "sharedFrom": {
+                  "componentRef": "wings",
+                  "volumeRef": "data"
+                },
+                "target": "/stackkit/game-data"
+              }
+            ]
+          },
+          {
+            "command": [
+              "--config",
+              "/stackkit/game-data/config.yml"
+            ],
+            "dependsOn": [
+              "panel-bootstrap"
+            ],
+            "dockerLifecycleOwner": {
+              "daemonRef": "docker-default",
+              "policyProfile": "docker-game-node-lifecycle"
+            },
+            "environment": {
+              "TZ": "UTC",
+              "WINGS_GID": "988",
+              "WINGS_UID": "988",
+              "WINGS_USERNAME": "pterodactyl"
+            },
+            "health": {
+              "kind": "image"
+            },
+            "id": "wings",
+            "image": {
+              "digest": "sha256:c89b9b9a48a992d8cfd488837bfd76426c2af07579699b4fe41f9e910701405c",
+              "ref": "ghcr.io/pterodactyl/wings:v1.13.3"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "game-internal"
+            ],
+            "resources": {
+              "memoryLimit": "512m",
+              "memoryReservation": "128m"
+            },
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "selfPath": true,
+                "target": "/stackkit/game-data"
+              },
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "logs",
+                "target": "/var/log/pterodactyl"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "panel",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:bbf51a5501ff1492946816490d5275250570d3358124bad12c6b75f0077facf2",
+          "ref": "ghcr.io/pterodactyl/panel:v1.15.1"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
             "jellyfin"
           ],
           "description": "Media library and playback through Jellyfin. Standard and high have the same declared application and resources; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
@@ -23453,6 +24429,17 @@
       "providerRef": "stackkits-basement-compose",
       "reasonCode": "provider-backing",
       "unitRef": "compose"
+    },
+    {
+      "daemonRef": "docker-default",
+      "evidenceRef": "pterodactyl-wings-lifecycle-owner-governance",
+      "id": "approve-pterodactyl-wings-lifecycle-owner",
+      "kind": "docker-socket-direct-v1",
+      "moduleRef": "stackkits-pterodactyl-runtime",
+      "policyProfile": "docker-game-node-lifecycle",
+      "providerRef": "stackkits-pterodactyl",
+      "reasonCode": "lifecycle-owner",
+      "unitRef": "pterodactyl"
     }
   ],
   "providers": [
@@ -25689,6 +26676,54 @@
       ],
       "workloadRefs": [
         "documents"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "pterodactyl-generated-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-pterodactyl",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-pterodactyl-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "game"
       ]
     },
     {
@@ -28913,6 +29948,201 @@
         "cloud"
       ],
       "useCaseRef": "documents"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "pterodactyl",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "wings",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "data"
+                },
+                {
+                  "componentRef": "panel-database",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "database"
+                },
+                {
+                  "componentRef": "panel",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "var"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "game",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "wings",
+                  "dataBindingRef": "game",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/stackkit/game-data",
+                  "volumeRef": "data"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "panel-database",
+                  "dataBindingRef": "game",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/var/lib/mysql",
+                  "volumeRef": "database"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "panel",
+                  "dataBindingRef": "game",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/app/var",
+                  "volumeRef": "var"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "panel-cache",
+                  "dataClasses": [],
+                  "target": "/data",
+                  "volumeRef": "cache"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "database-password",
+                "database-root-password",
+                "app-key",
+                "hashids-salt",
+                "owner-password",
+                "application-api-key",
+                "client-api-key"
+              ],
+              "requiredRefs": [
+                "database-password",
+                "database-root-password",
+                "app-key",
+                "hashids-salt",
+                "owner-password",
+                "application-api-key",
+                "client-api-key"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-pterodactyl-runtime",
+          "providerRef": "stackkits-pterodactyl",
+          "route": {
+            "healthRef": "pterodactyl-panel-http",
+            "serviceRef": "game"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [
+              "pterodactyl-game-server-setup"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
+          }
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "alternativeID": "pterodactyl",
+          "included": true
+        },
+        "low": {
+          "included": false,
+          "reason": "Game servers need the standard profile and their own memory budget."
+        },
+        "standard": {
+          "alternativeID": "pterodactyl",
+          "included": true
+        }
+      },
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "pterodactyl",
+      "functionalCapabilities": [
+        "game-server-hosting",
+        "game-server-management"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Self-hosted game servers through upstream Pterodactyl Panel and Wings with curated Minecraft profiles (ADR-0043).",
+        "id": "game",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "game"
     },
     {
       "alternatives": [

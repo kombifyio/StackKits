@@ -1,9 +1,8 @@
-// Package game defines the Game Server use case package.
+// Package game defines the Game Server use case (ADR-0043).
 //
-// Game is explicitly post-1.0 and has no selected default tool. SK-M1 records
-// catalog intent only; tool selection, module, game-specific configuration,
-// runtime, and lifecycle decisions remain deferred to the normal integration
-// path.
+// Pterodactyl is the owner-decided platform: StackKits installs and
+// bootstraps the Panel and the Wings node, and the owner-approved setup action
+// creates curated game servers. Wings alone owns the game-server containers.
 package game
 
 import "github.com/kombifyio/stackkits/foundation"
@@ -13,44 +12,123 @@ Package: foundation.#UseCasePackage & {
 		name:        "game"
 		useCaseRef:  "game"
 		displayName: "Game Server"
-		version:     "0.1.0"
+		version:     "0.2.0"
 		layer:       "application"
 		category:    "game"
-		lifecycle:   "draft"
-		description: "Post-1.0 self-hosted multiplayer game-server intent with implementation and operational authority deliberately unresolved."
+		lifecycle:   "experimental"
+		description: "Game servers for friends and family through Pterodactyl, with curated Minecraft Java and Bedrock profiles and secure defaults."
 	}
 
 	selection: {
 		role: "optional"
+		defaultTool: {
+			moduleSlug: "pterodactyl"
+			role:       "primary"
+			required:   true
+			rationale:  "Pterodactyl is the owner-decided game platform: a web Panel for players and worlds plus the Wings daemon that runs each game server in its own container."
+			capabilities: ["game-server-hosting", "game-server-management"]
+		}
 		alternatives: []
 	}
 
-	defaultRuntimeProfile: "post-1-0-game"
-	runtimeProfiles: "post-1-0-game": {
-		displayName: "Post-1.0 Game Runtime"
-		description: "A future use-case integration must select the game-server implementation, image and license policy, ports, persistence, secrets, resources, backup, and placement."
+	defaultRuntimeProfile: "self-hosted-game"
+	runtimeProfiles: "self-hosted-game": {
+		displayName: "Self-hosted Game Servers"
+		description: "Pterodactyl Panel, MariaDB, Valkey and Wings run on one owner-selected node through Standalone Compose; Wings publishes each game server's own ports on that node."
 		realization: "oss"
-		placementModes: []
+		placementModes: ["local-only", "standard"]
 		managedServerlessEligible: false
 		requiresControlPlane:      false
 		requiresLocalBridge:       false
-		notes: ["Catalog-only placeholder: no default tool or placement is selected for the 1.0 product contract."]
+		notes: [
+			"A home node is reachable from the home network; internet players need a deliberately selected managed VPS or bridge. No port forwarding is created implicitly.",
+			"Creating a server requires owner approval and the owner's own acceptance of the game's EULA.",
+		]
 	}
 
 	computeTiers: {
-		low: {
-			included: false
-			reason: "Post-1.0. Game servers are on-demand session load, not a low-graph resident."
+		low: {included: false, reason: "Game servers need the standard profile and their own memory budget."}
+		standard: {included: true, moduleSlug: "pterodactyl", functions: ["game-server-hosting", "game-server-management"], load: {residency: "on-demand", baseline: "idle-resident", burst: "interactive"}, notes: ["Each running world needs its own memory: about 2 GB for Minecraft Java and 1.5 GB for Bedrock."]}
+		high: {included: true, moduleSlug: "pterodactyl", functions: ["game-server-hosting", "game-server-management"], load: {residency: "on-demand", baseline: "idle-resident", burst: "interactive"}, notes: ["Same platform graph as standard; more worlds fit with more host memory."]}
+	}
+
+	tools: pterodactyl: {
+		moduleSlug: "pterodactyl"
+		role:       "primary"
+		required:   true
+		rationale:  "Digest-pinned Pterodactyl Panel and Wings with owner bootstrap from custody and curated game profiles."
+		capabilities: ["game-server-hosting", "game-server-management", "rest-api"]
+	}
+
+	connectors: stackkit: {
+		kind:      "stackkit"
+		name:      "stackkit"
+		owner:     "stackkit"
+		endpoint:  "/mcp"
+		transport: "streamable-http"
+		auth:      "stackkit-mcp-token"
+		capabilities: ["lifecycle", "setup", "evidence"]
+	}
+
+	productApis: {
+		"pterodactyl-client": {
+			protocol: "rest"
+			basePath: "/api/client"
+			auth:     "pterodactyl-client-api-key"
+			purpose:  "Routine owner operations on selected game servers: state, resources, power, allow list and bounded file edits."
 		}
-		standard: {
-			included: false
-			reason: "Post-1.0. Intended load is on-demand: idle none, burst interactive while a session runs."
-		}
-		high: {
-			included: false
-			reason: "Post-1.0. Same as standard; dedicated always-on game hosts would be a later high-graph choice."
+		"pterodactyl-application": {
+			protocol: "rest"
+			basePath: "/api/application"
+			auth:     "pterodactyl-application-api-key"
+			purpose:  "Administrative provisioning by the owner-approved setup action only; never handed to a conversational agent."
 		}
 	}
 
-	tools: {}
+	setup: {
+		defaultPolicy: "on_demand"
+		drops: [{
+			name:        "game-server"
+			policy:      "on_demand"
+			description: "Create a curated game server (Minecraft Java or Bedrock) with secure defaults after the owner approves and accepts the game's EULA."
+		}]
+	}
+
+	evidence: {
+		healthChecks: ["pterodactyl-panel-http"]
+		required: ["route", "backup", "owner-bootstrap", "runtime-owner", "removal"]
+	}
+
+	lifecycle: foundation.#StandardUseCaseLifecycle & {
+		stages: setup: {}
+	}
+
+	agentSurface: {
+		equipPolicy:  "on-generate"
+		lifecycleMcp: {}
+		productMcps: []
+		apis: [{
+			id:       "pterodactyl-client"
+			protocol: "rest"
+			purpose:  "Scoped owner operations on selected game servers. Pterodactyl has no native product MCP; the Application API stays with the setup action."
+			auth:     "pterodactyl-client-api-key"
+		}]
+		skills: [{
+			id:       "game-server"
+			audience: "product-user"
+			source:   "stackkits"
+			path:     "use-cases/game/agent/game-server/SKILL.md"
+		}]
+		cliHelpers: [{
+			command: "stackkit setup game"
+			purpose: "Create a curated game server after owner approval and EULA acceptance."
+		}, {
+			command: "stackkit agent mcp-config"
+			purpose: "Print the stackkit lifecycle MCP client connection."
+		}]
+		configBaseline: {
+			status: "omitted"
+			reason: "Game servers are configured through the Pterodactyl APIs by the setup action; StackKits does not author a separate game configuration file."
+		}
+	}
 }

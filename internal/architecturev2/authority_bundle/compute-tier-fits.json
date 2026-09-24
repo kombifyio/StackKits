@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:09d4bfcd371f0eaf98b643464a30d1d20324991d6583fa4baeea9ca56273eab4",
+  "contentDigest": "sha256:977bb305cb5e26875359a84d5dd62724b2df67a4d809a76cd6eb43e44081df88",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -397,29 +397,69 @@
       "title": "File Storage and Documents"
     },
     {
+      "alternatives": [
+        {
+          "id": "pterodactyl",
+          "modules": [
+            {
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-pterodactyl-runtime"
+            }
+          ],
+          "name": "pterodactyl"
+        }
+      ],
       "components": [
         {
-          "id": "gameserver",
+          "id": "pterodactyl",
           "kind": "application",
-          "name": "Game Server Runtime",
+          "name": "Pterodactyl",
           "role": "primary"
         }
       ],
       "computeTiers": {
         "high": {
-          "included": false,
-          "reason": "Post-1.0. Same as standard; dedicated always-on game hosts would be a later high-graph choice."
+          "functions": [
+            "game-server-hosting",
+            "game-server-management"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "on-demand"
+          },
+          "moduleSlug": "pterodactyl",
+          "notes": [
+            "Same platform graph as standard; more worlds fit with more host memory."
+          ]
         },
         "low": {
           "included": false,
-          "reason": "Post-1.0. Game servers are on-demand session load, not a low-graph resident."
+          "reason": "Game servers need the standard profile and their own memory budget."
         },
         "standard": {
-          "included": false,
-          "reason": "Post-1.0. Intended load is on-demand: idle none, burst interactive while a session runs."
+          "functions": [
+            "game-server-hosting",
+            "game-server-management"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "on-demand"
+          },
+          "moduleSlug": "pterodactyl",
+          "notes": [
+            "Each running world needs its own memory: about 2 GB for Minecraft Java and 1.5 GB for Bedrock."
+          ]
         }
       },
-      "description": "Self-hosted multiplayer game-server intent for a household or community.",
+      "defaultAlternative": "pterodactyl",
+      "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java and Bedrock profiles.",
       "id": "game",
       "title": "Game Server"
     },

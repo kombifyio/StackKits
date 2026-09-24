@@ -18,8 +18,7 @@ const (
 	// to provision or operate the managed-serverless half of a StackKit.
 	FeatureManagedServerless = "stackkits.managed_serverless"
 
-	CapabilityTenantDeployment = "stackkits.managed.tenant_deployment"
-	CapabilityBackupEnroll     = "stackkits.managed.backup.enroll"
+	CapabilityBackupEnroll = "stackkits.managed.backup.enroll"
 
 	ErrorCode = "feature_entitlement_denied"
 
@@ -91,10 +90,10 @@ func Evaluate(ctx context.Context, capability string) error {
 		ctx = context.Background()
 	}
 	capability = strings.TrimSpace(capability)
-	if capability == "" {
-		capability = CapabilityTenantDeployment
-	}
 	required := []string{FeatureManagedServerless}
+	if capability == "" {
+		return deny(ReasonCheckFailed, capability, required, required)
+	}
 
 	if localDevelopmentBypass() {
 		return nil

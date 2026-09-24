@@ -53,7 +53,7 @@ func (d *Denial) Error() string {
 // actionable-error aliases so `--json` consumers keep a parseable contract.
 func (d *Denial) Envelope() map[string]any {
 	if d == nil {
-		d = deny(ReasonSourceUnavailable, CapabilityTenantDeployment, []string{FeatureManagedServerless}, []string{FeatureManagedServerless}).(*Denial)
+		d = deny(ReasonSourceUnavailable, "", []string{FeatureManagedServerless}, []string{FeatureManagedServerless}).(*Denial)
 	}
 	nextSteps := append([]string(nil), d.UserGuidance.NextSteps...)
 	guidanceLines := make([]string, 0, 1+len(nextSteps))

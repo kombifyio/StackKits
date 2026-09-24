@@ -239,7 +239,8 @@
         "smart-home",
         "ai",
         "dev",
-        "documents"
+        "documents",
+        "game"
       ]
     },
     "standaloneOwner": {
@@ -865,7 +866,8 @@
       "smart-home",
       "ai",
       "dev",
-      "documents"
+      "documents",
+      "game"
     ],
     "required": [
       "basement-core"

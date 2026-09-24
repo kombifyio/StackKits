@@ -1,0 +1,155 @@
+{
+  "facts_schema_version": "1.0.0",
+  "slug": "pterodactyl",
+  "displayName": "Pterodactyl",
+  "description": "Pterodactyl Panel and Wings upstream catalog. The native-v2 game workload owns executable configuration, owner bootstrap and the governed Wings lifecycle-owner approval (ADR-0043).",
+  "layer": "L3-application",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "1280m"
+    }
+  },
+  "services": [
+    {
+      "name": "panel",
+      "type": "application",
+      "required": false,
+      "imageSource": {
+        "moduleRef": "stackkits-pterodactyl-runtime",
+        "componentRef": "panel"
+      },
+      "networks": [
+        "game-internal"
+      ],
+      "volumes": [
+        {
+          "source": "panel-var",
+          "target": "/app/var",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/auth/login",
+        "port": 80
+      },
+      "resources": {
+        "memory": "384m",
+        "memoryMax": "1g"
+      },
+      "upstream": {
+        "github": "pterodactyl/panel",
+        "registryImage": "ghcr.io/pterodactyl/panel"
+      },
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`game.{{.domain}}`)",
+        "port": 80
+      },
+      "accessPolicy": {
+        "outerAuth": "self",
+        "appAuth": "self-auth"
+      }
+    },
+    {
+      "name": "panel-database",
+      "type": "database",
+      "required": false,
+      "imageSource": {
+        "moduleRef": "stackkits-pterodactyl-runtime",
+        "componentRef": "panel-database"
+      },
+      "networks": [
+        "game-internal"
+      ],
+      "volumes": [
+        {
+          "source": "panel-database-data",
+          "target": "/var/lib/mysql",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "healthCheck": {
+        "type": "command",
+        "command": "healthcheck.sh --connect --innodb_initialized"
+      },
+      "resources": {
+        "memory": "256m",
+        "memoryMax": "768m"
+      },
+      "upstream": {
+        "github": "MariaDB/mariadb-docker",
+        "registryImage": "docker.io/library/mariadb"
+      }
+    },
+    {
+      "name": "panel-cache",
+      "type": "cache",
+      "required": false,
+      "imageSource": {
+        "moduleRef": "stackkits-pterodactyl-runtime",
+        "componentRef": "panel-cache"
+      },
+      "networks": [
+        "game-internal"
+      ],
+      "volumes": [
+        {
+          "source": "panel-cache-data",
+          "target": "/data",
+          "type": "volume",
+          "backup": false
+        }
+      ],
+      "healthCheck": {
+        "type": "command",
+        "command": "valkey-cli ping"
+      },
+      "resources": {
+        "memory": "64m",
+        "memoryMax": "256m"
+      },
+      "upstream": {
+        "github": "valkey-io/valkey",
+        "registryImage": "docker.io/valkey/valkey"
+      }
+    },
+    {
+      "name": "wings",
+      "type": "application",
+      "required": false,
+      "imageSource": {
+        "moduleRef": "stackkits-pterodactyl-runtime",
+        "componentRef": "wings"
+      },
+      "networks": [
+        "game-internal"
+      ],
+      "volumes": [
+        {
+          "source": "wings-data",
+          "target": "/stackkit/game-data",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "resources": {
+        "memory": "128m",
+        "memoryMax": "512m"
+      },
+      "upstream": {
+        "github": "pterodactyl/wings",
+        "registryImage": "ghcr.io/pterodactyl/wings"
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/api/system",
+        "port": 8080
+      }
+    }
+  ]
+}

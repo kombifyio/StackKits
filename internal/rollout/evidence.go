@@ -138,8 +138,6 @@ func Redact(input string) string {
 func ClassifyFailure(input string) string {
 	s := strings.ToLower(input)
 	switch {
-	case strings.Contains(s, "tenant-deployment spec fetch"), strings.Contains(s, "bootstrap token"), strings.Contains(s, "admin returned 401"):
-		return "spec_fetch_failed"
 	case strings.Contains(s, "cloud_init_timeout"):
 		return "cloud_init_timeout"
 	case strings.Contains(s, "apt_lock_timeout"):

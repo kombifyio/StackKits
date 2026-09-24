@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -31,6 +32,49 @@ type NodeInventoryFacts struct {
 	StorageGB                   int
 	Virtualization              string
 	StorageCapacity             *StorageCapacityFacts
+	// DockerDaemon is the local default Docker daemon when its canonical
+	// socket answers. Lifecycle-owner workloads bind to it (ADR-0043).
+	DockerDaemon *RuntimeDaemonFacts
+}
+
+// RuntimeDaemonFacts is one observed container daemon on the local node.
+type RuntimeDaemonFacts struct {
+	InstanceRef string
+	SocketPath  string
+}
+
+const localDockerSocketPath = "/var/run/docker.sock"
+
+// observeLocalDockerDaemon identifies the default Docker daemon through its
+// canonical socket. Absence is not an error: most workloads need no daemon.
+func observeLocalDockerDaemon(ctx context.Context, source LocalSource) *RuntimeDaemonFacts {
+	if _, local := source.(osLocalSource); !local {
+		return nil
+	}
+	if info, err := os.Stat(localDockerSocketPath); err != nil || info.Mode()&os.ModeSocket == 0 {
+		return nil
+	}
+	if _, err := source.LookPath("docker"); err != nil {
+		return nil
+	}
+	out, err := source.Run(ctx, "docker", "--host", "unix://"+localDockerSocketPath, "info", "--format", "{{.ID}}")
+	if err != nil {
+		return nil
+	}
+	id := strings.ToLower(strings.TrimSpace(string(out)))
+	var ref strings.Builder
+	for _, r := range id {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			ref.WriteRune(r)
+		}
+		if ref.Len() == 12 {
+			break
+		}
+	}
+	if ref.Len() == 0 {
+		return nil
+	}
+	return &RuntimeDaemonFacts{InstanceRef: "docker-" + ref.String(), SocketPath: localDockerSocketPath}
 }
 
 // StorageCapacityFacts is an observation of free space on the exact storage
@@ -111,6 +155,7 @@ func ObserveNodeInventory(ctx context.Context, probe LocalProbe) (NodeInventoryF
 		StorageGB:                   storageGB,
 		Virtualization:              virtualization,
 		StorageCapacity:             storageCapacity,
+		DockerDaemon:                observeLocalDockerDaemon(ctx, source),
 	}, nil
 }
 
@@ -179,6 +224,19 @@ func MergeNodeInventoryFacts(inventory resolvedplan.InventoryFacts, nodeRef stri
 	}
 	if strings.TrimSpace(observedSiteKind) != "" {
 		node["observedSiteKind"] = observedSiteKind
+	}
+	if facts.DockerDaemon != nil {
+		daemons, _ := node["runtimeDaemons"].(map[string]any)
+		if daemons == nil {
+			daemons = map[string]any{}
+			node["runtimeDaemons"] = daemons
+		}
+		// An explicitly supplied binding stays authoritative.
+		if _, exists := daemons["docker-default"]; !exists {
+			daemons["docker-default"] = map[string]any{
+				"instanceRef": facts.DockerDaemon.InstanceRef, "engine": "docker", "socketPath": facts.DockerDaemon.SocketPath,
+			}
+		}
 	}
 	return resolvedplan.InventoryFacts(clone), nil
 }

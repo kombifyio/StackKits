@@ -120,6 +120,12 @@ type ApplicationDeliveryComponentDescriptor struct {
 	HealthPort        int
 	HealthCommand     []string
 	Resources         *ApplicationDeliveryResourcesDescriptor
+	// RouteHostLoopback resolves the workload route host to loopback inside
+	// this component (ADR-0043, Pterodactyl Panel only).
+	RouteHostLoopback bool
+	// DockerLifecycleOwner receives the approved Docker socket (ADR-0043,
+	// Pterodactyl Wings only).
+	DockerLifecycleOwner bool
 }
 
 // ApplicationDeliveryResourcesDescriptor is the declared per-container ceiling
@@ -146,6 +152,11 @@ type ApplicationDeliveryVolumeDescriptor struct {
 	Class    string
 	Backup   bool
 	ReadOnly bool
+	// SelfPath also mounts the named volume at its own host path.
+	SelfPath bool
+	// SharedFromComponent/SharedFromVolume name the owning component volume.
+	SharedFromComponent string
+	SharedFromVolume    string
 }
 
 // ApplicationDeliveryBundleDescriptor is the validated provider-neutral
@@ -162,6 +173,8 @@ type ApplicationDeliveryBundleDescriptor struct {
 	Components     []ApplicationDeliveryComponentDescriptor
 	ConfigFiles    []ApplicationDeliveryConfigFileDescriptor
 	Route          ApplicationDeliveryRouteDescriptor
+	// DaemonSocketPath is set only for an ADR-0043 lifecycle-owner workload.
+	DaemonSocketPath string
 }
 
 type ApplicationDeliveryConfigFileDescriptor struct {
@@ -232,9 +245,19 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 			if !strings.HasPrefix(volume.Target, "/") {
 				return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".volumes", "volume target is invalid")
 			}
+			if (volume.SelfPath || volume.SharedFrom != nil) && bundle.Workload.ModuleRef != pterodactylWorkloadModuleID {
+				return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".volumes", "self-path and shared volumes are admitted only for the governed game node")
+			}
 			volumes[volumeIndex] = ApplicationDeliveryVolumeDescriptor{
 				ID: volume.ID, Target: volume.Target, Class: volume.Class, Backup: volume.Backup, ReadOnly: volume.ReadOnly, HostPath: volume.HostPath,
+				SelfPath: volume.SelfPath,
 			}
+			if volume.SharedFrom != nil {
+				volumes[volumeIndex].SharedFromComponent, volumes[volumeIndex].SharedFromVolume = volume.SharedFrom.ComponentRef, volume.SharedFrom.VolumeRef
+			}
+		}
+		if (component.RouteHostLoopback || component.DockerLifecycleOwner != nil) && bundle.Workload.ModuleRef != pterodactylWorkloadModuleID {
+			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath, "loopback route host and Docker lifecycle ownership are admitted only for the governed game node")
 		}
 		if component.HealthFailure != "blocking" && component.HealthFailure != "degraded" {
 			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".healthFailure", "must be blocking or degraded")
@@ -253,8 +276,10 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 			SecretEnvironment: cloneStringMap(component.SecretEnvironment),
 			Volumes:           volumes, HealthKind: component.Health.Kind,
 			HealthPath: component.Health.Path, HealthPort: component.Health.Port,
-			HealthCommand: append([]string(nil), component.Health.Command...),
-			Resources:     resourcesDescriptor(component.Resources),
+			HealthCommand:        append([]string(nil), component.Health.Command...),
+			Resources:            resourcesDescriptor(component.Resources),
+			RouteHostLoopback:    component.RouteHostLoopback,
+			DockerLifecycleOwner: component.DockerLifecycleOwner != nil,
 		}
 	}
 	if !entryFound || len(components) == 0 {
@@ -280,6 +305,12 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 	}
 	if bundle.DeliveryRoute != nil {
 		descriptor.Route = bundle.DeliveryRoute.descriptor()
+	}
+	if bundle.DaemonSocketPath != "" {
+		if bundle.Workload.ModuleRef != pterodactylWorkloadModuleID || validateDockerSocketPath(bundle.DaemonSocketPath) != nil {
+			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, path+".daemonSocketPath", "a Docker socket is admitted only for the governed game node")
+		}
+		descriptor.DaemonSocketPath = bundle.DaemonSocketPath
 	}
 	return descriptor, nil
 }

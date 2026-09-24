@@ -41,6 +41,12 @@ func validateNativeOwnerSetupAction(deployment runtimeexecutorlocal.SelectedPaaS
 		}
 		_, err := architecturev2renderer.ParseHomeAssistantWorkloadBundle(deployment.Bundle)
 		return err
+	case "pterodactyl-game-server-setup":
+		if options.completeOnboarding {
+			return errors.New("game server setup has no separate onboarding; omit --complete-onboarding")
+		}
+		_, err := architecturev2renderer.ParsePterodactylWorkloadBundle(deployment.Bundle)
+		return err
 	case applicationlifecycle.VaultOwnerInviteActionRef:
 		if options.completeOnboarding {
 			return errors.New("Vaultwarden personal encryption setup must be completed in the official client; omit --complete-onboarding")
@@ -169,6 +175,8 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 			return nativeOwnerSetupObservation{}, errors.New("Home Assistant did not verify the owner of the admitted application version")
 		}
 		return nativeOwnerSetupObservation{AccountRef: observed.UserID, Initialized: observed.ServerInitialized, AdminLoginVerified: observed.UserIsOwner && observed.UserIsAdmin, OnboardingComplete: observed.OnboardingComplete}, nil
+	case "pterodactyl-game-server-setup":
+		return executePterodactylGameServerSetup(ctx, client, baseURL, workspace, deployment, release, options)
 	case applicationlifecycle.VaultOwnerInviteActionRef:
 		var credentials struct {
 			Email string `json:"email"`
@@ -206,4 +214,54 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 	default:
 		return nativeOwnerSetupObservation{}, errors.New("the declared application setup action is not implemented")
 	}
+}
+
+// executePterodactylGameServerSetup creates one curated game server through
+// the Panel APIs with keys derived from owner custody (ADR-0043). The owner's
+// EULA acceptance is part of the private input and never assumed.
+func executePterodactylGameServerSetup(ctx context.Context, client *http.Client, baseURL, workspace string, deployment runtimeexecutorlocal.SelectedPaaSWorkloadDeployment, release string, options nativeSetupOptions) (nativeOwnerSetupObservation, error) {
+	var credentials struct {
+		Profile    string   `json:"profile"`
+		Name       string   `json:"name"`
+		AcceptEULA bool     `json:"acceptEula"`
+		AllowList  []string `json:"allowList"`
+	}
+	if err := readNativeSetupCredentialJSON(workspace, options.credentialsFile, &credentials); err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(deployment.Bundle)
+	if err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	derive := func(slot, prefix string) (string, error) {
+		material, err := localevidence.ResolveLocalSecretMaterial(workspace, bundle.SecretRefs[slot])
+		if err != nil {
+			return "", fmt.Errorf("resolve the owner-custodied %s: %w", slot, err)
+		}
+		defer clear(material)
+		if len(material) < 43 {
+			return "", fmt.Errorf("custody material for %s is too short", slot)
+		}
+		return prefix + string(material[:11]) + string(material[11:43]), nil
+	}
+	applicationKey, err := derive("application-api-key", "ptla_")
+	if err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	clientKey, err := derive("client-api-key", "ptlc_")
+	if err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	owner, err := localevidence.LoadOwnerCustody(workspace)
+	if err != nil {
+		return nativeOwnerSetupObservation{}, fmt.Errorf("resolve the workload owner identity: %w", err)
+	}
+	result, err := appsetup.CreatePterodactylGameServer(ctx, client, baseURL, appsetup.GameServerRequest{
+		Profile: credentials.Profile, Name: credentials.Name, AcceptEULA: credentials.AcceptEULA, AllowList: credentials.AllowList,
+		OwnerEmail: owner.PocketID.Email, ApplicationKey: applicationKey, ClientKey: clientKey, ExpectedVersion: release,
+	})
+	if err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	return nativeOwnerSetupObservation{AccountRef: result.ServerUUID, Initialized: true, AdminLoginVerified: true, OnboardingComplete: true}, nil
 }

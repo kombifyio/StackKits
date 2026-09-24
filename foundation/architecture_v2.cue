@@ -3212,6 +3212,13 @@ _servicePublicationShape: {
 	egress?: bool
 	// Bind existing local owner identity without fabricating a credential.
 	ownerEnvironment?: [string]: "email"
+	// ADR-0043 game-node fields. Renderers admit each only for the one module
+	// and component that owns it; they are never generic application rights.
+	// routeHostLoopback resolves the workload's own route host to loopback.
+	routeHostLoopback?: true
+	// dockerLifecycleOwner binds this component to the render unit's approved
+	// docker-socket-direct-v1 requirement with reason lifecycle-owner.
+	dockerLifecycleOwner?: {daemonRef: #ContractID, policyProfile: #ContractID}
 	command?: [...string & =~"^[^[:cntrl:]]+$"] & list.MinItems(1)
 	entrypoint?: [...string & =~"^[^[:cntrl:]]+$"] & list.MinItems(1)
 	environment?: [string]:       string
@@ -3222,6 +3229,11 @@ _servicePublicationShape: {
 		class:     "persistent" | "cache"
 		backup:    bool
 		readOnly?: bool
+		// selfPath additionally mounts the named volume at its own host path
+		// for a lifecycle owner that hands the path to the daemon (ADR-0043).
+		selfPath?: true
+		// sharedFrom mounts another component's volume of this workload.
+		sharedFrom?: {componentRef: #ContractID, volumeRef: #ContractID}
 	}]
 	health: {
 		kind:  "http" | "command" | "image" | "completion"
