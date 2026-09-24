@@ -224,6 +224,14 @@ func runPublicUpgradeTransaction(
 						)
 					}
 
+					inventoryRelative, inventoryErr := upgradelifecycle.SnapshotInventoryBlobPath(snapshot)
+					if inventoryErr != nil {
+						return inventoryErr
+					}
+					var targetInventoryPath string
+					if inventoryRelative != "" {
+						targetInventoryPath = filepath.Join(workspace, filepath.FromSlash(inventoryRelative))
+					}
 					targetErr := executePublicUpgradeRelease(
 						operationCtx,
 						newPublicUpgradeTransactionRunner(),
@@ -235,6 +243,7 @@ func runPublicUpgradeTransaction(
 						mutation,
 						snapshot.OwnerRef,
 						snapshot.Lineage.OwnerBindingDigest,
+						targetInventoryPath,
 						&result.Target,
 						checkpoint.OperationID,
 					)
@@ -347,6 +356,7 @@ func executePublicUpgradeRelease(
 	targetReceipt releaseindex.Receipt,
 	mutation publicUpgradeLifecycleSession,
 	expectedOwnerRef, expectedOwnerBindingHash string,
+	inventoryPath string,
 	result *publicUpgradeExecution,
 	operationID string,
 ) error {
@@ -377,6 +387,9 @@ func executePublicUpgradeRelease(
 		)...),
 		"generate",
 	)
+	if inventoryPath != "" {
+		generateArgs = append(generateArgs, "--inventory", inventoryPath)
+	}
 	if _, err := runner.Run(ctx, binary, generateArgs, workspace); err != nil {
 		emitPublicUpgradeTransactionEvent(operationID, "target-generate", "failed")
 		return &publicUpgradePhaseError{phase: "target-generate", cause: err}
@@ -389,7 +402,11 @@ func executePublicUpgradeRelease(
 	}
 	emitPublicUpgradeTransactionEvent(operationID, "target-generate", "succeeded")
 
-	rawPlan, err := runner.Run(ctx, binary, append(common, "plan", "--json"), workspace)
+	planArgs := append(common, "plan", "--json")
+	if inventoryPath != "" {
+		planArgs = append(planArgs, "--inventory", inventoryPath)
+	}
+	rawPlan, err := runner.Run(ctx, binary, planArgs, workspace)
 	if err != nil {
 		return &publicUpgradePhaseError{phase: "target-plan", cause: err}
 	}
@@ -422,6 +439,9 @@ func executePublicUpgradeRelease(
 		)...),
 		"apply", "--auto-approve",
 	)
+	if inventoryPath != "" {
+		applyArgs = append(applyArgs, "--inventory", inventoryPath)
+	}
 	if _, err := runner.Run(ctx, binary, applyArgs, workspace); err != nil {
 		emitPublicUpgradeTransactionEvent(operationID, "target-apply", "failed")
 		return &publicUpgradePhaseError{phase: "target-apply", cause: err}
@@ -451,6 +471,9 @@ func executePublicUpgradeRelease(
 		)...),
 		"verify", "--json",
 	)
+	if inventoryPath != "" {
+		verifyArgs = append(verifyArgs, "--inventory", inventoryPath)
+	}
 	rawVerify, err := runner.Run(ctx, binary, verifyArgs, workspace)
 	if err != nil {
 		emitPublicUpgradeTransactionEvent(operationID, "target-verify", "failed")

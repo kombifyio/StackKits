@@ -19,6 +19,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
 )
 
@@ -215,6 +216,16 @@ func readExactBeta4CheckpointState(
 	workspace string,
 	bridge publicUpgradeBridge,
 ) (exactBeta4CheckpointState, error) {
+	return readHistoricalCheckpointStateWithPolicy(
+		workspace, bridge, nativeV2BackupPolicyArtifactID,
+	)
+}
+
+func readHistoricalCheckpointStateWithPolicy(
+	workspace string,
+	bridge publicUpgradeBridge,
+	policyArtifactID string,
+) (exactBeta4CheckpointState, error) {
 	if !bridge.Enabled {
 		return exactBeta4CheckpointState{}, errors.New(
 			"exact beta.4 bridge proof is required",
@@ -288,8 +299,26 @@ func readExactBeta4CheckpointState(
 		return exactBeta4CheckpointState{}, err
 	}
 
-	policyArtifact, policyDigest, policy, err := readNativeV2BackupPolicy(
-		transaction, manifest,
+	if policyArtifactID == "" {
+		for _, artifact := range manifest.Artifacts {
+			if !strings.HasPrefix(artifact.ID, "local-kopia-backup-source-policy") {
+				continue
+			}
+			if policyArtifactID != "" {
+				return exactBeta4CheckpointState{}, errors.New(
+					"historical generation has more than one local Kopia policy artifact",
+				)
+			}
+			policyArtifactID = artifact.ID
+		}
+		if policyArtifactID == "" {
+			return exactBeta4CheckpointState{}, errors.New(
+				"historical generation has no local Kopia policy artifact",
+			)
+		}
+	}
+	policyArtifact, policyDigest, policy, err := readNativeV2BackupPolicyForArtifact(
+		transaction, manifest, policyArtifactID,
 	)
 	if err != nil {
 		return exactBeta4CheckpointState{}, err
@@ -381,7 +410,7 @@ func readPublishedV08CheckpointState(
 	workspace string,
 	bridge publicUpgradeBridge,
 ) (exactBeta4CheckpointState, error) {
-	state, err := readExactBeta4CheckpointState(workspace, bridge)
+	state, err := readHistoricalCheckpointStateWithPolicy(workspace, bridge, "")
 	if err != nil {
 		return exactBeta4CheckpointState{}, err
 	}
@@ -450,12 +479,38 @@ func withPreparedHistoricalUpgradeCapture(
 	if err != nil {
 		return err
 	}
-	inventoryBytes, err := readArchitectureV2Inventory(workspace, "")
+	inventoryBytes, inventoryPath, err := locateArchitectureV2Inventory(workspace, "")
 	if err != nil {
 		return err
 	}
+	var inventoryRelative string
+	if len(inventoryBytes) > 0 {
+		inventoryRelative, err = filepath.Rel(workspace, inventoryPath)
+		if err != nil {
+			return err
+		}
+	}
 
 	artifacts := make([]upgradelifecycle.ExecutorStateBlobInput, 0, len(state.manifest.Artifacts))
+	composeArtifactID := upgradeCheckpointComposeArtifactID
+	if publishedV08 {
+		composeArtifactID, err = historicalBasementComposeArtifactID(state.manifest)
+		if err != nil {
+			return err
+		}
+	}
+	policyArtifactID, err := historicalKopiaPolicyArtifactID(state.manifest)
+	if err != nil {
+		return err
+	}
+	coreModuleRef := authority.Policy.Source.CoreModuleRef
+	if coreModuleRef == "" {
+		coreModuleRef = "stackkits-basement-core-runtime"
+	}
+	coreProfile, ok := runtimeexecutorlocal.BasementCoreRuntimeProfileForModule(coreModuleRef)
+	if !ok {
+		return errors.New("historical generation has no supported Basement Core profile")
+	}
 	var generatedCompose []byte
 	for _, artifact := range state.manifest.Artifacts {
 		data, readErr := os.ReadFile(
@@ -468,8 +523,8 @@ func withPreparedHistoricalUpgradeCapture(
 			return fmt.Errorf("beta.4 recovery artifact %s changed after proof", artifact.ID)
 		}
 		recoveryPath := artifact.Path
-		if artifact.ID == upgradeCheckpointComposeArtifactID {
-			recoveryPath = "platform/basement-core/compose.yaml"
+		if artifact.ID == composeArtifactID {
+			recoveryPath = coreProfile.OutputRef
 			generatedCompose = append([]byte(nil), data...)
 		}
 		artifacts = append(artifacts, upgradelifecycle.ExecutorStateBlobInput{
@@ -548,8 +603,11 @@ func withPreparedHistoricalUpgradeCapture(
 			return err
 		}
 		capture := upgradelifecycle.ExecutorStateCaptureInput{
-			GenerationTarget: "compose",
-			Release:          proof,
+			GenerationTarget:      "compose",
+			CoreModuleRef:         coreModuleRef,
+			CoreComposeArtifactID: composeArtifactID,
+			CorePolicyArtifactID:  policyArtifactID,
+			Release:               proof,
 			Executable: upgradelifecycle.ExecutorStateExecutableInput{
 				Blob: upgradelifecycle.ExecutorStateBlobInput{
 					ID:   "stackkit",
@@ -571,7 +629,7 @@ func withPreparedHistoricalUpgradeCapture(
 		}
 		if len(inventoryBytes) > 0 {
 			capture.Inventory = &upgradelifecycle.ExecutorStateBlobInput{
-				ID: "inventory", Path: ".stackkit/inventory.json",
+				ID: "inventory", Path: filepath.ToSlash(inventoryRelative),
 				Mode: "0600", Data: inventoryBytes,
 			}
 		}
@@ -590,25 +648,72 @@ func withPreparedHistoricalUpgradeCapture(
 	})
 }
 
+func historicalBasementComposeArtifactID(
+	manifest generationartifact.ArtifactManifest,
+) (string, error) {
+	var selected string
+	for _, artifact := range manifest.Artifacts {
+		if !strings.HasPrefix(artifact.ID, "basement-core-compose-") &&
+			!strings.HasPrefix(artifact.ID, "basement-core-lite-compose-") {
+			continue
+		}
+		if artifact.Kind != "compose" || artifact.Format != "yaml" ||
+			!strings.HasSuffix(artifact.Path, "/compose.yaml") || selected != "" {
+			return "", errors.New("historical generation has no unique governed Basement Compose artifact")
+		}
+		selected = artifact.ID
+	}
+	if selected == "" {
+		return "", errors.New("historical generation has no unique governed Basement Compose artifact")
+	}
+	return selected, nil
+}
+
+func historicalKopiaPolicyArtifactID(
+	manifest generationartifact.ArtifactManifest,
+) (string, error) {
+	var selected string
+	for _, artifact := range manifest.Artifacts {
+		if !strings.HasPrefix(artifact.ID, "local-kopia-backup-source-policy") {
+			continue
+		}
+		if selected != "" || artifact.Kind != "native-config" || artifact.Format != "json" {
+			return "", errors.New("historical generation has no unique governed local Kopia policy artifact")
+		}
+		selected = artifact.ID
+	}
+	if selected == "" {
+		return "", errors.New("historical generation has no unique governed local Kopia policy artifact")
+	}
+	return selected, nil
+}
+
 func inspectPublicUpgradeSnapshotAuthority(
 	ctx context.Context,
 	workspace string,
 	requestedSpec string,
 	snapshot upgradelifecycle.ExecutorStateSnapshot,
 ) (nativeV2BackupAuthority, error) {
-	current, currentErr := inspectNativeV2BackupAuthority(
-		ctx, workspace, requestedSpec,
-	)
-	if currentErr == nil {
-		return current, nil
+	targetTag, tagErr := releaseindex.ExactTagForBuildVersion(version)
+	var currentErr error
+	if tagErr != nil || snapshot.Release.Version == targetTag {
+		current, err := inspectNativeV2BackupAuthority(ctx, workspace, requestedSpec)
+		if err == nil {
+			return current, nil
+		}
+		currentErr = err
+	} else {
+		currentErr = errors.New("historical source requires its attested release compiler")
 	}
-	if targetTag, tagErr := releaseindex.ExactTagForBuildVersion(version); tagErr == nil {
-		attested, attestedErr := inspectAttestedCurrentBackupAuthority(
+	var attestedErr error
+	if tagErr == nil {
+		var attested nativeV2BackupAuthority
+		attested, attestedErr = inspectAttestedCurrentBackupAuthority(
 			ctx, workspace, requestedSpec, snapshot.Release.Kit,
 			releaseindex.Resolution{Asset: releaseindex.Asset{
 				Kit: snapshot.Release.Kit, Version: targetTag,
 				Channel: releaseindex.ChannelStable, Platform: currentReleasePlatform(),
-			}},
+			}}, true,
 		)
 		if attestedErr == nil && attested.HistoricalStable != nil {
 			receipt := attested.HistoricalStable.Receipt
@@ -616,10 +721,13 @@ func inspectPublicUpgradeSnapshotAuthority(
 				receipt.Version == snapshot.Release.Version &&
 				receipt.Channel == snapshot.Release.Channel &&
 				receipt.Platform == snapshot.Release.Platform &&
-				receipt.ArchiveSHA256 == snapshot.Release.ArchiveSHA256 &&
-				receipt.IndexSHA256 == snapshot.Release.IndexSHA256 {
+				"sha256:"+receipt.ArchiveSHA256 == snapshot.Release.ArchiveSHA256 &&
+				"sha256:"+receipt.IndexSHA256 == snapshot.Release.IndexSHA256 {
 				return attested, nil
 			}
+		}
+		if attestedErr == nil {
+			attestedErr = errors.New("attested source authority differs from the verified rollback checkpoint")
 		}
 	}
 	if snapshot.Release.Kit == "basement-kit" &&
@@ -743,7 +851,7 @@ func inspectPublicUpgradeSnapshotAuthority(
 		snapshot.Release.Platform != currentReleasePlatform() ||
 		snapshot.Release.ArchiveSHA256 != "sha256:"+exactBeta4UpgradeArchiveSHA256 ||
 		snapshot.Release.IndexSHA256 != "sha256:"+exactBeta4UpgradeIndexSHA256 {
-		return nativeV2BackupAuthority{}, currentErr
+		return nativeV2BackupAuthority{}, errors.Join(currentErr, attestedErr)
 	}
 	legacy, legacyErr := inspectExactBeta4BackupAuthorityForRequest(
 		ctx,
@@ -768,40 +876,49 @@ func verifyExactBeta4BackupRestore(
 	expected nativeV2BackupAuthority,
 	request backuplifecycle.RestoreVerificationRequest,
 ) (backuplifecycle.RestoreVerification, error) {
-	if expected.LegacyBeta4 == nil ||
+	return verifyHistoricalBackupRestore(ctx, expected, request, false)
+}
+
+func verifyHistoricalBackupRestore(
+	ctx context.Context,
+	expected nativeV2BackupAuthority,
+	request backuplifecycle.RestoreVerificationRequest,
+	stable bool,
+) (backuplifecycle.RestoreVerification, error) {
+	bridge := expected.LegacyBeta4
+	if stable {
+		bridge = expected.HistoricalStable
+	}
+	if bridge == nil ||
 		request.OwnerRef != expected.OwnerRef ||
 		request.AuthorizationLineage != expected.Lineage ||
 		request.SnapshotAnchorID == "" ||
 		request.OperationID == "" ||
 		request.StagingPath != backuplifecycle.RestoreStagingPath(request.OperationID) {
-		return backuplifecycle.RestoreVerification{}, errors.New(
-			"beta.4 restore target authority changed before live post-verification",
-		)
+		return backuplifecycle.RestoreVerification{}, errors.New("historical restore target authority changed before live post-verification")
 	}
-	state, err := readExactBeta4CheckpointState(
-		expected.WorkspaceRoot, *expected.LegacyBeta4,
-	)
+	var state exactBeta4CheckpointState
+	var err error
+	if stable {
+		state, err = readPublishedV08CheckpointState(expected.WorkspaceRoot, *bridge)
+	} else {
+		state, err = readExactBeta4CheckpointState(expected.WorkspaceRoot, *bridge)
+	}
 	if err != nil {
 		return backuplifecycle.RestoreVerification{}, err
 	}
 	if !sameNativeV2BackupAuthority(expected, state.authority) {
-		return backuplifecycle.RestoreVerification{}, errors.New(
-			"beta.4 restore authority changed before live post-verification",
-		)
+		return backuplifecycle.RestoreVerification{}, errors.New("historical restore authority changed before live post-verification")
 	}
 
-	report := expected.LegacyBeta4.LiveVerify
+	report := bridge.LiveVerify
 	if report.Offline ||
 		report.PlanHash != expected.Lineage.Binding.PlanHash ||
 		report.Owner.OwnerRef != expected.OwnerRef ||
 		report.Owner.OwnerBindingDigest != expected.Lineage.OwnerBindingDigest ||
 		report.Owner.PocketIDSubject != expected.Lineage.PocketIDSubject ||
-		exactBeta4ReceiptMatches(
-			report.Releases, expected.LegacyBeta4.Receipt,
-		) != 1 {
-		return backuplifecycle.RestoreVerification{}, errors.New(
-			"beta.4 live verification proof differs from the exact staged restore authority",
-		)
+		exactBeta4ReceiptMatches(report.Releases, bridge.Receipt) != 1 {
+		return backuplifecycle.RestoreVerification{}, errors.New("historical live verification proof differs from the exact staged restore authority")
 	}
 	return backuplifecycle.RestoreVerification{
 		APIVersion:         "stackkit.local-backup-restore-verification/v1",
@@ -819,15 +936,7 @@ func verifyPublishedStableBackupRestore(
 	expected nativeV2BackupAuthority,
 	request backuplifecycle.RestoreVerificationRequest,
 ) (backuplifecycle.RestoreVerification, error) {
-	if expected.HistoricalStable == nil {
-		return backuplifecycle.RestoreVerification{}, errors.New(
-			"published historical stable bridge proof is required",
-		)
-	}
-	compatibility := expected
-	compatibility.LegacyBeta4 = compatibility.HistoricalStable
-	compatibility.HistoricalStable = nil
-	return verifyExactBeta4BackupRestore(ctx, compatibility, request)
+	return verifyHistoricalBackupRestore(ctx, expected, request, true)
 }
 
 func exactBeta4CheckpointDigest(data []byte) string {

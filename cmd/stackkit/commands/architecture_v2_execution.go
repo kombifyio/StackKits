@@ -21,6 +21,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/hostpreflight"
+	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
@@ -30,6 +31,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/servicecontrol"
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
+	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
 	"github.com/kombifyio/stackkits/internal/workloadremoval"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
@@ -1707,12 +1709,36 @@ func admitApplyHost(
 	if err != nil {
 		return err
 	}
+	var priorCompose string
+	if lifecycleJoinPhase == lifecyclemutation.PhaseTargetApplyStarted {
+		join, joinErr := currentLifecycleMutationJoin("apply")
+		if joinErr != nil {
+			return joinErr
+		}
+		snapshotID, snapshotErr := lifecyclemutation.InspectUpgradeTargetApplySnapshot(workspace, join)
+		if snapshotErr != nil {
+			return snapshotErr
+		}
+		snapshot, snapshotErr := (upgradelifecycle.ExecutorStateStore{}).Load(workspace, snapshotID)
+		if snapshotErr != nil {
+			return snapshotErr
+		}
+		if snapshot.OperationID != join.OperationID {
+			return errors.New("prior runtime Compose snapshot differs from admitted upgrade operation")
+		}
+		relative, snapshotErr := upgradelifecycle.SnapshotRuntimeComposeBlobPath(snapshot)
+		if snapshotErr != nil {
+			return snapshotErr
+		}
+		priorCompose = filepath.Join(workspace, filepath.FromSlash(relative))
+	}
 	executionContext := options.context
 	if executionContext == nil {
 		executionContext = context.Background()
 	}
 	report := evaluateHostPreflightForRequest(executionContext, workspace, canonicalPlanKitSlug(plan), policy, hostpreflight.ObserveRequest{
 		WorkspacePath: workspace, RequiredListeners: listeners, NodeRef: nodeRef, PlanHash: planHash,
+		PriorRuntimeComposePath: priorCompose,
 	})
 	if err := recordHostPreflight(report); err != nil {
 		return err

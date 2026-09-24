@@ -24,11 +24,12 @@ const osReleaseQuotes = "\"" + "\x27"
 // ObserveRequest names the paths and ports this Apply will actually use, so the
 // probe measures the host the rollout touches rather than a generic machine.
 type ObserveRequest struct {
-	WorkspacePath     string
-	RequiredPorts     []int // Legacy diagnostic callers only; Apply uses compiler listeners.
-	RequiredListeners []ListenerRequirement
-	PlanHash          string
-	NodeRef           string
+	WorkspacePath           string
+	PriorRuntimeComposePath string // Verified signed upgrade checkpoint only.
+	RequiredPorts           []int  // Legacy diagnostic callers only; Apply uses compiler listeners.
+	RequiredListeners       []ListenerRequirement
+	PlanHash                string
+	NodeRef                 string
 }
 
 // Observe measures the host. It never returns an error for an unobservable
@@ -61,7 +62,7 @@ func Observe(ctx context.Context, request ObserveRequest) Facts {
 	facts.Disks = observeDisks(request.WorkspacePath, facts.Docker.RootDir)
 	facts.Baseline = observeBaseline(ctx, request)
 	if request.RequiredListeners != nil {
-		facts.Ports = ObserveListeners(ctx, request.WorkspacePath, request.RequiredListeners)
+		facts.Ports = observeListenersWithPriorCompose(ctx, request.WorkspacePath, request.RequiredListeners, request.PriorRuntimeComposePath)
 	}
 	if request.RequiredListeners == nil && len(request.RequiredPorts) > 0 {
 		facts.Ports = observePorts(ctx, request.WorkspacePath, request.RequiredPorts)

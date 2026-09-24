@@ -111,7 +111,13 @@ func NewVerifiedLegacyExecutorStateCapture(
 			"legacy current state authority: workspace is required",
 		)
 	}
-	allowedRelease, err := verifyAllowedLegacyInspection(input.Inspection)
+	release, err := verifyExecutorStateReleaseProof(
+		input.Capture.Release, input.Capture.Executable.Blob.Data,
+	)
+	if err != nil {
+		return VerifiedExecutorStateCapture{}, err
+	}
+	allowedRelease, err := verifyAllowedLegacyInspectionWithRelease(input.Inspection, release)
 	if err != nil {
 		return VerifiedExecutorStateCapture{}, err
 	}
@@ -209,12 +215,6 @@ func NewVerifiedLegacyExecutorStateCapture(
 		input.WorkspaceRoot, owner.OwnerRef, lineage,
 		input.Capture.KopiaSnapshotAnchor, owner, runtimeBinding,
 	); err != nil {
-		return VerifiedExecutorStateCapture{}, err
-	}
-	release, err := verifyExecutorStateReleaseProof(
-		input.Capture.Release, input.Capture.Executable.Blob.Data,
-	)
-	if err != nil {
 		return VerifiedExecutorStateCapture{}, err
 	}
 	if release.Kit != "basement-kit" ||
@@ -349,6 +349,44 @@ func verifyAllowedLegacyInspection(
 	return allowedLegacyRelease{}, errors.New(
 		"legacy current state authority: plan is outside the exact historical authority allowlist",
 	)
+}
+
+// A source release beyond the pinned migration fixtures is admissible only
+// after its installed distribution and recovery executable have been verified.
+// The historical CLI supplied the plan and offline Verify proof; this binds
+// their product authority and compiler identity to that exact distribution.
+func verifyAllowedLegacyInspectionWithRelease(
+	inspection generationartifact.PlanInspection,
+	release ExecutorStateRelease,
+) (allowedLegacyRelease, error) {
+	if known, err := verifyAllowedLegacyInspection(inspection); err == nil {
+		return known, nil
+	}
+	if err := validatePlanInspection(inspection, "attested historical stable current"); err != nil {
+		return allowedLegacyRelease{}, err
+	}
+	version := strings.TrimPrefix(release.Version, "v")
+	tag, err := releaseindex.ExactTagForBuildVersion(version)
+	authority := inspection.Binding.Authority
+	if err != nil || tag != release.Version || release.Kit != "basement-kit" ||
+		release.Channel != releaseindex.ChannelStable ||
+		inspection.Binding.CompilerVersion != "stackkits-resolver/"+version ||
+		inspection.Binding.Renderer.ID != "stackkit" ||
+		inspection.Binding.Renderer.Version != version ||
+		!validExecutorStateDigest(inspection.Binding.DefinitionHash) ||
+		authority.Class != "product" || authority.Document != "catalog" ||
+		!authority.GraduationEligible ||
+		authority.Issuer != "stackkits-product-authority/v1" ||
+		!validExecutorStateDigest(authority.AuthorityFingerprint) ||
+		!validExecutorStateDigest(authority.CatalogHash) {
+		return allowedLegacyRelease{}, errors.New(
+			"legacy current state authority: plan is outside the attested stable product authority",
+		)
+	}
+	return allowedLegacyRelease{
+		version: release.Version, channel: release.Channel,
+		archiveSHA256: release.ArchiveSHA256, indexSHA256: release.IndexSHA256,
+	}, nil
 }
 
 func matchesHistoricalStableInspection(

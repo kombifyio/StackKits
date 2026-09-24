@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -229,7 +230,7 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 		}
 		if !compatible {
 			attested, attestedErr := inspectAttestedCurrentGeneration(
-				ctx, workspace, specFile, kit, resolution,
+				ctx, workspace, specFile, kit, resolution, !publicUpgradeDryRun, false,
 			)
 			if attestedErr != nil {
 				return fmt.Errorf("inspect attested current generation: %w", attestedErr)
@@ -510,8 +511,20 @@ func inspectVerifiedPublicUpgradeTarget(
 	requestedSpec string,
 	current generationartifact.PlanInspection,
 ) (upgradelifecycle.Inspection, error) {
+	_, inventoryPath, err := locateArchitectureV2Inventory(workspace, "")
+	if err != nil {
+		return upgradelifecycle.Inspection{}, err
+	}
+	var inventoryRelative string
+	if inventoryPath != "" {
+		inventoryRelative, err = filepath.Rel(workspace, inventoryPath)
+		if err != nil {
+			return upgradelifecycle.Inspection{}, err
+		}
+	}
 	return (upgradelifecycle.Inspector{
 		Source: source, Attestations: attestations, Runner: runner,
+		InventoryPath: filepath.ToSlash(inventoryRelative),
 	}).Inspect(ctx, resolution, workspace, requestedSpec, current)
 }
 

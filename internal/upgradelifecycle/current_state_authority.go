@@ -400,6 +400,13 @@ func verifyCurrentStateArtifactsForProfile(
 		if err != nil {
 			return CurrentStateCoreProfile{}, "", err
 		}
+	} else if input.Capture.CoreModuleRef != "" ||
+		input.Capture.CoreComposeArtifactID != "" || input.Capture.CorePolicyArtifactID != "" {
+		var err error
+		profile, err = currentStateCoreProfileForCapture(input.Capture)
+		if err != nil {
+			return CurrentStateCoreProfile{}, "", err
+		}
 	}
 	if len(input.Capture.Artifacts) != len(input.Manifest.Artifacts) {
 		return CurrentStateCoreProfile{}, "", errors.New("current state authority: capture artifact set differs from complete manifest")

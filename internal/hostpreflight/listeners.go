@@ -85,6 +85,10 @@ func listenerAddress(listener ListenerRequirement) (netip.Addr, error) {
 // probe is immediately closed, not a reservation. Apply must still handle a
 // foreign process winning the race afterwards without stopping that process.
 func ObserveListeners(ctx context.Context, workspace string, listeners []ListenerRequirement) []PortFact {
+	return observeListenersWithPriorCompose(ctx, workspace, listeners, "")
+}
+
+func observeListenersWithPriorCompose(ctx context.Context, workspace string, listeners []ListenerRequirement, priorCompose string) []PortFact {
 	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
 	facts := make([]PortFact, 0, len(listeners))
@@ -140,7 +144,7 @@ func ObserveListeners(ctx context.Context, workspace string, listeners []Listene
 			fact.Detail = "Container binding inventory is unavailable or incomplete"
 		}
 		if fact.InUse && containersObserved && matching == 1 {
-			fact.OwnedByCurrentRuntime = currentWorkspaceOwnsListener(ctx, workspace, listener)
+			fact.OwnedByCurrentRuntime = currentWorkspaceOwnsListenerWithPriorCompose(ctx, workspace, listener, priorCompose)
 		}
 		for _, intent := range intents {
 			if socketIntentOverlaps(intent, listener) {
@@ -169,7 +173,7 @@ func observePorts(ctx context.Context, workspace string, ports []int) []PortFact
 // resource diagnostics are skipped. It cannot turn missing binding evidence
 // into permission to mutate the host.
 func EvaluateListenerAdmission(ctx context.Context, request ObserveRequest, kitSlug string) Report {
-	facts := Facts{Ports: ObserveListeners(ctx, request.WorkspacePath, request.RequiredListeners), Baseline: observeBaseline(ctx, request)}
+	facts := Facts{Ports: observeListenersWithPriorCompose(ctx, request.WorkspacePath, request.RequiredListeners, request.PriorRuntimeComposePath), Baseline: observeBaseline(ctx, request)}
 	check := checkPorts(facts)
 	return Report{SchemaVersion: SchemaVersion, Policy: PolicySkip, KitSlug: kitSlug, Facts: facts, Checks: []Check{check}, Status: check.Status, Admitted: check.Status != StatusBlocked}
 }

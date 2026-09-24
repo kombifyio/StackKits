@@ -944,6 +944,26 @@ func executorStateBlobPath(digest string) (string, error) {
 	return path.Join(executorStateRoot, "blobs", strings.TrimPrefix(digest, "sha256:")), nil
 }
 
+// SnapshotInventoryBlobPath returns the content-addressed Inventory captured
+// by a verified executor-state snapshot. Callers must load or verify the
+// snapshot before handing this path to a release CLI.
+func SnapshotInventoryBlobPath(snapshot ExecutorStateSnapshot) (string, error) {
+	if snapshot.Inventory == nil {
+		return "", nil
+	}
+	return executorStateBlobPath(snapshot.Inventory.SHA256)
+}
+
+// SnapshotRuntimeComposeBlobPath returns the original, signed runtime Compose
+// definition. During an upgrade, target Generate may replace the active file
+// before Apply checks whether the old runtime owns its published ports.
+func SnapshotRuntimeComposeBlobPath(snapshot ExecutorStateSnapshot) (string, error) {
+	if snapshot.RuntimeCompose.Path != basementCoreRuntimeComposePath {
+		return "", errors.New("executor state: prior runtime Compose path is not governed")
+	}
+	return executorStateBlobPath(snapshot.RuntimeCompose.SHA256)
+}
+
 func executorStateSnapshotPath(snapshotID string) (string, error) {
 	if !validExecutorStateDigest(snapshotID) {
 		return "", errors.New("executor state: invalid snapshot ID")

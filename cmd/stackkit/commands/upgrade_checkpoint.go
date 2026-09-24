@@ -73,7 +73,7 @@ func createPublicUpgradeCheckpoint(
 			return current, nil
 		}
 		attested, attestedErr := inspectAttestedCurrentBackupAuthority(
-			checkpointContext, workspace, specFile, kit, target,
+			checkpointContext, workspace, specFile, kit, target, false,
 		)
 		if attestedErr == nil {
 			return attested, nil
@@ -372,9 +372,16 @@ func withPreparedPublicUpgradeCapture(
 	if err != nil {
 		return err
 	}
-	inventoryBytes, err := readArchitectureV2Inventory(workspace, "")
+	inventoryBytes, inventoryPath, err := locateArchitectureV2Inventory(workspace, "")
 	if err != nil {
 		return err
+	}
+	var inventoryRelative string
+	if len(inventoryBytes) > 0 {
+		inventoryRelative, err = filepath.Rel(workspace, inventoryPath)
+		if err != nil {
+			return err
+		}
 	}
 
 	rawVerify, err := newArchitectureV2ProductVerifyAuthority(workspace, architectureV2ExecutionCLIOptions{})
@@ -501,7 +508,7 @@ func withPreparedPublicUpgradeCapture(
 		}
 		if len(inventoryBytes) > 0 {
 			capture.Inventory = &upgradelifecycle.ExecutorStateBlobInput{
-				ID: "inventory", Path: ".stackkit/inventory.json", Mode: "0600",
+				ID: "inventory", Path: filepath.ToSlash(inventoryRelative), Mode: "0600",
 				Data: inventoryBytes,
 			}
 		}
@@ -567,6 +574,10 @@ func verifyPublicUpgradeManagedVolumeAuthority(
 		"kopia-repository": {}, "kopia-config": {},
 		"kopia-cache": {}, "kopia-restore-staging": {},
 	}
+	selectedManaged := make(map[string]struct{}, len(source.ManagedVolumeNames))
+	for _, fullName := range source.ManagedVolumeNames {
+		selectedManaged[fullName] = struct{}{}
+	}
 	managedShort := map[string]struct{}{}
 	for serviceName, service := range compose.Services {
 		if serviceName == localbackuppolicy.ServiceRef {
@@ -583,15 +594,9 @@ func verifyPublicUpgradeManagedVolumeAuthority(
 			if _, forbidden := internal[sourceRef]; forbidden {
 				return fmt.Errorf("Compose service %s consumes a Kopia-internal volume", serviceName)
 			}
-			managedShort[sourceRef] = struct{}{}
-		}
-	}
-	for volumeName := range compose.Volumes {
-		if _, managed := managedShort[volumeName]; managed {
-			continue
-		}
-		if _, allowedInternal := internal[volumeName]; !allowedInternal {
-			return fmt.Errorf("Compose volume %s is neither managed nor Kopia-internal", volumeName)
+			if _, selected := selectedManaged[compose.Name+"_"+sourceRef]; selected {
+				managedShort[sourceRef] = struct{}{}
+			}
 		}
 	}
 	if len(managedShort) == 0 {

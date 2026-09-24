@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/localevidence"
 )
 
 var (
@@ -147,6 +149,10 @@ func currentWorkspaceOwnsPort(ctx context.Context, workspace string, port int) b
 }
 
 func currentWorkspaceOwnsListener(ctx context.Context, workspace string, listener ListenerRequirement) bool {
+	return currentWorkspaceOwnsListenerWithPriorCompose(ctx, workspace, listener, "")
+}
+
+func currentWorkspaceOwnsListenerWithPriorCompose(ctx context.Context, workspace string, listener ListenerRequirement, priorCompose string) bool {
 	port := listener.Port
 	root, err := filepath.Abs(strings.TrimSpace(workspace))
 	if err != nil || root == "" || port < 1 || port > 65535 {
@@ -192,9 +198,25 @@ func currentWorkspaceOwnsListener(ctx context.Context, workspace string, listene
 	// cannot reproduce its config hash.
 	expectedHash, ok := runtimeConfigHash(ctx, root, runtimeDir, project, service)
 	if !ok || labels["com.docker.compose.config-hash"] != expectedHash {
-		return false
+		if priorCompose == "" || runtimeDir != filepath.Join(root, ".stackkit", "runtime", "basement-core") {
+			return false
+		}
+		expectedHash, ok = runtimeConfigHashFromPath(ctx, root, runtimeDir, priorCompose, project, service)
+		if !ok || labels["com.docker.compose.config-hash"] != expectedHash {
+			return false
+		}
 	}
 	return publishesHostListener(container, listener)
+}
+
+// A verified upgrade snapshot stores the prior Compose bytes under a content
+// address. Compose must resolve relative mounts against the original runtime
+// directory or the historical config hash would describe a different service.
+func runtimeConfigHashFromPath(ctx context.Context, root, runtimeDir, composePath, project, service string) (string, bool) {
+	if !filepath.IsAbs(composePath) {
+		return "", false
+	}
+	return runtimeConfigHashWithFile(ctx, root, runtimeDir, composePath, project, service, true)
 }
 
 // publishesHostPort proves the container publishes exactly this host port on a
@@ -255,9 +277,21 @@ func claimedRuntimeDirectory(labels map[string]string, directories []string) (st
 
 func runtimeConfigHash(ctx context.Context, root, runtimeDir, project, service string) (string, bool) {
 	composePath := filepath.Join(runtimeDir, "compose.yaml")
-	environment := append(os.Environ(), "STACKKIT_CUSTODY_DIR="+filepath.Join(root, ".stackkit", "custody"))
-	raw, ok := boundedDockerOutput(ctx, runtimeDir, environment,
-		"compose", "--project-name", project, "-f", composePath, "config", "--hash", service)
+	return runtimeConfigHashWithFile(ctx, root, runtimeDir, composePath, project, service, false)
+}
+
+func runtimeConfigHashWithFile(ctx context.Context, root, runtimeDir, composePath, project, service string, projectDirectory bool) (string, bool) {
+	interpolation, err := localevidence.ComposeInterpolationEnvironment(root)
+	if err != nil {
+		return "", false
+	}
+	environment := append(os.Environ(), interpolation...)
+	args := []string{"compose", "--project-name", project}
+	if projectDirectory {
+		args = append(args, "--project-directory", runtimeDir)
+	}
+	args = append(args, "-f", composePath, "config", "--hash", service)
+	raw, ok := boundedDockerOutput(ctx, runtimeDir, environment, args...)
 	fields := strings.Fields(string(raw))
 	if !ok || len(fields) != 2 || fields[0] != service || len(fields[1]) != 64 {
 		return "", false

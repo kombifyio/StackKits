@@ -48,6 +48,7 @@ type Inspector struct {
 	Source            releaseindex.Source
 	Attestations      releaseindex.AttestationVerifier
 	Runner            Runner
+	InventoryPath     string
 	MaxBlobBytes      int64
 	MaxExtractBytes   int64
 	MaxWorkspaceBytes int64
@@ -133,6 +134,13 @@ func (inspector Inspector) Inspect(ctx context.Context, resolution releaseindex.
 	if _, err := safeRelative(specFile); err != nil {
 		return Inspection{}, fmt.Errorf("invalid StackSpec path: %w", err)
 	}
+	inventoryPath := strings.TrimSpace(inspector.InventoryPath)
+	if inventoryPath != "" {
+		inventoryPath = filepath.ToSlash(filepath.Clean(inventoryPath))
+		if _, err := safeRelative(inventoryPath); err != nil {
+			return Inspection{}, fmt.Errorf("invalid Inventory path: %w", err)
+		}
+	}
 	if err := validatePlanInspection(current, "current"); err != nil {
 		return Inspection{}, err
 	}
@@ -184,10 +192,16 @@ func (inspector Inspector) Inspect(ctx context.Context, resolution releaseindex.
 		runCtx, cancel := context.WithTimeout(ctx, inspector.Timeout)
 		defer cancel()
 		common := []string{"--chdir", shadow, "--spec", specFile, "--no-log"}
-		if _, err := inspector.Runner.Run(runCtx, targetBinary, append(common, "generate"), shadow); err != nil {
+		generateArgs := append(common, "generate")
+		planArgs := append(common, "plan", "--json")
+		if inventoryPath != "" {
+			generateArgs = append(generateArgs, "--inventory", inventoryPath)
+			planArgs = append(planArgs, "--inventory", inventoryPath)
+		}
+		if _, err := inspector.Runner.Run(runCtx, targetBinary, generateArgs, shadow); err != nil {
 			return fmt.Errorf("target release generate failed: %w", err)
 		}
-		rawInspection, err := inspector.Runner.Run(runCtx, targetBinary, append(common, "plan", "--json"), shadow)
+		rawInspection, err := inspector.Runner.Run(runCtx, targetBinary, planArgs, shadow)
 		if err != nil {
 			return fmt.Errorf("inspect target generation closure: %w", err)
 		}

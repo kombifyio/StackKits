@@ -475,6 +475,39 @@ func InspectJoin(workspace string, request JoinRequest) error {
 	return inspectJoin(workspace, request, false)
 }
 
+// InspectUpgradeTargetApplySnapshot exposes the signed pre-target checkpoint
+// only to the exact admitted upgrade Apply child. The caller can use its
+// original Compose definition to prove ownership of a running old listener
+// after target Generate has replaced the active Compose file.
+func InspectUpgradeTargetApplySnapshot(workspace string, request JoinRequest) (string, error) {
+	if request.Phase != PhaseTargetApplyStarted || request.Command != "apply" {
+		return "", errors.New("prior runtime ownership requires target upgrade Apply")
+	}
+	if err := InspectJoin(workspace, request); err != nil {
+		return "", err
+	}
+	root, err := confinedfs.Open(workspace)
+	if err != nil {
+		return "", err
+	}
+	defer root.Close()
+	transaction, err := root.BeginTransaction()
+	if err != nil {
+		return "", err
+	}
+	defer transaction.Close()
+	record, _, exists, err := loadRecord(workspace, transaction)
+	if err != nil {
+		return "", err
+	}
+	if !exists || record.Kind != KindUpgrade || record.Status != StatusActive ||
+		record.OperationID != request.OperationID || record.Phase != request.Phase ||
+		record.Checkpoint.ExecutorStateSnapshotID == "" {
+		return "", errors.New("prior runtime ownership has no matching signed upgrade checkpoint")
+	}
+	return record.Checkpoint.ExecutorStateSnapshotID, nil
+}
+
 // AdmitJoin validates and atomically consumes the exact one-use child nonce.
 func AdmitJoin(workspace string, request JoinRequest) error {
 	return inspectJoin(workspace, request, true)
