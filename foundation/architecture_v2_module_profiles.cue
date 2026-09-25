@@ -196,3 +196,15 @@ _architectureV2PterodactylComputeProfile: #ModuleComputeProfileV2 & {
 	components: ["panel", "panel-database", "panel-cache", "panel-bootstrap", "wings"]
 }
 _architectureV2PterodactylComputeProfiles: {standard: _architectureV2PterodactylComputeProfile, high: _architectureV2PterodactylComputeProfile}
+
+_architectureV2RoundcubeComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Roundcube Webmail with SQLite as a client for an existing external IMAP/SMTP mailbox. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. No mail server, spam filter or DNS is included; mail storage stays with the owner's provider."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	reservation: ramGB: 0.125 // 128 MiB component reservation.
+	components: ["roundcube"]
+}
+_architectureV2RoundcubeComputeProfiles: {
+	low: _architectureV2RoundcubeComputeProfile & {hostFloor: _architectureV2BasementCoreLiteComputeProfiles.low.hostFloor}
+	standard: _architectureV2RoundcubeComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+	high: _architectureV2RoundcubeComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+}

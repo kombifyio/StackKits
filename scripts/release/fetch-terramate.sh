@@ -8,6 +8,34 @@ TARGETS="${STACKKIT_RELEASE_TOOL_TARGETS:-linux/amd64 linux/arm64 darwin/amd64 d
 
 mkdir -p "$DOWNLOAD_DIR"
 
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+# Every archive is checked against the upstream checksums.txt of the pinned
+# release before it is unpacked.
+SUMS="${DOWNLOAD_DIR}/terramate_${TERRAMATE_VERSION}_checksums.txt"
+curl -fsSL "https://github.com/terramate-io/terramate/releases/download/v${TERRAMATE_VERSION}/checksums.txt" -o "$SUMS"
+
+verify_archive() {
+  archive="$1"
+  name="$(basename "$archive")"
+  expected="$(awk -v name="$name" '$2 == name || $2 == "*" name {print $1}' "$SUMS")"
+  if [ -z "$expected" ]; then
+    echo "No upstream SHA256 for ${name}" >&2
+    exit 1
+  fi
+  actual="$(sha256_of "$archive")"
+  if [ "$actual" != "$expected" ]; then
+    echo "SHA256 mismatch for ${name}: expected ${expected}, got ${actual}" >&2
+    exit 1
+  fi
+}
+
 asset_arch() {
   case "$1" in
     amd64) printf '%s' "x86_64" ;;
@@ -35,6 +63,7 @@ fetch_one() {
   mkdir -p "$target_dir"
   echo "Fetching Terramate ${TERRAMATE_VERSION} for ${os}/${arch}"
   curl -fsSL "$url" -o "$archive"
+  verify_archive "$archive"
   if [ "$archive_ext" = "zip" ]; then
     unzip -q -o "$archive" "$binary" -d "$target_dir"
   else

@@ -124,7 +124,7 @@ Definition: foundation.#ProductKitDefinition & {
 		]
 		forbidden: ["site-cloud", "cloud-control-authority", "inter-site-link"]
 	}
-	workloads: {required: ["basement-core"], defaults: [], optional: ["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "game"], forbidden: []}
+	workloads: {required: ["basement-core"], defaults: [], optional: ["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "game", "mail"], forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false

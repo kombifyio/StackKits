@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+* **mail:** client-first Mail use case: optional Roundcube Webmail workload (1.6.19, digest-pinned, SQLite) for an existing external IMAP/SMTP mailbox on Basement, Cloud and Modern; no mail server, SMTP listener or DNS is created. `stackkit setup mail` stores the owner's IMAP and SMTP servers with an explicit `ssl`/`starttls` mode on a backed-up volume and verifies a real login through Roundcube's own form; before setup Roundcube refuses logins and never offers a free-form server. The mail route serves Mozilla autoconfig, Outlook autodiscover and an Apple configuration profile. The session key comes from owner custody; login rate limiting and IP-bound sessions are on
 * **game:** `stackkit game list|power|allow` and the matching MCP tools operate game servers through the installed Panel with custody-derived keys, so neither the owner nor an agent handles a Panel key
 * **game:** backups and restores stop the owner's running game servers with their own stop command (so worlds are saved) and start them again afterwards; an interrupted hold is resumed by the next backup or restore
 * **game:** `stackkit setup game` runs the first steps of a real client join and prints the result: Minecraft Java must demand online-mode authentication, Bedrock must accept a RakNet connection, and Terraria must admit the owner's join password
@@ -19,6 +20,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+* **backup:** the Kopia runtime check accepts a container Compose recreated (its `com.docker.compose.replace` label); after a core re-apply every backup failed with "container Compose labels differ"
+* **backup:** snapshot quiescence refuses a component with an unusable stop signal before stopping anything; before, it stopped part of the graph and could not restart it
+* **restore:** restore activation and recovery start the Basement core from the same project directory as Apply, so the staged `stackkit-server` binary resolves; before, Docker created an empty directory in its place and the core, Game and Mail stayed stopped
+* **mail:** Roundcube stops with SIGTERM so backup quiescence can stop it (its Apache image declares SIGWINCH)
 * **release:** the public CLI no longer panics at startup binding `stackkit.addon.list` to the private-only `addon` command; the add-on operation lives in `internal/standaloneoperations/addon_operations.go`, which the public export removes with `addon.go` and the public surface policy forbids
 * **release:** the public export no longer rejects `stackkit.secrets.materialize` (its description matched the public projection's sensitive-reference guard), and the committed authority bundle is regenerated from the operation registry; `internal/standaloneoperations` is now a bundle input, so a stale `operations.json` can no longer hide a projection failure until the public release
 * **webmcp:** the public WebMCP catalog generator accepts the product-MCP operation fields `openWorld` and `arguments` (added in #1311) without projecting them, so the public export and every StackKits release since 0.44.0 no longer fail with `operations.0.openWorld is not supported by the public projection`
@@ -32,6 +37,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **photos:** keep Apply and restore available when optional machine learning is degraded, while reporting its health and retaining blocking checks for core services
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
+
+## [0.46.5](https://github.com/kombifyio/StackKits/compare/v0.46.4...v0.46.5) (2026-09-25)
+
+
+### Fixed
+
+* **install:** install the packaged OpenTofu provider mirror; P1.10 basement-kit runs blocked on verify
+
+## [0.46.4](https://github.com/kombifyio/StackKits/compare/v0.46.3...v0.46.4) (2026-09-25)
+
+
+### Fixed
+
+* **release:** export the OpenTofu provider hook the public publisher runs
+
+## [0.46.3](https://github.com/kombifyio/StackKits/compare/v0.46.2...v0.46.3) (2026-09-25)
+
+
+### Added
+
+* **advanced:** change sets orchestrated through Terramate over OpenTofu roots with stackkit.change-set-result/v1 (P1.4)
+* **advanced:** coordinated rollback across Terramate stacks with stackkit.rollback-result/v1 (P1.6)
+* **drift:** Advanced per-stack drift detect/reconcile with stackkit.drift-report/v1 subjects (P1.5)
+* **executor:** OpenTofu roots for workload, edge and federation stacks (P1.1 follow-up W)
+* **lifecycle:** seal executor-state checkpoints for OpenTofu and Terramate installs (P1 follow-up C)
+* **release:** publish the Advanced operations catalog (stackkit.advanced-operations/v1) and command-result contracts for Techstack (P1.8)
+
+
+### Fixed
+
+* **release:** keep a prepared release publishable after an unrelated merge
+* **renderer:** wrapper payload changes converge with up only; down only on destroy (P1.2 follow-up)
+
+## [0.46.2](https://github.com/kombifyio/StackKits/compare/v0.46.1...v0.46.2) (2026-09-25)
+
+
+### Added
+
+* **advanced:** native v2 restore drill with stackkit.restore-drill-report/v1 (P1.7)
+* **mail:** client-first Roundcube webmail with owner mailbox setup and device profiles
+* **renderer:** Compose payload in OpenTofu for every Compose artifact with byte-identical payload test (P1.2)
+* **terramate:** stacks for every kit core, workload and Modern site with stackkit.terramate-stack-graph/v1 (P1.3)
+
+
+### Fixed
+
+* **backup:** accept Compose-recreated Kopia runtime; check stop signals before quiescing
+* **commands:** project the restore drill to MCP and update the core health test
+* **restore:** start the Basement core from Apply's runtime directory
 
 ## [0.46.1](https://github.com/kombifyio/StackKits/compare/v0.46.0...v0.46.1) (2026-09-24)
 

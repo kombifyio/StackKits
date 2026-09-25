@@ -29,10 +29,15 @@ const (
 
 	basementCoreRendererRef = "stackkit"
 	basementCoreVersion     = "1.0.0"
+
+	// basementCoreComposeProjectName and the runtime directory basement-core
+	// are shared by Basement core and Lite in the native executor.
+	basementCoreComposeProjectName     = "stackkit-basement-core"
+	basementCoreOpenTofuResourcePrefix = "basement_core"
 )
 
 const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:25|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|services:router,socket-proxy,pocketid,tinyauth,step-ca,lan-dns,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub,stackkit-server|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
-const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:25|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
+const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:27|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-basement-core,local-provider-2.5.3|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
 
 // basementCoreComponentsJSON is the closed component graph accepted by both
 // target-specific renderers. It mirrors the CUE catalog and intentionally
@@ -610,12 +615,32 @@ func newBasementCoreComposeRenderer() basementCoreRenderer {
 	}
 }
 
-func newBasementCoreOpenTofuRenderer() basementCoreRenderer {
-	return basementCoreRenderer{
+func newBasementCoreOpenTofuRenderer() composePayloadOpenTofuRenderer {
+	inner := basementCoreRenderer{
 		contract: BasementCoreOpenTofuRendererContract(), unitID: basementCoreOpenTofuUnitID,
 		outputRef: basementCoreOpenTofuOutputRef, render: func(unit RenderUnit) []byte {
 			domain, _ := unit.NetworkDomainBase()
-			return renderBasementCoreOpenTofu(domain)
+			return RenderBasementCoreComposeForDomain(domain)
+		},
+	}
+	return basementCorePayloadOpenTofuRenderer(inner, func(ctx context.Context, unit RenderUnit) ([]UnitOutput, error) {
+		return inner.RenderUnit(ctx, unit)
+	})
+}
+
+// basementCorePayloadOpenTofuRenderer wraps the exact Compose bytes the
+// Basement Compose pipeline emits for the same unit. Basement core and Lite
+// share one runtime directory and Compose project natively.
+func basementCorePayloadOpenTofuRenderer(inner basementCoreRenderer, compose func(context.Context, RenderUnit) ([]UnitOutput, error)) composePayloadOpenTofuRenderer {
+	return composePayloadOpenTofuRenderer{
+		contract: inner.contract, outputRef: inner.outputRef,
+		resourcePrefix: basementCoreOpenTofuResourcePrefix, projectName: basementCoreComposeProjectName,
+		compose: func(ctx context.Context, unit RenderUnit) ([]byte, error) {
+			outputs, err := compose(ctx, unit)
+			if err != nil {
+				return nil, err
+			}
+			return outputs[0].Bytes, nil
 		},
 	}
 }
@@ -776,56 +801,6 @@ func normalizeBasementCoreComponentSets(components []map[string]any) {
 			return fmt.Sprint(left["id"]) < fmt.Sprint(right["id"])
 		})
 	}
-}
-
-func renderBasementCoreOpenTofu(domains ...string) []byte {
-	domain := basementDefaultDomain
-	if len(domains) == 1 {
-		domain = domains[0]
-	}
-	return renderBasementCoreOpenTofuFromCompose(RenderBasementCoreComposeForDomain(domain))
-}
-
-func renderBasementCoreOpenTofuFromCompose(compose []byte) []byte {
-	escapedCompose := strings.ReplaceAll(string(compose), "${", "$${")
-	return []byte(fmt.Sprintf(`terraform {
-  required_version = ">= 1.10.0"
-  required_providers {
-    local = {
-      source  = "hashicorp/local"
-      version = "~> 2.5"
-    }
-  }
-}
-
-resource "local_file" "basement_core_compose" {
-  filename        = "${path.module}/compose.yaml"
-  file_permission = "0640"
-  content         = <<-YAML
-%sYAML
-}
-
-resource "terraform_data" "basement_core" {
-  triggers_replace = [sha256(local_file.basement_core_compose.content)]
-
-  provisioner "local-exec" {
-    command = "docker compose -f ${local_file.basement_core_compose.filename} up -d --wait"
-    environment = {
-      STACKKIT_CUSTODY_DIR = abspath("${path.module}/../../../../../../.stackkit/custody")
-    }
-  }
-
-  provisioner "local-exec" {
-    when    = destroy
-    command = "docker compose -f ${self.input} down"
-    environment = {
-      STACKKIT_CUSTODY_DIR = abspath("${path.module}/../../../../../../.stackkit/custody")
-    }
-  }
-
-  input = local_file.basement_core_compose.filename
-}
-`, escapedCompose))
 }
 
 var _ UnitRenderer = basementCoreRenderer{}

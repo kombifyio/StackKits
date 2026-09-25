@@ -115,7 +115,7 @@ Definition: foundation.#ProductKitDefinition & {
 		optional: ["private-admin-mesh", "offsite-object-backup", "failure-domain-placement", "telemetry-collection", "availability-ha"]
 		forbidden: ["site-local", "lan-discovery", "local-ingress", "lan-access-policy", "device-enrollment-home"]
 	}
-	workloads: {required: ["cloud-core"], defaults: [], optional: ["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "game"], forbidden: []}
+	workloads: {required: ["cloud-core"], defaults: [], optional: ["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "game", "mail"], forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false
@@ -185,10 +185,9 @@ Definition: foundation.#ProductKitDefinition & {
 		defaultStrategy: "kit-template"
 		allowedStrategies: ["kit-template", "module-fragments"]
 		defaultTarget: "compose"
-		// Cloud core currently has one concrete renderer: the Compose
-		// realization. Do not advertise OpenTofu until its renderer, artifacts,
-		// and support contract are implemented together.
-		allowedTargets: ["compose"]
+		// Cloud core renders Compose and its Stage 1 OpenTofu wrapper
+		// (ADR-0045); Terramate orchestrates the OpenTofu variant.
+		allowedTargets: ["compose", "opentofu", "terramate"]
 		contractVersion: "1.0.0"
 	}
 	hostRequirements: {

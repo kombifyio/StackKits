@@ -12,7 +12,10 @@ import (
 )
 
 const (
-	SchemaVersion = "stackkit.advanced-change-set/v1"
+	// SchemaVersion v2 adds the Terramate scope (affectedStacks and
+	// terramateHostManifestSha256). The strict verifier rejects unknown
+	// fields, so the version moved; v1 records expire within MaxLifetime.
+	SchemaVersion = "stackkit.advanced-change-set/v2"
 	MaxLifetime   = 24 * time.Hour
 )
 
@@ -62,7 +65,13 @@ type Record struct {
 	BaselineRenderSHA256  string           `json:"baselineRenderSha256"`
 	CandidateRenderSHA256 string           `json:"candidateRenderSha256"`
 	Changes               []ArtifactChange `json:"changes"`
-	OwnerSignature        OwnerSignature   `json:"ownerSignature"`
+	// AffectedStacks are the Terramate stack IDs whose module owns a changed
+	// artifact, in the stack graph's global run order.
+	AffectedStacks []string `json:"affectedStacks"`
+	// TerramateHostManifestSHA256 is the digest of the local host project
+	// (stackkit.terramate-host-manifest/v1) the candidate materializes.
+	TerramateHostManifestSHA256 string         `json:"terramateHostManifestSha256"`
+	OwnerSignature              OwnerSignature `json:"ownerSignature"`
 }
 
 // OwnerSigner signs the canonical unsigned bytes using current local custody.
@@ -73,17 +82,21 @@ type OwnerSigner func(canonicalUnsigned []byte) (OwnerSignature, error)
 type OwnerVerifier func(canonicalUnsigned []byte, signature OwnerSignature) error
 
 type CreateRequest struct {
-	Baseline             architecturev2renderer.RenderResult
-	Candidate            architecturev2renderer.RenderResult
-	CapabilityID         string
-	CapabilitySHA256     string
-	KeyID                string
-	StackID              string
-	OwnerRef             string
-	UIManagerRef         string
-	RILRef               string
-	BaselinePlanHash     string
-	CandidatePlanHash    string
+	Baseline          architecturev2renderer.RenderResult
+	Candidate         architecturev2renderer.RenderResult
+	CapabilityID      string
+	CapabilitySHA256  string
+	KeyID             string
+	StackID           string
+	OwnerRef          string
+	UIManagerRef      string
+	RILRef            string
+	BaselinePlanHash  string
+	CandidatePlanHash string
+	// LocalSiteRef and LocalNodeRef select the host project of this
+	// execution channel. Both empty select the only host of a one-host graph.
+	LocalSiteRef         string
+	LocalNodeRef         string
 	CreatedAt            time.Time
 	ExpiresAt            time.Time
 	CapabilityExpiresAt  time.Time

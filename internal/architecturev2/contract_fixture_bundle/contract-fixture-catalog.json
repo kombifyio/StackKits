@@ -1570,6 +1570,17 @@
       "mode": "0600",
       "path": ".stackkit/resolved-plan.json",
       "required": true
+    },
+    {
+      "compatibleTargets": [
+        "terramate"
+      ],
+      "format": "json",
+      "id": "terramate-stack-graph",
+      "kind": "metadata",
+      "mode": "0640",
+      "path": ".stackkit/terramate-stack-graph.json",
+      "required": true
     }
   ],
   "privilegedInterfaceApprovals": [

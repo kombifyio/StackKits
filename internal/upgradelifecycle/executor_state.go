@@ -103,7 +103,10 @@ type ExecutorStateCaptureInput struct {
 	Inventory             *ExecutorStateBlobInput
 	Artifacts             []ExecutorStateBlobInput
 	RuntimeCompose        ExecutorStateBlobInput
-	KopiaSnapshotAnchor   backuplifecycle.SnapshotAnchor
+	// RuntimeOpenTofu replaces RuntimeCompose when the generation target
+	// executes OpenTofu (opentofu or terramate).
+	RuntimeOpenTofu     []ExecutorStateOpenTofuRootInput
+	KopiaSnapshotAnchor backuplifecycle.SnapshotAnchor
 }
 
 type executorStateCaptureInput = ExecutorStateCaptureInput
@@ -136,7 +139,8 @@ type ExecutorStateSnapshot struct {
 	StackSpec             ExecutorStateBlob                         `json:"stackSpec"`
 	Inventory             *ExecutorStateBlob                        `json:"inventory,omitempty"`
 	Artifacts             []ExecutorStateBlob                       `json:"artifacts"`
-	RuntimeCompose        ExecutorStateBlob                         `json:"runtimeCompose"`
+	RuntimeCompose        ExecutorStateBlob                         `json:"runtimeCompose,omitzero"`
+	RuntimeOpenTofu       []ExecutorStateOpenTofuRoot               `json:"runtimeOpenTofu,omitempty"`
 	KopiaSnapshotAnchor   backuplifecycle.SnapshotAnchor            `json:"kopiaSnapshotAnchor"`
 	CapturedAt            time.Time                                 `json:"capturedAt"`
 	Signature             localevidence.OwnerExecutorStateSignature `json:"signature"`
@@ -384,8 +388,13 @@ func prepareExecutorStateSnapshot(
 	if !executorStateOperationPattern.MatchString(input.OperationID) {
 		return ExecutorStateSnapshot{}, nil, errors.New("executor state: operation ID must be 1-128 portable characters")
 	}
-	if input.GenerationTarget != "compose" {
-		return ExecutorStateSnapshot{}, nil, errors.New("executor state: unsupported_state_snapshot: only the active Compose executor is supported")
+	openTofu := executorStateTargetExecutesOpenTofu(input.GenerationTarget)
+	if input.GenerationTarget != executorStateTargetCompose && !openTofu {
+		return ExecutorStateSnapshot{}, nil, errors.New("executor state: unsupported_state_snapshot: only the Compose and OpenTofu executors are supported")
+	}
+	if openTofu != (len(input.RuntimeOpenTofu) > 0) ||
+		(openTofu && (input.RuntimeCompose.ID != "" || input.RuntimeCompose.Path != "" || len(input.RuntimeCompose.Data) != 0)) {
+		return ExecutorStateSnapshot{}, nil, errors.New("executor state: runtime custody differs from the generation target executor")
 	}
 	if err := validateExecutorStateRelease(release); err != nil {
 		return ExecutorStateSnapshot{}, nil, err
@@ -405,7 +414,11 @@ func prepareExecutorStateSnapshot(
 		payloadInputs = append(payloadInputs, *input.Inventory)
 	}
 	payloadInputs = append(payloadInputs, input.Artifacts...)
-	payloadInputs = append(payloadInputs, input.RuntimeCompose)
+	if openTofu {
+		payloadInputs = append(payloadInputs, executorStateOpenTofuBlobInputs(input.RuntimeOpenTofu)...)
+	} else {
+		payloadInputs = append(payloadInputs, input.RuntimeCompose)
+	}
 	if len(payloadInputs) > defaultMaxFiles {
 		return ExecutorStateSnapshot{}, nil, errors.New("executor state: recovery closure contains too many blobs")
 	}
@@ -459,6 +472,34 @@ func prepareExecutorStateSnapshot(
 	artifacts := make([]ExecutorStateBlob, len(input.Artifacts))
 	for artifactIndex := range input.Artifacts {
 		artifacts[artifactIndex] = payloads[index+artifactIndex].identity
+	}
+	if openTofu {
+		roots, err := executorStateOpenTofuRootsFromPayloads(input.RuntimeOpenTofu, payloads, index+len(input.Artifacts))
+		if err != nil {
+			return ExecutorStateSnapshot{}, nil, err
+		}
+		if err := validateExecutorStateOpenTofuRoots(roots, artifacts, profile); err != nil {
+			return ExecutorStateSnapshot{}, nil, err
+		}
+		if err := requireExecutorStatePolicyArtifact(artifacts, profile); err != nil {
+			return ExecutorStateSnapshot{}, nil, err
+		}
+		sortExecutorStateArtifacts(artifacts)
+		sort.Slice(roots, func(left, right int) bool { return roots[left].Root < roots[right].Root })
+		return ExecutorStateSnapshot{
+			APIVersion: ExecutorStateSnapshotAPIVersion,
+			OwnerRef:   ownerRef, OperationID: input.OperationID,
+			GenerationTarget: input.GenerationTarget, Release: release,
+			CoreModuleRef:         strings.TrimSpace(input.CoreModuleRef),
+			CoreComposeArtifactID: strings.TrimSpace(input.CoreComposeArtifactID),
+			CorePolicyArtifactID:  strings.TrimSpace(input.CorePolicyArtifactID),
+			Executable: ExecutorStateExecutable{
+				Version: release.Version, Blob: executable, Server: server,
+			},
+			Lineage: input.Lineage, StackSpec: stackSpec, Inventory: inventory,
+			Artifacts: artifacts, RuntimeOpenTofu: roots,
+			KopiaSnapshotAnchor: input.KopiaSnapshotAnchor,
+		}, payloads, nil
 	}
 	runtimeCompose := payloads[len(payloads)-1].identity
 	if runtimeCompose.Path != basementCoreRuntimeComposePath {
@@ -555,7 +596,7 @@ func (store ExecutorStateStore) verifySnapshot(
 	}
 	if snapshot.APIVersion != ExecutorStateSnapshotAPIVersion ||
 		!executorStateOperationPattern.MatchString(snapshot.OperationID) ||
-		snapshot.GenerationTarget != "compose" ||
+		(snapshot.GenerationTarget != executorStateTargetCompose && !executorStateTargetExecutesOpenTofu(snapshot.GenerationTarget)) ||
 		snapshot.OwnerRef == "" || snapshot.CapturedAt.IsZero() ||
 		snapshot.KopiaSnapshotAnchor.ID == "" {
 		return errors.New("executor state: snapshot contract is incomplete")
@@ -606,7 +647,18 @@ func (store ExecutorStateStore) verifySnapshot(
 	if err != nil {
 		return err
 	}
-	if snapshot.RuntimeCompose.Path != basementCoreRuntimeComposePath {
+	openTofu := executorStateTargetExecutesOpenTofu(snapshot.GenerationTarget)
+	if openTofu {
+		if snapshot.RuntimeCompose != (ExecutorStateBlob{}) {
+			return errors.New("executor state: an OpenTofu snapshot must not carry native runtime Compose")
+		}
+		if err := validateExecutorStateOpenTofuRoots(snapshot.RuntimeOpenTofu, snapshot.Artifacts, profile); err != nil {
+			return err
+		}
+		if err := requireExecutorStatePolicyArtifact(snapshot.Artifacts, profile); err != nil {
+			return err
+		}
+	} else if snapshot.RuntimeCompose.Path != basementCoreRuntimeComposePath || len(snapshot.RuntimeOpenTofu) != 0 {
 		return errors.New("executor state: runtime Compose path is invalid")
 	}
 	sourceMatches := 0
@@ -627,6 +679,9 @@ func (store ExecutorStateStore) verifySnapshot(
 		seenPaths[pathKey] = struct{}{}
 	}
 	for _, artifact := range snapshot.Artifacts {
+		if openTofu {
+			break
+		}
 		if artifact.Path == profile.ComposeOutputRef &&
 			(profile.ComposeArtifactID == "" || artifact.ID == profile.ComposeArtifactID) {
 			sourceMatches++
@@ -638,10 +693,10 @@ func (store ExecutorStateStore) verifySnapshot(
 			policyMatches++
 		}
 	}
-	if sourceMatches != 1 {
+	if !openTofu && sourceMatches != 1 {
 		return errors.New("executor state: governed Compose source is missing or ambiguous")
 	}
-	if profile.PolicyArtifactID != "" && policyMatches != 1 {
+	if !openTofu && profile.PolicyArtifactID != "" && policyMatches != 1 {
 		return errors.New("executor state: selected Core source-policy artifact is missing or ambiguous")
 	}
 	if !verifyBlobs {
@@ -672,8 +727,36 @@ func executorStateBlobs(snapshot ExecutorStateSnapshot) []ExecutorStateBlob {
 		result = append(result, *snapshot.Inventory)
 	}
 	result = append(result, snapshot.Artifacts...)
+	if executorStateTargetExecutesOpenTofu(snapshot.GenerationTarget) {
+		return append(result, executorStateOpenTofuBlobs(snapshot.RuntimeOpenTofu)...)
+	}
 	result = append(result, snapshot.RuntimeCompose)
 	return result
+}
+
+func requireExecutorStatePolicyArtifact(artifacts []ExecutorStateBlob, profile CurrentStateCoreProfile) error {
+	if profile.PolicyArtifactID == "" {
+		return nil
+	}
+	matches := 0
+	for _, artifact := range artifacts {
+		if artifact.ID == profile.PolicyArtifactID {
+			matches++
+		}
+	}
+	if matches != 1 {
+		return errors.New("executor state: selected Core source-policy artifact is missing or ambiguous")
+	}
+	return nil
+}
+
+func sortExecutorStateArtifacts(artifacts []ExecutorStateBlob) {
+	sort.Slice(artifacts, func(left, right int) bool {
+		if artifacts[left].ID == artifacts[right].ID {
+			return artifacts[left].Path < artifacts[right].Path
+		}
+		return artifacts[left].ID < artifacts[right].ID
+	})
 }
 
 func validateExecutorStateRelease(release ExecutorStateRelease) error {
@@ -1012,6 +1095,22 @@ func SnapshotInventoryBlobPath(snapshot ExecutorStateSnapshot) (string, error) {
 // definition. During an upgrade, target Generate may replace the active file
 // before Apply checks whether the old runtime owns its published ports.
 func SnapshotRuntimeComposeBlobPath(snapshot ExecutorStateSnapshot) (string, error) {
+	if executorStateTargetExecutesOpenTofu(snapshot.GenerationTarget) {
+		profile, err := currentStateCoreProfileForCapture(ExecutorStateCaptureInput{
+			CoreModuleRef:         snapshot.CoreModuleRef,
+			CoreComposeArtifactID: snapshot.CoreComposeArtifactID,
+			CorePolicyArtifactID:  snapshot.CorePolicyArtifactID,
+		})
+		if err != nil {
+			return "", err
+		}
+		for _, root := range snapshot.RuntimeOpenTofu {
+			if root.ModuleRef == profile.ModuleRef {
+				return executorStateBlobPath(root.Compose.SHA256)
+			}
+		}
+		return "", errors.New("executor state: prior Core OpenTofu root is not governed")
+	}
 	if snapshot.RuntimeCompose.Path != basementCoreRuntimeComposePath {
 		return "", errors.New("executor state: prior runtime Compose path is not governed")
 	}

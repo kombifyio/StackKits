@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.dev/schemas/stackkit-local-advanced-trust-v1.schema.json",
+  "title": "StackKit local Advanced trust inspection v1",
+  "description": "Data of the stackkit.command-result/v1 envelope of `stackkit advanced trust import` and `stackkit advanced trust inspect`: the Owner-approved issuer trust in local custody. Key references only; public key bytes are never returned.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "bundleSHA256", "importedAt", "ownerRef", "ownerKeyId", "keys"],
+  "properties": {
+    "schemaVersion": { "const": "stackkit.local-advanced-trust/v1" },
+    "bundleSHA256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "importedAt": { "type": "string", "format": "date-time" },
+    "ownerRef": { "type": "string", "minLength": 1 },
+    "ownerKeyId": { "type": "string", "minLength": 1 },
+    "keys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issuerId", "keyId"],
+        "properties": {
+          "issuerId": { "type": "string", "minLength": 1 },
+          "keyId": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

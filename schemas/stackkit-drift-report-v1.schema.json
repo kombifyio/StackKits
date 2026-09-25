@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.dev/schemas/stackkit-drift-report-v1.schema.json",
+  "title": "StackKit drift report v1",
+  "description": "Drift report of `stackkit drift detect`, carried as data of the stackkit.command-result/v1 result, and as data.driftReport of an Advanced `stackkit drift reconcile` result (observed after the reconcile). The fields up to subjects are the native drift result (Plan, generated artifacts, Apply evidence, Owner binding and the live runtime); they are present for every generation target. Under the terramate target the report adds the per-stack section (stackId, detectedAt, status, stacks): internal/advanceddrift plans every stack of the local Terramate host project with `terramate run --no-recursive --tags stackkit -- tofu plan -detailed-exitcode -input=false -no-color` and never applies. Container state that changes outside OpenTofu is covered by the native fields, not by the stack plans.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "mode", "generationTarget", "hasDrift", "planHash", "ownerRef", "ownerBindingHash", "runtime", "subjects"],
+  "properties": {
+    "schemaVersion": { "const": "stackkit.drift-report/v1" },
+    "mode": {
+      "description": "standard for the native report; advanced when the per-stack section is present.",
+      "enum": ["standard", "advanced"]
+    },
+    "generationTarget": { "enum": ["compose", "opentofu", "terramate"] },
+    "hasDrift": {
+      "description": "Native drift only: true when a native subject drifted. Per-stack drift is expressed by status and stacks.",
+      "type": "boolean"
+    },
+    "planHash": { "type": "string", "minLength": 1 },
+    "ownerRef": { "type": "string", "minLength": 1 },
+    "ownerBindingHash": { "type": "string", "minLength": 1 },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["projectRef", "status", "serviceCount", "probeCount"],
+      "properties": {
+        "projectRef": { "type": "string" },
+        "status": { "type": "string" },
+        "serviceCount": { "type": "integer", "minimum": 0 },
+        "probeCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "subjects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["subject", "status"],
+        "properties": {
+          "subject": { "enum": ["resolved-plan", "generated-artifacts", "apply-evidence", "owner-binding", "runtime-configuration"] },
+          "status": { "enum": ["in-sync", "drifted"] },
+          "code": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "stackId": {
+      "description": "StackKit stack ID of the plan (terramate target only).",
+      "type": "string",
+      "minLength": 1
+    },
+    "detectedAt": {
+      "description": "UTC time the per-stack plans finished (terramate target only).",
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "description": "Combined native and per-stack result (terramate target only): drifted when a native subject or any stack drifted; otherwise unknown when a stack failed or a core or workload root is pending; otherwise clean.",
+      "enum": ["clean", "drifted", "unknown"]
+    },
+    "stacks": {
+      "description": "One entry per stack of the local host, in host run order (terramate target only).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/stack" }
+    }
+  },
+  "dependentRequired": {
+    "stacks": ["stackId", "detectedAt", "status"]
+  },
+  "$defs": {
+    "stack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stackId", "role", "moduleRef", "siteRef", "nodeRef", "runtimeRoot", "status", "durationMs"],
+      "properties": {
+        "stackId": { "type": "string", "pattern": "^stackkit-[0-9a-f]{20}$" },
+        "role": { "enum": ["core", "workload", "edge", "federation"] },
+        "moduleRef": { "type": "string", "minLength": 1 },
+        "siteRef": { "type": "string", "minLength": 1 },
+        "nodeRef": { "type": "string", "minLength": 1 },
+        "runtimeRoot": { "type": "string", "pattern": "^\\.stackkit/runtime/.+/opentofu$" },
+        "status": {
+          "description": "converged: plan exit 0. drifted: plan exit 2, the root differs from its recorded OpenTofu state. failed: the plan could not run, or the packaged binaries or host project are unavailable. pending_root: the runtime root has no main.tf; when a core root is missing, every stack is pending_root and the host project is not materialized.",
+          "enum": ["converged", "drifted", "failed", "pending_root"]
+        },
+        "planExitCode": { "type": "integer", "minimum": 0 },
+        "summary": {
+          "description": "Resource counts of the plan's `Plan: X to add, Y to change, Z to destroy.` line; zero for `No changes.`; absent when the output has neither.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["add", "change", "destroy"],
+          "properties": {
+            "add": { "type": "integer", "minimum": 0 },
+            "change": { "type": "integer", "minimum": 0 },
+            "destroy": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "durationMs": { "type": "integer", "minimum": 0 },
+        "detail": { "type": "string" }
+      }
+    }
+  }
+}

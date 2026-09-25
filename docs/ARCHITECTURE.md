@@ -22,6 +22,11 @@ credentials, or hosted Kombify state. Advanced Mode is the sole sanctioned
 Techstack dependency and still leaves final validation and execution with the
 pinned StackKits CLI.
 
+Every deployment managed by kombify Techstack runs in Advanced Mode, from its
+first rollout onward (ADR-0031 amendment 2026-09-24). Standard Mode is the
+standalone CLI/installer path, a one-shot configuration without Terramate.
+Techstack does not roll out or operate a StackKit in Standard Mode.
+
 StackKits turns CUE-defined infrastructure contracts into deployable homelab environments:
 
 ```text
@@ -76,7 +81,8 @@ approves it and the pinned CLI performs final CUE validation and generation.
 Advanced Terramate change sets, Advanced reconcile, coordinated rollback, and
 restore drills require a short-lived offline-valid capability before rendering
 or side effects. Standard CLI apply, verify, upgrade, backup, restore, and
-read-only drift detection require neither Techstack nor that capability.
+read-only drift detection require neither Techstack nor that capability. When
+Techstack manages the deployment, these operations run in Advanced Mode.
 
 The Owner is local: PocketID holds the human directory, TinyAuth is the local
 protected-service login and policy broker, and StackKits binds the PocketID
@@ -1235,6 +1241,485 @@ immutable ID, scope, output contracts, and optional locality. It may read the
 defensive logical site/node sets needed by a module-scoped aggregate renderer, but
 it MUST NOT derive execution cardinality, select a first node, reinterpret daemon
 bindings, change artifact identity or paths, or widen placement.
+
+### Stage 1 OpenTofu wrapper roots
+
+ADR-0045 Stage 1 executes every generation-time Compose artifact through an
+OpenTofu root that embeds the byte-identical Compose payload.
+`internal/architecturev2renderer/compose_payload_opentofu.go`
+(`RenderComposePayloadOpenTofu`) is the one generic wrapper; the Basement core,
+Basement core Lite, Cloud core and Cloud standalone core `opentofu` units (and
+the Basement Terramate `main.tf`) run their module's unchanged Compose pipeline
+for the same unit and wrap its bytes.
+
+- Root location: the executor installs the generated `main.tf` at
+  `.stackkit/runtime/<runtime>/opentofu/main.tf`, where `<runtime>` is the
+  native runtime directory of the module (`basement-core` for Basement core
+  and Lite, `cloud-core`, `cloud-core-standalone`). OpenTofu state lives in
+  that directory and is captured by the executor-state checkpoint store.
+- The root writes `../compose.yaml` (mode `0600`) and runs
+  `docker compose --project-name <project> -f <runtime>/compose.yaml up -d
+  --wait --wait-timeout 600` from `<runtime>`, with the project names the
+  native executor uses (`stackkit-basement-core`, `stackkit-cloud-core`,
+  `stackkit-cloud-core-standalone`). Destroy runs `down` without volumes.
+- Resources (deterministic names, `<prefix>` is the unit's resource prefix,
+  for example `basement_core`, `cloud_core`, `cloud_core_standalone`):
+  `local_file.<prefix>_compose` writes the payload;
+  `terraform_data.<prefix>_up` holds the payload (and `.env`) digests in
+  `triggers_replace` and runs only the create-time `up`;
+  `terraform_data.<prefix>_lifecycle` has no triggers, depends on
+  `<prefix>_up` and runs `down` only on destroy. A payload or `.env` change
+  therefore replaces only `<prefix>_up` and runs one `up`, which recreates
+  only the changed services, as the native executor does; `down` runs only on
+  `tofu destroy`, before any other resource goes. Rollback replays a payload
+  with `-replace=terraform_data.<prefix>_up`. A state from the earlier
+  single-resource root (`terraform_data.<prefix>`) upgrades without `down`:
+  the removed block has no destroy provisioner left, so the old resource is
+  dropped and the new `up` is a no-op.
+- Adoption: on an existing native install the root rewrites identical bytes to
+  the same file and project, so `up` is a no-op and no container is recreated.
+- Environment: the root sets `STACKKIT_CUSTODY_DIR`
+  (`<runtime>/../../custody`); every other Compose interpolation variable
+  (owner email, stackkit-server user) must come from the environment the
+  executor gives the `tofu` process, the same set the native executor uses.
+- Provider pin: `hashicorp/local` `= 2.5.3`, OpenTofu `>= 1.10.0`.
+- Workload bundles (Immich, Jellyfin and the other selected-PaaS bundles),
+  the Kopia source policy and the runtime adapters are target-neutral
+  `native-config` units; their Compose projects are materialized by the
+  executor at apply time under `.stackkit/runtime/applications/<project>/`
+  with a `.env` file. The executor wraps those with the same function, not
+  the generator: `ComposePayloadSpec.EnvFile` passes `--env-file` and adds
+  `filesha256` of the `.env` to `triggers_replace`, so a changed secret
+  reapplies the project while the `.env` content never enters `main.tf` or
+  OpenTofu state. `ComposePayloadSpec.NoWait` drops `--wait` for a project
+  with a component that may run degraded, as the native `up` does. Generated
+  core roots set neither field and are unchanged.
+- `TestComposePayloadOpenTofuEmbedsTheByteIdenticalComposeArtifact` parses each
+  twin with the HCL parser and asserts the evaluated `local_file` content
+  equals the Compose artifact rendered from the same canonical-plan unit.
+- `TestComposePayloadOpenTofuPayloadChangeRunsUpWithoutDown` applies a root
+  with a real OpenTofu and a recording stand-in `docker`, changes the payload
+  and asserts the plan replaces only `<prefix>_up`, `docker` saw `up` twice
+  and `down` never, and `tofu destroy` runs `down` once. It runs when
+  `STACKKIT_TOFU_BINARY` and `STACKKIT_TOFU_PROVIDERS_DIR` are set.
+
+### OpenTofu runtime executor (Stage 1)
+
+ADR-0045 makes
+OpenTofu the execution standard. `internal/runtimeexecutoropentofu` is that
+executor for the wrapper roots described above; `internal/runtimeexecutorlocal`
+stays the native Compose fallback behind the `compose` unit (S-F structure
+rule).
+
+- **Selection.** Two registrations per Core module match the runtime target
+  whose `unitRef` is `opentofu` (target `opentofu`) or `terramate` (target
+  `terramate`). The registry matches whole selectors, so
+  `runtimeexecutoropentofu.DefaultModuleBindings` is the closed module list
+  (Basement core, Basement core Lite, Cloud core, Cloud standalone core); new
+  OpenTofu units extend it. The native registrations keep `unitRef: compose`.
+  Workload, edge and federation owners have one selector under every target,
+  so their registrations stay the native ones and switch on the generation
+  target of the request's plan-owned `resolved-plan` artifact
+  (`runtimeexecutorlocal.GenerationTargetFromArtifacts`); under `compose` they
+  run the native executor unchanged.
+- **Root.** The executor accepts exactly one `opentofu`/`hcl` artifact owned
+  by the target (under `terramate`: the `main.tf` and `stack.tm.hcl`
+  `terramate`/`hcl` artifacts of the unit) and installs it as `main.tf` (mode
+  0640, the stack file beside it) in `.stackkit/runtime/<runtime>/opentofu/`.
+  The `tofu` process gets the native Compose interpolation environment, so
+  `local-exec` resolves the same variables the native executor supplies.
+- **Run.** Through `internal/tofu` with the packaged binary: `tofu init
+  -input=false`, `tofu plan -input=false -detailed-exitcode -out=tfplan`, and
+  `tofu apply -input=false tfplan` when the plan has changes. State stays in the
+  root as the local-backend `terraform.tfstate` (0600). The executor never runs
+  a refresh-only plan, `-replace`, or destroy. The apply observation (exit
+  codes, plan summary, state digest, verify result) is written to
+  `stackkit-apply-observation.json`; its digest is the runtime observation
+  digest.
+- **Native side steps.** The Core Apply has steps a Compose payload cannot
+  express. Before `tofu` runs, the executor runs the native preparation
+  (origin provisioner check, stackkit-server staging); after apply it runs the
+  native completion against the Compose file OpenTofu wrote (stackkit-server
+  recreation, step-ca reload, PocketID owner realization, and the reconciling
+  `up` that binds TinyAuth). Both come from the native operations
+  (`runtimeexecutorlocal.NativeComposeRuntime`), so the two executors share
+  one implementation. The native Cloud core `up` does not wait; the wrapper
+  root waits for health.
+- **Verify.** The native Verify of the module runs against
+  `.stackkit/runtime/<runtime>/compose.yaml` after the executor proves it holds
+  exactly the root's `local_file` payload: the pinned service set through
+  `docker compose ps`, every governed probe, and the PocketID owner binding.
+- **Offline providers.** Release archives ship a filesystem mirror in
+  `providers/` beside `tofu` (`scripts/release/fetch-opentofu-providers.sh`,
+  checksum-verified against the upstream SHA256SUMS; the Debian package installs
+  it at `/usr/local/lib/stackkit/providers`). The executor generates a CLI
+  configuration that installs every `registry.opentofu.org` provider from that
+  mirror and forbids direct installation, and it removes host
+  `TF_PLUGIN_CACHE_DIR`, `TF_CLI_ARGS*`, and CLI-config overrides. The mirror
+  resolves from `STACKKIT_TOFU_PROVIDERS_DIR`, else `providers/` beside the
+  executable. A missing mirror or binary fails closed before any write.
+- **Workload roots.** Under `opentofu` and `terramate` the ten selected-PaaS
+  workload bundles run through `runtimeexecutoropentofu.WorkloadOperations`,
+  which wraps the native standalone Compose owner. The native preparation
+  (`PrepareWorkloadCompose`) validates the bundle and persists `compose.yaml`
+  and the private `.env` (0600) under
+  `.stackkit/runtime/applications/stackkit-<workloadRef>-<nodeRef>/` exactly as
+  the native Apply does. The executor renders `main.tf` around that Compose
+  file (`RenderComposePayloadOpenTofu` with `EnvFile: ".env"`) in the graph's
+  runtime root `.../applications/<project>/opentofu/`, runs init, plan and
+  apply there instead of the native `docker compose up`, proves the runtime
+  Compose file holds the payload, and runs the native completion
+  (`CompleteWorkloadCompose`: Wings recreation for the game node, blocking
+  component and HTTP readiness) and the native observation unchanged. The
+  `tofu` process gets `LANG=C`, `LC_ALL=C` and the native project name.
+- **Edge and federation contract roots.** The Cloud public edge, federation
+  link and bridge origin mTLS owners have no Compose project. Under `opentofu`
+  and `terramate` their registrations wrap the native executor
+  (`WithProductOpenTofuContractRoot`, `ContractRootExecutor`): the native
+  owner operation runs first, byte for byte; after it succeeds the executor
+  writes `.stackkit/runtime/modules/<moduleRef>/opentofu/main.tf`, one
+  `terraform_data` resource whose `triggers_replace` is the digest of the
+  owner's contract artifact, and applies it, so OpenTofu state records the
+  contract the owner applied. The root starts no process because no CLI
+  entrypoint re-applies a single owner safely from `local-exec`. The
+  federation control agent and bridge publication are Techstack process
+  owners, registered only through a bound execution channel; their roots are
+  not materialized by this executor.
+- **State custody.** Executor-state snapshots for the `opentofu` and
+  `terramate` targets capture every root's `terraform.tfstate` and `main.tf`
+  as signed blobs (`runtimeOpenTofu`): Core roots with the runtime
+  `compose.yaml`, verified against the governed artifacts; workload roots
+  (`applications/<project>/opentofu`) with the runtime `compose.yaml` and the
+  private `.env`; contract roots (`modules/<moduleRef>/opentofu`) with state
+  and configuration only. `CollectOpenTofuRootStates` finds every root through
+  the root marker (`kind` is `workload` or `module` for executor-materialized
+  roots, absent for Core roots) and `Recover` restores them before the
+  StackSpec commit point. Compose snapshots are byte-identical to before. The
+  upgrade checkpoint derives its target from the plan and now seals for
+  `opentofu` and `terramate` installs too: the Core profile selects the Core
+  root `main.tf` as the governed Core artifact and
+  `architecturev2renderer.ExtractComposePayload` recovers the embedded Compose
+  payload from it, so the Kopia managed-volume check and the Core profile are
+  exactly those of the `compose` target for the same plan. The capture binds
+  the Core root configuration to that artifact and its runtime `compose.yaml`
+  to the payload. The restore activation recovery graph carries
+  `renderTarget`, points each Compose runtime at the runtime `compose.yaml` its
+  root writes and binds that root's `terraform.tfstate` digest
+  (`statePath`, `stateDigest`); activation verifies the state beside the data
+  and the checkpoint `Recover` restores it. Compose graphs stay byte-identical.
+  The beta.4 bridge checkpoint still accepts only the `compose` target.
+- **Not yet wrapped.** The Kopia runtime and the runtime adapter projects, and
+  the Basement `socket-proxy` helper, which has a native executor and Product
+  factory but no CLI registration and is not a Terramate stack, still run on
+  the native executor under every target.
+
+### Terramate stack graph (Stage 1)
+
+ADR-0045 section 2 and section 5 run Advanced Mode as Terramate over the
+Stage 1 OpenTofu roots. Under the `terramate` generation target the plan
+renders one stack per stack-bearing module instance (one module on one node)
+and one stack graph per plan. `internal/terramatestackgraph` is the single
+authority for stack identity, tags and ordering. The renderer and the graph
+both use it, so the files and the graph cannot disagree.
+
+- Project root: every host is one self-contained Terramate project rooted at
+  the executor-managed runtime tree `.stackkit/runtime`. The Core host
+  bootstrap module emits its `terramate.tm.hcl` once per node
+  (`required_version = "~> 0.17"`, the release pins 0.17.1). The runtime tree
+  is not a Git repository, so ordering is explicit and no Git change detection
+  is assumed.
+- Stacks and roles: `core` for Basement core, Basement core Lite, Cloud core
+  and Cloud standalone core (their Terramate unit emits `main.tf` and
+  `stack.tm.hcl`); `workload` for the ten selected-PaaS bundles (Immich,
+  Immich Lite, Cloudreve, Vaultwarden, Pterodactyl, Private AI, Gitea,
+  Paperless-ngx, Jellyfin, Home Assistant) at
+  `platform/applications/<slug>/stack.tm.hcl`; `edge` for the Cloud public
+  edge; `federation` for the Modern federation link, federation control agent,
+  bridge publication and bridge origin mTLS owners. Stack units other than the
+  cores are artifact-only companion units, so their files never reach a
+  runtime executor. The local Kopia runtime is a component of the core Compose
+  payload and belongs to the core stack.
+- Identity: the stack ID is `stackkit-` plus the first 20 hex characters of
+  `sha256("stackkit.terramate-stack/v1\n<moduleRef>\n<siteRef>\n<nodeRef>")`.
+  It is stable across plan revisions of the same module, Site and node. Tags
+  are `stackkit`, `role/<role>`, `site/<siteRef>`, `node/<nodeRef>` and
+  `module/<moduleRef>`; Terramate 0.17 rejects `:` in tags, so the namespace
+  separator is `/`.
+- Order: the site core first; the edge and the workloads of a host after that
+  host's cores; federation and bridge stacks after every core and edge of
+  every Site, so a Modern link starts only when the Home core and the Cloud
+  edge exist. In `stack.tm.hcl` this is expressed with Terramate tag queries
+  (`after = ["tag:role/core"]`, and `tag:role/edge` for federation), which
+  resolve inside one host project. Cross-host order exists only in the graph.
+  Host and security baseline owners are not stacks.
+- Runtime roots: `.stackkit/runtime/<runtime>/opentofu` for cores (the P1.2
+  wrapper roots), `.stackkit/runtime/applications/stackkit-<workloadRef>-<nodeRef>/opentofu`
+  for workloads and `.stackkit/runtime/modules/<moduleRef>/opentofu` for
+  edge and federation stacks. Only core roots are generated. For the other
+  stacks the executor materializes `main.tf` at apply time: the Compose
+  project for workloads, a contract root recording the native owner's applied
+  contract digest for edge and federation (see "OpenTofu runtime executor
+  (Stage 1)").
+- Graph: the plan-owned metadata artifact `terramate-stack-graph` at
+  `<outputRoot>/.stackkit/terramate-stack-graph.json`
+  (`stackkit.terramate-stack-graph/v1`, schema
+  `schemas/stackkit-terramate-stack-graph-v1.schema.json`) exists only under
+  the `terramate` target and is derived from plan facts only
+  (`terramatestackgraph.Build`). It lists every host (Site, node, execution
+  channel, project root artifact, run order) and every stack (ID, role,
+  module, unit, instance, Site, node, workload, runtime root, `main.tf`
+  provenance, `after`, tags, artifact IDs). Every list is sorted and the run
+  order breaks ties by runtime root, which is the order
+  `terramate list --run-order` prints. `terramatestackgraph.Parse` accepts only
+  the canonical form whose identities and ordering equal the rules.
+
+### Advanced change sets through Terramate (Stage 1)
+
+ADR-0045 section 2 runs Advanced Mode Day-2 changes as Terramate over the
+Stage 1 OpenTofu roots. `stackkit advanced change-set create` and
+`stackkit advanced change-set apply` are that path; Standard Mode never runs
+Terramate (`stackkit apply` under `compose` or `opentofu` is unchanged).
+
+- Host project: `internal/terramatehost` derives the host layout of the local
+  node (Site and node of the Owner custody binding; a one-host graph needs
+  neither) from the candidate render and its stack graph. It places the Core
+  host bootstrap `terramate.tm.hcl` at `.stackkit/runtime/terramate.tm.hcl`
+  and every stack's `stack.tm.hcl` in that stack's graph runtime root, creating
+  a missing workload, edge or federation root directory. A missing core root
+  fails before any write, because only the runtime executor may create a core
+  root (it writes the root marker the executor-state checkpoint requires).
+  Files are rewritten only when their bytes differ, and the
+  `stackkit.terramate-host-manifest/v1` record at
+  `.stackkit/terramate-host-manifest.json` (schema
+  `schemas/stackkit-terramate-host-manifest-v1.schema.json`) lists the stack
+  IDs, roles, roots and file digests without time or machine facts, so its
+  digest is known before any write.
+- Terramate process: the release-packaged binary (`STACKKIT_TERRAMATE_BINARY`
+  overrides it; there is no PATH fallback) runs with the working directory in
+  the runtime tree, `GIT_CEILING_DIRECTORIES=<workspace>/.stackkit` so a
+  surrounding Git work tree does not become the project root, the packaged
+  `tofu` directory first on `PATH`, `CHECKPOINT_DISABLE=1`, and the host
+  OpenTofu CLI overrides removed (`tofu.OfflineInheritedEnv`). A root that
+  holds the executor's `stackkit.tofurc` gets it as `TF_CLI_CONFIG_FILE`.
+- Create: `advancedchangeset.DeriveTerramateScope` maps the artifact diff to
+  stacks through the candidate graph. A changed, added or removed artifact
+  affects every stack whose module owns it (the candidate owner, or the
+  baseline owner for a removed path); plan-owned artifacts and modules that
+  are not stacks affect none. The record (`stackkit.advanced-change-set/v2`;
+  the strict verifier rejects unknown fields, so v1 moved) adds
+  `affectedStacks`, ordered by `terramatestackgraph.RunOrder` (the global
+  graph order across hosts), and `terramateHostManifestSha256`. Apply
+  re-derives both from the fresh renders and treats a difference as a stale
+  change set.
+- Apply: the mutation skeleton stays generate, plan, apply, verify through the
+  installed release under the lifecycle journal. Missing packaged Terramate or
+  OpenTofu fails before the checkpoint. After the target apply succeeds and
+  before verify starts, the parent process materializes the host project,
+  requires `terramate list --run-order --tags stackkit` to equal the host run
+  order of the graph (and the affected local stacks to follow it), then runs
+  `terramate run --no-recursive --tags stackkit -- tofu plan
+  -detailed-exitcode -input=false -no-color` in each affected local stack
+  root in that order. Terramate reports every failed command as exit 1; the
+  stack's OpenTofu exit code is taken from its `(in /<stack>): exit status
+  <n>` line. The plan only reads state; the apply already ran through the
+  runtime executor.
+- Results: per stack `converged` (exit 0), `drifted` (exit 2 after apply),
+  `failed` (the plan could not run), `pending_root` (no `main.tf` in the root)
+  or `other_host` (the stack belongs to another host and runs through that
+  host's execution channel). `pending_root` fails the change set for core and
+  workload stacks and is tolerated for edge and federation stacks, whose roots
+  the executor does not materialize yet. Any drifted, failed or required
+  pending stack fails the change set with
+  `advanced_change_set_not_converged`, `failedPhase: advanced-terramate`, and
+  the same rollback path as a failed verify. The
+  `stackkit.change-set-result/v1` report (schema
+  `schemas/stackkit-change-set-result-v1.schema.json`) is
+  `data.changeSetResult` of the `stackkit.advanced-mutation/v1` result on
+  success and failure, and each step emits `advanced.change-set.materialize-host`,
+  `advanced.change-set.run-order` and per-stack `advanced.change-set.converge`
+  rollout events.
+- Not yet covered: cross-host dispatch of `other_host` stacks (Techstack,
+  P2). A failed change set whose checkpoint belongs to a `terramate` install
+  rolls back per stack ("Coordinated rollback across stacks (Stage 1)"); every
+  other checkpoint keeps the existing rollback, which after the target apply
+  requires explicit upgrade recovery. Per-stack drift outside a change set is
+  described in the next subsection.
+
+### Advanced drift per stack (Stage 1)
+
+ADR-0045 section 2 and section 3 give Advanced Mode per-stack drift detection
+and reconciliation; section 5 keeps container-level changes under the native
+drift detection. `stackkit drift detect` combines both in one
+`stackkit.drift-report/v1` document (schema
+`schemas/stackkit-drift-report-v1.schema.json`).
+
+- Native part: the existing fields (`mode`, `generationTarget`, `hasDrift`,
+  `planHash`, Owner binding, `runtime`, `subjects`) are unchanged for every
+  target, and `hasDrift` still means native drift only. Under `compose` and
+  `opentofu` the report is byte-identical to the report before this section
+  existed.
+- Per-stack part, `terramate` target only: the command renders the verified
+  plan, derives the local host layout through `internal/terramatehost` (Owner
+  custody Site and node) and hands it to `internal/advanceddrift`. When every
+  core root holds its `main.tf`, the host project is materialized as for a
+  change set (same files, same manifest, rewritten only on byte change) and
+  every stack of the host runs, in host run order, `terramate run
+  --no-recursive --tags stackkit -- tofu plan -detailed-exitcode -input=false
+  -no-color` with the change-set process environment. The plans run under the
+  exclusive lifecycle lock, only read OpenTofu state, and never apply. A
+  missing core root leaves the project unmaterialized and every stack
+  `pending_root`; missing packaged binaries make every stack `failed`.
+- Entries: `stacks[]` holds `stackId`, `role`, `moduleRef`, `siteRef`,
+  `nodeRef`, `runtimeRoot`, `status` (`converged` exit 0, `drifted` exit 2,
+  `failed` any other result, `pending_root` no `main.tf`), `planExitCode`
+  (taken from Terramate's `(in /<stack>): exit status <n>` line), `summary`
+  (`add`, `change`, `destroy` from the `Plan:` line, zero for `No changes.`),
+  `durationMs` and `detail`. The report adds `mode: advanced`, `stackId`,
+  `detectedAt` and an overall `status`: `drifted` when a native subject or a
+  stack drifted, otherwise `unknown` when a stack failed or a core or workload
+  root is pending, otherwise `clean`. A pending edge or federation root does
+  not block `clean`, as in a change set.
+- Streaming: every stack entry is also one `advanced.drift.stack` rollout event
+  (status is the stack status; attributes carry the entry fields), so
+  Techstack can map each stack to one drift subject.
+- Reconcile: `stackkit drift reconcile --mode advanced` keeps the capability,
+  candidate and Owner-signed change-set admission of `runAdvancedMutation`;
+  a denial happens before any Terramate or OpenTofu process. After the
+  mutation succeeds the command observes the full drift report again and
+  returns it as `data.driftReport` next to the unchanged
+  `stackkit.advanced-mutation/v1` fields. A post-reconcile status other than
+  `clean` fails the command; the applied change is not rolled back
+  automatically. Standard reconcile is unchanged.
+- Not yet covered: the `opentofu` target has no stack graph, so its wrapper
+  roots have no per-root plan yet; the saved-plan `tofu show -json` resource
+  diff is not captured; stacks of other hosts are reported by their own host
+  (Techstack dispatch); automatic rollback of a non-converged Advanced
+  reconcile belongs to P1.6.
+
+### Advanced operations catalog
+
+ADR-0031 section 5 has Techstack consume an exactly pinned StackKits release
+plus versioned CLI JSON contracts. `internal/advancedcatalog` is the single
+source of the `stackkit.advanced-operations/v1` catalog
+(`docs/data/advanced-operations/latest.json`, schema
+`schemas/stackkit-advanced-operations-v1.schema.json`), rendered by
+`stackkit docs emit-advanced-operations` and checked by
+`mise run docs:advanced-ops:check`.
+
+- One entry per dispatchable operation: the capability operations of
+  `internal/advancedcapability` (`terramate.change-set.create`,
+  `terramate.change-set.apply`, `drift.reconcile.advanced`, `restore.drill`,
+  `rollback.coordinated`) plus `advanced.trust.import`,
+  `advanced.trust.inspect` and the read-only `drift.detect.advanced`.
+- Each entry carries the exact argv after the program name with
+  `{placeholder}` words, optional argv, requirements (capability and its
+  operation ID, imported trust, Owner approval, candidate spec, change set),
+  input contracts, the data payload per command-result status, rollout event
+  phases with their statuses, admission per mode (standard `denied`, advanced
+  `capability` for the capability operations) and `sinceRelease`, the first
+  release whose CLI accepts the argv (`pending` before a release carries it).
+  Only `available` entries may be dispatched; `rollback.coordinated` is
+  `available` as `stackkit advanced rollback run` with `sinceRelease:
+  pending` until a release carries it.
+- `stackkit.command-result/v1` binds the data payload of every Advanced
+  command and status to its schema (`allOf` of `if`/`then` on `command` and
+  `status`); `stackkit.operation-denial/v1` and its reason codes are part of
+  the catalog. A nonzero exit without an envelope is an unclassified failure.
+- Drift guard: a command-package test resolves every available argv against
+  the Cobra tree and its flags and validates writer output of every Advanced
+  command against the schemas; the release archive validation runs the
+  packaged `stackkit docs emit-advanced-operations --check` against the
+  archived catalog.
+- Pinning: the catalog and its schemas ship in every release archive. The
+  release index does not name the catalog, because Techstack and installed
+  StackKits CLIs decode `stackkits-release-index/v1` with unknown fields
+  rejected; the index pins the archive digest, which pins the catalog.
+
+### Coordinated rollback across stacks (Stage 1)
+
+ADR-0045 section 1 makes OpenTofu state the execution state owner and section
+3 lists coordinated rollback as an Advanced operation. `stackkit advanced
+rollback run` is that operation (`rollback.coordinated`); the failure branch
+of `stackkit advanced change-set apply` runs the same path.
+
+- Admission: an offline capability that allows `rollback.coordinated`, the
+  Owner-approved issuer trust, explicit `--owner-approve`, and the packaged
+  Terramate and OpenTofu binaries, all before any lock, journal or runtime
+  side effect. The capability is revalidated under the lifecycle lock.
+- Target: `--to` is an executor-state snapshot ID, or a stored change-set ID
+  that resolves to the checkpoint sealed before its apply (recorded by its
+  rollback journal or its `stackkit.advanced-mutation/v1` result). The
+  checkpoint is verified and must belong to a `generation.target=terramate`
+  install: its captured stack graph and stack files give the checkpoint's
+  host layout, and its `runtimeOpenTofu` roots give each stack's
+  `terraform.tfstate`, `main.tf`, `compose.yaml` and workload `.env`
+  (`upgradelifecycle.ExecutorStateStore.LoadRollbackCustody`).
+- Plan (`internal/advancedrollback`): the current generation's host layout is
+  compared with the checkpoint's by runtime root. Stacks of the current graph
+  run first in reverse run order: absent from the checkpoint graph is
+  `destroyed`; a root that differs from the checkpoint bytes is `restored`; a
+  checkpoint root without an applied root on disk is `recreated`; equal bytes,
+  or a stack the checkpoint graph has without a captured root, is `unchanged`
+  (a stack the checkpoint ran natively is never destroyed). Stacks only the
+  checkpoint graph has are then `recreated` in run order, because they run
+  after the restored cores. The plan is persisted in the rollback journal
+  `.stackkit/advanced/rollbacks/<snapshot>.json` before any runtime change.
+- Execution per local stack, through `terramate run --no-recursive --tags
+  stackkit -- tofu ...` in the stack root with the change-set process
+  environment plus the root's Compose project name and, for a Core root, the
+  native Compose interpolation environment:
+  - `destroyed`: `tofu destroy -auto-approve -input=false`, whose wrapper
+    destroy-time provisioner runs `docker compose down` without `-v`, so data
+    volumes stay; then the root (and a workload's or module's project
+    directory with its `compose.yaml` and `.env`) is removed.
+  - `restored` and `recreated`: the checkpoint `.env`, `compose.yaml`,
+    `main.tf` and `terraform.tfstate` are written back (a recreated root must
+    still hold the executor's root marker), then `tofu apply -replace` on the
+    wrapper trigger forces convergence, and `tofu plan -detailed-exitcode`
+    must exit 0. The trigger is read from the restored `main.tf`
+    (`terramatehost.ReplaceTriggerAddress`): the `terraform_data` resource
+    whose name ends in `_up` when the root splits `up` from its lifecycle
+    resource, so the trigger never runs `down`; otherwise the single
+    `terraform_data` resource of an older root, whose replacement runs `down`
+    before `up`. Restored state and payload alone plan as a no-op even while
+    newer containers run; the explicit replacement is what makes the
+    containers converge to the restored payload.
+- Lifecycle: the rollback runs under an upgrade-kind lifecycle mutation whose
+  checkpoint is the target (its own, or the failed change set's):
+  `rollback-started` (plan), `rollback-generate` (the checkpoint StackSpec and
+  Inventory restored through `ExecutorStateStore.RecoverWith` with
+  `ReplaceAuthority` and `SkipOpenTofuRoots`, then a joined `generate`),
+  `rollback-apply` (the per-stack execution), `rollback-verify` (a joined
+  `verify --json` validated against the checkpoint plan hash, release and
+  Owner binding), `rollback-succeeded`, status `recovered`. The running
+  release regenerates and verifies; the checkpoint's captured executable does
+  only when its release differs.
+- Resume: every step's outcome is written to the journal. A second
+  invocation with the same `--to` reopens the recorded lifecycle mutation,
+  keeps the original plan and skips converged steps; a restored root whose
+  forced apply did not converge keeps its written files and repeats the
+  apply. An interruption inside the joined `generate` or `verify` child needs
+  explicit upgrade recovery, because the child's one-use admission may be
+  consumed.
+- Result: `stackkit.rollback-result/v1`
+  (`schemas/stackkit-rollback-result-v1.schema.json`) with the rollback ID,
+  target checkpoint, change set, per-stack `{stackId, role, action,
+  planExitCode, durationMs, status}`, execution order, authority, release and
+  verify flags, the checkpoint sealed after a converged standalone rollback,
+  and `converged` or `failed`. A failed change set carries it as
+  `data.rollbackResult`. Rollout events: `advanced.rollback.resolve-target`,
+  `.plan`, `.restore-authority`, `.generate`, per-stack `.stack`, `.verify`
+  and `.seal`.
+- The upgrade checkpoint seals for `opentofu` and `terramate` installs (see
+  State custody under the OpenTofu runtime executor), so a change set on a
+  `terramate` install seals its checkpoint before the target apply and the
+  rollback reports `sealStatus` `sealed` after it seals the rolled back
+  runtime.
+- Not yet covered: the native Core side steps around `up` (stackkit-server
+  staging and recreation, step-ca reload, PocketID owner realization) do not
+  run during a forced apply, data volumes are not rolled back (the Kopia
+  anchor stays available for an explicit restore), `other_host` stacks need
+  Techstack dispatch, and there is no runtime evidence yet (P1.9).
 
 ### Runtime network instances
 

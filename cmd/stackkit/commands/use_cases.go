@@ -22,6 +22,7 @@ func kitOptionalUseCases() []choice {
 		{Key: "ai", Display: "Private AI", Description: "Local chat (Ollama and Open WebUI)"},
 		{Key: "dev", Display: "Developer Platform", Description: "Private Git hosting (Gitea)"},
 		{Key: "documents", Display: "Documents", Description: "Document OCR and search (Paperless-ngx)"},
+		{Key: "mail", Display: "Mail", Description: "Webmail for your existing mailbox (Roundcube)"},
 	}
 }
 

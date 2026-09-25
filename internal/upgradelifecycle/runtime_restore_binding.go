@@ -65,6 +65,11 @@ func (custody MaterializedRuntimeCustody) BindRestore(result backuplifecycle.Res
 				return restoreactivation.Authority{}, err
 			}
 		}
+		if runtime.StatePath != "" {
+			if runtime.StatePath, err = custody.Path(runtime.StatePath); err != nil {
+				return restoreactivation.Authority{}, err
+			}
+		}
 	}
 	return authority, nil
 }

@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:75b8f7b2ddf9542ab4eeee68c0aa45390f872979c77d32141a21ddc64c8eb7e9",
+  "contentDigest": "sha256:dced5265dd63eb3101e6f07ce8c1a2c813bcac579fb5a180d854687eb3e1fd28",
   "operations": [
     {
       "command": [
@@ -152,6 +152,79 @@
       "ownerApproval": true,
       "title": "Create Advanced change set",
       "toolName": "stackkit_advanced_change_set_create"
+    },
+    {
+      "arguments": [
+        {
+          "description": "path to a canonical stackkit.advanced-capability/v1 file that allows restore.drill",
+          "flag": "--capability",
+          "kind": "string",
+          "name": "capability_file",
+          "required": true
+        },
+        {
+          "description": "existing sha256 snapshot-anchor ID; a new backup anchor is created when omitted",
+          "flag": "--anchor",
+          "kind": "string",
+          "name": "anchor"
+        },
+        {
+          "description": "stable lowercase drill ID; generated when omitted",
+          "flag": "--operation-id",
+          "kind": "string",
+          "name": "operation_id"
+        }
+      ],
+      "command": [
+        "advanced",
+        "restore-drill",
+        "run",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Stage and verify a restore of a backup anchor without activation, gated by an offline Advanced capability.",
+      "destructive": false,
+      "id": "stackkit.advanced.restore-drill.run",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Run restore drill",
+      "toolName": "stackkit_advanced_restore_drill_run"
+    },
+    {
+      "arguments": [
+        {
+          "description": "path to a canonical stackkit.advanced-capability/v1 file that allows rollback.coordinated",
+          "flag": "--capability",
+          "kind": "string",
+          "name": "capability_file",
+          "required": true
+        },
+        {
+          "description": "target sha256 executor-state snapshot ID, or the sha256 change-set ID whose pre-apply checkpoint is the target",
+          "flag": "--to",
+          "kind": "string",
+          "name": "to",
+          "required": true
+        }
+      ],
+      "command": [
+        "advanced",
+        "rollback",
+        "run",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Roll every local Terramate stack back to one verified executor-state checkpoint in reverse run order, gated by an offline Advanced capability.",
+      "destructive": true,
+      "id": "stackkit.advanced.rollback.run",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Run coordinated rollback",
+      "toolName": "stackkit_advanced_rollback_run"
     },
     {
       "arguments": [

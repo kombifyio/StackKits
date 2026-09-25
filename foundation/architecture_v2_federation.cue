@@ -173,6 +173,29 @@ _architectureV2ModernCloudIdentityVerifierSupport: #ModuleRealizationSupportV2 &
 	evidence: requiredRefs: ["modern-cloud-identity-verifier-enforcement"]
 }
 
+// Terramate stacks of the Modern federation and bridge owners. They run after
+// every site core and Cloud edge (terramatestackgraph ordering rules).
+_architectureV2BridgePublicationTerramateStack: _architectureV2TerramateStack & {
+	_role: "federation", _outputRef: "modern/federation/publication/stack.tm.hcl", _artifactRef: "bridge-publication-terramate-stack"
+	_placement: {scope: "node-local", cardinality: "one-per-node"}
+}
+
+_architectureV2BridgeOriginMTLSTerramateStack: _architectureV2TerramateStack & {
+	_role: "federation", _outputRef: "modern/federation/origin-mtls/stack.tm.hcl", _artifactRef: "bridge-origin-mtls-terramate-stack"
+	_placement: {scope: "node-local", cardinality: "one-per-node"}
+}
+
+_architectureV2FederationTerramateStacks: {
+	link: _architectureV2TerramateStack & {
+		_role: "federation", _outputRef: "modern/federation/link/stack.tm.hcl", _artifactRef: "federation-link-terramate-stack"
+		_placement: {scope: "node-local", cardinality: "one-per-node"}
+	}
+	controlAgent: _architectureV2TerramateStack & {
+		_role: "federation", _outputRef: "modern/federation/control-agent/stack.tm.hcl", _artifactRef: "federation-control-agent-terramate-stack"
+		_placement: {scope: "node-local", cardinality: "one-per-node"}
+	}
+}
+
 _architectureV2BridgePublicationSupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
@@ -181,13 +204,13 @@ _architectureV2BridgePublicationSupport: #ModuleRealizationSupportV2 & {
 	inputs: {contractComplete: true, requiredRefs: []}
 	planInputs: {contractComplete: true, requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "bridgePublications"]}
 	artifacts: {
-		requiredRefs: ["bridge-publication-executor-contract"]
-		outputBindings: [{artifactRef: "bridge-publication-executor-contract", unitRef: "executor-contract", outputRef: "modern/federation/publication/executor-contract.json"}]
+		requiredRefs: ["bridge-publication-executor-contract", _architectureV2BridgePublicationTerramateStack.contract.id]
+		outputBindings: [{artifactRef: "bridge-publication-executor-contract", unitRef: "executor-contract", outputRef: "modern/federation/publication/executor-contract.json"}, _architectureV2BridgePublicationTerramateStack.binding]
 		contracts: [{
 			id: "bridge-publication-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
 			compatibleTargets: ["compose", "opentofu"]
 			unitRef: "executor-contract", outputRef: "modern/federation/publication/executor-contract.json"
-		}]
+		}, _architectureV2BridgePublicationTerramateStack.contract]
 	}
 	evidence: requiredRefs: ["bridge-publication-evidence"]
 }
@@ -200,13 +223,13 @@ _architectureV2BridgeOriginMTLSSupport: #ModuleRealizationSupportV2 & {
 	inputs: {contractComplete: true, requiredRefs: []}
 	planInputs: {contractComplete: true, requiredRefs: ["bridgeOriginMTLS", "controlPlane", "kit", "moduleCapabilities", "moduleTargets", "sites", "stackId"]}
 	artifacts: {
-		requiredRefs: ["bridge-origin-mtls-executor-contract"]
-		outputBindings: [{artifactRef: "bridge-origin-mtls-executor-contract", unitRef: "executor-contract", outputRef: "modern/federation/origin-mtls/executor-contract.json"}]
+		requiredRefs: ["bridge-origin-mtls-executor-contract", _architectureV2BridgeOriginMTLSTerramateStack.contract.id]
+		outputBindings: [{artifactRef: "bridge-origin-mtls-executor-contract", unitRef: "executor-contract", outputRef: "modern/federation/origin-mtls/executor-contract.json"}, _architectureV2BridgeOriginMTLSTerramateStack.binding]
 		contracts: [{
 			id: "bridge-origin-mtls-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
 			compatibleTargets: ["compose", "opentofu"]
 			unitRef: "executor-contract", outputRef: "modern/federation/origin-mtls/executor-contract.json"
-		}]
+		}, _architectureV2BridgeOriginMTLSTerramateStack.contract]
 	}
 	evidence: requiredRefs: ["bridge-origin-mtls-evidence"]
 }
@@ -242,13 +265,13 @@ _architectureV2FederationRuntimeSupports: {
 				}
 			}
 			artifacts: {
-				requiredRefs: [artifact.id]
-				outputBindings: [{artifactRef: artifact.id, unitRef: "executor-contract", outputRef: artifact.outputRef}]
+				requiredRefs: [artifact.id, for stackName, stack in _architectureV2FederationTerramateStacks if stackName == runtimeName {stack.contract.id}]
+				outputBindings: [{artifactRef: artifact.id, unitRef: "executor-contract", outputRef: artifact.outputRef}, for stackName, stack in _architectureV2FederationTerramateStacks if stackName == runtimeName {stack.binding}]
 				contracts: [{
 					id: artifact.id, kind: "native-config", format: "json", mode: "0640", required: true
 					compatibleTargets: ["compose", "opentofu"]
 					unitRef: "executor-contract", outputRef: artifact.outputRef
-				}]
+				}, for stackName, stack in _architectureV2FederationTerramateStacks if stackName == runtimeName {stack.contract}]
 			}
 			if runtimeName == "link" {
 				evidence: requiredRefs: ["federation-link-evidence"]
@@ -427,7 +450,7 @@ _architectureV2ProfileExtensionModules: [
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "bridgeOriginMTLS"]
 			outputs: ["modern/federation/origin-mtls/executor-contract.json"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
-		}]
+		}, _architectureV2BridgeOriginMTLSTerramateStack.unit]
 		realizationSupport: _architectureV2BridgeOriginMTLSSupport
 		health: [{id: "bridge-origin-mtls-health", kind: "contract", scope: "each-node"}]
 		evidence: ["bridge-origin-mtls-evidence"]
@@ -452,7 +475,7 @@ _architectureV2ProfileExtensionModules: [
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "bridgePublications"]
 			outputs: ["modern/federation/publication/executor-contract.json"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
-		}]
+		}, _architectureV2BridgePublicationTerramateStack.unit]
 		realizationSupport: _architectureV2BridgePublicationSupport
 		health: [{id: "bridge-publication-health", kind: "contract", scope: "each-node"}]
 		evidence: ["bridge-publication-evidence"]
@@ -477,7 +500,7 @@ _architectureV2ProfileExtensionModules: [
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "federationLinkPolicy", "federationLinkRequirements", "externalFederationLinkBindings"]
 			outputs: ["modern/federation/link/executor-contract.json"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
-		}], realizationSupport: _architectureV2FederationRuntimeSupports.link
+		}, _architectureV2FederationTerramateStacks.link.unit], realizationSupport: _architectureV2FederationRuntimeSupports.link
 		health: [{id: "federation-link-health", kind: "contract", scope: "each-node"}], evidence: ["federation-link-evidence"]
 	},
 	{
@@ -500,7 +523,7 @@ _architectureV2ProfileExtensionModules: [
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "federationControlActions"]
 			outputs: ["modern/federation/control-agent/executor-contract.json"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
-		}], realizationSupport: _architectureV2FederationRuntimeSupports.controlAgent
+		}, _architectureV2FederationTerramateStacks.controlAgent.unit], realizationSupport: _architectureV2FederationRuntimeSupports.controlAgent
 		health: [{id: "federation-control-agent-health", kind: "contract", scope: "each-node"}], evidence: ["federation-control-agent-evidence"]
 	},
 	{

@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 )
 
 var (
@@ -801,7 +802,7 @@ func bindEmptyPrivilegedInterfaceApprovals(modules []renderModule) {
 func validateBoundArtifacts(artifacts map[string]artifactContract, _ map[string]instanceOutputKey) error {
 	for artifactID, artifact := range artifacts {
 		if artifact.owner.kind == "plan" {
-			if artifactID != "resolved-plan" {
+			if artifactID != "resolved-plan" && artifactID != terramatestackgraph.ArtifactID {
 				return fail(ErrInvalidPlan, "resolvedPlan.generation.artifacts", "plan-owned artifact %q has no governed renderer producer", artifactID)
 			}
 			continue
@@ -1163,6 +1164,13 @@ func validateArtifactGovernance(artifact artifactContract, artifactPath, outputR
 			return true, fail(ErrInvalidPlan, artifactPath, "resolved-plan must be a required plan-owned artifact at %q", want)
 		}
 		return true, nil
+	}
+	if artifact.id == terramatestackgraph.ArtifactID {
+		want := joinOutputPath(outputRoot, terramatestackgraph.ArtifactPath)
+		if !artifact.required || artifact.path != want || artifact.owner.kind != "plan" || artifact.kind != "metadata" || artifact.format != "json" {
+			return false, fail(ErrInvalidPlan, artifactPath, "the Terramate stack graph must be a required plan-owned JSON metadata artifact at %q", want)
+		}
+		return false, nil
 	}
 	if artifact.owner.kind != "render-instance" {
 		return false, fail(ErrInvalidPlan, artifactPath+".owner.kind", "non-plan artifact must be owned by one render instance")

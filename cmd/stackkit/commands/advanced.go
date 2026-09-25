@@ -176,6 +176,10 @@ type advancedChangeSetResult struct {
 	Path          string                             `json:"path"`
 	PlanHash      string                             `json:"candidatePlanHash"`
 	Changes       []advancedchangeset.ArtifactChange `json:"changes"`
+	// AffectedStacks are the Terramate stacks the change set touches, in
+	// stack graph run order; apply proves each one converged.
+	AffectedStacks              []string `json:"affectedStacks"`
+	TerramateHostManifestSHA256 string   `json:"terramateHostManifestSha256"`
 }
 
 type advancedChangeSetCreateDeps struct {

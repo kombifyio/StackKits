@@ -58,6 +58,14 @@ func DescribeNativeAction(action, adapter string) (NativeActionDescription, bool
 			GuideURL:                     "https://github.com/kombifyio/stackKits/blob/main/use-cases/game/agent/game-server/SKILL.md#create-a-server",
 			SupportsOnboardingCompletion: false,
 		}, true
+	case "roundcube-mailbox-login":
+		return NativeActionDescription{
+			Title:                        "Mailbox login check",
+			CredentialFields:             []string{"imapHost", "imapPort", "imapSecurity", "smtpHost", "smtpPort", "smtpSecurity", "username", "password"},
+			CredentialsFile:              ".stackkit/setup/mail.json",
+			GuideURL:                     "https://github.com/kombifyio/stackKits/blob/main/use-cases/mail/agent/mail-client/SKILL.md#verify-the-mailbox",
+			SupportsOnboardingCompletion: false,
+		}, true
 	case "vault-owner-invite":
 		return NativeActionDescription{
 			Title:                        "Vault owner invitation",

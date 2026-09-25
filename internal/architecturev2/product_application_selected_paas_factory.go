@@ -40,6 +40,17 @@ func NewProductPterodactylSelectedPaaSRegistration(
 	)
 }
 
+// NewProductRoundcubeSelectedPaaSRegistration binds the client-first Mail
+// workload to the existing standalone application adapter and lifecycle owner.
+func NewProductRoundcubeSelectedPaaSRegistration(
+	runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef string,
+	operations runtimeexecutorlocal.SelectedPaaSWorkloadOperations,
+) (ProductRuntimeOwnerRegistration, error) {
+	return newProductApplicationSelectedPaaSRegistration(
+		runtimeexecutorlocal.SelectedPaaSApplicationRoundcube, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations,
+	)
+}
+
 // NewProductPaperlessSelectedPaaSRegistration binds the Documents workload to
 // the existing standalone application adapter and lifecycle owner.
 func NewProductPaperlessSelectedPaaSRegistration(

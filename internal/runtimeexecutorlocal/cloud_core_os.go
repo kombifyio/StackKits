@@ -66,22 +66,9 @@ func (o *osCloudCoreOperations) ApplyProject(ctx context.Context, project CloudC
 	if err := o.validateModule(project); err != nil {
 		return CloudCoreApplyObservation{}, err
 	}
-	custody, err := localevidence.LoadCloudRuntimeCustody(o.workspaceRoot)
+	recreateServer, err := o.prepareApply(project.Definition)
 	if err != nil {
-		return CloudCoreApplyObservation{}, fmt.Errorf("verify Cloud runtime custody before Apply: %w", err)
-	}
-	if err := requireCloudIdentityAddress(custody, project.Definition); err != nil {
 		return CloudCoreApplyObservation{}, err
-	}
-	serverBinary, err := resolveCoreStackKitServerBinary(o.serverBinary)
-	if err != nil {
-		return CloudCoreApplyObservation{}, fmt.Errorf("resolve the Cloud core stackkit-server: %w", err)
-	}
-	// Stage the server before compose.yaml names it, so a failure never
-	// leaves a Compose project pointing at a missing ./stackkit-server.
-	recreateServer, err := prepareCoreStackKitServer(o.workspaceRoot, filepath.Join(o.workspaceRoot, ".stackkit", "runtime", o.name()), serverBinary)
-	if err != nil {
-		return CloudCoreApplyObservation{}, fmt.Errorf("prepare the Cloud core stackkit-server: %w", err)
 	}
 	composePath, err := o.persistCompose(project)
 	if err != nil {
@@ -90,28 +77,8 @@ func (o *osCloudCoreOperations) ApplyProject(ctx context.Context, project CloudC
 	if _, err := o.runner.Run(ctx, o.composeArgs(composePath, "up"), filepath.Dir(composePath), o.environment()); err != nil {
 		return CloudCoreApplyObservation{}, fmt.Errorf("Cloud Docker Compose Apply did not complete: %w", err)
 	}
-	if recreateServer {
-		if _, err := o.runner.Run(ctx, o.composeArgs(composePath, "recreate-server"), filepath.Dir(composePath), o.environment()); err != nil {
-			return CloudCoreApplyObservation{}, fmt.Errorf("recreate the Cloud core stackkit-server with its new release or token: %w", err)
-		}
-		if err := completeCoreStackKitServerRecreate(filepath.Dir(composePath)); err != nil {
-			return CloudCoreApplyObservation{}, err
-		}
-	}
-	if err := o.waitUntilReady(ctx, composePath, project); err != nil {
-		return CloudCoreApplyObservation{}, err
-	}
-	binding, err := o.ownerIdentity.Realize(ctx)
+	binding, err := o.completeApply(ctx, composePath, project, recreateServer)
 	if err != nil {
-		return CloudCoreApplyObservation{}, fmt.Errorf("Cloud PocketID owner realization did not complete: %w", err)
-	}
-	// Owner realization registers TinyAuth's PocketID client and installs its
-	// secret as a private optional env override. Reconcile Compose once more so
-	// TinyAuth runs with that bound credential before Apply can succeed.
-	if _, err := o.runner.Run(ctx, o.composeArgs(composePath, "up"), filepath.Dir(composePath), o.environment()); err != nil {
-		return CloudCoreApplyObservation{}, fmt.Errorf("Cloud TinyAuth PocketID binding did not complete: %w", err)
-	}
-	if err := o.waitUntilReady(ctx, composePath, project); err != nil {
 		return CloudCoreApplyObservation{}, err
 	}
 	return CloudCoreApplyObservation{
@@ -119,6 +86,61 @@ func (o *osCloudCoreOperations) ApplyProject(ctx context.Context, project CloudC
 		OwnerRef: binding.OwnerRef, PocketIDSubject: binding.PocketIDSubject,
 		OwnerBindingDigest: localevidence.OwnerRuntimeBindingDigest(binding),
 	}, nil
+}
+
+// prepareApply verifies Cloud runtime custody against the definition and
+// stages the stackkit-server before any Compose project names it. It reports
+// whether the running server must be recreated.
+func (o *osCloudCoreOperations) prepareApply(definition []byte) (bool, error) {
+	custody, err := localevidence.LoadCloudRuntimeCustody(o.workspaceRoot)
+	if err != nil {
+		return false, fmt.Errorf("verify Cloud runtime custody before Apply: %w", err)
+	}
+	if err := requireCloudIdentityAddress(custody, definition); err != nil {
+		return false, err
+	}
+	serverBinary, err := resolveCoreStackKitServerBinary(o.serverBinary)
+	if err != nil {
+		return false, fmt.Errorf("resolve the Cloud core stackkit-server: %w", err)
+	}
+	// Stage the server before compose.yaml names it, so a failure never
+	// leaves a Compose project pointing at a missing ./stackkit-server.
+	recreateServer, err := prepareCoreStackKitServer(o.workspaceRoot, filepath.Join(o.workspaceRoot, ".stackkit", "runtime", o.name()), serverBinary)
+	if err != nil {
+		return false, fmt.Errorf("prepare the Cloud core stackkit-server: %w", err)
+	}
+	return recreateServer, nil
+}
+
+// completeApply runs the steps that follow the first `up`: stackkit-server
+// recreation, readiness, PocketID owner realization, and the reconciling `up`
+// that binds TinyAuth to the owner.
+func (o *osCloudCoreOperations) completeApply(ctx context.Context, composePath string, project CloudCoreProject, recreateServer bool) (localevidence.OwnerRuntimeBinding, error) {
+	if recreateServer {
+		if _, err := o.runner.Run(ctx, o.composeArgs(composePath, "recreate-server"), filepath.Dir(composePath), o.environment()); err != nil {
+			return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("recreate the Cloud core stackkit-server with its new release or token: %w", err)
+		}
+		if err := completeCoreStackKitServerRecreate(filepath.Dir(composePath)); err != nil {
+			return localevidence.OwnerRuntimeBinding{}, err
+		}
+	}
+	if err := o.waitUntilReady(ctx, composePath, project); err != nil {
+		return localevidence.OwnerRuntimeBinding{}, err
+	}
+	binding, err := o.ownerIdentity.Realize(ctx)
+	if err != nil {
+		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("Cloud PocketID owner realization did not complete: %w", err)
+	}
+	// Owner realization registers TinyAuth's PocketID client and installs its
+	// secret as a private optional env override. Reconcile Compose once more so
+	// TinyAuth runs with that bound credential before Apply can succeed.
+	if _, err := o.runner.Run(ctx, o.composeArgs(composePath, "up"), filepath.Dir(composePath), o.environment()); err != nil {
+		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("Cloud TinyAuth PocketID binding did not complete: %w", err)
+	}
+	if err := o.waitUntilReady(ctx, composePath, project); err != nil {
+		return localevidence.OwnerRuntimeBinding{}, err
+	}
+	return binding, nil
 }
 
 // requireCloudIdentityAddress keeps PocketID and TinyAuth on the hosts the
@@ -222,6 +244,14 @@ func (o *osCloudCoreOperations) VerifyProject(ctx context.Context, project Cloud
 	if !bytes.Equal(content, project.Definition) {
 		return CloudCoreVerifyObservation{}, errors.New("verified Cloud runtime differs from the authorized Compose project")
 	}
+	return o.observeProject(ctx, project, composePath)
+}
+
+// observeProject is the shared post-authority half of Verify: the pinned
+// service set through docker compose ps, every governed probe, and the
+// PocketID owner binding. Callers first prove custody and that composePath
+// holds the authorized definition.
+func (o *osCloudCoreOperations) observeProject(ctx context.Context, project CloudCoreProject, composePath string) (CloudCoreVerifyObservation, error) {
 	raw, err := o.runner.Run(ctx, o.composeArgs(composePath, "ps"), filepath.Dir(composePath), o.environment())
 	if err != nil {
 		return CloudCoreVerifyObservation{}, errors.New("verified Cloud runtime status is unavailable")

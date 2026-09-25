@@ -154,6 +154,8 @@
       "flags": [],
       "subcommands": [
         "stackkit advanced change-set",
+        "stackkit advanced restore-drill",
+        "stackkit advanced rollback",
         "stackkit advanced trust"
       ]
     },
@@ -247,6 +249,130 @@
           "name": "json",
           "type": "bool",
           "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit advanced restore-drill",
+      "name": "restore-drill",
+      "parent": "stackkit advanced",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit advanced restore-drill [flags]",
+      "short": "Run capability-gated native restore drills",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit advanced restore-drill run"
+      ]
+    },
+    {
+      "path": "stackkit advanced restore-drill run",
+      "name": "run",
+      "parent": "stackkit advanced restore-drill",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit advanced restore-drill run [flags]",
+      "short": "Stage and verify a restore of a backup anchor without activation",
+      "description": "Run a native v2 restore drill as an Advanced operation.\n\nThe drill is admitted only with an offline-verified capability that allows\nrestore.drill, the local Owner-approved issuer trust, and explicit\n--owner-approve. It verifies the current runtime, creates a new snapshot\nanchor (or validates --anchor in local custody), stages a restore of that\nanchor, verifies the staged tree, removes the staging area, and verifies that\nthe live runtime is unchanged. Staged data is never activated.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit advanced restore-drill run --capability capability.json --owner-approve --json"
+        }
+      ],
+      "flags": [
+        {
+          "name": "anchor",
+          "type": "string",
+          "description": "Existing sha256 snapshot-anchor ID to drill; a new backup anchor is created when omitted",
+          "required": false
+        },
+        {
+          "name": "capability",
+          "type": "string",
+          "description": "Path to a canonical stackkit.advanced-capability/v1 file that allows restore.drill",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        },
+        {
+          "name": "operation-id",
+          "type": "string",
+          "description": "Stable lowercase drill ID (8-100 characters); generated when omitted",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve the drill's backup and staged restore side effects",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit advanced rollback",
+      "name": "rollback",
+      "parent": "stackkit advanced",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit advanced rollback [flags]",
+      "short": "Run capability-gated coordinated rollbacks across Terramate stacks",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit advanced rollback run"
+      ]
+    },
+    {
+      "path": "stackkit advanced rollback run",
+      "name": "run",
+      "parent": "stackkit advanced rollback",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit advanced rollback run [flags]",
+      "short": "Roll every local Terramate stack back to one verified checkpoint",
+      "description": "Roll the local host back to one verified executor-state checkpoint as the\nAdvanced operation rollback.coordinated.\n\nThe rollback is admitted only with an offline-verified capability that allows\nrollback.coordinated, the local Owner-approved issuer trust, and explicit\n--owner-approve. --to names the checkpoint directly or the change set whose\npre-apply checkpoint is the target. Stacks run in reverse run order: stacks\nadded after the checkpoint are destroyed through OpenTofu (docker compose down\nwithout volumes) and removed, changed stacks get the checkpoint's state,\nconfiguration and payload back and are forced to converge, and stacks removed\nafter the checkpoint are recreated. The checkpoint's StackSpec and Inventory\nare restored, regenerated and verified. An interrupted rollback resumes on the\nnext run with the same --to and skips stacks that already converged.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit advanced rollback run --capability capability.json --to sha256:<change-set-id> --owner-approve --json"
+        }
+      ],
+      "flags": [
+        {
+          "name": "capability",
+          "type": "string",
+          "description": "Path to a canonical stackkit.advanced-capability/v1 file that allows rollback.coordinated",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve destroying, restoring and recreating stacks",
+          "required": false
+        },
+        {
+          "name": "to",
+          "type": "string",
+          "description": "Target sha256 executor-state snapshot ID, or the sha256 change-set ID whose pre-apply checkpoint is the target",
           "required": false
         }
       ],
@@ -1680,10 +1806,48 @@
       "examples": [],
       "flags": [],
       "subcommands": [
+        "stackkit docs emit-advanced-operations",
         "stackkit docs emit-cli-reference",
         "stackkit docs emit-release-manifests",
         "stackkit docs emit-use-case-overview"
       ]
+    },
+    {
+      "path": "stackkit docs emit-advanced-operations",
+      "name": "emit-advanced-operations",
+      "parent": "stackkit docs",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit docs emit-advanced-operations [flags]",
+      "short": "Emit the Advanced operations catalog (stackkit.advanced-operations/v1)",
+      "description": "Write the machine-readable catalog of every Advanced operation an\norchestrator may dispatch: exact argv templates, admission requirements, input\nand result contracts, rollout event phases and the denial envelope.\n\nThe release archive ships this file. With --check nothing is written; the\ncommand fails when the file differs from the catalog source.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit docs emit-advanced-operations",
+          "description": "Regenerate the committed catalog after changing an Advanced operation"
+        },
+        {
+          "command": "stackkit docs emit-advanced-operations --check",
+          "description": "Fail when the committed catalog is stale"
+        }
+      ],
+      "flags": [
+        {
+          "name": "check",
+          "type": "bool",
+          "description": "Write nothing; fail when the catalog file is missing or stale",
+          "required": false
+        },
+        {
+          "name": "out",
+          "type": "string",
+          "default": "docs/data/advanced-operations/latest.json",
+          "description": "Catalog JSON path, relative to --chdir",
+          "required": false
+        }
+      ],
+      "subcommands": []
     },
     {
       "path": "stackkit docs emit-cli-reference",
@@ -1837,7 +2001,7 @@
       "group": "care",
       "usage": "stackkit drift detect [flags]",
       "short": "Read the authoritative local state and report drift",
-      "description": "Read and verify the canonical ResolvedPlan, generated artifacts,\nowner-signed Apply evidence, local Owner binding, and live Basement Compose\nruntime without refreshing runtime state. The content-addressed report is\nretained as local Owner evidence for every selected Application Kit.",
+      "description": "Read and verify the canonical ResolvedPlan, generated artifacts,\nowner-signed Apply evidence, local Owner binding, and live Basement Compose\nruntime without refreshing runtime state. Under the terramate generation\ntarget it also runs a read-only detailed-exitcode OpenTofu plan through\nTerramate in every stack of the local host project and adds one stacks entry\nper stack; it never applies. The content-addressed report is retained as local\nOwner evidence for every selected Application Kit.",
       "runnable": true,
       "examples": [
         {
@@ -1867,7 +2031,7 @@
       "group": "care",
       "usage": "stackkit drift reconcile [flags]",
       "short": "Reconcile drift through the governed local lifecycle",
-      "description": "Standard mode requires explicit local Owner approval, verifies the\ncurrent local authority, creates a mandatory Kopia and executor-state rollback\ncheckpoint, then runs generate, apply, and verify through the exclusive\nlifecycle journal. A failed target phase automatically restores, reapplies, and\nverifies the captured prior executor state. Advanced mode remains fail-closed\nuntil an offline-verified capability is supplied.",
+      "description": "Standard mode requires explicit local Owner approval, verifies the\ncurrent local authority, creates a mandatory Kopia and executor-state rollback\ncheckpoint, then runs generate, apply, and verify through the exclusive\nlifecycle journal. A failed target phase automatically restores, reapplies, and\nverifies the captured prior executor state. Advanced mode remains fail-closed\nuntil an offline-verified capability is supplied; after the Advanced mutation\nit observes the drift report again, including every Terramate stack plan, and\nfails unless the post-reconcile report is clean.",
       "runnable": true,
       "examples": [
         {

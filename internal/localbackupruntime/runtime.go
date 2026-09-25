@@ -476,6 +476,9 @@ func (r *Runtime) prepareQuiescence(ctx context.Context) (backuplifecycle.Snapsh
 		if container.Lifecycle == "one-shot" {
 			return backuplifecycle.SnapshotQuiescence{}, fmt.Errorf("localbackupruntime: one-shot Docker component %q must complete before snapshot quiescence", container.ComponentRef)
 		}
+		if !backupexec.SupportedStopSignal(container.StopSignal) {
+			return backuplifecycle.SnapshotQuiescence{}, fmt.Errorf("localbackupruntime: Docker component %q declares stop signal %q, which snapshot quiescence cannot use; nothing was stopped", container.ComponentRef, container.StopSignal)
+		}
 		journal.Containers = append(journal.Containers, backuplifecycle.SnapshotQuiescedContainer{
 			ID: container.ID, Name: container.Name, WasRunning: true,
 			WorkloadRef: container.WorkloadRef, SiteRef: container.SiteRef, NodeRef: container.NodeRef,

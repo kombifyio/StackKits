@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.dev/schemas/stackkit-rollback-result-v1.schema.json",
+  "title": "StackKit Advanced coordinated rollback result v1",
+  "description": "Report of the Advanced operation rollback.coordinated: the data subject of `stackkit advanced rollback run`, and data.rollbackResult of the stackkit.advanced-mutation/v1 result when a failed change set rolled back a Terramate-target checkpoint. internal/advancedrollback owns the semantics: stacks of the current graph run in reverse run order (destroyed, restored or unchanged), stacks only the checkpoint has are recreated afterwards in run order, and every restored or recreated stack is forced with `tofu apply -replace` on its wrapper trigger and then proves `tofu plan -detailed-exitcode` exit 0.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "rollbackId", "targetSnapshotId", "resumed", "order", "stacks", "authorityRestored", "priorReleaseExecuted", "runtimeVerified", "sealStatus", "status"],
+  "properties": {
+    "schemaVersion": { "const": "stackkit.rollback-result/v1" },
+    "rollbackId": {
+      "description": "Identity of the rollback and of its journal entry. Empty only when the rollback stopped before it was planned.",
+      "type": "string"
+    },
+    "targetSnapshotId": {
+      "description": "The verified executor-state checkpoint the host was rolled back to. Empty only when --to did not resolve.",
+      "type": "string",
+      "pattern": "^(sha256:[0-9a-f]{64})?$"
+    },
+    "changeSetId": {
+      "description": "The change set whose pre-apply checkpoint is the target, when the rollback was requested for or run by a change set.",
+      "$ref": "#/$defs/digest"
+    },
+    "lifecycleOperationId": {
+      "description": "The upgrade-kind lifecycle mutation the rollback ran under: its own, or the failed change set's.",
+      "type": "string"
+    },
+    "resumed": {
+      "description": "true when this invocation continued an interrupted rollback to the same checkpoint from its journal.",
+      "type": "boolean"
+    },
+    "order": {
+      "description": "Stack IDs in execution order.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/stackId" }
+    },
+    "stacks": {
+      "description": "One entry per local stack, in order.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/stack" }
+    },
+    "authorityRestored": {
+      "description": "The checkpoint's StackSpec and Inventory were restored through the executor-state recovery path.",
+      "type": "boolean"
+    },
+    "priorReleaseExecuted": {
+      "description": "The checkpoint's release differs from the running one, so its captured executable regenerated and verified.",
+      "type": "boolean"
+    },
+    "runtimeVerified": {
+      "description": "The native verify of the checkpoint plan passed after the stacks converged.",
+      "type": "boolean"
+    },
+    "sealedSnapshotId": {
+      "description": "The executor-state checkpoint sealed after a converged standalone rollback.",
+      "$ref": "#/$defs/digest"
+    },
+    "sealStatus": {
+      "description": "sealed: sealedSnapshotId is set. unsupported: the upgrade checkpoint does not support the installed generation target yet. failed: sealing failed after a converged rollback. not_attempted: the rollback did not converge or ran inside a failed change set, whose checkpoint is the target itself.",
+      "enum": ["sealed", "unsupported", "failed", "not_attempted"]
+    },
+    "sealDetail": { "type": "string" },
+    "status": { "enum": ["converged", "failed"] }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "stackId": { "type": "string", "pattern": "^stackkit-[0-9a-f]{20}$" },
+    "stack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stackId", "role", "runtimeRoot", "action", "status", "durationMs"],
+      "properties": {
+        "stackId": { "$ref": "#/$defs/stackId" },
+        "role": { "enum": ["core", "workload", "edge", "federation"] },
+        "runtimeRoot": { "type": "string", "pattern": "^\\.stackkit/runtime/.+/opentofu$" },
+        "action": {
+          "description": "destroyed: absent from the checkpoint graph; `tofu destroy` ran the wrapper's `docker compose down` (volumes kept) and the root was removed. restored: the root differed and got the checkpoint's state, configuration and payload back. recreated: the checkpoint has the root and the workspace had no applied one. unchanged: the root equals the checkpoint, or the checkpoint captured no root for a stack both graphs share.",
+          "enum": ["destroyed", "restored", "recreated", "unchanged"]
+        },
+        "status": {
+          "description": "converged: the action completed and, for restored and recreated stacks, the plan exited 0. skipped: nothing to run. failed: the action or its proof failed. pending: not reached.",
+          "enum": ["converged", "skipped", "failed", "pending"]
+        },
+        "planExitCode": {
+          "description": "Exit code of `tofu plan -detailed-exitcode` after the forced apply, as relayed by `terramate run`.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "durationMs": { "type": "integer", "minimum": 0 },
+        "detail": { "type": "string", "maxLength": 4096 }
+      }
+    }
+  }
+}

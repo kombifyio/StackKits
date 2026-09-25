@@ -21,6 +21,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -475,6 +476,13 @@ func withPreparedHistoricalUpgradeCapture(
 	if err != nil {
 		return err
 	}
+	generationTarget, err := historicalStackSpecGenerationTarget(loaded.Document.Raw)
+	if err != nil {
+		return err
+	}
+	if err := requireBeta4CheckpointGenerationTarget(generationTarget); err != nil {
+		return err
+	}
 	specRelative, err := filepath.Rel(workspace, loaded.Path)
 	if err != nil {
 		return err
@@ -603,7 +611,7 @@ func withPreparedHistoricalUpgradeCapture(
 			return err
 		}
 		capture := upgradelifecycle.ExecutorStateCaptureInput{
-			GenerationTarget:      "compose",
+			GenerationTarget:      generationTarget,
 			CoreModuleRef:         coreModuleRef,
 			CoreComposeArtifactID: composeArtifactID,
 			CorePolicyArtifactID:  policyArtifactID,
@@ -943,4 +951,23 @@ func verifyPublishedStableBackupRestore(
 func exactBeta4CheckpointDigest(data []byte) string {
 	sum := sha256.Sum256(data)
 	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+// historicalStackSpecGenerationTarget reads generation.target from a
+// historical StackSpec. Every published kit defaults to compose, and the
+// historical releases this bridge admits executed only Compose, so an
+// omitted target is compose.
+func historicalStackSpecGenerationTarget(raw []byte) (string, error) {
+	var document struct {
+		Generation struct {
+			Target string `yaml:"target"`
+		} `yaml:"generation"`
+	}
+	if err := yaml.Unmarshal(raw, &document); err != nil {
+		return "", fmt.Errorf("read historical StackSpec generation target: %w", err)
+	}
+	if target := strings.TrimSpace(document.Generation.Target); target != "" {
+		return target, nil
+	}
+	return "compose", nil
 }

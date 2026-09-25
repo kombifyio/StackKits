@@ -336,7 +336,17 @@ func verifyNativeV2BackupRestore(
 		request.StagingPath != backuplifecycle.RestoreStagingPath(request.OperationID) {
 		return backuplifecycle.RestoreVerification{}, errors.New("native v2 restore target authority changed before live post-verification")
 	}
+	return verifyNativeV2CurrentRuntime(ctx, current, requireApplicationObservation)
+}
 
+// verifyNativeV2CurrentRuntime proves, read-only, that the exact current
+// native v2 authority still has a ready local runtime and Owner closure. It is
+// shared by the staged-restore post-verifier and the Advanced restore drill.
+func verifyNativeV2CurrentRuntime(
+	ctx context.Context,
+	current nativeV2BackupAuthority,
+	requireApplicationObservation bool,
+) (backuplifecycle.RestoreVerification, error) {
 	gate := newArchitectureV2ExecutionGate()
 	reader, err := gate.newAuthority()
 	if err != nil {

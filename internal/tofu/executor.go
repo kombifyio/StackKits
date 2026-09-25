@@ -20,6 +20,7 @@ type Executor struct {
 	timeout     time.Duration
 	autoApprove bool
 	env         []string
+	unsetEnv    map[string]struct{}
 }
 
 // ExecutorOption configures the Executor
@@ -57,6 +58,21 @@ func WithAutoApprove(autoApprove bool) ExecutorOption {
 func WithEnv(values ...string) ExecutorOption {
 	return func(e *Executor) {
 		e.env = append(e.env, values...)
+	}
+}
+
+// WithoutInheritedEnv drops the named variables from the inherited process
+// environment before WithEnv values are appended. It lets a caller guarantee,
+// for example, that no host plugin cache or CLI argument override reaches an
+// offline OpenTofu run.
+func WithoutInheritedEnv(names ...string) ExecutorOption {
+	return func(e *Executor) {
+		if e.unsetEnv == nil {
+			e.unsetEnv = make(map[string]struct{}, len(names))
+		}
+		for _, name := range names {
+			e.unsetEnv[name] = struct{}{}
+		}
 	}
 }
 
@@ -239,7 +255,14 @@ func (e *Executor) run(ctx context.Context, args ...string) (*Result, error) {
 	cmd.Stderr = &stderr
 
 	// Set environment - preserve existing env vars including DOCKER_HOST
-	env := os.Environ()
+	env := make([]string, 0, len(os.Environ())+len(e.env)+2)
+	for _, entry := range os.Environ() {
+		name, _, _ := strings.Cut(entry, "=")
+		if _, drop := e.unsetEnv[name]; drop {
+			continue
+		}
+		env = append(env, entry)
+	}
 	env = append(env, "TF_IN_AUTOMATION=1")
 	env = append(env, "TF_INPUT=0")
 	env = append(env, e.env...)

@@ -368,6 +368,10 @@ func withPreparedPublicUpgradeCapture(
 	if err != nil {
 		return err
 	}
+	generationTarget, err := upgradelifecycle.GenerationTargetForPlan(plan)
+	if err != nil {
+		return err
+	}
 
 	loaded, err := config.NewLoader(workspace).ReadStackSpecDocument(specFile)
 	if err != nil {
@@ -434,7 +438,7 @@ func withPreparedPublicUpgradeCapture(
 	}
 
 	artifacts := make([]upgradelifecycle.ExecutorStateBlobInput, 0, len(manifest.Artifacts))
-	var generatedCompose []byte
+	var coreArtifact []byte
 	for _, artifact := range manifest.Artifacts {
 		data, err := os.ReadFile(filepath.Join(workspace, filepath.FromSlash(artifact.Path)))
 		if err != nil {
@@ -442,21 +446,36 @@ func withPreparedPublicUpgradeCapture(
 		}
 		recoveryPath := artifact.Path
 		if artifact.ID == coreProfile.ComposeArtifactID {
-			recoveryPath = coreProfile.ComposeOutputRef
-			generatedCompose = append([]byte(nil), data...)
+			recoveryPath = coreProfile.CoreArtifactOutputRef
+			coreArtifact = append([]byte(nil), data...)
 		}
 		artifacts = append(artifacts, upgradelifecycle.ExecutorStateBlobInput{
 			ID: artifact.ID, Path: recoveryPath, Mode: artifact.Mode, Data: data,
 		})
+	}
+	// Under the opentofu and terramate targets the Core artifact is the
+	// OpenTofu root that embeds the Compose payload byte for byte.
+	generatedCompose, err := coreProfile.CoreComposePayload(coreArtifact)
+	if err != nil {
+		return err
 	}
 	if err := verifyPublicUpgradeManagedVolumeAuthority(
 		generatedCompose, authority.Policy.SourceProjection(),
 	); err != nil {
 		return err
 	}
-	runtimeCompose, err := os.ReadFile(filepath.Join(workspace, filepath.FromSlash(upgradeCheckpointRuntimeComposePath)))
-	if err != nil {
-		return fmt.Errorf("read current runtime Compose: %w", err)
+	// The compose target captures the native runtime Compose file; the
+	// OpenTofu targets capture every OpenTofu root (state, configuration,
+	// and the runtime Compose file and .env each root writes).
+	var runtimeCompose []byte
+	var runtimeOpenTofu []upgradelifecycle.ExecutorStateOpenTofuRootInput
+	if generationTarget == "compose" {
+		runtimeCompose, err = os.ReadFile(filepath.Join(workspace, filepath.FromSlash(upgradeCheckpointRuntimeComposePath)))
+		if err != nil {
+			return fmt.Errorf("read current runtime Compose: %w", err)
+		}
+	} else if runtimeOpenTofu, err = upgradelifecycle.CollectOpenTofuRootStates(workspace); err != nil {
+		return fmt.Errorf("read current OpenTofu roots: %w", err)
 	}
 
 	platform := currentReleasePlatform()
@@ -495,7 +514,7 @@ func withPreparedPublicUpgradeCapture(
 			return executableErr
 		}
 		capture := upgradelifecycle.ExecutorStateCaptureInput{
-			GenerationTarget: "compose", Release: proof,
+			GenerationTarget: generationTarget, Release: proof,
 			Executable: upgradelifecycle.ExecutorStateExecutableInput{Blob: upgradelifecycle.ExecutorStateBlobInput{
 				ID: "stackkit", Path: executorRecoveryBinaryPath(currentReceipt.Platform),
 				Mode: "0755", Data: executableBytes,
@@ -505,11 +524,14 @@ func withPreparedPublicUpgradeCapture(
 				ID: "stack-spec", Path: filepath.ToSlash(specRelative), Mode: "0600",
 				Data: append([]byte(nil), loaded.Document.Raw...),
 			},
-			Artifacts: artifacts,
-			RuntimeCompose: upgradelifecycle.ExecutorStateBlobInput{
+			Artifacts:       artifacts,
+			RuntimeOpenTofu: runtimeOpenTofu,
+		}
+		if runtimeOpenTofu == nil {
+			capture.RuntimeCompose = upgradelifecycle.ExecutorStateBlobInput{
 				ID: "basement-core-runtime-compose", Path: upgradeCheckpointRuntimeComposePath,
 				Mode: "0600", Data: runtimeCompose,
-			},
+			}
 		}
 		if len(inventoryBytes) > 0 {
 			capture.Inventory = &upgradelifecycle.ExecutorStateBlobInput{
@@ -687,4 +709,15 @@ func executorRecoveryBinaryPath(platform releaseindex.Platform) string {
 		return "stackkit.exe"
 	}
 	return "stackkit"
+}
+
+// requireBeta4CheckpointGenerationTarget stops a beta.4 bridge upgrade before
+// its checkpoint unless the historical StackSpec uses the compose target.
+// beta.4 generated only Compose; OpenTofu and Terramate installs checkpoint
+// through the current-state path.
+func requireBeta4CheckpointGenerationTarget(target string) error {
+	if target == "compose" {
+		return nil
+	}
+	return fmt.Errorf("upgrade checkpoint: unsupported_state_snapshot: the beta.4 bridge checkpoints only the compose generation target, not %q", target)
 }

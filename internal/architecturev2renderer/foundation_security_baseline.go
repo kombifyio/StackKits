@@ -152,6 +152,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(paperlessWorkload.contract, paperlessWorkload); err != nil {
 		return nil, err
 	}
+	roundcubeWorkload := newRoundcubeWorkloadBundleRenderer()
+	if err := registry.Register(roundcubeWorkload.contract, roundcubeWorkload); err != nil {
+		return nil, err
+	}
 	privateAIWorkload := newPrivateAIWorkloadBundleRenderer()
 	if err := registry.Register(privateAIWorkload.contract, privateAIWorkload); err != nil {
 		return nil, err
@@ -177,7 +181,7 @@ func NewProductRegistry() (*Registry, error) {
 		return nil, err
 	}
 	basementCoreLiteOpenTofu := newBasementCoreLiteOpenTofuBoundRenderer()
-	if err := registry.Register(basementCoreLiteOpenTofu.inner.contract, basementCoreLiteOpenTofu); err != nil {
+	if err := registry.Register(basementCoreLiteOpenTofu.contract, basementCoreLiteOpenTofu); err != nil {
 		return nil, err
 	}
 	basementCoreLiteTerramate := newBasementCoreLiteTerramateRenderer()
@@ -191,6 +195,27 @@ func NewProductRegistry() (*Registry, error) {
 	cloudStandaloneCoreCompose := newCloudStandaloneCoreComposeRenderer()
 	if err := registry.Register(cloudStandaloneCoreCompose.contract, cloudStandaloneCoreCompose); err != nil {
 		return nil, err
+	}
+	cloudCoreOpenTofu := newCloudCoreOpenTofuRenderer()
+	if err := registry.Register(cloudCoreOpenTofu.contract, cloudCoreOpenTofu); err != nil {
+		return nil, err
+	}
+	cloudStandaloneCoreOpenTofu := newCloudStandaloneCoreOpenTofuRenderer()
+	if err := registry.Register(cloudStandaloneCoreOpenTofu.contract, cloudStandaloneCoreOpenTofu); err != nil {
+		return nil, err
+	}
+	cloudCoreTerramate := newCloudCoreTerramateRenderer()
+	if err := registry.Register(cloudCoreTerramate.contract, cloudCoreTerramate); err != nil {
+		return nil, err
+	}
+	cloudStandaloneCoreTerramate := newCloudStandaloneCoreTerramateRenderer()
+	if err := registry.Register(cloudStandaloneCoreTerramate.contract, cloudStandaloneCoreTerramate); err != nil {
+		return nil, err
+	}
+	for _, companion := range newTerramateCompanionRenderers() {
+		if err := registry.Register(companion.contract, companion); err != nil {
+			return nil, err
+		}
 	}
 	coolifyAdapter := newCoolifyRuntimeAdapterRenderer()
 	if err := registry.Register(coolifyAdapter.contract, coolifyAdapter); err != nil {

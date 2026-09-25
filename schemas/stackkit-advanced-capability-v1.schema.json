@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.dev/schemas/stackkit-advanced-capability-v1.schema.json",
+  "title": "StackKit Advanced capability v1",
+  "description": "Input of every capability-gated Advanced operation (--capability): a short-lived, secret-free, Techstack-signed grant scoped to one local stack and Owner. The file must be the exact canonical JSON form; the Ed25519 signature covers the canonical document without signature. Verification is offline against the imported stackkit.advanced-trust-bundle/v1; internal/advancedcapability is the authority (lifetime at most 30 days).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "allowedOperations",
+    "audience",
+    "capabilityId",
+    "expiresAt",
+    "issuedAt",
+    "issuerId",
+    "keyId",
+    "ownerRef",
+    "rilRef",
+    "schemaVersion",
+    "signature",
+    "stackId",
+    "uiManagerRef"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "stackkit.advanced-capability/v1" },
+    "audience": { "const": "stackkit" },
+    "allowedOperations": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "drift.reconcile.advanced",
+          "restore.drill",
+          "rollback.coordinated",
+          "terramate.change-set.apply",
+          "terramate.change-set.create"
+        ]
+      }
+    },
+    "capabilityId": { "type": "string", "minLength": 1 },
+    "issuedAt": { "type": "string", "format": "date-time" },
+    "expiresAt": { "type": "string", "format": "date-time" },
+    "issuerId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$" },
+    "keyId": { "type": "string", "pattern": "^ed25519://sha256/[0-9a-f]{64}$" },
+    "ownerRef": { "type": "string", "pattern": "^owner/local/[0-9a-f]{32}$" },
+    "stackId": { "type": "string", "minLength": 1 },
+    "uiManagerRef": { "type": "string", "minLength": 1 },
+    "rilRef": { "type": "string", "minLength": 1 },
+    "signature": { "type": "string", "minLength": 1 }
+  }
+}

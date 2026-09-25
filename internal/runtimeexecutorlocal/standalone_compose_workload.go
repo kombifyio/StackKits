@@ -33,6 +33,11 @@ const (
 	// unrouted workload so its loopback health port can bind.
 	standaloneComposeHealthNetwork = "stackkit-workload-health"
 	standaloneComposeOutputMax     = 256 << 10
+	// standaloneComposeEnvFile is the private interpolation file beside
+	// compose.yaml; `docker compose --env-file` reads it.
+	standaloneComposeEnvFile = ".env"
+	// standaloneComposeApplyBudget bounds startup plus readiness.
+	standaloneComposeApplyBudget = 600 * time.Second
 )
 
 type standaloneComposeProcessRunner interface {
@@ -71,7 +76,7 @@ type osStandaloneComposeWorkloadOperations struct {
 
 // NewOSStandaloneComposeWorkloadOperations constructs the local no-PaaS
 // workload adapter for an existing owner workspace.
-func NewOSStandaloneComposeWorkloadOperations(workspaceRoot string) (SelectedPaaSWorkloadOperations, error) {
+func NewOSStandaloneComposeWorkloadOperations(workspaceRoot string) (NativeWorkloadComposeOperations, error) {
 	if strings.TrimSpace(workspaceRoot) == "" {
 		return nil, errors.New("standalone Compose operations require a workspace root")
 	}
@@ -94,36 +99,81 @@ func (o *osStandaloneComposeWorkloadOperations) ApplyWorkload(
 	ctx context.Context,
 	deployment SelectedPaaSWorkloadDeployment,
 ) (SelectedPaaSApplyReceipt, error) {
-	project, err := o.prepare(ctx, deployment)
+	prepared, err := o.PrepareWorkloadCompose(ctx, deployment)
 	if err != nil {
 		return SelectedPaaSApplyReceipt{}, err
 	}
+	project := prepared.project
 	// Container startup and application readiness share the existing Compose
 	// wait budget. A running container without a healthcheck is not HTTP-ready.
-	ctx, cancel := context.WithTimeout(ctx, 600*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, standaloneComposeApplyBudget)
 	defer cancel()
-	if err := o.persist(project); err != nil {
-		return SelectedPaaSApplyReceipt{}, err
-	}
 	if _, err := o.runner.Run(ctx, standaloneComposeArgs(project, "up"), project.directory); err != nil {
 		return SelectedPaaSApplyReceipt{}, fmt.Errorf("standalone Docker Compose Apply did not complete: %w", err)
 	}
-	if project.bundle.ModuleRef == standaloneComposeGameNodeModuleRef {
-		// Wings reads the configuration its bootstrap just converged only at
-		// start. Recreating Wings leaves running game servers attached.
-		if _, err := o.runner.Run(ctx, standaloneComposeArgs(project, "recreate-wings"), project.directory); err != nil {
-			return SelectedPaaSApplyReceipt{}, fmt.Errorf("restart the game node with its converged configuration: %w", err)
-		}
-	}
-	if err := o.waitForBlockingComponents(ctx, project); err != nil {
-		return SelectedPaaSApplyReceipt{}, err
-	}
-	if err := o.waitForApplicationHTTP(ctx, project); err != nil {
+	if err := o.completeWorkloadCompose(ctx, project); err != nil {
 		return SelectedPaaSApplyReceipt{}, err
 	}
 	return SelectedPaaSApplyReceipt{
 		InstanceRef: deployment.InstanceRef, ArtifactDigest: deployment.ArtifactDigest, Status: "applied",
 	}, nil
+}
+
+// PrepareWorkloadCompose is the native Apply up to, not including, `docker
+// compose up`: it validates the deployment, renders the Compose project and
+// its .env, and persists them owner-only under
+// .stackkit/runtime/applications/<project>/, exactly as ApplyWorkload does.
+func (o *osStandaloneComposeWorkloadOperations) PrepareWorkloadCompose(
+	ctx context.Context,
+	deployment SelectedPaaSWorkloadDeployment,
+) (NativeWorkloadCompose, error) {
+	project, err := o.prepare(ctx, deployment)
+	if err != nil {
+		return NativeWorkloadCompose{}, err
+	}
+	if err := o.persist(project); err != nil {
+		return NativeWorkloadCompose{}, err
+	}
+	wait := true
+	for _, component := range project.bundle.Components {
+		if component.HealthFailure == "degraded" {
+			wait = false
+		}
+	}
+	return NativeWorkloadCompose{
+		ProjectName: project.name, Directory: project.directory,
+		Compose: append([]byte(nil), project.compose...), EnvFile: standaloneComposeEnvFile, Wait: wait,
+		project: project,
+	}, nil
+}
+
+// CompleteWorkloadCompose is the native Apply after `docker compose up`: the
+// game node's Wings recreation and the blocking-component and application
+// HTTP readiness waits, within the native Apply budget.
+func (o *osStandaloneComposeWorkloadOperations) CompleteWorkloadCompose(ctx context.Context, prepared NativeWorkloadCompose) error {
+	if ctx == nil {
+		return errors.New("standalone Compose operations require a context")
+	}
+	if prepared.project.name == "" || prepared.project.name != prepared.ProjectName {
+		return errors.New("standalone Compose completion requires a prepared project")
+	}
+	ctx, cancel := context.WithTimeout(ctx, standaloneComposeApplyBudget)
+	defer cancel()
+	return o.completeWorkloadCompose(ctx, prepared.project)
+}
+
+func (o *osStandaloneComposeWorkloadOperations) completeWorkloadCompose(ctx context.Context, project standaloneComposeProject) error {
+	if project.bundle.ModuleRef == standaloneComposeGameNodeModuleRef {
+		// Wings reads the configuration its bootstrap just converged only at
+		// start. Recreating Wings leaves running game servers attached.
+		if _, err := o.runner.Run(ctx, standaloneComposeArgs(project, "recreate-wings"), project.directory); err != nil {
+			return fmt.Errorf("restart the game node with its converged configuration: %w", err)
+		}
+	}
+	if err := o.waitForBlockingComponents(ctx, project); err != nil {
+		return err
+	}
+	return o.waitForApplicationHTTP(ctx, project)
 }
 
 func (o *osStandaloneComposeWorkloadOperations) waitForBlockingComponents(
@@ -689,6 +739,12 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 				map[string]any{"type": "bind", "source": bundle.DaemonSocketPath, "target": "/var/run/docker.sock", "bind": map[string]any{"create_host_path": false}},
 				map[string]any{"type": "bind", "source": filepath.Join(dockerRoot, "containers"), "target": filepath.Join(dockerRoot, "containers"), "read_only": true, "bind": map[string]any{"create_host_path": false}},
 			)
+		}
+		if bundle.ModuleRef == "stackkits-roundcube-runtime" && component.ID == "roundcube" {
+			// The Apache image declares SIGWINCH (graceful drain), which the
+			// backup quiesce owner does not admit; SIGTERM stops Apache at once
+			// and Roundcube keeps no in-flight state worth draining.
+			service.StopSignal = "SIGTERM"
 		}
 		if gameNode && (component.ID == "panel" || component.ID == "panel-bootstrap") {
 			// The Panel image declares SIGQUIT; supervisord stops cleanly on

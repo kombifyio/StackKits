@@ -21,6 +21,7 @@ const (
 	SelectedPaaSApplicationGitea         SelectedPaaSApplication = "gitea"
 	SelectedPaaSApplicationPaperless     SelectedPaaSApplication = "paperless-ngx"
 	SelectedPaaSApplicationPterodactyl   SelectedPaaSApplication = "pterodactyl"
+	SelectedPaaSApplicationRoundcube     SelectedPaaSApplication = "roundcube"
 	SelectedPaaSApplicationJellyfin      SelectedPaaSApplication = "jellyfin"
 	SelectedPaaSApplicationHomeAssistant SelectedPaaSApplication = "home-assistant"
 )
@@ -94,6 +95,20 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 			rendererContract: architecturev2renderer.PaperlessWorkloadBundleRendererContract,
 			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
 				descriptor, err := architecturev2renderer.ParsePaperlessWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{
+					workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef,
+					siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef,
+				}, err
+			},
+		}, true
+	case SelectedPaaSApplicationRoundcube:
+		return selectedPaaSApplicationSpec{
+			name: "Roundcube", providerRef: "stackkits-roundcube", moduleRef: roundcubeWorkloadModuleRef,
+			unitRef: "roundcube", workloadRef: "mail", artifactRef: "roundcube-workload-bundle",
+			outputRef: "workloads/roundcube/bundle.json", healthRef: "roundcube-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.RoundcubeWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseRoundcubeWorkloadBundle(content)
 				return selectedPaaSApplicationIdentity{
 					workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef,
 					siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef,

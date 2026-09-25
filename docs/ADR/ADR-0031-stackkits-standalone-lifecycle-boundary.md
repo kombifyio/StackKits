@@ -1,7 +1,7 @@
 # ADR-0031 — StackKits Standalone Lifecycle Boundary
 
 **Status:** Accepted (2026-07-26)
-**Amended:** 2026-08-28
+**Amended:** 2026-08-28; 2026-09-24 (Techstack-managed deployments always run Advanced Mode)
 **Owner:** StackKits
 **Related:** ADR-0016, ADR-0018, ADR-0029
 **Supersedes:** ADR-0018 server-side compatibility resolver, mandatory Admin
@@ -84,6 +84,16 @@ operations require a short-lived Techstack-issued capability that StackKits
 validates offline before rendering or side effects. Standard operations remain
 available without that capability.
 
+**Amendment 2026-09-24 (owner decision).** The mode is chosen by who operates
+the deployment. A StackKit installed and operated with the standalone CLI or
+installer runs in Standard Mode: a one-shot configuration without Terramate.
+A deployment managed by kombify Techstack runs in Advanced Mode, always,
+from its first rollout onward. Advanced Mode is Techstack's standard product
+path, not an optional add-on. It provides the wiring, Day-2 operations and
+drift detection that Techstack sells. Techstack must not roll out or operate a
+StackKit in Standard Mode. A Standard-only Techstack rollout is a defect, not
+a supported variant.
+
 ### 5. Techstack and kombify Cloud integration
 
 Techstack is the optional Orchestrator UI over the standalone product. It
@@ -112,9 +122,11 @@ lifecycle.
 Techstack may unify compatible configuration inputs, but Unifier output is a
 review proposal rather than a ResolvedPlan. The local Owner approves it and the
 pinned CLI's CUE `validate`/`generate` path remains final authority. Techstack
-may present Standard lifecycle operations and dispatch capability-gated
-Advanced Day-2 operations such as Terramate change sets, coordinated rollback,
-restore drills, and RIL workflows. It does not import StackKits source
+dispatches capability-gated Advanced operations for every deployment it
+manages, including the initial rollout, Terramate change sets, drift
+detection and reconciliation, coordinated rollback, restore drills, and RIL
+workflows (amendment 2026-09-24). It does not present a Standard-only
+lifecycle path. It does not import StackKits source
 packages, copy kit catalogs or renderers, mint local owner evidence, or
 reinterpret a ResolvedPlan.
 

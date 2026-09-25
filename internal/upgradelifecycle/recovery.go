@@ -36,13 +36,40 @@ type RecoveryCommand func(
 ) error
 
 // Recover verifies a committed executor-state snapshot and every retained
-// blob before restoring only its StackSpec and optional Inventory. It invokes
+// blob before restoring its StackSpec, optional Inventory, and, for an
+// OpenTofu generation target, every captured OpenTofu root. It invokes
 // the caller with the exact captured executable and removes that temporary
 // executable when the callback returns.
 func (store ExecutorStateStore) Recover(
 	ctx context.Context,
 	workspaceRoot string,
 	snapshotID string,
+	invoke RecoveryCommand,
+) (ExecutorStateRecoveryResult, error) {
+	return store.RecoverWith(ctx, workspaceRoot, snapshotID, RecoveryOptions{}, invoke)
+}
+
+// RecoveryOptions narrows Recover for the Advanced coordinated rollback
+// (docs/ARCHITECTURE.md "Coordinated rollback across stacks (Stage 1)").
+type RecoveryOptions struct {
+	// ReplaceAuthority restores the captured StackSpec and Inventory even
+	// when they changed after the checkpoint. Only an Owner-approved
+	// rollback to this exact checkpoint sets it; a change set promotes its
+	// candidate StackSpec before its target runs, so the current StackSpec
+	// is expected to differ.
+	ReplaceAuthority bool
+	// SkipOpenTofuRoots leaves the OpenTofu roots to the caller. The
+	// coordinated rollback restores and converges them per stack, and a
+	// second restore here would overwrite the state its forced apply wrote.
+	SkipOpenTofuRoots bool
+}
+
+// RecoverWith is Recover with explicit options.
+func (store ExecutorStateStore) RecoverWith(
+	ctx context.Context,
+	workspaceRoot string,
+	snapshotID string,
+	options RecoveryOptions,
 	invoke RecoveryCommand,
 ) (ExecutorStateRecoveryResult, error) {
 	if ctx == nil {
@@ -75,7 +102,7 @@ func (store ExecutorStateStore) Recover(
 	}
 
 	executablePath, restoredPaths, err := store.prepareExecutorStateRecovery(
-		ctx, workspaceRoot, snapshot, tempRoot,
+		ctx, workspaceRoot, snapshot, tempRoot, options,
 	)
 	if err != nil {
 		return ExecutorStateRecoveryResult{}, err
@@ -98,6 +125,7 @@ func (store ExecutorStateStore) prepareExecutorStateRecovery(
 	workspaceRoot string,
 	snapshot ExecutorStateSnapshot,
 	tempRoot string,
+	options RecoveryOptions,
 ) (executablePath string, restoredPaths []string, returnErr error) {
 	root, err := confinedfs.Open(workspaceRoot)
 	if err != nil {
@@ -170,16 +198,18 @@ func (store ExecutorStateStore) prepareExecutorStateRecovery(
 			"executor state: recovery authority files must use mode 0600",
 		)
 	}
-	if err := requireExecutorStateRecoveryInputUnchanged(
-		transaction, snapshot.StackSpec, stackSpec,
-	); err != nil {
-		return "", nil, err
-	}
-	if snapshot.Inventory != nil {
+	if !options.ReplaceAuthority {
 		if err := requireExecutorStateRecoveryInputUnchanged(
-			transaction, *snapshot.Inventory, inventory,
+			transaction, snapshot.StackSpec, stackSpec,
 		); err != nil {
 			return "", nil, err
+		}
+		if snapshot.Inventory != nil {
+			if err := requireExecutorStateRecoveryInputUnchanged(
+				transaction, *snapshot.Inventory, inventory,
+			); err != nil {
+				return "", nil, err
+			}
 		}
 	}
 	if err := ctx.Err(); err != nil {
@@ -218,6 +248,16 @@ func (store ExecutorStateStore) prepareExecutorStateRecovery(
 			)
 		}
 		restoredPaths = append(restoredPaths, snapshot.Inventory.Path)
+	}
+	// OpenTofu state is the execution state owner (ADR-0045). The captured
+	// roots are restored before the StackSpec commit point so the recovered
+	// release plans against the checkpoint's state.
+	if executorStateTargetExecutesOpenTofu(snapshot.GenerationTarget) && !options.SkipOpenTofuRoots {
+		roots, err := restoreExecutorStateOpenTofuRoots(transaction, view, snapshot.RuntimeOpenTofu)
+		if err != nil {
+			return "", nil, err
+		}
+		restoredPaths = append(restoredPaths, roots...)
 	}
 	if _, err := view.WriteAtomic0600(snapshot.StackSpec.Path, stackSpec); err != nil {
 		return "", nil, fmt.Errorf(
@@ -325,4 +365,88 @@ func materializeExecutorStateRecoveryExecutable(
 
 func executorStateExecutablePathFromBlob(blob ExecutorStateBlob) string {
 	return filepath.Base(filepath.FromSlash(blob.Path))
+}
+
+// ExecutorStateRootPayload is the verified bytes of one captured OpenTofu
+// root.
+type ExecutorStateRootPayload struct {
+	ModuleRef      string
+	Root           string
+	State          []byte
+	Config         []byte
+	Compose        []byte
+	HasCompose     bool
+	Environment    []byte
+	HasEnvironment bool
+}
+
+// ExecutorStateRollbackCustody is the verified content of one checkpoint that
+// the Advanced coordinated rollback restores per stack: every captured
+// OpenTofu root and every captured artifact by ID (the Terramate stack graph
+// and stack files among them).
+type ExecutorStateRollbackCustody struct {
+	Snapshot  ExecutorStateSnapshot
+	Roots     []ExecutorStateRootPayload
+	Artifacts map[string][]byte
+}
+
+// LoadRollbackCustody verifies a committed snapshot and returns its OpenTofu
+// roots and artifacts. It writes nothing. Only OpenTofu-executing generation
+// targets carry roots.
+func (store ExecutorStateStore) LoadRollbackCustody(
+	workspaceRoot, snapshotID string,
+) (custody ExecutorStateRollbackCustody, returnErr error) {
+	root, err := confinedfs.Open(workspaceRoot)
+	if err != nil {
+		return ExecutorStateRollbackCustody{}, err
+	}
+	defer func() { returnErr = errors.Join(returnErr, root.Close()) }()
+	transaction, err := root.BeginTransaction()
+	if err != nil {
+		return ExecutorStateRollbackCustody{}, err
+	}
+	defer func() { returnErr = errors.Join(returnErr, transaction.Close()) }()
+	snapshot, err := store.loadWithTransaction(workspaceRoot, transaction, snapshotID)
+	if err != nil {
+		return ExecutorStateRollbackCustody{}, fmt.Errorf("executor state: verify rollback checkpoint: %w", err)
+	}
+	if !executorStateTargetExecutesOpenTofu(snapshot.GenerationTarget) {
+		return ExecutorStateRollbackCustody{}, fmt.Errorf(
+			"executor state: checkpoint generation target %q captured no OpenTofu roots", snapshot.GenerationTarget,
+		)
+	}
+	custody = ExecutorStateRollbackCustody{
+		Snapshot: snapshot, Roots: make([]ExecutorStateRootPayload, 0, len(snapshot.RuntimeOpenTofu)),
+		Artifacts: make(map[string][]byte, len(snapshot.Artifacts)),
+	}
+	for _, artifact := range snapshot.Artifacts {
+		data, err := readExecutorStateRecoveryBlob(transaction, artifact)
+		if err != nil {
+			return ExecutorStateRollbackCustody{}, err
+		}
+		custody.Artifacts[artifact.ID] = data
+	}
+	for _, captured := range snapshot.RuntimeOpenTofu {
+		payload := ExecutorStateRootPayload{ModuleRef: captured.ModuleRef, Root: captured.Root}
+		if payload.State, err = readExecutorStateRecoveryBlob(transaction, captured.State); err != nil {
+			return ExecutorStateRollbackCustody{}, err
+		}
+		if payload.Config, err = readExecutorStateRecoveryBlob(transaction, captured.Config); err != nil {
+			return ExecutorStateRollbackCustody{}, err
+		}
+		if captured.Compose != (ExecutorStateBlob{}) {
+			if payload.Compose, err = readExecutorStateRecoveryBlob(transaction, captured.Compose); err != nil {
+				return ExecutorStateRollbackCustody{}, err
+			}
+			payload.HasCompose = true
+		}
+		if captured.Environment != (ExecutorStateBlob{}) {
+			if payload.Environment, err = readExecutorStateRecoveryBlob(transaction, captured.Environment); err != nil {
+				return ExecutorStateRollbackCustody{}, err
+			}
+			payload.HasEnvironment = true
+		}
+		custody.Roots = append(custody.Roots, payload)
+	}
+	return custody, nil
 }

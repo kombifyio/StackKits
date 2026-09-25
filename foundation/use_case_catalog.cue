@@ -397,11 +397,11 @@ UseCaseCatalog: #UseCaseCatalog & {
 		mail: {
 			slug:        "mail"
 			displayName: "Private Mail"
-			description: "Private mail delivery, mailbox, and communication intent."
+			description: "Private webmail through Roundcube for a mailbox you already have at an external provider. No mail server, DNS or MX record is created."
 			owner:       "stackkits"
 			mainUseCase: id: "mail"
 			docs: "/guides/stackkits/use-cases/mail"
-			components: stalwart: {id: "stalwart", name: "Stalwart Mail Server", role: "primary", kind: "application"}
+			components: roundcube: {id: "roundcube", name: "Roundcube Webmail", role: "primary", kind: "application"}
 			settings: [
 				{
 					id:          "mail-domain"

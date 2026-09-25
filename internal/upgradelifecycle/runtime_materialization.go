@@ -203,7 +203,19 @@ func runtimeMaterializationFiles(
 	if snapshot.Inventory != nil {
 		blobs = append(blobs, *snapshot.Inventory)
 	}
-	blobs = append(blobs, snapshot.RuntimeCompose)
+	if executorStateTargetExecutesOpenTofu(snapshot.GenerationTarget) {
+		// Every root file the graph may bind: runtime Compose, .env, state.
+		// Contract roots carry state and configuration only.
+		for _, root := range snapshot.RuntimeOpenTofu {
+			for _, blob := range []ExecutorStateBlob{root.Compose, root.Environment, root.State} {
+				if blob != (ExecutorStateBlob{}) {
+					blobs = append(blobs, blob)
+				}
+			}
+		}
+	} else {
+		blobs = append(blobs, snapshot.RuntimeCompose)
+	}
 	files := make([]runtimeMaterializationFile, 0, len(blobs))
 	paths := make(map[string]ExecutorStateBlob, len(blobs))
 	foldedPaths := make(map[string]struct{}, len(blobs))
@@ -230,7 +242,8 @@ func runtimeMaterializationFiles(
 	}
 	for _, runtime := range graph.ComposeRuntimes {
 		if paths[runtime.Path].SHA256 != runtime.Digest ||
-			(runtime.EnvironmentPath != "" && paths[runtime.EnvironmentPath].SHA256 != runtime.EnvironmentDigest) {
+			(runtime.EnvironmentPath != "" && paths[runtime.EnvironmentPath].SHA256 != runtime.EnvironmentDigest) ||
+			(runtime.StatePath != "" && paths[runtime.StatePath].SHA256 != runtime.StateDigest) {
 			return empty, nil, errors.New("executor state: runtime files differ from signed recovery graph")
 		}
 	}

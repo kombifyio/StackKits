@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.dev/schemas/stackkit-change-set-result-v1.schema.json",
+  "title": "StackKit Advanced change-set result v1",
+  "description": "Terramate orchestration report of one `stackkit advanced change-set apply` on the local host, carried as data.changeSetResult of the stackkit.advanced-mutation/v1 command result. internal/terramatehost owns the semantics: after the target apply, the host project is materialized, `terramate list --run-order --tags stackkit` must equal the graph run order, and every affected local stack runs `terramate run --no-recursive --tags stackkit -- tofu plan -detailed-exitcode -input=false`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "changeSetId", "stackId", "planHash", "siteRef", "nodeRef", "projectRoot", "hostManifestSha256", "materialized", "runOrder", "affectedStacks", "status", "stacks"],
+  "properties": {
+    "schemaVersion": { "const": "stackkit.change-set-result/v1" },
+    "changeSetId": { "$ref": "#/$defs/digest" },
+    "stackId": { "type": "string", "minLength": 1 },
+    "planHash": { "type": "string", "pattern": "^sha256:[0-9a-f]+$" },
+    "siteRef": { "type": "string" },
+    "nodeRef": { "type": "string" },
+    "projectRoot": { "const": ".stackkit/runtime" },
+    "hostManifestSha256": {
+      "description": "Digest of the stackkit.terramate-host-manifest/v1 document at .stackkit/terramate-host-manifest.json; equals the terramateHostManifestSha256 of the applied change set.",
+      "$ref": "#/$defs/digest"
+    },
+    "materialized": {
+      "description": "Workspace-relative files this run wrote. Empty when the host project was already current.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "runOrder": {
+      "description": "Stack IDs in the order `terramate list --run-order` printed them for this host.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/stackId" }
+    },
+    "affectedStacks": {
+      "description": "The change set's affected stack IDs in stack graph run order, across every host.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/stackId" }
+    },
+    "status": {
+      "description": "converged when every affected local stack converged or is an allowed pending_root; otherwise not_converged and the change set failed and rolled back.",
+      "enum": ["converged", "not_converged"]
+    },
+    "stacks": {
+      "description": "One entry per affected stack, in affectedStacks order. Empty when the orchestration stopped before the convergence plans.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/stackResult" }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "stackId": { "type": "string", "pattern": "^stackkit-[0-9a-f]{20}$" },
+    "stackResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stackId", "role", "siteRef", "nodeRef", "runtimeRoot", "status", "durationMs"],
+      "properties": {
+        "stackId": { "$ref": "#/$defs/stackId" },
+        "role": { "enum": ["core", "workload", "edge", "federation"] },
+        "siteRef": { "type": "string", "minLength": 1 },
+        "nodeRef": { "type": "string", "minLength": 1 },
+        "runtimeRoot": { "type": "string", "pattern": "^\\.stackkit/runtime/.+/opentofu$" },
+        "status": {
+          "description": "converged: plan exit 0. drifted: plan exit 2 after apply (fails the change set). failed: the plan could not run. pending_root: the runtime root has no main.tf yet; fails the change set for core and workload roles only. other_host: the stack belongs to another host project and runs through that host's execution channel.",
+          "enum": ["converged", "drifted", "failed", "pending_root", "other_host"]
+        },
+        "planExitCode": {
+          "description": "Exit code of `tofu plan -detailed-exitcode` as relayed by `terramate run`. Absent when no plan ran.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "durationMs": { "type": "integer", "minimum": 0 },
+        "detail": { "type": "string", "maxLength": 4096 }
+      }
+    }
+  }
+}

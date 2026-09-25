@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.dev/schemas/stackkit-advanced-trust-bundle-v1.schema.json",
+  "title": "StackKit Advanced trust bundle v1",
+  "description": "Input of `stackkit advanced trust import --bundle`: the public Ed25519 issuer keys that may sign stackkit.advanced-capability/v1 documents. The file must be the exact canonical JSON form (no whitespace, fixed key order, at most 65536 bytes); its sha256 is pinned with --expect-sha256. internal/advancedtrust is the authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["keys", "schemaVersion"],
+  "properties": {
+    "schemaVersion": { "const": "stackkit.advanced-trust-bundle/v1" },
+    "keys": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issuerId", "keyId", "publicKey"],
+        "properties": {
+          "issuerId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$" },
+          "keyId": {
+            "description": "ed25519://sha256/<hex> of the raw public key bytes.",
+            "type": "string",
+            "pattern": "^ed25519://sha256/[0-9a-f]{64}$"
+          },
+          "publicKey": {
+            "description": "Unpadded standard Base64 of the 32-byte Ed25519 public key.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9+/]{43}$"
+          }
+        }
+      }
+    }
+  }
+}

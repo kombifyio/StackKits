@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2"
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
@@ -18,6 +20,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/restoreactivation"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutoropentofu"
 )
 
 const (
@@ -109,12 +112,34 @@ type CurrentStateAuthorityInput struct {
 // the current Plan-owned recovery closure. The IDs come from ApplyRequirements;
 // the stable profile identity and Compose output come from the existing local
 // runtime profile registry.
+//
+// ComposeArtifactID names the governed artifact that carries the Core Compose
+// payload and CoreArtifactOutputRef is its recovery path: the Compose artifact
+// itself under the compose target, the Core OpenTofu root main.tf (which
+// embeds the same payload byte for byte) under the opentofu and terramate
+// targets. Every other field is identical across the three targets.
 type CurrentStateCoreProfile struct {
-	ModuleRef         string
-	ComposeArtifactID string
-	ComposeOutputRef  string
-	PolicyArtifactID  string
-	PolicyOutputRef   string
+	ModuleRef             string
+	ComposeArtifactID     string
+	ComposeOutputRef      string
+	CoreArtifactOutputRef string
+	PolicyArtifactID      string
+	PolicyOutputRef       string
+}
+
+// CoreComposePayload returns the Core Compose payload the profile's carrier
+// artifact holds: the artifact itself under the compose target, or the payload
+// extracted from the Core OpenTofu root under the opentofu and terramate
+// targets.
+func (profile CurrentStateCoreProfile) CoreComposePayload(artifact []byte) ([]byte, error) {
+	if profile.CoreArtifactOutputRef == "" || profile.CoreArtifactOutputRef == profile.ComposeOutputRef {
+		return append([]byte(nil), artifact...), nil
+	}
+	payload, err := architecturev2renderer.ExtractComposePayload(artifact)
+	if err != nil {
+		return nil, fmt.Errorf("current state authority: derive the Core Compose payload: %w", err)
+	}
+	return payload, nil
 }
 
 // CurrentStateCoreProfileForPlan selects the one Full or Lite Core runtime and
@@ -128,15 +153,24 @@ func CurrentStateCoreProfileForPlan(
 	if strings.TrimSpace(siteRef) == "" || strings.TrimSpace(nodeRef) == "" {
 		return CurrentStateCoreProfile{}, errors.New("current state authority: Core profile selection requires an Owner site and node")
 	}
+	target, err := GenerationTargetForPlan(plan)
+	if err != nil {
+		return CurrentStateCoreProfile{}, fmt.Errorf("current state authority: %w", err)
+	}
 	requirements := plan.ApplyRequirements()
 	var runtime generationartifact.ApplyRuntimeRequirement
 	var runtimeProfile runtimeexecutorlocal.BasementCoreRuntimeProfile
 	runtimeMatches := 0
 	for _, candidate := range requirements.RuntimeInstances {
 		profile, supported := runtimeexecutorlocal.BasementCoreRuntimeProfileForModule(candidate.ModuleRef)
+		unitRef := profile.UnitRef
+		if target != executorStateTargetCompose {
+			// The OpenTofu and Terramate twins are named after their target.
+			unitRef = target
+		}
 		if !supported || candidate.OwnerKind != "module" || candidate.OwnerRef != candidate.ModuleRef ||
 			candidate.ProviderRef != profile.ProviderRef || candidate.ModuleRef != profile.ModuleRef ||
-			candidate.UnitRef != profile.UnitRef || candidate.WorkloadRef != profile.WorkloadRef ||
+			candidate.UnitRef != unitRef || candidate.WorkloadRef != profile.WorkloadRef ||
 			candidate.RuntimeEngine != "docker" || candidate.RuntimeDelivery != "stackkit" ||
 			candidate.RuntimeKind != "container" || len(candidate.SiteRefs) != 1 || candidate.SiteRefs[0] != siteRef ||
 			len(candidate.NodeRefs) != 1 || candidate.NodeRefs[0] != nodeRef {
@@ -150,6 +184,13 @@ func CurrentStateCoreProfileForPlan(
 		return CurrentStateCoreProfile{}, errors.New("current state authority: Apply requirements must select exactly one Full or Lite Core runtime")
 	}
 
+	// The compose target carries the Core Compose artifact; the opentofu and
+	// terramate targets carry the Core root main.tf that embeds it.
+	coreKind, coreFormat, coreOutputRef := "compose", "yaml", runtimeProfile.OutputRef
+	if target != executorStateTargetCompose {
+		coreKind, coreFormat = target, "hcl"
+		coreOutputRef = path.Join(path.Dir(runtimeProfile.OutputRef), runtimeexecutoropentofu.ConfigFile)
+	}
 	var compose, policy generationartifact.ApplyArtifactRequirement
 	composeMatches, policyMatches := 0, 0
 	for _, candidate := range requirements.Artifacts {
@@ -161,9 +202,9 @@ func CurrentStateCoreProfileForPlan(
 		}
 		switch {
 		case candidate.UnitRef == runtime.UnitRef && candidate.InstanceRef == runtime.InstanceRef &&
-			candidate.Kind == "compose" && candidate.Format == "yaml" && candidate.Mode == "0640" &&
+			candidate.Kind == coreKind && candidate.Format == coreFormat && candidate.Mode == "0640" &&
 			candidate.ExecutionClass == generationartifact.ApplyExecutionClassExecutable &&
-			candidate.OutputRef == runtimeProfile.OutputRef && containsString(runtime.ArtifactRefs, candidate.ID):
+			candidate.OutputRef == coreOutputRef && containsString(runtime.ArtifactRefs, candidate.ID):
 			compose = candidate
 			composeMatches++
 		case candidate.UnitRef == "source-policy" && candidate.Kind == "native-config" && candidate.Format == "json" &&
@@ -176,8 +217,9 @@ func CurrentStateCoreProfileForPlan(
 		return CurrentStateCoreProfile{}, errors.New("current state authority: Core profile requires exactly one governed Compose and source-policy artifact")
 	}
 	return CurrentStateCoreProfile{
-		ModuleRef: runtime.ModuleRef, ComposeArtifactID: compose.ID, ComposeOutputRef: compose.OutputRef,
-		PolicyArtifactID: policy.ID, PolicyOutputRef: policy.OutputRef,
+		ModuleRef: runtime.ModuleRef, ComposeArtifactID: compose.ID, ComposeOutputRef: runtimeProfile.OutputRef,
+		CoreArtifactOutputRef: compose.OutputRef,
+		PolicyArtifactID:      policy.ID, PolicyOutputRef: policy.OutputRef,
 	}, nil
 }
 
@@ -250,6 +292,9 @@ func NewVerifiedExecutorStateCapture(input CurrentStateAuthorityInput) (Verified
 	if current.PlanHash != input.Plan.Binding().PlanHash ||
 		!bytes.Equal(current.CanonicalPlan, input.Plan.Canonical()) {
 		return VerifiedExecutorStateCapture{}, errors.New("current state authority: StackSpec or Inventory resolves to a different current Plan")
+	}
+	if target, err := GenerationTargetForPlan(input.Plan); err != nil || target != input.Capture.GenerationTarget {
+		return VerifiedExecutorStateCapture{}, errors.New("current state authority: capture generation target differs from the current Plan")
 	}
 	if err := generationartifact.VerifyExecution(generationartifact.ExecutionGateInput{
 		CurrentCanonical: current.CanonicalPlan,
@@ -419,7 +464,7 @@ func verifyCurrentStateArtifactsForProfile(
 		captured[artifact.ID] = artifact
 	}
 	var policyManifest generationartifact.RenderedArtifact
-	var policyBytes, composeBytes []byte
+	var policyBytes, coreArtifact []byte
 	for _, manifestArtifact := range input.Manifest.Artifacts {
 		artifact, exists := captured[manifestArtifact.ID]
 		if !exists || artifact.Mode != manifestArtifact.Mode ||
@@ -429,7 +474,10 @@ func verifyCurrentStateArtifactsForProfile(
 		expectedPath := manifestArtifact.Path
 		if manifestArtifact.ID == profile.ComposeArtifactID {
 			expectedPath = profile.ComposeOutputRef
-			composeBytes = artifact.Data
+			if profile.CoreArtifactOutputRef != "" {
+				expectedPath = profile.CoreArtifactOutputRef
+			}
+			coreArtifact = artifact.Data
 		}
 		if filepathToSlash(artifact.Path) != expectedPath {
 			return CurrentStateCoreProfile{}, "", fmt.Errorf("current state authority: artifact %q recovery path differs from governed path", manifestArtifact.ID)
@@ -459,11 +507,63 @@ func verifyCurrentStateArtifactsForProfile(
 	if policy.Target.SiteRef != owner.Binding.SiteRef || policy.Target.NodeRef != owner.Binding.NodeRef {
 		return CurrentStateCoreProfile{}, "", errors.New("current state authority: local Kopia policy target differs from Owner custody")
 	}
-	if len(composeBytes) == 0 || !bytes.Equal(composeBytes, input.Capture.RuntimeCompose.Data) ||
+	if len(coreArtifact) == 0 {
+		return CurrentStateCoreProfile{}, "", errors.New("current state authority: runtime Compose differs from governed generation artifact")
+	}
+	composeBytes, err := profile.CoreComposePayload(coreArtifact)
+	if err != nil {
+		return CurrentStateCoreProfile{}, "", err
+	}
+	if executorStateTargetExecutesOpenTofu(input.Capture.GenerationTarget) {
+		if err := verifyCurrentStateCoreOpenTofuRoot(input.Capture, profile, coreArtifact, composeBytes); err != nil {
+			return CurrentStateCoreProfile{}, "", err
+		}
+		return profile, policyDigest, nil
+	}
+	if !bytes.Equal(composeBytes, input.Capture.RuntimeCompose.Data) ||
 		input.Capture.RuntimeCompose.Path != basementCoreRuntimeComposePath {
 		return CurrentStateCoreProfile{}, "", errors.New("current state authority: runtime Compose differs from governed generation artifact")
 	}
 	return profile, policyDigest, nil
+}
+
+// verifyCurrentStateCoreOpenTofuRoot binds the captured Core OpenTofu root of
+// an opentofu or terramate install to the governed Core root artifact: its
+// configuration is the artifact and the runtime Compose file it writes is the
+// payload the artifact embeds, byte for byte.
+func verifyCurrentStateCoreOpenTofuRoot(
+	capture ExecutorStateCaptureInput,
+	profile CurrentStateCoreProfile,
+	coreArtifact []byte,
+	composeBytes []byte,
+) error {
+	if capture.RuntimeCompose.ID != "" || capture.RuntimeCompose.Path != "" || len(capture.RuntimeCompose.Data) != 0 {
+		return errors.New("current state authority: an OpenTofu install carries its runtime Compose in its Core OpenTofu root")
+	}
+	runtimeDir, _, ok := runtimeexecutorlocal.NativeComposeProject(profile.ModuleRef)
+	if !ok {
+		return errors.New("current state authority: the selected Core module has no native runtime directory")
+	}
+	rootPath, err := runtimeexecutoropentofu.RootRelativePath(runtimeDir)
+	if err != nil {
+		return err
+	}
+	matches := 0
+	for _, root := range capture.RuntimeOpenTofu {
+		if root.Root != rootPath {
+			continue
+		}
+		matches++
+		if root.ModuleRef != profile.ModuleRef || !bytes.Equal(root.Config.Data, coreArtifact) ||
+			root.Compose.Path != path.Join(path.Dir(rootPath), runtimeexecutoropentofu.ComposeFile) ||
+			!bytes.Equal(root.Compose.Data, composeBytes) || len(root.State.Data) == 0 {
+			return errors.New("current state authority: Core OpenTofu root differs from the governed Core root artifact and its Compose payload")
+		}
+	}
+	if matches != 1 {
+		return errors.New("current state authority: the selected Core module requires exactly one captured OpenTofu root")
+	}
+	return nil
 }
 
 func verifyCurrentStateArtifacts(
@@ -514,12 +614,28 @@ func appendStandaloneComposeRuntimeCustody(input *CurrentStateAuthorityInput) er
 		})
 		return nil
 	}
+	openTofuRoots := make(map[string]ExecutorStateOpenTofuRootInput, len(input.Capture.RuntimeOpenTofu))
+	for _, root := range input.Capture.RuntimeOpenTofu {
+		openTofuRoots[root.Root] = root
+	}
 	for _, runtime := range custody {
-		if err := appendFile(executorStateStandaloneComposeID(runtime.Project), runtime.Compose); err != nil {
-			return err
-		}
-		if err := appendFile(executorStateStandaloneEnvironmentID(runtime.Project), runtime.Environment); err != nil {
-			return err
+		if executorStateTargetExecutesOpenTofu(input.Capture.GenerationTarget) {
+			// The workload OpenTofu root already carries this project's
+			// Compose file and .env; bind them instead of capturing twice.
+			root, ok := openTofuRoots[path.Join(path.Dir(filepathToSlash(runtime.Compose.Path)), runtimeexecutoropentofu.RootDirName)]
+			if !ok || filepathToSlash(root.Compose.Path) != filepathToSlash(runtime.Compose.Path) ||
+				!bytes.Equal(root.Compose.Data, runtime.Compose.Data) ||
+				filepathToSlash(root.Environment.Path) != filepathToSlash(runtime.Environment.Path) ||
+				!bytes.Equal(root.Environment.Data, runtime.Environment.Data) {
+				return errors.New("current state authority: standalone Application runtime differs from its captured OpenTofu root")
+			}
+		} else {
+			if err := appendFile(executorStateStandaloneComposeID(runtime.Project), runtime.Compose); err != nil {
+				return err
+			}
+			if err := appendFile(executorStateStandaloneEnvironmentID(runtime.Project), runtime.Environment); err != nil {
+				return err
+			}
 		}
 		for _, config := range runtime.ConfigFiles {
 			if err := appendFile(executorStateStandaloneConfigID(runtime.Project, config.Path), config); err != nil {
@@ -593,6 +709,13 @@ func cloneExecutorStateCaptureInput(input ExecutorStateCaptureInput) (ExecutorSt
 		cloned.Artifacts[index] = cloneBlob(artifact)
 	}
 	cloned.RuntimeCompose = cloneBlob(input.RuntimeCompose)
+	cloned.RuntimeOpenTofu = make([]ExecutorStateOpenTofuRootInput, len(input.RuntimeOpenTofu))
+	for index, root := range input.RuntimeOpenTofu {
+		cloned.RuntimeOpenTofu[index] = ExecutorStateOpenTofuRootInput{
+			ModuleRef: root.ModuleRef, Root: root.Root,
+			State: cloneBlob(root.State), Config: cloneBlob(root.Config), Compose: cloneBlob(root.Compose),
+		}
+	}
 	canonicalAnchor, err := resolvedplan.CanonicalJSON(input.KopiaSnapshotAnchor)
 	if err != nil {
 		return ExecutorStateCaptureInput{}, fmt.Errorf("current state authority: clone snapshot anchor: %w", err)

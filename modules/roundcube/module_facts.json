@@ -1,0 +1,84 @@
+{
+  "facts_schema_version": "1.0.0",
+  "slug": "roundcube",
+  "displayName": "Roundcube Webmail",
+  "description": "Roundcube Webmail upstream catalog: a webmail client for an existing external IMAP/SMTP mailbox. The native-v2 mail workload owns executable configuration, the custody-derived session key, the owner mailbox endpoints stored by the owner-approved setup action and the device setup documents. No mail server is included.",
+  "layer": "L3-application",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "128m"
+    }
+  },
+  "services": [
+    {
+      "name": "roundcube",
+      "type": "application",
+      "required": false,
+      "imageSource": {
+        "moduleRef": "stackkits-roundcube-runtime",
+        "componentRef": "roundcube"
+      },
+      "networks": [
+        "mail-internal"
+      ],
+      "volumes": [
+        {
+          "source": "roundcube-database",
+          "target": "/var/roundcube/db",
+          "type": "volume",
+          "backup": true
+        },
+        {
+          "source": "roundcube-mailbox",
+          "target": "/var/roundcube/mailbox",
+          "type": "volume",
+          "backup": true
+        },
+        {
+          "source": "roundcube-config",
+          "target": "/var/roundcube/config",
+          "type": "volume",
+          "backup": false
+        },
+        {
+          "source": "roundcube-temp",
+          "target": "/tmp/roundcube-temp",
+          "type": "volume",
+          "backup": false
+        }
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/",
+        "port": 80
+      },
+      "resources": {
+        "memory": "128m",
+        "memoryMax": "256m"
+      },
+      "upstream": {
+        "github": "roundcube/roundcubemail",
+        "registryImage": "docker.io/roundcube/roundcubemail"
+      },
+      "environment": {
+        "ROUNDCUBEMAIL_DB_TYPE": "sqlite",
+        "ROUNDCUBEMAIL_DB_DIR": "/var/roundcube/db",
+        "ROUNDCUBEMAIL_SKIN": "elastic",
+        "ROUNDCUBEMAIL_PLUGINS": "archive,zipdownload",
+        "ROUNDCUBEMAIL_TEMP_DIR": "/tmp/roundcube-temp",
+        "ROUNDCUBEMAIL_REQUEST_PATH": "/"
+      },
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`mail.{{.domain}}`)",
+        "port": 80
+      },
+      "accessPolicy": {
+        "outerAuth": "self",
+        "appAuth": "self-auth"
+      }
+    }
+  ]
+}

@@ -30,6 +30,14 @@ const (
 	basementCorePolicyOutputRef      = "home/backup/kopia-source-policy.json"
 	basementCoreLitePolicyOutputRef  = "home/backup/kopia-source-policy-lite.json"
 	basementComposeProject           = "stackkit-basement-core"
+	basementCoreRuntimeDir           = ".stackkit/runtime/basement-core"
+	renderTargetCompose              = "compose"
+	renderTargetOpenTofu             = "opentofu"
+	renderTargetTerramate            = "terramate"
+	openTofuRootDirName              = "opentofu"
+	openTofuConfigFile               = "main.tf"
+	openTofuStateFile                = "terraform.tfstate"
+	terramateStackFile               = "stack.tm.hcl"
 	restoreResultAPIVersion          = "stackkit.local-backup-restore-result/v1"
 	restoreRecoveryAPI               = "stackkit.local-backup-restore-recovery-anchor/v1"
 	repositoryRestoreAPI             = "stackkit.local-backup-repository-restore/v1"
@@ -44,6 +52,7 @@ var (
 )
 
 type planAuthority struct {
+	renderTarget    string
 	stackID         string
 	composeProject  string
 	composeArtifact generationartifact.RenderedArtifact
@@ -89,6 +98,7 @@ func BindRuntimeRecoveryGraph(graph RuntimeRecoveryGraph, restoreResult backupli
 	}
 	return Authority{
 		OperationID:          graph.OperationID,
+		RenderTarget:         graph.RenderTarget,
 		OwnerRef:             restoreResult.OwnerRef,
 		RestoreResultID:      restoreResult.ID,
 		PlanHash:             graph.PlanHash,
@@ -153,7 +163,14 @@ func derivePlanAuthority(
 			coreModuleID = moduleID
 		}
 	}
-	if core == nil || text(core, "renderTarget") != "compose" {
+	if core == nil {
+		return planAuthority{}, errors.New("restoreactivation: exact Compose Basement core runtime is not selected")
+	}
+	// Under the opentofu and terramate targets the Core runtime is the same
+	// Compose project applied through an OpenTofu root whose main.tf embeds
+	// the Compose artifact byte for byte (ADR-0045 Stage 1).
+	renderTarget := text(core, "renderTarget")
+	if renderTarget != renderTargetCompose && renderTarget != renderTargetOpenTofu && renderTarget != renderTargetTerramate {
 		return planAuthority{}, errors.New("restoreactivation: exact Compose Basement core runtime is not selected")
 	}
 	composeOutputRef, policyOutputRef, ok := basementCoreRestoreContract(coreModuleID)
@@ -194,11 +211,12 @@ func derivePlanAuthority(
 			return planAuthority{}, errors.New("restoreactivation: deterministic rollback volume collides with governed runtime volumes")
 		}
 	}
-	composeArtifact, policyArtifact, err := bindManifest(plan, manifest, policyArtifactID, coreModuleID, composeOutputRef)
+	composeArtifact, policyArtifact, err := bindManifest(plan, manifest, policyArtifactID, coreModuleID, composeOutputRef, renderTarget)
 	if err != nil {
 		return planAuthority{}, err
 	}
 	return planAuthority{
+		renderTarget:    renderTarget,
 		stackID:         stackID,
 		composeProject:  composeProject,
 		composeArtifact: composeArtifact,
@@ -1028,7 +1046,15 @@ func bindManifest(
 	policyArtifactID string,
 	coreModuleID string,
 	composeOutputRef string,
+	renderTarget string,
 ) (generationartifact.RenderedArtifact, generationartifact.RenderedArtifact, error) {
+	// The compose target selects the Core Compose artifact; an OpenTofu
+	// target selects the Core root main.tf that carries the same payload.
+	coreUnitRef, coreOutputRef, coreKind, coreFormat := "compose", composeOutputRef, "compose", "yaml"
+	if renderTarget != renderTargetCompose {
+		coreUnitRef, coreOutputRef = renderTarget, path.Join(path.Dir(composeOutputRef), openTofuConfigFile)
+		coreKind, coreFormat = renderTarget, "hcl"
+	}
 	generation, err := object(plan, "generation")
 	if err != nil {
 		return generationartifact.RenderedArtifact{}, generationartifact.RenderedArtifact{}, errors.New("restoreactivation: plan generation authority is absent")
@@ -1071,8 +1097,13 @@ func bindManifest(
 			}
 		}
 		owner, _ := object(declaration, "owner")
-		if text(owner, "moduleRef") == coreModuleID && text(owner, "unitRef") == "compose" {
-			if compose.ID != "" || text(owner, "outputRef") != composeOutputRef || text(declaration, "kind") != "compose" || text(declaration, "format") != "yaml" {
+		if text(owner, "moduleRef") == coreModuleID && text(owner, "unitRef") == coreUnitRef {
+			if renderTarget == renderTargetTerramate &&
+				text(owner, "outputRef") == path.Join(path.Dir(composeOutputRef), terramateStackFile) {
+				// The Terramate unit also owns the stack.tm.hcl beside main.tf.
+				continue
+			}
+			if compose.ID != "" || text(owner, "outputRef") != coreOutputRef || text(declaration, "kind") != coreKind || text(declaration, "format") != coreFormat {
 				return generationartifact.RenderedArtifact{}, generationartifact.RenderedArtifact{}, errors.New("restoreactivation: Basement Compose artifact selection is ambiguous")
 			}
 			compose = manifestByID[id]

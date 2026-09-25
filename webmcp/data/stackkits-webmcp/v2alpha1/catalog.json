@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "5787b51ce58bae869f8a25c6ce156bd316ff4086",
-  "authority_bundle_sha256": "b93d337a3757af46e84523ccb5b69523c0b46dee802eda6dbaacf44c82b9469a",
+  "source_sha": "1ad41dc22711b7b6609241f2ee5cfe0a4e42a07e",
+  "authority_bundle_sha256": "ae4a13686e8afe53f3e735e06de96a5a97889defc53145062d583d8ca149eec9",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -1002,6 +1002,92 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-roundcube-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "mail"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Roundcube Webmail with SQLite as a client for an existing external IMAP/SMTP mailbox. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. No mail server, spam filter or DNS is included; mail storage stays with the owner's provider.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 2,
+                "storage_gb": 10
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "roundcube"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "46d488233adf3deecaadebec7c8c09f99b4f2e39aaef63f4f1c95712689004e6"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Roundcube Webmail with SQLite as a client for an existing external IMAP/SMTP mailbox. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. No mail server, spam filter or DNS is included; mail storage stays with the owner's provider.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "roundcube"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "c7ebf27a901bdb6850218c5cbd1794df606e4338c667a7be6b5f05bef3be9def"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Roundcube Webmail with SQLite as a client for an existing external IMAP/SMTP mailbox. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. No mail server, spam filter or DNS is included; mail storage stays with the owner's provider.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "roundcube"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "58b545b5b54e61b8be0e67fee2e6541fce1f13f44eb6deb05cdf9def549e4a81"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-vaultwarden-runtime",
           "role": "workload",
           "required": false,
@@ -1270,6 +1356,31 @@
               ],
               "load": {
                 "residency": "on-demand",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "mail",
+          "title": "Private Mail",
+          "description": "Private webmail through Roundcube for a mailbox you already have at an external provider. No mail server, DNS or MX record is created.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "roundcube",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "roundcube",
+              "module_id": "stackkits-roundcube-runtime",
+              "functions": [
+                "address-book",
+                "mailbox-access",
+                "webmail-client"
+              ],
+              "load": {
+                "residency": "always-on",
                 "baseline": "idle-resident",
                 "burst": "interactive"
               }
@@ -2421,6 +2532,92 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-roundcube-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "mail"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Roundcube Webmail with SQLite as a client for an existing external IMAP/SMTP mailbox. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. No mail server, spam filter or DNS is included; mail storage stays with the owner's provider.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 2,
+                "storage_gb": 10
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "roundcube"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "46d488233adf3deecaadebec7c8c09f99b4f2e39aaef63f4f1c95712689004e6"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Roundcube Webmail with SQLite as a client for an existing external IMAP/SMTP mailbox. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. No mail server, spam filter or DNS is included; mail storage stays with the owner's provider.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "roundcube"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "c7ebf27a901bdb6850218c5cbd1794df606e4338c667a7be6b5f05bef3be9def"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Roundcube Webmail with SQLite as a client for an existing external IMAP/SMTP mailbox. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. No mail server, spam filter or DNS is included; mail storage stays with the owner's provider.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "roundcube"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "58b545b5b54e61b8be0e67fee2e6541fce1f13f44eb6deb05cdf9def549e4a81"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-vaultwarden-runtime",
           "role": "workload",
           "required": false,
@@ -2670,6 +2867,31 @@
               ],
               "load": {
                 "residency": "on-demand",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "mail",
+          "title": "Private Mail",
+          "description": "Private webmail through Roundcube for a mailbox you already have at an external provider. No mail server, DNS or MX record is created.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "roundcube",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "roundcube",
+              "module_id": "stackkits-roundcube-runtime",
+              "functions": [
+                "address-book",
+                "mailbox-access",
+                "webmail-client"
+              ],
+              "load": {
+                "residency": "always-on",
                 "baseline": "idle-resident",
                 "burst": "interactive"
               }
@@ -3832,6 +4054,92 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-roundcube-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "mail"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Roundcube Webmail with SQLite as a client for an existing external IMAP/SMTP mailbox. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. No mail server, spam filter or DNS is included; mail storage stays with the owner's provider.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 2,
+                "storage_gb": 10
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "roundcube"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "46d488233adf3deecaadebec7c8c09f99b4f2e39aaef63f4f1c95712689004e6"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Roundcube Webmail with SQLite as a client for an existing external IMAP/SMTP mailbox. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. No mail server, spam filter or DNS is included; mail storage stays with the owner's provider.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "roundcube"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "c7ebf27a901bdb6850218c5cbd1794df606e4338c667a7be6b5f05bef3be9def"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Roundcube Webmail with SQLite as a client for an existing external IMAP/SMTP mailbox. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. No mail server, spam filter or DNS is included; mail storage stays with the owner's provider.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "roundcube"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "58b545b5b54e61b8be0e67fee2e6541fce1f13f44eb6deb05cdf9def549e4a81"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-vaultwarden-runtime",
           "role": "workload",
           "required": false,
@@ -4107,6 +4415,31 @@
           ]
         },
         {
+          "use_case_id": "mail",
+          "title": "Private Mail",
+          "description": "Private webmail through Roundcube for a mailbox you already have at an external provider. No mail server, DNS or MX record is created.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "roundcube",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "roundcube",
+              "module_id": "stackkits-roundcube-runtime",
+              "functions": [
+                "address-book",
+                "mailbox-access",
+                "webmail-client"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
           "use_case_id": "media",
           "title": "Media Library",
           "description": "Private media library and streaming intent for household media collections.",
@@ -4336,6 +4669,40 @@
       ],
       "mutation": true,
       "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.advanced.restore-drill.run",
+      "tool_name": "stackkit_advanced_restore_drill_run",
+      "title": "Run restore drill",
+      "description": "Stage and verify a restore of a backup anchor without activation, gated by an offline Advanced capability.",
+      "command": [
+        "advanced",
+        "restore-drill",
+        "run",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.advanced.rollback.run",
+      "tool_name": "stackkit_advanced_rollback_run",
+      "title": "Run coordinated rollback",
+      "description": "Roll every local Terramate stack back to one verified executor-state checkpoint in reverse run order, gated by an offline Advanced capability.",
+      "command": [
+        "advanced",
+        "rollback",
+        "run",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": true,
       "idempotent": true,
       "owner_approval": true
     },
@@ -5482,5 +5849,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "4fcad2b4d996e4e7607d12a5515653c2a02c765d492ed762699ae119e43719be"
+  "catalog_sha256": "ac5b467d979670df9c8df0faf98bc5869307718e38b3d81bf8ed352a3d2e9892"
 }

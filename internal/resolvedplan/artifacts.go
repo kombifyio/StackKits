@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 )
 
 var (
@@ -361,23 +363,46 @@ func deriveGenerationArtifacts(planContracts []map[string]any, modules []any, ta
 	return artifacts, nil
 }
 
+// derivePlanArtifactRecords admits exactly two CUE-governed plan-scope
+// artifacts: the resolved-plan snapshot for every target and the Terramate
+// stack graph, which exists only under the terramate target.
 func derivePlanArtifactRecords(contracts []map[string]any, target, outputRoot string) ([]generationArtifactRecord, error) {
-	if len(contracts) != 1 {
-		return nil, fail(ErrContractConflict, "catalog.planArtifacts", "exactly one CUE-governed plan artifact is required")
+	if len(contracts) == 0 || len(contracts) > 2 {
+		return nil, fail(ErrContractConflict, "catalog.planArtifacts", "the CUE-governed plan artifacts are the resolved-plan snapshot and the Terramate stack graph")
 	}
-	record, targets, err := parseGenerationArtifactMetadata(contracts[0], "catalog.planArtifacts[0]", "path")
-	if err != nil {
-		return nil, err
+	records := make([]generationArtifactRecord, 0, len(contracts))
+	seen := make(map[string]struct{}, len(contracts))
+	for index, contract := range contracts {
+		contractPath := fmt.Sprintf("catalog.planArtifacts[%d]", index)
+		record, targets, err := parseGenerationArtifactMetadata(contract, contractPath, "path")
+		if err != nil {
+			return nil, err
+		}
+		if _, duplicate := seen[record.id]; duplicate {
+			return nil, fail(ErrContractConflict, contractPath, "plan artifact %q is duplicated", record.id)
+		}
+		seen[record.id] = struct{}{}
+		switch {
+		case record.id == "resolved-plan" && record.kind == "metadata" && record.path == ".stackkit/resolved-plan.json" && record.format == "json" && record.mode == "0600" && record.required:
+			if !contains(targets, target) {
+				return nil, fail(ErrContractConflict, contractPath+".compatibleTargets", "resolved-plan does not support generation target %q", target)
+			}
+		case record.id == terramatestackgraph.ArtifactID && record.kind == "metadata" && record.path == terramatestackgraph.ArtifactPath && record.format == "json" && record.mode == "0640" && record.required &&
+			len(targets) == 1 && targets[0] == terramatestackgraph.GenerationTarget:
+			if target != terramatestackgraph.GenerationTarget {
+				continue
+			}
+		default:
+			return nil, fail(ErrContractConflict, contractPath, "only the exact CUE-governed resolved-plan and Terramate stack graph artifacts are allowed at plan scope")
+		}
+		record.path = path.Join(outputRoot, record.path)
+		record.owner = map[string]any{"kind": "plan"}
+		records = append(records, record)
 	}
-	if record.id != "resolved-plan" || record.kind != "metadata" || record.path != ".stackkit/resolved-plan.json" || record.format != "json" || record.mode != "0600" || !record.required {
-		return nil, fail(ErrContractConflict, "catalog.planArtifacts[0]", "only the exact CUE-governed resolved-plan artifact is allowed at plan scope")
+	if _, exists := seen["resolved-plan"]; !exists {
+		return nil, fail(ErrContractConflict, "catalog.planArtifacts", "the resolved-plan artifact is required")
 	}
-	if !contains(targets, target) {
-		return nil, fail(ErrContractConflict, "catalog.planArtifacts[0].compatibleTargets", "resolved-plan does not support generation target %q", target)
-	}
-	record.path = path.Join(outputRoot, record.path)
-	record.owner = map[string]any{"kind": "plan"}
-	return []generationArtifactRecord{record}, nil
+	return records, nil
 }
 
 func deriveModuleArtifactRecords(module map[string]any, modulePath, target, outputRoot string) ([]generationArtifactRecord, error) {

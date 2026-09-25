@@ -37,12 +37,25 @@ func currentStateRuntimeRecoveryGraph(input CurrentStateAuthorityInput) (Executo
 		}
 		paths[target] = executorStateDigest(artifact.Data)
 	}
+	// Under an OpenTofu target the runtime Compose files, .env files and
+	// states the graph binds are the captured OpenTofu root files.
+	for _, blob := range executorStateOpenTofuBlobInputs(input.Capture.RuntimeOpenTofu) {
+		if _, duplicate := paths[blob.Path]; duplicate {
+			return ExecutorStateBlobInput{}, errors.New("current state authority: runtime recovery paths collide")
+		}
+		paths[blob.Path] = executorStateDigest(blob.Data)
+	}
+	if graph.RenderTarget != "" && graph.RenderTarget != input.Capture.GenerationTarget ||
+		graph.RenderTarget == "" && input.Capture.GenerationTarget != executorStateTargetCompose {
+		return ExecutorStateBlobInput{}, errors.New("current state authority: recovery graph render target differs from the capture")
+	}
 	if paths[graph.CorePolicyPath] != graph.CorePolicyDigest {
 		return ExecutorStateBlobInput{}, errors.New("current state authority: recovery graph policy differs from captured bytes")
 	}
 	for _, runtime := range graph.ComposeRuntimes {
 		if paths[runtime.Path] != runtime.Digest ||
-			(runtime.EnvironmentPath != "" && paths[runtime.EnvironmentPath] != runtime.EnvironmentDigest) {
+			(runtime.EnvironmentPath != "" && paths[runtime.EnvironmentPath] != runtime.EnvironmentDigest) ||
+			(runtime.StatePath != "" && paths[runtime.StatePath] != runtime.StateDigest) {
 			return ExecutorStateBlobInput{}, errors.New("current state authority: recovery graph differs from captured runtime files")
 		}
 	}

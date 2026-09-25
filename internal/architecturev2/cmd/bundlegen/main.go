@@ -189,6 +189,7 @@ var rendererWorkloadImages = []struct{ moduleID, goPrefix, componentRef string }
 	{moduleID: "stackkits-pterodactyl-runtime", goPrefix: "pterodactylWings", componentRef: "wings"},
 	{moduleID: "stackkits-pterodactyl-runtime", goPrefix: "pterodactylDatabase", componentRef: "panel-database"},
 	{moduleID: "stackkits-pterodactyl-runtime", goPrefix: "pterodactylCache", componentRef: "panel-cache"},
+	{moduleID: "stackkits-roundcube-runtime", goPrefix: "roundcube"},
 }
 
 type catalogImage struct {

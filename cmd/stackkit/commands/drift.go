@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/advancedcapability"
+	"github.com/kombifyio/stackkits/internal/advanceddrift"
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/backupcustody"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
@@ -50,6 +51,12 @@ type driftReport struct {
 	OwnerBindingHash string         `json:"ownerBindingHash"`
 	Runtime          driftRuntime   `json:"runtime"`
 	Subjects         []driftSubject `json:"subjects"`
+	// The per-stack section exists only under the terramate generation
+	// target; the fields above stay the native drift result unchanged.
+	StackID    string                `json:"stackId,omitempty"`
+	DetectedAt string                `json:"detectedAt,omitempty"`
+	Status     string                `json:"status,omitempty"`
+	Stacks     []advanceddrift.Stack `json:"stacks,omitempty"`
 }
 
 type driftRuntime struct {
@@ -69,6 +76,9 @@ type architectureV2DriftObservation struct {
 	Verification architectureV2VerifyReport
 	Differences  []architectureV2DriftDifference
 	Plan         generationartifact.VerifiedPlan
+	// GenerationTarget is the target the verified plan resolved from the
+	// StackSpec; the report names the executor it observed.
+	GenerationTarget string
 }
 
 type architectureV2DriftDifference struct {
@@ -132,8 +142,11 @@ var driftDetectCmd = &cobra.Command{
 	Short: "Read the authoritative local state and report drift",
 	Long: `Read and verify the canonical ResolvedPlan, generated artifacts,
 owner-signed Apply evidence, local Owner binding, and live Basement Compose
-runtime without refreshing runtime state. The content-addressed report is
-retained as local Owner evidence for every selected Application Kit.`,
+runtime without refreshing runtime state. Under the terramate generation
+target it also runs a read-only detailed-exitcode OpenTofu plan through
+Terramate in every stack of the local host project and adds one stacks entry
+per stack; it never applies. The content-addressed report is retained as local
+Owner evidence for every selected Application Kit.`,
 	Example: `  # Compare the live deployment with the applied plan
   stackkit drift detect
 
@@ -151,7 +164,9 @@ current local authority, creates a mandatory Kopia and executor-state rollback
 checkpoint, then runs generate, apply, and verify through the exclusive
 lifecycle journal. A failed target phase automatically restores, reapplies, and
 verifies the captured prior executor state. Advanced mode remains fail-closed
-until an offline-verified capability is supplied.`,
+until an offline-verified capability is supplied; after the Advanced mutation
+it observes the drift report again, including every Terramate stack plan, and
+fails unless the post-reconcile report is clean.`,
 	Example: `  # Reconcile drift in standard mode: checkpoint, then generate, apply, and verify
   stackkit drift reconcile --owner-approve
 
@@ -200,6 +215,11 @@ func runDriftDetect(cmd *cobra.Command, _ []string) (retErr error) {
 	workspace := getWorkDir()
 	if len(observation.Plan.Canonical()) != 0 {
 		if err := withLifecycleMutation(workspace, "drift-detect", func() error {
+			// Per-stack plans read OpenTofu state, so they run under the
+			// same exclusive lifecycle lock as every mutation.
+			if attachErr := attachAdvancedStackDrift(ctx, workspace, observation, &report); attachErr != nil {
+				return attachErr
+			}
 			startedAt := time.Now().UTC()
 			runs, beginErr := beginArchitectureV2ApplicationLifecycles(
 				workspace, observation.Plan, "drift", "stackkit.drift", "", startedAt,
@@ -225,6 +245,8 @@ func runDriftDetect(cmd *cobra.Command, _ []string) (retErr error) {
 		}); err != nil {
 			return err
 		}
+	} else if err := attachAdvancedStackDrift(ctx, workspace, observation, &report); err != nil {
+		return err
 	}
 	if driftDetectJSON {
 		machineResultWritten = true
@@ -261,10 +283,14 @@ func observeCurrentArchitectureV2Drift(
 			if len(plan.Canonical()) == 0 {
 				return architectureV2DriftObservation{}, errors.New("drift detection did not retain the verified canonical ResolvedPlan")
 			}
+			target, err := upgradelifecycle.GenerationTargetForPlan(plan)
+			if err != nil {
+				return architectureV2DriftObservation{}, err
+			}
 			return architectureV2DriftObservation{
 				Verification: detected.Verification,
 				Differences:  append([]architectureV2DriftDifference(nil), detected.Differences...),
-				Plan:         plan,
+				Plan:         plan, GenerationTarget: target,
 			}, nil
 		}
 		return architectureV2DriftObservation{}, err
@@ -275,7 +301,11 @@ func observeCurrentArchitectureV2Drift(
 	if len(plan.Canonical()) == 0 {
 		return architectureV2DriftObservation{}, errors.New("drift detection did not retain the verified canonical ResolvedPlan")
 	}
-	return architectureV2DriftObservation{Verification: report, Plan: plan}, nil
+	target, err := upgradelifecycle.GenerationTargetForPlan(plan)
+	if err != nil {
+		return architectureV2DriftObservation{}, err
+	}
+	return architectureV2DriftObservation{Verification: report, Plan: plan, GenerationTarget: target}, nil
 }
 
 func persistArchitectureV2DriftReport(
@@ -340,10 +370,13 @@ func newDriftReport(observed architectureV2DriftObservation) (driftReport, error
 		observation.Runtime.ProbeCount <= 0) {
 		return driftReport{}, errors.New("drift observation does not prove a ready local runtime")
 	}
+	if strings.TrimSpace(observed.GenerationTarget) == "" {
+		return driftReport{}, errors.New("drift observation lacks the verified generation target")
+	}
 	report := driftReport{
 		SchemaVersion:    driftReportSchemaVersion,
 		Mode:             "standard",
-		GenerationTarget: "compose",
+		GenerationTarget: observed.GenerationTarget,
 		HasDrift:         len(observed.Differences) > 0,
 		PlanHash:         observation.PlanHash,
 		OwnerRef:         observation.Owner.OwnerRef,
@@ -393,7 +426,18 @@ func printDriftReport(output io.Writer, report driftReport) error {
 		report.Runtime.ServiceCount,
 		report.Runtime.ProbeCount,
 	)
-	return err
+	if err != nil || len(report.Stacks) == 0 {
+		return err
+	}
+	if _, err = fmt.Fprintf(output, "Stacks: %s\n", report.Status); err != nil {
+		return err
+	}
+	for _, stack := range report.Stacks {
+		if _, err = fmt.Fprintf(output, "  %s %s (%s): %s\n", stack.StackID, stack.ModuleRef, stack.Role, stack.Status); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func runDriftReconcile(cmd *cobra.Command, _ []string) error {
@@ -425,13 +469,31 @@ func runDriftReconcile(cmd *cobra.Command, _ []string) error {
 			}
 			return &driftReconcileDeniedError{denial: denial}
 		}
-		result, err := runAdvancedMutation(cmd, advancedMutationRequest{
+		mutation, err := runAdvancedMutation(cmd, advancedMutationRequest{
 			CapabilityPath: capabilityPath,
 			CandidatePath:  strings.TrimSpace(driftAdvancedCandidate),
 			ChangeSetID:    strings.TrimSpace(driftAdvancedChangeSet),
 			ChangeSetSHA:   strings.TrimSpace(driftAdvancedChangeSetSHA),
 			Operation:      advancedcapability.OperationDriftReconcileAdvanced,
 		})
+		result := advancedDriftReconcileResult{advancedMutationResult: mutation}
+		if err == nil {
+			// Post-reconcile proof: the same drift report, including the
+			// per-stack detailed-exitcode plans, observed after the mutation.
+			ctx := cmd.Context()
+			if ctx == nil {
+				ctx = context.Background()
+			}
+			report, reportErr := detectCurrentDriftReport(ctx, getWorkDir())
+			if reportErr != nil {
+				err = fmt.Errorf("post-reconcile drift report: %w", reportErr)
+			} else {
+				result.DriftReport = &report
+				if report.Status != "" && report.Status != advanceddrift.StatusClean {
+					err = fmt.Errorf("advanced drift reconcile did not converge: post-reconcile drift status is %s", report.Status)
+				}
+			}
+		}
 		if driftReconcileJSON {
 			status := "success"
 			var data any = result

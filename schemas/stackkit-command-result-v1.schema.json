@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.dev/schemas/stackkit-command-result-v1.schema.json",
+  "title": "StackKit command result v1",
+  "description": "Stdout envelope of every stackkit command run with --json. command is the command path (for example `stackkit drift detect`). For the Advanced commands the data payload per status is bound below; docs/data/advanced-operations/latest.json (stackkit.advanced-operations/v1) maps each Advanced operation to its argv and to these payloads. A nonzero exit without an envelope on stdout is an unclassified failure.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "command", "status", "data"],
+  "properties": {
+    "schemaVersion": {
+      "const": "stackkit.command-result/v1"
+    },
+    "command": {
+      "type": "string",
+      "minLength": 1,
+      "examples": [
+        "stackkit advanced trust import",
+        "stackkit advanced trust inspect",
+        "stackkit advanced change-set create",
+        "stackkit advanced change-set apply",
+        "stackkit advanced restore-drill run",
+        "stackkit advanced rollback run",
+        "stackkit drift detect",
+        "stackkit drift reconcile"
+      ]
+    },
+    "status": {
+      "enum": ["success", "failed", "denied"]
+    },
+    "data": {}
+  },
+  "allOf": [
+    {
+      "if": { "$ref": "#/$defs/trustCommand" },
+      "then": { "properties": { "data": { "$ref": "stackkit-local-advanced-trust-v1.schema.json" } } }
+    },
+    {
+      "if": { "$ref": "#/$defs/changeSetCreateSuccess" },
+      "then": { "properties": { "data": { "$ref": "stackkit-advanced-change-set-create-result-v2.schema.json" } } }
+    },
+    {
+      "if": {
+        "required": ["command"],
+        "properties": { "command": { "const": "stackkit advanced change-set apply" } }
+      },
+      "then": { "properties": { "data": { "$ref": "stackkit-advanced-mutation-v1.schema.json" } } }
+    },
+    {
+      "if": {
+        "required": ["command", "status"],
+        "properties": {
+          "command": { "const": "stackkit advanced restore-drill run" },
+          "status": { "enum": ["success", "failed"] }
+        }
+      },
+      "then": { "properties": { "data": { "$ref": "stackkit-restore-drill-report-v1.schema.json" } } }
+    },
+    {
+      "if": {
+        "required": ["command", "status"],
+        "properties": {
+          "command": { "const": "stackkit advanced rollback run" },
+          "status": { "enum": ["success", "failed"] }
+        }
+      },
+      "then": { "properties": { "data": { "$ref": "stackkit-rollback-result-v1.schema.json" } } }
+    },
+    {
+      "if": {
+        "required": ["command", "status"],
+        "properties": {
+          "command": { "enum": ["stackkit advanced change-set create", "stackkit advanced restore-drill run", "stackkit advanced rollback run", "stackkit drift reconcile"] },
+          "status": { "const": "denied" }
+        }
+      },
+      "then": { "properties": { "data": { "$ref": "stackkit-operation-denial-v1.schema.json" } } }
+    },
+    {
+      "if": {
+        "required": ["command", "status"],
+        "properties": {
+          "command": { "const": "stackkit drift detect" },
+          "status": { "const": "success" }
+        }
+      },
+      "then": { "properties": { "data": { "$ref": "stackkit-drift-report-v1.schema.json" } } }
+    },
+    {
+      "if": {
+        "required": ["command", "status"],
+        "properties": {
+          "command": { "const": "stackkit drift detect" },
+          "status": { "const": "failed" }
+        }
+      },
+      "then": { "properties": { "data": { "$ref": "stackkit-actionable-error-v1.schema.json" } } }
+    },
+    {
+      "if": {
+        "required": ["command", "status", "data"],
+        "properties": {
+          "command": { "const": "stackkit drift reconcile" },
+          "status": { "enum": ["success", "failed"] },
+          "data": {
+            "type": "object",
+            "required": ["schemaVersion"],
+            "properties": { "schemaVersion": { "const": "stackkit.advanced-mutation/v1" } }
+          }
+        }
+      },
+      "then": { "properties": { "data": { "$ref": "stackkit-advanced-mutation-v1.schema.json" } } }
+    }
+  ],
+  "$defs": {
+    "advancedCommand": {
+      "description": "Command paths of the Advanced operations in the stackkit.advanced-operations/v1 catalog; the Go contract test keeps this list equal to the catalog.",
+      "required": ["command"],
+      "properties": {
+        "command": {
+          "enum": [
+            "stackkit advanced trust import",
+            "stackkit advanced trust inspect",
+            "stackkit advanced change-set create",
+            "stackkit advanced change-set apply",
+            "stackkit advanced restore-drill run",
+            "stackkit advanced rollback run",
+            "stackkit drift detect",
+            "stackkit drift reconcile"
+          ]
+        }
+      }
+    },
+    "trustCommand": {
+      "required": ["command", "status"],
+      "properties": {
+        "command": { "enum": ["stackkit advanced trust import", "stackkit advanced trust inspect"] },
+        "status": { "const": "success" }
+      }
+    },
+    "changeSetCreateSuccess": {
+      "required": ["command", "status"],
+      "properties": {
+        "command": { "const": "stackkit advanced change-set create" },
+        "status": { "const": "success" }
+      }
+    }
+  }
+}

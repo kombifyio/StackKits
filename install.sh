@@ -42,7 +42,9 @@ fi
 REPO="${STACKKIT_RELEASE_REPO:-kombifyio/stackKits}"
 RELEASE_API_URL="${STACKKIT_RELEASE_API_URL:-https://api.github.com/repos/$REPO/releases/latest}"
 RELEASES_PAGE_URL="${STACKKIT_RELEASES_PAGE_URL:-https://github.com/$REPO/releases/latest}"
-INSTALL_DIR="/usr/local/bin"
+# STACKKIT_INSTALL_DIR relocates the binaries (default /usr/local/bin); the
+# provider mirror goes to ../lib/stackkit/providers beside that directory.
+INSTALL_DIR="${STACKKIT_INSTALL_DIR:-/usr/local/bin}"
 
 # Kit definitions belong to the INVOKING user, even under `curl | sudo sh`:
 # with plain $HOME they would land in /root/.stackkits and the printed next
@@ -316,6 +318,19 @@ else
   if [ -f "$TMP/stackkit-mcp" ]; then
     sudo install -m 755 "$TMP/stackkit-mcp" "$INSTALL_DIR/stackkit-mcp"
   fi
+fi
+
+# The OpenTofu executor installs providers only from the packaged offline
+# mirror; the CLI resolves it at ../lib/stackkit/providers beside its binary.
+if [ -d "$TMP/providers" ]; then
+  as_root=""
+  [ "$(id -u)" -eq 0 ] || as_root="sudo"
+  $as_root mkdir -p "$INSTALL_DIR/../lib/stackkit"
+  PROVIDERS_DIR="$(cd "$INSTALL_DIR/../lib/stackkit" && pwd)/providers"
+  $as_root rm -rf "$PROVIDERS_DIR"
+  $as_root cp -R "$TMP/providers" "$PROVIDERS_DIR"
+  $as_root chmod -R a+rX,go-w "$PROVIDERS_DIR"
+  echo "  -> Installed the OpenTofu provider mirror to $PROVIDERS_DIR"
 fi
 
 # --- Optional short `sk` alias ------------------------------------------------

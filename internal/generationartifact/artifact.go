@@ -514,7 +514,7 @@ func enforceArtifactMode(info os.FileInfo, expected expectedArtifact, artifactPa
 
 func validArtifactKind(value string) bool {
 	switch value {
-	case "opentofu", "compose", "metadata", "script", "native-config":
+	case "opentofu", "terramate", "compose", "metadata", "script", "native-config":
 		return true
 	default:
 		return false

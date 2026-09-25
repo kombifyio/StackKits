@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.dev/schemas/stackkit-advanced-mutation-v1.schema.json",
+  "title": "StackKit Advanced mutation v1",
+  "description": "Data of the stackkit.command-result/v1 envelope of `stackkit advanced change-set apply` (every status, including denied) and of `stackkit drift reconcile --mode advanced` (success and failed). The mutation runs generate, plan, apply, the Terramate step and verify through the governed transaction behind a mandatory Kopia and executor-state checkpoint; any failure rolls back. On a denial the checkpoint and transaction carry empty values because nothing ran.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "mode", "operation", "changeSetId", "changeSetSha256", "candidatePlanHash", "checkpoint", "transaction"],
+  "properties": {
+    "schemaVersion": { "const": "stackkit.advanced-mutation/v1" },
+    "mode": { "const": "advanced" },
+    "operation": { "enum": ["terramate.change-set.apply", "drift.reconcile.advanced"] },
+    "changeSetId": { "type": "string" },
+    "changeSetSha256": { "type": "string" },
+    "candidatePlanHash": { "type": "string" },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operationId", "kopiaAnchorId", "executorStateSnapshotId"],
+      "properties": {
+        "operationId": { "type": "string" },
+        "kopiaAnchorId": { "type": "string" },
+        "executorStateSnapshotId": { "type": "string" }
+      }
+    },
+    "transaction": { "$ref": "#/$defs/transaction" },
+    "changeSetResult": {
+      "description": "Terramate orchestration report; present whenever the orchestration started, including when it failed.",
+      "$ref": "stackkit-change-set-result-v1.schema.json"
+    },
+    "rollbackResult": {
+      "description": "change-set apply only: the coordinated per-stack rollback a failed change set ran for a checkpoint of a generation.target=terramate install.",
+      "$ref": "stackkit-rollback-result-v1.schema.json"
+    },
+    "driftReport": {
+      "description": "drift reconcile only: the drift report observed after the reconcile.",
+      "$ref": "stackkit-drift-report-v1.schema.json"
+    }
+  },
+  "$defs": {
+    "transaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "operationId", "status", "target", "rollback"],
+      "properties": {
+        "apiVersion": { "type": "string" },
+        "operationId": { "type": "string" },
+        "status": {
+          "description": "pending, failed, succeeded or rolled-back; empty on a denial.",
+          "enum": ["", "pending", "failed", "succeeded", "rolled-back"]
+        },
+        "failedPhase": { "type": "string" },
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["releaseVersion", "generateInvoked", "planVerified", "applyInvoked", "verifyInvoked", "verified"],
+          "properties": {
+            "releaseVersion": { "type": "string" },
+            "planHash": { "type": "string" },
+            "manifestHash": { "type": "string" },
+            "applyResultHash": { "type": "string" },
+            "evidenceBundleHash": { "type": "string" },
+            "ownerRef": { "type": "string" },
+            "ownerBindingHash": { "type": "string" },
+            "generateInvoked": { "type": "boolean" },
+            "planVerified": { "type": "boolean" },
+            "applyInvoked": { "type": "boolean" },
+            "verifyInvoked": { "type": "boolean" },
+            "verified": { "type": "boolean" }
+          }
+        },
+        "rollback": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "dataStaged", "recoverySnapshotId", "verified"],
+          "properties": {
+            "status": { "type": "string" },
+            "dataStaged": { "type": "boolean" },
+            "stagedRestoreResultId": { "type": "string" },
+            "recoverySnapshotId": { "type": "string" },
+            "priorReleaseVersion": { "type": "string" },
+            "planHash": { "type": "string" },
+            "applyResultHash": { "type": "string" },
+            "verified": { "type": "boolean" }
+          }
+        },
+        "committedAt": { "type": "string", "format": "date-time" },
+        "successProof": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["apiVersion", "operationId", "targetVersion", "targetArchiveHash", "planHash", "manifestHash", "applyResultHash", "evidenceBundleHash", "ownerRef", "ownerBindingHash", "verifiedAt"],
+          "properties": {
+            "apiVersion": { "type": "string" },
+            "operationId": { "type": "string" },
+            "targetVersion": { "type": "string" },
+            "targetArchiveHash": { "type": "string" },
+            "planHash": { "type": "string" },
+            "manifestHash": { "type": "string" },
+            "applyResultHash": { "type": "string" },
+            "evidenceBundleHash": { "type": "string" },
+            "ownerRef": { "type": "string" },
+            "ownerBindingHash": { "type": "string" },
+            "verifiedAt": { "type": "string", "format": "date-time" }
+          }
+        }
+      }
+    }
+  }
+}

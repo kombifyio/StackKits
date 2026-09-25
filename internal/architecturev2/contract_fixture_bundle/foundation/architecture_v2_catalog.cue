@@ -29,6 +29,11 @@ _architectureV2PterodactylWingsImage: {ref: "ghcr.io/pterodactyl/wings:v1.13.3",
 _architectureV2PterodactylDatabaseImage: {ref: "docker.io/library/mariadb:11.8", digest: "sha256:de4cf325ed1fc8a22460b4f285de7b9e06d89edbd593505e678ec480f86e501b"}
 _architectureV2PterodactylCacheImage: {ref: "docker.io/valkey/valkey:8.1-alpine", digest: "sha256:32627109abf6f741121096b45c732f758876803efd7b2e1018ebc0350d117119"}
 
+// Roundcube Webmail is the client-first Mail default: a webmail client for an
+// existing external IMAP/SMTP mailbox; no mail server is installed. The pin
+// is the official 1.6.x Apache multi-arch index (amd64 and arm64 included).
+_architectureV2RoundcubeImage: {ref: "docker.io/roundcube/roundcubemail:1.6.19-apache", digest: "sha256:f1256d1ce06ca5c52660f67f8511f3971def5d3b80aab3e3809df970489b1c46"}
+
 _architectureV2CoreCapabilities: [
 	"topology-core",
 	"host-bootstrap",
@@ -221,6 +226,28 @@ _architectureV2GameInfrastructure: #WorkloadInfrastructureV1 & {
 	// The application-runtime snapshot owner quiesces the Compose graph; the
 	// CLI first stops running Wings-owned game servers with their own stop
 	// command and starts them again afterwards (ADR-0043 consequences).
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Mail client data: Roundcube keeps preferences, identities and the address
+// book in SQLite; the mailbox volume holds the owner's server endpoints. The mail itself stays in the owner's external mailbox and is
+// not a StackKits dataset. The config volume only carries the governed startup
+// file and the temp volume upload scratch space; both are reproducible.
+_architectureV2MailInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "mail", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "roundcube", volumeRef: "database", target: "/var/roundcube/db", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "mail"},
+		// The owner's IMAP/SMTP endpoints written by the setup action (never a
+		// password); restored with the database so a restore keeps the mailbox.
+		{componentRef: "roundcube", volumeRef: "mailbox", target: "/var/roundcube/mailbox", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "mail"},
+		{componentRef: "roundcube", volumeRef: "config", target: "/var/roundcube/config", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "roundcube", volumeRef: "temp", target: "/tmp/roundcube-temp", class: "cache", backup: false, dataClasses: []},
+	]}
+	// The application-runtime snapshot owner quiesces Roundcube, the sole
+	// SQLite writer, before the database allocation is captured.
 	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
 	snapshot: moduleRef: "stackkits-snapshot"
 	restore: moduleRef:  "stackkits-restore"
@@ -894,6 +921,52 @@ _architectureV2WorkloadContracts: [
 	},
 	#WorkloadContractV2 & {
 		metadata: {
+			id:          "mail"
+			version:     "1.0.0"
+			description: "Client-first private mail: Roundcube webmail for an existing external IMAP/SMTP mailbox. No mail server, DNS or MX record is created."
+		}
+		kind:       "application"
+		useCaseRef: "mail"
+		functionalCapabilities: ["webmail-client", "mailbox-access", "address-book"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "roundcube"
+		computeTiers: {
+			low: {included: true, alternativeID: "roundcube"}
+			standard: {included: true, alternativeID: "roundcube"}
+			high: {included: true, alternativeID: "roundcube"}
+		}
+		alternatives: [{
+			id:          "roundcube"
+			providerRef: "stackkits-roundcube"
+			moduleRef:   "stackkits-roundcube-runtime"
+			route: {serviceRef: "mail", healthRef: "roundcube-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// The owner-approved action stores the owner's IMAP/SMTP endpoints
+			// (never the password) and verifies a real mailbox login through
+			// Roundcube's own login form. Before it runs, logins are refused.
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["roundcube-mailbox-login"]}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["session-key"]
+					requiredRefs: ["session-key"]
+				}
+			}
+			infrastructure: _architectureV2MailInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
 			id:          "media"
 			version:     "1.0.0"
 			description: "Self-hosted media library selected independently from kit architecture capabilities."
@@ -986,6 +1059,11 @@ _architectureV2ApplicationLifecycleContracts: [
 		lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
 	},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "documents", version: "1.0.0", description: "Owner-controlled Paperless-ngx document lifecycle using the shared application operations."}, workloadRef: "documents", useCaseRef: "documents", packageRef: "documents", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {
+		metadata: {id: "mail", version: "1.0.0", description: "Owner-controlled Roundcube webmail lifecycle; the mailbox stays with the owner's external provider and is verified by the owner-approved setup action."}
+		workloadRef: "mail", useCaseRef: "mail", packageRef: "mail"
+		lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
+	},
 	#ApplicationLifecycleContractV1 & {
 		metadata: {id: "ai", version: "1.0.0", description: "Owner-controlled Private AI lifecycle; model download is an explicit owner operation."}
 		workloadRef: "ai", useCaseRef: "ai", packageRef: "ai"
@@ -1136,9 +1214,11 @@ _architectureV2HARealizations: [
 	},
 ]
 
-// The canonical plan snapshot is the only artifact that exists independently
-// of selected modules. Compose/OpenTofu outputs belong to concrete module
-// contracts and must never be enumerated by Go compiler configuration.
+// The canonical plan snapshot and, under the terramate target, the Terramate
+// stack graph (stackkit.terramate-stack-graph/v1, derived from plan facts
+// only) are the only artifacts that exist independently of selected modules.
+// Compose/OpenTofu/Terramate outputs belong to concrete module contracts and
+// must never be enumerated by Go compiler configuration.
 _architectureV2PlanArtifacts: [#CatalogPlanArtifactV2 & {
 	id:       "resolved-plan"
 	kind:     "metadata"
@@ -1147,6 +1227,14 @@ _architectureV2PlanArtifacts: [#CatalogPlanArtifactV2 & {
 	mode:     "0600"
 	required: true
 	compatibleTargets: ["compose", "opentofu", "terramate"]
+}, #CatalogPlanArtifactV2 & {
+	id:       "terramate-stack-graph"
+	kind:     "metadata"
+	path:     ".stackkit/terramate-stack-graph.json"
+	format:   "json"
+	mode:     "0640"
+	required: true
+	compatibleTargets: ["terramate"]
 }]
 
 // These capabilities are intentionally catalogued without a provider. A kit
@@ -1810,6 +1898,23 @@ _architectureV2Providers: list.Concat([[
 		evidence: ["pterodactyl-generated-runtime-contract"]
 	},
 	{
+		metadata: {id: "stackkits-roundcube", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["mail"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {required: [], optional: ["stackkits-roundcube-runtime"]}
+		}
+		evidence: ["roundcube-generated-runtime-contract"]
+	},
+	{
 		metadata: {id: "stackkits-jellyfin", version: "1.0.0"}
 		provides: []
 		workloadRefs: ["media"]
@@ -2017,15 +2122,15 @@ _architectureV2CoreHostBootstrapSupport: #ModuleRealizationSupportV2 & {
 		requiredRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
 	}
 	artifacts: {
-		requiredRefs: ["core-host-bootstrap-policy"]
+		requiredRefs: ["core-host-bootstrap-policy", _architectureV2TerramateProjectRoot.contract.id]
 		outputBindings: [{
 			artifactRef: "core-host-bootstrap-policy", unitRef: "host-policy", outputRef: "foundation/host-bootstrap/policy.json"
-		}]
+		}, _architectureV2TerramateProjectRoot.binding]
 		contracts: [{
 			id: "core-host-bootstrap-policy", kind: "native-config", format: "json", mode: "0600", required: true
 			compatibleTargets: ["compose", "opentofu"]
 			unitRef: "host-policy", outputRef: "foundation/host-bootstrap/policy.json"
-		}]
+		}, _architectureV2TerramateProjectRoot.contract]
 	}
 	evidence: requiredRefs: ["core-host-bootstrap-executor-contract"]
 }
@@ -2167,13 +2272,13 @@ _architectureV2CloudPublicEdgeSupport: #ModuleRealizationSupportV2 & {
 		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "publicEdge"]
 	}
 	artifacts: {
-		requiredRefs: ["cloud-public-edge-executor-contract"]
-		outputBindings: [{artifactRef: "cloud-public-edge-executor-contract", unitRef: "executor-contract", outputRef: "cloud/public-edge/executor-contract.json"}]
+		requiredRefs: ["cloud-public-edge-executor-contract", _architectureV2CloudPublicEdgeTerramateStack.contract.id]
+		outputBindings: [{artifactRef: "cloud-public-edge-executor-contract", unitRef: "executor-contract", outputRef: "cloud/public-edge/executor-contract.json"}, _architectureV2CloudPublicEdgeTerramateStack.binding]
 		contracts: [{
 			id: "cloud-public-edge-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
 			compatibleTargets: ["compose", "opentofu"]
 			unitRef: "executor-contract", outputRef: "cloud/public-edge/executor-contract.json"
-		}]
+		}, _architectureV2CloudPublicEdgeTerramateStack.contract]
 	}
 	evidence: requiredRefs: ["cloud-public-edge-evidence"]
 }
@@ -2544,6 +2649,78 @@ _architectureV2SocketProxySupport: #ModuleRealizationSupportV2 & {
 	evidence: requiredRefs: []
 }
 
+// Terramate companion stacks (ADR-0045 section 2 and section 5). A stack unit
+// is artifact-only: it renders one stack.tm.hcl for its exact node-local
+// instance and never reaches a runtime executor. Its OpenTofu root is
+// materialized by the executor at apply time next to the Compose project.
+_architectureV2TerramateStackHashes: {
+	workload:   "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88"
+	edge:       "sha256:2bfd93c2a631984ee2c36a7218c185dcb876c045f60d2411e35d1b34325324af"
+	federation: "sha256:302cbdd332b95e48a9afe674b45d16ceacb0473884b66eb8c3fbd9d030878020"
+}
+
+_architectureV2TerramateStack: {
+	_role:        "workload" | "edge" | "federation"
+	_outputRef:   string
+	_artifactRef: string
+	// The stack unit mirrors the exact placement of the unit it wraps, so
+	// both resolve to the same node-local instances.
+	_placement: {scope: "node-local", ...}
+	unit: {
+		id:           "terramate-stack", kind:                          "terramate", rendererRef: "stackkit", applyMode: "artifact-only"
+		templateRef:  "builtin://terramate/stack/\(_role)/v1", version: "1.0.0"
+		contractHash: _architectureV2TerramateStackHashes[_role]
+		outputs: [_outputRef]
+		placement: _placement
+	}
+	binding: {artifactRef: _artifactRef, unitRef: "terramate-stack", outputRef: _outputRef}
+	contract: {
+		id: _artifactRef, kind: "terramate", format: "hcl", mode: "0640", required: true
+		compatibleTargets: ["terramate"], unitRef: "terramate-stack", outputRef: _outputRef
+	}
+}
+
+_architectureV2WorkloadTerramateStack: _architectureV2TerramateStack & {
+	_slug:        string
+	_role:        "workload"
+	_outputRef:   "platform/applications/\(_slug)/stack.tm.hcl"
+	_artifactRef: "\(_slug)-terramate-stack"
+}
+
+_architectureV2ImmichTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "immich", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2ImmichLiteTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "immich-lite", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2CloudreveTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "cloudreve", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2VaultwardenTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "vaultwarden", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2PterodactylTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "pterodactyl", _placement: {scope: "node-local", cardinality: "one-per-daemon", daemonRef: "docker-default"}}
+_architectureV2PrivateAITerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "private-ai", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2GiteaTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "gitea", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2PaperlessTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "paperless-ngx", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2JellyfinTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "jellyfin", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2HomeAssistantTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "home-assistant", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+
+_architectureV2CloudPublicEdgeTerramateStack: _architectureV2TerramateStack & {
+	_role: "edge", _outputRef: "cloud/public-edge/stack.tm.hcl", _artifactRef: "cloud-public-edge-terramate-stack"
+	_placement: {scope: "node-local", cardinality: "one-per-node"}
+}
+
+// The Terramate project root of one host. The Core host bootstrap owner exists
+// on every node, so each host gets exactly one self-contained project whose
+// root is the executor-managed runtime tree.
+_architectureV2TerramateProjectRoot: {
+	unit: {
+		id:           "terramate-root", kind:                         "terramate", rendererRef: "stackkit", applyMode: "artifact-only"
+		templateRef:  "builtin://terramate/project-root/v1", version: "1.0.0"
+		contractHash: "sha256:dc4d971747ce764e5cf4c50eaad155b1040e70093ff931243e879b75ffd5f428"
+		outputs: ["foundation/terramate/terramate.tm.hcl"]
+		placement: {scope: "node-local", cardinality: "one-per-node"}
+	}
+	binding: {artifactRef: "core-host-bootstrap-terramate-root", unitRef: "terramate-root", outputRef: "foundation/terramate/terramate.tm.hcl"}
+	contract: {
+		id: "core-host-bootstrap-terramate-root", kind: "terramate", format: "hcl", mode: "0640", required: true
+		compatibleTargets: ["terramate"], unitRef: "terramate-root", outputRef: "foundation/terramate/terramate.tm.hcl"
+	}
+}
+
 // Immich owns one complete provider-neutral, target-bound selected-PaaS bundle.
 // Apply is admitted only through the exact selected-PaaS runtime registration
 // and an authenticated execution channel; provider/PaaS lifecycle and
@@ -2558,12 +2735,12 @@ _architectureV2ImmichSupport: #ModuleRealizationSupportV2 & {
 		requiredRefs: ["database-password"]
 	}
 	artifacts: {
-		requiredRefs: ["immich-workload-bundle"]
+		requiredRefs: ["immich-workload-bundle", _architectureV2ImmichTerramateStack.contract.id]
 		outputBindings: [{
 			artifactRef: "immich-workload-bundle"
 			unitRef:     "immich-server"
 			outputRef:   "workloads/immich/bundle.json"
-		}]
+		}, _architectureV2ImmichTerramateStack.binding]
 		contracts: [{
 			id:       "immich-workload-bundle"
 			kind:     "native-config"
@@ -2573,7 +2750,7 @@ _architectureV2ImmichSupport: #ModuleRealizationSupportV2 & {
 			compatibleTargets: ["compose", "opentofu"]
 			unitRef:   "immich-server"
 			outputRef: "workloads/immich/bundle.json"
-		}]
+		}, _architectureV2ImmichTerramateStack.contract]
 	}
 	evidence: requiredRefs: ["immich-selected-paas-runtime-contract"]
 }
@@ -2588,12 +2765,12 @@ _architectureV2ImmichLiteSupport: #ModuleRealizationSupportV2 & {
 		requiredRefs: ["database-password"]
 	}
 	artifacts: {
-		requiredRefs: ["immich-lite-workload-bundle"]
+		requiredRefs: ["immich-lite-workload-bundle", _architectureV2ImmichLiteTerramateStack.contract.id]
 		outputBindings: [{
 			artifactRef: "immich-lite-workload-bundle"
 			unitRef:     "immich-server"
 			outputRef:   "workloads/immich-lite/bundle.json"
-		}]
+		}, _architectureV2ImmichLiteTerramateStack.binding]
 		contracts: [{
 			id:       "immich-lite-workload-bundle"
 			kind:     "native-config"
@@ -2603,7 +2780,7 @@ _architectureV2ImmichLiteSupport: #ModuleRealizationSupportV2 & {
 			compatibleTargets: ["compose", "opentofu"]
 			unitRef:   "immich-server"
 			outputRef: "workloads/immich-lite/bundle.json"
-		}]
+		}, _architectureV2ImmichLiteTerramateStack.contract]
 	}
 	evidence: requiredRefs: ["immich-selected-paas-runtime-contract"]
 }
@@ -2618,12 +2795,12 @@ _architectureV2CloudreveSupport: #ModuleRealizationSupportV2 & {
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {contractComplete: true, requiredRefs: []}
 	artifacts: {
-		requiredRefs: ["cloudreve-workload-bundle"]
+		requiredRefs: ["cloudreve-workload-bundle", _architectureV2CloudreveTerramateStack.contract.id]
 		outputBindings: [{
 			artifactRef: "cloudreve-workload-bundle"
 			unitRef:     "cloudreve"
 			outputRef:   "workloads/cloudreve/bundle.json"
-		}]
+		}, _architectureV2CloudreveTerramateStack.binding]
 		contracts: [{
 			id:       "cloudreve-workload-bundle"
 			kind:     "native-config"
@@ -2633,7 +2810,7 @@ _architectureV2CloudreveSupport: #ModuleRealizationSupportV2 & {
 			compatibleTargets: ["compose", "opentofu"]
 			unitRef:   "cloudreve"
 			outputRef: "workloads/cloudreve/bundle.json"
-		}]
+		}, _architectureV2CloudreveTerramateStack.contract]
 	}
 	evidence: requiredRefs: ["cloudreve-selected-paas-runtime-contract"]
 }
@@ -2648,12 +2825,12 @@ _architectureV2VaultwardenSupport: #ModuleRealizationSupportV2 & {
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {contractComplete: true, requiredRefs: ["admin-token"]}
 	artifacts: {
-		requiredRefs: ["vaultwarden-workload-bundle"]
+		requiredRefs: ["vaultwarden-workload-bundle", _architectureV2VaultwardenTerramateStack.contract.id]
 		outputBindings: [{
 			artifactRef: "vaultwarden-workload-bundle"
 			unitRef:     "vaultwarden"
 			outputRef:   "workloads/vaultwarden/bundle.json"
-		}]
+		}, _architectureV2VaultwardenTerramateStack.binding]
 		contracts: [{
 			id:       "vaultwarden-workload-bundle"
 			kind:     "native-config"
@@ -2663,7 +2840,7 @@ _architectureV2VaultwardenSupport: #ModuleRealizationSupportV2 & {
 			compatibleTargets: ["compose", "opentofu"]
 			unitRef:   "vaultwarden"
 			outputRef: "workloads/vaultwarden/bundle.json"
-		}]
+		}, _architectureV2VaultwardenTerramateStack.contract]
 	}
 	evidence: requiredRefs: ["vaultwarden-selected-paas-runtime-contract"]
 }
@@ -2677,12 +2854,12 @@ _architectureV2PterodactylSupport: #ModuleRealizationSupportV2 & {
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {contractComplete: true, requiredRefs: _architectureV2PterodactylSecretSlots}
 	artifacts: {
-		requiredRefs: ["pterodactyl-workload-bundle"]
-		outputBindings: [{artifactRef: "pterodactyl-workload-bundle", unitRef: "pterodactyl", outputRef: "workloads/pterodactyl/bundle.json"}]
+		requiredRefs: ["pterodactyl-workload-bundle", _architectureV2PterodactylTerramateStack.contract.id]
+		outputBindings: [{artifactRef: "pterodactyl-workload-bundle", unitRef: "pterodactyl", outputRef: "workloads/pterodactyl/bundle.json"}, _architectureV2PterodactylTerramateStack.binding]
 		contracts: [{
 			id: "pterodactyl-workload-bundle", kind: "native-config", format: "json", mode: "0640", required: true
 			compatibleTargets: ["compose", "opentofu"], unitRef: "pterodactyl", outputRef: "workloads/pterodactyl/bundle.json"
-		}]
+		}, _architectureV2PterodactylTerramateStack.contract]
 	}
 	// A renderable runtime contract only; game joins, world persistence and
 	// restore stay pending until exercised against the pinned upstream pair.
@@ -2698,12 +2875,12 @@ _architectureV2PrivateAISupport: #ModuleRealizationSupportV2 & {
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {contractComplete: true, requiredRefs: ["owner-password", "session-key"]}
 	artifacts: {
-		requiredRefs: ["private-ai-workload-bundle"]
+		requiredRefs: ["private-ai-workload-bundle", _architectureV2PrivateAITerramateStack.contract.id]
 		outputBindings: [{
 			artifactRef: "private-ai-workload-bundle"
 			unitRef:     "private-ai"
 			outputRef:   "workloads/private-ai/bundle.json"
-		}]
+		}, _architectureV2PrivateAITerramateStack.binding]
 		contracts: [{
 			id:       "private-ai-workload-bundle"
 			kind:     "native-config"
@@ -2713,7 +2890,7 @@ _architectureV2PrivateAISupport: #ModuleRealizationSupportV2 & {
 			compatibleTargets: ["compose", "opentofu"]
 			unitRef:   "private-ai"
 			outputRef: "workloads/private-ai/bundle.json"
-		}]
+		}, _architectureV2PrivateAITerramateStack.contract]
 	}
 	evidence: requiredRefs: ["private-ai-selected-paas-runtime-contract"]
 }
@@ -2725,12 +2902,12 @@ _architectureV2GiteaSupport: #ModuleRealizationSupportV2 & {
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {contractComplete: true, requiredRefs: ["owner-password"]}
 	artifacts: {
-		requiredRefs: ["gitea-workload-bundle"]
+		requiredRefs: ["gitea-workload-bundle", _architectureV2GiteaTerramateStack.contract.id]
 		outputBindings: [{
 			artifactRef: "gitea-workload-bundle"
 			unitRef:     "gitea"
 			outputRef:   "workloads/gitea/bundle.json"
-		}]
+		}, _architectureV2GiteaTerramateStack.binding]
 		contracts: [{
 			id:       "gitea-workload-bundle"
 			kind:     "native-config"
@@ -2740,7 +2917,7 @@ _architectureV2GiteaSupport: #ModuleRealizationSupportV2 & {
 			compatibleTargets: ["compose", "opentofu"]
 			unitRef:   "gitea"
 			outputRef: "workloads/gitea/bundle.json"
-		}]
+		}, _architectureV2GiteaTerramateStack.contract]
 	}
 	evidence: requiredRefs: ["gitea-selected-paas-runtime-contract"]
 }
@@ -2752,16 +2929,35 @@ _architectureV2PaperlessSupport: #ModuleRealizationSupportV2 & {
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {contractComplete: true, requiredRefs: ["database-password", "owner-password", "session-key"]}
 	artifacts: {
-		requiredRefs: ["paperless-workload-bundle"]
-		outputBindings: [{artifactRef: "paperless-workload-bundle", unitRef: "paperless", outputRef: "workloads/paperless-ngx/bundle.json"}]
+		requiredRefs: ["paperless-workload-bundle", _architectureV2PaperlessTerramateStack.contract.id]
+		outputBindings: [{artifactRef: "paperless-workload-bundle", unitRef: "paperless", outputRef: "workloads/paperless-ngx/bundle.json"}, _architectureV2PaperlessTerramateStack.binding]
 		contracts: [{
 			id: "paperless-workload-bundle", kind: "native-config", format: "json", mode: "0640", required: true
 			compatibleTargets: ["compose", "opentofu"], unitRef: "paperless", outputRef: "workloads/paperless-ngx/bundle.json"
-		}]
+		}, _architectureV2PaperlessTerramateStack.contract]
 	}
 	// This proves a renderable runtime contract only. Application and restore
 	// use remain pending until exercised against the pinned upstream services.
 	evidence: requiredRefs: ["paperless-generated-runtime-contract"]
+}
+
+_architectureV2RoundcubeSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["session-key"]}
+	artifacts: {
+		requiredRefs: ["roundcube-workload-bundle"]
+		outputBindings: [{artifactRef: "roundcube-workload-bundle", unitRef: "roundcube", outputRef: "workloads/roundcube/bundle.json"}]
+		contracts: [{
+			id: "roundcube-workload-bundle", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"], unitRef: "roundcube", outputRef: "workloads/roundcube/bundle.json"
+		}]
+	}
+	// A renderable runtime contract only; a real mailbox login and restore
+	// stay pending until exercised against the pinned upstream image.
+	evidence: requiredRefs: ["roundcube-generated-runtime-contract"]
 }
 
 // Jellyfin is the Media Library vertical. Config is a StackKits backup source;
@@ -2773,12 +2969,12 @@ _architectureV2JellyfinSupport: #ModuleRealizationSupportV2 & {
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {contractComplete: true, requiredRefs: ["storage-roots"]}
 	artifacts: {
-		requiredRefs: ["jellyfin-workload-bundle"]
+		requiredRefs: ["jellyfin-workload-bundle", _architectureV2JellyfinTerramateStack.contract.id]
 		outputBindings: [{
 			artifactRef: "jellyfin-workload-bundle"
 			unitRef:     "jellyfin"
 			outputRef:   "workloads/jellyfin/bundle.json"
-		}]
+		}, _architectureV2JellyfinTerramateStack.binding]
 		contracts: [{
 			id:       "jellyfin-workload-bundle"
 			kind:     "native-config"
@@ -2788,7 +2984,7 @@ _architectureV2JellyfinSupport: #ModuleRealizationSupportV2 & {
 			compatibleTargets: ["compose", "opentofu"]
 			unitRef:   "jellyfin"
 			outputRef: "workloads/jellyfin/bundle.json"
-		}]
+		}, _architectureV2JellyfinTerramateStack.contract]
 	}
 	evidence: requiredRefs: ["jellyfin-selected-paas-runtime-contract"]
 }
@@ -2800,12 +2996,12 @@ _architectureV2HomeAssistantSupport: #ModuleRealizationSupportV2 & {
 	compatibleRendererRefs: ["stackkit"]
 	inputs: {contractComplete: true, requiredRefs: []}
 	artifacts: {
-		requiredRefs: ["home-assistant-workload-bundle"]
+		requiredRefs: ["home-assistant-workload-bundle", _architectureV2HomeAssistantTerramateStack.contract.id]
 		outputBindings: [{
 			artifactRef: "home-assistant-workload-bundle"
 			unitRef:     "home-assistant"
 			outputRef:   "workloads/home-assistant/bundle.json"
-		}]
+		}, _architectureV2HomeAssistantTerramateStack.binding]
 		contracts: [{
 			id:       "home-assistant-workload-bundle"
 			kind:     "native-config"
@@ -2815,7 +3011,7 @@ _architectureV2HomeAssistantSupport: #ModuleRealizationSupportV2 & {
 			compatibleTargets: ["compose", "opentofu"]
 			unitRef:   "home-assistant"
 			outputRef: "workloads/home-assistant/bundle.json"
-		}]
+		}, _architectureV2HomeAssistantTerramateStack.contract]
 	}
 	evidence: requiredRefs: ["home-assistant-selected-paas-runtime-contract"]
 }
@@ -2983,7 +3179,7 @@ _basementCoreServiceEndpoints: [
 		healthRef:      "basement-hub-http"
 	},
 	{
-		serviceRef:        "id", upstreamProtocol: "http", targetPort: 1411
+		serviceRef: "id", upstreamProtocol: "http", targetPort: 1411
 		requiredPrivilege: "identity"
 		ingressAuth:       "none"
 		allowedIngressProtocols: ["http", "https"]
@@ -2992,7 +3188,7 @@ _basementCoreServiceEndpoints: [
 		healthRef:      "pocketid-http"
 	},
 	{
-		serviceRef:        "auth", upstreamProtocol: "http", targetPort: 3000
+		serviceRef: "auth", upstreamProtocol: "http", targetPort: 3000
 		requiredPrivilege: "identity"
 		ingressAuth:       "none"
 		allowedIngressProtocols: ["http", "https"]
@@ -3001,7 +3197,7 @@ _basementCoreServiceEndpoints: [
 		healthRef:      "tinyauth-http"
 	},
 	{
-		serviceRef:        "coolify", upstreamProtocol: "http", targetPort: 8080
+		serviceRef: "coolify", upstreamProtocol: "http", targetPort: 8080
 		requiredPrivilege: "admin"
 		ingressAuth:       "forward-auth"
 		allowedIngressProtocols: ["http", "https"]
@@ -3022,7 +3218,7 @@ _cloudCoreServiceEndpoints: [
 		healthRef:      "cloud-hub-http"
 	},
 	{
-		serviceRef: "id", upstreamProtocol: "http", targetPort: 1411
+		serviceRef:        "id", upstreamProtocol: "http", targetPort: 1411
 		requiredPrivilege: "identity"
 		ingressAuth:       "none"
 		allowedIngressProtocols: ["http", "https"]
@@ -3031,7 +3227,7 @@ _cloudCoreServiceEndpoints: [
 		healthRef:      "cloud-pocketid-http"
 	},
 	{
-		serviceRef: "auth", upstreamProtocol: "http", targetPort: 3000
+		serviceRef:        "auth", upstreamProtocol: "http", targetPort: 3000
 		requiredPrivilege: "identity"
 		ingressAuth:       "none"
 		allowedIngressProtocols: ["http", "https"]
@@ -3040,7 +3236,7 @@ _cloudCoreServiceEndpoints: [
 		healthRef:      "cloud-tinyauth-http"
 	},
 	{
-		serviceRef: "coolify", upstreamProtocol: "http", targetPort: 8080
+		serviceRef:        "coolify", upstreamProtocol: "http", targetPort: 8080
 		requiredPrivilege: "admin"
 		ingressAuth:       "forward-auth"
 		allowedIngressProtocols: ["http", "https"]
@@ -3507,7 +3703,7 @@ _architectureV2Modules: list.Concat([[
 			]
 			outputs: ["foundation/host-bootstrap/policy.json"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
-		}]
+		}, _architectureV2TerramateProjectRoot.unit]
 		realizationSupport: _architectureV2CoreHostBootstrapSupport
 		health: [{id: "core-host-bootstrap-contract", kind: "contract", scope: "each-node"}]
 		evidence: ["core-host-bootstrap-executor-contract"]
@@ -3978,7 +4174,7 @@ _architectureV2Modules: list.Concat([[
 			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "publicEdge"]
 			outputs: ["cloud/public-edge/executor-contract.json"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
-		}]
+		}, _architectureV2CloudPublicEdgeTerramateStack.unit]
 		realizationSupport: _architectureV2CloudPublicEdgeSupport
 		health: [{id: "cloud-public-edge-health", kind: "contract", scope: "each-node"}]
 		evidence: ["cloud-public-edge-evidence"]
@@ -4301,11 +4497,39 @@ _architectureV2Modules: list.Concat([[
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: _cloudCoreServiceEndpoints
 			runtimeListeners: _cloudCoreVerificationRuntimeListeners
+		}, {
+			id:           "opentofu", kind:                                "opentofu", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/core/opentofu/v1.tf", version: "1.0.0"
+			contractHash: "sha256:6a79e0654824079a664efee247a0a47f060ebe8624f6aa6ddadd68e482c927ee"
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			outputs: ["platform/cloud-core/main.tf"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: _cloudCoreServiceEndpoints
+			runtimeListeners: _cloudCoreVerificationRuntimeListeners
+		}, {
+			id:           "terramate", kind:                            "terramate", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/core/terramate/v1", version: "1.0.0"
+			contractHash: "sha256:5dc111fb152e893248c944eead9e58911abed6665aeaabb46b5bd813a8f69f13"
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			outputs: ["platform/cloud-core/main.tf", "platform/cloud-core/stack.tm.hcl"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: _cloudCoreServiceEndpoints
+			runtimeListeners: _cloudCoreVerificationRuntimeListeners
 		}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
 			contractHash: "sha256:83325050d81ead6719540e46890319df32fe2e3b1d8884c40dc3143da1a36c9d"
 			unitRefs: ["compose"], artifactRefs: ["cloud-core-compose"]
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+		}, {
+			id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+			contractHash: "sha256:6a79e0654824079a664efee247a0a47f060ebe8624f6aa6ddadd68e482c927ee"
+			unitRefs: ["opentofu"], artifactRefs: ["cloud-core-opentofu"]
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+		}, {
+			id:           "terramate", target: "terramate", rendererRef: "stackkit"
+			contractHash: "sha256:5dc111fb152e893248c944eead9e58911abed6665aeaabb46b5bd813a8f69f13"
+			unitRefs: ["terramate"], artifactRefs: ["cloud-core-terramate-opentofu", "cloud-core-terramate-stack"]
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 		}]
 		realizationSupport: {
@@ -4314,11 +4538,25 @@ _architectureV2Modules: list.Concat([[
 			inputs: {contractComplete: true, requiredRefs: []}
 			planInputs: {contractComplete: true, requiredRefs: []}
 			artifacts: {
-				requiredRefs: ["cloud-core-compose"]
-				outputBindings: [{artifactRef: "cloud-core-compose", unitRef: "compose", outputRef: "platform/cloud-core/compose.yaml"}]
+				requiredRefs: ["cloud-core-compose", "cloud-core-opentofu", "cloud-core-terramate-opentofu", "cloud-core-terramate-stack"]
+				outputBindings: [
+					{artifactRef: "cloud-core-compose", unitRef: "compose", outputRef: "platform/cloud-core/compose.yaml"},
+					{artifactRef: "cloud-core-opentofu", unitRef: "opentofu", outputRef: "platform/cloud-core/main.tf"},
+					{artifactRef: "cloud-core-terramate-opentofu", unitRef: "terramate", outputRef: "platform/cloud-core/main.tf"},
+					{artifactRef: "cloud-core-terramate-stack", unitRef: "terramate", outputRef: "platform/cloud-core/stack.tm.hcl"},
+				]
 				contracts: [{
 					id: "cloud-core-compose", kind: "compose", format: "yaml", mode: "0640", required: true
 					compatibleTargets: ["compose"], unitRef: "compose", outputRef: "platform/cloud-core/compose.yaml"
+				}, {
+					id: "cloud-core-opentofu", kind: "opentofu", format: "hcl", mode: "0640", required: true
+					compatibleTargets: ["opentofu"], unitRef: "opentofu", outputRef: "platform/cloud-core/main.tf"
+				}, {
+					id: "cloud-core-terramate-opentofu", kind: "terramate", format: "hcl", mode: "0640", required: true
+					compatibleTargets: ["terramate"], unitRef: "terramate", outputRef: "platform/cloud-core/main.tf"
+				}, {
+					id: "cloud-core-terramate-stack", kind: "terramate", format: "hcl", mode: "0640", required: true
+					compatibleTargets: ["terramate"], unitRef: "terramate", outputRef: "platform/cloud-core/stack.tm.hcl"
 				}]
 			}
 			evidence: requiredRefs: ["cloud-core-runtime-evidence"]
@@ -4373,11 +4611,45 @@ _architectureV2Modules: list.Concat([[
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: _architectureV2CloudStandaloneServiceEndpoints
 			runtimeListeners: _architectureV2CloudStandaloneRuntimeListeners
+		}, {
+			id:           "opentofu", kind:                                           "opentofu", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/core-standalone/opentofu/v1.tf", version: "1.0.0"
+			contractHash: "sha256:b8846b7c2e2728b89b5d585078496070fa1bdfce3fd569e07e0ef3545fc40a24"
+			publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+			secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+			planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+			inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+			outputs: ["platform/cloud-core-standalone/main.tf"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: _architectureV2CloudStandaloneServiceEndpoints
+			runtimeListeners: _architectureV2CloudStandaloneRuntimeListeners
+		}, {
+			id:              "terramate", kind:                                       "terramate", rendererRef: "stackkit"
+			templateRef:     "builtin://cloud/core-standalone/terramate/v1", version: "1.0.0"
+			contractHash:    "sha256:3f2c14c5ddeb144811f8ba25a28fbf5311692b301c37423d9f197b1bdf76c665"
+			publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+			secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+			planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+			inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+			outputs: ["platform/cloud-core-standalone/main.tf", "platform/cloud-core-standalone/stack.tm.hcl"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: _architectureV2CloudStandaloneServiceEndpoints
+			runtimeListeners: _architectureV2CloudStandaloneRuntimeListeners
 		}, _architectureV2LocalKopiaSourceRenderUnit & {_outputRef: "cloud/backup/kopia-source-policy.json"}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
 			contractHash: "sha256:ddcb305343a3c7ae836234d300e67077c4a7b1a3f0cff9781c72dd5d4e03907f"
 			unitRefs: ["compose", "source-policy"], artifactRefs: ["cloud-core-standalone-compose", "cloud-kopia-backup-source-policy"]
+			publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
+		}, {
+			id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+			contractHash: "sha256:b8846b7c2e2728b89b5d585078496070fa1bdfce3fd569e07e0ef3545fc40a24"
+			unitRefs: ["opentofu", "source-policy"], artifactRefs: ["cloud-core-standalone-opentofu", "cloud-kopia-backup-source-policy"]
+			publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
+		}, {
+			id:           "terramate", target: "terramate", rendererRef: "stackkit"
+			contractHash: "sha256:3f2c14c5ddeb144811f8ba25a28fbf5311692b301c37423d9f197b1bdf76c665"
+			unitRefs: ["terramate", "source-policy"], artifactRefs: ["cloud-core-standalone-terramate-opentofu", "cloud-core-standalone-terramate-stack", "cloud-kopia-backup-source-policy"]
 			publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 		}]
 		realizationSupport: {
@@ -4386,12 +4658,27 @@ _architectureV2Modules: list.Concat([[
 			inputs: {contractComplete: true, requiredRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs}
 			planInputs: {contractComplete: true, requiredRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs}
 			artifacts: {
-				requiredRefs: ["cloud-core-standalone-compose", "cloud-kopia-backup-source-policy"]
-				outputBindings: [{artifactRef: "cloud-core-standalone-compose", unitRef: "compose", outputRef: "platform/cloud-core-standalone/compose.yaml"}, {artifactRef: "cloud-kopia-backup-source-policy", unitRef: "source-policy", outputRef: "cloud/backup/kopia-source-policy.json"}]
+				requiredRefs: ["cloud-core-standalone-compose", "cloud-core-standalone-opentofu", "cloud-core-standalone-terramate-opentofu", "cloud-core-standalone-terramate-stack", "cloud-kopia-backup-source-policy"]
+				outputBindings: [
+					{artifactRef: "cloud-core-standalone-compose", unitRef: "compose", outputRef: "platform/cloud-core-standalone/compose.yaml"},
+					{artifactRef: "cloud-core-standalone-opentofu", unitRef: "opentofu", outputRef: "platform/cloud-core-standalone/main.tf"},
+					{artifactRef: "cloud-core-standalone-terramate-opentofu", unitRef: "terramate", outputRef: "platform/cloud-core-standalone/main.tf"},
+					{artifactRef: "cloud-core-standalone-terramate-stack", unitRef: "terramate", outputRef: "platform/cloud-core-standalone/stack.tm.hcl"},
+					{artifactRef: "cloud-kopia-backup-source-policy", unitRef: "source-policy", outputRef: "cloud/backup/kopia-source-policy.json"},
+				]
 				contracts: [{
 					id: "cloud-core-standalone-compose", kind: "compose", format: "yaml", mode: "0640", required: true
 					compatibleTargets: ["compose"], unitRef: "compose", outputRef: "platform/cloud-core-standalone/compose.yaml"
-				}, {id: "cloud-kopia-backup-source-policy", kind: "native-config", format: "json", mode: "0600", required: true, compatibleTargets: ["compose"], unitRef: "source-policy", outputRef: "cloud/backup/kopia-source-policy.json"}]
+				}, {
+					id: "cloud-core-standalone-opentofu", kind: "opentofu", format: "hcl", mode: "0640", required: true
+					compatibleTargets: ["opentofu"], unitRef: "opentofu", outputRef: "platform/cloud-core-standalone/main.tf"
+				}, {
+					id: "cloud-core-standalone-terramate-opentofu", kind: "terramate", format: "hcl", mode: "0640", required: true
+					compatibleTargets: ["terramate"], unitRef: "terramate", outputRef: "platform/cloud-core-standalone/main.tf"
+				}, {
+					id: "cloud-core-standalone-terramate-stack", kind: "terramate", format: "hcl", mode: "0640", required: true
+					compatibleTargets: ["terramate"], unitRef: "terramate", outputRef: "platform/cloud-core-standalone/stack.tm.hcl"
+				}, {id: "cloud-kopia-backup-source-policy", kind: "native-config", format: "json", mode: "0600", required: true, compatibleTargets: ["compose", "opentofu", "terramate"], unitRef: "source-policy", outputRef: "cloud/backup/kopia-source-policy.json"}]
 			}
 			evidence: requiredRefs: ["cloud-core-runtime-evidence"]
 		}
@@ -4594,21 +4881,26 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:c9795b613c65f78c5f1b9fb9b59596d501a367be5a6e37b3e91cdba01fd20d81"
-				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				contractHash: "sha256:4b5d98e6f322f5d922cb924369be44544c747d78fc8cabe0d06beb1a24c50cbf"
+				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
 				outputs: ["platform/basement-core/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
 				serviceEndpoints: _basementCoreServiceEndpoints
 				runtimeListeners: _basementCoreRuntimeListeners
 			},
 			{
-				id:           "terramate", kind:                               "terramate", rendererRef: "stackkit"
-				templateRef:  "builtin://basement/core/terramate/v1", version: "1.0.0"
-				contractHash: "sha256:5b89a4fa92f9f6b3b3580a65fcb6d3b3cb2b7da3508538f16f8f494ae8855e11"
-				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				id:              "terramate", kind:                               "terramate", rendererRef: "stackkit"
+				templateRef:     "builtin://basement/core/terramate/v1", version: "1.0.0"
+				contractHash:    "sha256:7ec10f279cb5483f6d0260ffe4f715f33f3db852838a894ba0c78e4d24baf4da"
+				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
 				outputs: [
 					"platform/basement-core/main.tf",
-					"platform/basement-core/terramate.tm.hcl",
 					"platform/basement-core/stack.tm.hcl",
 				]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -4634,11 +4926,10 @@ _architectureV2Modules: list.Concat([[
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
-				contractHash: "sha256:b5b8c38c50d99d14cc822faeae79c76ab10c77fa7c01a4fc83578aa223ca8ff5"
+				contractHash: "sha256:7ec10f279cb5483f6d0260ffe4f715f33f3db852838a894ba0c78e4d24baf4da"
 				unitRefs: ["terramate", "source-policy"]
 				artifactRefs: [
 					"basement-core-terramate-opentofu",
-					"basement-core-terramate-root",
 					"basement-core-terramate-stack",
 					"local-kopia-backup-source-policy",
 				]
@@ -4661,7 +4952,6 @@ _architectureV2Modules: list.Concat([[
 					"basement-core-compose",
 					"basement-core-opentofu",
 					"basement-core-terramate-opentofu",
-					"basement-core-terramate-root",
 					"basement-core-terramate-stack",
 					"local-kopia-backup-source-policy",
 				]
@@ -4677,10 +4967,6 @@ _architectureV2Modules: list.Concat([[
 					{
 						artifactRef: "basement-core-terramate-opentofu", unitRef: "terramate"
 						outputRef:   "platform/basement-core/main.tf"
-					},
-					{
-						artifactRef: "basement-core-terramate-root", unitRef: "terramate"
-						outputRef:   "platform/basement-core/terramate.tm.hcl"
 					},
 					{
 						artifactRef: "basement-core-terramate-stack", unitRef: "terramate"
@@ -4706,11 +4992,6 @@ _architectureV2Modules: list.Concat([[
 						id: "basement-core-terramate-opentofu", kind: "terramate", format: "hcl", mode: "0640", required: true
 						compatibleTargets: ["terramate"], unitRef: "terramate"
 						outputRef:                                 "platform/basement-core/main.tf"
-					},
-					{
-						id: "basement-core-terramate-root", kind: "terramate", format: "hcl", mode: "0640", required: true
-						compatibleTargets: ["terramate"], unitRef: "terramate"
-						outputRef:                                 "platform/basement-core/terramate.tm.hcl"
 					},
 					{
 						id: "basement-core-terramate-stack", kind: "terramate", format: "hcl", mode: "0640", required: true
@@ -4879,21 +5160,26 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:           "opentofu", kind:                                       "opentofu", rendererRef: "stackkit"
 				templateRef:  "builtin://basement/core-lite/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:fffc0f31982e35e2b7382acc5653f1382f4ea73cc630fa7e671005ec098c4ede"
-				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				contractHash: "sha256:c2a2fc6d92a29440e3fb39232815f4df8007731e52798eaae8511f2fc8a9caf0"
+				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
 				outputs: ["platform/basement-core-lite/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
 				serviceEndpoints: _basementCoreLiteServiceEndpoints
 				runtimeListeners: _basementCoreLiteRuntimeListeners
 			},
 			{
-				id:           "terramate", kind:                                    "terramate", rendererRef: "stackkit"
-				templateRef:  "builtin://basement/core-lite/terramate/v1", version: "1.0.0"
-				contractHash: "sha256:9ebc790d7cec77efabe37e6a5f64884d724264f5b332133864ff0c88f5a801dc"
-				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+				id:              "terramate", kind:                                    "terramate", rendererRef: "stackkit"
+				templateRef:     "builtin://basement/core-lite/terramate/v1", version: "1.0.0"
+				contractHash:    "sha256:23d947aef35b7fbfe3b7667765361fdf0033ce3a2e44f8223c1b7ac090949036"
+				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
 				outputs: [
 					"platform/basement-core-lite/main.tf",
-					"platform/basement-core-lite/terramate.tm.hcl",
 					"platform/basement-core-lite/stack.tm.hcl",
 				]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -4919,11 +5205,10 @@ _architectureV2Modules: list.Concat([[
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
-				contractHash: "sha256:5edd783ac3d1d6628066ecce4ffc7c942fbba46b060e6475dfed5adb079db6a2"
+				contractHash: "sha256:23d947aef35b7fbfe3b7667765361fdf0033ce3a2e44f8223c1b7ac090949036"
 				unitRefs: ["terramate", "source-policy"]
 				artifactRefs: [
 					"basement-core-lite-terramate-opentofu",
-					"basement-core-lite-terramate-root",
 					"basement-core-lite-terramate-stack",
 					"local-kopia-backup-source-policy-lite",
 				]
@@ -4943,7 +5228,6 @@ _architectureV2Modules: list.Concat([[
 					"basement-core-lite-compose",
 					"basement-core-lite-opentofu",
 					"basement-core-lite-terramate-opentofu",
-					"basement-core-lite-terramate-root",
 					"basement-core-lite-terramate-stack",
 					"local-kopia-backup-source-policy-lite",
 				]
@@ -4959,10 +5243,6 @@ _architectureV2Modules: list.Concat([[
 					{
 						artifactRef: "basement-core-lite-terramate-opentofu", unitRef: "terramate"
 						outputRef:   "platform/basement-core-lite/main.tf"
-					},
-					{
-						artifactRef: "basement-core-lite-terramate-root", unitRef: "terramate"
-						outputRef:   "platform/basement-core-lite/terramate.tm.hcl"
 					},
 					{
 						artifactRef: "basement-core-lite-terramate-stack", unitRef: "terramate"
@@ -4988,11 +5268,6 @@ _architectureV2Modules: list.Concat([[
 						id: "basement-core-lite-terramate-opentofu", kind: "terramate", format: "hcl", mode: "0640", required: true
 						compatibleTargets: ["terramate"], unitRef: "terramate"
 						outputRef:                                 "platform/basement-core-lite/main.tf"
-					},
-					{
-						id: "basement-core-lite-terramate-root", kind: "terramate", format: "hcl", mode: "0640", required: true
-						compatibleTargets: ["terramate"], unitRef: "terramate"
-						outputRef:                                 "platform/basement-core-lite/terramate.tm.hcl"
 					},
 					{
 						id: "basement-core-lite-terramate-stack", kind: "terramate", format: "hcl", mode: "0640", required: true
@@ -5152,7 +5427,7 @@ _architectureV2Modules: list.Concat([[
 					locality:        _architectureV2PhotosInfrastructure.dataBinding.locality
 				}
 			}]
-		}]
+		}, _architectureV2ImmichTerramateStack.unit]
 		renderVariants: [
 			{
 				id:           "compose", target: "compose", rendererRef: "stackkit"
@@ -5164,6 +5439,12 @@ _architectureV2Modules: list.Concat([[
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:c8cafbfb8ada7743566432b94ad908dfaef53b62db343f80e38fad5c34ab9d33"
 				unitRefs: ["immich-server"], artifactRefs: ["immich-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["immich-server", "terramate-stack"], artifactRefs: ["immich-workload-bundle", _architectureV2ImmichTerramateStack.contract.id]
 				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
 			},
 		]
@@ -5308,7 +5589,7 @@ _architectureV2Modules: list.Concat([[
 					locality:        _architectureV2PhotosLiteInfrastructure.dataBinding.locality
 				}
 			}]
-		}]
+		}, _architectureV2ImmichLiteTerramateStack.unit]
 		renderVariants: [
 			{
 				id:           "compose", target: "compose", rendererRef: "stackkit"
@@ -5320,6 +5601,12 @@ _architectureV2Modules: list.Concat([[
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:5eb57d279f18736169bef048d15a7328162848d3ab2750452f2d057637d0fe17"
 				unitRefs: ["immich-server"], artifactRefs: ["immich-lite-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["immich-server", "terramate-stack"], artifactRefs: ["immich-lite-workload-bundle", _architectureV2ImmichLiteTerramateStack.contract.id]
 				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
 			},
 		]
@@ -5406,7 +5693,7 @@ _architectureV2Modules: list.Concat([[
 					locality:        _architectureV2FilesInfrastructure.dataBinding.locality
 				}
 			}]
-		}]
+		}, _architectureV2CloudreveTerramateStack.unit]
 		renderVariants: [
 			{
 				id:           "compose", target: "compose", rendererRef: "stackkit"
@@ -5418,6 +5705,12 @@ _architectureV2Modules: list.Concat([[
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:58609d10adde5f149301184cd8f24c375da1f8eadd6f2ce8e83c58c3dca34520"
 				unitRefs: ["cloudreve"], artifactRefs: ["cloudreve-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["cloudreve", "terramate-stack"], artifactRefs: ["cloudreve-workload-bundle", _architectureV2CloudreveTerramateStack.contract.id]
 				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
 			},
 		]
@@ -5507,7 +5800,7 @@ _architectureV2Modules: list.Concat([[
 					locality:        _architectureV2VaultInfrastructure.dataBinding.locality
 				}
 			}]
-		}]
+		}, _architectureV2VaultwardenTerramateStack.unit]
 		renderVariants: [
 			{
 				id:           "compose", target: "compose", rendererRef: "stackkit"
@@ -5519,6 +5812,12 @@ _architectureV2Modules: list.Concat([[
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
 				unitRefs: ["vaultwarden"], artifactRefs: ["vaultwarden-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["admin-token"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["vaultwarden", "terramate-stack"], artifactRefs: ["vaultwarden-workload-bundle", _architectureV2VaultwardenTerramateStack.contract.id]
 				publicInputRefs: ["delivery-route"], secretInputRefs: ["admin-token"], planInputRefs: []
 			},
 		]
@@ -5613,7 +5912,7 @@ _architectureV2Modules: list.Concat([[
 					locality:        _architectureV2AIInfrastructure.dataBinding.locality
 				}
 			}]
-		}]
+		}, _architectureV2PrivateAITerramateStack.unit]
 		renderVariants: [
 			{
 				id:           "compose", target: "compose", rendererRef: "stackkit"
@@ -5625,6 +5924,12 @@ _architectureV2Modules: list.Concat([[
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
 				unitRefs: ["private-ai"], artifactRefs: ["private-ai-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["private-ai", "terramate-stack"], artifactRefs: ["private-ai-workload-bundle", _architectureV2PrivateAITerramateStack.contract.id]
 				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
 			},
 		]
@@ -5759,7 +6064,7 @@ _architectureV2Modules: list.Concat([[
 					locality:        _architectureV2DevInfrastructure.dataBinding.locality
 				}
 			}]
-		}]
+		}, _architectureV2GiteaTerramateStack.unit]
 		renderVariants: [
 			{
 				id:           "compose", target: "compose", rendererRef: "stackkit"
@@ -5771,6 +6076,12 @@ _architectureV2Modules: list.Concat([[
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
 				unitRefs: ["gitea"], artifactRefs: ["gitea-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["gitea", "terramate-stack"], artifactRefs: ["gitea-workload-bundle", _architectureV2GiteaTerramateStack.contract.id]
 				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password"], planInputRefs: []
 			},
 		]
@@ -5871,14 +6182,87 @@ _architectureV2Modules: list.Concat([[
 				originSelector: "control-authority-site", healthRef: "paperless-http"
 				data: {bindingRef: _architectureV2DocumentsInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2DocumentsInfrastructure.dataBinding.classes, locality: _architectureV2DocumentsInfrastructure.dataBinding.locality}
 			}]
-		}]
+		}, _architectureV2PaperlessTerramateStack.unit]
 		renderVariants: [
 			{id: "compose", target: "compose", rendererRef: "stackkit", contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56", unitRefs: ["paperless"], artifactRefs: ["paperless-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "owner-password", "session-key"], planInputRefs: []},
 			{id: "opentofu", target: "opentofu", rendererRef: "stackkit", contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430", unitRefs: ["paperless"], artifactRefs: ["paperless-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "owner-password", "session-key"], planInputRefs: []},
+			{id: "terramate", target: "terramate", rendererRef: "stackkit", contractHash: _architectureV2TerramateStackHashes.workload, unitRefs: ["paperless", "terramate-stack"], artifactRefs: ["paperless-workload-bundle", _architectureV2PaperlessTerramateStack.contract.id], publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "owner-password", "session-key"], planInputRefs: []},
 		]
 		realizationSupport: _architectureV2PaperlessSupport
 		health: [{id: "paperless-http", phase: "continuous", kind: "http", path: "/", port: 8000, timeoutSeconds: 10, expectedStatuses: [200, 302]}]
 		evidence: ["paperless-generated-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-roundcube-runtime"
+			version:     "1.0.0"
+			description: "Roundcube Webmail with a local SQLite database on one owner-selected node, as a client for an existing external IMAP/SMTP mailbox."
+		}
+		role:        "workload"
+		providerRef: "stackkits-roundcube"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {authority: "control-authority-site", requiredRoles: ["worker"]}
+		computeProfiles:       _architectureV2RoundcubeComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:              "container", delivery: "application-adapter", engine: "docker"
+			image:             _architectureV2RoundcubeImage
+			entryComponentRef: "roundcube"
+			components: [{
+				id:    "roundcube", role: "application", lifecycle: "daemon"
+				image: _architectureV2RoundcubeImage
+				dependsOn: [], networkRefs: ["mail-internal"]
+				// Roundcube connects out to the owner's external IMAP and SMTP
+				// servers; it publishes nothing beyond the routed web origin.
+				egress: true
+				// The governed init script installs the startup file readable by
+				// the web server user, then hands over to the upstream entrypoint.
+				entrypoint: ["/bin/sh", "/var/roundcube/config/stackkit/init.sh"]
+				command: ["apache2-foreground"]
+				environment: {
+					ROUNDCUBEMAIL_DB_TYPE:     "sqlite"
+					ROUNDCUBEMAIL_DB_DIR:       "/var/roundcube/db"
+					ROUNDCUBEMAIL_SKIN:         "elastic"
+					ROUNDCUBEMAIL_PLUGINS:      "archive,zipdownload"
+					ROUNDCUBEMAIL_TEMP_DIR:     "/tmp/roundcube-temp"
+					ROUNDCUBEMAIL_REQUEST_PATH: "/"
+				}
+				// The governed startup file derives Roundcube's 24-character key
+				// from this variable; the key never enters a file.
+				secretEnvironment: ROUNDCUBEMAIL_DES_KEY: "session-key"
+				volumes: [for allocation in _architectureV2MailInfrastructure.storageAllocation.allocations if allocation.componentRef == "roundcube" {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+				}]
+				health: {kind: "http", path: "/", port: 80}
+				resources: {memoryLimit: "256m", memoryReservation: "128m"}
+			}]
+		}
+		renderUnits: [{
+			id: "roundcube", kind: "native-config", rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/roundcube/bundle/v1.json", version: "1.0.0"
+			contractHash: "sha256:cb57a9c4f55d1675bd0f8b248b5a50ba00824468f766d253603a630e6c00c0c5"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
+			secretInputRefs: ["session-key"]
+			outputs: ["workloads/roundcube/bundle.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: [{
+				serviceRef:        "mail", upstreamProtocol: "http", targetPort: 80
+				requiredPrivilege: "user", ingressAuth: "native", allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site", healthRef: "roundcube-http"
+				data: {bindingRef: _architectureV2MailInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2MailInfrastructure.dataBinding.classes, locality: _architectureV2MailInfrastructure.dataBinding.locality}
+			}]
+		}]
+		renderVariants: [
+			{id: "compose", target: "compose", rendererRef: "stackkit", contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56", unitRefs: ["roundcube"], artifactRefs: ["roundcube-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: ["session-key"], planInputRefs: []},
+			{id: "opentofu", target: "opentofu", rendererRef: "stackkit", contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430", unitRefs: ["roundcube"], artifactRefs: ["roundcube-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: ["session-key"], planInputRefs: []},
+		]
+		realizationSupport: _architectureV2RoundcubeSupport
+		health: [{id: "roundcube-http", phase: "continuous", kind: "http", path: "/", port: 80, timeoutSeconds: 10, expectedStatuses: [200]}]
+		evidence: ["roundcube-generated-runtime-contract"]
 	},
 	{
 		metadata: {
@@ -6049,10 +6433,11 @@ _architectureV2Modules: list.Concat([[
 				originSelector: "control-authority-site", healthRef: "pterodactyl-panel-http"
 				data: {bindingRef: _architectureV2GameInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2GameInfrastructure.dataBinding.classes, locality: _architectureV2GameInfrastructure.dataBinding.locality}
 			}]
-		}]
+		}, _architectureV2PterodactylTerramateStack.unit]
 		renderVariants: [
 			{id: "compose", target: "compose", rendererRef: "stackkit", contractHash: "sha256:72697f2471dbafff7f7cd938c36e4f89393862fc28d19ac1d61c603afd3e010f", unitRefs: ["pterodactyl"], artifactRefs: ["pterodactyl-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: _architectureV2PterodactylSecretSlots, planInputRefs: []},
 			{id: "opentofu", target: "opentofu", rendererRef: "stackkit", contractHash: "sha256:a92e513ff795fb638fa85451c5b55b26ac9ecbfeb62a27cd12090f135095305a", unitRefs: ["pterodactyl"], artifactRefs: ["pterodactyl-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: _architectureV2PterodactylSecretSlots, planInputRefs: []},
+			{id: "terramate", target: "terramate", rendererRef: "stackkit", contractHash: _architectureV2TerramateStackHashes.workload, unitRefs: ["pterodactyl", "terramate-stack"], artifactRefs: ["pterodactyl-workload-bundle", _architectureV2PterodactylTerramateStack.contract.id], publicInputRefs: ["delivery-route"], secretInputRefs: _architectureV2PterodactylSecretSlots, planInputRefs: []},
 		]
 		realizationSupport: _architectureV2PterodactylSupport
 		health: [{id: "pterodactyl-panel-http", phase: "continuous", kind: "http", path: "/auth/login", port: 80, timeoutSeconds: 10, expectedStatuses: [200]}]
@@ -6130,7 +6515,7 @@ _architectureV2Modules: list.Concat([[
 					locality:        _architectureV2MediaInfrastructure.dataBinding.locality
 				}
 			}]
-		}]
+		}, _architectureV2JellyfinTerramateStack.unit]
 		renderVariants: [
 			{
 				id:           "compose", target: "compose", rendererRef: "stackkit"
@@ -6142,6 +6527,12 @@ _architectureV2Modules: list.Concat([[
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:47ffd0559451c9da935a2e115b3a7a139aef279e271c8389c8fc276674e6c9b9"
 				unitRefs: ["jellyfin"], artifactRefs: ["jellyfin-workload-bundle"]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["jellyfin", "terramate-stack"], artifactRefs: ["jellyfin-workload-bundle", _architectureV2JellyfinTerramateStack.contract.id]
 				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
 			},
 		]
@@ -6229,7 +6620,7 @@ _architectureV2Modules: list.Concat([[
 					locality:        _architectureV2SmartHomeInfrastructure.dataBinding.locality
 				}
 			}]
-		}]
+		}, _architectureV2HomeAssistantTerramateStack.unit]
 		renderVariants: [
 			{
 				id:           "compose", target: "compose", rendererRef: "stackkit"
@@ -6241,6 +6632,12 @@ _architectureV2Modules: list.Concat([[
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:d15f978c9b540c10de3c1cd311a97aed52f5bf4eef99c75ecda2c5cc0e718fb5"
 				unitRefs: ["home-assistant"], artifactRefs: ["home-assistant-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["home-assistant", "terramate-stack"], artifactRefs: ["home-assistant-workload-bundle", _architectureV2HomeAssistantTerramateStack.contract.id]
 				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
 			},
 		]

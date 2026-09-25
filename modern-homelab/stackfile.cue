@@ -121,7 +121,7 @@ Definition: foundation.#ProductKitDefinition & {
 		optional: ["lan-discovery", "lan-dns", "internal-pki", "private-admin-mesh", "failure-domain-placement", "telemetry-collection", "availability-ha"]
 		forbidden: ["cloud-enrollment-authority", "broad-lan-route-advertisement"]
 	}
-	workloads: {required: ["basement-core"], defaults: [], optional: ["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "game"], forbidden: []}
+	workloads: {required: ["basement-core"], defaults: [], optional: ["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "game", "mail"], forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false
@@ -200,7 +200,7 @@ Definition: foundation.#ProductKitDefinition & {
 		defaultStrategy: "kit-template"
 		allowedStrategies: ["kit-template", "module-fragments"]
 		defaultTarget: "compose"
-		allowedTargets: ["opentofu", "compose"]
+		allowedTargets: ["opentofu", "compose", "terramate"]
 		contractVersion: "1.0.0"
 	}
 	hostRequirements: {

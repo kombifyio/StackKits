@@ -48,4 +48,8 @@ const (
 	pterodactylCacheImageDigest    = "sha256:32627109abf6f741121096b45c732f758876803efd7b2e1018ebc0350d117119"
 	pterodactylCacheRelease        = "8.1-alpine"
 	pterodactylCacheCommandJSON    = "[\"valkey-server\"]"
+	roundcubeImageRef              = "docker.io/roundcube/roundcubemail:1.6.19-apache"
+	roundcubeImageDigest           = "sha256:f1256d1ce06ca5c52660f67f8511f3971def5d3b80aab3e3809df970489b1c46"
+	roundcubeRelease               = "1.6.19-apache"
+	roundcubeCommandJSON           = "[\"apache2-foreground\"]"
 )

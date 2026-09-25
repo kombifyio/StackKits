@@ -47,6 +47,12 @@ func validateNativeOwnerSetupAction(deployment runtimeexecutorlocal.SelectedPaaS
 		}
 		_, err := architecturev2renderer.ParsePterodactylWorkloadBundle(deployment.Bundle)
 		return err
+	case "roundcube-mailbox-login":
+		if options.completeOnboarding {
+			return errors.New("the mailbox login check has no separate onboarding; omit --complete-onboarding")
+		}
+		_, err := architecturev2renderer.ParseRoundcubeWorkloadBundle(deployment.Bundle)
+		return err
 	case applicationlifecycle.VaultOwnerInviteActionRef:
 		if options.completeOnboarding {
 			return errors.New("Vaultwarden personal encryption setup must be completed in the official client; omit --complete-onboarding")
@@ -177,6 +183,8 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 		return nativeOwnerSetupObservation{AccountRef: observed.UserID, Initialized: observed.ServerInitialized, AdminLoginVerified: observed.UserIsOwner && observed.UserIsAdmin, OnboardingComplete: observed.OnboardingComplete}, nil
 	case "pterodactyl-game-server-setup":
 		return executePterodactylGameServerSetup(ctx, client, baseURL, workspace, deployment, release, options)
+	case "roundcube-mailbox-login":
+		return executeRoundcubeMailboxSetup(ctx, client, baseURL, workspace, deployment, release, options)
 	case applicationlifecycle.VaultOwnerInviteActionRef:
 		var credentials struct {
 			Email string `json:"email"`
@@ -276,4 +284,47 @@ func pterodactylCustodyKeys(workspace string, deployment runtimeexecutorlocal.Se
 		return "", "", err
 	}
 	return applicationKey, clientKey, nil
+}
+
+// executeRoundcubeMailboxSetup stores the owner's IMAP and SMTP endpoints on
+// the Mail workload's persistent mailbox volume (never the password), then
+// verifies a real login through Roundcube's own form. A failed login restores
+// the previously active endpoints, so a typo never replaces a working setup.
+func executeRoundcubeMailboxSetup(ctx context.Context, client *http.Client, baseURL, workspace string, deployment runtimeexecutorlocal.SelectedPaaSWorkloadDeployment, release string, options nativeSetupOptions) (nativeOwnerSetupObservation, error) {
+	var credentials struct {
+		IMAPHost     string `json:"imapHost"`
+		IMAPPort     int    `json:"imapPort"`
+		IMAPSecurity string `json:"imapSecurity"`
+		SMTPHost     string `json:"smtpHost"`
+		SMTPPort     int    `json:"smtpPort"`
+		SMTPSecurity string `json:"smtpSecurity"`
+		Username     string `json:"username"`
+		Password     string `json:"password"`
+	}
+	if err := readNativeSetupCredentialJSON(workspace, options.credentialsFile, &credentials); err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	defer func() { credentials.Password = "" }()
+	imap, err := appsetup.ResolveRoundcubeMailboxEndpoint("IMAP", credentials.IMAPHost, credentials.IMAPPort, credentials.IMAPSecurity)
+	if err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	smtp, err := appsetup.ResolveRoundcubeMailboxEndpoint("SMTP", credentials.SMTPHost, credentials.SMTPPort, credentials.SMTPSecurity)
+	if err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	if err := runtimeexecutorlocal.ConfigureStandaloneComposeRoundcubeMailbox(ctx, workspace, deployment, imap.URI(), smtp.URI()); err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	observed, err := appsetup.VerifyRoundcubeMailboxLogin(ctx, client, baseURL, appsetup.RoundcubeMailboxLoginRequest{
+		IMAP: imap, Username: credentials.Username, Password: credentials.Password, ExpectedRelease: release,
+	})
+	if err != nil {
+		if revertErr := runtimeexecutorlocal.RevertStandaloneComposeRoundcubeMailbox(context.WithoutCancel(ctx), workspace, deployment); revertErr != nil {
+			return nativeOwnerSetupObservation{}, errors.Join(err, fmt.Errorf("restore the previous mailbox endpoints: %w", revertErr))
+		}
+		return nativeOwnerSetupObservation{}, err
+	}
+	printInfo("Mail is set up: IMAP %s, SMTP %s. Device setup: see the mail-client guide.", imap.URI(), smtp.URI())
+	return nativeOwnerSetupObservation{AccountRef: observed.MailboxRef, Initialized: true, AdminLoginVerified: true}, nil
 }

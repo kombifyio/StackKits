@@ -779,6 +779,219 @@
               "state-console"
             ]
           },
+          "setup": {
+            "destructive": false,
+            "evidence": [
+              "setup-result"
+            ],
+            "mutation": true,
+            "name": "setup",
+            "operations": [
+              "stackkit.setup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "configure",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Owner-controlled Roundcube webmail lifecycle; the mailbox stays with the owner's external provider and is verified by the owner-approved setup action.",
+        "id": "mail",
+        "version": "1.0.0"
+      },
+      "packageRef": "mail",
+      "useCaseRef": "mail",
+      "workloadRef": "mail"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
           "upgrade": {
             "destructive": true,
             "evidence": [
@@ -4272,6 +4485,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-roundcube-runtime"
+        ],
+        "matches": [
+          "stackkits-roundcube"
+        ],
+        "module": "stackkits-roundcube-runtime",
+        "provider": "stackkits-roundcube"
+      },
+      {
+        "governanceMatches": [
           "stackkits-pterodactyl-runtime"
         ],
         "matches": [
@@ -5098,6 +5321,12 @@
             "game"
           ],
           "providerID": "stackkits-pterodactyl"
+        },
+        {
+          "contracts": [
+            "mail"
+          ],
+          "providerID": "stackkits-roundcube"
         },
         {
           "contracts": [
@@ -5982,6 +6211,13 @@
       },
       {
         "matches": [
+          "stackkits-roundcube-runtime"
+        ],
+        "module": "stackkits-roundcube-runtime",
+        "provider": "stackkits-roundcube"
+      },
+      {
+        "matches": [
           "stackkits-jellyfin-runtime"
         ],
         "module": "stackkits-jellyfin-runtime",
@@ -6855,6 +7091,34 @@
         "matches": [
           "runtime-paas"
         ],
+        "provider": "stackkits-roundcube"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-roundcube"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-roundcube"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-roundcube"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
         "provider": "stackkits-jellyfin"
       },
       {
@@ -7583,6 +7847,12 @@
           "capabilityBindings": [],
           "issuerBindings": [],
           "issuerIDsUnique": true,
+          "provider": "stackkits-roundcube"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
           "provider": "stackkits-jellyfin"
         },
         {
@@ -7979,6 +8249,12 @@
               "serviceMatches": [
                 {
                   "unitID": "compose"
+                },
+                {
+                  "unitID": "opentofu"
+                },
+                {
+                  "unitID": "terramate"
                 }
               ],
               "settingsRefs": []
@@ -8038,6 +8314,12 @@
               "serviceMatches": [
                 {
                   "unitID": "compose"
+                },
+                {
+                  "unitID": "opentofu"
+                },
+                {
+                  "unitID": "terramate"
                 }
               ],
               "settingsRefs": []
@@ -8852,6 +9134,100 @@
             }
           ],
           "workloadID": "game"
+        },
+        {
+          "alternativeID": "roundcube",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-roundcube-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "roundcube"
+                  ],
+                  "ref": "session-key"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "mail",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "roundcube",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-roundcube",
+              "workloadOwnership": [
+                "mail"
+              ]
+            }
+          ],
+          "workloadID": "mail"
         },
         {
           "alternativeID": "jellyfin",
@@ -10070,6 +10446,18 @@
               "outputRef": "foundation/host-bootstrap/policy.json",
               "required": true,
               "unitRef": "host-policy"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "core-host-bootstrap-terramate-root",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "foundation/terramate/terramate.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-root"
             }
           ],
           "outputBindings": [
@@ -10077,10 +10465,16 @@
               "artifactRef": "core-host-bootstrap-policy",
               "outputRef": "foundation/host-bootstrap/policy.json",
               "unitRef": "host-policy"
+            },
+            {
+              "artifactRef": "core-host-bootstrap-terramate-root",
+              "outputRef": "foundation/terramate/terramate.tm.hcl",
+              "unitRef": "terramate-root"
             }
           ],
           "requiredRefs": [
-            "core-host-bootstrap-policy"
+            "core-host-bootstrap-policy",
+            "core-host-bootstrap-terramate-root"
           ]
         },
         "compatibleRendererRefs": [
@@ -10164,6 +10558,34 @@
           "secretInputRefs": [],
           "serviceEndpoints": [],
           "templateRef": "builtin://foundation/host-bootstrap/v1.json",
+          "version": "1.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:dc4d971747ce764e5cf4c50eaad155b1040e70093ff931243e879b75ffd5f428",
+          "id": "terramate-root",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "foundation/terramate/terramate.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/project-root/v1",
           "version": "1.0.0"
         }
       ],
@@ -12015,6 +12437,18 @@
               "outputRef": "cloud/public-edge/executor-contract.json",
               "required": true,
               "unitRef": "executor-contract"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "cloud-public-edge-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "cloud/public-edge/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
             }
           ],
           "outputBindings": [
@@ -12022,10 +12456,16 @@
               "artifactRef": "cloud-public-edge-executor-contract",
               "outputRef": "cloud/public-edge/executor-contract.json",
               "unitRef": "executor-contract"
+            },
+            {
+              "artifactRef": "cloud-public-edge-terramate-stack",
+              "outputRef": "cloud/public-edge/stack.tm.hcl",
+              "unitRef": "terramate-stack"
             }
           ],
           "requiredRefs": [
-            "cloud-public-edge-executor-contract"
+            "cloud-public-edge-executor-contract",
+            "cloud-public-edge-terramate-stack"
           ]
         },
         "compatibleRendererRefs": [
@@ -12093,6 +12533,34 @@
           "serviceEndpoints": [],
           "templateRef": "builtin://cloud/public-edge/executor-contract/v2.json",
           "version": "1.1.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:2bfd93c2a631984ee2c36a7218c185dcb876c045f60d2411e35d1b34325324af",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "cloud/public-edge/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/edge/v1",
+          "version": "1.0.0"
         }
       ],
       "renderVariants": [],
@@ -13249,6 +13717,42 @@
               "outputRef": "platform/cloud-core/compose.yaml",
               "required": true,
               "unitRef": "compose"
+            },
+            {
+              "compatibleTargets": [
+                "opentofu"
+              ],
+              "format": "hcl",
+              "id": "cloud-core-opentofu",
+              "kind": "opentofu",
+              "mode": "0640",
+              "outputRef": "platform/cloud-core/main.tf",
+              "required": true,
+              "unitRef": "opentofu"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "cloud-core-terramate-opentofu",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/cloud-core/main.tf",
+              "required": true,
+              "unitRef": "terramate"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "cloud-core-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/cloud-core/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate"
             }
           ],
           "outputBindings": [
@@ -13256,10 +13760,28 @@
               "artifactRef": "cloud-core-compose",
               "outputRef": "platform/cloud-core/compose.yaml",
               "unitRef": "compose"
+            },
+            {
+              "artifactRef": "cloud-core-opentofu",
+              "outputRef": "platform/cloud-core/main.tf",
+              "unitRef": "opentofu"
+            },
+            {
+              "artifactRef": "cloud-core-terramate-opentofu",
+              "outputRef": "platform/cloud-core/main.tf",
+              "unitRef": "terramate"
+            },
+            {
+              "artifactRef": "cloud-core-terramate-stack",
+              "outputRef": "platform/cloud-core/stack.tm.hcl",
+              "unitRef": "terramate"
             }
           ],
           "requiredRefs": [
-            "cloud-core-compose"
+            "cloud-core-compose",
+            "cloud-core-opentofu",
+            "cloud-core-terramate-opentofu",
+            "cloud-core-terramate-stack"
           ]
         },
         "compatibleRendererRefs": [
@@ -13470,6 +13992,383 @@
           ],
           "templateRef": "builtin://cloud/core/compose/v1.yaml",
           "version": "1.0.0"
+        },
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "opentofu"
+          ],
+          "contractHash": "sha256:6a79e0654824079a664efee247a0a47f060ebe8624f6aa6ddadd68e482c927ee",
+          "id": "opentofu",
+          "inputBindings": [],
+          "kind": "opentofu",
+          "outputs": [
+            "platform/cloud-core/main.tf"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "router",
+              "exposure": "public",
+              "id": "web-http",
+              "listenerGroupRef": "public-web",
+              "port": 80,
+              "sharing": "virtual-host",
+              "sourceServiceRefs": [],
+              "targetPort": 80,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "router",
+              "exposure": "public",
+              "id": "web-https",
+              "listenerGroupRef": "public-web",
+              "port": 443,
+              "sharing": "virtual-host",
+              "sourceServiceRefs": [],
+              "targetPort": 443,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "router",
+              "exposure": "remote-private",
+              "id": "router-admin",
+              "port": 8080,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8080,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "pocketid",
+              "exposure": "remote-private",
+              "id": "pocketid-direct",
+              "port": 1411,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 1411,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "tinyauth",
+              "exposure": "remote-private",
+              "id": "tinyauth-direct",
+              "port": 4000,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 3000,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "coolify",
+              "exposure": "remote-private",
+              "id": "coolify-direct",
+              "port": 8000,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8080,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "stackkit-server",
+              "exposure": "remote-private",
+              "id": "stackkit-server-direct",
+              "port": 8082,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8082,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "hub",
+              "exposure": "remote-private",
+              "id": "hub-health",
+              "port": 8081,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 80,
+              "transport": "tcp"
+            }
+          ],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-hub-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "admin",
+              "serviceRef": "base",
+              "targetPort": 80,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-pocketid-http",
+              "ingressAuth": "none",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "identity",
+              "serviceRef": "id",
+              "targetPort": 1411,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-tinyauth-http",
+              "ingressAuth": "none",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "identity",
+              "serviceRef": "auth",
+              "targetPort": 3000,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-coolify-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "admin",
+              "serviceRef": "coolify",
+              "targetPort": 8080,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://cloud/core/opentofu/v1.tf",
+          "version": "1.0.0"
+        },
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:5dc111fb152e893248c944eead9e58911abed6665aeaabb46b5bd813a8f69f13",
+          "id": "terramate",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/cloud-core/main.tf",
+            "platform/cloud-core/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "router",
+              "exposure": "public",
+              "id": "web-http",
+              "listenerGroupRef": "public-web",
+              "port": 80,
+              "sharing": "virtual-host",
+              "sourceServiceRefs": [],
+              "targetPort": 80,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "router",
+              "exposure": "public",
+              "id": "web-https",
+              "listenerGroupRef": "public-web",
+              "port": 443,
+              "sharing": "virtual-host",
+              "sourceServiceRefs": [],
+              "targetPort": 443,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "router",
+              "exposure": "remote-private",
+              "id": "router-admin",
+              "port": 8080,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8080,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "pocketid",
+              "exposure": "remote-private",
+              "id": "pocketid-direct",
+              "port": 1411,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 1411,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "tinyauth",
+              "exposure": "remote-private",
+              "id": "tinyauth-direct",
+              "port": 4000,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 3000,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "coolify",
+              "exposure": "remote-private",
+              "id": "coolify-direct",
+              "port": 8000,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8080,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "stackkit-server",
+              "exposure": "remote-private",
+              "id": "stackkit-server-direct",
+              "port": 8082,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8082,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "hub",
+              "exposure": "remote-private",
+              "id": "hub-health",
+              "port": 8081,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 80,
+              "transport": "tcp"
+            }
+          ],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-hub-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "admin",
+              "serviceRef": "base",
+              "targetPort": 80,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-pocketid-http",
+              "ingressAuth": "none",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "identity",
+              "serviceRef": "id",
+              "targetPort": 1411,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-tinyauth-http",
+              "ingressAuth": "none",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "identity",
+              "serviceRef": "auth",
+              "targetPort": 3000,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-coolify-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "admin",
+              "serviceRef": "coolify",
+              "targetPort": 8080,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://cloud/core/terramate/v1",
+          "version": "1.0.0"
         }
       ],
       "renderVariants": [
@@ -13486,6 +14385,37 @@
           "target": "compose",
           "unitRefs": [
             "compose"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "cloud-core-opentofu"
+          ],
+          "contractHash": "sha256:6a79e0654824079a664efee247a0a47f060ebe8624f6aa6ddadd68e482c927ee",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "opentofu"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "cloud-core-terramate-opentofu",
+            "cloud-core-terramate-stack"
+          ],
+          "contractHash": "sha256:5dc111fb152e893248c944eead9e58911abed6665aeaabb46b5bd813a8f69f13",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "terramate",
+          "unitRefs": [
+            "terramate"
           ]
         }
       ],
@@ -14050,7 +14980,45 @@
             },
             {
               "compatibleTargets": [
-                "compose"
+                "opentofu"
+              ],
+              "format": "hcl",
+              "id": "cloud-core-standalone-opentofu",
+              "kind": "opentofu",
+              "mode": "0640",
+              "outputRef": "platform/cloud-core-standalone/main.tf",
+              "required": true,
+              "unitRef": "opentofu"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "cloud-core-standalone-terramate-opentofu",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/cloud-core-standalone/main.tf",
+              "required": true,
+              "unitRef": "terramate"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "cloud-core-standalone-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/cloud-core-standalone/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate"
+            },
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu",
+                "terramate"
               ],
               "format": "json",
               "id": "cloud-kopia-backup-source-policy",
@@ -14068,6 +15036,21 @@
               "unitRef": "compose"
             },
             {
+              "artifactRef": "cloud-core-standalone-opentofu",
+              "outputRef": "platform/cloud-core-standalone/main.tf",
+              "unitRef": "opentofu"
+            },
+            {
+              "artifactRef": "cloud-core-standalone-terramate-opentofu",
+              "outputRef": "platform/cloud-core-standalone/main.tf",
+              "unitRef": "terramate"
+            },
+            {
+              "artifactRef": "cloud-core-standalone-terramate-stack",
+              "outputRef": "platform/cloud-core-standalone/stack.tm.hcl",
+              "unitRef": "terramate"
+            },
+            {
               "artifactRef": "cloud-kopia-backup-source-policy",
               "outputRef": "cloud/backup/kopia-source-policy.json",
               "unitRef": "source-policy"
@@ -14075,6 +15058,9 @@
           ],
           "requiredRefs": [
             "cloud-core-standalone-compose",
+            "cloud-core-standalone-opentofu",
+            "cloud-core-standalone-terramate-opentofu",
+            "cloud-core-standalone-terramate-stack",
             "cloud-kopia-backup-source-policy"
           ]
         },
@@ -14279,6 +15265,347 @@
           "version": "1.0.0"
         },
         {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "opentofu"
+          ],
+          "contractHash": "sha256:b8846b7c2e2728b89b5d585078496070fa1bdfce3fd569e07e0ef3545fc40a24",
+          "id": "opentofu",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "backup.localKopiaSource",
+              "targetRef": "backup-source",
+              "valueType": "local-kopia-backup-source-v1"
+            }
+          ],
+          "kind": "opentofu",
+          "outputs": [
+            "platform/cloud-core-standalone/main.tf"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "backup-source"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "router",
+              "exposure": "public",
+              "id": "web-http",
+              "listenerGroupRef": "public-web",
+              "port": 80,
+              "sharing": "virtual-host",
+              "sourceServiceRefs": [],
+              "targetPort": 80,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "router",
+              "exposure": "public",
+              "id": "web-https",
+              "listenerGroupRef": "public-web",
+              "port": 443,
+              "sharing": "virtual-host",
+              "sourceServiceRefs": [],
+              "targetPort": 443,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "router",
+              "exposure": "remote-private",
+              "id": "router-admin",
+              "port": 8080,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8080,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "pocketid",
+              "exposure": "remote-private",
+              "id": "pocketid-direct",
+              "port": 1411,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 1411,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "tinyauth",
+              "exposure": "remote-private",
+              "id": "tinyauth-direct",
+              "port": 4000,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 3000,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "stackkit-server",
+              "exposure": "remote-private",
+              "id": "stackkit-server-direct",
+              "port": 8082,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8082,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "hub",
+              "exposure": "remote-private",
+              "id": "hub-health",
+              "port": 8081,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 80,
+              "transport": "tcp"
+            }
+          ],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-hub-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "admin",
+              "serviceRef": "base",
+              "targetPort": 80,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-pocketid-http",
+              "ingressAuth": "none",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "identity",
+              "serviceRef": "id",
+              "targetPort": 1411,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-tinyauth-http",
+              "ingressAuth": "none",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "identity",
+              "serviceRef": "auth",
+              "targetPort": 3000,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://cloud/core-standalone/opentofu/v1.tf",
+          "version": "1.0.0"
+        },
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:3f2c14c5ddeb144811f8ba25a28fbf5311692b301c37423d9f197b1bdf76c665",
+          "id": "terramate",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "backup.localKopiaSource",
+              "targetRef": "backup-source",
+              "valueType": "local-kopia-backup-source-v1"
+            }
+          ],
+          "kind": "terramate",
+          "outputs": [
+            "platform/cloud-core-standalone/main.tf",
+            "platform/cloud-core-standalone/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "backup-source"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "router",
+              "exposure": "public",
+              "id": "web-http",
+              "listenerGroupRef": "public-web",
+              "port": 80,
+              "sharing": "virtual-host",
+              "sourceServiceRefs": [],
+              "targetPort": 80,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "componentRef": "router",
+              "exposure": "public",
+              "id": "web-https",
+              "listenerGroupRef": "public-web",
+              "port": 443,
+              "sharing": "virtual-host",
+              "sourceServiceRefs": [],
+              "targetPort": 443,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "router",
+              "exposure": "remote-private",
+              "id": "router-admin",
+              "port": 8080,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8080,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "pocketid",
+              "exposure": "remote-private",
+              "id": "pocketid-direct",
+              "port": 1411,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 1411,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "tinyauth",
+              "exposure": "remote-private",
+              "id": "tinyauth-direct",
+              "port": 4000,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 3000,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "stackkit-server",
+              "exposure": "remote-private",
+              "id": "stackkit-server-direct",
+              "port": 8082,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 8082,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "127.0.0.1",
+              "componentRef": "hub",
+              "exposure": "remote-private",
+              "id": "hub-health",
+              "port": 8081,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 80,
+              "transport": "tcp"
+            }
+          ],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-hub-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "admin",
+              "serviceRef": "base",
+              "targetPort": 80,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-pocketid-http",
+              "ingressAuth": "none",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "identity",
+              "serviceRef": "id",
+              "targetPort": 1411,
+              "upstreamProtocol": "http"
+            },
+            {
+              "allowedExposures": [
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "healthRef": "cloud-tinyauth-http",
+              "ingressAuth": "none",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "identity",
+              "serviceRef": "auth",
+              "targetPort": 3000,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://cloud/core-standalone/terramate/v1",
+          "version": "1.0.0"
+        },
+        {
           "applyMode": "artifact-only",
           "compatibleTargets": [
             "compose",
@@ -14350,6 +15677,59 @@
           "target": "compose",
           "unitRefs": [
             "compose",
+            "source-policy"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "cloud-core-standalone-opentofu",
+            "cloud-kopia-backup-source-policy"
+          ],
+          "contractHash": "sha256:b8846b7c2e2728b89b5d585078496070fa1bdfce3fd569e07e0ef3545fc40a24",
+          "id": "opentofu",
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities",
+            "backupPolicy"
+          ],
+          "publicInputRefs": [
+            "backup-source"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "opentofu",
+            "source-policy"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "cloud-core-standalone-terramate-opentofu",
+            "cloud-core-standalone-terramate-stack",
+            "cloud-kopia-backup-source-policy"
+          ],
+          "contractHash": "sha256:3f2c14c5ddeb144811f8ba25a28fbf5311692b301c37423d9f197b1bdf76c665",
+          "id": "terramate",
+          "planInputRefs": [
+            "stackId",
+            "kit",
+            "sites",
+            "moduleTargets",
+            "moduleCapabilities",
+            "backupPolicy"
+          ],
+          "publicInputRefs": [
+            "backup-source"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "terramate",
+          "unitRefs": [
+            "terramate",
             "source-policy"
           ]
         }
@@ -14858,18 +16238,6 @@
                 "terramate"
               ],
               "format": "hcl",
-              "id": "basement-core-terramate-root",
-              "kind": "terramate",
-              "mode": "0640",
-              "outputRef": "platform/basement-core/terramate.tm.hcl",
-              "required": true,
-              "unitRef": "terramate"
-            },
-            {
-              "compatibleTargets": [
-                "terramate"
-              ],
-              "format": "hcl",
               "id": "basement-core-terramate-stack",
               "kind": "terramate",
               "mode": "0640",
@@ -14909,11 +16277,6 @@
               "unitRef": "terramate"
             },
             {
-              "artifactRef": "basement-core-terramate-root",
-              "outputRef": "platform/basement-core/terramate.tm.hcl",
-              "unitRef": "terramate"
-            },
-            {
               "artifactRef": "basement-core-terramate-stack",
               "outputRef": "platform/basement-core/stack.tm.hcl",
               "unitRef": "terramate"
@@ -14928,7 +16291,6 @@
             "basement-core-compose",
             "basement-core-opentofu",
             "basement-core-terramate-opentofu",
-            "basement-core-terramate-root",
             "basement-core-terramate-stack",
             "local-kopia-backup-source-policy"
           ]
@@ -15190,9 +16552,17 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:c9795b613c65f78c5f1b9fb9b59596d501a367be5a6e37b3e91cdba01fd20d81",
+          "contractHash": "sha256:4b5d98e6f322f5d922cb924369be44544c747d78fc8cabe0d06beb1a24c50cbf",
           "id": "opentofu",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "backup.localKopiaSource",
+              "targetRef": "backup-source",
+              "valueType": "local-kopia-backup-source-v1"
+            }
+          ],
           "kind": "opentofu",
           "outputs": [
             "platform/basement-core/main.tf"
@@ -15203,7 +16573,9 @@
           },
           "planInputRefs": [],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "backup-source"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "runtimeListeners": [
@@ -15402,13 +16774,20 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:5b89a4fa92f9f6b3b3580a65fcb6d3b3cb2b7da3508538f16f8f494ae8855e11",
+          "contractHash": "sha256:7ec10f279cb5483f6d0260ffe4f715f33f3db852838a894ba0c78e4d24baf4da",
           "id": "terramate",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "backup.localKopiaSource",
+              "targetRef": "backup-source",
+              "valueType": "local-kopia-backup-source-v1"
+            }
+          ],
           "kind": "terramate",
           "outputs": [
             "platform/basement-core/main.tf",
-            "platform/basement-core/terramate.tm.hcl",
             "platform/basement-core/stack.tm.hcl"
           ],
           "placement": {
@@ -15417,7 +16796,9 @@
           },
           "planInputRefs": [],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "backup-source"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "runtimeListeners": [
@@ -15715,11 +17096,10 @@
         {
           "artifactRefs": [
             "basement-core-terramate-opentofu",
-            "basement-core-terramate-root",
             "basement-core-terramate-stack",
             "local-kopia-backup-source-policy"
           ],
-          "contractHash": "sha256:b5b8c38c50d99d14cc822faeae79c76ab10c77fa7c01a4fc83578aa223ca8ff5",
+          "contractHash": "sha256:7ec10f279cb5483f6d0260ffe4f715f33f3db852838a894ba0c78e4d24baf4da",
           "id": "terramate",
           "planInputRefs": [
             "stackId",
@@ -16500,18 +17880,6 @@
                 "terramate"
               ],
               "format": "hcl",
-              "id": "basement-core-lite-terramate-root",
-              "kind": "terramate",
-              "mode": "0640",
-              "outputRef": "platform/basement-core-lite/terramate.tm.hcl",
-              "required": true,
-              "unitRef": "terramate"
-            },
-            {
-              "compatibleTargets": [
-                "terramate"
-              ],
-              "format": "hcl",
               "id": "basement-core-lite-terramate-stack",
               "kind": "terramate",
               "mode": "0640",
@@ -16551,11 +17919,6 @@
               "unitRef": "terramate"
             },
             {
-              "artifactRef": "basement-core-lite-terramate-root",
-              "outputRef": "platform/basement-core-lite/terramate.tm.hcl",
-              "unitRef": "terramate"
-            },
-            {
               "artifactRef": "basement-core-lite-terramate-stack",
               "outputRef": "platform/basement-core-lite/stack.tm.hcl",
               "unitRef": "terramate"
@@ -16570,7 +17933,6 @@
             "basement-core-lite-compose",
             "basement-core-lite-opentofu",
             "basement-core-lite-terramate-opentofu",
-            "basement-core-lite-terramate-root",
             "basement-core-lite-terramate-stack",
             "local-kopia-backup-source-policy-lite"
           ]
@@ -16804,9 +18166,17 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:fffc0f31982e35e2b7382acc5653f1382f4ea73cc630fa7e671005ec098c4ede",
+          "contractHash": "sha256:c2a2fc6d92a29440e3fb39232815f4df8007731e52798eaae8511f2fc8a9caf0",
           "id": "opentofu",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "backup.localKopiaSource",
+              "targetRef": "backup-source",
+              "valueType": "local-kopia-backup-source-v1"
+            }
+          ],
           "kind": "opentofu",
           "outputs": [
             "platform/basement-core-lite/main.tf"
@@ -16817,7 +18187,9 @@
           },
           "planInputRefs": [],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "backup-source"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "runtimeListeners": [
@@ -16988,13 +18360,20 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:9ebc790d7cec77efabe37e6a5f64884d724264f5b332133864ff0c88f5a801dc",
+          "contractHash": "sha256:23d947aef35b7fbfe3b7667765361fdf0033ce3a2e44f8223c1b7ac090949036",
           "id": "terramate",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "backup.localKopiaSource",
+              "targetRef": "backup-source",
+              "valueType": "local-kopia-backup-source-v1"
+            }
+          ],
           "kind": "terramate",
           "outputs": [
             "platform/basement-core-lite/main.tf",
-            "platform/basement-core-lite/terramate.tm.hcl",
             "platform/basement-core-lite/stack.tm.hcl"
           ],
           "placement": {
@@ -17003,7 +18382,9 @@
           },
           "planInputRefs": [],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "backup-source"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "runtimeListeners": [
@@ -17273,11 +18654,10 @@
         {
           "artifactRefs": [
             "basement-core-lite-terramate-opentofu",
-            "basement-core-lite-terramate-root",
             "basement-core-lite-terramate-stack",
             "local-kopia-backup-source-policy-lite"
           ],
-          "contractHash": "sha256:5edd783ac3d1d6628066ecce4ffc7c942fbba46b060e6475dfed5adb079db6a2",
+          "contractHash": "sha256:23d947aef35b7fbfe3b7667765361fdf0033ce3a2e44f8223c1b7ac090949036",
           "id": "terramate",
           "planInputRefs": [
             "stackId",
@@ -17761,6 +19141,18 @@
               "outputRef": "workloads/immich/bundle.json",
               "required": true,
               "unitRef": "immich-server"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "immich-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/immich/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
             }
           ],
           "outputBindings": [
@@ -17768,10 +19160,16 @@
               "artifactRef": "immich-workload-bundle",
               "outputRef": "workloads/immich/bundle.json",
               "unitRef": "immich-server"
+            },
+            {
+              "artifactRef": "immich-terramate-stack",
+              "outputRef": "platform/applications/immich/stack.tm.hcl",
+              "unitRef": "terramate-stack"
             }
           ],
           "requiredRefs": [
-            "immich-workload-bundle"
+            "immich-workload-bundle",
+            "immich-terramate-stack"
           ]
         },
         "compatibleRendererRefs": [
@@ -17864,6 +19262,34 @@
           ],
           "templateRef": "builtin://workloads/immich/bundle/v2.json",
           "version": "3.1.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/immich/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
         }
       ],
       "renderVariants": [
@@ -17903,6 +19329,27 @@
           "target": "opentofu",
           "unitRefs": [
             "immich-server"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "immich-workload-bundle",
+            "immich-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "immich-server",
+            "terramate-stack"
           ]
         }
       ],
@@ -18284,6 +19731,18 @@
               "outputRef": "workloads/immich-lite/bundle.json",
               "required": true,
               "unitRef": "immich-server"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "immich-lite-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/immich-lite/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
             }
           ],
           "outputBindings": [
@@ -18291,10 +19750,16 @@
               "artifactRef": "immich-lite-workload-bundle",
               "outputRef": "workloads/immich-lite/bundle.json",
               "unitRef": "immich-server"
+            },
+            {
+              "artifactRef": "immich-lite-terramate-stack",
+              "outputRef": "platform/applications/immich-lite/stack.tm.hcl",
+              "unitRef": "terramate-stack"
             }
           ],
           "requiredRefs": [
-            "immich-lite-workload-bundle"
+            "immich-lite-workload-bundle",
+            "immich-lite-terramate-stack"
           ]
         },
         "compatibleRendererRefs": [
@@ -18387,6 +19852,34 @@
           ],
           "templateRef": "builtin://workloads/immich-lite/bundle/v2.json",
           "version": "3.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/immich-lite/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
         }
       ],
       "renderVariants": [
@@ -18426,6 +19919,27 @@
           "target": "opentofu",
           "unitRefs": [
             "immich-server"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "immich-lite-workload-bundle",
+            "immich-lite-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "immich-server",
+            "terramate-stack"
           ]
         }
       ],
@@ -18698,6 +20212,18 @@
               "outputRef": "workloads/cloudreve/bundle.json",
               "required": true,
               "unitRef": "cloudreve"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "cloudreve-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/cloudreve/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
             }
           ],
           "outputBindings": [
@@ -18705,10 +20231,16 @@
               "artifactRef": "cloudreve-workload-bundle",
               "outputRef": "workloads/cloudreve/bundle.json",
               "unitRef": "cloudreve"
+            },
+            {
+              "artifactRef": "cloudreve-terramate-stack",
+              "outputRef": "platform/applications/cloudreve/stack.tm.hcl",
+              "unitRef": "terramate-stack"
             }
           ],
           "requiredRefs": [
-            "cloudreve-workload-bundle"
+            "cloudreve-workload-bundle",
+            "cloudreve-terramate-stack"
           ]
         },
         "compatibleRendererRefs": [
@@ -18797,6 +20329,34 @@
           ],
           "templateRef": "builtin://workloads/cloudreve/bundle/v2.json",
           "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/cloudreve/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
         }
       ],
       "renderVariants": [
@@ -18832,6 +20392,25 @@
           "target": "opentofu",
           "unitRefs": [
             "cloudreve"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "cloudreve-workload-bundle",
+            "cloudreve-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "terramate",
+          "unitRefs": [
+            "cloudreve",
+            "terramate-stack"
           ]
         }
       ],
@@ -18986,6 +20565,18 @@
               "outputRef": "workloads/vaultwarden/bundle.json",
               "required": true,
               "unitRef": "vaultwarden"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "vaultwarden-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/vaultwarden/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
             }
           ],
           "outputBindings": [
@@ -18993,10 +20584,16 @@
               "artifactRef": "vaultwarden-workload-bundle",
               "outputRef": "workloads/vaultwarden/bundle.json",
               "unitRef": "vaultwarden"
+            },
+            {
+              "artifactRef": "vaultwarden-terramate-stack",
+              "outputRef": "platform/applications/vaultwarden/stack.tm.hcl",
+              "unitRef": "terramate-stack"
             }
           ],
           "requiredRefs": [
-            "vaultwarden-workload-bundle"
+            "vaultwarden-workload-bundle",
+            "vaultwarden-terramate-stack"
           ]
         },
         "compatibleRendererRefs": [
@@ -19089,6 +20686,34 @@
           ],
           "templateRef": "builtin://workloads/vaultwarden/bundle/v2.json",
           "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/vaultwarden/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
         }
       ],
       "renderVariants": [
@@ -19128,6 +20753,27 @@
           "target": "opentofu",
           "unitRefs": [
             "vaultwarden"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "vaultwarden-workload-bundle",
+            "vaultwarden-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "admin-token"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "vaultwarden",
+            "terramate-stack"
           ]
         }
       ],
@@ -19283,6 +20929,18 @@
               "outputRef": "workloads/private-ai/bundle.json",
               "required": true,
               "unitRef": "private-ai"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "private-ai-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/private-ai/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
             }
           ],
           "outputBindings": [
@@ -19290,10 +20948,16 @@
               "artifactRef": "private-ai-workload-bundle",
               "outputRef": "workloads/private-ai/bundle.json",
               "unitRef": "private-ai"
+            },
+            {
+              "artifactRef": "private-ai-terramate-stack",
+              "outputRef": "platform/applications/private-ai/stack.tm.hcl",
+              "unitRef": "terramate-stack"
             }
           ],
           "requiredRefs": [
-            "private-ai-workload-bundle"
+            "private-ai-workload-bundle",
+            "private-ai-terramate-stack"
           ]
         },
         "compatibleRendererRefs": [
@@ -19388,6 +21052,34 @@
           ],
           "templateRef": "builtin://workloads/private-ai/bundle/v2.json",
           "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/private-ai/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
         }
       ],
       "renderVariants": [
@@ -19429,6 +21121,28 @@
           "target": "opentofu",
           "unitRefs": [
             "private-ai"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "private-ai-workload-bundle",
+            "private-ai-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password",
+            "session-key"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "private-ai",
+            "terramate-stack"
           ]
         }
       ],
@@ -19621,6 +21335,18 @@
               "outputRef": "workloads/gitea/bundle.json",
               "required": true,
               "unitRef": "gitea"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "gitea-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/gitea/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
             }
           ],
           "outputBindings": [
@@ -19628,10 +21354,16 @@
               "artifactRef": "gitea-workload-bundle",
               "outputRef": "workloads/gitea/bundle.json",
               "unitRef": "gitea"
+            },
+            {
+              "artifactRef": "gitea-terramate-stack",
+              "outputRef": "platform/applications/gitea/stack.tm.hcl",
+              "unitRef": "terramate-stack"
             }
           ],
           "requiredRefs": [
-            "gitea-workload-bundle"
+            "gitea-workload-bundle",
+            "gitea-terramate-stack"
           ]
         },
         "compatibleRendererRefs": [
@@ -19723,6 +21455,34 @@
           ],
           "templateRef": "builtin://workloads/gitea/bundle/v2.json",
           "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/gitea/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
         }
       ],
       "renderVariants": [
@@ -19762,6 +21522,27 @@
           "target": "opentofu",
           "unitRefs": [
             "gitea"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "gitea-workload-bundle",
+            "gitea-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "gitea",
+            "terramate-stack"
           ]
         }
       ],
@@ -19933,6 +21714,18 @@
               "outputRef": "workloads/paperless-ngx/bundle.json",
               "required": true,
               "unitRef": "paperless"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "paperless-ngx-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/paperless-ngx/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
             }
           ],
           "outputBindings": [
@@ -19940,10 +21733,16 @@
               "artifactRef": "paperless-workload-bundle",
               "outputRef": "workloads/paperless-ngx/bundle.json",
               "unitRef": "paperless"
+            },
+            {
+              "artifactRef": "paperless-ngx-terramate-stack",
+              "outputRef": "platform/applications/paperless-ngx/stack.tm.hcl",
+              "unitRef": "terramate-stack"
             }
           ],
           "requiredRefs": [
-            "paperless-workload-bundle"
+            "paperless-workload-bundle",
+            "paperless-ngx-terramate-stack"
           ]
         },
         "compatibleRendererRefs": [
@@ -20039,6 +21838,34 @@
           ],
           "templateRef": "builtin://workloads/paperless-ngx/bundle/v1.json",
           "version": "1.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/paperless-ngx/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
         }
       ],
       "renderVariants": [
@@ -20082,6 +21909,29 @@
           "target": "opentofu",
           "unitRefs": [
             "paperless"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "paperless-workload-bundle",
+            "paperless-ngx-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "owner-password",
+            "session-key"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "paperless",
+            "terramate-stack"
           ]
         }
       ],
@@ -20254,6 +22104,338 @@
       "computeProfiles": {
         "high": {
           "components": [
+            "roundcube"
+          ],
+          "description": "Roundcube Webmail with SQLite as a client for an existing external IMAP/SMTP mailbox. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. No mail server, spam filter or DNS is included; mail storage stays with the owner's provider.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.125
+          }
+        },
+        "low": {
+          "components": [
+            "roundcube"
+          ],
+          "description": "Roundcube Webmail with SQLite as a client for an existing external IMAP/SMTP mailbox. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. No mail server, spam filter or DNS is included; mail storage stays with the owner's provider.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 2,
+            "minStorageGB": 10
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.125
+          }
+        },
+        "standard": {
+          "components": [
+            "roundcube"
+          ],
+          "description": "Roundcube Webmail with SQLite as a client for an existing external IMAP/SMTP mailbox. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. No mail server, spam filter or DNS is included; mail storage stays with the owner's provider.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.125
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "roundcube-generated-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "roundcube-http",
+          "kind": "http",
+          "path": "/",
+          "phase": "continuous",
+          "port": 80,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Roundcube Webmail with a local SQLite database on one owner-selected node, as a client for an existing external IMAP/SMTP mailbox.",
+        "id": "stackkits-roundcube-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-roundcube",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "roundcube-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/roundcube/bundle.json",
+              "required": true,
+              "unitRef": "roundcube"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "roundcube-workload-bundle",
+              "outputRef": "workloads/roundcube/bundle.json",
+              "unitRef": "roundcube"
+            }
+          ],
+          "requiredRefs": [
+            "roundcube-workload-bundle"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "roundcube-generated-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "session-key"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:cb57a9c4f55d1675bd0f8b248b5a50ba00824468f766d253603a630e6c00c0c5",
+          "id": "roundcube",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/roundcube/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "session-key"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "mail",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "roundcube-http",
+              "ingressAuth": "native",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "mail",
+              "targetPort": 80,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/roundcube/bundle/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "roundcube-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "session-key"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "roundcube"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "roundcube-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "session-key"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "roundcube"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "command": [
+              "apache2-foreground"
+            ],
+            "dependsOn": [],
+            "egress": true,
+            "entrypoint": [
+              "/bin/sh",
+              "/var/roundcube/config/stackkit/init.sh"
+            ],
+            "environment": {
+              "ROUNDCUBEMAIL_DB_DIR": "/var/roundcube/db",
+              "ROUNDCUBEMAIL_DB_TYPE": "sqlite",
+              "ROUNDCUBEMAIL_PLUGINS": "archive,zipdownload",
+              "ROUNDCUBEMAIL_REQUEST_PATH": "/",
+              "ROUNDCUBEMAIL_SKIN": "elastic",
+              "ROUNDCUBEMAIL_TEMP_DIR": "/tmp/roundcube-temp"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/",
+              "port": 80
+            },
+            "id": "roundcube",
+            "image": {
+              "digest": "sha256:f1256d1ce06ca5c52660f67f8511f3971def5d3b80aab3e3809df970489b1c46",
+              "ref": "docker.io/roundcube/roundcubemail:1.6.19-apache"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "mail-internal"
+            ],
+            "resources": {
+              "memoryLimit": "256m",
+              "memoryReservation": "128m"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "ROUNDCUBEMAIL_DES_KEY": "session-key"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "database",
+                "target": "/var/roundcube/db"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "mailbox",
+                "target": "/var/roundcube/mailbox"
+              },
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "config",
+                "target": "/var/roundcube/config"
+              },
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "temp",
+                "target": "/tmp/roundcube-temp"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "roundcube",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:f1256d1ce06ca5c52660f67f8511f3971def5d3b80aab3e3809df970489b1c46",
+          "ref": "docker.io/roundcube/roundcubemail:1.6.19-apache"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
             "panel",
             "panel-database",
             "panel-cache",
@@ -20342,6 +22524,18 @@
               "outputRef": "workloads/pterodactyl/bundle.json",
               "required": true,
               "unitRef": "pterodactyl"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "pterodactyl-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/pterodactyl/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
             }
           ],
           "outputBindings": [
@@ -20349,10 +22543,16 @@
               "artifactRef": "pterodactyl-workload-bundle",
               "outputRef": "workloads/pterodactyl/bundle.json",
               "unitRef": "pterodactyl"
+            },
+            {
+              "artifactRef": "pterodactyl-terramate-stack",
+              "outputRef": "platform/applications/pterodactyl/stack.tm.hcl",
+              "unitRef": "terramate-stack"
             }
           ],
           "requiredRefs": [
-            "pterodactyl-workload-bundle"
+            "pterodactyl-workload-bundle",
+            "pterodactyl-terramate-stack"
           ]
         },
         "compatibleRendererRefs": [
@@ -20475,6 +22675,35 @@
           ],
           "templateRef": "builtin://workloads/pterodactyl/bundle/v1.json",
           "version": "1.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/pterodactyl/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-daemon",
+            "daemonRef": "docker-default",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
         }
       ],
       "renderVariants": [
@@ -20526,6 +22755,33 @@
           "target": "opentofu",
           "unitRefs": [
             "pterodactyl"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "pterodactyl-workload-bundle",
+            "pterodactyl-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "database-root-password",
+            "app-key",
+            "hashids-salt",
+            "owner-password",
+            "application-api-key",
+            "client-api-key"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "pterodactyl",
+            "terramate-stack"
           ]
         }
       ],
@@ -20911,6 +23167,18 @@
               "outputRef": "workloads/jellyfin/bundle.json",
               "required": true,
               "unitRef": "jellyfin"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "jellyfin-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/jellyfin/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
             }
           ],
           "outputBindings": [
@@ -20918,10 +23186,16 @@
               "artifactRef": "jellyfin-workload-bundle",
               "outputRef": "workloads/jellyfin/bundle.json",
               "unitRef": "jellyfin"
+            },
+            {
+              "artifactRef": "jellyfin-terramate-stack",
+              "outputRef": "platform/applications/jellyfin/stack.tm.hcl",
+              "unitRef": "terramate-stack"
             }
           ],
           "requiredRefs": [
-            "jellyfin-workload-bundle"
+            "jellyfin-workload-bundle",
+            "jellyfin-terramate-stack"
           ]
         },
         "compatibleRendererRefs": [
@@ -21020,6 +23294,34 @@
           ],
           "templateRef": "builtin://workloads/jellyfin/bundle/v2.json",
           "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/jellyfin/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
         }
       ],
       "renderVariants": [
@@ -21057,6 +23359,26 @@
           "target": "opentofu",
           "unitRefs": [
             "jellyfin"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "jellyfin-workload-bundle",
+            "jellyfin-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "storage-roots"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "terramate",
+          "unitRefs": [
+            "jellyfin",
+            "terramate-stack"
           ]
         }
       ],
@@ -21225,6 +23547,18 @@
               "outputRef": "workloads/home-assistant/bundle.json",
               "required": true,
               "unitRef": "home-assistant"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "home-assistant-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/home-assistant/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
             }
           ],
           "outputBindings": [
@@ -21232,10 +23566,16 @@
               "artifactRef": "home-assistant-workload-bundle",
               "outputRef": "workloads/home-assistant/bundle.json",
               "unitRef": "home-assistant"
+            },
+            {
+              "artifactRef": "home-assistant-terramate-stack",
+              "outputRef": "platform/applications/home-assistant/stack.tm.hcl",
+              "unitRef": "terramate-stack"
             }
           ],
           "requiredRefs": [
-            "home-assistant-workload-bundle"
+            "home-assistant-workload-bundle",
+            "home-assistant-terramate-stack"
           ]
         },
         "compatibleRendererRefs": [
@@ -21324,6 +23664,34 @@
           ],
           "templateRef": "builtin://workloads/home-assistant/bundle/v2.json",
           "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/home-assistant/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
         }
       ],
       "renderVariants": [
@@ -21359,6 +23727,25 @@
           "target": "opentofu",
           "unitRefs": [
             "home-assistant"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "home-assistant-workload-bundle",
+            "home-assistant-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "terramate",
+          "unitRefs": [
+            "home-assistant",
+            "terramate-stack"
           ]
         }
       ],
@@ -22136,6 +24523,18 @@
               "outputRef": "modern/federation/origin-mtls/executor-contract.json",
               "required": true,
               "unitRef": "executor-contract"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "bridge-origin-mtls-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "modern/federation/origin-mtls/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
             }
           ],
           "outputBindings": [
@@ -22143,10 +24542,16 @@
               "artifactRef": "bridge-origin-mtls-executor-contract",
               "outputRef": "modern/federation/origin-mtls/executor-contract.json",
               "unitRef": "executor-contract"
+            },
+            {
+              "artifactRef": "bridge-origin-mtls-terramate-stack",
+              "outputRef": "modern/federation/origin-mtls/stack.tm.hcl",
+              "unitRef": "terramate-stack"
             }
           ],
           "requiredRefs": [
-            "bridge-origin-mtls-executor-contract"
+            "bridge-origin-mtls-executor-contract",
+            "bridge-origin-mtls-terramate-stack"
           ]
         },
         "compatibleRendererRefs": [
@@ -22213,6 +24618,34 @@
           "secretInputRefs": [],
           "serviceEndpoints": [],
           "templateRef": "builtin://modern/federation/origin-mtls/executor-contract/v1.json",
+          "version": "1.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:302cbdd332b95e48a9afe674b45d16ceacb0473884b66eb8c3fbd9d030878020",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "modern/federation/origin-mtls/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/federation/v1",
           "version": "1.0.0"
         }
       ],
@@ -22286,6 +24719,18 @@
               "outputRef": "modern/federation/publication/executor-contract.json",
               "required": true,
               "unitRef": "executor-contract"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "bridge-publication-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "modern/federation/publication/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
             }
           ],
           "outputBindings": [
@@ -22293,10 +24738,16 @@
               "artifactRef": "bridge-publication-executor-contract",
               "outputRef": "modern/federation/publication/executor-contract.json",
               "unitRef": "executor-contract"
+            },
+            {
+              "artifactRef": "bridge-publication-terramate-stack",
+              "outputRef": "modern/federation/publication/stack.tm.hcl",
+              "unitRef": "terramate-stack"
             }
           ],
           "requiredRefs": [
-            "bridge-publication-executor-contract"
+            "bridge-publication-executor-contract",
+            "bridge-publication-terramate-stack"
           ]
         },
         "compatibleRendererRefs": [
@@ -22364,6 +24815,34 @@
           "serviceEndpoints": [],
           "templateRef": "builtin://modern/federation/publication/executor-contract/v1.json",
           "version": "1.1.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:302cbdd332b95e48a9afe674b45d16ceacb0473884b66eb8c3fbd9d030878020",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "modern/federation/publication/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/federation/v1",
+          "version": "1.0.0"
         }
       ],
       "renderVariants": [],
@@ -22435,6 +24914,18 @@
               "outputRef": "modern/federation/link/executor-contract.json",
               "required": true,
               "unitRef": "executor-contract"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "federation-link-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "modern/federation/link/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
             }
           ],
           "outputBindings": [
@@ -22442,10 +24933,16 @@
               "artifactRef": "federation-link-executor-contract",
               "outputRef": "modern/federation/link/executor-contract.json",
               "unitRef": "executor-contract"
+            },
+            {
+              "artifactRef": "federation-link-terramate-stack",
+              "outputRef": "modern/federation/link/stack.tm.hcl",
+              "unitRef": "terramate-stack"
             }
           ],
           "requiredRefs": [
-            "federation-link-executor-contract"
+            "federation-link-executor-contract",
+            "federation-link-terramate-stack"
           ]
         },
         "compatibleRendererRefs": [
@@ -22516,6 +25013,34 @@
           "secretInputRefs": [],
           "serviceEndpoints": [],
           "templateRef": "builtin://modern/federation/link/executor-contract/v1.json",
+          "version": "1.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:302cbdd332b95e48a9afe674b45d16ceacb0473884b66eb8c3fbd9d030878020",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "modern/federation/link/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/federation/v1",
           "version": "1.0.0"
         }
       ],
@@ -22588,6 +25113,18 @@
               "outputRef": "modern/federation/control-agent/executor-contract.json",
               "required": true,
               "unitRef": "executor-contract"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "federation-control-agent-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "modern/federation/control-agent/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
             }
           ],
           "outputBindings": [
@@ -22595,10 +25132,16 @@
               "artifactRef": "federation-control-agent-executor-contract",
               "outputRef": "modern/federation/control-agent/executor-contract.json",
               "unitRef": "executor-contract"
+            },
+            {
+              "artifactRef": "federation-control-agent-terramate-stack",
+              "outputRef": "modern/federation/control-agent/stack.tm.hcl",
+              "unitRef": "terramate-stack"
             }
           ],
           "requiredRefs": [
-            "federation-control-agent-executor-contract"
+            "federation-control-agent-executor-contract",
+            "federation-control-agent-terramate-stack"
           ]
         },
         "compatibleRendererRefs": [
@@ -22665,6 +25208,34 @@
           "secretInputRefs": [],
           "serviceEndpoints": [],
           "templateRef": "builtin://modern/federation/control-agent/executor-contract/v1.json",
+          "version": "1.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:302cbdd332b95e48a9afe674b45d16ceacb0473884b66eb8c3fbd9d030878020",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "modern/federation/control-agent/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/federation/v1",
           "version": "1.0.0"
         }
       ],
@@ -24690,6 +27261,17 @@
       "kind": "metadata",
       "mode": "0600",
       "path": ".stackkit/resolved-plan.json",
+      "required": true
+    },
+    {
+      "compatibleTargets": [
+        "terramate"
+      ],
+      "format": "json",
+      "id": "terramate-stack-graph",
+      "kind": "metadata",
+      "mode": "0640",
+      "path": ".stackkit/terramate-stack-graph.json",
       "required": true
     }
   ],
@@ -26999,6 +29581,54 @@
       ],
       "workloadRefs": [
         "game"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "roundcube-generated-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-roundcube",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-roundcube-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "mail"
       ]
     },
     {
@@ -30450,6 +33080,180 @@
         "cloud"
       ],
       "useCaseRef": "game"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "roundcube",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "roundcube",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "database"
+                },
+                {
+                  "componentRef": "roundcube",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "mailbox"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "mail",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "roundcube",
+                  "dataBindingRef": "mail",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/var/roundcube/db",
+                  "volumeRef": "database"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "roundcube",
+                  "dataBindingRef": "mail",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/var/roundcube/mailbox",
+                  "volumeRef": "mailbox"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "roundcube",
+                  "dataClasses": [],
+                  "target": "/var/roundcube/config",
+                  "volumeRef": "config"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "roundcube",
+                  "dataClasses": [],
+                  "target": "/tmp/roundcube-temp",
+                  "volumeRef": "temp"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "session-key"
+              ],
+              "requiredRefs": [
+                "session-key"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-roundcube-runtime",
+          "providerRef": "stackkits-roundcube",
+          "route": {
+            "healthRef": "roundcube-http",
+            "serviceRef": "mail"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [
+              "roundcube-mailbox-login"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
+          }
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "alternativeID": "roundcube",
+          "included": true
+        },
+        "low": {
+          "alternativeID": "roundcube",
+          "included": true
+        },
+        "standard": {
+          "alternativeID": "roundcube",
+          "included": true
+        }
+      },
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "roundcube",
+      "functionalCapabilities": [
+        "webmail-client",
+        "mailbox-access",
+        "address-book"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Client-first private mail: Roundcube webmail for an existing external IMAP/SMTP mailbox. No mail server, DNS or MX record is created.",
+        "id": "mail",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "mail"
     },
     {
       "alternatives": [

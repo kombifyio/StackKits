@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-09-24T20:41:53Z",
+  "generated_at": "2026-09-25T07:45:45Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -1044,6 +1044,19 @@
       "layer": "L3-application",
       "description": "Pterodactyl Panel and Wings upstream catalog. The native-v2 game workload owns executable configuration, owner bootstrap and the governed Wings lifecycle-owner approval (ADR-0043).",
       "contract_hash": "6f89d7a3d91adb48cb834a4c06b6b40eea299983919dd8a7f09a6f8b04d70017",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
+      "slug": "roundcube",
+      "display_name": "Roundcube Webmail",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Roundcube Webmail upstream catalog: a webmail client for an existing external IMAP/SMTP mailbox. The native-v2 mail workload owns executable configuration, the custody-derived session key, the owner mailbox endpoints stored by the owner-approved setup action and the device setup documents. No mail server is included.",
+      "contract_hash": "c211801e20c7afcbed2524596c09824ed808f75afb26c23cb35ded5f79dc8732",
       "supported_contexts": [
         "local",
         "cloud",

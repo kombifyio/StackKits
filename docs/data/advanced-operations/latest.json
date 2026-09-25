@@ -1,0 +1,756 @@
+{
+  "schemaVersion": "stackkit.advanced-operations/v1",
+  "program": "stackkit",
+  "description": "Advanced operations an orchestrator may dispatch to the stackkit CLI of the exact pinned release. Argv words follow the program name; every {placeholder} is replaced by exactly one argv word and never by shell text. Only entries with status available may be dispatched. The catalog shipped in the pinned release archive is authoritative for that release.",
+  "commandResult": {
+    "schemaVersion": "stackkit.command-result/v1",
+    "schema": "schemas/stackkit-command-result-v1.schema.json",
+    "statuses": [
+      "success",
+      "failed",
+      "denied"
+    ],
+    "noEnvelope": "A nonzero exit without one stackkit.command-result/v1 document on stdout is an unclassified failure; stderr carries the message. Treat it as failed and never retry a mutating operation blindly."
+  },
+  "rolloutEvents": {
+    "schemaVersion": "stackkit.rollout-event/v1",
+    "schema": "schemas/stackkit-rollout-event.schema.json",
+    "argv": [
+      "--progress-jsonl",
+      "{progressFile}"
+    ],
+    "description": "Redacted JSONL progress written to a file; `-` (stdout) is refused together with --json. Each operation lists its Advanced phases; generic lifecycle phases of the governed transaction may also appear."
+  },
+  "denial": {
+    "schemaVersion": "stackkit.operation-denial/v1",
+    "schema": "schemas/stackkit-operation-denial-v1.schema.json",
+    "commandResultStatus": "denied",
+    "reasonCodes": [
+      {
+        "code": "advanced_trust_bundle_unavailable",
+        "description": "No Owner-approved issuer trust is imported; run advanced.trust.import."
+      },
+      {
+        "code": "advanced_capability_required",
+        "description": "The operation requires a capability."
+      },
+      {
+        "code": "advanced_capability_unavailable",
+        "description": "No capability file was supplied."
+      },
+      {
+        "code": "advanced_capability_malformed",
+        "description": "The capability is not the canonical stackkit.advanced-capability/v1 form."
+      },
+      {
+        "code": "advanced_capability_untrusted_key",
+        "description": "The capability key is not in the imported trust."
+      },
+      {
+        "code": "advanced_capability_signature_invalid",
+        "description": "The capability signature does not verify."
+      },
+      {
+        "code": "advanced_capability_not_yet_valid",
+        "description": "issuedAt is in the future."
+      },
+      {
+        "code": "advanced_capability_expired",
+        "description": "expiresAt has passed; issue a new capability."
+      },
+      {
+        "code": "advanced_capability_lifetime_exceeded",
+        "description": "The capability lifetime exceeds the maximum."
+      },
+      {
+        "code": "advanced_capability_scope_mismatch",
+        "description": "stackId, ownerRef or another scoped claim does not match the local stack."
+      },
+      {
+        "code": "advanced_capability_operation_denied",
+        "description": "allowedOperations does not contain the operation."
+      },
+      {
+        "code": "advanced_change_set_invalid",
+        "description": "The change-set request or record is invalid."
+      },
+      {
+        "code": "advanced_change_set_stale",
+        "description": "The change set no longer matches the current baseline; create a new one."
+      },
+      {
+        "code": "advanced_change_set_io",
+        "description": "The change-set record could not be read or written."
+      },
+      {
+        "code": "owner_approval_required",
+        "description": "The operation requires --owner-approve."
+      },
+      {
+        "code": "restore_drill_request_invalid",
+        "description": "The restore-drill request is invalid (anchor, operation ID or workspace state)."
+      },
+      {
+        "code": "advanced_rollback_request_invalid",
+        "description": "The rollback request is invalid (--to is not a sha256 snapshot or change-set ID)."
+      },
+      {
+        "code": "terramate_tool_missing",
+        "description": "The packaged Terramate or OpenTofu binary is absent."
+      },
+      {
+        "code": "invalid_reconcile_mode",
+        "description": "drift reconcile --mode is neither standard nor advanced."
+      }
+    ]
+  },
+  "globalArgs": [
+    {
+      "argv": [
+        "--chdir",
+        "{workspaceDir}"
+      ],
+      "description": "Run against the StackKit workspace directory."
+    },
+    {
+      "argv": [
+        "--correlation-id",
+        "{correlationId}"
+      ],
+      "description": "Validated caller correlation ID recorded in local rollout evidence."
+    }
+  ],
+  "placeholders": [
+    {
+      "name": "anchorId",
+      "description": "Existing snapshot-anchor ID in local custody."
+    },
+    {
+      "name": "bundleFile",
+      "description": "Path to the canonical Advanced trust bundle file."
+    },
+    {
+      "name": "bundleSha256",
+      "description": "Exact digest of the trust bundle bytes.",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    {
+      "name": "candidateSpecFile",
+      "description": "Path to the candidate StackSpec v2 file."
+    },
+    {
+      "name": "capabilityFile",
+      "description": "Path to the canonical capability file."
+    },
+    {
+      "name": "changeSetId",
+      "description": "Content address of the Owner-signed change set.",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    {
+      "name": "changeSetSha256",
+      "description": "Exact digest of the stored change-set bytes.",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    {
+      "name": "correlationId",
+      "description": "Caller correlation ID."
+    },
+    {
+      "name": "operationId",
+      "description": "Stable lowercase operation ID.",
+      "pattern": "^[a-z0-9][a-z0-9._-]{7,99}$"
+    },
+    {
+      "name": "progressFile",
+      "description": "Path the rollout event JSONL is written to; never `-` together with --json."
+    },
+    {
+      "name": "targetRef",
+      "description": "Rollback target: an executor-state snapshot ID, or the change-set ID whose pre-apply checkpoint is the target.",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    {
+      "name": "workspaceDir",
+      "description": "StackKit workspace directory."
+    }
+  ],
+  "operations": [
+    {
+      "operation": "advanced.trust.import",
+      "status": "available",
+      "sinceRelease": "v0.15.8",
+      "summary": "Import the exact pinned Techstack issuer trust bundle into local Owner custody; prerequisite of every capability-gated operation.",
+      "command": "stackkit advanced trust import",
+      "argv": [
+        "advanced",
+        "trust",
+        "import",
+        "--bundle",
+        "{bundleFile}",
+        "--expect-sha256",
+        "{bundleSha256}",
+        "--owner-approve",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": true,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "bundleFile",
+          "schemaVersion": "stackkit.advanced-trust-bundle/v1",
+          "schema": "schemas/stackkit-advanced-trust-bundle-v1.schema.json",
+          "description": "Canonical trust bundle; {bundleSha256} pins its exact bytes."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.local-advanced-trust/v1",
+          "schema": "schemas/stackkit-local-advanced-trust-v1.schema.json"
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "owner-approval",
+        "advanced": "owner-approval"
+      }
+    },
+    {
+      "operation": "advanced.trust.inspect",
+      "status": "available",
+      "sinceRelease": "v0.15.8",
+      "summary": "Read the verified local Advanced issuer trust.",
+      "command": "stackkit advanced trust inspect",
+      "argv": [
+        "advanced",
+        "trust",
+        "inspect",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": false,
+      "requires": {
+        "capability": false,
+        "trustImported": true,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.local-advanced-trust/v1",
+          "schema": "schemas/stackkit-local-advanced-trust-v1.schema.json"
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "drift.detect.advanced",
+      "status": "available",
+      "sinceRelease": "v0.15.8",
+      "summary": "Read-only drift report; under the terramate target it adds one stacks[] entry per local Terramate stack from a detailed-exitcode plan. Never applies.",
+      "command": "stackkit drift detect",
+      "argv": [
+        "drift",
+        "detect",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": false,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.drift-report/v1",
+          "schema": "schemas/stackkit-drift-report-v1.schema.json",
+          "description": "mode is advanced and stacks[] is present under the terramate generation target."
+        },
+        {
+          "status": "failed",
+          "schemaVersion": "stackkit.actionable-error/v1",
+          "schema": "schemas/stackkit-actionable-error-v1.schema.json"
+        },
+        {
+          "status": "denied",
+          "schemaVersion": "stackkit.actionable-error/v1",
+          "schema": "schemas/stackkit-actionable-error-v1.schema.json"
+        }
+      ],
+      "events": [
+        {
+          "phase": "advanced.drift.stack",
+          "match": "exact",
+          "statuses": [
+            "converged",
+            "drifted",
+            "failed",
+            "pending_root"
+          ]
+        }
+      ],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "drift.reconcile.advanced",
+      "status": "available",
+      "sinceRelease": "v0.15.8",
+      "summary": "Reconcile drift by applying an exact Owner-signed change set through the governed transaction, then prove a clean post-reconcile drift report including every stack plan.",
+      "command": "stackkit drift reconcile",
+      "argv": [
+        "drift",
+        "reconcile",
+        "--mode",
+        "advanced",
+        "--capability",
+        "{capabilityFile}",
+        "--candidate-spec",
+        "{candidateSpecFile}",
+        "--change-set",
+        "{changeSetId}",
+        "--expect-sha256",
+        "{changeSetSha256}",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": true,
+      "requires": {
+        "capability": true,
+        "capabilityOperation": "drift.reconcile.advanced",
+        "trustImported": true,
+        "ownerApproval": false,
+        "candidateSpec": true,
+        "changeSet": true
+      },
+      "inputs": [
+        {
+          "placeholder": "capabilityFile",
+          "schemaVersion": "stackkit.advanced-capability/v1",
+          "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
+          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+        },
+        {
+          "placeholder": "candidateSpecFile",
+          "schemaVersion": "stackkit/v2alpha2",
+          "schema": "docs/stack-spec-reference.md",
+          "description": "Candidate StackSpec (apiVersion stackkit/v2alpha2) with generation.target terramate; the reference document is the authority."
+        },
+        {
+          "placeholder": "changeSetId",
+          "schemaVersion": "stackkit.advanced-change-set/v2",
+          "schema": "schemas/stackkit-advanced-change-set-v2.schema.json",
+          "description": "Content address of the Owner-signed change-set record created by terramate.change-set.create; {changeSetSha256} pins its exact stored bytes."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.advanced-mutation/v1",
+          "schema": "schemas/stackkit-advanced-mutation-v1.schema.json",
+          "description": "Carries data.driftReport observed after the reconcile."
+        },
+        {
+          "status": "failed",
+          "schemaVersion": "stackkit.advanced-mutation/v1",
+          "schema": "schemas/stackkit-advanced-mutation-v1.schema.json",
+          "description": "The transaction rolled back or the post-reconcile report is not clean."
+        },
+        {
+          "status": "denied",
+          "schemaVersion": "stackkit.operation-denial/v1",
+          "schema": "schemas/stackkit-operation-denial-v1.schema.json",
+          "description": "Fail-closed admission denial before any side effect."
+        }
+      ],
+      "events": [
+        {
+          "phase": "advanced.change-set.materialize-host",
+          "match": "exact",
+          "statuses": [
+            "started",
+            "succeeded",
+            "failed"
+          ]
+        },
+        {
+          "phase": "advanced.change-set.run-order",
+          "match": "exact",
+          "statuses": [
+            "started",
+            "succeeded",
+            "failed"
+          ]
+        },
+        {
+          "phase": "advanced.change-set.converge",
+          "match": "exact",
+          "statuses": [
+            "converged",
+            "drifted",
+            "failed",
+            "pending_root",
+            "other_host"
+          ]
+        },
+        {
+          "phase": "advanced.drift.stack",
+          "match": "exact",
+          "statuses": [
+            "converged",
+            "drifted",
+            "failed",
+            "pending_root"
+          ]
+        }
+      ],
+      "modes": {
+        "standard": "denied",
+        "advanced": "capability"
+      }
+    },
+    {
+      "operation": "restore.drill",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Stage and verify a restore of a new or given backup anchor without activation; the live runtime is verified unchanged.",
+      "command": "stackkit advanced restore-drill run",
+      "argv": [
+        "advanced",
+        "restore-drill",
+        "run",
+        "--capability",
+        "{capabilityFile}",
+        "--owner-approve",
+        "--json"
+      ],
+      "optionalArgs": [
+        {
+          "argv": [
+            "--anchor",
+            "{anchorId}"
+          ],
+          "description": "Drill an existing snapshot anchor in local custody instead of creating one."
+        },
+        {
+          "argv": [
+            "--operation-id",
+            "{operationId}"
+          ],
+          "description": "Stable drill ID; generated when omitted."
+        }
+      ],
+      "mutates": true,
+      "requires": {
+        "capability": true,
+        "capabilityOperation": "restore.drill",
+        "trustImported": true,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "capabilityFile",
+          "schemaVersion": "stackkit.advanced-capability/v1",
+          "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
+          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.restore-drill-report/v1",
+          "schema": "schemas/stackkit-restore-drill-report-v1.schema.json"
+        },
+        {
+          "status": "failed",
+          "schemaVersion": "stackkit.restore-drill-report/v1",
+          "schema": "schemas/stackkit-restore-drill-report-v1.schema.json"
+        },
+        {
+          "status": "denied",
+          "schemaVersion": "stackkit.operation-denial/v1",
+          "schema": "schemas/stackkit-operation-denial-v1.schema.json",
+          "description": "Fail-closed admission denial before any side effect."
+        }
+      ],
+      "events": [
+        {
+          "phase": "advanced.restore-drill.",
+          "match": "prefix",
+          "statuses": [
+            "started",
+            "succeeded",
+            "failed",
+            "skipped"
+          ]
+        }
+      ],
+      "modes": {
+        "standard": "denied",
+        "advanced": "capability"
+      }
+    },
+    {
+      "operation": "rollback.coordinated",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Roll every local Terramate stack back to one verified executor-state checkpoint in reverse run order: destroy stacks added after it, restore and force-converge changed stacks, recreate removed stacks, then restore, regenerate and verify the checkpoint plan. A rerun with the same target resumes an interrupted rollback.",
+      "command": "stackkit advanced rollback run",
+      "argv": [
+        "advanced",
+        "rollback",
+        "run",
+        "--capability",
+        "{capabilityFile}",
+        "--to",
+        "{targetRef}",
+        "--owner-approve",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": true,
+      "requires": {
+        "capability": true,
+        "capabilityOperation": "rollback.coordinated",
+        "trustImported": true,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "capabilityFile",
+          "schemaVersion": "stackkit.advanced-capability/v1",
+          "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
+          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.rollback-result/v1",
+          "schema": "schemas/stackkit-rollback-result-v1.schema.json"
+        },
+        {
+          "status": "failed",
+          "schemaVersion": "stackkit.rollback-result/v1",
+          "schema": "schemas/stackkit-rollback-result-v1.schema.json",
+          "description": "status is failed; stacks[] shows the failed and pending stacks, and a rerun with the same --to resumes."
+        },
+        {
+          "status": "denied",
+          "schemaVersion": "stackkit.operation-denial/v1",
+          "schema": "schemas/stackkit-operation-denial-v1.schema.json",
+          "description": "Fail-closed admission denial before any side effect."
+        }
+      ],
+      "events": [
+        {
+          "phase": "advanced.rollback.",
+          "match": "prefix",
+          "statuses": [
+            "started",
+            "succeeded",
+            "failed",
+            "skipped",
+            "converged"
+          ]
+        }
+      ],
+      "modes": {
+        "standard": "denied",
+        "advanced": "capability"
+      }
+    },
+    {
+      "operation": "terramate.change-set.apply",
+      "status": "available",
+      "sinceRelease": "v0.15.8",
+      "summary": "Apply an exact Owner-signed change set through the governed transaction and prove every affected Terramate stack converged; any failure rolls back.",
+      "command": "stackkit advanced change-set apply",
+      "argv": [
+        "advanced",
+        "change-set",
+        "apply",
+        "--capability",
+        "{capabilityFile}",
+        "--candidate-spec",
+        "{candidateSpecFile}",
+        "--change-set",
+        "{changeSetId}",
+        "--expect-sha256",
+        "{changeSetSha256}",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": true,
+      "requires": {
+        "capability": true,
+        "capabilityOperation": "terramate.change-set.apply",
+        "trustImported": true,
+        "ownerApproval": false,
+        "candidateSpec": true,
+        "changeSet": true
+      },
+      "inputs": [
+        {
+          "placeholder": "capabilityFile",
+          "schemaVersion": "stackkit.advanced-capability/v1",
+          "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
+          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+        },
+        {
+          "placeholder": "candidateSpecFile",
+          "schemaVersion": "stackkit/v2alpha2",
+          "schema": "docs/stack-spec-reference.md",
+          "description": "Candidate StackSpec (apiVersion stackkit/v2alpha2) with generation.target terramate; the reference document is the authority."
+        },
+        {
+          "placeholder": "changeSetId",
+          "schemaVersion": "stackkit.advanced-change-set/v2",
+          "schema": "schemas/stackkit-advanced-change-set-v2.schema.json",
+          "description": "Content address of the Owner-signed change-set record created by terramate.change-set.create; {changeSetSha256} pins its exact stored bytes."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.advanced-mutation/v1",
+          "schema": "schemas/stackkit-advanced-mutation-v1.schema.json",
+          "description": "data.changeSetResult is stackkit.change-set-result/v1 (schemas/stackkit-change-set-result-v1.schema.json)."
+        },
+        {
+          "status": "failed",
+          "schemaVersion": "stackkit.advanced-mutation/v1",
+          "schema": "schemas/stackkit-advanced-mutation-v1.schema.json",
+          "description": "transaction.status is rolled-back when the rollback restored the prior state."
+        },
+        {
+          "status": "denied",
+          "schemaVersion": "stackkit.advanced-mutation/v1",
+          "schema": "schemas/stackkit-advanced-mutation-v1.schema.json",
+          "description": "Admission denied before any side effect; this command reports the mutation record, not stackkit.operation-denial/v1."
+        }
+      ],
+      "events": [
+        {
+          "phase": "advanced.change-set.materialize-host",
+          "match": "exact",
+          "statuses": [
+            "started",
+            "succeeded",
+            "failed"
+          ]
+        },
+        {
+          "phase": "advanced.change-set.run-order",
+          "match": "exact",
+          "statuses": [
+            "started",
+            "succeeded",
+            "failed"
+          ]
+        },
+        {
+          "phase": "advanced.change-set.converge",
+          "match": "exact",
+          "statuses": [
+            "converged",
+            "drifted",
+            "failed",
+            "pending_root",
+            "other_host"
+          ]
+        }
+      ],
+      "modes": {
+        "standard": "denied",
+        "advanced": "capability"
+      }
+    },
+    {
+      "operation": "terramate.change-set.create",
+      "status": "available",
+      "sinceRelease": "v0.15.8",
+      "summary": "Create an Owner-signed change set from the candidate StackSpec: changed artifacts, affected Terramate stacks in run order and the host manifest digest.",
+      "command": "stackkit advanced change-set create",
+      "argv": [
+        "advanced",
+        "change-set",
+        "create",
+        "--capability",
+        "{capabilityFile}",
+        "--candidate-spec",
+        "{candidateSpecFile}",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": true,
+      "requires": {
+        "capability": true,
+        "capabilityOperation": "terramate.change-set.create",
+        "trustImported": true,
+        "ownerApproval": false,
+        "candidateSpec": true,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "capabilityFile",
+          "schemaVersion": "stackkit.advanced-capability/v1",
+          "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
+          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+        },
+        {
+          "placeholder": "candidateSpecFile",
+          "schemaVersion": "stackkit/v2alpha2",
+          "schema": "docs/stack-spec-reference.md",
+          "description": "Candidate StackSpec (apiVersion stackkit/v2alpha2) with generation.target terramate; the reference document is the authority."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.advanced-change-set/v2",
+          "schema": "schemas/stackkit-advanced-change-set-create-result-v2.schema.json",
+          "description": "Summary of the stored stackkit.advanced-change-set/v2 record (schemas/stackkit-advanced-change-set-v2.schema.json)."
+        },
+        {
+          "status": "denied",
+          "schemaVersion": "stackkit.operation-denial/v1",
+          "schema": "schemas/stackkit-operation-denial-v1.schema.json",
+          "description": "Fail-closed admission denial before any side effect."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "denied",
+        "advanced": "capability"
+      }
+    }
+  ]
+}

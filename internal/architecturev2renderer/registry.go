@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 )
 
 // UnitRenderer renders exactly one explicit execution instance of one
@@ -337,6 +338,18 @@ func renderProjection(ctx context.Context, projection renderPlan, canonical []by
 		ID: resolvedPlanArtifact.id, Path: resolvedPlanArtifact.path, Kind: resolvedPlanArtifact.kind,
 		Format: resolvedPlanArtifact.format, Mode: resolvedPlanArtifact.mode, Bytes: append([]byte(nil), canonical...),
 	})
+	if graphArtifact, exists := projection.artifacts[terramatestackgraph.ArtifactID]; exists {
+		// The stack graph is derived from plan facts only, so it is rendered
+		// once per plan beside the plan snapshot, never by a module unit.
+		graph, err := terramatestackgraph.Render(canonical)
+		if err != nil {
+			return RenderResult{}, wrap(ErrRendererFailure, "resolvedPlan.generation.artifacts."+terramatestackgraph.ArtifactID, "render Terramate stack graph", err)
+		}
+		artifacts = append(artifacts, Artifact{
+			ID: graphArtifact.id, Path: graphArtifact.path, Kind: graphArtifact.kind,
+			Format: graphArtifact.format, Mode: graphArtifact.mode, Bytes: graph,
+		})
+	}
 
 	for _, module := range projection.modules {
 		for _, contract := range module.units {

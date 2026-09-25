@@ -95,6 +95,42 @@
         "reason": "Game servers are configured through the Pterodactyl APIs by the setup action; StackKits does not author a separate game configuration file."
       }
     },
+    "mail": {
+      "ref": "mail",
+      "equipPolicy": "on-generate",
+      "lifecycleMcp": {
+        "ref": "stackkit",
+        "owner": "stackkit",
+        "endpoint": "/mcp",
+        "transport": "streamable-http",
+        "auth": "stackkit-mcp-token",
+        "generateClientConfig": true
+      },
+      "productMcps": [],
+      "apis": [],
+      "skills": [
+        {
+          "id": "mail-client",
+          "audience": "product-user",
+          "source": "stackkits",
+          "path": "use-cases/mail/agent/mail-client/SKILL.md"
+        }
+      ],
+      "cliHelpers": [
+        {
+          "command": "stackkit setup mail",
+          "purpose": "Verify a real mailbox login through Roundcube after owner approval."
+        },
+        {
+          "command": "stackkit agent mcp-config",
+          "purpose": "Print the stackkit lifecycle MCP client connection."
+        }
+      ],
+      "configBaseline": {
+        "status": "omitted",
+        "reason": "Roundcube reads a governed StackKits startup file; the owner's mailbox servers are stored by the setup action on the persistent mailbox volume, so there is no separate owner configuration file."
+      }
+    },
     "media": {
       "ref": "media",
       "equipPolicy": "on-generate",

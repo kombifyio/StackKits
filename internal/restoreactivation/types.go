@@ -19,6 +19,7 @@ const (
 // lifecycle journal; VolumeDetails carries the corresponding cutover paths.
 type Authority struct {
 	OperationID          string           `json:"operationId"`
+	RenderTarget         string           `json:"renderTarget,omitempty"`
 	OwnerRef             string           `json:"ownerRef"`
 	RestoreResultID      string           `json:"restoreResultId"`
 	PlanHash             string           `json:"planHash"`
@@ -43,10 +44,17 @@ type Authority struct {
 // authority; this caller-mutable value is never a VerifiedPlan or mutation
 // authorization by itself. Staging paths are deliberately absent from
 // VolumeDetails until a real, verified RestoreResult is bound.
+//
+// RenderTarget is empty for the compose generation target, which keeps the
+// Compose graph byte-identical to graphs signed before OpenTofu targets. For
+// the opentofu and terramate targets it names the target, every Compose
+// runtime is the runtime Compose file its OpenTofu root writes, and every
+// runtime carries the state of that root.
 type RuntimeRecoveryGraph struct {
 	APIVersion           string                         `json:"apiVersion"`
 	Kind                 string                         `json:"kind"`
 	OperationID          string                         `json:"operationId"`
+	RenderTarget         string                         `json:"renderTarget,omitempty"`
 	PlanBinding          generationartifact.PlanBinding `json:"planBinding"`
 	PlanHash             string                         `json:"planHash"`
 	ManifestHash         string                         `json:"manifestHash"`
@@ -77,6 +85,11 @@ type ComposeRuntime struct {
 	EnvironmentPath   string                    `json:"environmentPath,omitempty"`
 	EnvironmentDigest string                    `json:"environmentDigest,omitempty"`
 	Readiness         []ComposeRuntimeReadiness `json:"readiness,omitempty"`
+	// StatePath and StateDigest bind the OpenTofu state of the root that
+	// applies this Compose project under the opentofu and terramate targets,
+	// so the state is restored and verified alongside the project's data.
+	StatePath   string `json:"statePath,omitempty"`
+	StateDigest string `json:"stateDigest,omitempty"`
 }
 
 // ComposeRuntimeReadiness carries the CUE-owned component health impact into

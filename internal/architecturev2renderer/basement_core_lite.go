@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"regexp"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 )
 
 const (
@@ -18,13 +20,12 @@ const (
 	basementCoreLiteComposeOutputRef           = "platform/basement-core-lite/compose.yaml"
 	basementCoreLiteOpenTofuOutputRef          = "platform/basement-core-lite/main.tf"
 	basementCoreLiteTerramateOpenTofuOutputRef = "platform/basement-core-lite/main.tf"
-	basementCoreLiteTerramateRootOutputRef     = "platform/basement-core-lite/terramate.tm.hcl"
 	basementCoreLiteTerramateStackOutputRef    = "platform/basement-core-lite/stack.tm.hcl"
 )
 
 const basementCoreLiteComposeSchema = `stackkit.basement-core-lite-compose/v1|artifact-revision:7|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|services:router,socket-proxy,pocketid,tinyauth,step-ca,lan-dns,kopia-agent,hub,stackkit-server|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
-const basementCoreLiteOpenTofuSchema = `stackkit.basement-core-lite-opentofu/v1|artifact-revision:7|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
-const basementCoreLiteTerramateSchema = `stackkit.basement-core-lite-terramate/v1|artifact-revision:6|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl,terramate.tm.hcl|execution-instance:node-local|credentials:none|cloud:none|coolify:omitted|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
+const basementCoreLiteOpenTofuSchema = `stackkit.basement-core-lite-opentofu/v1|artifact-revision:9|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-basement-core,local-provider-2.5.3|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
+const basementCoreLiteTerramateSchema = `stackkit.basement-core-lite-terramate/v1|artifact-revision:9|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-basement-core,local-provider-2.5.3|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl|stack:terramatestackgraph-core,project-root-per-host|execution-instance:node-local|credentials:none|cloud:none|coolify:omitted|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
 
 func basementCoreLiteComponentsJSON() string {
 	return filterCoolifyJSONComponents(basementCoreComponentsJSON)
@@ -96,7 +97,7 @@ func newBasementCoreLiteOpenTofuRenderer() basementCoreRenderer {
 		contract: BasementCoreLiteOpenTofuRendererContract(), unitID: basementCoreOpenTofuUnitID,
 		outputRef: basementCoreLiteOpenTofuOutputRef, render: func(unit RenderUnit) []byte {
 			domain, _ := unit.NetworkDomainBase()
-			return renderBasementCoreLiteOpenTofu(domain)
+			return RenderBasementCoreLiteComposeForDomain(domain)
 		},
 	}
 }
@@ -116,15 +117,24 @@ func (r basementCoreLiteTerramateRenderer) RenderUnit(ctx context.Context, unit 
 	if err := validateClosedLocalCoreUnitOutputs(unit, r.contract, basementCoreTerramateUnitID, []string{
 		basementCoreLiteTerramateOpenTofuOutputRef,
 		basementCoreLiteTerramateStackOutputRef,
-		basementCoreLiteTerramateRootOutputRef,
 	}, basementClosedLocalCoreLiteProfile()); err != nil {
 		return nil, err
 	}
 	domain, _ := unit.NetworkDomainBase()
+	root, err := RenderComposePayloadOpenTofu(ComposePayloadSpec{
+		ResourcePrefix: basementCoreOpenTofuResourcePrefix, ProjectName: basementCoreComposeProjectName,
+		Compose: renderKopiaSourceVolumeBinds(unit, renderSiteListenerBindings(unit, RenderBasementCoreLiteComposeForDomain(domain))),
+	})
+	if err != nil {
+		return nil, err
+	}
+	stack, err := renderTerramateStackForUnit(unit, terramatestackgraph.RoleCore)
+	if err != nil {
+		return nil, err
+	}
 	return []UnitOutput{
-		{Ref: basementCoreLiteTerramateOpenTofuOutputRef, Bytes: renderKopiaSourceVolumeBinds(unit, renderSiteListenerBindings(unit, renderBasementCoreLiteOpenTofu(domain)))},
-		{Ref: basementCoreLiteTerramateRootOutputRef, Bytes: []byte(basementCoreTerramateRoot)},
-		{Ref: basementCoreLiteTerramateStackOutputRef, Bytes: []byte(strings.ReplaceAll(basementCoreTerramateStack, "Basement Core", "Basement Core Lite"))},
+		{Ref: basementCoreLiteTerramateOpenTofuOutputRef, Bytes: root},
+		{Ref: basementCoreLiteTerramateStackOutputRef, Bytes: stack},
 	}, nil
 }
 
@@ -143,9 +153,9 @@ func newBasementCoreLiteComposeBoundRenderer() liteBoundRenderer {
 	return liteBoundRenderer{inner: inner}
 }
 
-func newBasementCoreLiteOpenTofuBoundRenderer() liteBoundRenderer {
+func newBasementCoreLiteOpenTofuBoundRenderer() composePayloadOpenTofuRenderer {
 	inner := newBasementCoreLiteOpenTofuRenderer()
-	return liteBoundRenderer{inner: inner}
+	return basementCorePayloadOpenTofuRenderer(inner, inner.renderLiteUnit)
 }
 
 type liteBoundRenderer struct {
@@ -154,14 +164,6 @@ type liteBoundRenderer struct {
 
 func (r liteBoundRenderer) RenderUnit(ctx context.Context, unit RenderUnit) ([]UnitOutput, error) {
 	return r.inner.renderLiteUnit(ctx, unit)
-}
-
-func renderBasementCoreLiteOpenTofu(domains ...string) []byte {
-	domain := basementDefaultDomain
-	if len(domains) == 1 {
-		domain = domains[0]
-	}
-	return renderBasementCoreOpenTofuFromCompose(RenderBasementCoreLiteComposeForDomain(domain))
 }
 
 func filterCoolifyJSONComponents(raw string) string {

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.dev/schemas/stackkit-advanced-change-set-v2.schema.json",
+  "title": "StackKit Advanced change set v2",
+  "description": "Owner-signed change-set record stored in local custody by `stackkit advanced change-set create` and named by its content address (changeSetId) in `advanced change-set apply` and `drift reconcile --mode advanced`, which also pin the exact stored bytes with --expect-sha256. internal/advancedchangeset is the authority, including the canonical byte form and the signature rules.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "changeSetId",
+    "capabilityId",
+    "capabilitySha256",
+    "keyId",
+    "stackId",
+    "ownerRef",
+    "uiManagerRef",
+    "rilRef",
+    "generationTarget",
+    "createdAt",
+    "expiresAt",
+    "capabilityExpiresAt",
+    "baselinePlanHash",
+    "candidatePlanHash",
+    "baselineRenderSha256",
+    "candidateRenderSha256",
+    "changes",
+    "affectedStacks",
+    "terramateHostManifestSha256",
+    "ownerSignature"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "stackkit.advanced-change-set/v2" },
+    "changeSetId": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "capabilityId": { "type": "string", "minLength": 1 },
+    "capabilitySha256": { "type": "string", "minLength": 1 },
+    "keyId": { "type": "string", "minLength": 1 },
+    "stackId": { "type": "string", "minLength": 1 },
+    "ownerRef": { "type": "string", "minLength": 1 },
+    "uiManagerRef": { "type": "string" },
+    "rilRef": { "type": "string" },
+    "generationTarget": { "const": "terramate" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "expiresAt": { "type": "string", "format": "date-time" },
+    "capabilityExpiresAt": { "type": "string", "format": "date-time" },
+    "baselinePlanHash": { "type": "string", "minLength": 1 },
+    "candidatePlanHash": { "type": "string", "minLength": 1 },
+    "baselineRenderSha256": { "type": "string", "minLength": 1 },
+    "candidateRenderSha256": { "type": "string", "minLength": 1 },
+    "changes": { "type": "array", "items": { "$ref": "#/$defs/artifactChange" } },
+    "affectedStacks": {
+      "description": "Terramate stack IDs whose module owns a changed artifact, in the stack graph's global run order.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "terramateHostManifestSha256": { "type": "string", "minLength": 1 },
+    "ownerSignature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ownerRef", "keyId", "value"],
+      "properties": {
+        "ownerRef": { "type": "string", "minLength": 1 },
+        "keyId": { "type": "string", "minLength": 1 },
+        "value": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "artifactChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "status"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "minLength": 1 },
+        "beforeSha256": { "type": "string" },
+        "afterSha256": { "type": "string" },
+        "metadataChanged": { "type": "boolean" }
+      }
+    }
+  }
+}

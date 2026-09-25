@@ -136,19 +136,9 @@ func (o *osBasementCoreOperations) ApplyProject(ctx context.Context, project Bas
 	if _, ok := basementCoreProjectProfile(project); !ok {
 		return BasementCoreApplyObservation{}, errors.New("Basement core operations do not support the selected local profile")
 	}
-	originReload, err := localevidence.UpgradeBasementOriginProvisioner(o.workspaceRoot)
+	preparation, err := o.prepareApply()
 	if err != nil {
-		return BasementCoreApplyObservation{}, fmt.Errorf("verify local Basement runtime custody before Apply: %w", err)
-	}
-	serverBinary, err := resolveCoreStackKitServerBinary(o.serverBinary)
-	if err != nil {
-		return BasementCoreApplyObservation{}, fmt.Errorf("resolve the Basement core stackkit-server: %w", err)
-	}
-	// Stage the server before compose.yaml names it, so a failure never
-	// leaves a Compose project pointing at a missing ./stackkit-server.
-	recreateServer, err := prepareCoreStackKitServer(o.workspaceRoot, filepath.Join(o.workspaceRoot, ".stackkit", "runtime", "basement-core"), serverBinary)
-	if err != nil {
-		return BasementCoreApplyObservation{}, fmt.Errorf("prepare the Basement core stackkit-server: %w", err)
+		return BasementCoreApplyObservation{}, err
 	}
 	composePath, err := o.persistCompose(project)
 	if err != nil {
@@ -161,41 +151,79 @@ func (o *osBasementCoreOperations) ApplyProject(ctx context.Context, project Bas
 	if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), environment); err != nil {
 		return BasementCoreApplyObservation{}, fmt.Errorf("local Docker Compose Apply did not complete: %w", err)
 	}
-	if recreateServer {
-		if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "recreate-server"), filepath.Dir(composePath), environment); err != nil {
-			return BasementCoreApplyObservation{}, fmt.Errorf("recreate the local stackkit-server with its new release or token: %w", err)
-		}
-		if err := completeCoreStackKitServerRecreate(filepath.Dir(composePath)); err != nil {
-			return BasementCoreApplyObservation{}, err
-		}
-	}
-	if originReload {
-		args := []string{"compose", "--project-name", "stackkit-basement-core", "-f", composePath, "up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "600", "step-ca"}
-		if _, err := o.runner.Run(ctx, args, filepath.Dir(composePath), environment); err != nil {
-			return BasementCoreApplyObservation{}, fmt.Errorf("reload upgraded local step-ca: %w", err)
-		}
-		if err := localevidence.VerifyBasementOriginProvisioner(ctx, o.workspaceRoot); err != nil {
-			return BasementCoreApplyObservation{}, fmt.Errorf("observe reloaded local step-ca: %w", err)
-		}
-		if err := localevidence.CompleteBasementOriginProvisionerUpgrade(o.workspaceRoot); err != nil {
-			return BasementCoreApplyObservation{}, err
-		}
-	}
-	binding, err := o.ownerIdentity.Realize(ctx)
+	binding, err := o.completeApply(ctx, composePath, environment, preparation)
 	if err != nil {
-		return BasementCoreApplyObservation{}, fmt.Errorf("local PocketID owner realization did not complete: %w", err)
-	}
-	// Owner realization creates the exact PocketID OIDC client and installs its
-	// one-time secret as a private optional env override. Reconcile Compose once
-	// more so TinyAuth runs with that bound credential before Apply can succeed.
-	if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), environment); err != nil {
-		return BasementCoreApplyObservation{}, fmt.Errorf("local TinyAuth PocketID binding did not complete: %w", err)
+		return BasementCoreApplyObservation{}, err
 	}
 	return BasementCoreApplyObservation{
 		ProjectRef: project.ProjectRef, ArtifactDigest: project.ArtifactDigest,
 		OwnerRef: binding.OwnerRef, PocketIDSubject: binding.PocketIDSubject,
 		OwnerBindingDigest: localevidence.OwnerRuntimeBindingDigest(binding), Status: "applied",
 	}, nil
+}
+
+// basementApplyPreparation records the pre-Compose steps whose follow-up
+// runs after the project is up.
+type basementApplyPreparation struct {
+	originReload   bool
+	recreateServer bool
+}
+
+// prepareApply runs the steps that must precede the Compose project: the
+// custody-owned origin provisioner upgrade check and stackkit-server staging.
+func (o *osBasementCoreOperations) prepareApply() (basementApplyPreparation, error) {
+	originReload, err := localevidence.UpgradeBasementOriginProvisioner(o.workspaceRoot)
+	if err != nil {
+		return basementApplyPreparation{}, fmt.Errorf("verify local Basement runtime custody before Apply: %w", err)
+	}
+	serverBinary, err := resolveCoreStackKitServerBinary(o.serverBinary)
+	if err != nil {
+		return basementApplyPreparation{}, fmt.Errorf("resolve the Basement core stackkit-server: %w", err)
+	}
+	// Stage the server before compose.yaml names it, so a failure never
+	// leaves a Compose project pointing at a missing ./stackkit-server.
+	recreateServer, err := prepareCoreStackKitServer(o.workspaceRoot, filepath.Join(o.workspaceRoot, ".stackkit", "runtime", "basement-core"), serverBinary)
+	if err != nil {
+		return basementApplyPreparation{}, fmt.Errorf("prepare the Basement core stackkit-server: %w", err)
+	}
+	return basementApplyPreparation{originReload: originReload, recreateServer: recreateServer}, nil
+}
+
+// completeApply runs the steps that follow the first `up`: stackkit-server
+// recreation, the step-ca reload after an origin upgrade, PocketID owner
+// realization, and the reconciling `up` that binds TinyAuth to the owner.
+func (o *osBasementCoreOperations) completeApply(ctx context.Context, composePath string, environment []string, preparation basementApplyPreparation) (localevidence.OwnerRuntimeBinding, error) {
+	if preparation.recreateServer {
+		if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "recreate-server"), filepath.Dir(composePath), environment); err != nil {
+			return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("recreate the local stackkit-server with its new release or token: %w", err)
+		}
+		if err := completeCoreStackKitServerRecreate(filepath.Dir(composePath)); err != nil {
+			return localevidence.OwnerRuntimeBinding{}, err
+		}
+	}
+	if preparation.originReload {
+		args := []string{"compose", "--project-name", "stackkit-basement-core", "-f", composePath, "up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "600", "step-ca"}
+		if _, err := o.runner.Run(ctx, args, filepath.Dir(composePath), environment); err != nil {
+			return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("reload upgraded local step-ca: %w", err)
+		}
+		if err := localevidence.VerifyBasementOriginProvisioner(ctx, o.workspaceRoot); err != nil {
+			return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("observe reloaded local step-ca: %w", err)
+		}
+		if err := localevidence.CompleteBasementOriginProvisionerUpgrade(o.workspaceRoot); err != nil {
+			return localevidence.OwnerRuntimeBinding{}, err
+		}
+	}
+	binding, err := o.ownerIdentity.Realize(ctx)
+	if err != nil {
+		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("local PocketID owner realization did not complete: %w", err)
+	}
+	// Owner realization creates the exact PocketID OIDC client and installs its
+	// one-time secret as a private optional env override. Reconcile Compose once
+	// more so TinyAuth runs with that bound credential before Apply can succeed.
+	if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), environment); err != nil {
+		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("local TinyAuth PocketID binding did not complete: %w", err)
+	}
+	return binding, nil
 }
 
 func (o *osBasementCoreOperations) VerifyProject(ctx context.Context, project BasementCoreProject) (BasementCoreVerifyObservation, error) {
@@ -218,6 +246,14 @@ func (o *osBasementCoreOperations) VerifyProject(ctx context.Context, project Ba
 			project.ProjectRef, "runtime-compose-changed", nil,
 		)
 	}
+	return o.observeProject(ctx, project, composePath)
+}
+
+// observeProject is the shared post-authority half of Verify: the pinned
+// service set through docker compose ps, every governed direct probe, and the
+// PocketID owner binding. Callers first prove that composePath holds the
+// authorized definition.
+func (o *osBasementCoreOperations) observeProject(ctx context.Context, project BasementCoreProject, composePath string) (BasementCoreVerifyObservation, error) {
 	environment, err := o.environment()
 	if err != nil {
 		return BasementCoreVerifyObservation{}, err

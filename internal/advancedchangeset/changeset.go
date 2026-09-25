@@ -84,6 +84,10 @@ func createFromSnapshots(request CreateRequest, baseline, candidate renderSnapsh
 	if err != nil {
 		return Record{}, err
 	}
+	scope, err := DeriveTerramateScope(baseline.artifacts, candidate.artifacts, changes, request.LocalSiteRef, request.LocalNodeRef)
+	if err != nil {
+		return Record{}, err
+	}
 	record := Record{
 		SchemaVersion: SchemaVersion, CapabilityID: request.CapabilityID,
 		CapabilitySHA256: request.CapabilitySHA256, KeyID: request.KeyID,
@@ -94,6 +98,7 @@ func createFromSnapshots(request CreateRequest, baseline, candidate renderSnapsh
 		BaselinePlanHash: request.BaselinePlanHash, CandidatePlanHash: request.CandidatePlanHash,
 		BaselineRenderSHA256:  digestBytes(baseline.canonical),
 		CandidateRenderSHA256: digestBytes(candidate.canonical), Changes: changes,
+		AffectedStacks: scope.AffectedStacks, TerramateHostManifestSHA256: scope.HostManifestSHA256,
 	}
 	if err := validateClaims(record); err != nil {
 		return Record{}, err
@@ -282,7 +287,10 @@ func validateClaims(record Record) error {
 		!hashPattern.MatchString(record.CandidatePlanHash) {
 		return fail(ErrInvalid, "planHash", "requires canonical baseline and candidate plan hashes")
 	}
-	return validateChanges(record.Changes)
+	if err := validateChanges(record.Changes); err != nil {
+		return err
+	}
+	return validateTerramateScope(record)
 }
 
 func validateLogicalRef(value string) error {

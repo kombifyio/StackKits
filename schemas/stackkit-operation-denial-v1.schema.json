@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.dev/schemas/stackkit-operation-denial-v1.schema.json",
+  "title": "StackKit operation denial v1",
+  "description": "Fail-closed admission denial carried as data of a stackkit.command-result/v1 envelope with status denied. It is written before any side effect. reasonCode is stable and machine-readable (the catalog docs/data/advanced-operations/latest.json lists the codes); message is diagnostic and must not be used as a policy input.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "operation", "mode", "reasonCode", "message"],
+  "properties": {
+    "schemaVersion": { "const": "stackkit.operation-denial/v1" },
+    "operation": {
+      "description": "The denied operation: a capability operation ID such as terramate.change-set.create or restore.drill, or drift-reconcile for `stackkit drift reconcile`.",
+      "type": "string",
+      "minLength": 1
+    },
+    "mode": { "type": "string" },
+    "reasonCode": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+    "message": { "type": "string" }
+  }
+}

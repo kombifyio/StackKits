@@ -14,6 +14,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/advancedcapability"
 	"github.com/kombifyio/stackkits/internal/advancedchangeset"
+	"github.com/kombifyio/stackkits/internal/advancedrollback"
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
@@ -25,6 +26,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/terramatehost"
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
 	"github.com/spf13/cobra"
 )
@@ -48,12 +50,114 @@ type advancedMutationResult struct {
 	PlanHash      string                   `json:"candidatePlanHash"`
 	Checkpoint    publicUpgradeCheckpoint  `json:"checkpoint"`
 	Transaction   publicUpgradeTransaction `json:"transaction"`
+	// ChangeSetResult is the stackkit.change-set-result/v1 report of the
+	// Terramate orchestration of a change-set apply. It is present whenever
+	// the orchestration started, including when it failed.
+	ChangeSetResult *terramatehost.Report `json:"changeSetResult,omitempty"`
+	// RollbackResult is the stackkit.rollback-result/v1 report of the
+	// coordinated rollback a failed change set ran for a Terramate-target
+	// checkpoint.
+	RollbackResult *advancedrollback.Report `json:"rollbackResult,omitempty"`
 }
 
 type verifiedAdvancedMutation struct {
 	admission advancedChangeSetAdmission
 	record    advancedchangeset.Record
 	digest    string
+	candidate architecturev2renderer.RenderResult
+}
+
+// advancedTerramateFailedPhase marks a change set whose post-apply Terramate
+// orchestration failed; the rollback path runs exactly as for a failed
+// target generate, apply or verify.
+const advancedTerramateFailedPhase = "advanced-terramate"
+
+// advancedChangeSetRolloutPrefix names the rollout events of the Terramate
+// orchestration: advanced.change-set.materialize-host, .run-order, .converge.
+const advancedChangeSetRolloutPrefix = "advanced.change-set."
+
+// advancedTerramateOrchestration runs the Terramate step of a change-set
+// apply (docs/ARCHITECTURE.md "Advanced change sets through Terramate
+// (Stage 1)"). The skeleton stays generate, plan, apply, verify through the
+// installed release; after apply and before verify the parent materializes
+// the local host project, proves the Terramate run order equals the graph and
+// runs a detailed-exitcode `tofu plan` through `terramate run` in every
+// affected local stack root. Exit 2 means the apply did not converge: the
+// change set fails with advanced_change_set_not_converged and rolls back.
+type advancedTerramateOrchestration struct {
+	tools    terramatehost.Tools
+	report   *terramatehost.Report
+	rollback *advancedrollback.Report
+}
+
+// coordinatedRollback wraps the coordinated rollback of a failed change set
+// and keeps its stackkit.rollback-result/v1 report. A mutation without
+// Terramate orchestration has none.
+func (orchestration *advancedTerramateOrchestration) coordinatedRollback(
+	run func() (*advancedrollback.Report, error),
+) func() error {
+	if orchestration == nil {
+		return nil
+	}
+	return func() error {
+		report, err := run()
+		orchestration.rollback = report
+		return err
+	}
+}
+
+func (orchestration *advancedTerramateOrchestration) step(
+	workspace string, verified verifiedAdvancedMutation,
+) func(context.Context) error {
+	if orchestration == nil {
+		return nil
+	}
+	return func(ctx context.Context) error {
+		binding := verified.admission.owner.Binding
+		layout, err := terramatehost.PlanFromArtifacts(
+			verified.candidate.Artifacts(), binding.SiteRef, binding.NodeRef,
+		)
+		if err != nil {
+			return err
+		}
+		report, err := terramatehost.Converge(ctx, terramatehost.ConvergeRequest{
+			WorkspaceRoot: workspace, ChangeSetID: verified.record.ChangeSetID, Layout: layout,
+			ExpectedManifestSHA256: verified.record.TerramateHostManifestSHA256,
+			AffectedStacks:         verified.record.AffectedStacks, Tools: orchestration.tools,
+			Event: func(phase, status string, attributes map[string]string) {
+				if attributes == nil {
+					attributes = map[string]string{}
+				}
+				attributes["changeSetId"] = verified.record.ChangeSetID
+				rolloutEvent(advancedChangeSetRolloutPrefix+phase, status, "advanced change-set "+phase+" "+status, attributes)
+			},
+		})
+		orchestration.report = &report
+		return err
+	}
+}
+
+// settleAdvancedTarget applies the rollback policy to a failed target: any
+// failure of generate, plan, apply, the Terramate step or verify runs the
+// existing public-upgrade rollback.
+func settleAdvancedTarget(
+	result *publicUpgradeTransaction, targetErr error, rollback func() error,
+) error {
+	if targetErr == nil {
+		return nil
+	}
+	result.FailedPhase = "advanced-target"
+	if _, terramateFailure := terramatehost.Reason(targetErr); terramateFailure {
+		result.FailedPhase = advancedTerramateFailedPhase
+	}
+	result.Rollback.Status = publicUpgradeRollbackFailed
+	if rollbackErr := rollback(); rollbackErr != nil {
+		return errors.Join(targetErr, rollbackErr)
+	}
+	result.Status = "rolled-back"
+	result.Rollback.Status = publicUpgradeRollbackRestored
+	result.Rollback.Verified = true
+	return &publicUpgradeRolledBackError{phase: result.FailedPhase, cause: targetErr}
 }
 
 func runAdvancedChangeSetApply(cmd *cobra.Command, _ []string) error {
@@ -121,6 +225,16 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 	)
 	if err != nil {
 		return result, err
+	}
+	var orchestration *advancedTerramateOrchestration
+	if request.Operation == advancedcapability.OperationTerramateChangeSetApply {
+		// Missing packaged Terramate or OpenTofu fails closed before any
+		// checkpoint or lifecycle side effect.
+		tools, toolsErr := terramatehost.PackagedTools()
+		if toolsErr != nil {
+			return result, toolsErr
+		}
+		orchestration = &advancedTerramateOrchestration{tools: tools}
 	}
 	result.PlanHash = verified.admission.candidate.PlanHash
 	candidatePlan, err := verified.admission.candidateService.VerifyCanonicalPlan(
@@ -215,9 +329,13 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 
 	transaction, transactionErr := executeAdvancedMutation(
 		ctx, workspace, receipt, checkpoint, mutation, request, verified,
-		absoluteCapability, absoluteCandidate, now,
+		absoluteCapability, absoluteCandidate, now, orchestration,
 	)
 	result.Transaction = transaction
+	if orchestration != nil {
+		result.ChangeSetResult = orchestration.report
+		result.RollbackResult = orchestration.rollback
+	}
 	transactionErr = completeAdvancedApplicationLifecycles(
 		workspace, applicationRuns, result, transactionErr,
 	)
@@ -412,10 +530,28 @@ func verifyAdvancedMutation(
 			Detail: "fresh renderer output differs from the exact Owner-approved change set",
 		}
 	}
+	// The Terramate scope is re-derived from the fresh renders and the local
+	// binding; a different stack set or host project is a stale change set.
+	scope, err := advancedchangeset.DeriveTerramateScope(
+		baseline.Artifacts(), candidate.Artifacts(), record.Changes,
+		admission.owner.Binding.SiteRef, admission.owner.Binding.NodeRef,
+	)
+	if err != nil {
+		return verifiedAdvancedMutation{}, err
+	}
+	if strings.Join(scope.AffectedStacks, ",") != strings.Join(record.AffectedStacks, ",") ||
+		scope.HostManifestSHA256 != record.TerramateHostManifestSHA256 {
+		return verifiedAdvancedMutation{}, &advancedchangeset.Error{
+			Code:   advancedchangeset.ErrStale,
+			Field:  "terramate",
+			Detail: "affected stacks or the local Terramate host project differ from the Owner-approved change set",
+		}
+	}
 	digest := sha256.Sum256(raw)
 	return verifiedAdvancedMutation{
 		admission: admission, record: record,
-		digest: "sha256:" + hex.EncodeToString(digest[:]),
+		digest:    "sha256:" + hex.EncodeToString(digest[:]),
+		candidate: candidate,
 	}, nil
 }
 
@@ -547,6 +683,7 @@ func executeAdvancedMutation(
 	initial verifiedAdvancedMutation,
 	capabilityPath, candidatePath string,
 	now time.Time,
+	orchestration *advancedTerramateOrchestration,
 ) (result publicUpgradeTransaction, err error) {
 	result = publicUpgradeTransaction{
 		APIVersion:  publicUpgradeTransactionAPIVersion,
@@ -611,23 +748,26 @@ func executeAdvancedMutation(
 					operationCtx, binary, workspace, receipt, snapshot,
 					revalidated.admission.candidate.PlanHash,
 					mutation, checkpoint.OperationID, &result.Target,
+					orchestration.step(workspace, revalidated),
 				)
 			},
 		)
-		if targetErr != nil {
-			result.FailedPhase = "advanced-target"
-			result.Rollback.Status = publicUpgradeRollbackFailed
-			rollbackErr := rollbackPublicUpgrade(
+		// A checkpoint of a Terramate-target install rolls back per stack
+		// (coordinated rollback); every other checkpoint keeps the existing
+		// upgrade rollback.
+		rollback := selectAdvancedChangeSetRollback(snapshot, func() error {
+			return rollbackPublicUpgrade(
 				operationCtx, workspace, specFile, checkpoint, snapshot,
 				mutation, control, &result,
 			)
-			if rollbackErr != nil {
-				return errors.Join(targetErr, rollbackErr)
-			}
-			result.Status = "rolled-back"
-			result.Rollback.Status = publicUpgradeRollbackRestored
-			result.Rollback.Verified = true
-			return &publicUpgradeRolledBackError{phase: result.FailedPhase, cause: targetErr}
+		}, orchestration.coordinatedRollback(func() (*advancedrollback.Report, error) {
+			return rollbackAdvancedChangeSetCoordinated(
+				operationCtx, workspace, receipt, checkpoint, mutation, control,
+				revalidated, orchestration.tools, &result,
+			)
+		}))
+		if settled := settleAdvancedTarget(&result, targetErr, rollback); settled != nil {
+			return settled
 		}
 		if transitionErr := mutation.Transition(
 			lifecyclemutation.PhaseTargetVerifySucceeded,
@@ -682,6 +822,7 @@ func executeAdvancedTarget(
 	mutation publicUpgradeLifecycleSession,
 	operationID string,
 	result *publicUpgradeExecution,
+	orchestrate func(context.Context) error,
 ) error {
 	runner := newPublicUpgradeTransactionRunner()
 	common := publicUpgradeCommandPrefix(workspace, specFile)
@@ -745,6 +886,14 @@ func executeAdvancedTarget(
 		lifecyclemutation.PhaseTargetApplySucceeded,
 	); err != nil {
 		return err
+	}
+	// Terramate orchestration of a change set: between the applied target and
+	// its verify, inside target-apply-succeeded, so a failure takes the same
+	// rollback path as a failed verify.
+	if orchestrate != nil {
+		if err := orchestrate(ctx); err != nil {
+			return err
+		}
 	}
 	verifyNonce, err := mutation.BeginJoin(
 		lifecyclemutation.PhaseTargetApplySucceeded,

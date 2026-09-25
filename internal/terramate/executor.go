@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +27,8 @@ type Executor struct {
 	changeDetect bool
 	parallelism  int
 	tofuBinary   string
+	env          []string
+	unsetEnv     map[string]struct{}
 }
 
 // ExecutorOption configures the Executor
@@ -70,6 +73,28 @@ func WithParallelism(p int) ExecutorOption {
 func WithTofuBinary(binary string) ExecutorOption {
 	return func(e *Executor) {
 		e.tofuBinary = binary
+	}
+}
+
+// WithEnv appends environment values for Terramate and the commands it runs.
+// Later values win over inherited ones.
+func WithEnv(values ...string) ExecutorOption {
+	return func(e *Executor) {
+		e.env = append(e.env, values...)
+	}
+}
+
+// WithoutInheritedEnv drops the named variables from the inherited process
+// environment before WithEnv values are appended, so no host OpenTofu CLI
+// override reaches a stack run.
+func WithoutInheritedEnv(names ...string) ExecutorOption {
+	return func(e *Executor) {
+		if e.unsetEnv == nil {
+			e.unsetEnv = make(map[string]struct{}, len(names))
+		}
+		for _, name := range names {
+			e.unsetEnv[name] = struct{}{}
+		}
 	}
 }
 
@@ -246,6 +271,61 @@ func (e *Executor) ListChanged(ctx context.Context) ([]Stack, error) {
 	}
 
 	return stacks, nil
+}
+
+// ListRunOrder returns the stack directories, relative to the project root,
+// that match tags in the order `terramate run` would execute them. It never
+// consults Git change detection.
+func (e *Executor) ListRunOrder(ctx context.Context, tags string) ([]string, error) {
+	args := []string{"list", "--run-order"}
+	if tags != "" {
+		args = append(args, "--tags", tags)
+	}
+	result, err := e.run(ctx, args...)
+	if err != nil {
+		return nil, fmt.Errorf("terramate list --run-order: %w: %s", err, strings.TrimSpace(result.Stderr))
+	}
+	paths := make([]string, 0)
+	for _, line := range strings.Split(result.Stdout, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			paths = append(paths, line)
+		}
+	}
+	return paths, nil
+}
+
+// childExitStatus matches the failure line Terramate 0.17 prints for a stack
+// command: "... (in /<stack>): exit status <n>".
+var childExitStatus = regexp.MustCompile(`\(in [^)]*\): exit status ([0-9]+)\s*$`)
+
+// RunStackTofu runs `terramate run --no-recursive` in the working directory,
+// which must be one stack directory, so exactly that stack runs the packaged
+// OpenTofu binary with args. Terramate reports every failing command with
+// exit code 1; the returned Result carries the exit code of the OpenTofu
+// process itself (for example 2 from `plan -detailed-exitcode`). An error is
+// returned only when Terramate failed without a command exit status.
+func (e *Executor) RunStackTofu(ctx context.Context, tags string, args ...string) (*Result, error) {
+	command := []string{"run", "--no-recursive"}
+	if tags != "" {
+		command = append(command, "--tags", tags)
+	}
+	command = append(command, "--", e.tofuBinary)
+	command = append(command, args...)
+	result, err := e.run(ctx, command...)
+	if err == nil {
+		return result, nil
+	}
+	if result != nil {
+		for _, line := range strings.Split(strings.TrimSpace(result.Stderr), "\n") {
+			if match := childExitStatus.FindStringSubmatch(strings.TrimSpace(line)); match != nil {
+				if code, convErr := strconv.Atoi(match[1]); convErr == nil && code != 0 {
+					result.ExitCode = code
+					return result, nil
+				}
+			}
+		}
+	}
+	return result, err
 }
 
 // RunInit runs tofu init on all stacks
@@ -426,11 +506,12 @@ func (e *Executor) runAllowingExitCodes(ctx context.Context, allowedNonZero []in
 	cmd.Dir = e.workDir
 
 	// Set environment
-	cmd.Env = append(os.Environ(),
+	cmd.Env = append(e.inheritedEnv(),
 		"TF_IN_AUTOMATION=1",
 		"TF_INPUT=0",
 		fmt.Sprintf("TERRAMATE_EXPERIMENTAL_PARALLEL=%d", e.parallelism),
 	)
+	cmd.Env = append(cmd.Env, e.env...)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -465,6 +546,21 @@ func (e *Executor) runAllowingExitCodes(ctx context.Context, allowedNonZero []in
 	result.Success = true
 	result.ExitCode = 0
 	return result, nil
+}
+
+func (e *Executor) inheritedEnv() []string {
+	inherited := os.Environ()
+	if len(e.unsetEnv) == 0 {
+		return inherited
+	}
+	kept := make([]string, 0, len(inherited))
+	for _, entry := range inherited {
+		name, _, _ := strings.Cut(entry, "=")
+		if _, drop := e.unsetEnv[name]; !drop {
+			kept = append(kept, entry)
+		}
+	}
+	return kept
 }
 
 // CreateStackConfig creates a terramate.tm.hcl configuration file

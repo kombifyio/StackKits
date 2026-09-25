@@ -365,7 +365,8 @@
         "ai",
         "dev",
         "documents",
-        "game"
+        "game",
+        "mail"
       ]
     },
     "standaloneOwner": {
@@ -585,7 +586,8 @@
     ],
     "allowedTargets": [
       "opentofu",
-      "compose"
+      "compose",
+      "terramate"
     ],
     "contractVersion": "1.0.0",
     "defaultStrategy": "kit-template",
@@ -1192,7 +1194,8 @@
       "ai",
       "dev",
       "documents",
-      "game"
+      "game",
+      "mail"
     ],
     "required": [
       "basement-core"

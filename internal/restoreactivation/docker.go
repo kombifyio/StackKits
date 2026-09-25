@@ -590,6 +590,15 @@ func (runtime *dockerRuntime) verifyCompose(authority Authority) error {
 		if _, err := runtime.composeRuntimeArgs(composeRuntime, composePath); err != nil {
 			return err
 		}
+		// Under an OpenTofu target the project's root state must still be
+		// the state bound beside its Compose file and data.
+		if composeRuntime.StatePath != "" || composeRuntime.StateDigest != "" {
+			if _, err := runtime.verifiedRuntimeFile(
+				composeRuntime.StatePath, composeRuntime.StateDigest, "OpenTofu state",
+			); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -643,6 +652,14 @@ func (runtime *dockerRuntime) composeRuntimeArgs(composeRuntime ComposeRuntime, 
 			return nil, err
 		}
 		args = append(args, "--env-file", environmentPath)
+	}
+	if composeRuntime.Project == basementComposeProject {
+		// Apply runs the core project from its private runtime directory,
+		// where it also stages files the Compose file binds by relative path
+		// (the stackkit-server binary). Starting the verified generated copy
+		// from its own directory would resolve those binds to missing paths,
+		// which Docker turns into empty directories.
+		args = append(args, "--project-directory", filepath.Join(runtime.workspace, ".stackkit", "runtime", "basement-core"))
 	}
 	return append(args, "-f", composePath), nil
 }

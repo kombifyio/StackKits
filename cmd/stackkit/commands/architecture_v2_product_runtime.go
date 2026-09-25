@@ -12,6 +12,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/hostconformance"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutoropentofu"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -239,6 +240,14 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 	if err != nil {
 		return nil, fmt.Errorf("configure local Basement core operations: %w", err)
 	}
+	// The standard OpenTofu executor (ADR-0045 Stage 1): Core roots, workload
+	// roots, and edge and federation contract roots under the opentofu and
+	// terramate targets. Under compose every owner stays native (S-F).
+	nativeCompose, err := runtimeexecutorlocal.NewOSNativeComposeRuntime(workspaceRoot)
+	if err != nil {
+		return nil, fmt.Errorf("configure the native Verify owner for OpenTofu roots: %w", err)
+	}
+	openTofuRuntime := runtimeexecutoropentofu.Runtime{WorkspaceRoot: workspaceRoot, Native: nativeCompose}
 	constructors := []func() (architecturev2.ProductRuntimeOwnerRegistration, error){
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return newArchitectureV2CloudBackupRegistration(workspaceRoot, runtimeVersion)
@@ -298,7 +307,11 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			if err != nil {
 				return architecturev2.ProductRuntimeOwnerRegistration{}, err
 			}
-			return architecturev2.NewProductCloudPublicEdgeRegistration(runtimeVersion, operations)
+			registration, err := architecturev2.NewProductCloudPublicEdgeRegistration(runtimeVersion, operations)
+			if err != nil {
+				return architecturev2.ProductRuntimeOwnerRegistration{}, err
+			}
+			return architecturev2.WithProductOpenTofuContractRoot(registration, openTofuRuntime)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			operations, err := runtimeexecutorlocal.NewOSPublicTLSOperations(workspaceRoot)
@@ -327,10 +340,18 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return architecturev2.NewProductLocalAutonomyRegistration(runtimeVersion, policies)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
-			return architecturev2.NewProductBridgeOriginMTLSRegistration(runtimeVersion, runtimeexecutorlocal.NewOSBridgeOriginMTLSOperations(workspaceRoot))
+			registration, err := architecturev2.NewProductBridgeOriginMTLSRegistration(runtimeVersion, runtimeexecutorlocal.NewOSBridgeOriginMTLSOperations(workspaceRoot))
+			if err != nil {
+				return architecturev2.ProductRuntimeOwnerRegistration{}, err
+			}
+			return architecturev2.WithProductOpenTofuContractRoot(registration, openTofuRuntime)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
-			return architecturev2.NewProductFederationLinkRegistration(runtimeVersion, runtimeexecutorlocal.NewOSFederationLinkOperations(workspaceRoot))
+			registration, err := architecturev2.NewProductFederationLinkRegistration(runtimeVersion, runtimeexecutorlocal.NewOSFederationLinkOperations(workspaceRoot))
+			if err != nil {
+				return architecturev2.ProductRuntimeOwnerRegistration{}, err
+			}
+			return architecturev2.WithProductOpenTofuContractRoot(registration, openTofuRuntime)
 		},
 	}
 	registrations := make([]architecturev2.ProductRuntimeOwnerRegistration, 0, len(constructors))
@@ -341,9 +362,24 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 		}
 		registrations = append(registrations, registration)
 	}
-	standaloneOperations, err := runtimeexecutorlocal.NewOSStandaloneComposeWorkloadOperations(workspaceRoot)
+	// The standard OpenTofu executor owns the opentofu and terramate units of
+	// the same Core modules whose compose unit stays on the native executor
+	// above (S-F).
+	openTofu, err := architecturev2.NewProductOpenTofuRegistrations(runtimeVersion, openTofuRuntime, runtimeexecutoropentofu.DefaultModuleBindings())
+	if err != nil {
+		return nil, fmt.Errorf("register OpenTofu runtime owners: %w", err)
+	}
+	registrations = append(registrations, openTofu...)
+	nativeStandalone, err := runtimeexecutorlocal.NewOSStandaloneComposeWorkloadOperations(workspaceRoot)
 	if err != nil {
 		return nil, fmt.Errorf("configure standalone Compose application adapter: %w", err)
+	}
+	// Workload bundles keep one selector per application under every target;
+	// the operations owner applies the Compose project natively under compose
+	// and through its OpenTofu wrapper root under opentofu and terramate.
+	standaloneOperations, err := runtimeexecutoropentofu.NewWorkloadOperations(nativeStandalone, openTofuRuntime)
+	if err != nil {
+		return nil, fmt.Errorf("configure OpenTofu standalone Compose application roots: %w", err)
 	}
 	standaloneApplications := []func() (architecturev2.ProductRuntimeOwnerRegistration, error){
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
@@ -354,6 +390,9 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductPterodactylSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductRoundcubeSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductPrivateAISelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)

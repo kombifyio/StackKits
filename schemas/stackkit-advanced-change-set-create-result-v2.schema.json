@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.dev/schemas/stackkit-advanced-change-set-create-result-v2.schema.json",
+  "title": "StackKit Advanced change-set create result v2",
+  "description": "Data of the stackkit.command-result/v1 envelope of a successful `stackkit advanced change-set create`: a summary of the stored stackkit.advanced-change-set/v2 record (stackkit-advanced-change-set-v2.schema.json). It shares the record's schemaVersion. Pass changeSetId to --change-set and the sha256 of the stored file at path to --expect-sha256.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "changeSetId", "path", "candidatePlanHash", "changes", "affectedStacks", "terramateHostManifestSha256"],
+  "properties": {
+    "schemaVersion": { "const": "stackkit.advanced-change-set/v2" },
+    "changeSetId": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "path": { "description": "Stored record path relative to the workspace.", "type": "string", "minLength": 1 },
+    "candidatePlanHash": { "type": "string", "minLength": 1 },
+    "changes": {
+      "type": ["array", "null"],
+      "items": { "$ref": "stackkit-advanced-change-set-v2.schema.json#/$defs/artifactChange" }
+    },
+    "affectedStacks": {
+      "description": "Terramate stacks the change set touches, in stack graph run order.",
+      "type": ["array", "null"],
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "terramateHostManifestSha256": { "type": "string" }
+  }
+}

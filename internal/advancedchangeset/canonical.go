@@ -25,6 +25,8 @@ type identityPayload struct {
 	BaselineRenderSHA256  string           `json:"baselineRenderSha256"`
 	CandidateRenderSHA256 string           `json:"candidateRenderSha256"`
 	Changes               []ArtifactChange `json:"changes"`
+	AffectedStacks        []string         `json:"affectedStacks"`
+	TerramateHostManifest string           `json:"terramateHostManifestSha256"`
 }
 
 type unsignedRecord struct {
@@ -46,6 +48,8 @@ type unsignedRecord struct {
 	BaselineRenderSHA256  string           `json:"baselineRenderSha256"`
 	CandidateRenderSHA256 string           `json:"candidateRenderSha256"`
 	Changes               []ArtifactChange `json:"changes"`
+	AffectedStacks        []string         `json:"affectedStacks"`
+	TerramateHostManifest string           `json:"terramateHostManifestSha256"`
 }
 
 func identityOf(record Record) identityPayload {
@@ -59,6 +63,8 @@ func identityOf(record Record) identityPayload {
 		BaselinePlanHash: record.BaselinePlanHash, CandidatePlanHash: record.CandidatePlanHash,
 		BaselineRenderSHA256:  record.BaselineRenderSHA256,
 		CandidateRenderSHA256: record.CandidateRenderSHA256, Changes: cloneChanges(record.Changes),
+		AffectedStacks:        append([]string{}, record.AffectedStacks...),
+		TerramateHostManifest: record.TerramateHostManifestSHA256,
 	}
 }
 
@@ -74,6 +80,8 @@ func unsignedOf(record Record) unsignedRecord {
 		BaselinePlanHash:    record.BaselinePlanHash, CandidatePlanHash: record.CandidatePlanHash,
 		BaselineRenderSHA256:  record.BaselineRenderSHA256,
 		CandidateRenderSHA256: record.CandidateRenderSHA256, Changes: cloneChanges(record.Changes),
+		AffectedStacks:        append([]string{}, record.AffectedStacks...),
+		TerramateHostManifest: record.TerramateHostManifestSHA256,
 	}
 }
 

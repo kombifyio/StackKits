@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:c2e4841f299e078f06881f5658d6efd29283f00270e02b89acc5c29868151c3c",
+  "contentDigest": "sha256:c9c8f7c5d5b58a8101e91c2e15d0018bf40e25122f8fdbe01719d1b001d2fd82",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -486,29 +486,85 @@
       "title": "Game Server"
     },
     {
+      "alternatives": [
+        {
+          "id": "roundcube",
+          "modules": [
+            {
+              "computeProfiles": [
+                "high",
+                "low",
+                "standard"
+              ],
+              "id": "stackkits-roundcube-runtime"
+            }
+          ],
+          "name": "roundcube"
+        }
+      ],
       "components": [
         {
-          "id": "stalwart",
+          "id": "roundcube",
           "kind": "application",
-          "name": "Stalwart Mail Server",
+          "name": "Roundcube Webmail",
           "role": "primary"
         }
       ],
       "computeTiers": {
         "high": {
-          "included": false,
-          "reason": "Post-1.0. Same functions as standard; reputation/filter extras would be high-graph substitutions."
+          "functions": [
+            "webmail-client",
+            "mailbox-access",
+            "address-book"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "roundcube",
+          "notes": [
+            "Same application and reservation as standard; high adds no mail server."
+          ]
         },
         "low": {
-          "included": false,
-          "reason": "Mail is post-1.0. A mail stack is always-on active-resident (SMTP/IMAP) and does not fit low until a lite contract exists."
+          "functions": [
+            "webmail-client",
+            "mailbox-access",
+            "address-book"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "roundcube",
+          "notes": [
+            "Roundcube with SQLite reserves 128 MiB and is idle between requests; it fits the low graph like Vaultwarden."
+          ]
         },
         "standard": {
-          "included": false,
-          "reason": "Post-1.0. Intended load is 24/7 inbound/outbound with interactive bursts when reading mail."
+          "functions": [
+            "webmail-client",
+            "mailbox-access",
+            "address-book"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "roundcube",
+          "notes": [
+            "Same application and reservation as low."
+          ]
         }
       },
-      "description": "Private mail delivery, mailbox, and communication intent.",
+      "defaultAlternative": "roundcube",
+      "description": "Private webmail through Roundcube for a mailbox you already have at an external provider. No mail server, DNS or MX record is created.",
       "docs": "/guides/stackkits/use-cases/mail",
       "id": "mail",
       "mainUseCase": {

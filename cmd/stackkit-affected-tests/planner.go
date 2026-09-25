@@ -85,6 +85,21 @@ var filePublicTestBoundaries = map[string]struct {
 		Package: "cmd/stackkit/commands",
 		Tests:   []string{"TestLocalRuntimeOwnersExecuteGeneratedApplicationWorkloads"},
 	},
+	// OpenTofu workload roots (P1.1 follow-up W): the native standalone
+	// Compose halves and the wrapper renderer are exercised through the
+	// OpenTofu executor's public boundary.
+	"internal/runtimeexecutorlocal/standalone_compose_halves.go": {
+		Package: "internal/runtimeexecutoropentofu",
+		Tests:   []string{"TestWorkloadRootEmbedsTheNativeComposeFileAndNotItsEnv", "TestWorkloadApplyRunsTofuInTheGraphRootOnlyUnderOpenTofuTargets"},
+	},
+	"internal/runtimeexecutorlocal/generation_target.go": {
+		Package: "cmd/stackkit/commands",
+		Tests:   []string{"TestLocalRuntimeOwnersExecuteGeneratedApplicationWorkloads"},
+	},
+	"internal/architecturev2renderer/compose_payload_opentofu.go": {
+		Package: "internal/runtimeexecutoropentofu",
+		Tests:   []string{"TestWorkloadRootEmbedsTheNativeComposeFileAndNotItsEnv"},
+	},
 }
 
 // fileFocusedTests keeps focused production and shared-fixture slices explicit
@@ -222,10 +237,49 @@ var fileFocusedTests = map[string][]string{
 		"TestExecutorStateStoreUsesOperationMarkerAsCommitPoint",
 		"TestExecutorStateStoreFailsFastWhileStoreLockIsHeld",
 		"TestExecutorStateStoreRejectsPreexistingTornNamedCASObject",
+		"TestExecutorStateOpenTofuCheckpointRestoresCapturedStateOnRecover",
 	},
 	"internal/upgradelifecycle/recovery.go": {
 		"TestExecutorStateStoreRecoverRestoresAuthorityAndInvokesExactExecutable",
 		"TestExecutorStateStoreRecoverRejectsTamperBeforeWritesOrCallback",
+		"TestExecutorStateOpenTofuCheckpointRestoresCapturedStateOnRecover",
+	},
+	"internal/architecturev2/product_opentofu_factory.go": {
+		"TestProductRuntimeOwnerFactoriesConstructWithNonEmptySelectors",
+	},
+	"internal/architecturev2renderer/compose_payload_opentofu.go": {
+		"TestComposePayloadOpenTofuEmbedsTheByteIdenticalComposeArtifact",
+	},
+	"internal/runtimeexecutorlocal/selected_paas_workload.go": {
+		"TestImmichSelectedPaaSExecutorAppliesAndObservesExactBundle",
+		"TestImmichSelectedPaaSExecutorRejectsSubstitution",
+	},
+	"internal/runtimeexecutorlocal/standalone_compose_workload.go": {
+		"TestStandaloneComposeApplyWaitsForApplicationReadiness",
+		"TestStandaloneComposeOperationsApplyAndObserveExactRoute",
+		"TestStandaloneComposeRefusesGameNodeAuthorityForOtherWorkloads",
+	},
+	"internal/runtimeexecutorlocal/standalone_compose_halves.go": {},
+	"internal/runtimeexecutorlocal/generation_target.go":         {},
+	"internal/upgradelifecycle/executor_state_opentofu.go": {
+		"TestExecutorStateOpenTofuCheckpointRestoresCapturedStateOnRecover",
+		"TestExecutorStateCheckpointRestoresWorkloadAndContractRootStates",
+	},
+	"internal/runtimeexecutorlocal/basement_core_os.go": {
+		"TestOSBasementCoreApplyRejectsMissingCustodyBeforeFilesystemOrDocker",
+		"TestOSBasementCoreApplyUsesVerifiedCustodyAndPrivateStableArtifact",
+		"TestOSBasementCoreApplyRequiresOwnerRealizationAfterCompose",
+		"TestOSBasementCoreVerifyProjectIsByteForByteReadOnly",
+		"TestOSBasementCoreVerifyProjectPropagatesContextTerminationWithoutDriftClassification",
+		"TestBasementCoreVerifyNamesEveryUnhealthyContractWithoutLeakingItsCause",
+	},
+	"internal/runtimeexecutorlocal/cloud_core_os.go": {
+		"TestCloudCoreCustodyRejectsImplicitProfileTransition",
+		"TestOSCloudCoreApplyBindsPocketIDOwnerBeforeTinyAuthReconcile",
+	},
+	"internal/runtimeexecutorlocal/native_compose_observer.go": {
+		"TestOSBasementCoreVerifyProjectIsByteForByteReadOnly",
+		"TestOSCloudCoreApplyBindsPocketIDOwnerBeforeTinyAuthReconcile",
 	},
 	"internal/architecturev2/apply_result_verification.go": {
 		"TestExecuteProductApplyCollectsFreshEvidenceThroughConstructionOwnedRuntimeGraph",
@@ -295,6 +349,7 @@ type classification struct {
 	Website           bool     `json:"website,omitempty"`
 	WebMCP            bool     `json:"webMcp,omitempty"`
 	OpenAPIProjection bool     `json:"openAPIProjection,omitempty"`
+	AdvancedContract  bool     `json:"advancedContract,omitempty"`
 	ReleaseE2E        bool     `json:"releaseE2E,omitempty"`
 	ReleaseGeneral    bool     `json:"releaseGeneral,omitempty"`
 	Docs              bool     `json:"docs,omitempty"`
@@ -525,6 +580,15 @@ func buildPlan(input plannerInput) testPlan {
 			Reason: "verify canonical and website OpenAPI projections without installing unrelated website tooling",
 		})
 	}
+	if classes.AdvancedContract {
+		commands = append(commands, testCommand{
+			Kind:  "contract",
+			Scope: "advanced-operations-contract",
+			Argv: []string{"go", "test", "./internal/advancedcatalog", "./cmd/stackkit/commands",
+				"-run", "^(TestAdvancedOperationsCatalog|TestAdvancedCommandResultPayloads)"},
+			Reason: "validate the Advanced operations catalog and the command-result payload bindings against the changed contract schemas",
+		})
+	}
 	if anyPathUnder(files, "scripts/release/validate-mode-matrix-citations.mjs", "scripts/release/validate-mode-matrix-citations.test.mjs") {
 		commands = append(commands, testCommand{
 			Kind:   "node",
@@ -743,6 +807,10 @@ func classifyFiles(files []string) classification {
 			}
 		}
 
+		if isAdvancedContractPath(file) {
+			result.AdvancedContract = true
+			known = true
+		}
 		if file == "api/openapi/stackkits-v1.yaml" || file == "website/public/api/openapi.v1.yaml" {
 			result.OpenAPIProjection = true
 			known = true
@@ -778,6 +846,13 @@ func classifyFiles(files []string) classification {
 	result.CUEKits = sortedKeys(kits)
 	result.Unknown = sortedKeys(unknown)
 	return result
+}
+
+// isAdvancedContractPath reports the machine contracts an orchestrator
+// consumes: the stackkit.* JSON Schemas and the Advanced operations catalog.
+func isAdvancedContractPath(file string) bool {
+	return (strings.HasPrefix(file, "schemas/stackkit-") && strings.HasSuffix(file, ".json")) ||
+		strings.HasPrefix(file, "docs/data/advanced-operations/")
 }
 
 func isReleaseE2EPath(file string) bool {

@@ -18,6 +18,7 @@ var exactFields = map[string]struct{}{
 	"generationTarget": {}, "baselinePlanHash": {}, "candidatePlanHash": {},
 	"ownerRef": {}, "createdAt": {}, "expiresAt": {}, "capabilityExpiresAt": {},
 	"baselineRenderSha256": {}, "candidateRenderSha256": {}, "changes": {},
+	"affectedStacks": {}, "terramateHostManifestSha256": {},
 	"ownerSignature": {},
 }
 

@@ -240,7 +240,8 @@
         "ai",
         "dev",
         "documents",
-        "game"
+        "game",
+        "mail"
       ]
     },
     "standaloneOwner": {
@@ -867,7 +868,8 @@
       "ai",
       "dev",
       "documents",
-      "game"
+      "game",
+      "mail"
     ],
     "required": [
       "basement-core"

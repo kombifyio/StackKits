@@ -74,6 +74,7 @@ check_archive_contents() {
     stackkit-mcp \
     tofu \
     terramate \
+    providers/registry.opentofu.org/hashicorp/local/2.5.3/linux_amd64/terraform-provider-local \
     README.md \
     LICENSING.md \
     LICENSE-APACHE \
@@ -91,6 +92,22 @@ check_archive_contents() {
     schemas/stackkits-compatibility-v1.schema.json \
     schemas/os-compat-matrix.schema.json \
     docs/data/os-compat/latest.json \
+    docs/data/advanced-operations/latest.json \
+    schemas/stackkit-advanced-operations-v1.schema.json \
+    schemas/stackkit-command-result-v1.schema.json \
+    schemas/stackkit-rollout-event.schema.json \
+    schemas/stackkit-operation-denial-v1.schema.json \
+    schemas/stackkit-actionable-error-v1.schema.json \
+    schemas/stackkit-advanced-trust-bundle-v1.schema.json \
+    schemas/stackkit-local-advanced-trust-v1.schema.json \
+    schemas/stackkit-advanced-capability-v1.schema.json \
+    schemas/stackkit-advanced-change-set-v2.schema.json \
+    schemas/stackkit-advanced-change-set-create-result-v2.schema.json \
+    schemas/stackkit-advanced-mutation-v1.schema.json \
+    schemas/stackkit-change-set-result-v1.schema.json \
+    schemas/stackkit-drift-report-v1.schema.json \
+    schemas/stackkit-restore-drill-report-v1.schema.json \
+    schemas/stackkit-rollback-result-v1.schema.json \
     scripts/e2e/validate-standalone-oss-e2e.mjs \
     scripts/e2e/validate-standalone-runtime-e2e.mjs \
     scripts/release/validate-architecture-contract-fixture.mjs \
@@ -129,6 +146,9 @@ validate_public_archive_executables() {
   local extract_dir="$1"
 
   "$extract_dir/stackkit" version >/dev/null
+  # The archived Advanced operations catalog is the one the packaged CLI
+  # renders, so an orchestrator reading it gets this binary's exact argv.
+  "$extract_dir/stackkit" --chdir "$extract_dir" docs emit-advanced-operations --check >/dev/null
   "$extract_dir/tofu" version >/dev/null
   "$extract_dir/terramate" version >/dev/null
   "$extract_dir/stackkit-server" --help >/dev/null 2>&1

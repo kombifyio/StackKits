@@ -567,6 +567,14 @@ func (q *dockerV2Quiescer) classifyContainer(container QuiesceContainer) (Quiesc
 	return container, q.hasWritableManagedMount(container.Mounts), nil
 }
 
+// SupportedStopSignal reports whether the snapshot owner can stop a container
+// with this declared stop signal. Callers check every container before the
+// first stop, so an unsupported one never leaves the graph half-stopped.
+func SupportedStopSignal(signal string) bool {
+	_, ok := dockerStopSignal(signal)
+	return ok
+}
+
 func dockerStopSignal(signal string) (int, bool) {
 	signal = strings.ToUpper(strings.TrimSpace(signal))
 	if signal == "" {

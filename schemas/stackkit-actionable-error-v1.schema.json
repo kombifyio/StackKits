@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.dev/schemas/stackkit-actionable-error-v1.schema.json",
+  "title": "StackKit actionable error v1",
+  "description": "Generic machine-readable command failure carried as data of a stackkit.command-result/v1 envelope with status failed or denied. internal/actionableerror owns the rules: code is stackkit_command_failed, reasonCode classifies the condition, userGuidance lists at least one recovery action.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "code", "reasonCode", "message", "userGuidance", "retryable"],
+  "properties": {
+    "schemaVersion": { "const": "stackkit.actionable-error/v1" },
+    "code": { "type": "string", "minLength": 1 },
+    "reasonCode": { "type": "string", "minLength": 1 },
+    "message": { "type": "string", "minLength": 1 },
+    "userGuidance": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "retryable": { "type": "boolean" },
+    "retryAfter": { "type": "string", "format": "date-time" }
+  }
+}

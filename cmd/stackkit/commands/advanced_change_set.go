@@ -231,6 +231,7 @@ func createAdvancedChangeSet(ctx context.Context, admitted advancedChangeSetAdmi
 		KeyID:            admitted.grant.KeyID, StackID: admitted.grant.StackID, OwnerRef: admitted.grant.OwnerRef,
 		UIManagerRef: admitted.grant.UIManagerRef, RILRef: admitted.grant.RILRef,
 		BaselinePlanHash: admitted.baseline.PlanHash, CandidatePlanHash: admitted.candidate.PlanHash,
+		LocalSiteRef: admitted.owner.Binding.SiteRef, LocalNodeRef: admitted.owner.Binding.NodeRef,
 		CreatedAt: now, ExpiresAt: expiresAt, CapabilityExpiresAt: admitted.grant.ExpiresAt,
 		Sign: sign, VerifyOwnerSignature: verify,
 	})
@@ -251,6 +252,7 @@ func createAdvancedChangeSet(ctx context.Context, admitted advancedChangeSetAdmi
 	return advancedChangeSetResult{
 		SchemaVersion: advancedchangeset.SchemaVersion, ChangeSetID: record.ChangeSetID,
 		Path: path, PlanHash: admitted.candidate.PlanHash, Changes: record.Changes,
+		AffectedStacks: record.AffectedStacks, TerramateHostManifestSHA256: record.TerramateHostManifestSHA256,
 	}, nil
 }
 

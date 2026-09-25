@@ -73,6 +73,7 @@ var exceptions = []Exception{
 	// Repository build and documentation tooling.
 	{Command: []string{"compat", "emit-os-matrix"}, Reason: "Renders the public OS compatibility projection into the StackKits website and docs sources.", Scope: scopeRepository, Removal: "Never; it is release tooling, not a server capability."},
 	{Command: []string{"docs", "emit-cli-reference"}, Reason: "Regenerates the committed CLI reference in the StackKits source tree.", Scope: scopeRepository, Removal: "Never; it is documentation tooling, not a server capability."},
+	{Command: []string{"docs", "emit-advanced-operations"}, Reason: "Regenerates or checks the committed Advanced operations catalog in the StackKits source tree and release archive.", Scope: scopeRepository, Removal: "Never; it is documentation tooling, not a server capability."},
 	{Command: []string{"docs", "emit-release-manifests"}, Reason: "Emits release-bound manifests during StackKits release engineering.", Scope: scopeRepository, Removal: "Never; it is release tooling, not a server capability."},
 	{Command: []string{"docs", "emit-use-case-overview"}, Reason: "Renders the internal use-case development overview.", Scope: scopeRepository, Removal: "Never; it is documentation tooling, not a server capability."},
 	{Command: []string{"registry", "artifacts"}, Reason: "Prints generated-artifact pathspecs from the repository ownership manifest.", Scope: scopeRepository, Removal: "Never; it is repository tooling, not a server capability."},

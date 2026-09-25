@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -472,13 +473,24 @@ func containsAllPaths(actual, required []string) bool {
 	return true
 }
 
+var composeReplaceLabel = regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]*-[0-9]+$`)
+
 func validateDockerV2Labels(container *docker.ContainerInfo) error {
 	return validateDockerV2LabelsForProject(container, v2ComposeProject)
 }
 
 func validateDockerV2LabelsForProject(container *docker.ContainerInfo, v2ComposeProject string) error {
 	labels := container.Config.Labels
-	if len(labels) != 12 ||
+	expected := 12
+	if replaced, ok := labels["com.docker.compose.replace"]; ok {
+		// Compose marks a recreated container with the container it replaced
+		// (<service>-<number>); every other extra label stays refused.
+		if !composeReplaceLabel.MatchString(replaced) || !strings.HasPrefix(replaced, v2ComposeService+"-") {
+			return fmt.Errorf("container Compose labels differ from the governed runtime")
+		}
+		expected = 13
+	}
+	if len(labels) != expected ||
 		labels["com.docker.compose.container-number"] != "1" ||
 		labels["com.docker.compose.depends_on"] != "" ||
 		labels["com.docker.compose.image"] != container.Image ||

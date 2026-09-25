@@ -8,6 +8,7 @@ before:
   hooks:
     - sh scripts/release/fetch-opentofu.sh
     - sh scripts/release/fetch-terramate.sh
+    - sh scripts/release/fetch-opentofu-providers.sh
 
 builds:
   - id: stackkit
@@ -105,6 +106,12 @@ archives:
         strip_parent: true
         info:
           mode: 0755
+      # Offline OpenTofu provider mirror (internal/tofu.PackagedProvidersDir).
+      # The fetch script's providers/MIRROR.txt keeps the tree below dst.
+      - src: ".dist-tools/opentofu-providers/{{ .Os }}_{{ .Arch }}/providers/**"
+        dst: providers
+        info:
+          mode: 0755
       - README.md
       - LICENSING.md
       - LICENSE-APACHE
@@ -117,6 +124,22 @@ archives:
       - schemas/stackkits-compatibility-v1.schema.json
       - schemas/os-compat-matrix.schema.json
       - docs/data/os-compat/latest.json
+      - docs/data/advanced-operations/latest.json
+      - schemas/stackkit-advanced-operations-v1.schema.json
+      - schemas/stackkit-command-result-v1.schema.json
+      - schemas/stackkit-rollout-event.schema.json
+      - schemas/stackkit-operation-denial-v1.schema.json
+      - schemas/stackkit-actionable-error-v1.schema.json
+      - schemas/stackkit-advanced-trust-bundle-v1.schema.json
+      - schemas/stackkit-local-advanced-trust-v1.schema.json
+      - schemas/stackkit-advanced-capability-v1.schema.json
+      - schemas/stackkit-advanced-change-set-v2.schema.json
+      - schemas/stackkit-advanced-change-set-create-result-v2.schema.json
+      - schemas/stackkit-advanced-mutation-v1.schema.json
+      - schemas/stackkit-change-set-result-v1.schema.json
+      - schemas/stackkit-drift-report-v1.schema.json
+      - schemas/stackkit-restore-drill-report-v1.schema.json
+      - schemas/stackkit-rollback-result-v1.schema.json
       - scripts/e2e/validate-standalone-oss-e2e.mjs
       - scripts/e2e/validate-standalone-runtime-e2e.mjs
       - scripts/release/validate-architecture-contract-fixture.mjs
@@ -162,6 +185,12 @@ archives:
         strip_parent: true
         info:
           mode: 0755
+      # Offline OpenTofu provider mirror (internal/tofu.PackagedProvidersDir).
+      # The fetch script's providers/MIRROR.txt keeps the tree below dst.
+      - src: ".dist-tools/opentofu-providers/{{ .Os }}_{{ .Arch }}/providers/**"
+        dst: providers
+        info:
+          mode: 0755
       - README.md
       - LICENSING.md
       - LICENSE-APACHE
@@ -174,6 +203,22 @@ archives:
       - schemas/stackkits-compatibility-v1.schema.json
       - schemas/os-compat-matrix.schema.json
       - docs/data/os-compat/latest.json
+      - docs/data/advanced-operations/latest.json
+      - schemas/stackkit-advanced-operations-v1.schema.json
+      - schemas/stackkit-command-result-v1.schema.json
+      - schemas/stackkit-rollout-event.schema.json
+      - schemas/stackkit-operation-denial-v1.schema.json
+      - schemas/stackkit-actionable-error-v1.schema.json
+      - schemas/stackkit-advanced-trust-bundle-v1.schema.json
+      - schemas/stackkit-local-advanced-trust-v1.schema.json
+      - schemas/stackkit-advanced-capability-v1.schema.json
+      - schemas/stackkit-advanced-change-set-v2.schema.json
+      - schemas/stackkit-advanced-change-set-create-result-v2.schema.json
+      - schemas/stackkit-advanced-mutation-v1.schema.json
+      - schemas/stackkit-change-set-result-v1.schema.json
+      - schemas/stackkit-drift-report-v1.schema.json
+      - schemas/stackkit-restore-drill-report-v1.schema.json
+      - schemas/stackkit-rollback-result-v1.schema.json
       - scripts/e2e/validate-standalone-oss-e2e.mjs
       - scripts/e2e/validate-standalone-runtime-e2e.mjs
       - scripts/release/validate-architecture-contract-fixture.mjs
@@ -216,6 +261,12 @@ archives:
         strip_parent: true
         info:
           mode: 0755
+      # Offline OpenTofu provider mirror (internal/tofu.PackagedProvidersDir).
+      # The fetch script's providers/MIRROR.txt keeps the tree below dst.
+      - src: ".dist-tools/opentofu-providers/{{ .Os }}_{{ .Arch }}/providers/**"
+        dst: providers
+        info:
+          mode: 0755
       - README.md
       - LICENSING.md
       - LICENSE-APACHE
@@ -228,6 +279,22 @@ archives:
       - schemas/stackkits-compatibility-v1.schema.json
       - schemas/os-compat-matrix.schema.json
       - docs/data/os-compat/latest.json
+      - docs/data/advanced-operations/latest.json
+      - schemas/stackkit-advanced-operations-v1.schema.json
+      - schemas/stackkit-command-result-v1.schema.json
+      - schemas/stackkit-rollout-event.schema.json
+      - schemas/stackkit-operation-denial-v1.schema.json
+      - schemas/stackkit-actionable-error-v1.schema.json
+      - schemas/stackkit-advanced-trust-bundle-v1.schema.json
+      - schemas/stackkit-local-advanced-trust-v1.schema.json
+      - schemas/stackkit-advanced-capability-v1.schema.json
+      - schemas/stackkit-advanced-change-set-v2.schema.json
+      - schemas/stackkit-advanced-change-set-create-result-v2.schema.json
+      - schemas/stackkit-advanced-mutation-v1.schema.json
+      - schemas/stackkit-change-set-result-v1.schema.json
+      - schemas/stackkit-drift-report-v1.schema.json
+      - schemas/stackkit-restore-drill-report-v1.schema.json
+      - schemas/stackkit-rollback-result-v1.schema.json
       - scripts/e2e/validate-standalone-oss-e2e.mjs
       - scripts/e2e/validate-standalone-runtime-e2e.mjs
       - scripts/release/validate-architecture-contract-fixture.mjs
@@ -270,6 +337,12 @@ archives:
         strip_parent: true
         info:
           mode: 0755
+      # Offline OpenTofu provider mirror (internal/tofu.PackagedProvidersDir).
+      # The fetch script's providers/MIRROR.txt keeps the tree below dst.
+      - src: ".dist-tools/opentofu-providers/{{ .Os }}_{{ .Arch }}/providers/**"
+        dst: providers
+        info:
+          mode: 0755
       - README.md
       - LICENSING.md
       - LICENSE-APACHE
@@ -282,6 +355,22 @@ archives:
       - schemas/stackkits-compatibility-v1.schema.json
       - schemas/os-compat-matrix.schema.json
       - docs/data/os-compat/latest.json
+      - docs/data/advanced-operations/latest.json
+      - schemas/stackkit-advanced-operations-v1.schema.json
+      - schemas/stackkit-command-result-v1.schema.json
+      - schemas/stackkit-rollout-event.schema.json
+      - schemas/stackkit-operation-denial-v1.schema.json
+      - schemas/stackkit-actionable-error-v1.schema.json
+      - schemas/stackkit-advanced-trust-bundle-v1.schema.json
+      - schemas/stackkit-local-advanced-trust-v1.schema.json
+      - schemas/stackkit-advanced-capability-v1.schema.json
+      - schemas/stackkit-advanced-change-set-v2.schema.json
+      - schemas/stackkit-advanced-change-set-create-result-v2.schema.json
+      - schemas/stackkit-advanced-mutation-v1.schema.json
+      - schemas/stackkit-change-set-result-v1.schema.json
+      - schemas/stackkit-drift-report-v1.schema.json
+      - schemas/stackkit-restore-drill-report-v1.schema.json
+      - schemas/stackkit-rollback-result-v1.schema.json
       - scripts/e2e/validate-standalone-oss-e2e.mjs
       - scripts/e2e/validate-standalone-runtime-e2e.mjs
       - scripts/release/validate-architecture-contract-fixture.mjs
@@ -331,6 +420,14 @@ nfpms:
         dst: /usr/local/bin/terramate
         file_info:
           mode: 0755
+      - src: ".dist-tools/opentofu-providers/linux_{{ .Arch }}/providers/registry.opentofu.org/hashicorp/local/2.5.3/linux_{{ .Arch }}/terraform-provider-local"
+        dst: /usr/local/lib/stackkit/providers/registry.opentofu.org/hashicorp/local/2.5.3/linux_{{ .Arch }}/terraform-provider-local
+        file_info:
+          mode: 0755
+      - src: ".dist-tools/opentofu-providers/linux_{{ .Arch }}/providers/registry.opentofu.org/hashicorp/local/2.5.3/linux_{{ .Arch }}/LICENSE"
+        dst: /usr/local/lib/stackkit/providers/registry.opentofu.org/hashicorp/local/2.5.3/linux_{{ .Arch }}/LICENSE
+        file_info:
+          mode: 0644
 
 checksum:
   # Checksums are generated after the Unix tar archives have been compressed

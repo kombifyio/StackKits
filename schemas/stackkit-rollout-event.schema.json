@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://stackkits.kombify.io/schemas/stackkit-rollout-event.schema.json",
   "title": "StackKit Rollout Progress Event",
-  "description": "Redacted JSONL event emitted by StackKit CLI rollout and prepare phases.",
+  "description": "Redacted stackkit.rollout-event/v1 JSONL event emitted by StackKit CLI rollout, prepare and Advanced phases (--progress-jsonl).",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -26,17 +26,33 @@
         "opentofu.check",
         "terramate.check",
         "telemetry.handshake",
-        "resources.check"
+        "resources.check",
+        "advanced.change-set.materialize-host",
+        "advanced.change-set.run-order",
+        "advanced.change-set.converge",
+        "advanced.drift.stack",
+        "advanced.restore-drill.verify-runtime",
+        "advanced.restore-drill.backup",
+        "advanced.restore-drill.select-anchor",
+        "advanced.restore-drill.stage-restore",
+        "advanced.restore-drill.verify-staged-restore",
+        "advanced.restore-drill.cleanup-staging",
+        "advanced.restore-drill.verify-live-unchanged"
       ]
     },
     "status": {
+      "description": "Lifecycle phases report started, running, succeeded, failed or skipped. The per-stack Advanced phases advanced.change-set.converge and advanced.drift.stack report the stack status instead: converged, drifted, failed, pending_root or (change sets only) other_host; advanced.rollback.stack reports converged, failed or skipped. docs/data/advanced-operations/latest.json lists the statuses per phase.",
       "type": "string",
       "enum": [
         "started",
         "running",
         "succeeded",
         "failed",
-        "skipped"
+        "skipped",
+        "converged",
+        "drifted",
+        "pending_root",
+        "other_host"
       ]
     },
     "severity": {

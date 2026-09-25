@@ -8,9 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path"
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
@@ -72,25 +74,36 @@ func deriveRuntimeRecoveryGraph(
 	if err != nil {
 		return runtimeRecoveryGraphDerivation{}, fmt.Errorf("restoreactivation: hash managed volume set: %w", err)
 	}
-	composeRuntimes := []ComposeRuntime{{
+	coreRuntime := ComposeRuntime{
 		Project: derived.composeProject,
 		Path:    derived.composeArtifact.Path,
 		Digest:  derived.composeArtifact.SHA256,
-	}}
+	}
+	renderTarget := ""
+	if derived.renderTarget != renderTargetCompose {
+		renderTarget = derived.renderTarget
+		if coreRuntime, applicationRuntimes, err = bindOpenTofuRuntimes(
+			workspaceRoot, derived, applicationRuntimes,
+		); err != nil {
+			return runtimeRecoveryGraphDerivation{}, err
+		}
+	}
+	composeRuntimes := []ComposeRuntime{coreRuntime}
 	composeRuntimes = append(composeRuntimes, applicationRuntimes...)
 	sortComposeRuntimes(composeRuntimes)
 	graph := RuntimeRecoveryGraph{
 		APIVersion:           RuntimeRecoveryGraphAPIVersion,
 		Kind:                 RuntimeRecoveryGraphKind,
 		OperationID:          operationID,
+		RenderTarget:         renderTarget,
 		PlanBinding:          plan.Binding(),
 		PlanHash:             plan.Binding().PlanHash,
 		ManifestHash:         manifestHash,
 		ManagedVolumeSetHash: volumeSetHash,
 		StackID:              derived.stackID,
 		ComposeProject:       derived.composeProject,
-		ComposePath:          derived.composeArtifact.Path,
-		ComposeDigest:        derived.composeArtifact.SHA256,
+		ComposePath:          coreRuntime.Path,
+		ComposeDigest:        coreRuntime.Digest,
 		ComposeRuntimes:      composeRuntimes,
 		CorePolicyArtifactID: derived.policyArtifact.ID,
 		CorePolicyPath:       derived.policyArtifact.Path,
@@ -105,6 +118,71 @@ func deriveRuntimeRecoveryGraph(
 		return runtimeRecoveryGraphDerivation{}, err
 	}
 	return runtimeRecoveryGraphDerivation{graph: graph}, nil
+}
+
+// bindOpenTofuRuntimes projects the Core and standalone Application runtimes
+// of an opentofu or terramate install. The Core Compose payload is extracted
+// from the governed Core root main.tf (whose manifest digest is rechecked) and
+// is exactly the runtime Compose file that root writes. Every runtime binds
+// the current state of its OpenTofu root.
+func bindOpenTofuRuntimes(
+	workspaceRoot string,
+	derived planAuthority,
+	applications []ComposeRuntime,
+) (ComposeRuntime, []ComposeRuntime, error) {
+	root, err := confinedfs.Open(workspaceRoot)
+	if err != nil {
+		return ComposeRuntime{}, nil, err
+	}
+	defer func() { _ = root.Close() }()
+	transaction, err := root.BeginTransaction()
+	if err != nil {
+		return ComposeRuntime{}, nil, err
+	}
+	defer func() { _ = transaction.Close() }()
+	mainTF, err := readStandaloneComposeCustodyFile(transaction, derived.composeArtifact.Path, false)
+	if err != nil || runtimeFileDigest(mainTF) != derived.composeArtifact.SHA256 {
+		return ComposeRuntime{}, nil, errors.New("restoreactivation: Core OpenTofu root artifact differs from the verified manifest")
+	}
+	payload, err := architecturev2renderer.ExtractComposePayload(mainTF)
+	if err != nil {
+		return ComposeRuntime{}, nil, fmt.Errorf("restoreactivation: derive the Core Compose payload: %w", err)
+	}
+	bindState := func(runtime *ComposeRuntime) error {
+		statePath := openTofuStatePath(runtime.Path)
+		state, err := readStandaloneComposeCustodyFile(transaction, statePath, false)
+		if err != nil {
+			return fmt.Errorf("restoreactivation: OpenTofu state of Compose project %q is not a bounded plain file", runtime.Project)
+		}
+		runtime.StatePath, runtime.StateDigest = statePath, runtimeFileDigest(state)
+		return nil
+	}
+	core := ComposeRuntime{
+		Project: derived.composeProject,
+		Path:    path.Join(basementCoreRuntimeDir, "compose.yaml"),
+		Digest:  runtimeFileDigest(payload),
+	}
+	if err := bindState(&core); err != nil {
+		return ComposeRuntime{}, nil, err
+	}
+	bound := cloneComposeRuntimes(applications)
+	for index := range bound {
+		if err := bindState(&bound[index]); err != nil {
+			return ComposeRuntime{}, nil, err
+		}
+	}
+	return core, bound, nil
+}
+
+// openTofuStatePath is the state file of the OpenTofu root beside a runtime
+// Compose file: <runtime>/opentofu/terraform.tfstate.
+func openTofuStatePath(composePath string) string {
+	return path.Join(path.Dir(composePath), openTofuRootDirName, openTofuStateFile)
+}
+
+func runtimeFileDigest(data []byte) string {
+	sum := sha256.Sum256(data)
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 func sortVolumesByLiveName(volumes []Volume) {
@@ -135,6 +213,13 @@ func (graph RuntimeRecoveryGraph) validate() error {
 	}
 	if !activationOperationPattern.MatchString(graph.OperationID) {
 		return errors.New("restoreactivation: runtime recovery graph operation ID is invalid")
+	}
+	openTofu := graph.RenderTarget != ""
+	if openTofu && graph.RenderTarget != renderTargetOpenTofu && graph.RenderTarget != renderTargetTerramate {
+		return errors.New("restoreactivation: runtime recovery graph render target is unsupported")
+	}
+	if openTofu && graph.ComposePath != path.Join(basementCoreRuntimeDir, "compose.yaml") {
+		return errors.New("restoreactivation: runtime recovery graph OpenTofu Core Compose is not the runtime Compose file")
 	}
 	if err := validateGraphPlanBinding(graph.PlanBinding); err != nil {
 		return err
@@ -222,6 +307,17 @@ func (graph RuntimeRecoveryGraph) validate() error {
 				return errors.New("restoreactivation: runtime recovery graph contains a duplicate environment path")
 			}
 			runtimePaths[runtime.EnvironmentPath] = struct{}{}
+		}
+		if openTofu {
+			if runtime.StatePath != openTofuStatePath(runtime.Path) || !digestPattern.MatchString(runtime.StateDigest) {
+				return errors.New("restoreactivation: runtime recovery graph OpenTofu state binding is invalid")
+			}
+			if _, duplicate := runtimePaths[runtime.StatePath]; duplicate {
+				return errors.New("restoreactivation: runtime recovery graph contains a duplicate state path")
+			}
+			runtimePaths[runtime.StatePath] = struct{}{}
+		} else if runtime.StatePath != "" || runtime.StateDigest != "" {
+			return errors.New("restoreactivation: runtime recovery graph binds OpenTofu state for the compose target")
 		}
 		if runtime.Project == graph.ComposeProject {
 			if coreFound || runtime.Path != graph.ComposePath || runtime.Digest != graph.ComposeDigest ||

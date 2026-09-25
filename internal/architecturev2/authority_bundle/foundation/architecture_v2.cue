@@ -5860,7 +5860,7 @@ _servicePublicationShape: {
 			capabilityBindings: providerContract._tlsCapabilityBindings
 		}]
 	}
-	planArtifacts: [...#CatalogPlanArtifactV2] & list.MinItems(1) & list.MaxItems(1) | *[{
+	planArtifacts: [...#CatalogPlanArtifactV2] & list.MinItems(1) & list.MaxItems(2) | *[{
 		id:       "resolved-plan"
 		kind:     "metadata"
 		path:     ".stackkit/resolved-plan.json"
@@ -5868,11 +5868,30 @@ _servicePublicationShape: {
 		mode:     "0600"
 		required: true
 		compatibleTargets: ["compose", "opentofu", "terramate"]
+	}, {
+		id:       "terramate-stack-graph"
+		kind:     "metadata"
+		path:     ".stackkit/terramate-stack-graph.json"
+		format:   "json"
+		mode:     "0640"
+		required: true
+		compatibleTargets: ["terramate"]
 	}]
 	_planArtifactExact: [
 		for artifact in planArtifacts
 		if artifact.id == "resolved-plan" && artifact.kind == "metadata" && artifact.path == ".stackkit/resolved-plan.json" && artifact.format == "json" && artifact.mode == "0600" && artifact.required == true {artifact.id},
 	] & list.MinItems(1) & list.MaxItems(1)
+	// The Terramate stack graph is the only other plan-scope artifact. It is
+	// derived from plan facts only and exists only under the terramate target.
+	_planArtifactsGoverned: [
+		for artifact in planArtifacts
+		if artifact.id != "resolved-plan" {
+			artifact: artifact.id
+			matches: [
+				if artifact.id == "terramate-stack-graph" && artifact.kind == "metadata" && artifact.path == ".stackkit/terramate-stack-graph.json" && artifact.format == "json" && artifact.mode == "0640" && artifact.required == true && len(artifact.compatibleTargets) == 1 && artifact.compatibleTargets[0] == "terramate" {artifact.id},
+			] & list.MinItems(1)
+		},
+	]
 
 	integrity: uniqueness: {
 		capabilityIDsUnique: list.UniqueItems([for contract in capabilities {contract.metadata.id}]) & true
@@ -8999,7 +9018,7 @@ _servicePublicationShape: {
 		owner:    #GeneratedArtifactOwnerV2
 		let artifactOwner = owner
 		if artifactOwner.kind == "plan" {
-			id: "resolved-plan"
+			id: "resolved-plan" | "terramate-stack-graph"
 		}
 		if artifactOwner.kind == "render-instance" {
 			let ownerMatches = [
@@ -9572,9 +9591,18 @@ _servicePublicationShape: {
 			] & list.MinItems(1) & list.MaxItems(1)
 		},
 	]
+	_generatedPlanArtifactsGoverned: [
+		for artifact in generation.artifacts
+		if artifact.owner.kind == "plan" && artifact.id == "terramate-stack-graph" {
+			artifact: artifact.id
+			matches: [
+				if artifact.kind == "metadata" && artifact.path == path.Join([generation.outputRoot, ".stackkit/terramate-stack-graph.json"]) && artifact.format == "json" && artifact.mode == "0640" && artifact.required == true && generation.target == "terramate" {artifact.id},
+			] & list.MinItems(1)
+		},
+	]
 	_generatedModuleArtifactsGoverned: [
 		for artifact in generation.artifacts
-		if artifact.id != "resolved-plan" {
+		if artifact.owner.kind != "plan" {
 			artifact: artifact.id
 			matches: [
 				for module in modules

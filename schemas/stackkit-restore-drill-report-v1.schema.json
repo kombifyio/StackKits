@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.dev/schemas/stackkit-restore-drill-report-v1.schema.json",
+  "title": "StackKit restore drill report v1",
+  "description": "Data subject of the stackkit.command-result/v1 envelope emitted by `stackkit advanced restore-drill run`. A drill stages and verifies a restore without activation and never mutates live application data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "mode",
+    "operation",
+    "drillId",
+    "status",
+    "capabilityId",
+    "anchorId",
+    "anchorSource",
+    "kopiaSnapshotIds",
+    "restoreResultId",
+    "stagingPath",
+    "stagingRemoved",
+    "activated",
+    "phases",
+    "verification",
+    "startedAt",
+    "completedAt"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "stackkit.restore-drill-report/v1" },
+    "mode": { "const": "advanced" },
+    "operation": { "const": "restore.drill" },
+    "drillId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{7,99}$" },
+    "status": { "enum": ["succeeded", "failed"] },
+    "capabilityId": { "type": "string" },
+    "anchorId": {
+      "description": "Content-addressed snapshot anchor that was drilled; empty when the drill failed before an anchor existed.",
+      "type": "string",
+      "pattern": "^(sha256:[0-9a-f]{64})?$"
+    },
+    "anchorSource": {
+      "description": "created when the drill ran a new backup; selected when --anchor named an anchor in local custody.",
+      "enum": ["", "created", "selected"]
+    },
+    "kopiaSnapshotIds": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "restoreResultId": {
+      "description": "Owner-signed staged restore result; empty when staging did not complete.",
+      "type": "string",
+      "pattern": "^(sha256:[0-9a-f]{64})?$"
+    },
+    "stagingPath": { "type": "string" },
+    "stagingRemoved": { "type": "boolean" },
+    "activated": {
+      "description": "A drill never activates staged data.",
+      "const": false
+    },
+    "phases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "startedAt", "durationMs"],
+        "properties": {
+          "name": {
+            "enum": [
+              "verify-runtime",
+              "backup",
+              "select-anchor",
+              "stage-restore",
+              "verify-staged-restore",
+              "cleanup-staging",
+              "verify-live-unchanged"
+            ]
+          },
+          "status": { "enum": ["succeeded", "failed", "skipped"] },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "durationMs": { "type": "integer", "minimum": 0 },
+          "error": { "type": "string" }
+        }
+      }
+    },
+    "verification": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["passed", "failed"] },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "completedAt": { "type": "string", "format": "date-time" }
+  }
+}

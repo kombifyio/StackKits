@@ -63,6 +63,11 @@ type SelectedPaaSWorkloadDeployment struct {
 	Route               architecturev2renderer.ApplicationDeliveryRouteDescriptor
 	RuntimeAdapter      runtimeexecutor.RuntimeAdapterBinding
 	AdapterArtifacts    []runtimeexecutor.Artifact
+	// GenerationTarget is the generation target of the resolved plan the
+	// request carries. Operations owners that wrap the native Compose
+	// project in an OpenTofu root (ADR-0045 Stage 1) switch on it; the
+	// native owner ignores it.
+	GenerationTarget string
 }
 
 type SelectedPaaSApplyReceipt struct {
@@ -154,6 +159,7 @@ const (
 	jellyfinWorkloadModuleRef      = "stackkits-jellyfin-runtime"
 	pterodactylWorkloadModuleRef   = "stackkits-pterodactyl-runtime"
 	paperlessWorkloadModuleRef     = "stackkits-paperless-runtime"
+	roundcubeWorkloadModuleRef     = "stackkits-roundcube-runtime"
 	homeAssistantWorkloadModuleRef = "stackkits-home-assistant-runtime"
 )
 
@@ -192,6 +198,8 @@ func ValidateSelectedPaaSWorkloadObservation(
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationPterodactyl, deployment, observation)
 	case paperlessWorkloadModuleRef:
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationPaperless, deployment, observation)
+	case roundcubeWorkloadModuleRef:
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationRoundcube, deployment, observation)
 	case "stackkits-private-ai-runtime":
 		if _, err := architecturev2renderer.ParsePrivateAIWorkloadBundle(deployment.Bundle); err != nil {
 			return err
@@ -342,6 +350,9 @@ func (executor *selectedPaaSWorkloadExecutor) Execute(
 	}
 	validated, err := executor.validate(request, executor.binding, executor.authority)
 	if err != nil {
+		return runtimeexecutor.ExecutionOutcome{}, err
+	}
+	if validated.deployment.GenerationTarget, err = GenerationTargetFromArtifacts(request.Artifacts); err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, err
 	}
 	receipt, err := executor.operations.ApplyWorkload(

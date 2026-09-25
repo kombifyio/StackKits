@@ -268,7 +268,8 @@
         "ai",
         "dev",
         "documents",
-        "game"
+        "game",
+        "mail"
       ]
     },
     "standaloneOwner": {
@@ -465,7 +466,9 @@
       "module-fragments"
     ],
     "allowedTargets": [
-      "compose"
+      "compose",
+      "opentofu",
+      "terramate"
     ],
     "contractVersion": "1.0.0",
     "defaultStrategy": "kit-template",
@@ -872,7 +875,8 @@
       "ai",
       "dev",
       "documents",
-      "game"
+      "game",
+      "mail"
     ],
     "required": [
       "cloud-core"

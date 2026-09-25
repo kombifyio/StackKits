@@ -368,7 +368,12 @@ logs, or persisted state. JSON is returned as `stackkit.drift-report/v1`
 inside `stackkit.command-result/v1`. Verified runtime Compose, service-set, and
 health deviations return `hasDrift: true`; Plan, artifact, Apply-evidence,
 Owner-custody, and signature/integrity failures remain hard fail-closed rather
-than being downgraded to ordinary drift.
+than being downgraded to ordinary drift. Under the `terramate` generation
+target the report also carries one `stacks` entry per stack of the local host
+project from a read-only detailed-exitcode `tofu plan` run through Terramate,
+an overall `status` and one `advanced.drift.stack` progress event per stack
+(see ARCHITECTURE.md "Advanced drift per stack (Stage 1)"); OpenTofu state is
+only read and nothing is applied.
 
 `stackkit drift reconcile --mode standard|advanced` enters the shared lifecycle
 transaction after mode-specific admission. Standard requires local Owner
@@ -378,7 +383,9 @@ capability, the exact candidate, an Owner-signed change-set and its matching
 digest; it re-renders and executes the approved candidate through the same
 checkpointed transaction. Missing approval, authority or evidence stops the
 operation. A failure after Apply requires verified data activation before any
-prior-runtime restart. `drift detect` remains read-only.
+prior-runtime restart. After an Advanced reconcile the result carries the
+post-reconcile drift report as `driftReport`; a report that is not `clean`
+fails the command. `drift detect` never mutates the runtime.
 
 ### `stackkit advanced trust`
 
@@ -417,9 +424,34 @@ uses the existing pure OpenTofu/Terramate renderer, writes no generated
 deployment output, and atomically stores an owner-signed, content-addressed
 change set under `.stackkit/advanced/change-sets/`.
 
+The `stackkit.advanced-change-set/v2` record also lists `affectedStacks`, the
+Terramate stacks whose modules own a changed artifact in stack graph run order,
+and `terramateHostManifestSha256`, the digest of the local Terramate host
+project the candidate materializes.
+
 Capability denial is emitted as `stackkit.operation-denial/v1` with a stable
 public reason code. Creating a change set does not invoke Terramate, OpenTofu,
 Docker, Techstack, or a network service.
+
+`stackkit advanced change-set apply` runs the approved candidate through the
+checkpointed generate, plan, apply and verify transaction. Between apply and
+verify it materializes the local Terramate host project under
+`.stackkit/runtime`, requires the packaged Terramate run order to equal the
+stack graph, and runs a detailed-exitcode OpenTofu plan through Terramate in
+every affected local stack root. A stack that still plans changes fails the
+change set with `advanced_change_set_not_converged` and takes the rollback
+path. The per-stack `stackkit.change-set-result/v1` report is
+`data.changeSetResult` of the JSON result.
+
+### Advanced operations catalog
+
+Orchestrators do not guess Advanced argv. Every release archive ships
+`docs/data/advanced-operations/latest.json` (`stackkit.advanced-operations/v1`)
+with the exact argv, requirements, input and result schemas, rollout event
+phases and denial reason codes of every Advanced operation; the schemas it
+names ship next to it under `schemas/`. `stackkit docs emit-advanced-operations
+[--check]` renders it from the CLI source (see ARCHITECTURE.md "Advanced
+operations catalog").
 
 ### `stackkit remove`
 
@@ -674,9 +706,9 @@ Executor-only rollback is allowed before target Apply; after Apply admission,
 `data-activation-required,dataStaged` blocks old-runtime restart until verified
 prior-data activation exists. A completed target commit retains its success
 proof for journal finalization. Because Compose is the real Basement
-executor, no fictional `terraform.tfstate` is created. An actual OpenTofu target
-remains `unsupported_state_snapshot` until a Product Apply executor owns state
-pull/restore.
+executor, no fictional `terraform.tfstate` is created. Under the `opentofu` and
+`terramate` targets the checkpoint captures every OpenTofu root's state and
+configuration and restores them on recovery.
 
 Common commands:
 

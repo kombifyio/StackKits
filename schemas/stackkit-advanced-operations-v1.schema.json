@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.dev/schemas/stackkit-advanced-operations-v1.schema.json",
+  "title": "StackKit Advanced operations catalog v1",
+  "description": "docs/data/advanced-operations/latest.json, generated from internal/advancedcatalog and shipped in every release archive: every Advanced operation an orchestrator may dispatch to the stackkit CLI of the pinned release, with its exact argv template, admission requirements, input and result contracts, rollout event phases and the denial envelope. Argv words follow the program name; each {placeholder} word is replaced by exactly one argv word. Only entries with status available may be dispatched.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "program", "description", "commandResult", "rolloutEvents", "denial", "globalArgs", "placeholders", "operations"],
+  "properties": {
+    "schemaVersion": { "const": "stackkit.advanced-operations/v1" },
+    "program": { "const": "stackkit" },
+    "description": { "type": "string", "minLength": 1 },
+    "commandResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "schema", "statuses", "noEnvelope"],
+      "properties": {
+        "schemaVersion": { "const": "stackkit.command-result/v1" },
+        "schema": { "$ref": "#/$defs/schemaPath" },
+        "statuses": { "type": "array", "items": { "enum": ["success", "failed", "denied"] } },
+        "noEnvelope": { "type": "string", "minLength": 1 }
+      }
+    },
+    "rolloutEvents": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "schema", "argv", "description"],
+      "properties": {
+        "schemaVersion": { "const": "stackkit.rollout-event/v1" },
+        "schema": { "$ref": "#/$defs/schemaPath" },
+        "argv": { "$ref": "#/$defs/argv" },
+        "description": { "type": "string" }
+      }
+    },
+    "denial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "schema", "commandResultStatus", "reasonCodes"],
+      "properties": {
+        "schemaVersion": { "const": "stackkit.operation-denial/v1" },
+        "schema": { "$ref": "#/$defs/schemaPath" },
+        "commandResultStatus": { "const": "denied" },
+        "reasonCodes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "description"],
+            "properties": {
+              "code": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+              "description": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "globalArgs": { "type": "array", "items": { "$ref": "#/$defs/optionalArgs" } },
+    "placeholders": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "description"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z][A-Za-z0-9]*$" },
+          "description": { "type": "string", "minLength": 1 },
+          "pattern": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/operation" }
+    }
+  },
+  "$defs": {
+    "schemaPath": {
+      "description": "Schema or reference document path relative to the repository and release archive root.",
+      "type": "string",
+      "pattern": "^(schemas|docs)/[A-Za-z0-9._/-]+\\.(json|md)$"
+    },
+    "contractRef": {
+      "type": "object",
+      "required": ["schemaVersion", "schema"],
+      "properties": {
+        "schemaVersion": { "type": "string", "minLength": 1 },
+        "schema": { "$ref": "#/$defs/schemaPath" }
+      }
+    },
+    "argv": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "pattern": "^([a-z0-9-]+|--[a-z0-9-]+|\\{[a-z][A-Za-z0-9]*\\})$" }
+    },
+    "optionalArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["argv", "description"],
+      "properties": {
+        "argv": { "$ref": "#/$defs/argv" },
+        "description": { "type": "string", "minLength": 1 }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "status", "sinceRelease", "summary", "argv", "optionalArgs", "mutates", "requires", "inputs", "results", "events", "modes"],
+      "properties": {
+        "operation": { "type": "string", "pattern": "^[a-z][a-z0-9.-]+$" },
+        "status": { "enum": ["available", "planned"] },
+        "sinceRelease": {
+          "description": "First StackKits release whose CLI accepts this argv; pending when no published release carries it yet.",
+          "type": "string",
+          "pattern": "^(pending|v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*))$"
+        },
+        "summary": { "type": "string", "minLength": 1 },
+        "command": { "description": "Exact command-result command value.", "type": "string", "pattern": "^stackkit( [a-z0-9-]+)+$" },
+        "argv": { "$ref": "#/$defs/argv" },
+        "optionalArgs": { "type": "array", "items": { "$ref": "#/$defs/optionalArgs" } },
+        "mutates": { "type": "boolean" },
+        "requires": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["capability", "trustImported", "ownerApproval", "candidateSpec", "changeSet"],
+          "properties": {
+            "capability": { "type": "boolean" },
+            "capabilityOperation": { "type": "string", "minLength": 1 },
+            "trustImported": { "type": "boolean" },
+            "ownerApproval": { "type": "boolean" },
+            "candidateSpec": { "type": "boolean" },
+            "changeSet": { "type": "boolean" }
+          }
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "allOf": [{ "$ref": "#/$defs/contractRef" }],
+            "type": "object",
+            "required": ["placeholder", "description"],
+            "properties": {
+              "placeholder": { "type": "string", "minLength": 1 },
+              "schemaVersion": true,
+              "schema": true,
+              "description": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "results": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "allOf": [{ "$ref": "#/$defs/contractRef" }],
+            "type": "object",
+            "required": ["status"],
+            "properties": {
+              "status": { "enum": ["success", "failed", "denied"] },
+              "schemaVersion": true,
+              "schema": true,
+              "description": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["phase", "match", "statuses"],
+            "properties": {
+              "phase": { "type": "string", "minLength": 1 },
+              "match": { "enum": ["exact", "prefix"] },
+              "statuses": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+            }
+          }
+        },
+        "modes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["standard", "advanced"],
+          "properties": {
+            "standard": { "$ref": "#/$defs/admission" },
+            "advanced": { "$ref": "#/$defs/admission" }
+          }
+        }
+      },
+      "if": { "properties": { "status": { "const": "available" } } },
+      "then": { "required": ["command"], "properties": { "argv": { "minItems": 1 } } },
+      "else": { "properties": { "argv": { "maxItems": 0 } } }
+    },
+    "admission": { "enum": ["allowed", "denied", "capability", "owner-approval"] }
+  }
+}

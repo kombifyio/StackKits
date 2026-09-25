@@ -63,6 +63,25 @@ var operatorOperations = []Contract{
 		},
 	},
 	{
+		ID: "stackkit.advanced.restore-drill.run", ToolName: "stackkit_advanced_restore_drill_run", Title: "Run restore drill",
+		Description: "Stage and verify a restore of a backup anchor without activation, gated by an offline Advanced capability.",
+		Command:     []string{"advanced", "restore-drill", "run", "--json", "--owner-approve"}, Mutation: true, Idempotent: true, OwnerApproval: true,
+		Arguments: []Argument{
+			requiredFlagArg("capability_file", ArgumentString, "--capability", "path to a canonical stackkit.advanced-capability/v1 file that allows restore.drill"),
+			flagArg("anchor", ArgumentString, "--anchor", "existing sha256 snapshot-anchor ID; a new backup anchor is created when omitted"),
+			flagArg("operation_id", ArgumentString, "--operation-id", "stable lowercase drill ID; generated when omitted"),
+		},
+	},
+	{
+		ID: "stackkit.advanced.rollback.run", ToolName: "stackkit_advanced_rollback_run", Title: "Run coordinated rollback",
+		Description: "Roll every local Terramate stack back to one verified executor-state checkpoint in reverse run order, gated by an offline Advanced capability.",
+		Command:     []string{"advanced", "rollback", "run", "--json", "--owner-approve"}, Mutation: true, Destructive: true, Idempotent: true, OwnerApproval: true,
+		Arguments: []Argument{
+			requiredFlagArg("capability_file", ArgumentString, "--capability", "path to a canonical stackkit.advanced-capability/v1 file that allows rollback.coordinated"),
+			requiredFlagArg("to", ArgumentString, "--to", "target sha256 executor-state snapshot ID, or the sha256 change-set ID whose pre-apply checkpoint is the target"),
+		},
+	},
+	{
 		ID: "stackkit.advanced.change-set.apply", ToolName: "stackkit_advanced_change_set_apply", Title: "Apply Advanced change set",
 		Description: "Checkpoint, apply and verify one exact Owner-signed Terramate change set with automatic verified rollback.",
 		Command:     []string{"advanced", "change-set", "apply", "--json"}, Mutation: true, Destructive: true, OwnerApproval: true,
