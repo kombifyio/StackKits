@@ -156,6 +156,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(roundcubeWorkload.contract, roundcubeWorkload); err != nil {
 		return nil, err
 	}
+	stalwartWorkload := newStalwartWorkloadBundleRenderer()
+	if err := registry.Register(stalwartWorkload.contract, stalwartWorkload); err != nil {
+		return nil, err
+	}
 	privateAIWorkload := newPrivateAIWorkloadBundleRenderer()
 	if err := registry.Register(privateAIWorkload.contract, privateAIWorkload); err != nil {
 		return nil, err

@@ -564,7 +564,11 @@ func newRuntimeObservation(input architectureV2RuntimeObservationInput, stackID 
 	}
 	if input.CloudVerify != nil {
 		for _, artifact := range input.Plan.ApplyRequirements().Artifacts {
-			if artifact.ProviderRef == "stackkits-cloud-core" && artifact.Kind == "compose" && artifact.InstanceRef == input.CloudVerify.ProjectRef {
+			// The verified Core artifact is the Compose artifact, or the Core
+			// OpenTofu root main.tf under the opentofu and terramate units.
+			coreArtifact := artifact.Kind == "compose" ||
+				(artifact.Kind == "opentofu" || artifact.Kind == "terramate") && path.Base(artifact.OutputRef) == "main.tf"
+			if artifact.ProviderRef == "stackkits-cloud-core" && coreArtifact && artifact.InstanceRef == input.CloudVerify.ProjectRef {
 				links = append(links, runtimeobservation.EvidenceLink{Kind: "cloud-core-artifact", Ref: artifact.OutputRef, Digest: input.CloudVerify.ArtifactDigest})
 			}
 		}

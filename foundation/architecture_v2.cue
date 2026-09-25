@@ -3219,6 +3219,15 @@ _servicePublicationShape: {
 	// dockerLifecycleOwner binds this component to the render unit's approved
 	// docker-socket-direct-v1 requirement with reason lifecycle-owner.
 	dockerLifecycleOwner?: {daemonRef: #ContractID, policyProfile: #ContractID}
+	// ADR-0046 mail-node fields, admitted only for the Stalwart entry
+	// component; never generic application rights.
+	// publishedPorts binds each TCP port on every host address.
+	publishedPorts?: [...{port: int & >=1 & <=65535, protocol: "tcp"}] & list.MinItems(1)
+	// routeHostEnvironment binds the workload's own route host to a variable.
+	routeHostEnvironment?: [string]: "route-host"
+	// acmeTlsAlpnPort receives TLS-ALPN-01 challenges for the route host
+	// through a router passthrough; all other TLS stays with the router.
+	acmeTlsAlpnPort?: int & >=1 & <=65535
 	command?: [...string & =~"^[^[:cntrl:]]+$"] & list.MinItems(1)
 	entrypoint?: [...string & =~"^[^[:cntrl:]]+$"] & list.MinItems(1)
 	environment?: [string]:       string

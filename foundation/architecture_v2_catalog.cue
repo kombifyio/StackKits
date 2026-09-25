@@ -34,6 +34,16 @@ _architectureV2PterodactylCacheImage: {ref: "docker.io/valkey/valkey:8.1-alpine"
 // is the official 1.6.x Apache multi-arch index (amd64 and arm64 included).
 _architectureV2RoundcubeImage: {ref: "docker.io/roundcube/roundcubemail:1.6.19-apache", digest: "sha256:f1256d1ce06ca5c52660f67f8511f3971def5d3b80aab3e3809df970489b1c46"}
 
+// Stalwart Mail Server is the own-mail-server default (ADR-0046). The pin is
+// the official v0.16 multi-arch index (amd64 and arm64 included).
+_architectureV2StalwartImage: {ref: "docker.io/stalwartlabs/stalwart:v0.16.23", digest: "sha256:be215678796691bc39bdda918ecc50d14a9032a099a1d1950e51950aec7e2592"}
+
+// The governed Stalwart entrypoint (ADR-0046): it writes the data-store
+// pointer, binds the custody password to the recovery administrator and, on
+// the first start only, seeds the submission listener (587) and stdout
+// logging before the server's real start. No secret enters a file or argument.
+_architectureV2StalwartEntrypointScript: ##"set -eu; printf '%s' '{"@type":"RocksDb","path":"/var/lib/stalwart/"}' > /etc/stalwart/config.json; export STALWART_RECOVERY_ADMIN="admin:${STACKKIT_ADMIN_SECRET:?}"; unset STACKKIT_ADMIN_SECRET; if [ ! -f /var/lib/stalwart/.stackkit-seed-v1 ]; then /usr/local/bin/stalwart --config /etc/stalwart/config.json & pid=$!; i=0; until curl -fs -o /dev/null http://127.0.0.1:8080/healthz/ready; do i=$((i+1)); [ "$i" -lt 90 ] || exit 1; sleep 1; done; printf 'user = "%s"\n' "$STALWART_RECOVERY_ADMIN" | curl -fsS -K - -H 'Content-Type: application/json' -o /tmp/stackkit-seed.json -d '{"using":["urn:ietf:params:jmap:core","urn:stalwart:jmap"],"methodCalls":[["x:Tracer/get",{"properties":["id"]},"t0"],["x:Tracer/set",{"#destroy":{"resultOf":"t0","name":"x:Tracer/get","path":"/list/*/id"},"create":{"stdout":{"@type":"Stdout","level":"info","ansi":false}}},"t1"],["x:NetworkListener/set",{"create":{"submission":{"name":"submission","bind":{"[::]:587":true},"protocol":"smtp","tlsImplicit":false}}},"l1"]]}' http://127.0.0.1:8080/jmap/; grep -q '"submission":{"id"' /tmp/stackkit-seed.json; grep -q '"stdout":{"id"' /tmp/stackkit-seed.json; rm -f /tmp/stackkit-seed.json; kill "$pid"; wait "$pid" || true; touch /var/lib/stalwart/.stackkit-seed-v1; fi; exec /usr/local/bin/stalwart --config /etc/stalwart/config.json"##
+
 _architectureV2CoreCapabilities: [
 	"topology-core",
 	"host-bootstrap",
@@ -248,6 +258,24 @@ _architectureV2MailInfrastructure: #WorkloadInfrastructureV1 & {
 	]}
 	// The application-runtime snapshot owner quiesces Roundcube, the sole
 	// SQLite writer, before the database allocation is captured.
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Own mail server data (ADR-0046): Stalwart keeps every mailbox, the
+// directory, DKIM keys and its settings in RocksDB under the data volume. The
+// config volume only holds the pointer file the governed entrypoint rewrites
+// at every start.
+_architectureV2MailServerInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "mail-server", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "stalwart", volumeRef: "data", target: "/var/lib/stalwart", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "mail-server"},
+		{componentRef: "stalwart", volumeRef: "config", target: "/etc/stalwart", class: "cache", backup: false, dataClasses: []},
+	]}
+	// The application-runtime snapshot owner quiesces Stalwart, the sole
+	// RocksDB writer, before the data allocation is captured.
 	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
 	snapshot: moduleRef: "stackkits-snapshot"
 	restore: moduleRef:  "stackkits-restore"
@@ -965,6 +993,55 @@ _architectureV2WorkloadContracts: [
 			infrastructure: _architectureV2MailInfrastructure
 		}]
 	},
+	// ADR-0046: the own mail server is a separate optional workload grouped
+	// under the Mail main use case; it never changes the mail client selection.
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "mail-server"
+			version:     "1.0.0"
+			description: "Own mail server: Stalwart receives and sends mail for the owner's domain on a public Cloud node. DNS records are printed for the owner, never created."
+		}
+		kind:       "application"
+		useCaseRef: "mail-server"
+		functionalCapabilities: ["mail-server", "mailbox-hosting", "smtp-delivery", "imap-access"]
+		// Cloud only: a home node has no clean outbound port 25 and no relay
+		// input yet, so home placement is refused rather than degraded.
+		supportedSiteKinds: ["cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "stalwart"
+		computeTiers: {
+			low: {included: true, alternativeID: "stalwart"}
+			standard: {included: true, alternativeID: "stalwart"}
+			high: {included: true, alternativeID: "stalwart"}
+		}
+		alternatives: [{
+			id:          "stalwart"
+			providerRef: "stackkits-stalwart"
+			moduleRef:   "stackkits-stalwart-runtime"
+			route: {serviceRef: "mail-server", healthRef: "stalwart-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// The owner-approved action creates the mail domain and first
+			// mailbox, prints the DNS records and verifies IMAP and submission.
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["stalwart-mail-domain-setup"]}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["admin-password"]
+					requiredRefs: ["admin-password"]
+				}
+			}
+			infrastructure: _architectureV2MailServerInfrastructure
+		}]
+	},
 	#WorkloadContractV2 & {
 		metadata: {
 			id:          "media"
@@ -1062,6 +1139,11 @@ _architectureV2ApplicationLifecycleContracts: [
 	#ApplicationLifecycleContractV1 & {
 		metadata: {id: "mail", version: "1.0.0", description: "Owner-controlled Roundcube webmail lifecycle; the mailbox stays with the owner's external provider and is verified by the owner-approved setup action."}
 		workloadRef: "mail", useCaseRef: "mail", packageRef: "mail"
+		lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
+	},
+	#ApplicationLifecycleContractV1 & {
+		metadata: {id: "mail-server", version: "1.0.0", description: "Owner-controlled Stalwart mail server lifecycle; the mail domain and first mailbox are created by the owner-approved setup action (ADR-0046)."}
+		workloadRef: "mail-server", useCaseRef: "mail-server", packageRef: "mail-server"
 		lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
 	},
 	#ApplicationLifecycleContractV1 & {
@@ -1913,6 +1995,23 @@ _architectureV2Providers: list.Concat([[
 			moduleRefs: {required: [], optional: ["stackkits-roundcube-runtime"]}
 		}
 		evidence: ["roundcube-generated-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-stalwart", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["mail-server"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {required: [], optional: ["stackkits-stalwart-runtime"]}
+		}
+		evidence: ["stalwart-generated-runtime-contract"]
 	},
 	{
 		metadata: {id: "stackkits-jellyfin", version: "1.0.0"}
@@ -2958,6 +3057,25 @@ _architectureV2RoundcubeSupport: #ModuleRealizationSupportV2 & {
 	// A renderable runtime contract only; a real mailbox login and restore
 	// stay pending until exercised against the pinned upstream image.
 	evidence: requiredRefs: ["roundcube-generated-runtime-contract"]
+}
+
+_architectureV2StalwartSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["admin-password"]}
+	artifacts: {
+		requiredRefs: ["stalwart-workload-bundle"]
+		outputBindings: [{artifactRef: "stalwart-workload-bundle", unitRef: "stalwart", outputRef: "workloads/stalwart/bundle.json"}]
+		contracts: [{
+			id: "stalwart-workload-bundle", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"], unitRef: "stalwart", outputRef: "workloads/stalwart/bundle.json"
+		}]
+	}
+	// A renderable runtime contract only; delivery from a real Cloud node and
+	// a restore stay pending until exercised against the pinned image.
+	evidence: requiredRefs: ["stalwart-generated-runtime-contract"]
 }
 
 // Jellyfin is the Media Library vertical. Config is a StackKits backup source;
@@ -4491,7 +4609,7 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "compose", kind:                                 "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core/compose/v1.yaml", version: "1.0.0"
-			contractHash: "sha256:83325050d81ead6719540e46890319df32fe2e3b1d8884c40dc3143da1a36c9d"
+			contractHash: "sha256:6a165719c9945b0c7e15c8a24aa5003a8fbbb909bcd7439381ed4ee10686c7c4"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/cloud-core/compose.yaml"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -4509,7 +4627,7 @@ _architectureV2Modules: list.Concat([[
 		}, {
 			id:           "terramate", kind:                            "terramate", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core/terramate/v1", version: "1.0.0"
-			contractHash: "sha256:5dc111fb152e893248c944eead9e58911abed6665aeaabb46b5bd813a8f69f13"
+			contractHash: "sha256:8254232c208f363dea7ff27a07ed8b2af616eb8324141e78797707ff5e296a48"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/cloud-core/main.tf", "platform/cloud-core/stack.tm.hcl"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -4518,7 +4636,7 @@ _architectureV2Modules: list.Concat([[
 		}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
-			contractHash: "sha256:83325050d81ead6719540e46890319df32fe2e3b1d8884c40dc3143da1a36c9d"
+			contractHash: "sha256:6a165719c9945b0c7e15c8a24aa5003a8fbbb909bcd7439381ed4ee10686c7c4"
 			unitRefs: ["compose"], artifactRefs: ["cloud-core-compose"]
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 		}, {
@@ -4602,7 +4720,7 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "compose", kind:                                            "compose", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core-standalone/compose/v1.yaml", version: "1.0.0"
-			contractHash: "sha256:ddcb305343a3c7ae836234d300e67077c4a7b1a3f0cff9781c72dd5d4e03907f"
+			contractHash: "sha256:10b557a8c1d690d0db2673a50a0dc96f2e08247047a99a2639fc75308ceb30ef"
 			publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
 			secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
 			planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
@@ -4626,7 +4744,7 @@ _architectureV2Modules: list.Concat([[
 		}, {
 			id:              "terramate", kind:                                       "terramate", rendererRef: "stackkit"
 			templateRef:     "builtin://cloud/core-standalone/terramate/v1", version: "1.0.0"
-			contractHash:    "sha256:3f2c14c5ddeb144811f8ba25a28fbf5311692b301c37423d9f197b1bdf76c665"
+			contractHash:    "sha256:d5fb144e69281318cc5041cc6fcee478a10df2cb8206295ee4f1e52590483b4a"
 			publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
 			secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
 			planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
@@ -4638,7 +4756,7 @@ _architectureV2Modules: list.Concat([[
 		}, _architectureV2LocalKopiaSourceRenderUnit & {_outputRef: "cloud/backup/kopia-source-policy.json"}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
-			contractHash: "sha256:ddcb305343a3c7ae836234d300e67077c4a7b1a3f0cff9781c72dd5d4e03907f"
+			contractHash: "sha256:10b557a8c1d690d0db2673a50a0dc96f2e08247047a99a2639fc75308ceb30ef"
 			unitRefs: ["compose", "source-policy"], artifactRefs: ["cloud-core-standalone-compose", "cloud-kopia-backup-source-policy"]
 			publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 		}, {
@@ -5561,7 +5679,7 @@ _architectureV2Modules: list.Concat([[
 			rendererRef: "stackkit"
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/immich-lite/bundle/v2.json"
-			version:      "3.0.0"
+			version:      "3.1.0"
 			contractHash: "sha256:5eb57d279f18736169bef048d15a7328162848d3ab2750452f2d057637d0fe17"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
@@ -6263,6 +6381,74 @@ _architectureV2Modules: list.Concat([[
 		realizationSupport: _architectureV2RoundcubeSupport
 		health: [{id: "roundcube-http", phase: "continuous", kind: "http", path: "/", port: 80, timeoutSeconds: 10, expectedStatuses: [200]}]
 		evidence: ["roundcube-generated-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-stalwart-runtime"
+			version:     "1.0.0"
+			description: "Stalwart Mail Server with its embedded RocksDB store on one public Cloud node: SMTP, submission, IMAP and ManageSieve published on the node, the web administration behind the router (ADR-0046)."
+		}
+		role:        "workload"
+		providerRef: "stackkits-stalwart"
+		provides: []
+		supportedSiteKinds: ["cloud"]
+		nodeSelection: {authority: "control-authority-site", requiredRoles: ["worker"]}
+		computeProfiles:       _architectureV2StalwartComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:              "container", delivery: "application-adapter", engine: "docker"
+			image:             _architectureV2StalwartImage
+			entryComponentRef: "stalwart"
+			components: [{
+				id:    "stalwart", role: "application", lifecycle: "daemon"
+				image: _architectureV2StalwartImage
+				dependsOn: [], networkRefs: ["mail-server-internal"]
+				// Outbound SMTP delivery, ACME and Stalwart's own rule and web
+				// interface downloads.
+				egress: true
+				entrypoint: ["/bin/sh", "-c", _architectureV2StalwartEntrypointScript]
+				// The custody password reaches only the entrypoint, which hands
+				// it to Stalwart as STALWART_RECOVERY_ADMIN=admin:<password>.
+				secretEnvironment: STACKKIT_ADMIN_SECRET: "admin-password"
+				// ADR-0046 mail-node fields: the route host is the mail host
+				// name, the mail ports are published on the node, and the router
+				// passes TLS-ALPN-01 challenges for that host to Stalwart.
+				routeHostEnvironment: STALWART_HOSTNAME: "route-host"
+				publishedPorts: [{port: 25, protocol: "tcp"}, {port: 465, protocol: "tcp"}, {port: 587, protocol: "tcp"}, {port: 993, protocol: "tcp"}, {port: 4190, protocol: "tcp"}]
+				acmeTlsAlpnPort: 443
+				volumes: [for allocation in _architectureV2MailServerInfrastructure.storageAllocation.allocations if allocation.componentRef == "stalwart" {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+				}]
+				health: {kind: "http", path: "/healthz/ready", port: 8080}
+				resources: {memoryLimit: "1g", memoryReservation: "512m"}
+			}]
+		}
+		renderUnits: [{
+			id: "stalwart", kind: "native-config", rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/stalwart/bundle/v1.json", version: "1.0.0"
+			contractHash: "sha256:6dcabfec2518b0b1df5db0bdbf280ffa8185348b68cc6d714ca3a2dfd7f7d868"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
+			secretInputRefs: ["admin-password"]
+			outputs: ["workloads/stalwart/bundle.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: [{
+				serviceRef:        "mail-server", upstreamProtocol: "http", targetPort: 8080
+				requiredPrivilege: "user", ingressAuth: "native", allowedIngressProtocols: ["https"]
+				// Mail needs a public host name; private exposures are refused.
+				allowedExposures: ["public"]
+				originSelector: "control-authority-site", healthRef: "stalwart-http"
+				data: {bindingRef: _architectureV2MailServerInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2MailServerInfrastructure.dataBinding.classes, locality: _architectureV2MailServerInfrastructure.dataBinding.locality}
+			}]
+		}]
+		renderVariants: [
+			{id: "compose", target: "compose", rendererRef: "stackkit", contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56", unitRefs: ["stalwart"], artifactRefs: ["stalwart-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: ["admin-password"], planInputRefs: []},
+			{id: "opentofu", target: "opentofu", rendererRef: "stackkit", contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430", unitRefs: ["stalwart"], artifactRefs: ["stalwart-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: ["admin-password"], planInputRefs: []},
+		]
+		realizationSupport: _architectureV2StalwartSupport
+		health: [{id: "stalwart-http", phase: "continuous", kind: "http", path: "/healthz/ready", port: 8080, timeoutSeconds: 10, expectedStatuses: [200]}]
+		evidence: ["stalwart-generated-runtime-contract"]
 	},
 	{
 		metadata: {

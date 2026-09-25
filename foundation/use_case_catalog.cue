@@ -416,6 +416,17 @@ UseCaseCatalog: #UseCaseCatalog & {
 				},
 			]
 		}
+		// ADR-0046: the own mail server is a second, separately selectable
+		// part of the Mail main use case next to the mail client.
+		"mail-server": {
+			slug:        "mail-server"
+			displayName: "Own Mail Server"
+			description: "Your own mail server on a Cloud node through Stalwart: mailboxes for your domain with SMTP, IMAP and submission. StackKits prints the DNS records you publish; it never changes DNS."
+			owner:       "stackkits"
+			mainUseCase: id: "mail"
+			docs: "/guides/stackkits/use-cases/mail"
+			components: stalwart: {id: "stalwart", name: "Stalwart Mail Server", role: "primary", kind: "application"}
+		}
 		game: {
 			slug:        "game"
 			displayName: "Game Server"

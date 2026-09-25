@@ -409,6 +409,40 @@ through explicit Owner-approved resume or recovery. `stackkit status` returns
 the same contract, state, and current-plan match signal consumed by its MCP
 adapter and the State Console; neither surface implements a second lifecycle.
 
+#### Member join (Modern Cloud edge)
+
+A Modern plan always contains its Cloud edge node, so joining that host is not
+a membership delta and does not run Fleet `add`: it binds a physical host to a
+member the current plan already declares. `add` stays the path for a node the
+current plan does not contain. On the Foundation Node, `stackkit fleet
+admit-member --node <node>` compiles the current plan from the persisted
+StackSpec and Inventory and issues one Owner-signed
+`stackkit.member-admission/v1` document (maximum 24-hour join window). It binds
+the StackInstance, plan, spec, and inventory hashes, the compiler version, the
+Home authority tuple, the member Site/node/execution-channel tuple, the member
+roles, the Home owner verification key, and the plan's Home-to-member verifier
+distributions, and carries the exact StackSpec and Inventory bytes. Issuance
+requires the owner binding to be a Home ControlAuthority member and the member
+to be an enabled non-controller at a Cloud Site; each has exactly one Inventory
+`executionChannels` entry, and every verifier distribution to the member Site
+must exclude signing, enrollment, private-key, and credential material.
+
+On the Cloud host, `stackkit fleet join <admission> --home-key-id <keyId>`
+verifies the signature against the key ID compared out of band, recompiles the
+plan from the admitted bytes, and requires every admitted fact including the
+plan hash to match. It persists the StackSpec, the Inventory, and
+`stackkit.local-member-custody/v1` at `.stackkit/custody/member.json`. Member
+custody holds no private key and closes enrollment, signing, credential
+issuance, and ControlAuthority as `false`; its integrity is the embedded
+Owner-signed admission. A workspace holds either owner custody or member
+custody. On a member, every owner-custody operation (Owner signing, owner
+init, Inventory attestation, Apply) is denied with reason
+`member_custody_verify_only`. Both hosts therefore compute the same plan hash
+and the same `stackkit.terramate-stack-graph/v1`, whose host projects carry
+each node's execution channel. Member-local Apply, member change sets, and
+member evidence custody are not implemented yet; until then the Foundation
+Node remains the only Apply authority.
+
 ### Kit-specific workload runtime ownership
 
 `runtime-paas` is only the shared workload-delivery interface. It never selects
@@ -1349,6 +1383,12 @@ rule).
   `.stackkit/runtime/<runtime>/compose.yaml` after the executor proves it holds
   exactly the root's `local_file` payload: the pinned service set through
   `docker compose ps`, every governed probe, and the PocketID owner binding.
+  Public `stackkit verify` (and the backup and restore post-verify that reuse
+  it) accepts the Basement and Cloud Core runtimes on the `opentofu` and
+  `terramate` units: it derives the Compose payload from the governed `main.tf`
+  with `ExtractComposePayload` and requires the installed root `main.tf` to
+  equal that artifact, the runtime `compose.yaml` to equal the payload, and
+  the root to hold state.
 - **Offline providers.** Release archives ship a filesystem mirror in
   `providers/` beside `tofu` (`scripts/release/fetch-opentofu-providers.sh`,
   checksum-verified against the upstream SHA256SUMS; the Debian package installs

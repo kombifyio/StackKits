@@ -79,6 +79,15 @@ type selectedPaaSRuntimeComponent struct {
 	// ADR-0043 game-node fields; admitted only for the Pterodactyl workload.
 	RouteHostLoopback    bool                              `json:"routeHostLoopback,omitempty"`
 	DockerLifecycleOwner *selectedPaaSDockerLifecycleOwner `json:"dockerLifecycleOwner,omitempty"`
+	// ADR-0046 mail-node fields; admitted only for the Stalwart workload.
+	PublishedPorts       []selectedPaaSPublishedPort `json:"publishedPorts,omitempty"`
+	RouteHostEnvironment map[string]string           `json:"routeHostEnvironment,omitempty"`
+	AcmeTLSALPNPort      int                         `json:"acmeTlsAlpnPort,omitempty"`
+}
+
+type selectedPaaSPublishedPort struct {
+	Port     int    `json:"port"`
+	Protocol string `json:"protocol"`
 }
 
 // selectedPaaSRuntimeLimits is the declared per-container ceiling. Absent

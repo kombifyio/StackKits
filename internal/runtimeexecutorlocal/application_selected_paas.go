@@ -22,6 +22,7 @@ const (
 	SelectedPaaSApplicationPaperless     SelectedPaaSApplication = "paperless-ngx"
 	SelectedPaaSApplicationPterodactyl   SelectedPaaSApplication = "pterodactyl"
 	SelectedPaaSApplicationRoundcube     SelectedPaaSApplication = "roundcube"
+	SelectedPaaSApplicationStalwart      SelectedPaaSApplication = "stalwart"
 	SelectedPaaSApplicationJellyfin      SelectedPaaSApplication = "jellyfin"
 	SelectedPaaSApplicationHomeAssistant SelectedPaaSApplication = "home-assistant"
 )
@@ -109,6 +110,20 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 			rendererContract: architecturev2renderer.RoundcubeWorkloadBundleRendererContract,
 			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
 				descriptor, err := architecturev2renderer.ParseRoundcubeWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{
+					workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef,
+					siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef,
+				}, err
+			},
+		}, true
+	case SelectedPaaSApplicationStalwart:
+		return selectedPaaSApplicationSpec{
+			name: "Stalwart", providerRef: "stackkits-stalwart", moduleRef: stalwartWorkloadModuleRef,
+			unitRef: "stalwart", workloadRef: "mail-server", artifactRef: "stalwart-workload-bundle",
+			outputRef: "workloads/stalwart/bundle.json", healthRef: "stalwart-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.StalwartWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseStalwartWorkloadBundle(content)
 				return selectedPaaSApplicationIdentity{
 					workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef,
 					siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef,

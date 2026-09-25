@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 * **host:** `stackkit host updates plan|apply` and `stackkit host reboot` maintain the operating system of a Debian or Ubuntu node. Plan reports pending and security updates, a `plan_digest` and whether a reboot is likely. Apply installs exactly the reviewed set inside a transient systemd unit, so a timeout never interrupts dpkg. The container runtime is held (for this CLI; unattended-upgrades follows the StackKit base), and apply never removes packages or reboots. Reboot schedules a guarded systemd timer and returns the current boot ID; at fire time the guard re-checks and reboots while holding the dpkg locks. It refuses the Techstack control plane host (failing closed when it cannot tell), a busy package manager and volumes that need a boot passphrase. Results use `stackkit.host-maintenance/v1`
+* **mail-server:** own mail server as a second, separately selectable part of Mail (ADR-0046): optional Stalwart Mail Server workload (v0.16.23, digest-pinned) on the Cloud Kit with SMTP, submission, IMAPS and ManageSieve published on the node, the web administration behind the router and a custody-held fallback administrator. `stackkit setup mail-server` creates the owner's domain and first mailbox, requests a Let's Encrypt certificate through a TLS-ALPN-01 router passthrough, prints MX, SPF, DKIM, DMARC and SRV records and verifies an IMAPS login and a submission handshake; DNS is never changed automatically. Home placement is refused until an outbound relay input exists
 * **mail:** client-first Mail use case: optional Roundcube Webmail workload (1.6.19, digest-pinned, SQLite) for an existing external IMAP/SMTP mailbox on Basement, Cloud and Modern; no mail server, SMTP listener or DNS is created. `stackkit setup mail` stores the owner's IMAP and SMTP servers with an explicit `ssl`/`starttls` mode on a backed-up volume and verifies a real login through Roundcube's own form; before setup Roundcube refuses logins and never offers a free-form server. The mail route serves Mozilla autoconfig, Outlook autodiscover and an Apple configuration profile. The session key comes from owner custody; login rate limiting and IP-bound sessions are on
 * **game:** `stackkit game list|power|allow` and the matching MCP tools operate game servers through the installed Panel with custody-derived keys, so neither the owner nor an agent handles a Panel key
 * **game:** backups and restores stop the owner's running game servers with their own stop command (so worlds are saved) and start them again afterwards; an interrupted hold is resumed by the next backup or restore
@@ -21,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+* **mcp:** project `stackkit host updates plan|apply` and `stackkit host reboot` as MCP operations; align the immich-lite renderer version (3.1.0) in the catalog
 * **backup:** the Kopia runtime check accepts a container Compose recreated (its `com.docker.compose.replace` label); after a core re-apply every backup failed with "container Compose labels differ"
 * **backup:** snapshot quiescence refuses a component with an unusable stop signal before stopping anything; before, it stopped part of the graph and could not restart it
 * **restore:** restore activation and recovery start the Basement core from the same project directory as Apply, so the staged `stackkit-server` binary resolves; before, Docker created an empty directory in its place and the core, Game and Mail stayed stopped
@@ -38,6 +40,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **photos:** keep Apply and restore available when optional machine learning is degraded, while reporting its health and retaining blocking checks for core services
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
+
+## [0.46.7](https://github.com/kombifyio/StackKits/compare/v0.46.6...v0.46.7) (2026-09-25)
+
+
+### Added
+
+* **fleet:** Modern Cloud edge joins as a member node (M1)
+* **mail-server:** own Stalwart mail server as a separate Mail workload
+
+
+### Fixed
+
+* **verify:** public verify accepts Basement and Cloud cores on OpenTofu and Terramate targets
 
 ## [0.46.6](https://github.com/kombifyio/StackKits/compare/v0.46.5...v0.46.6) (2026-09-25)
 

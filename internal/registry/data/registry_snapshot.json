@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-09-25T08:07:52Z",
+  "generated_at": "2026-09-25T09:42:11Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -1090,6 +1090,19 @@
         "pi"
       ],
       "core": true
+    },
+    {
+      "slug": "stalwart",
+      "display_name": "Stalwart Mail Server",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Stalwart Mail Server upstream catalog: the own mail server of the Mail main use case (ADR-0046). The native-v2 mail-server workload owns the governed entrypoint, the custody-held fallback administrator, the published mail ports and the owner-approved domain setup. Cloud nodes only.",
+      "contract_hash": "4067574158ec02c87aebbb6e14cb6c65b4103c458278baac1e750511227fd7b9",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
     },
     {
       "slug": "step-ca",

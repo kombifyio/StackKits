@@ -269,7 +269,8 @@
         "dev",
         "documents",
         "game",
-        "mail"
+        "mail",
+        "mail-server"
       ]
     },
     "standaloneOwner": {
@@ -876,7 +877,8 @@
       "dev",
       "documents",
       "game",
-      "mail"
+      "mail",
+      "mail-server"
     ],
     "required": [
       "cloud-core"

@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:c9c8f7c5d5b58a8101e91c2e15d0018bf40e25122f8fdbe01719d1b001d2fd82",
+  "contentDigest": "sha256:3c8d3b2271ec1e4cf92aca114c0531eab5b67d1500c0a1c5053dfbe069bc585d",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -585,6 +585,97 @@
         }
       ],
       "title": "Private Mail"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "stalwart",
+          "modules": [
+            {
+              "computeProfiles": [
+                "high",
+                "low",
+                "standard"
+              ],
+              "id": "stackkits-stalwart-runtime"
+            }
+          ],
+          "name": "stalwart"
+        }
+      ],
+      "components": [
+        {
+          "id": "stalwart",
+          "kind": "application",
+          "name": "Stalwart Mail Server",
+          "role": "primary"
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "functions": [
+            "mail-server",
+            "mailbox-hosting",
+            "smtp-delivery",
+            "imap-access"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "stalwart",
+          "notes": [
+            "Same application and reservation as standard."
+          ]
+        },
+        "low": {
+          "functions": [
+            "mail-server",
+            "mailbox-hosting",
+            "smtp-delivery",
+            "imap-access"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "stalwart",
+          "notes": [
+            "Stalwart reserves 512 MiB for RocksDB caches and spam filtering and is idle between deliveries."
+          ]
+        },
+        "standard": {
+          "functions": [
+            "mail-server",
+            "mailbox-hosting",
+            "smtp-delivery",
+            "imap-access"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "stalwart",
+          "notes": [
+            "Same application and reservation as low."
+          ]
+        }
+      },
+      "defaultAlternative": "stalwart",
+      "description": "Your own mail server on a Cloud node through Stalwart: mailboxes for your domain with SMTP, IMAP and submission. StackKits prints the DNS records you publish; it never changes DNS.",
+      "docs": "/guides/stackkits/use-cases/mail",
+      "id": "mail-server",
+      "mainUseCase": {
+        "id": "mail",
+        "title": "Mail"
+      },
+      "title": "Own Mail Server"
     },
     {
       "alternatives": [

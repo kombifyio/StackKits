@@ -992,6 +992,219 @@
               "state-console"
             ]
           },
+          "setup": {
+            "destructive": false,
+            "evidence": [
+              "setup-result"
+            ],
+            "mutation": true,
+            "name": "setup",
+            "operations": [
+              "stackkit.setup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "configure",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Owner-controlled Stalwart mail server lifecycle; the mail domain and first mailbox are created by the owner-approved setup action (ADR-0046).",
+        "id": "mail-server",
+        "version": "1.0.0"
+      },
+      "packageRef": "mail-server",
+      "useCaseRef": "mail-server",
+      "workloadRef": "mail-server"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
           "upgrade": {
             "destructive": true,
             "evidence": [
@@ -4495,6 +4708,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-stalwart-runtime"
+        ],
+        "matches": [
+          "stackkits-stalwart"
+        ],
+        "module": "stackkits-stalwart-runtime",
+        "provider": "stackkits-stalwart"
+      },
+      {
+        "governanceMatches": [
           "stackkits-pterodactyl-runtime"
         ],
         "matches": [
@@ -5327,6 +5550,12 @@
             "mail"
           ],
           "providerID": "stackkits-roundcube"
+        },
+        {
+          "contracts": [
+            "mail-server"
+          ],
+          "providerID": "stackkits-stalwart"
         },
         {
           "contracts": [
@@ -6215,6 +6444,13 @@
         ],
         "module": "stackkits-roundcube-runtime",
         "provider": "stackkits-roundcube"
+      },
+      {
+        "matches": [
+          "stackkits-stalwart-runtime"
+        ],
+        "module": "stackkits-stalwart-runtime",
+        "provider": "stackkits-stalwart"
       },
       {
         "matches": [
@@ -7119,6 +7355,34 @@
         "matches": [
           "runtime-paas"
         ],
+        "provider": "stackkits-stalwart"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-stalwart"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-stalwart"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-stalwart"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
         "provider": "stackkits-jellyfin"
       },
       {
@@ -7848,6 +8112,12 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-roundcube"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-stalwart"
         },
         {
           "capabilityBindings": [],
@@ -9228,6 +9498,88 @@
             }
           ],
           "workloadID": "mail"
+        },
+        {
+          "alternativeID": "stalwart",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-stalwart-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "stalwart"
+                  ],
+                  "ref": "admin-password"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "mail-server",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "stalwart",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-stalwart",
+              "workloadOwnership": [
+                "mail-server"
+              ]
+            }
+          ],
+          "workloadID": "mail-server"
         },
         {
           "alternativeID": "jellyfin",
@@ -13810,7 +14162,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:83325050d81ead6719540e46890319df32fe2e3b1d8884c40dc3143da1a36c9d",
+          "contractHash": "sha256:6a165719c9945b0c7e15c8a24aa5003a8fbbb909bcd7439381ed4ee10686c7c4",
           "id": "compose",
           "inputBindings": [],
           "kind": "compose",
@@ -14186,7 +14538,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:5dc111fb152e893248c944eead9e58911abed6665aeaabb46b5bd813a8f69f13",
+          "contractHash": "sha256:8254232c208f363dea7ff27a07ed8b2af616eb8324141e78797707ff5e296a48",
           "id": "terramate",
           "inputBindings": [],
           "kind": "terramate",
@@ -14376,7 +14728,7 @@
           "artifactRefs": [
             "cloud-core-compose"
           ],
-          "contractHash": "sha256:83325050d81ead6719540e46890319df32fe2e3b1d8884c40dc3143da1a36c9d",
+          "contractHash": "sha256:6a165719c9945b0c7e15c8a24aa5003a8fbbb909bcd7439381ed4ee10686c7c4",
           "id": "compose",
           "planInputRefs": [],
           "publicInputRefs": [],
@@ -15099,7 +15451,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:ddcb305343a3c7ae836234d300e67077c4a7b1a3f0cff9781c72dd5d4e03907f",
+          "contractHash": "sha256:10b557a8c1d690d0db2673a50a0dc96f2e08247047a99a2639fc75308ceb30ef",
           "id": "compose",
           "inputBindings": [
             {
@@ -15439,7 +15791,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:3f2c14c5ddeb144811f8ba25a28fbf5311692b301c37423d9f197b1bdf76c665",
+          "contractHash": "sha256:d5fb144e69281318cc5041cc6fcee478a10df2cb8206295ee4f1e52590483b4a",
           "id": "terramate",
           "inputBindings": [
             {
@@ -15659,7 +16011,7 @@
             "cloud-core-standalone-compose",
             "cloud-kopia-backup-source-policy"
           ],
-          "contractHash": "sha256:ddcb305343a3c7ae836234d300e67077c4a7b1a3f0cff9781c72dd5d4e03907f",
+          "contractHash": "sha256:10b557a8c1d690d0db2673a50a0dc96f2e08247047a99a2639fc75308ceb30ef",
           "id": "compose",
           "planInputRefs": [
             "stackId",
@@ -19851,7 +20203,7 @@
             }
           ],
           "templateRef": "builtin://workloads/immich-lite/bundle/v2.json",
-          "version": "3.0.0"
+          "version": "3.1.0"
         },
         {
           "applyMode": "artifact-only",
@@ -22429,6 +22781,339 @@
       "serviceControls": [],
       "supportedSiteKinds": [
         "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "stalwart"
+          ],
+          "description": "Stalwart Mail Server with its embedded RocksDB store for one owner domain and a few mailboxes. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "experimental",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        },
+        "low": {
+          "components": [
+            "stalwart"
+          ],
+          "description": "Stalwart Mail Server with its embedded RocksDB store for one owner domain and a few mailboxes. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 2,
+            "minStorageGB": 10
+          },
+          "maturity": "experimental",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        },
+        "standard": {
+          "components": [
+            "stalwart"
+          ],
+          "description": "Stalwart Mail Server with its embedded RocksDB store for one owner domain and a few mailboxes. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "experimental",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "stalwart-generated-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "stalwart-http",
+          "kind": "http",
+          "path": "/healthz/ready",
+          "phase": "continuous",
+          "port": 8080,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Stalwart Mail Server with its embedded RocksDB store on one public Cloud node: SMTP, submission, IMAP and ManageSieve published on the node, the web administration behind the router (ADR-0046).",
+        "id": "stackkits-stalwart-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-stalwart",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "stalwart-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/stalwart/bundle.json",
+              "required": true,
+              "unitRef": "stalwart"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "stalwart-workload-bundle",
+              "outputRef": "workloads/stalwart/bundle.json",
+              "unitRef": "stalwart"
+            }
+          ],
+          "requiredRefs": [
+            "stalwart-workload-bundle"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "stalwart-generated-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "admin-password"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:6dcabfec2518b0b1df5db0bdbf280ffa8185348b68cc6d714ca3a2dfd7f7d868",
+          "id": "stalwart",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/stalwart/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "admin-password"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "mail-server",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "stalwart-http",
+              "ingressAuth": "native",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "mail-server",
+              "targetPort": 8080,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/stalwart/bundle/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "stalwart-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "admin-password"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "stalwart"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "stalwart-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "admin-password"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "stalwart"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "acmeTlsAlpnPort": 443,
+            "dependsOn": [],
+            "egress": true,
+            "entrypoint": [
+              "/bin/sh",
+              "-c",
+              "set -eu; printf '%s' '{\"@type\":\"RocksDb\",\"path\":\"/var/lib/stalwart/\"}' \u003e /etc/stalwart/config.json; export STALWART_RECOVERY_ADMIN=\"admin:${STACKKIT_ADMIN_SECRET:?}\"; unset STACKKIT_ADMIN_SECRET; if [ ! -f /var/lib/stalwart/.stackkit-seed-v1 ]; then /usr/local/bin/stalwart --config /etc/stalwart/config.json \u0026 pid=$!; i=0; until curl -fs -o /dev/null http://127.0.0.1:8080/healthz/ready; do i=$((i+1)); [ \"$i\" -lt 90 ] || exit 1; sleep 1; done; printf 'user = \"%s\"\\n' \"$STALWART_RECOVERY_ADMIN\" | curl -fsS -K - -H 'Content-Type: application/json' -o /tmp/stackkit-seed.json -d '{\"using\":[\"urn:ietf:params:jmap:core\",\"urn:stalwart:jmap\"],\"methodCalls\":[[\"x:Tracer/get\",{\"properties\":[\"id\"]},\"t0\"],[\"x:Tracer/set\",{\"#destroy\":{\"resultOf\":\"t0\",\"name\":\"x:Tracer/get\",\"path\":\"/list/*/id\"},\"create\":{\"stdout\":{\"@type\":\"Stdout\",\"level\":\"info\",\"ansi\":false}}},\"t1\"],[\"x:NetworkListener/set\",{\"create\":{\"submission\":{\"name\":\"submission\",\"bind\":{\"[::]:587\":true},\"protocol\":\"smtp\",\"tlsImplicit\":false}}},\"l1\"]]}' http://127.0.0.1:8080/jmap/; grep -q '\"submission\":{\"id\"' /tmp/stackkit-seed.json; grep -q '\"stdout\":{\"id\"' /tmp/stackkit-seed.json; rm -f /tmp/stackkit-seed.json; kill \"$pid\"; wait \"$pid\" || true; touch /var/lib/stalwart/.stackkit-seed-v1; fi; exec /usr/local/bin/stalwart --config /etc/stalwart/config.json"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/healthz/ready",
+              "port": 8080
+            },
+            "id": "stalwart",
+            "image": {
+              "digest": "sha256:be215678796691bc39bdda918ecc50d14a9032a099a1d1950e51950aec7e2592",
+              "ref": "docker.io/stalwartlabs/stalwart:v0.16.23"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "mail-server-internal"
+            ],
+            "publishedPorts": [
+              {
+                "port": 25,
+                "protocol": "tcp"
+              },
+              {
+                "port": 465,
+                "protocol": "tcp"
+              },
+              {
+                "port": 587,
+                "protocol": "tcp"
+              },
+              {
+                "port": 993,
+                "protocol": "tcp"
+              },
+              {
+                "port": 4190,
+                "protocol": "tcp"
+              }
+            ],
+            "resources": {
+              "memoryLimit": "1g",
+              "memoryReservation": "512m"
+            },
+            "role": "application",
+            "routeHostEnvironment": {
+              "STALWART_HOSTNAME": "route-host"
+            },
+            "secretEnvironment": {
+              "STACKKIT_ADMIN_SECRET": "admin-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "target": "/var/lib/stalwart"
+              },
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "config",
+                "target": "/etc/stalwart"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "stalwart",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:be215678796691bc39bdda918ecc50d14a9032a099a1d1950e51950aec7e2592",
+          "ref": "docker.io/stalwartlabs/stalwart:v0.16.23"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
         "cloud"
       ]
     },
@@ -29634,6 +30319,53 @@
     {
       "certificateIssuers": [],
       "evidence": [
+        "stalwart-generated-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-stalwart",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-stalwart-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "cloud"
+      ],
+      "workloadRefs": [
+        "mail-server"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
         "jellyfin-selected-paas-runtime-contract"
       ],
       "metadata": {
@@ -33254,6 +33986,154 @@
         "cloud"
       ],
       "useCaseRef": "mail"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "stalwart",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "stalwart",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "mail-server",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "stalwart",
+                  "dataBindingRef": "mail-server",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/var/lib/stalwart",
+                  "volumeRef": "data"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "stalwart",
+                  "dataClasses": [],
+                  "target": "/etc/stalwart",
+                  "volumeRef": "config"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "admin-password"
+              ],
+              "requiredRefs": [
+                "admin-password"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-stalwart-runtime",
+          "providerRef": "stackkits-stalwart",
+          "route": {
+            "healthRef": "stalwart-http",
+            "serviceRef": "mail-server"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [
+              "stalwart-mail-domain-setup"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
+          }
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "alternativeID": "stalwart",
+          "included": true
+        },
+        "low": {
+          "alternativeID": "stalwart",
+          "included": true
+        },
+        "standard": {
+          "alternativeID": "stalwart",
+          "included": true
+        }
+      },
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "stalwart",
+      "functionalCapabilities": [
+        "mail-server",
+        "mailbox-hosting",
+        "smtp-delivery",
+        "imap-access"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Own mail server: Stalwart receives and sends mail for the owner's domain on a public Cloud node. DNS records are printed for the owner, never created.",
+        "id": "mail-server",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "cloud"
+      ],
+      "useCaseRef": "mail-server"
     },
     {
       "alternatives": [

@@ -160,6 +160,7 @@ const (
 	pterodactylWorkloadModuleRef   = "stackkits-pterodactyl-runtime"
 	paperlessWorkloadModuleRef     = "stackkits-paperless-runtime"
 	roundcubeWorkloadModuleRef     = "stackkits-roundcube-runtime"
+	stalwartWorkloadModuleRef      = "stackkits-stalwart-runtime"
 	homeAssistantWorkloadModuleRef = "stackkits-home-assistant-runtime"
 )
 
@@ -200,6 +201,8 @@ func ValidateSelectedPaaSWorkloadObservation(
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationPaperless, deployment, observation)
 	case roundcubeWorkloadModuleRef:
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationRoundcube, deployment, observation)
+	case stalwartWorkloadModuleRef:
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationStalwart, deployment, observation)
 	case "stackkits-private-ai-runtime":
 		if _, err := architecturev2renderer.ParsePrivateAIWorkloadBundle(deployment.Bundle); err != nil {
 			return err

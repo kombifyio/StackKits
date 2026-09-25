@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "20bdd339f39224b834b9c610d9a3b93254b9698e",
-  "authority_bundle_sha256": "ae4a13686e8afe53f3e735e06de96a5a97889defc53145062d583d8ca149eec9",
+  "source_sha": "1aa4727fc2b7693faedf21cbfe067832e8d9e9e9",
+  "authority_bundle_sha256": "ae88ebcd95d141989b302ac36d47c5975262bde43c2027a45c38a38bcc235697",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -2618,6 +2618,92 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-stalwart-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "mail-server"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Stalwart Mail Server with its embedded RocksDB store for one owner domain and a few mailboxes. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 2,
+                "storage_gb": 10
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "stalwart"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "442126369fd0d47ed6510a6917d117e27e44e82954ea7de32057036742397ab8"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Stalwart Mail Server with its embedded RocksDB store for one owner domain and a few mailboxes. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "stalwart"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "7674859954817f89e2c55a3d67d03e9688e06abaa3920021a359934651e18fee"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Stalwart Mail Server with its embedded RocksDB store for one owner domain and a few mailboxes. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "stalwart"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "0f5263ad3d98d797027ab328cd1a89fd953b8d33050966df6e0e9dc0239b3f5c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-vaultwarden-runtime",
           "role": "workload",
           "required": false,
@@ -2889,6 +2975,32 @@
                 "address-book",
                 "mailbox-access",
                 "webmail-client"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "mail-server",
+          "title": "Own Mail Server",
+          "description": "Your own mail server on a Cloud node through Stalwart: mailboxes for your domain with SMTP, IMAP and submission. StackKits prints the DNS records you publish; it never changes DNS.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "stalwart",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "stalwart",
+              "module_id": "stackkits-stalwart-runtime",
+              "functions": [
+                "imap-access",
+                "mail-server",
+                "mailbox-hosting",
+                "smtp-delivery"
               ],
               "load": {
                 "residency": "always-on",
@@ -5268,6 +5380,22 @@
       "owner_approval": true
     },
     {
+      "id": "stackkit.host.reboot",
+      "tool_name": "stackkit_host_reboot",
+      "title": "Reboot host",
+      "description": "Schedule a guarded reboot of this node after running package operations finish.",
+      "command": [
+        "host",
+        "reboot",
+        "--json",
+        "--yes"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
       "id": "stackkit.host.remediate",
       "tool_name": "stackkit_host_remediate",
       "title": "Remediate host",
@@ -5282,6 +5410,39 @@
       "destructive": true,
       "idempotent": true,
       "owner_approval": true
+    },
+    {
+      "id": "stackkit.host.updates.apply",
+      "tool_name": "stackkit_host_updates_apply",
+      "title": "Apply host updates",
+      "description": "Install exactly the reviewed operating-system update plan on this node.",
+      "command": [
+        "host",
+        "updates",
+        "apply",
+        "--json",
+        "--yes"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.host.updates.plan",
+      "tool_name": "stackkit_host_updates_plan",
+      "title": "Plan host updates",
+      "description": "Plan the pending operating-system package updates of this node without changing it.",
+      "command": [
+        "host",
+        "updates",
+        "plan",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
     },
     {
       "id": "stackkit.identity.projection.apply",
@@ -5849,5 +6010,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "ab1e2e9d33f9f3d95601adc0a27fd1bd18a6179e1c668063b9c67c7cd7cd4d04"
+  "catalog_sha256": "8199e3c92351ac2b7deab620f9108e677373e28415bb04e5a6ec4a8ee0d77942"
 }

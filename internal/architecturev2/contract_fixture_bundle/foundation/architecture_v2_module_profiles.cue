@@ -208,3 +208,17 @@ _architectureV2RoundcubeComputeProfiles: {
 	standard: _architectureV2RoundcubeComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
 	high: _architectureV2RoundcubeComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
 }
+
+// ADR-0046: Stalwart is light; the reservation covers RocksDB caches, the
+// spam classifier and a handful of mailboxes.
+_architectureV2StalwartComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Stalwart Mail Server with its embedded RocksDB store for one owner domain and a few mailboxes. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent."
+	maturity:    "experimental", executable: true, realization: "apply-ready"
+	reservation: ramGB: 0.5 // 512 MiB component reservation.
+	components: ["stalwart"]
+}
+_architectureV2StalwartComputeProfiles: {
+	low: _architectureV2StalwartComputeProfile & {hostFloor: _architectureV2BasementCoreLiteComputeProfiles.low.hostFloor}
+	standard: _architectureV2StalwartComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+	high: _architectureV2StalwartComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+}

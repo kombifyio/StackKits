@@ -66,6 +66,14 @@ func DescribeNativeAction(action, adapter string) (NativeActionDescription, bool
 			GuideURL:                     "https://github.com/kombifyio/stackKits/blob/main/use-cases/mail/agent/mail-client/SKILL.md#verify-the-mailbox",
 			SupportsOnboardingCompletion: false,
 		}, true
+	case "stalwart-mail-domain-setup":
+		return NativeActionDescription{
+			Title:                        "Mail domain and first mailbox",
+			CredentialFields:             []string{"domain", "localPart", "password", "requestCertificate"},
+			CredentialsFile:              ".stackkit/setup/mail-server.json",
+			GuideURL:                     "https://github.com/kombifyio/stackKits/blob/main/use-cases/mail-server/agent/mail-server/SKILL.md#set-up-the-mail-domain",
+			SupportsOnboardingCompletion: false,
+		}, true
 	case "vault-owner-invite":
 		return NativeActionDescription{
 			Title:                        "Vault owner invitation",

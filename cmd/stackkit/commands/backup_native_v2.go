@@ -475,10 +475,16 @@ func nativeV2BackupPolicyRequirement(
 			"native v2 backup requires exactly one applied Full-Core or CoreLite source-policy artifact",
 		)
 	}
+	// The Core runtime is the compose unit, or the unit named after the
+	// opentofu or terramate generation target.
+	coreUnitRef, err := architectureV2CoreRuntimeUnitRef(plan)
+	if err != nil {
+		return "", generationartifact.ApplyArtifactRequirement{}, err
+	}
 	runtimeMatches := 0
 	for _, runtime := range requirements.RuntimeInstances {
 		if runtime.OwnerKind == "module" && runtime.ModuleRef == selected.ModuleRef &&
-			runtime.UnitRef == "compose" && runtime.InstanceRef != "" &&
+			runtime.UnitRef == coreUnitRef && runtime.InstanceRef != "" &&
 			len(runtime.SiteRefs) == 1 && runtime.SiteRefs[0] == siteRef &&
 			len(runtime.NodeRefs) == 1 && runtime.NodeRefs[0] == nodeRef {
 			runtimeMatches++

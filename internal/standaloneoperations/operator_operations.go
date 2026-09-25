@@ -6,6 +6,25 @@ package standaloneoperations
 // mutation always requires the exact operation confirmation plus local Owner
 // approval before the adapter adds a CLI approval flag such as --owner-approve.
 var operatorOperations = []Contract{
+	// Node OS maintenance (host updates and reboot). The MCP confirmation and
+	// local Owner approval stand in for the CLI's interactive --yes.
+	{ID: "stackkit.host.updates.plan", ToolName: "stackkit_host_updates_plan", Title: "Plan host updates", Description: "Plan the pending operating-system package updates of this node without changing it.", Command: []string{"host", "updates", "plan", "--json"}, Idempotent: true},
+	{
+		ID: "stackkit.host.updates.apply", ToolName: "stackkit_host_updates_apply", Title: "Apply host updates",
+		Description: "Install exactly the reviewed operating-system update plan on this node.",
+		Command:     []string{"host", "updates", "apply", "--json", "--yes"}, Mutation: true, Destructive: true, OwnerApproval: true,
+		Arguments: []Argument{
+			requiredFlagArg("plan_digest", ArgumentString, "--plan-digest", "plan_digest of the reviewed plan (sha256:<hex>)"),
+		},
+	},
+	{
+		ID: "stackkit.host.reboot", ToolName: "stackkit_host_reboot", Title: "Reboot host",
+		Description: "Schedule a guarded reboot of this node after running package operations finish.",
+		Command:     []string{"host", "reboot", "--json", "--yes"}, Mutation: true, Destructive: true, OwnerApproval: true,
+		Arguments: []Argument{
+			flagArg("delay", ArgumentString, "--delay", "time until the reboot starts, 1s to 5m (default 30s)"),
+		},
+	},
 	// Game servers on the installed Game workload (ADR-0043). The CLI derives
 	// the Panel keys from owner custody; no key crosses the MCP transcript.
 	{ID: "stackkit.game.list", ToolName: "stackkit_game_list", Title: "List game servers", Description: "List the owner's game servers on the installed Game workload with state and port.", Command: []string{"game", "list", "--json"}, Idempotent: true},

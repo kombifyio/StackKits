@@ -558,6 +558,46 @@ type standaloneComposeHealthcheck struct {
 // and the Panel's loopback route host.
 const standaloneComposeGameNodeModuleRef = "stackkits-pterodactyl-runtime"
 
+// standaloneComposeMailNodeModuleRef is the only workload admitted to the
+// ADR-0046 mail-node rights: mail ports published on every host address, the
+// route host as the mail host name and a TLS-ALPN-01 router passthrough.
+const standaloneComposeMailNodeModuleRef = "stackkits-stalwart-runtime"
+
+// standaloneComposeMailNode applies the ADR-0046 mail-node rights to the
+// entry component. It refuses them anywhere else, so every other workload
+// keeps publishing nothing beyond its loopback health port.
+func standaloneComposeMailNode(
+	bundle architecturev2renderer.ApplicationDeliveryBundleDescriptor,
+	component architecturev2renderer.ApplicationDeliveryComponentDescriptor,
+	service *standaloneComposeService,
+) error {
+	if len(component.PublishedTCPPorts) == 0 && len(component.RouteHostEnvironment) == 0 && component.ACMETLSALPNPort == 0 {
+		return nil
+	}
+	if bundle.ModuleRef != standaloneComposeMailNodeModuleRef || component.ID != bundle.EntryComponent ||
+		bundle.Route.ID == "" || bundle.Route.Host == "" || bundle.Route.Exposure != "public" {
+		return errors.New("published mail ports are admitted only for the public mail node entry")
+	}
+	for _, port := range component.PublishedTCPPorts {
+		service.Ports = append(service.Ports, fmt.Sprintf("%d:%d/tcp", port, port))
+	}
+	for _, name := range component.RouteHostEnvironment {
+		if _, conflict := service.Environment[name]; conflict {
+			return errors.New("mail node route-host binding conflicts with a declared variable")
+		}
+		service.Environment[name] = strings.ReplaceAll(bundle.Route.Host, "$", "$$")
+	}
+	if component.ACMETLSALPNPort != 0 {
+		router := "stackkit-" + bundle.Route.ServiceRef + "-acme-tls-alpn"
+		service.Labels["traefik.tcp.routers."+router+".entrypoints"] = "websecure"
+		service.Labels["traefik.tcp.routers."+router+".rule"] = "HostSNI(`" + bundle.Route.Host + "`) && ALPN(`acme-tls/1`)"
+		service.Labels["traefik.tcp.routers."+router+".tls.passthrough"] = "true"
+		service.Labels["traefik.tcp.routers."+router+".service"] = router
+		service.Labels["traefik.tcp.services."+router+".loadbalancer.server.port"] = strconv.Itoa(component.ACMETLSALPNPort)
+	}
+	return nil
+}
+
 func standaloneComposeNeedsDockerRoot(bundle architecturev2renderer.ApplicationDeliveryBundleDescriptor) bool {
 	for _, component := range bundle.Components {
 		for _, volume := range component.Volumes {
@@ -780,6 +820,9 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 				document.Networks[standaloneComposeHealthNetwork] = standaloneComposeNetwork{}
 				service.Networks = append(service.Networks, standaloneComposeHealthNetwork)
 			}
+		}
+		if err := standaloneComposeMailNode(bundle, component, &service); err != nil {
+			return nil, nil, nil, err
 		}
 		sort.Strings(service.Networks)
 		sort.SliceStable(service.Volumes, func(i, j int) bool {

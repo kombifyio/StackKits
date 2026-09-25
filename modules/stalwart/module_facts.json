@@ -1,0 +1,64 @@
+{
+  "facts_schema_version": "1.0.0",
+  "slug": "stalwart",
+  "displayName": "Stalwart Mail Server",
+  "description": "Stalwart Mail Server upstream catalog: the own mail server of the Mail main use case (ADR-0046). The native-v2 mail-server workload owns the governed entrypoint, the custody-held fallback administrator, the published mail ports and the owner-approved domain setup. Cloud nodes only.",
+  "layer": "L3-application",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "512m"
+    }
+  },
+  "services": [
+    {
+      "name": "stalwart",
+      "type": "application",
+      "required": false,
+      "imageSource": {
+        "moduleRef": "stackkits-stalwart-runtime",
+        "componentRef": "stalwart"
+      },
+      "networks": [
+        "mail-server-internal"
+      ],
+      "volumes": [
+        {
+          "source": "stalwart-data",
+          "target": "/var/lib/stalwart",
+          "type": "volume",
+          "backup": true
+        },
+        {
+          "source": "stalwart-config",
+          "target": "/etc/stalwart",
+          "type": "volume",
+          "backup": false
+        }
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/healthz/ready",
+        "port": 8080
+      },
+      "resources": {
+        "memory": "512m",
+        "memoryMax": "1g"
+      },
+      "upstream": {
+        "github": "stalwartlabs/stalwart",
+        "registryImage": "docker.io/stalwartlabs/stalwart"
+      },
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`mail-server.{{.domain}}`)",
+        "port": 8080
+      },
+      "accessPolicy": {
+        "outerAuth": "self",
+        "appAuth": "self-auth"
+      }
+    }
+  ]
+}

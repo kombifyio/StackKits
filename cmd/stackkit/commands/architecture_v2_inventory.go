@@ -216,8 +216,13 @@ func localInventoryNode(wd string, rawSpec []byte, options architectureV2Executi
 	}
 	requested := strings.TrimSpace(options.localNodeRef)
 	if requested == "" {
+		var memberDenial *localevidence.MemberSigningDenial
 		if custody, loadErr := localevidence.LoadOwnerCustody(wd); loadErr == nil {
 			requested = strings.TrimSpace(custody.Binding.NodeRef)
+		} else if errors.As(loadErr, &memberDenial) {
+			// The Foundation Node owns the shared Inventory; a member must not
+			// merge its own observations and diverge from the admitted plan.
+			return "", "", fmt.Errorf("local Inventory attestation on a Fleet member is not available yet: %w", memberDenial)
 		} else if !errors.Is(loadErr, localevidence.ErrOwnerCustodyMissing) {
 			return "", "", fmt.Errorf("load local owner binding for inventory: %w", loadErr)
 		}

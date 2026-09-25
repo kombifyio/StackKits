@@ -10,6 +10,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/applyoutcome"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/logging"
 	"github.com/kombifyio/stackkits/internal/managedentitlement"
 	"github.com/spf13/cobra"
@@ -103,6 +104,17 @@ func typedProductFailureReason(err error) (reason string, typed bool) {
 
 func writeMachineCommandFailure(cmd *cobra.Command, err error, guidance ...string) error {
 	if cmd == nil || err == nil {
+		return err
+	}
+	var memberDenial *localevidence.MemberSigningDenial
+	if errors.As(err, &memberDenial) {
+		detail := actionableerror.New(
+			"stackkit_command_failed", localevidence.ReasonMemberCustodyVerifyOnly,
+			logging.RedactText(err.Error()), memberDenial.Guidance(), false,
+		)
+		if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), "denied", detail); writeErr != nil {
+			return errors.Join(err, fmt.Errorf("write machine-readable command failure: %w", writeErr))
+		}
 		return err
 	}
 	var entitlementDenial *managedentitlement.Denial

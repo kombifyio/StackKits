@@ -43,6 +43,13 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 	if strings.TrimSpace(initOwnerSource) == "local" && authoring.StandaloneOwner == nil {
 		return fmt.Errorf("%s does not publish a CUE-owned standalone local owner contract", stackkitName)
 	}
+	if strings.TrimSpace(initOwnerSource) == "local" {
+		// A verify-only Fleet member never becomes a second enrollment authority.
+		var memberDenial *localevidence.MemberSigningDenial
+		if _, err := localevidence.LoadOwnerCustody(wd); errors.As(err, &memberDenial) {
+			return err
+		}
+	}
 
 	var validation architecturev2.StackSpecValidation
 	if strings.TrimSpace(initCandidateSpec) != "" {

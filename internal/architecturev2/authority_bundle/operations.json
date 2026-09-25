@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:dced5265dd63eb3101e6f07ce8c1a2c813bcac579fb5a180d854687eb3e1fd28",
+  "contentDigest": "sha256:498457ae9b08d2cce8ee65d91b8e54c8d1575330858cd722ae6a4baac630fd4a",
   "operations": [
     {
       "command": [
@@ -1186,6 +1186,31 @@
     {
       "arguments": [
         {
+          "description": "time until the reboot starts, 1s to 5m (default 30s)",
+          "flag": "--delay",
+          "kind": "string",
+          "name": "delay"
+        }
+      ],
+      "command": [
+        "host",
+        "reboot",
+        "--json",
+        "--yes"
+      ],
+      "description": "Schedule a guarded reboot of this node after running package operations finish.",
+      "destructive": true,
+      "id": "stackkit.host.reboot",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Reboot host",
+      "toolName": "stackkit_host_reboot"
+    },
+    {
+      "arguments": [
+        {
           "description": "named resolution to carry out; omit both apply and auto_reversible to only plan",
           "flag": "--apply",
           "kind": "string",
@@ -1223,6 +1248,50 @@
       "ownerApproval": true,
       "title": "Remediate host",
       "toolName": "stackkit_host_remediate"
+    },
+    {
+      "arguments": [
+        {
+          "description": "plan_digest of the reviewed plan (sha256:\u003chex\u003e)",
+          "flag": "--plan-digest",
+          "kind": "string",
+          "name": "plan_digest",
+          "required": true
+        }
+      ],
+      "command": [
+        "host",
+        "updates",
+        "apply",
+        "--json",
+        "--yes"
+      ],
+      "description": "Install exactly the reviewed operating-system update plan on this node.",
+      "destructive": true,
+      "id": "stackkit.host.updates.apply",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Apply host updates",
+      "toolName": "stackkit_host_updates_apply"
+    },
+    {
+      "command": [
+        "host",
+        "updates",
+        "plan",
+        "--json"
+      ],
+      "description": "Plan the pending operating-system package updates of this node without changing it.",
+      "destructive": false,
+      "id": "stackkit.host.updates.plan",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Plan host updates",
+      "toolName": "stackkit_host_updates_plan"
     },
     {
       "arguments": [

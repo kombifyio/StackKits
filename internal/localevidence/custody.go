@@ -96,7 +96,9 @@ func EstablishOwnerCustody(workspaceRoot string, request OwnerCustodyRequest) (O
 		}
 		return OwnerCustody{}, errors.New("localevidence: requested local owner projection or binding differs from established custody")
 	}
-	if !errors.Is(err, ErrOwnerCustodyMissing) {
+	var memberDenial *MemberSigningDenial
+	if !errors.Is(err, ErrOwnerCustodyMissing) || errors.As(err, &memberDenial) {
+		// A verify-only member never mints Home enrollment or signing custody.
 		return OwnerCustody{}, err
 	}
 
@@ -224,6 +226,13 @@ func LoadOwnerCustody(workspaceRoot string) (OwnerCustody, error) {
 	}
 	raw, err := os.ReadFile(path) //nolint:gosec // fixed path below the explicit workspace
 	if errors.Is(err, os.ErrNotExist) {
+		denial, denialErr := memberCustodyDenial(workspaceRoot)
+		if denialErr != nil {
+			return OwnerCustody{}, denialErr
+		}
+		if denial != nil {
+			return OwnerCustody{}, denial
+		}
 		return OwnerCustody{}, ErrOwnerCustodyMissing
 	}
 	if err != nil {

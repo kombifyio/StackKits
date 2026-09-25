@@ -53,6 +53,12 @@ func validateNativeOwnerSetupAction(deployment runtimeexecutorlocal.SelectedPaaS
 		}
 		_, err := architecturev2renderer.ParseRoundcubeWorkloadBundle(deployment.Bundle)
 		return err
+	case "stalwart-mail-domain-setup":
+		if options.completeOnboarding {
+			return errors.New("the mail domain setup has no separate onboarding; omit --complete-onboarding")
+		}
+		_, err := architecturev2renderer.ParseStalwartWorkloadBundle(deployment.Bundle)
+		return err
 	case applicationlifecycle.VaultOwnerInviteActionRef:
 		if options.completeOnboarding {
 			return errors.New("Vaultwarden personal encryption setup must be completed in the official client; omit --complete-onboarding")
@@ -185,6 +191,8 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 		return executePterodactylGameServerSetup(ctx, client, baseURL, workspace, deployment, release, options)
 	case "roundcube-mailbox-login":
 		return executeRoundcubeMailboxSetup(ctx, client, baseURL, workspace, deployment, release, options)
+	case "stalwart-mail-domain-setup":
+		return executeStalwartMailDomainSetup(ctx, client, baseURL, workspace, deployment, options)
 	case applicationlifecycle.VaultOwnerInviteActionRef:
 		var credentials struct {
 			Email string `json:"email"`

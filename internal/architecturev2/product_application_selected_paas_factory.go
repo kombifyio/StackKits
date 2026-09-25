@@ -51,6 +51,18 @@ func NewProductRoundcubeSelectedPaaSRegistration(
 	)
 }
 
+// NewProductStalwartSelectedPaaSRegistration binds the own mail server
+// workload (ADR-0046) to the existing standalone application adapter and
+// lifecycle owner.
+func NewProductStalwartSelectedPaaSRegistration(
+	runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef string,
+	operations runtimeexecutorlocal.SelectedPaaSWorkloadOperations,
+) (ProductRuntimeOwnerRegistration, error) {
+	return newProductApplicationSelectedPaaSRegistration(
+		runtimeexecutorlocal.SelectedPaaSApplicationStalwart, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations,
+	)
+}
+
 // NewProductPaperlessSelectedPaaSRegistration binds the Documents workload to
 // the existing standalone application adapter and lifecycle owner.
 func NewProductPaperlessSelectedPaaSRegistration(

@@ -12,18 +12,22 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2"
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutoropentofu"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/kombifyio/stackkits/internal/runtimeobservation"
+	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
 )
 
 const (
@@ -239,6 +243,9 @@ func verifyArchitectureV2LocalCloudState(
 			newOperations = runtimeexecutorlocal.NewOSCloudStandaloneCoreOperations
 		}
 	}
+	if err := verifyArchitectureV2CloudCoreOpenTofuRoot(workspaceRoot, appliedRequest); err != nil {
+		return ownerSummary, nil, fmt.Errorf("verify live Cloud core: %w", err)
+	}
 	operations, err := newOperations(workspaceRoot)
 	if err != nil {
 		return ownerSummary, nil, err
@@ -262,6 +269,33 @@ func verifyArchitectureV2LocalCloudState(
 	}, nil
 }
 
+// verifyArchitectureV2CloudCoreOpenTofuRoot checks the installed Core
+// OpenTofu root of a Cloud core applied under the opentofu or terramate unit;
+// a Cloud core applied under the compose unit has no root.
+func verifyArchitectureV2CloudCoreOpenTofuRoot(workspaceRoot string, appliedRequest runtimeexecutor.ExecutionRequest) error {
+	for _, target := range appliedRequest.RuntimeTargets {
+		if target.OwnerKind != "module" || target.ProviderRef != "stackkits-cloud-core" ||
+			(target.UnitRef != runtimeexecutoropentofu.UnitRef && target.UnitRef != runtimeexecutoropentofu.TerramateUnitRef) {
+			continue
+		}
+		var mainTF []byte
+		roots := 0
+		for _, artifact := range appliedRequest.Artifacts {
+			if slices.Contains(target.ArtifactRefs, artifact.ID) && path.Base(artifact.OutputRef) == runtimeexecutoropentofu.ConfigFile {
+				mainTF = artifact.Content
+				roots++
+			}
+		}
+		if roots != 1 {
+			return errors.New("applied Cloud core target does not own exactly one OpenTofu root")
+		}
+		if _, err := verifyArchitectureV2CoreOpenTofuRoot(workspaceRoot, target.ModuleRef, mainTF); err != nil {
+			return fmt.Errorf("verify the Cloud core OpenTofu root: %w", err)
+		}
+	}
+	return nil
+}
+
 func verifyArchitectureV2OwnerCustody(workspaceRoot string) (architectureV2OwnerVerifySummary, localevidence.LocalBinding, error) {
 	owner, err := localevidence.LoadOwnerCustody(workspaceRoot)
 	if err != nil {
@@ -281,6 +315,10 @@ func verifyBasementCoreWorkspace(
 		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("Basement workspace verification requires a context")
 	}
 	requirements := plan.ApplyRequirements()
+	unitRef, err := architectureV2CoreRuntimeUnitRef(plan)
+	if err != nil {
+		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, err
+	}
 	var target generationartifact.ApplyRuntimeRequirement
 	var profile runtimeexecutorlocal.BasementCoreRuntimeProfile
 	targets := 0
@@ -289,7 +327,8 @@ func verifyBasementCoreWorkspace(
 		if supported && candidate.OwnerKind == "module" &&
 			candidate.OwnerRef == candidateProfile.ModuleRef &&
 			candidate.ProviderRef == candidateProfile.ProviderRef &&
-			candidate.UnitRef == candidateProfile.UnitRef && candidate.WorkloadRef == candidateProfile.WorkloadRef {
+			candidate.UnitRef == unitRef &&
+			candidate.WorkloadRef == candidateProfile.WorkloadRef {
 			target = candidate
 			profile = candidateProfile
 			targets++
@@ -298,7 +337,8 @@ func verifyBasementCoreWorkspace(
 	if targets != 1 {
 		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("verified plan requires exactly one Basement core runtime")
 	}
-	if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 || len(target.ArtifactRefs) != 1 ||
+	coreArtifact := architectureV2CoreArtifactShape(target.UnitRef, profile.OutputRef, profile.MaxArtifactBytes)
+	if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 || len(target.ArtifactRefs) != coreArtifact.artifactRefs ||
 		target.RuntimeKind != "container" || target.RuntimeDelivery != "stackkit" ||
 		target.RuntimeEngine != "docker" {
 		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("verified Basement runtime is not the closed single-node Compose contract")
@@ -307,7 +347,9 @@ func verifyBasementCoreWorkspace(
 	if err != nil {
 		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, err
 	}
-	artifactID := target.ArtifactRefs[0]
+	// The Core artifact is the Compose artifact under the compose target and
+	// the Core OpenTofu root main.tf, which embeds the same Compose payload,
+	// under the opentofu and terramate targets.
 	var (
 		artifactRequirement generationartifact.ApplyArtifactRequirement
 		rendered            generationartifact.RenderedArtifact
@@ -315,37 +357,46 @@ func verifyBasementCoreWorkspace(
 		renderedCount       int
 	)
 	for _, candidate := range requirements.Artifacts {
-		if candidate.ID == artifactID {
+		if slices.Contains(target.ArtifactRefs, candidate.ID) && candidate.OutputRef == coreArtifact.outputRef {
 			artifactRequirement = candidate
 			requirementCount++
 		}
 	}
 	for _, candidate := range manifest.Artifacts {
-		if candidate.ID == artifactID {
+		if requirementCount == 1 && candidate.ID == artifactRequirement.ID {
 			rendered = candidate
 			renderedCount++
 		}
 	}
 	if requirementCount != 1 || renderedCount != 1 ||
-		artifactRequirement.Kind != "compose" || artifactRequirement.Format != "yaml" ||
+		artifactRequirement.Kind != coreArtifact.kind || artifactRequirement.Format != coreArtifact.format ||
 		artifactRequirement.ExecutionClass != generationartifact.ApplyExecutionClassExecutable ||
-		artifactRequirement.OutputRef != profile.OutputRef ||
+		artifactRequirement.UnitRef != target.UnitRef || artifactRequirement.InstanceRef != target.InstanceRef ||
 		rendered.Kind != artifactRequirement.Kind || rendered.Format != artifactRequirement.Format ||
 		rendered.Mode != artifactRequirement.Mode {
 		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("verified generation lacks the exact executable Basement Compose artifact")
 	}
 	artifactPath := filepath.Join(workspaceRoot, filepath.FromSlash(rendered.Path))
 	info, err := os.Lstat(artifactPath)
-	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() <= 0 || info.Size() > int64(profile.MaxArtifactBytes) {
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() <= 0 || info.Size() > int64(coreArtifact.maxBytes) {
 		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("Basement Compose artifact is not a bounded plain file")
 	}
-	definition, err := os.ReadFile(artifactPath) //nolint:gosec // exact manifest path was already verified by the generation gate
+	content, err := os.ReadFile(artifactPath) //nolint:gosec // exact manifest path was already verified by the generation gate
 	if err != nil {
 		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, fmt.Errorf("read Basement Compose artifact: %w", err)
 	}
-	digest := sha256.Sum256(definition)
-	if "sha256:"+hex.EncodeToString(digest[:]) != rendered.SHA256 ||
-		!profile.ValidateComposeArtifact(definition) {
+	digest := sha256.Sum256(content)
+	if "sha256:"+hex.EncodeToString(digest[:]) != rendered.SHA256 {
+		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("Basement Compose artifact differs from the CUE-owned standard")
+	}
+	definition := content
+	if coreArtifact.openTofu {
+		definition, err = verifyArchitectureV2CoreOpenTofuRoot(workspaceRoot, profile.ModuleRef, content)
+		if err != nil {
+			return runtimeexecutorlocal.BasementCoreVerifyObservation{}, fmt.Errorf("verify the Basement core OpenTofu root: %w", err)
+		}
+	}
+	if !profile.ValidateComposeArtifact(definition) {
 		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("Basement Compose artifact differs from the CUE-owned standard")
 	}
 	services := append([]runtimeexecutorlocal.BasementCoreServiceExpectation(nil), profile.Services...)
@@ -358,7 +409,7 @@ func verifyBasementCoreWorkspace(
 		ExecutionChannelRef: channelRef, ArtifactID: rendered.ID, ArtifactDigest: rendered.SHA256,
 		Definition: definition, Services: services, Health: health,
 	}
-	operations, err := runtimeexecutorlocal.NewOSBasementCoreOperations(workspaceRoot)
+	operations, err := newArchitectureV2BasementCoreVerifyOperations(workspaceRoot)
 	if err != nil {
 		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, err
 	}
@@ -372,6 +423,96 @@ func verifyBasementCoreWorkspace(
 		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("live Basement observation does not prove the exact ready project")
 	}
 	return observation, nil
+}
+
+// newArchitectureV2BasementCoreVerifyOperations is the host observation owner
+// of the live Basement core check; tests substitute it.
+var newArchitectureV2BasementCoreVerifyOperations = runtimeexecutorlocal.NewOSBasementCoreOperations
+
+// architectureV2CoreRuntimeUnitRef returns the render unit of the Core
+// runtime, which is named after the plan generation target: compose,
+// opentofu, or terramate.
+func architectureV2CoreRuntimeUnitRef(plan generationartifact.VerifiedPlan) (string, error) {
+	target, err := upgradelifecycle.GenerationTargetForPlan(plan)
+	if err != nil {
+		return "", fmt.Errorf("select the Core runtime unit: %w", err)
+	}
+	return target, nil
+}
+
+// architectureV2CoreArtifact is the governed Core artifact of one runtime
+// unit: the Compose artifact, or the Core OpenTofu root main.tf that embeds
+// it (plus, under terramate, the stack file beside it).
+type architectureV2CoreArtifact struct {
+	kind, format, outputRef string
+	artifactRefs, maxBytes  int
+	openTofu                bool
+}
+
+func architectureV2CoreArtifactShape(unitRef, composeOutputRef string, maxComposeBytes int) architectureV2CoreArtifact {
+	switch unitRef {
+	case runtimeexecutoropentofu.UnitRef, runtimeexecutoropentofu.TerramateUnitRef:
+		refs := 1
+		if unitRef == runtimeexecutoropentofu.TerramateUnitRef {
+			refs = 2
+		}
+		return architectureV2CoreArtifact{
+			kind: unitRef, format: runtimeexecutoropentofu.ArtifactFormat,
+			outputRef:    path.Join(path.Dir(composeOutputRef), runtimeexecutoropentofu.ConfigFile),
+			artifactRefs: refs, maxBytes: 1 << 20, openTofu: true,
+		}
+	default:
+		return architectureV2CoreArtifact{
+			kind: "compose", format: "yaml", outputRef: composeOutputRef, artifactRefs: 1, maxBytes: maxComposeBytes,
+		}
+	}
+}
+
+// verifyArchitectureV2CoreOpenTofuRoot binds the installed Core OpenTofu root
+// of an opentofu or terramate install to the governed root artifact with the
+// rules the executor-state capture uses: the root configuration is the
+// artifact, the runtime compose.yaml is the payload it embeds, and the root
+// holds applied state. It returns the Compose payload.
+func verifyArchitectureV2CoreOpenTofuRoot(workspaceRoot, moduleRef string, mainTF []byte) ([]byte, error) {
+	payload, err := architecturev2renderer.ExtractComposePayload(mainTF)
+	if err != nil {
+		return nil, fmt.Errorf("derive the Compose payload: %w", err)
+	}
+	runtimeDir, _, ok := runtimeexecutorlocal.NativeComposeProject(moduleRef)
+	if !ok {
+		return nil, errors.New("the Core module has no native runtime directory")
+	}
+	rootPath, err := runtimeexecutoropentofu.RootRelativePath(runtimeDir)
+	if err != nil {
+		return nil, err
+	}
+	root := filepath.Join(workspaceRoot, filepath.FromSlash(rootPath))
+	readPlain := func(name string) ([]byte, error) {
+		info, err := os.Lstat(name)
+		if err != nil || !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("%s is not a plain file", filepath.Base(name))
+		}
+		return os.ReadFile(name) //nolint:gosec // fixed runtime paths below the workspace root
+	}
+	config, err := readPlain(filepath.Join(root, runtimeexecutoropentofu.ConfigFile))
+	if err != nil {
+		return nil, err
+	}
+	if !bytes.Equal(config, mainTF) {
+		return nil, errors.New("the installed root configuration differs from the governed Core root artifact")
+	}
+	compose, err := readPlain(filepath.Join(filepath.Dir(root), runtimeexecutoropentofu.ComposeFile))
+	if err != nil {
+		return nil, err
+	}
+	if !bytes.Equal(compose, payload) {
+		return nil, errors.New("the runtime compose.yaml differs from the Compose payload of the governed Core root")
+	}
+	state, err := readPlain(filepath.Join(root, runtimeexecutoropentofu.StateFile))
+	if err != nil || len(state) == 0 {
+		return nil, errors.New("the Core OpenTofu root holds no applied state")
+	}
+	return payload, nil
 }
 
 func verifiedLocalBasementExecutionChannel(

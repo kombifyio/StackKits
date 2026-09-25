@@ -107,6 +107,14 @@ func newArchitectureV2ProductVerifyAuthority(workspaceRoot string, _ architectur
 // workspace had no owner to anchor evidence to.
 func newLocalOwnerApplyEvidenceCollector(workspaceRoot string) (architecturev2.ProductApplyEvidenceCollector, architecturev2.ProductApplyTrustAnchor, localevidence.LocalBinding, error) {
 	custody, err := localevidence.LoadOwnerCustody(workspaceRoot)
+	var memberDenial *localevidence.MemberSigningDenial
+	if errors.As(err, &memberDenial) {
+		// Member-local execution needs its own evidence custody; until it
+		// exists the Foundation Node remains the only Apply authority.
+		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf(
+			"member-local Apply and Verify are not available yet; run them on the Foundation Node: %w", memberDenial,
+		)
+	}
 	if errors.Is(err, localevidence.ErrOwnerCustodyMissing) {
 		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf(
 			"this workspace has no local Apply evidence custody; run `stackkit init --owner-source=local` to establish the homelab owner before Apply",
@@ -393,6 +401,9 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductRoundcubeSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductStalwartSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductPrivateAISelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)

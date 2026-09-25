@@ -126,6 +126,12 @@ type ApplicationDeliveryComponentDescriptor struct {
 	// DockerLifecycleOwner receives the approved Docker socket (ADR-0043,
 	// Pterodactyl Wings only).
 	DockerLifecycleOwner bool
+	// PublishedTCPPorts are bound on every host address (ADR-0046, Stalwart
+	// only). RouteHostEnvironment names variables that receive the route host
+	// and ACMETLSALPNPort the listener that answers TLS-ALPN-01 challenges.
+	PublishedTCPPorts    []int
+	RouteHostEnvironment []string
+	ACMETLSALPNPort      int
 }
 
 // ApplicationDeliveryResourcesDescriptor is the declared per-container ceiling
@@ -259,6 +265,10 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		if (component.RouteHostLoopback || component.DockerLifecycleOwner != nil) && bundle.Workload.ModuleRef != pterodactylWorkloadModuleID {
 			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath, "loopback route host and Docker lifecycle ownership are admitted only for the governed game node")
 		}
+		mailNode, err := parseMailNodeComponentFields(component, bundle.Workload.ModuleRef, bundle.DeliveryRoute, componentPath)
+		if err != nil {
+			return ApplicationDeliveryBundleDescriptor{}, err
+		}
 		if component.HealthFailure != "blocking" && component.HealthFailure != "degraded" {
 			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".healthFailure", "must be blocking or degraded")
 		}
@@ -280,6 +290,9 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 			Resources:            resourcesDescriptor(component.Resources),
 			RouteHostLoopback:    component.RouteHostLoopback,
 			DockerLifecycleOwner: component.DockerLifecycleOwner != nil,
+			PublishedTCPPorts:    mailNode.PublishedTCPPorts,
+			RouteHostEnvironment: mailNode.RouteHostEnvironment,
+			ACMETLSALPNPort:      mailNode.ACMETLSALPNPort,
 		}
 	}
 	if !entryFound || len(components) == 0 {

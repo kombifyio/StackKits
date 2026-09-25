@@ -2355,6 +2355,94 @@
       "subcommands": []
     },
     {
+      "path": "stackkit fleet",
+      "name": "fleet",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit fleet [flags]",
+      "short": "Admit and join member hosts of one StackInstance",
+      "description": "Bind a physical host to an existing member node of this StackInstance.\n\nThe Home owner on the Foundation Node signs a member admission for one enabled\nnon-controller node at a Cloud Site. The member host verifies it against the\npinned Home key, recompiles the same plan from the admitted StackSpec and\nInventory, and keeps verify-only member custody: no enrollment, signing,\ncredential issuance, or ControlAuthority. Both hosts must run the same\nStackKits version.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit fleet admit-member",
+        "stackkit fleet join"
+      ]
+    },
+    {
+      "path": "stackkit fleet admit-member",
+      "name": "admit-member",
+      "parent": "stackkit fleet",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit fleet admit-member [flags]",
+      "short": "Owner-sign a member admission for one Cloud edge node",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit fleet admit-member --node cloud-edge",
+          "description": "On the Foundation Node, admit the Cloud edge declared in the plan"
+        }
+      ],
+      "flags": [
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Inventory declaring both execution channels (otherwise one conventional inventory file is selected)",
+          "required": false
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "description": "Member node ID from the StackSpec (an enabled worker or edge at a Cloud Site)",
+          "required": false
+        },
+        {
+          "name": "output",
+          "type": "string",
+          "description": "Workspace-confined admission output (default .stackkit/fleet/member-admissions/<node>.json)",
+          "required": false
+        },
+        {
+          "name": "valid-for",
+          "type": "duration",
+          "default": "24h0m0s",
+          "description": "Join window of the admission (at most 24h)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit fleet join",
+      "name": "join",
+      "parent": "stackkit fleet",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit fleet join <admission-file> [flags]",
+      "short": "Join this host as the verify-only member named by an admission",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit fleet join member-admission.json --home-key-id <homeKeyId>",
+          "description": "On the Cloud host, in an empty deployment directory"
+        }
+      ],
+      "flags": [
+        {
+          "name": "home-key-id",
+          "type": "string",
+          "description": "Home owner key ID from admit-member, compared out of band",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit game",
       "name": "game",
       "parent": "stackkit",

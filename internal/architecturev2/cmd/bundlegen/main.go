@@ -175,7 +175,11 @@ func writeProductKitsGo(repoFlag, bundleOut, relativeOutput string) error {
 // rendererWorkloadImages names the selected-PaaS workload modules whose exact
 // image identity the Architecture v2 renderer closes over. Refs, digests and
 // releases come only from the compiled catalog.
-var rendererWorkloadImages = []struct{ moduleID, goPrefix, componentRef string }{
+var rendererWorkloadImages = []struct {
+	moduleID, goPrefix, componentRef string
+	// entrypoint also projects the entry component's governed entrypoint.
+	entrypoint bool
+}{
 	{moduleID: "stackkits-home-assistant-runtime", goPrefix: "homeAssistant"},
 	{moduleID: "stackkits-jellyfin-runtime", goPrefix: "jellyfin"},
 	{moduleID: "stackkits-vaultwarden-runtime", goPrefix: "vaultwarden"},
@@ -190,6 +194,7 @@ var rendererWorkloadImages = []struct{ moduleID, goPrefix, componentRef string }
 	{moduleID: "stackkits-pterodactyl-runtime", goPrefix: "pterodactylDatabase", componentRef: "panel-database"},
 	{moduleID: "stackkits-pterodactyl-runtime", goPrefix: "pterodactylCache", componentRef: "panel-cache"},
 	{moduleID: "stackkits-roundcube-runtime", goPrefix: "roundcube"},
+	{moduleID: "stackkits-stalwart-runtime", goPrefix: "stalwart", entrypoint: true},
 }
 
 type catalogImage struct {
@@ -219,9 +224,10 @@ func writeRendererWorkloadImagesGo(repoFlag, bundleOut, relativeOutput string) e
 				Image             *catalogImage `json:"image"`
 				EntryComponentRef string        `json:"entryComponentRef"`
 				Components        []struct {
-					ID      string       `json:"id"`
-					Image   catalogImage `json:"image"`
-					Command []string     `json:"command"`
+					ID         string       `json:"id"`
+					Image      catalogImage `json:"image"`
+					Command    []string     `json:"command"`
+					Entrypoint []string     `json:"entrypoint"`
 				} `json:"components"`
 			} `json:"runtime"`
 		} `json:"modules"`
@@ -283,6 +289,16 @@ func writeRendererWorkloadImagesGo(repoFlag, bundleOut, relativeOutput string) e
 					return err
 				}
 				fmt.Fprintf(&source, "\t%sCommandJSON = %q\n", selected.goPrefix, command)
+			}
+			if component.ID == runtime.EntryComponentRef && selected.entrypoint {
+				if len(component.Entrypoint) == 0 {
+					return fmt.Errorf("module %q entry component declares no governed entrypoint", selected.moduleID)
+				}
+				entrypoint, err := json.Marshal(component.Entrypoint)
+				if err != nil {
+					return err
+				}
+				fmt.Fprintf(&source, "\t%sEntrypointJSON = %q\n", selected.goPrefix, entrypoint)
 			}
 		}
 	}

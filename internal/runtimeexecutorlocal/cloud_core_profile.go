@@ -1,11 +1,26 @@
 package runtimeexecutorlocal
 
-import "github.com/kombifyio/stackkits/internal/architecturev2renderer"
+import (
+	"path"
 
-const cloudStandaloneCoreModuleRef = "stackkits-cloud-core-standalone-runtime"
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
+)
+
+const (
+	cloudStandaloneCoreModuleRef = "stackkits-cloud-core-standalone-runtime"
+	// The Cloud core units under the opentofu and terramate generation
+	// targets: an OpenTofu root main.tf that embeds the Compose artifact.
+	cloudCoreOpenTofuUnitRef  = "opentofu"
+	cloudCoreTerramateUnitRef = "terramate"
+)
 
 // The closed profile selects immutable contracts, never a second lifecycle.
-type cloudCoreExecutionProfile struct{ standalone bool }
+// unit is empty for the compose unit the Cloud core executor applies; Verify
+// also accepts the OpenTofu and Terramate units the OpenTofu executor applies.
+type cloudCoreExecutionProfile struct {
+	standalone bool
+	unit       string
+}
 
 func cloudCoreProfileForModule(module string) (cloudCoreExecutionProfile, bool) {
 	return cloudCoreExecutionProfile{standalone: module == cloudStandaloneCoreModuleRef}, module == cloudCoreModuleRef || module == cloudStandaloneCoreModuleRef
@@ -39,7 +54,37 @@ func (p cloudCoreExecutionProfile) image() (string, string) {
 	return cloudCoreImageRef, cloudCoreImageDigest
 }
 
+func (p cloudCoreExecutionProfile) unitRef() string {
+	if p.unit == "" {
+		return cloudCoreUnitRef
+	}
+	return p.unit
+}
+
+func (p cloudCoreExecutionProfile) openTofu() bool {
+	return p.unit == cloudCoreOpenTofuUnitRef || p.unit == cloudCoreTerramateUnitRef
+}
+
+// coreOutputRef is the governed Core artifact: the Compose artifact, or the
+// OpenTofu root main.tf beside it under the OpenTofu units.
+func (p cloudCoreExecutionProfile) coreOutputRef() string {
+	if p.openTofu() {
+		return path.Join(path.Dir(p.outputRef()), "main.tf")
+	}
+	return p.outputRef()
+}
+
 func (p cloudCoreExecutionProfile) contract() architecturev2renderer.RendererContract {
+	switch {
+	case p.unit == cloudCoreOpenTofuUnitRef && p.standalone:
+		return architecturev2renderer.CloudStandaloneCoreOpenTofuRendererContract()
+	case p.unit == cloudCoreOpenTofuUnitRef:
+		return architecturev2renderer.CloudCoreOpenTofuRendererContract()
+	case p.unit == cloudCoreTerramateUnitRef && p.standalone:
+		return architecturev2renderer.CloudStandaloneCoreTerramateRendererContract()
+	case p.unit == cloudCoreTerramateUnitRef:
+		return architecturev2renderer.CloudCoreTerramateRendererContract()
+	}
 	if p.standalone {
 		return architecturev2renderer.CloudStandaloneCoreComposeRendererContract()
 	}

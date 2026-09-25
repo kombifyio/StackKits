@@ -18,7 +18,7 @@ const (
 	cloudCoreComposeOutputRef = "platform/cloud-core/compose.yaml"
 	cloudCoreRendererRef      = "stackkit"
 	cloudCoreVersion          = "1.0.0"
-	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:11|resolved-network-domain:required|resolved-subdomain-prefix:optional|runtime-listeners:catalog-bound,direct-loopback-only|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub,stackkit-server|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-http-01|ingress:forward-auth-bound|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
+	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:12|resolved-network-domain:required|resolved-subdomain-prefix:optional|runtime-listeners:catalog-bound,direct-loopback-only|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub,stackkit-server|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-http-01,tls-alpn-bypass-websecure|ingress:forward-auth-bound|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
 )
 
 const cloudCoreComponentsJSON = `[
@@ -67,6 +67,7 @@ services:
       - --providers.docker.exposedbydefault=false
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
+      - --entrypoints.websecure.allowacmebypass=true
       - --certificatesresolvers.stackkits.acme.httpchallenge=true
       - --certificatesresolvers.stackkits.acme.httpchallenge.entrypoint=web
       - --certificatesresolvers.stackkits.acme.storage=/letsencrypt/acme.json

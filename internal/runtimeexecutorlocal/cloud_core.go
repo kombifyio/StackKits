@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"slices"
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -93,6 +95,11 @@ func VerifyAppliedCloudCore(ctx context.Context, request runtimeexecutor.Executi
 		return CloudCoreVerifyObservation{}, errors.New("applied Cloud core target differs from local owner custody")
 	}
 	profile, _ := cloudCoreProfileForModule(child.RuntimeTargets[0].ModuleRef)
+	if unit := child.RuntimeTargets[0].UnitRef; unit != cloudCoreUnitRef {
+		// The OpenTofu executor applied the same Compose project from the
+		// Core root that embeds it; Verify observes that project.
+		profile.unit = unit
+	}
 	_, _, project, err := validateCloudCoreProfileRequest(child, binding, authority, profile)
 	if err != nil {
 		return CloudCoreVerifyObservation{}, err
@@ -111,8 +118,9 @@ func appliedCloudCoreRequest(root runtimeexecutor.ExecutionRequest) (runtimeexec
 	var targets []runtimeexecutor.RuntimeTarget
 	for _, target := range root.RuntimeTargets {
 		_, known := cloudCoreProfileForModule(target.ModuleRef)
-		if known && target.OwnerKind == "module" && target.OwnerRef == target.ModuleRef && target.ProviderRef == cloudCoreProviderRef &&
-			target.UnitRef == cloudCoreUnitRef && target.WorkloadRef == cloudCoreWorkloadRef {
+		unitKnown := target.UnitRef == cloudCoreUnitRef || target.UnitRef == cloudCoreOpenTofuUnitRef || target.UnitRef == cloudCoreTerramateUnitRef
+		if known && unitKnown && target.OwnerKind == "module" && target.OwnerRef == target.ModuleRef && target.ProviderRef == cloudCoreProviderRef &&
+			target.WorkloadRef == cloudCoreWorkloadRef {
 			targets = append(targets, target)
 		}
 	}
@@ -262,30 +270,45 @@ func validateCloudCoreProfileRequest(request runtimeexecutor.ExecutionRequest, b
 	target := request.RuntimeTargets[0]
 	contract := profile.contract()
 	imageRef, imageDigest := profile.image()
-	instanceRef := cloudCoreUnitRef + "-node-" + binding.NodeRef
+	instanceRef := profile.unitRef() + "-node-" + binding.NodeRef
 	artifactID := profile.artifactPrefix() + instanceRef
 	if target.OwnerKind != "module" || target.OwnerRef != profile.moduleRef() || target.OwnerVersion != "" || target.ProviderRef != cloudCoreProviderRef ||
 		target.ProviderContractHash != authority.ProviderContractHash || target.ModuleRef != profile.moduleRef() || target.OwnerContractHash != authority.ModuleContractHash ||
-		target.ModuleContractHash != authority.ModuleContractHash || target.UnitRef != cloudCoreUnitRef || target.UnitContractHash != contract.ContractHash ||
+		target.ModuleContractHash != authority.ModuleContractHash || target.UnitRef != profile.unitRef() || target.UnitContractHash != contract.ContractHash ||
 		target.RuntimeKind != "container" || target.RuntimeDelivery != "stackkit" || target.RuntimeEngine != "docker" || target.InstanceRef != instanceRef ||
 		target.WorkloadRef != cloudCoreWorkloadRef || target.ImageRef != imageRef || target.ImageDigest != imageDigest ||
 		target.ExecutionChannelRef != binding.ExecutionChannelRef || !slices.Equal(target.SiteRefs, []string{binding.SiteRef}) ||
 		!slices.Equal(target.NodeRefs, []string{binding.NodeRef}) || len(target.DaemonBindings) != 0 || len(target.AccessCapabilities) != 0 ||
 		len(target.AccessBindingRefs) != 0 || len(target.BackupTargetCapabilities) != 0 || len(target.BackupTargetBindingRefs) != 0 ||
-		target.RuntimeAdapter != nil || !slices.Equal(target.ArtifactRefs, []string{artifactID}) {
+		target.RuntimeAdapter != nil || (!profile.openTofu() && !slices.Equal(target.ArtifactRefs, []string{artifactID})) {
 		return runtimeexecutor.RuntimeTarget{}, nil, CloudCoreProject{}, errors.New("runtime target is not the exact bound Cloud core Compose contract")
 	}
-	artifact, err := exactOwnedArtifactWithPlanMetadata(request.Artifacts, artifactID)
+	artifactKind, artifactFormat := "compose", "yaml"
+	var artifact runtimeexecutor.Artifact
+	var err error
+	if profile.openTofu() {
+		artifactKind, artifactFormat = profile.unit, "hcl"
+		artifact, err = cloudCoreOpenTofuRootArtifact(request.Artifacts, target, profile)
+		artifactID = artifact.ID
+	} else {
+		artifact, err = exactOwnedArtifactWithPlanMetadata(request.Artifacts, artifactID)
+	}
 	if err != nil {
 		return runtimeexecutor.RuntimeTarget{}, nil, CloudCoreProject{}, fmt.Errorf("select Cloud core artifact: %w", err)
 	}
-	if artifact.ID != artifactID || artifact.Kind != "compose" || artifact.Format != "yaml" || artifact.Mode != "0640" ||
+	definition := artifact.Content
+	if profile.openTofu() {
+		if definition, err = architecturev2renderer.ExtractComposePayload(artifact.Content); err != nil {
+			return runtimeexecutor.RuntimeTarget{}, nil, CloudCoreProject{}, fmt.Errorf("derive the Cloud core Compose payload: %w", err)
+		}
+	}
+	if artifact.ID != artifactID || artifact.Kind != artifactKind || artifact.Format != artifactFormat || artifact.Mode != "0640" ||
 		artifact.OwnerKind != "render-instance" || artifact.OwnerRef != instanceRef || artifact.OwnerContractHash != contract.ContractHash ||
 		artifact.ProviderRef != cloudCoreProviderRef || artifact.ProviderContractHash != authority.ProviderContractHash || artifact.ModuleRef != profile.moduleRef() ||
-		artifact.ModuleContractHash != authority.ModuleContractHash || artifact.UnitRef != cloudCoreUnitRef || artifact.UnitContractHash != contract.ContractHash ||
-		artifact.InstanceRef != instanceRef || artifact.OutputRef != profile.outputRef() || !slices.Equal(artifact.SiteRefs, target.SiteRefs) ||
-		!slices.Equal(artifact.NodeRefs, target.NodeRefs) || len(artifact.Content) == 0 || len(artifact.Content) > basementCoreMaxArtifactBytes ||
-		!profile.validArtifact(artifact.Content) {
+		artifact.ModuleContractHash != authority.ModuleContractHash || artifact.UnitRef != profile.unitRef() || artifact.UnitContractHash != contract.ContractHash ||
+		artifact.InstanceRef != instanceRef || artifact.OutputRef != profile.coreOutputRef() || !slices.Equal(artifact.SiteRefs, target.SiteRefs) ||
+		!slices.Equal(artifact.NodeRefs, target.NodeRefs) || len(artifact.Content) == 0 || len(definition) > basementCoreMaxArtifactBytes ||
+		!profile.validArtifact(definition) {
 		return runtimeexecutor.RuntimeTarget{}, nil, CloudCoreProject{}, errors.New("artifact is not the exact generated Cloud core Compose definition")
 	}
 	sum := sha256.Sum256(artifact.Content)
@@ -303,7 +326,44 @@ func validateCloudCoreProfileRequest(request runtimeexecutor.ExecutionRequest, b
 	}
 	return target, health, CloudCoreProject{ModuleRef: profile.moduleRef(), ProjectRef: target.InstanceRef, SiteRef: binding.SiteRef, NodeRef: binding.NodeRef,
 		ExecutionChannelRef: binding.ExecutionChannelRef, ArtifactID: artifact.ID, ArtifactDigest: artifact.Digest,
-		Definition: append([]byte(nil), artifact.Content...), Services: services, Health: expectations}, nil
+		Definition: append([]byte(nil), definition...), Services: services, Health: expectations}, nil
+}
+
+// cloudCoreOpenTofuRootArtifact selects the Core root main.tf the OpenTofu or
+// Terramate target owns. Under terramate the target also owns its stack file;
+// only immutable resolved-plan metadata may accompany them.
+func cloudCoreOpenTofuRootArtifact(artifacts []runtimeexecutor.Artifact, target runtimeexecutor.RuntimeTarget, profile cloudCoreExecutionProfile) (runtimeexecutor.Artifact, error) {
+	wantRefs := 1
+	if profile.unit == cloudCoreTerramateUnitRef {
+		wantRefs = 2
+	}
+	stackRef := path.Join(path.Dir(profile.outputRef()), "stack.tm.hcl")
+	var root runtimeexecutor.Artifact
+	roots, stacks, owned := 0, 0, 0
+	for _, candidate := range artifacts {
+		if !slices.Contains(target.ArtifactRefs, candidate.ID) {
+			if candidate.OwnerKind != "plan" || candidate.ExecutionClass != runtimeexecutor.ArtifactExecutionClassPlan ||
+				candidate.Kind != "metadata" || candidate.Format != "json" {
+				return runtimeexecutor.Artifact{}, errors.New("request contains an unrelated executable artifact")
+			}
+			continue
+		}
+		owned++
+		switch candidate.OutputRef {
+		case profile.coreOutputRef():
+			root = candidate
+			roots++
+		case stackRef:
+			if profile.unit == cloudCoreTerramateUnitRef && candidate.Kind == profile.unit && candidate.UnitRef == profile.unit &&
+				candidate.InstanceRef == target.InstanceRef {
+				stacks++
+			}
+		}
+	}
+	if len(target.ArtifactRefs) != wantRefs || owned != wantRefs || roots != 1 || roots+stacks != wantRefs {
+		return runtimeexecutor.Artifact{}, errors.New("request does not contain exactly the governed Cloud core OpenTofu root")
+	}
+	return root, nil
 }
 
 // Cloud module health contracts use container target ports; the local owner
