@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -14,7 +14,7 @@ type productImmichSelectedPaaSFactory struct {
 	runtimeVersion          string
 	runtimeAdapterRef       string
 	runtimeAdapterModuleRef string
-	operations              runtimeexecutorlocal.SelectedPaaSWorkloadOperations
+	operations              nativehost.SelectedPaaSWorkloadOperations
 }
 
 // NewProductImmichSelectedPaaSRegistration binds the governed Immich workload
@@ -25,7 +25,7 @@ func NewProductImmichSelectedPaaSRegistration(
 	runtimeVersion string,
 	runtimeAdapterRef string,
 	runtimeAdapterModuleRef string,
-	operations runtimeexecutorlocal.SelectedPaaSWorkloadOperations,
+	operations nativehost.SelectedPaaSWorkloadOperations,
 ) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) ||
 		runtimeAdapterRef == "" || runtimeAdapterRef != strings.TrimSpace(runtimeAdapterRef) ||
@@ -74,14 +74,14 @@ func (f *productImmichSelectedPaaSFactory) PrepareRuntimeOwner(request ProductRu
 	if err != nil {
 		return nil, err
 	}
-	authority := runtimeexecutorlocal.ImmichWorkloadAuthority{
+	authority := nativehost.ImmichWorkloadAuthority{
 		ProviderContractHash: target.ProviderContractHash,
 		ModuleContractHash:   target.ModuleContractHash,
 		UnitContractHash:     target.UnitContractHash,
 		HealthContractHash:   health[moduleHealthIndex].ContractHash,
 		RuntimeAdapter:       selectedPaaSRuntimeAdapterAuthority(*target.RuntimeAdapter),
 	}
-	return runtimeexecutorlocal.NewImmichSelectedPaaSExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{
+	return nativehost.NewImmichSelectedPaaSExecutor(identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
 	}, authority, f.operations), nil
 }
@@ -95,15 +95,15 @@ func productImmichSelectedPaaSSelector(runtimeAdapterRef, runtimeAdapterModuleRe
 	}
 }
 
-func selectedPaaSRuntimeAdapterAuthority(binding runtimeexecutor.RuntimeAdapterBinding) runtimeexecutorlocal.SelectedPaaSRuntimeAdapterAuthority {
-	authority := runtimeexecutorlocal.SelectedPaaSRuntimeAdapterAuthority{
+func selectedPaaSRuntimeAdapterAuthority(binding runtimeexecutor.RuntimeAdapterBinding) nativehost.SelectedPaaSRuntimeAdapterAuthority {
+	authority := nativehost.SelectedPaaSRuntimeAdapterAuthority{
 		ID: binding.ID, ProviderRef: binding.ProviderRef, ProviderVersion: binding.ProviderVersion,
 		ProviderContractHash: binding.ProviderContractHash, ModuleRef: binding.ModuleRef,
 		ModuleVersion: binding.ModuleVersion, ModuleContractHash: binding.ModuleContractHash,
-		Agents: make([]runtimeexecutorlocal.SelectedPaaSRuntimeAdapterAgentAuthority, len(binding.Agents)),
+		Agents: make([]nativehost.SelectedPaaSRuntimeAdapterAgentAuthority, len(binding.Agents)),
 	}
 	for index, agent := range binding.Agents {
-		authority.Agents[index] = runtimeexecutorlocal.SelectedPaaSRuntimeAdapterAgentAuthority{
+		authority.Agents[index] = nativehost.SelectedPaaSRuntimeAdapterAgentAuthority{
 			ID: agent.ID, ModuleRef: agent.ModuleRef, ModuleVersion: agent.ModuleVersion, ModuleContractHash: agent.ModuleContractHash,
 		}
 	}

@@ -35,7 +35,12 @@ type KitModeMatrix struct {
 	Install   map[string]string
 	Context   map[string]string
 	Paas      map[string]string
-	Evidence  []string
+	// Evidence maps a cell path ("<axis>.<key>", e.g. "install.advanced") to
+	// its citations. No consumer of KitModeMatrix reads it today; it exists
+	// so callers that want the raw CUE declaration (docs generation, the
+	// citation validator's Go-side parity checks) do not need a second
+	// loader. See foundation/mode_matrix.cue for the citation contract.
+	Evidence map[string][]string
 }
 
 // LoadKitModeMatrix loads <kitDir>'s CUE package and decodes its modeMatrix.
@@ -90,14 +95,45 @@ func LoadKitModeMatrix(kitDir string) (*KitModeMatrix, error) {
 		}
 	}
 	if evidence := matrix.LookupPath(cue.ParsePath("evidence")); evidence.Exists() {
-		iter, _ := evidence.List()
+		iter, err := evidence.Fields(cue.Optional(true))
+		if err != nil {
+			return nil, fmt.Errorf("iterate evidence: %w", err)
+		}
 		for iter.Next() {
-			if s, err := iter.Value().String(); err == nil && s != "" {
-				m.Evidence = append(m.Evidence, s)
+			cell := strings.Trim(iter.Selector().String(), "\"")
+			citations, err := stringListValues(iter.Value())
+			if err != nil {
+				return nil, fmt.Errorf("iterate evidence[%s]: %w", cell, err)
 			}
+			if len(citations) == 0 {
+				continue
+			}
+			if m.Evidence == nil {
+				m.Evidence = map[string][]string{}
+			}
+			m.Evidence[cell] = citations
 		}
 	}
 	return m, nil
+}
+
+// stringListValues reads a CUE list of strings, skipping empty entries.
+func stringListValues(v cue.Value) ([]string, error) {
+	iter, err := v.List()
+	if err != nil {
+		return nil, err
+	}
+	var values []string
+	for iter.Next() {
+		s, err := iter.Value().String()
+		if err != nil {
+			return nil, err
+		}
+		if s != "" {
+			values = append(values, s)
+		}
+	}
+	return values, nil
 }
 
 // CellVerdict grades the (placement, install, context) cell of this kit.

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -12,24 +12,24 @@ const productBasementCoreAdapterID = "stackkits-basement-core-local"
 
 type productBasementCoreFactory struct {
 	runtimeVersion string
-	operations     runtimeexecutorlocal.BasementCoreOperations
+	operations     nativehost.BasementCoreOperations
 	selector       ProductRuntimeOwnerSelector
 }
 
 // NewProductBasementCoreRegistration binds only the CUE-owned standard
 // Basement Compose unit to the local runtime owner.
-func NewProductBasementCoreRegistration(runtimeVersion string, operations runtimeexecutorlocal.BasementCoreOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductBasementCoreRegistration(runtimeVersion string, operations nativehost.BasementCoreOperations) (ProductRuntimeOwnerRegistration, error) {
 	return newProductBasementCoreRegistration(runtimeVersion, operations, productBasementCoreSelector())
 }
 
 // NewProductBasementCoreLiteRegistration binds the same local Core owner to
 // the CUE-selected reduced service graph. Apply and Verify still share the
 // executor and OS operations; only the immutable selector/profile differs.
-func NewProductBasementCoreLiteRegistration(runtimeVersion string, operations runtimeexecutorlocal.BasementCoreOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductBasementCoreLiteRegistration(runtimeVersion string, operations nativehost.BasementCoreOperations) (ProductRuntimeOwnerRegistration, error) {
 	return newProductBasementCoreRegistration(runtimeVersion, operations, productBasementCoreLiteSelector())
 }
 
-func newProductBasementCoreRegistration(runtimeVersion string, operations runtimeexecutorlocal.BasementCoreOperations, selector ProductRuntimeOwnerSelector) (ProductRuntimeOwnerRegistration, error) {
+func newProductBasementCoreRegistration(runtimeVersion string, operations nativehost.BasementCoreOperations, selector ProductRuntimeOwnerSelector) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("Basement core registration requires a runtime version and local operations owner")
 	}
@@ -45,7 +45,7 @@ func (f *productBasementCoreFactory) PrepareRuntimeOwner(request ProductRuntimeO
 	}
 	target := cloneProductRuntimeTarget(request.Target)
 	health := cloneProductHealthTargets(request.HealthTargets)
-	profile, supported := runtimeexecutorlocal.BasementCoreRuntimeProfileForModule(target.ModuleRef)
+	profile, supported := nativehost.BasementCoreRuntimeProfileForModule(target.ModuleRef)
 	if !supported || profile.ModuleRef != f.selector.ModuleRef || productRuntimeOwnerSelectorForTarget(target) != f.selector ||
 		len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 ||
 		strings.TrimSpace(target.ExecutionChannelRef) == "" || len(health) != len(profile.Health) {
@@ -65,10 +65,10 @@ func (f *productBasementCoreFactory) PrepareRuntimeOwner(request ProductRuntimeO
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewBasementCoreExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{
+	return nativehost.NewBasementCoreExecutor(identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0],
 		ExecutionChannelRef: target.ExecutionChannelRef,
-	}, runtimeexecutorlocal.BasementCoreAuthority{
+	}, nativehost.BasementCoreAuthority{
 		ProviderContractHash: target.ProviderContractHash,
 		ModuleContractHash:   target.ModuleContractHash,
 		HealthContractHashes: healthHashes,

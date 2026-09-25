@@ -14350,7 +14350,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:6a79e0654824079a664efee247a0a47f060ebe8624f6aa6ddadd68e482c927ee",
+          "contractHash": "sha256:17c124c1205256710d1161ad728885fe34af3fe07aee4111441172143d3bd0ce",
           "id": "opentofu",
           "inputBindings": [],
           "kind": "opentofu",
@@ -14743,7 +14743,7 @@
           "artifactRefs": [
             "cloud-core-opentofu"
           ],
-          "contractHash": "sha256:6a79e0654824079a664efee247a0a47f060ebe8624f6aa6ddadd68e482c927ee",
+          "contractHash": "sha256:17c124c1205256710d1161ad728885fe34af3fe07aee4111441172143d3bd0ce",
           "id": "opentofu",
           "planInputRefs": [],
           "publicInputRefs": [],
@@ -15621,7 +15621,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:b8846b7c2e2728b89b5d585078496070fa1bdfce3fd569e07e0ef3545fc40a24",
+          "contractHash": "sha256:686105c4ab42b787a3a884041751eb577e0821a5aae4ad1f8bedbcaf096723de",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -16037,7 +16037,7 @@
             "cloud-core-standalone-opentofu",
             "cloud-kopia-backup-source-policy"
           ],
-          "contractHash": "sha256:b8846b7c2e2728b89b5d585078496070fa1bdfce3fd569e07e0ef3545fc40a24",
+          "contractHash": "sha256:686105c4ab42b787a3a884041751eb577e0821a5aae4ad1f8bedbcaf096723de",
           "id": "opentofu",
           "planInputRefs": [
             "stackId",
@@ -34118,6 +34118,7 @@
         "personal"
       ],
       "defaultAlternative": "stalwart",
+      "exclusiveNode": true,
       "functionalCapabilities": [
         "mail-server",
         "mailbox-hosting",
@@ -34126,7 +34127,7 @@
       ],
       "kind": "application",
       "metadata": {
-        "description": "Own mail server: Stalwart receives and sends mail for the owner's domain on a public Cloud node. DNS records are printed for the owner, never created.",
+        "description": "Own mail server: Stalwart receives and sends mail for the owner's domain on a dedicated public Cloud node. DNS records are printed for the owner, never created.",
         "id": "mail-server",
         "version": "1.0.0"
       },

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -14,14 +14,14 @@ type productCloudreveSelectedPaaSFactory struct {
 	runtimeVersion          string
 	runtimeAdapterRef       string
 	runtimeAdapterModuleRef string
-	operations              runtimeexecutorlocal.SelectedPaaSWorkloadOperations
+	operations              nativehost.SelectedPaaSWorkloadOperations
 }
 
 func NewProductCloudreveSelectedPaaSRegistration(
 	runtimeVersion string,
 	runtimeAdapterRef string,
 	runtimeAdapterModuleRef string,
-	operations runtimeexecutorlocal.SelectedPaaSWorkloadOperations,
+	operations nativehost.SelectedPaaSWorkloadOperations,
 ) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) ||
 		runtimeAdapterRef == "" || runtimeAdapterRef != strings.TrimSpace(runtimeAdapterRef) ||
@@ -70,14 +70,14 @@ func (f *productCloudreveSelectedPaaSFactory) PrepareRuntimeOwner(request Produc
 	if err != nil {
 		return nil, err
 	}
-	authority := runtimeexecutorlocal.CloudreveWorkloadAuthority{
+	authority := nativehost.CloudreveWorkloadAuthority{
 		ProviderContractHash: target.ProviderContractHash,
 		ModuleContractHash:   target.ModuleContractHash,
 		UnitContractHash:     target.UnitContractHash,
 		HealthContractHash:   health[moduleHealthIndex].ContractHash,
 		RuntimeAdapter:       selectedPaaSRuntimeAdapterAuthority(*target.RuntimeAdapter),
 	}
-	return runtimeexecutorlocal.NewCloudreveSelectedPaaSExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{
+	return nativehost.NewCloudreveSelectedPaaSExecutor(identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
 	}, authority, f.operations), nil
 }

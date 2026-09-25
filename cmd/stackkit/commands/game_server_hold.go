@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/appsetup"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 )
 
 // Wings-owned game containers are outside the Compose graph the snapshot owner
@@ -51,7 +51,7 @@ func withGameServersHeld(ctx context.Context, workspace string, required bool, o
 	}
 	journalPath := filepath.Join(workspace, filepath.FromSlash(gameServerHoldJournal))
 	panel := func(use func(client *http.Client, baseURL string) error) error {
-		return runtimeexecutorlocal.WithStandaloneComposeHTTP(ctx, workspace, deployment, use)
+		return nativehost.WithStandaloneComposeHTTP(ctx, workspace, deployment, use)
 	}
 	held := readGameServerHold(journalPath)
 	stopErr := panel(func(client *http.Client, baseURL string) error {

@@ -19,7 +19,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/applyledger"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeobservation"
 	"github.com/kombifyio/stackkits/internal/servicecontrol"
 	stackverify "github.com/kombifyio/stackkits/internal/verify"
@@ -41,7 +41,7 @@ type architectureV2RuntimeObservationInput struct {
 	RolloutEvidence    bool
 	AccessEvidence     bool
 	ProcessChannelRefs map[string]bool
-	CloudVerify        *runtimeexecutorlocal.CloudCoreVerifyObservation
+	CloudVerify        *nativehost.CloudCoreVerifyObservation
 	Context            context.Context
 	HTTPProbe          bool
 	HTTPClient         *http.Client
@@ -57,6 +57,9 @@ type architectureV2ApplyCommandResult struct {
 	// stackkit.apply-result/v2: a consumer that only reads the summary keeps
 	// working, and one that wants to know which module came up can.
 	Outcomes *applyledger.Ledger `json:"outcomes,omitempty"`
+	// ExecutionScope names the host tuple of a multi-host Apply. Units of
+	// other hosts appear in Outcomes as out_of_scope.
+	ExecutionScope *generationartifact.ApplyExecutionScope `json:"executionScope,omitempty"`
 }
 
 type runtimeObservationPlanProjection struct {
@@ -516,7 +519,7 @@ func runtimeHTTPProbeEvidence(probe stackverify.HTTPRouteProbe) (runtimeobservat
 	}, nil
 }
 
-func runtimeObservationCloudVerification(observation *runtimeexecutorlocal.CloudCoreVerifyObservation) (string, map[string]string, error) {
+func runtimeObservationCloudVerification(observation *nativehost.CloudCoreVerifyObservation) (string, map[string]string, error) {
 	probes := map[string]string{}
 	if observation == nil {
 		return "", probes, nil
@@ -532,8 +535,8 @@ func runtimeObservationCloudVerification(observation *runtimeexecutorlocal.Cloud
 	return "sha256:" + hex.EncodeToString(sum[:]), probes, nil
 }
 
-func runtimeObservationCloudServices(observation *runtimeexecutorlocal.CloudCoreVerifyObservation) map[string]runtimeexecutorlocal.BasementCoreServiceObservation {
-	result := map[string]runtimeexecutorlocal.BasementCoreServiceObservation{}
+func runtimeObservationCloudServices(observation *nativehost.CloudCoreVerifyObservation) map[string]nativehost.BasementCoreServiceObservation {
+	result := map[string]nativehost.BasementCoreServiceObservation{}
 	if observation == nil {
 		return result
 	}

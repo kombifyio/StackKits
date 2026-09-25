@@ -49,7 +49,7 @@ type publicUpgradeAttempt struct {
 	OperationID         string `json:"operationId"`
 	TargetKit           string `json:"targetKit"`
 	TargetVersion       string `json:"targetVersion"`
-	TargetArchiveSHA256 string `json:"targetArchiveSha256"`
+	TargetArchiveSHA256 string `json:"targetArchiveSha256,omitempty"`
 	CurrentPlanHash     string `json:"currentPlanHash"`
 	ResumeMode          string `json:"resumeMode"`
 }
@@ -189,9 +189,17 @@ func persistPublicUpgradeAttempt(
 	target releaseindex.Resolution,
 	currentPlanHash string,
 ) (publicUpgradeAttempt, error) {
+	// A running-executable target (a same-release mutation without a
+	// workspace release cache) has no archive; every other target binds its
+	// verified archive digest.
+	targetArchive := ""
+	if target.Asset.Archive.SHA256 != "" {
+		targetArchive = "sha256:" + target.Asset.Archive.SHA256
+	}
 	if transaction == nil ||
 		!nativeV2BackupDigestPattern.MatchString(currentPlanHash) ||
-		!nativeV2BackupDigestPattern.MatchString("sha256:"+target.Asset.Archive.SHA256) {
+		(targetArchive != "" && !nativeV2BackupDigestPattern.MatchString(targetArchive)) ||
+		(targetArchive == "" && strings.TrimSpace(target.Asset.Version) == "") {
 		return publicUpgradeAttempt{}, errors.New(
 			"persist upgrade attempt requires a held workspace and canonical current/target digests",
 		)
@@ -205,7 +213,7 @@ func persistPublicUpgradeAttempt(
 		OperationID:         publicUpgradeOperationID(target, nonce),
 		TargetKit:           target.Asset.Kit,
 		TargetVersion:       target.Asset.Version,
-		TargetArchiveSHA256: "sha256:" + target.Asset.Archive.SHA256,
+		TargetArchiveSHA256: targetArchive,
 		CurrentPlanHash:     currentPlanHash,
 		ResumeMode:          "never-implicit",
 	}
@@ -385,6 +393,21 @@ func withPreparedPublicUpgradeCapture(
 	if err != nil {
 		return err
 	}
+	if len(inventoryBytes) > 0 {
+		// Every non-generate command re-attests the local free-space sample
+		// (a Kopia snapshot right before this checkpoint changes it), so the
+		// captured and re-resolved Inventory must be the stable projection of
+		// the persisted plan, exactly as normal execution and Advanced
+		// admission use. Every other fact stays binding.
+		stable, _, stableErr := inventoryForGeneratedPlan(
+			workspace, loaded.Document.Raw, inventoryBytes,
+			architectureV2ExecutionCLIOptions{}, plan,
+		)
+		if stableErr != nil {
+			return stableErr
+		}
+		inventoryBytes = stable
+	}
 	var inventoryRelative string
 	if len(inventoryBytes) > 0 {
 		inventoryRelative, err = filepath.Rel(workspace, inventoryPath)
@@ -493,32 +516,17 @@ func withPreparedPublicUpgradeCapture(
 	if err != nil {
 		return err
 	}
-	err = (releaseindex.Installer{
-		Attestations: newPublicAttestationVerifier(),
-	}).InspectInstalled(ctx, appliedInstallDir, func(proof releaseindex.VerifiedInstallation) error {
-		var currentReceipt releaseindex.Receipt
-		if inspectErr := proof.Inspect(func(
-			receipt releaseindex.Receipt,
-			_ releaseindex.Asset,
-			_ io.Reader,
-		) error {
-			currentReceipt = receipt
-			return validateExpectedCurrentReleaseReceipt(
-				receipt, kit, appliedTag, platform,
-			)
-		}); inspectErr != nil {
-			return inspectErr
-		}
-		executableBytes, serverBytes, executableErr := upgradelifecycle.ReleaseExecutablesFromVerifiedRelease(proof)
-		if executableErr != nil {
-			return executableErr
-		}
+	continueWith := func(
+		proof releaseindex.VerifiedInstallation,
+		running *upgradelifecycle.RunningExecutableRelease,
+		executableBytes, serverBytes []byte,
+	) error {
 		capture := upgradelifecycle.ExecutorStateCaptureInput{
-			GenerationTarget: generationTarget, Release: proof,
+			GenerationTarget: generationTarget, Release: proof, RunningRelease: running,
 			Executable: upgradelifecycle.ExecutorStateExecutableInput{Blob: upgradelifecycle.ExecutorStateBlobInput{
-				ID: "stackkit", Path: executorRecoveryBinaryPath(currentReceipt.Platform),
+				ID: "stackkit", Path: executorRecoveryBinaryPath(platform),
 				Mode: "0755", Data: executableBytes,
-			}, Server: executorRecoveryServerBlob(currentReceipt.Platform, serverBytes)},
+			}, Server: executorRecoveryServerBlob(platform, serverBytes)},
 			Lineage: authority.Lineage,
 			StackSpec: upgradelifecycle.ExecutorStateBlobInput{
 				ID: "stack-spec", Path: filepath.ToSlash(specRelative), Mode: "0600",
@@ -546,11 +554,57 @@ func withPreparedPublicUpgradeCapture(
 			SourceVerifier: sourceVerifier, ApplyVerifier: applyVerifier,
 			Capture: capture,
 		})
-	})
+	}
+	// The applied release is the running release and the workspace holds no
+	// release cache for it (a Techstack-managed host: the Agent verified the
+	// pinned release before starting this executable, and init creates no
+	// cache). The checkpoint then captures the running executable as the
+	// prior release. Any other applied release requires its verified cache.
+	if runningExecutableIsAppliedRelease(appliedTag, appliedInstallDir) {
+		running, runningErr := upgradelifecycle.NewRunningExecutableRelease(kit, appliedTag, platform)
+		if runningErr != nil {
+			return fmt.Errorf("prepare verified current executor-state authority: %w", runningErr)
+		}
+		executableBytes, serverBytes := running.Executables()
+		err = continueWith(releaseindex.VerifiedInstallation{}, &running, executableBytes, serverBytes)
+	} else {
+		err = (releaseindex.Installer{
+			Attestations: newPublicAttestationVerifier(),
+		}).InspectInstalled(ctx, appliedInstallDir, func(proof releaseindex.VerifiedInstallation) error {
+			if inspectErr := proof.Inspect(func(
+				receipt releaseindex.Receipt,
+				_ releaseindex.Asset,
+				_ io.Reader,
+			) error {
+				return validateExpectedCurrentReleaseReceipt(
+					receipt, kit, appliedTag, platform,
+				)
+			}); inspectErr != nil {
+				return inspectErr
+			}
+			executableBytes, serverBytes, executableErr := upgradelifecycle.ReleaseExecutablesFromVerifiedRelease(proof)
+			if executableErr != nil {
+				return executableErr
+			}
+			return continueWith(proof, nil, executableBytes, serverBytes)
+		})
+	}
 	if err != nil {
 		return fmt.Errorf("prepare verified current executor-state authority: %w", err)
 	}
 	return nil
+}
+
+// runningExecutableIsAppliedRelease reports whether the running executable is
+// the exact applied release and no workspace release cache entry exists for
+// it.
+func runningExecutableIsAppliedRelease(appliedTag, appliedInstallDir string) bool {
+	runningTag, err := releaseindex.ExactTagForBuildVersion(version)
+	if err != nil || runningTag != appliedTag {
+		return false
+	}
+	_, statErr := os.Lstat(appliedInstallDir)
+	return errors.Is(statErr, os.ErrNotExist)
 }
 
 func appliedPublicUpgradeReleasePath(
@@ -585,7 +639,7 @@ func verifyPublicUpgradeManagedVolumeAuthority(
 	var compose struct {
 		Name     string `yaml:"name"`
 		Services map[string]struct {
-			Volumes []string `yaml:"volumes"`
+			Volumes []composeServiceVolume `yaml:"volumes"`
 		} `yaml:"services"`
 		Volumes map[string]any `yaml:"volumes"`
 	}
@@ -611,7 +665,7 @@ func verifyPublicUpgradeManagedVolumeAuthority(
 			continue
 		}
 		for _, mount := range service.Volumes {
-			sourceRef, _, found := strings.Cut(mount, ":")
+			sourceRef, found := mount.namedSource()
 			if !found {
 				return fmt.Errorf("Compose service %s has a non-canonical volume mount", serviceName)
 			}
@@ -650,7 +704,10 @@ func verifyPublicUpgradeManagedVolumeAuthority(
 	}
 	observedManagedMounts := map[string]string{}
 	for _, mount := range kopia.Volumes {
-		parts := strings.Split(mount, ":")
+		if mount.long {
+			return errors.New("Kopia Compose volume mount is not canonical")
+		}
+		parts := strings.Split(mount.short, ":")
 		if len(parts) != 2 && len(parts) != 3 {
 			return errors.New("Kopia Compose volume mount is not canonical")
 		}
@@ -676,6 +733,60 @@ func verifyPublicUpgradeManagedVolumeAuthority(
 		}
 	}
 	return nil
+}
+
+// composeServiceVolume is one entry of a Compose service's volumes list. It
+// accepts both the short form ("source:target[:mode]") and the long form
+// (a mapping with type, source and target), which the Basement core uses for
+// the stackkit-server bind mounts.
+type composeServiceVolume struct {
+	short  string
+	long   bool
+	kind   string
+	source string
+	target string
+}
+
+func (volume *composeServiceVolume) UnmarshalYAML(node *yaml.Node) error {
+	switch node.Kind {
+	case yaml.ScalarNode:
+		return node.Decode(&volume.short)
+	case yaml.MappingNode:
+		var entry struct {
+			Type   string `yaml:"type"`
+			Source string `yaml:"source"`
+			Target string `yaml:"target"`
+		}
+		if err := node.Decode(&entry); err != nil {
+			return err
+		}
+		volume.long = true
+		volume.kind = entry.Type
+		volume.source = entry.Source
+		volume.target = entry.Target
+		return nil
+	default:
+		return fmt.Errorf("unsupported Compose volume entry at line %d", node.Line)
+	}
+}
+
+// namedSource returns the mount source that may name a top-level Compose
+// volume. Long-form bind and tmpfs mounts never reference a named volume and
+// return an empty source; long-form volume mounts return their source. The
+// boolean is false only for an entry that has no usable shape at all.
+func (volume composeServiceVolume) namedSource() (string, bool) {
+	if !volume.long {
+		sourceRef, _, found := strings.Cut(volume.short, ":")
+		return sourceRef, found
+	}
+	switch volume.kind {
+	case "volume":
+		return volume.source, volume.source != "" && volume.target != ""
+	case "bind", "tmpfs", "npipe", "cluster":
+		return "", volume.target != ""
+	default:
+		return "", false
+	}
 }
 
 func equalExactStrings(left, right []string) bool {

@@ -83,10 +83,32 @@ const (
 var operationPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{7,127}$`)
 var managedVolumePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$`)
 
+// AuthorityRunningExecutable marks a release whose authority is the
+// executable that runs the mutation itself: a same-release target on a host
+// without a workspace release cache. It has no archive digest; the executable
+// digest is its only identity. An empty Authority is a workspace release
+// cache receipt, which always carries its archive digest.
+const AuthorityRunningExecutable = "running-executable"
+
 type ReleaseAuthority struct {
+	Authority        string `json:"authority,omitempty"`
 	Version          string `json:"version"`
 	ArchiveSHA256    string `json:"archiveSha256"`
 	ExecutableSHA256 string `json:"executableSha256"`
+}
+
+func validReleaseAuthority(release ReleaseAuthority) bool {
+	if strings.TrimSpace(release.Version) == "" || !canonicalDigest(release.ExecutableSHA256) {
+		return false
+	}
+	switch release.Authority {
+	case "":
+		return canonicalDigest(release.ArchiveSHA256)
+	case AuthorityRunningExecutable:
+		return release.ArchiveSHA256 == ""
+	default:
+		return false
+	}
 }
 
 type CheckpointAuthority struct {
@@ -1535,12 +1557,8 @@ func validateRecord(record Record) error {
 	if record.Kind == KindUpgrade {
 		if !canonicalDigest(record.Checkpoint.ExecutorStateSnapshotID) ||
 			!canonicalDigest(record.Checkpoint.KopiaAnchorID) ||
-			strings.TrimSpace(record.Target.Version) == "" ||
-			!canonicalDigest(record.Target.ArchiveSHA256) ||
-			!canonicalDigest(record.Target.ExecutableSHA256) ||
-			strings.TrimSpace(record.Prior.Version) == "" ||
-			!canonicalDigest(record.Prior.ArchiveSHA256) ||
-			!canonicalDigest(record.Prior.ExecutableSHA256) ||
+			!validReleaseAuthority(record.Target) ||
+			!validReleaseAuthority(record.Prior) ||
 			record.RestoreActivation != nil {
 			return errors.New("lifecycle mutation journal is incomplete")
 		}

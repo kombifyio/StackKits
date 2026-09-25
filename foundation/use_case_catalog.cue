@@ -421,7 +421,7 @@ UseCaseCatalog: #UseCaseCatalog & {
 		"mail-server": {
 			slug:        "mail-server"
 			displayName: "Own Mail Server"
-			description: "Your own mail server on a Cloud node through Stalwart: mailboxes for your domain with SMTP, IMAP and submission. StackKits prints the DNS records you publish; it never changes DNS."
+			description: "Your own mail server on a dedicated Cloud node through Stalwart: mailboxes for your domain with SMTP, IMAP and submission. StackKits prints the DNS records you publish; it never changes DNS."
 			owner:       "stackkits"
 			mainUseCase: id: "mail"
 			docs: "/guides/stackkits/use-cases/mail"

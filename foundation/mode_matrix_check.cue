@@ -25,7 +25,12 @@ _test_matrix_valid: #KitModeSupport & {
 		coolify: "default"
 		dokploy: "draft"
 	}
-	evidence: ["SK-S1"]
+	evidence: {
+		"placement.standard":     ["SK-S1"]
+		"install.bootstrapped":   ["SK-S1"]
+		"context.local":          ["SK-S1"]
+		"paas.coolify":           ["SK-S1"]
+	}
 }
 
 // The managed-serverless cell is forced to control-plane: the schema must

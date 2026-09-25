@@ -46,6 +46,9 @@ var (
 )
 
 type ExecutorStateRelease struct {
+	// Authority is empty for a verified installed release and
+	// ExecutorStateReleaseRunningExecutable for the running executable.
+	Authority              string                `json:"authority,omitempty"`
 	Kit                    string                `json:"kit"`
 	Version                string                `json:"version"`
 	Channel                releaseindex.Channel  `json:"channel"`
@@ -97,12 +100,15 @@ type ExecutorStateCaptureInput struct {
 	CoreComposeArtifactID string
 	CorePolicyArtifactID  string
 	Release               releaseindex.VerifiedInstallation
-	Executable            ExecutorStateExecutableInput
-	Lineage               backuplifecycle.AuthorityLineage
-	StackSpec             ExecutorStateBlobInput
-	Inventory             *ExecutorStateBlobInput
-	Artifacts             []ExecutorStateBlobInput
-	RuntimeCompose        ExecutorStateBlobInput
+	// RunningRelease replaces Release when the prior release is the running
+	// executable and no workspace release cache holds it.
+	RunningRelease *RunningExecutableRelease
+	Executable     ExecutorStateExecutableInput
+	Lineage        backuplifecycle.AuthorityLineage
+	StackSpec      ExecutorStateBlobInput
+	Inventory      *ExecutorStateBlobInput
+	Artifacts      []ExecutorStateBlobInput
+	RuntimeCompose ExecutorStateBlobInput
 	// RuntimeOpenTofu replaces RuntimeCompose when the generation target
 	// executes OpenTofu (opentofu or terramate).
 	RuntimeOpenTofu     []ExecutorStateOpenTofuRootInput
@@ -760,7 +766,20 @@ func sortExecutorStateArtifacts(artifacts []ExecutorStateBlob) {
 }
 
 func validateExecutorStateRelease(release ExecutorStateRelease) error {
-	if strings.TrimSpace(release.Kit) == "" || !executorStateVersionPattern.MatchString(release.Version) ||
+	if release.Authority == ExecutorStateReleaseRunningExecutable {
+		// The running executable has no archive, SBOM, index or attestation
+		// identity; its captured executable blob digest is its identity.
+		if strings.TrimSpace(release.Kit) == "" || !executorStateVersionPattern.MatchString(release.Version) ||
+			strings.TrimSpace(release.Platform.OS) == "" || strings.TrimSpace(release.Platform.Arch) == "" ||
+			release != (ExecutorStateRelease{
+				Authority: release.Authority, Kit: release.Kit, Version: release.Version,
+				Channel: release.Channel, Platform: release.Platform,
+			}) {
+			return errors.New("executor state: running executable release identity is incomplete or carries archive identity")
+		}
+		return nil
+	}
+	if release.Authority != "" || strings.TrimSpace(release.Kit) == "" || !executorStateVersionPattern.MatchString(release.Version) ||
 		strings.TrimSpace(string(release.Channel)) == "" ||
 		strings.TrimSpace(release.Platform.OS) == "" || strings.TrimSpace(release.Platform.Arch) == "" ||
 		!validExecutorStateDigest(release.ArchiveSHA256) ||
@@ -785,6 +804,20 @@ func verifyExecutorStateReleaseProof(
 	proof releaseindex.VerifiedInstallation,
 	executable ExecutorStateExecutableInput,
 ) (ExecutorStateRelease, error) {
+	return verifyExecutorStateCaptureRelease(proof, nil, executable)
+}
+
+// verifyExecutorStateCaptureRelease selects the release proof of a capture:
+// the running executable when the capture carries one, else the verified
+// installed release.
+func verifyExecutorStateCaptureRelease(
+	proof releaseindex.VerifiedInstallation,
+	running *RunningExecutableRelease,
+	executable ExecutorStateExecutableInput,
+) (ExecutorStateRelease, error) {
+	if running != nil {
+		return verifyRunningExecutableReleaseProof(running, executable)
+	}
 	executableBytes := executable.Blob.Data
 	if len(executableBytes) == 0 || len(executableBytes) > executorStateMaxBlobBytes {
 		return ExecutorStateRelease{}, errors.New("executor state: exact recovery executable bytes are required")

@@ -2362,12 +2362,14 @@
       "group": "reference",
       "usage": "stackkit fleet [flags]",
       "short": "Admit and join member hosts of one StackInstance",
-      "description": "Bind a physical host to an existing member node of this StackInstance.\n\nThe Home owner on the Foundation Node signs a member admission for one enabled\nnon-controller node at a Cloud Site. The member host verifies it against the\npinned Home key, recompiles the same plan from the admitted StackSpec and\nInventory, and keeps verify-only member custody: no enrollment, signing,\ncredential issuance, or ControlAuthority. Both hosts must run the same\nStackKits version.",
+      "description": "Bind a physical host to an existing member node of this StackInstance.\n\nThe Home owner on the Foundation Node signs a member admission for one enabled\nnon-controller node at a Cloud Site. The member host verifies it against the\npinned Home key, recompiles the same plan from the admitted StackSpec and\nInventory, and keeps verify-only member custody: no enrollment, signing,\ncredential issuance, or ControlAuthority. Both hosts must run the same\nStackKits version.\n\nJoin also generates a member evidence key and writes one request file. The\nHome owner certifies it with certify-member-key; after import-member-key the\nmember applies and verifies only its own Site/node/channel tuple and signs that\nevidence with the certified key.",
       "runnable": false,
       "examples": [],
       "flags": [],
       "subcommands": [
         "stackkit fleet admit-member",
+        "stackkit fleet certify-member-key",
+        "stackkit fleet import-member-key",
         "stackkit fleet join"
       ]
     },
@@ -2414,6 +2416,64 @@
           "required": false
         }
       ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit fleet certify-member-key",
+      "name": "certify-member-key",
+      "parent": "stackkit fleet",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit fleet certify-member-key <request-file> [flags]",
+      "short": "Owner-certify a joined member's evidence key for its own tuple",
+      "description": "Certify the member evidence key a joined member generated at join.\n\nThe certificate lets the member sign Apply and Verify evidence for its own\nSite/node/execution-channel tuple and nothing else: no enrollment, identity\nsigning, credential issuance, ControlAuthority, or Owner authority. The\nFoundation Node records every certificate it issues and from then on leaves\nthat member's local runtime targets to the member.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit fleet certify-member-key member-evidence-key-request.json --output member-evidence-key.json",
+          "description": "On the Foundation Node, with the request file the member relayed"
+        }
+      ],
+      "flags": [
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Inventory declaring both execution channels (otherwise one conventional inventory file is selected)",
+          "required": false
+        },
+        {
+          "name": "output",
+          "type": "string",
+          "description": "Additional workspace-confined certificate output to relay to the member",
+          "required": false
+        },
+        {
+          "name": "valid-for",
+          "type": "duration",
+          "default": "720h0m0s",
+          "description": "Certificate validity (at most 2160h)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit fleet import-member-key",
+      "name": "import-member-key",
+      "parent": "stackkit fleet",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit fleet import-member-key <certificate-file> [flags]",
+      "short": "Import the Home owner certificate for this member's evidence key",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit fleet import-member-key member-evidence-key.json",
+          "description": "On the Cloud host, with the certificate the Foundation Node returned"
+        }
+      ],
+      "flags": [],
       "subcommands": []
     },
     {

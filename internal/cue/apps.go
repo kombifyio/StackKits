@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/platformdeploy"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 

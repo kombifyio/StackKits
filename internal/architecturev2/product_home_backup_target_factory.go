@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -12,13 +12,13 @@ const productHomeBackupTargetAdapterID = "stackkits-home-backup-target-local"
 
 type productHomeBackupTargetFactory struct {
 	runtimeVersion string
-	operations     runtimeexecutorlocal.HomeBackupTargetOperations
+	operations     nativehost.HomeBackupTargetOperations
 }
 
 // NewProductHomeBackupTargetRegistration binds the exact Home backup-target
 // selector to one construction-owned observation capability. Core owns
 // directory creation; this owner can only verify the already prepared target.
-func NewProductHomeBackupTargetRegistration(runtimeVersion string, operations runtimeexecutorlocal.HomeBackupTargetOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductHomeBackupTargetRegistration(runtimeVersion string, operations nativehost.HomeBackupTargetOperations) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("Home backup-target product registration requires a runtime version and operations owner")
 	}
@@ -43,7 +43,7 @@ func (f *productHomeBackupTargetFactory) PrepareRuntimeOwner(request ProductRunt
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewHomeBackupTargetExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{
+	return nativehost.NewHomeBackupTargetExecutor(identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
 	}, f.operations), nil
 }

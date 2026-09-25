@@ -10,7 +10,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/backupexec"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 )
 
 // nativeBackupApplicationCustody uses the same signed-Apply bundle selector as
@@ -32,14 +32,14 @@ func nativeBackupApplicationCustody(authority nativeV2BackupAuthority) (backupex
 		if index < 0 || !reflect.DeepEqual(requested, runtimes[index]) {
 			return nil, errors.New("application backup custody request differs from the held source graph")
 		}
-		return runtimeexecutorlocal.ObserveStandaloneComposeContainerCustody(ctx, authority.WorkspaceRoot, deployments[requested.ComposeProject])
+		return nativehost.ObserveStandaloneComposeContainerCustody(ctx, authority.WorkspaceRoot, deployments[requested.ComposeProject])
 	}, nil
 }
 
 // nativeBackupApplicationDeployments selects each application bundle from the
 // signed Apply authority and checks it against the held source graph. Restore
 // verification and source custody therefore use one exact deployment map.
-func nativeBackupApplicationDeployments(authority nativeV2BackupAuthority) (map[string]runtimeexecutorlocal.SelectedPaaSWorkloadDeployment, error) {
+func nativeBackupApplicationDeployments(authority nativeV2BackupAuthority) (map[string]nativehost.SelectedPaaSWorkloadDeployment, error) {
 	runtimes := authority.Policy.SourceProjection().ApplicationRuntimes
 	if len(runtimes) == 0 {
 		return nil, nil
@@ -47,7 +47,7 @@ func nativeBackupApplicationDeployments(authority nativeV2BackupAuthority) (map[
 	if authority.AppliedAuthority == nil || authority.AppliedAuthority.Lineage != authority.Lineage || authority.AppliedAuthority.WorkspaceRoot != authority.WorkspaceRoot {
 		return nil, errors.New("application backup requires the current signed application Apply authority")
 	}
-	deployments := make(map[string]runtimeexecutorlocal.SelectedPaaSWorkloadDeployment, len(runtimes))
+	deployments := make(map[string]nativehost.SelectedPaaSWorkloadDeployment, len(runtimes))
 	for _, graph := range runtimes {
 		deployment, err := nativeAppliedWorkloadDeployment(*authority.AppliedAuthority, graph.WorkloadRef)
 		if err != nil {
@@ -95,11 +95,11 @@ func verifyNativeV2BackupApplications(ctx context.Context, authority nativeV2Bac
 	if err != nil {
 		return err
 	}
-	operations, err := runtimeexecutorlocal.NewOSStandaloneComposeWorkloadOperations(authority.WorkspaceRoot)
+	operations, err := nativehost.NewOSStandaloneComposeWorkloadOperations(authority.WorkspaceRoot)
 	if err != nil {
 		return fmt.Errorf("initialize selected application restore verifier: %w", err)
 	}
-	validator, ok := operations.(runtimeexecutorlocal.SelectedPaaSWorkloadObservationValidator)
+	validator, ok := operations.(nativehost.SelectedPaaSWorkloadObservationValidator)
 	if !ok {
 		return errors.New("selected application restore verifier has no product-owned observation validator")
 	}

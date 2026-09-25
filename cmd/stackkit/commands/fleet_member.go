@@ -20,9 +20,13 @@ import (
 )
 
 const (
-	fleetMemberAdmissionResultSchema = "stackkit.fleet-member-admission-result/v1"
-	fleetMemberJoinResultSchema      = "stackkit.fleet-member-join-result/v1"
-	fleetMemberAdmissionRoot         = ".stackkit/fleet/member-admissions"
+	fleetMemberAdmissionResultSchema   = "stackkit.fleet-member-admission-result/v1"
+	fleetMemberJoinResultSchema        = "stackkit.fleet-member-join-result/v1"
+	fleetMemberKeyCertifyResultSchema  = "stackkit.fleet-member-key-certify-result/v1"
+	fleetMemberKeyImportResultSchema   = "stackkit.fleet-member-key-import-result/v1"
+	fleetMemberAdmissionRoot           = ".stackkit/fleet/member-admissions"
+	fleetMemberEvidenceKeyRequestPath  = ".stackkit/fleet/member-evidence-key-request.json"
+	fleetMemberEvidenceKeyRequestLabel = "member evidence key request"
 )
 
 type fleetMemberCommandDeps struct {
@@ -40,6 +44,12 @@ type fleetAdmitMemberOptions struct {
 
 type fleetJoinOptions struct {
 	homeKeyID string
+}
+
+type fleetCertifyMemberKeyOptions struct {
+	inventory string
+	output    string
+	validFor  time.Duration
 }
 
 type fleetMemberAdmissionResult struct {
@@ -61,6 +71,33 @@ type fleetMemberJoinResult struct {
 	Binding       localevidence.LocalBinding `json:"localBinding"`
 	Authority     localevidence.LocalBinding `json:"authorityBinding"`
 	HomeKeyID     string                     `json:"homeKeyId"`
+	Grants        fleetmember.Grants         `json:"grants"`
+	// EvidenceKeyRequestPath is the one file the member relays to the
+	// Foundation Node for `stackkit fleet certify-member-key`.
+	EvidenceKeyRequestPath string `json:"evidenceKeyRequestPath"`
+	EvidenceKeyID          string `json:"evidenceKeyId"`
+}
+
+type fleetMemberKeyCertifyResult struct {
+	SchemaVersion   string                       `json:"schemaVersion"`
+	CertificatePath string                       `json:"certificatePath"`
+	RecordPath      string                       `json:"recordPath"`
+	StackID         string                       `json:"stackId"`
+	PlanHash        string                       `json:"planHash"`
+	Member          fleetmember.ExecutionBinding `json:"member"`
+	EvidenceKeyID   string                       `json:"evidenceKeyId"`
+	Capability      string                       `json:"capability"`
+	ValidUntil      string                       `json:"validUntil"`
+}
+
+type fleetMemberKeyImportResult struct {
+	SchemaVersion string                     `json:"schemaVersion"`
+	StackID       string                     `json:"stackId"`
+	PlanHash      string                     `json:"planHash"`
+	Binding       localevidence.LocalBinding `json:"localBinding"`
+	EvidenceKeyID string                     `json:"evidenceKeyId"`
+	Capability    string                     `json:"capability"`
+	ValidUntil    string                     `json:"validUntil"`
 	Grants        fleetmember.Grants         `json:"grants"`
 }
 
@@ -85,7 +122,12 @@ non-controller node at a Cloud Site. The member host verifies it against the
 pinned Home key, recompiles the same plan from the admitted StackSpec and
 Inventory, and keeps verify-only member custody: no enrollment, signing,
 credential issuance, or ControlAuthority. Both hosts must run the same
-StackKits version.`,
+StackKits version.
+
+Join also generates a member evidence key and writes one request file. The
+Home owner certifies it with certify-member-key; after import-member-key the
+member applies and verifies only its own Site/node/channel tuple and signs that
+evidence with the certified key.`,
 		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	}
 	admitOptions := fleetAdmitMemberOptions{}
@@ -115,7 +157,38 @@ StackKits version.`,
 		},
 	}
 	join.Flags().StringVar(&joinOptions.homeKeyID, "home-key-id", "", "Home owner key ID from admit-member, compared out of band")
-	command.AddCommand(admit, join)
+	certifyOptions := fleetCertifyMemberKeyOptions{}
+	certify := &cobra.Command{
+		Use:   "certify-member-key <request-file>",
+		Short: "Owner-certify a joined member's evidence key for its own tuple",
+		Long: `Certify the member evidence key a joined member generated at join.
+
+The certificate lets the member sign Apply and Verify evidence for its own
+Site/node/execution-channel tuple and nothing else: no enrollment, identity
+signing, credential issuance, ControlAuthority, or Owner authority. The
+Foundation Node records every certificate it issues and from then on leaves
+that member's local runtime targets to the member.`,
+		Example: `  # On the Foundation Node, with the request file the member relayed
+  stackkit fleet certify-member-key member-evidence-key-request.json --output member-evidence-key.json`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return writeFleetFailure(cmd, runFleetCertifyMemberKey(cmd, deps, args[0], certifyOptions))
+		},
+	}
+	certify.Flags().StringVar(&certifyOptions.inventory, "inventory", "", "Inventory declaring both execution channels (otherwise one conventional inventory file is selected)")
+	certify.Flags().StringVar(&certifyOptions.output, "output", "", "Additional workspace-confined certificate output to relay to the member")
+	certify.Flags().DurationVar(&certifyOptions.validFor, "valid-for", fleetmember.DefaultEvidenceKeyValidity, "Certificate validity (at most 2160h)")
+	importKey := &cobra.Command{
+		Use:   "import-member-key <certificate-file>",
+		Short: "Import the Home owner certificate for this member's evidence key",
+		Example: `  # On the Cloud host, with the certificate the Foundation Node returned
+  stackkit fleet import-member-key member-evidence-key.json`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return writeFleetFailure(cmd, runFleetImportMemberKey(cmd, deps, args[0]))
+		},
+	}
+	command.AddCommand(admit, join, certify, importKey)
 	return command
 }
 
@@ -153,22 +226,7 @@ func runFleetAdmitMember(cmd *cobra.Command, deps fleetMemberCommandDeps, option
 	}
 	var result fleetMemberAdmissionResult
 	err = deps.mutate(workspace, "fleet admit-member", func() error {
-		spec, _, err := readFleetStackSpec(workspace)
-		if err != nil {
-			return err
-		}
-		inventory, inventoryPath, err := locateArchitectureV2Inventory(workspace, options.inventory)
-		if err != nil {
-			return err
-		}
-		if len(inventory) == 0 {
-			return errors.New("fleet admit-member requires an Inventory that declares the Home and member execution channels")
-		}
-		service, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(version))
-		if err != nil {
-			return fmt.Errorf("load embedded Architecture v2 authority: %w", err)
-		}
-		resolved, err := service.Resolve(architecturev2.ResolveInput{StackSpec: spec, Inventory: inventory})
+		spec, inventory, inventoryPath, resolved, err := compileFleetPlan(workspace, options.inventory, "fleet admit-member")
 		if err != nil {
 			return err
 		}
@@ -232,7 +290,13 @@ func runFleetJoin(cmd *cobra.Command, deps fleetMemberCommandDeps, admissionPath
 		if err != nil {
 			return err
 		}
-		return writeCommandResult(cmd, cmd.CommandPath(), newFleetMemberJoinResult("already-joined", existing))
+		result := newFleetMemberJoinResult("already-joined", existing)
+		if err := deps.mutate(workspace, "fleet join", func() error {
+			return issueFleetMemberEvidenceKeyRequest(workspace, deps.now(), existing, &result)
+		}); err != nil {
+			return err
+		}
+		return writeCommandResult(cmd, cmd.CommandPath(), result)
 	}
 	service, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(version))
 	if err != nil {
@@ -274,7 +338,174 @@ func runFleetJoin(cmd *cobra.Command, deps fleetMemberCommandDeps, admissionPath
 	if err != nil {
 		return err
 	}
-	return writeCommandResult(cmd, cmd.CommandPath(), newFleetMemberJoinResult("joined", custody))
+	result := newFleetMemberJoinResult("joined", custody)
+	if err := deps.mutate(workspace, "fleet join", func() error {
+		return issueFleetMemberEvidenceKeyRequest(workspace, deps.now(), custody, &result)
+	}); err != nil {
+		return err
+	}
+	return writeCommandResult(cmd, cmd.CommandPath(), result)
+}
+
+// issueFleetMemberEvidenceKeyRequest establishes the member evidence key
+// once and writes the proof-of-possession request the member relays to the
+// Foundation Node. The private key never leaves member custody.
+func issueFleetMemberEvidenceKeyRequest(workspace string, now time.Time, custody fleetmember.Custody, result *fleetMemberJoinResult) error {
+	key, err := localevidence.EstablishMemberEvidenceKey(workspace, custody.StackID, custody.Binding)
+	if err != nil {
+		return err
+	}
+	request, err := fleetmember.NewEvidenceKeyRequest(custody, key, now)
+	if err != nil {
+		return err
+	}
+	document, err := json.MarshalIndent(request, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := writeFederationPrivateAtomic(workspace, fleetMemberEvidenceKeyRequestPath, append(document, '\n')); err != nil {
+		return fmt.Errorf("persist %s: %w", fleetMemberEvidenceKeyRequestLabel, err)
+	}
+	result.EvidenceKeyRequestPath, result.EvidenceKeyID = fleetMemberEvidenceKeyRequestPath, key.KeyID
+	return nil
+}
+
+func runFleetCertifyMemberKey(cmd *cobra.Command, deps fleetMemberCommandDeps, requestPath string, options fleetCertifyMemberKeyOptions) error {
+	workspace, err := federationWorkspace(deps.workspace())
+	if err != nil {
+		return err
+	}
+	owner, err := localevidence.LoadOwnerCustody(workspace)
+	if err != nil {
+		return fmt.Errorf("fleet certify-member-key requires the Home owner custody: %w", err)
+	}
+	ownerRef, keyID, public, err := localevidence.OwnerVerificationKey(workspace)
+	if err != nil {
+		return err
+	}
+	raw, err := fleetmember.ReadBounded(resolveFleetInputPath(workspace, requestPath))
+	if err != nil {
+		return fmt.Errorf("read %s: %w", fleetMemberEvidenceKeyRequestLabel, err)
+	}
+	var output string
+	if strings.TrimSpace(options.output) != "" {
+		output, err = federationWorkspacePath(workspace, options.output, "member evidence key certificate output")
+		if err != nil {
+			return err
+		}
+	}
+	var result fleetMemberKeyCertifyResult
+	err = deps.mutate(workspace, "fleet certify-member-key", func() error {
+		_, _, _, resolved, err := compileFleetPlan(workspace, options.inventory, "fleet certify-member-key")
+		if err != nil {
+			return err
+		}
+		certificate, err := fleetmember.Certify(fleetmember.CertifyRequest{
+			Request: raw, Plan: resolved.Plan, Authority: owner.Binding,
+			OwnerRef: ownerRef, KeyID: keyID, PublicKey: public,
+			Now: deps.now(), ValidFor: options.validFor,
+		})
+		if err != nil {
+			return err
+		}
+		signing, err := certificate.SigningBytes()
+		if err != nil {
+			return err
+		}
+		certificate.Signature, err = localevidence.SignOwnerMemberEvidenceKey(workspace, signing)
+		if err != nil {
+			return err
+		}
+		document, err := json.MarshalIndent(certificate, "", "  ")
+		if err != nil {
+			return err
+		}
+		document = append(document, '\n')
+		record := fleetmember.IssuedEvidenceKeysRoot + "/" + certificate.Member.NodeRef + ".json"
+		if err := writeFederationPrivateAtomic(workspace, record, document); err != nil {
+			return fmt.Errorf("record issued member evidence key certificate: %w", err)
+		}
+		certificatePath := record
+		if output != "" {
+			if err := writeFederationPrivateAtomic(workspace, output, document); err != nil {
+				return fmt.Errorf("persist member evidence key certificate: %w", err)
+			}
+			certificatePath = output
+		}
+		result = fleetMemberKeyCertifyResult{
+			SchemaVersion: fleetMemberKeyCertifyResultSchema, CertificatePath: certificatePath, RecordPath: record,
+			StackID: certificate.StackID, PlanHash: certificate.PlanHash, Member: certificate.Member,
+			EvidenceKeyID: certificate.Key.KeyID, Capability: certificate.Capability,
+			ValidUntil: certificate.ValidUntil.Format(time.RFC3339),
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return writeCommandResult(cmd, cmd.CommandPath(), result)
+}
+
+func runFleetImportMemberKey(cmd *cobra.Command, deps fleetMemberCommandDeps, certificatePath string) error {
+	workspace, err := federationWorkspace(deps.workspace())
+	if err != nil {
+		return err
+	}
+	raw, err := fleetmember.ReadBounded(resolveFleetInputPath(workspace, certificatePath))
+	if err != nil {
+		return fmt.Errorf("read member evidence key certificate: %w", err)
+	}
+	var result fleetMemberKeyImportResult
+	err = deps.mutate(workspace, "fleet import-member-key", func() error {
+		evidence, err := fleetmember.ImportEvidenceKeyCertificate(workspace, raw, deps.now())
+		if err != nil {
+			return err
+		}
+		result = fleetMemberKeyImportResult{
+			SchemaVersion: fleetMemberKeyImportResultSchema,
+			StackID:       evidence.Certificate.StackID, PlanHash: evidence.Certificate.PlanHash,
+			Binding: evidence.Custody.Binding, EvidenceKeyID: evidence.Key.KeyID,
+			Capability: evidence.Certificate.Capability, Grants: evidence.Certificate.Grants,
+			ValidUntil: evidence.Certificate.ValidUntil.Format(time.RFC3339),
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return writeCommandResult(cmd, cmd.CommandPath(), result)
+}
+
+// compileFleetPlan compiles the current plan of a Foundation Node exactly from
+// its persisted StackSpec and the shared Inventory.
+func compileFleetPlan(workspace, inventoryFlag, operation string) ([]byte, []byte, string, architecturev2.Result, error) {
+	spec, _, err := readFleetStackSpec(workspace)
+	if err != nil {
+		return nil, nil, "", architecturev2.Result{}, err
+	}
+	inventory, inventoryPath, err := locateArchitectureV2Inventory(workspace, inventoryFlag)
+	if err != nil {
+		return nil, nil, "", architecturev2.Result{}, err
+	}
+	if len(inventory) == 0 {
+		return nil, nil, "", architecturev2.Result{}, fmt.Errorf("%s requires an Inventory that declares the Home and member execution channels", operation)
+	}
+	service, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(version))
+	if err != nil {
+		return nil, nil, "", architecturev2.Result{}, fmt.Errorf("load embedded Architecture v2 authority: %w", err)
+	}
+	resolved, err := service.Resolve(architecturev2.ResolveInput{StackSpec: spec, Inventory: inventory})
+	if err != nil {
+		return nil, nil, "", architecturev2.Result{}, err
+	}
+	return spec, inventory, inventoryPath, resolved, nil
+}
+
+func resolveFleetInputPath(workspace, candidate string) string {
+	if filepath.IsAbs(candidate) {
+		return candidate
+	}
+	return filepath.Join(workspace, candidate)
 }
 
 // currentFleetMember refuses a Foundation Node workspace and reports whether

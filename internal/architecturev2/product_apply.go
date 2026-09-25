@@ -10,7 +10,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -35,6 +35,11 @@ func (s *Service) ExecuteProductApply(ctx context.Context, input ProductApplyInp
 	if s == nil || !input.Current.valid || input.Current.owner != s.generation {
 		return VerifiedApplyResult{}, resolveError(ErrApplyAuthorization, "Apply requires a current resolution issued by this product service", nil)
 	}
+	scopedPlan, err := s.scopeProductPlan(input.Current.plan)
+	if err != nil {
+		return VerifiedApplyResult{}, err
+	}
+	input.Current.plan = scopedPlan
 	registry, err := s.productApplyExecutorRegistry(input.Current.plan, input.Versions.Runtime)
 	if err != nil {
 		return VerifiedApplyResult{}, err
@@ -52,6 +57,39 @@ func (s *Service) ExecuteProductApply(ctx context.Context, input ProductApplyInp
 	}
 	defer func() { returnErr = errors.Join(returnErr, authorization.Close()) }()
 	return registry.execute(ctx, authorization)
+}
+
+// BindProductExecutionScope fixes, once and at composition, the host scope a
+// multi-host StackInstance executes here: a joined member runs only its own
+// Site/node/channel tuple, and the Foundation Node leaves certified members'
+// targets to them. Apply, reconcile, and result verification all use the same
+// scoped projection. Request callers cannot supply or change it.
+func (s *Service) BindProductExecutionScope(scope generationartifact.ApplyExecutionScope) error {
+	if s == nil {
+		return resolveError(ErrAuthorityLoad, "product execution scope requires an initialized service", nil)
+	}
+	if s.productExecutionScope != nil {
+		return resolveError(ErrAuthorityLoad, "product execution scope is already bound", nil)
+	}
+	if err := scope.Validate(); err != nil {
+		return resolveError(ErrAuthorityLoad, "product execution scope is invalid", err)
+	}
+	bound := scope
+	bound.DispatchedOwnerRefs = append([]string(nil), scope.DispatchedOwnerRefs...)
+	bound.Members = append([]generationartifact.ApplyExecutionScopeBinding(nil), scope.Members...)
+	s.productExecutionScope = &bound
+	return nil
+}
+
+func (s *Service) scopeProductPlan(plan generationartifact.VerifiedPlan) (generationartifact.VerifiedPlan, error) {
+	if s == nil || s.productExecutionScope == nil {
+		return plan, nil
+	}
+	scoped, err := plan.WithExecutionScope(*s.productExecutionScope)
+	if err != nil {
+		return generationartifact.VerifiedPlan{}, resolveError(ErrApplyAuthorization, "project the host execution scope of the current plan", err)
+	}
+	return scoped, nil
 }
 
 func (s *Service) productApplyExecutorRegistry(plan generationartifact.VerifiedPlan, runtimeVersion string) (*applyExecutorRegistry, error) {
@@ -212,7 +250,7 @@ func newProductApplyExecutorRegistry(plan generationartifact.VerifiedPlan, runti
 		return nil, err
 	}
 	return newApplyExecutorRegistry(applyExecutorRegistration{
-		Adapter:      runtimeexecutorlocal.NewSecurityBaselineExecutor(identity, nil),
+		Adapter:      nativehost.NewSecurityBaselineExecutor(identity, nil),
 		Capabilities: capabilities, ArtifactContracts: artifacts,
 		TrustedProducers: trustedProducers,
 	})

@@ -19,12 +19,13 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/fleetmember"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutoropentofu"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/kombifyio/stackkits/internal/runtimeobservation"
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
@@ -68,7 +69,65 @@ func newOwnerApplyResultReceiptForCanonical(workspaceRoot string, canonicalResul
 	return receipt, canonicalReceipt, nil
 }
 
+const (
+	memberApplyResultReceiptAPIVersion = "stackkit.member-apply-result-receipt/v1"
+	memberApplyResultReceiptKind       = "MemberSignedApplyResultReceipt"
+)
+
+// memberApplyResultReceipt authenticates an Apply result produced on a Fleet
+// member with its Home-certified member evidence key.
+type memberApplyResultReceipt struct {
+	APIVersion string                                `json:"apiVersion"`
+	Kind       string                                `json:"kind"`
+	ResultHash string                                `json:"resultHash"`
+	Signature  localevidence.MemberEvidenceSignature `json:"signature"`
+}
+
+func newMemberApplyResultReceipt(key localevidence.MemberEvidenceKey, canonicalResult []byte, resultHash string) ([]byte, error) {
+	signature, err := localevidence.SignMemberApplyResult(key, canonicalResult)
+	if err != nil {
+		return nil, fmt.Errorf("sign canonical Architecture v2 Apply result with the member evidence key: %w", err)
+	}
+	return resolvedplan.CanonicalJSON(memberApplyResultReceipt{
+		APIVersion: memberApplyResultReceiptAPIVersion, Kind: memberApplyResultReceiptKind,
+		ResultHash: resultHash, Signature: signature,
+	})
+}
+
+// verifyMemberApplyResultReceipt accepts a member-signed result only under a
+// valid Home-issued certificate for this member's exact tuple and plan.
+func verifyMemberApplyResultReceipt(workspaceRoot string, canonicalResult, canonicalReceipt []byte, resultHash string) error {
+	var receipt memberApplyResultReceipt
+	decoder := json.NewDecoder(bytes.NewReader(canonicalReceipt))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&receipt); err != nil {
+		return fmt.Errorf("decode member-signed Apply result receipt: %w", err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return errors.New("member-signed Apply result receipt contains multiple JSON values")
+	}
+	want, err := resolvedplan.CanonicalJSON(receipt)
+	if err != nil || !bytes.Equal(want, canonicalReceipt) || receipt.ResultHash != resultHash {
+		return errors.New("member-signed Apply result receipt is malformed or not canonical")
+	}
+	evidence, err := fleetmember.LoadMemberEvidence(workspaceRoot, time.Now())
+	if err != nil {
+		return fmt.Errorf("verify member-signed Apply result receipt: %w", err)
+	}
+	if err := localevidence.VerifyMemberApplyResult(canonicalResult, receipt.Signature, evidence.Public); err != nil {
+		return fmt.Errorf("verify member-signed Apply result receipt: %w", err)
+	}
+	return nil
+}
+
 func verifyOwnerApplyResultReceipt(workspaceRoot string, canonicalResult, canonicalReceipt []byte, resultHash string) error {
+	var kind struct {
+		Kind string `json:"kind"`
+	}
+	if err := json.Unmarshal(canonicalReceipt, &kind); err == nil && kind.Kind == memberApplyResultReceiptKind {
+		return verifyMemberApplyResultReceipt(workspaceRoot, canonicalResult, canonicalReceipt, resultHash)
+	}
 	var receipt ownerApplyResultReceipt
 	decoder := json.NewDecoder(bytes.NewReader(canonicalReceipt))
 	decoder.DisallowUnknownFields()
@@ -107,6 +166,15 @@ type architectureV2OwnerVerifySummary struct {
 	KeyID              string `json:"keyId"`
 	PocketIDSubject    string `json:"pocketIdSubject"`
 	OwnerBindingDigest string `json:"ownerBindingDigest"`
+	// Member is set on a Fleet member host: the Apply result was signed by
+	// its Home-certified member evidence key for this exact tuple.
+	Member *architectureV2MemberVerifySummary `json:"member,omitempty"`
+}
+
+type architectureV2MemberVerifySummary struct {
+	Binding               localevidence.LocalBinding `json:"localBinding"`
+	EvidenceKeyID         string                     `json:"evidenceKeyId"`
+	CertificateValidUntil string                     `json:"certificateValidUntil"`
 }
 
 type architectureV2RuntimeVerifySummary struct {
@@ -116,7 +184,7 @@ type architectureV2RuntimeVerifySummary struct {
 	Status        string `json:"status"`
 	ServiceCount  int    `json:"serviceCount"`
 	ProbeCount    int    `json:"probeCount"`
-	cloud         *runtimeexecutorlocal.CloudCoreVerifyObservation
+	cloud         *nativehost.CloudCoreVerifyObservation
 }
 
 func verifyArchitectureV2LocalState(
@@ -237,10 +305,10 @@ func verifyArchitectureV2LocalCloudState(
 	if offline {
 		return ownerSummary, nil, nil
 	}
-	newOperations := runtimeexecutorlocal.NewOSCloudCoreOperations
+	newOperations := nativehost.NewOSCloudCoreOperations
 	for _, target := range appliedRequest.RuntimeTargets {
 		if target.OwnerKind == "module" && target.ModuleRef == "stackkits-cloud-core-standalone-runtime" {
-			newOperations = runtimeexecutorlocal.NewOSCloudStandaloneCoreOperations
+			newOperations = nativehost.NewOSCloudStandaloneCoreOperations
 		}
 	}
 	if err := verifyArchitectureV2CloudCoreOpenTofuRoot(workspaceRoot, appliedRequest); err != nil {
@@ -250,7 +318,7 @@ func verifyArchitectureV2LocalCloudState(
 	if err != nil {
 		return ownerSummary, nil, err
 	}
-	observation, err := runtimeexecutorlocal.VerifyAppliedCloudCore(ctx, appliedRequest, runtimeexecutorlocal.LocalTargetBinding{
+	observation, err := nativehost.VerifyAppliedCloudCore(ctx, appliedRequest, nativehost.LocalTargetBinding{
 		SiteRef: localBinding.SiteRef, NodeRef: localBinding.NodeRef, ExecutionChannelRef: localBinding.ChannelRef,
 	}, operations)
 	if err != nil {
@@ -275,13 +343,13 @@ func verifyArchitectureV2LocalCloudState(
 func verifyArchitectureV2CloudCoreOpenTofuRoot(workspaceRoot string, appliedRequest runtimeexecutor.ExecutionRequest) error {
 	for _, target := range appliedRequest.RuntimeTargets {
 		if target.OwnerKind != "module" || target.ProviderRef != "stackkits-cloud-core" ||
-			(target.UnitRef != runtimeexecutoropentofu.UnitRef && target.UnitRef != runtimeexecutoropentofu.TerramateUnitRef) {
+			(target.UnitRef != opentofu.UnitRef && target.UnitRef != opentofu.TerramateUnitRef) {
 			continue
 		}
 		var mainTF []byte
 		roots := 0
 		for _, artifact := range appliedRequest.Artifacts {
-			if slices.Contains(target.ArtifactRefs, artifact.ID) && path.Base(artifact.OutputRef) == runtimeexecutoropentofu.ConfigFile {
+			if slices.Contains(target.ArtifactRefs, artifact.ID) && path.Base(artifact.OutputRef) == opentofu.ConfigFile {
 				mainTF = artifact.Content
 				roots++
 			}
@@ -298,6 +366,22 @@ func verifyArchitectureV2CloudCoreOpenTofuRoot(workspaceRoot string, appliedRequ
 
 func verifyArchitectureV2OwnerCustody(workspaceRoot string) (architectureV2OwnerVerifySummary, localevidence.LocalBinding, error) {
 	owner, err := localevidence.LoadOwnerCustody(workspaceRoot)
+	var memberDenial *localevidence.MemberSigningDenial
+	if errors.As(err, &memberDenial) {
+		// A member verifies under the Home owner it joined and its own
+		// Home-certified evidence key.
+		evidence, evidenceErr := fleetmember.LoadMemberEvidence(workspaceRoot, time.Now())
+		if evidenceErr != nil {
+			return architectureV2OwnerVerifySummary{}, localevidence.LocalBinding{}, fmt.Errorf("verify member evidence custody: %w", evidenceErr)
+		}
+		return architectureV2OwnerVerifySummary{
+			OwnerRef: evidence.Custody.Verifier.OwnerRef, KeyID: evidence.Custody.Verifier.KeyID,
+			Member: &architectureV2MemberVerifySummary{
+				Binding: evidence.Custody.Binding, EvidenceKeyID: evidence.Key.KeyID,
+				CertificateValidUntil: evidence.Certificate.ValidUntil.Format(time.RFC3339),
+			},
+		}, evidence.Custody.Binding, nil
+	}
 	if err != nil {
 		return architectureV2OwnerVerifySummary{}, localevidence.LocalBinding{}, fmt.Errorf("verify local owner custody: %w", err)
 	}
@@ -310,20 +394,20 @@ func verifyBasementCoreWorkspace(
 	plan generationartifact.VerifiedPlan,
 	manifest generationartifact.ArtifactManifest,
 	localBinding localevidence.LocalBinding,
-) (runtimeexecutorlocal.BasementCoreVerifyObservation, error) {
+) (nativehost.BasementCoreVerifyObservation, error) {
 	if ctx == nil {
-		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("Basement workspace verification requires a context")
+		return nativehost.BasementCoreVerifyObservation{}, errors.New("Basement workspace verification requires a context")
 	}
 	requirements := plan.ApplyRequirements()
 	unitRef, err := architectureV2CoreRuntimeUnitRef(plan)
 	if err != nil {
-		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, err
+		return nativehost.BasementCoreVerifyObservation{}, err
 	}
 	var target generationartifact.ApplyRuntimeRequirement
-	var profile runtimeexecutorlocal.BasementCoreRuntimeProfile
+	var profile nativehost.BasementCoreRuntimeProfile
 	targets := 0
 	for _, candidate := range requirements.RuntimeInstances {
-		candidateProfile, supported := runtimeexecutorlocal.BasementCoreRuntimeProfileForModule(candidate.ModuleRef)
+		candidateProfile, supported := nativehost.BasementCoreRuntimeProfileForModule(candidate.ModuleRef)
 		if supported && candidate.OwnerKind == "module" &&
 			candidate.OwnerRef == candidateProfile.ModuleRef &&
 			candidate.ProviderRef == candidateProfile.ProviderRef &&
@@ -335,17 +419,17 @@ func verifyBasementCoreWorkspace(
 		}
 	}
 	if targets != 1 {
-		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("verified plan requires exactly one Basement core runtime")
+		return nativehost.BasementCoreVerifyObservation{}, errors.New("verified plan requires exactly one Basement core runtime")
 	}
 	coreArtifact := architectureV2CoreArtifactShape(target.UnitRef, profile.OutputRef, profile.MaxArtifactBytes)
 	if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 || len(target.ArtifactRefs) != coreArtifact.artifactRefs ||
 		target.RuntimeKind != "container" || target.RuntimeDelivery != "stackkit" ||
 		target.RuntimeEngine != "docker" {
-		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("verified Basement runtime is not the closed single-node Compose contract")
+		return nativehost.BasementCoreVerifyObservation{}, errors.New("verified Basement runtime is not the closed single-node Compose contract")
 	}
 	channelRef, err := verifiedLocalBasementExecutionChannel(requirements, target, localBinding)
 	if err != nil {
-		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, err
+		return nativehost.BasementCoreVerifyObservation{}, err
 	}
 	// The Core artifact is the Compose artifact under the compose target and
 	// the Core OpenTofu root main.tf, which embeds the same Compose payload,
@@ -374,60 +458,60 @@ func verifyBasementCoreWorkspace(
 		artifactRequirement.UnitRef != target.UnitRef || artifactRequirement.InstanceRef != target.InstanceRef ||
 		rendered.Kind != artifactRequirement.Kind || rendered.Format != artifactRequirement.Format ||
 		rendered.Mode != artifactRequirement.Mode {
-		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("verified generation lacks the exact executable Basement Compose artifact")
+		return nativehost.BasementCoreVerifyObservation{}, errors.New("verified generation lacks the exact executable Basement Compose artifact")
 	}
 	artifactPath := filepath.Join(workspaceRoot, filepath.FromSlash(rendered.Path))
 	info, err := os.Lstat(artifactPath)
 	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() <= 0 || info.Size() > int64(coreArtifact.maxBytes) {
-		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("Basement Compose artifact is not a bounded plain file")
+		return nativehost.BasementCoreVerifyObservation{}, errors.New("Basement Compose artifact is not a bounded plain file")
 	}
 	content, err := os.ReadFile(artifactPath) //nolint:gosec // exact manifest path was already verified by the generation gate
 	if err != nil {
-		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, fmt.Errorf("read Basement Compose artifact: %w", err)
+		return nativehost.BasementCoreVerifyObservation{}, fmt.Errorf("read Basement Compose artifact: %w", err)
 	}
 	digest := sha256.Sum256(content)
 	if "sha256:"+hex.EncodeToString(digest[:]) != rendered.SHA256 {
-		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("Basement Compose artifact differs from the CUE-owned standard")
+		return nativehost.BasementCoreVerifyObservation{}, errors.New("Basement Compose artifact differs from the CUE-owned standard")
 	}
 	definition := content
 	if coreArtifact.openTofu {
 		definition, err = verifyArchitectureV2CoreOpenTofuRoot(workspaceRoot, profile.ModuleRef, content)
 		if err != nil {
-			return runtimeexecutorlocal.BasementCoreVerifyObservation{}, fmt.Errorf("verify the Basement core OpenTofu root: %w", err)
+			return nativehost.BasementCoreVerifyObservation{}, fmt.Errorf("verify the Basement core OpenTofu root: %w", err)
 		}
 	}
 	if !profile.ValidateComposeArtifact(definition) {
-		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("Basement Compose artifact differs from the CUE-owned standard")
+		return nativehost.BasementCoreVerifyObservation{}, errors.New("Basement Compose artifact differs from the CUE-owned standard")
 	}
-	services := append([]runtimeexecutorlocal.BasementCoreServiceExpectation(nil), profile.Services...)
+	services := append([]nativehost.BasementCoreServiceExpectation(nil), profile.Services...)
 	health, err := verifiedBasementCoreHealth(requirements, target)
 	if err != nil {
-		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, err
+		return nativehost.BasementCoreVerifyObservation{}, err
 	}
-	project := runtimeexecutorlocal.BasementCoreProject{
+	project := nativehost.BasementCoreProject{
 		ModuleRef: profile.ModuleRef, ProjectRef: target.InstanceRef, SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0],
 		ExecutionChannelRef: channelRef, ArtifactID: rendered.ID, ArtifactDigest: rendered.SHA256,
 		Definition: definition, Services: services, Health: health,
 	}
 	operations, err := newArchitectureV2BasementCoreVerifyOperations(workspaceRoot)
 	if err != nil {
-		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, err
+		return nativehost.BasementCoreVerifyObservation{}, err
 	}
 	observation, err := operations.VerifyProject(ctx, project)
 	if err != nil {
-		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, err
+		return nativehost.BasementCoreVerifyObservation{}, err
 	}
 	if observation.ProjectRef != project.ProjectRef || observation.ArtifactDigest != project.ArtifactDigest ||
 		observation.Status != "ready" || len(observation.Services) != len(project.Services) ||
 		len(observation.Probes) != len(project.Health) {
-		return runtimeexecutorlocal.BasementCoreVerifyObservation{}, errors.New("live Basement observation does not prove the exact ready project")
+		return nativehost.BasementCoreVerifyObservation{}, errors.New("live Basement observation does not prove the exact ready project")
 	}
 	return observation, nil
 }
 
 // newArchitectureV2BasementCoreVerifyOperations is the host observation owner
 // of the live Basement core check; tests substitute it.
-var newArchitectureV2BasementCoreVerifyOperations = runtimeexecutorlocal.NewOSBasementCoreOperations
+var newArchitectureV2BasementCoreVerifyOperations = nativehost.NewOSBasementCoreOperations
 
 // architectureV2CoreRuntimeUnitRef returns the render unit of the Core
 // runtime, which is named after the plan generation target: compose,
@@ -451,14 +535,14 @@ type architectureV2CoreArtifact struct {
 
 func architectureV2CoreArtifactShape(unitRef, composeOutputRef string, maxComposeBytes int) architectureV2CoreArtifact {
 	switch unitRef {
-	case runtimeexecutoropentofu.UnitRef, runtimeexecutoropentofu.TerramateUnitRef:
+	case opentofu.UnitRef, opentofu.TerramateUnitRef:
 		refs := 1
-		if unitRef == runtimeexecutoropentofu.TerramateUnitRef {
+		if unitRef == opentofu.TerramateUnitRef {
 			refs = 2
 		}
 		return architectureV2CoreArtifact{
-			kind: unitRef, format: runtimeexecutoropentofu.ArtifactFormat,
-			outputRef:    path.Join(path.Dir(composeOutputRef), runtimeexecutoropentofu.ConfigFile),
+			kind: unitRef, format: opentofu.ArtifactFormat,
+			outputRef:    path.Join(path.Dir(composeOutputRef), opentofu.ConfigFile),
 			artifactRefs: refs, maxBytes: 1 << 20, openTofu: true,
 		}
 	default:
@@ -478,11 +562,11 @@ func verifyArchitectureV2CoreOpenTofuRoot(workspaceRoot, moduleRef string, mainT
 	if err != nil {
 		return nil, fmt.Errorf("derive the Compose payload: %w", err)
 	}
-	runtimeDir, _, ok := runtimeexecutorlocal.NativeComposeProject(moduleRef)
+	runtimeDir, _, ok := nativehost.NativeComposeProject(moduleRef)
 	if !ok {
 		return nil, errors.New("the Core module has no native runtime directory")
 	}
-	rootPath, err := runtimeexecutoropentofu.RootRelativePath(runtimeDir)
+	rootPath, err := opentofu.RootRelativePath(runtimeDir)
 	if err != nil {
 		return nil, err
 	}
@@ -494,21 +578,21 @@ func verifyArchitectureV2CoreOpenTofuRoot(workspaceRoot, moduleRef string, mainT
 		}
 		return os.ReadFile(name) //nolint:gosec // fixed runtime paths below the workspace root
 	}
-	config, err := readPlain(filepath.Join(root, runtimeexecutoropentofu.ConfigFile))
+	config, err := readPlain(filepath.Join(root, opentofu.ConfigFile))
 	if err != nil {
 		return nil, err
 	}
 	if !bytes.Equal(config, mainTF) {
 		return nil, errors.New("the installed root configuration differs from the governed Core root artifact")
 	}
-	compose, err := readPlain(filepath.Join(filepath.Dir(root), runtimeexecutoropentofu.ComposeFile))
+	compose, err := readPlain(filepath.Join(filepath.Dir(root), opentofu.ComposeFile))
 	if err != nil {
 		return nil, err
 	}
 	if !bytes.Equal(compose, payload) {
 		return nil, errors.New("the runtime compose.yaml differs from the Compose payload of the governed Core root")
 	}
-	state, err := readPlain(filepath.Join(root, runtimeexecutoropentofu.StateFile))
+	state, err := readPlain(filepath.Join(root, opentofu.StateFile))
 	if err != nil || len(state) == 0 {
 		return nil, errors.New("the Core OpenTofu root holds no applied state")
 	}
@@ -547,8 +631,8 @@ func verifiedLocalBasementExecutionChannel(
 func verifiedBasementCoreHealth(
 	requirements generationartifact.ApplyRequirements,
 	target generationartifact.ApplyRuntimeRequirement,
-) ([]runtimeexecutorlocal.BasementCoreHealthExpectation, error) {
-	profile, ok := runtimeexecutorlocal.BasementCoreRuntimeProfileForModule(target.ModuleRef)
+) ([]nativehost.BasementCoreHealthExpectation, error) {
+	profile, ok := nativehost.BasementCoreRuntimeProfileForModule(target.ModuleRef)
 	if !ok {
 		return nil, errors.New("verified Basement runtime has an unsupported local profile")
 	}
@@ -565,13 +649,13 @@ func verifiedBasementCoreHealth(
 			bySource[item.SourceRef] = item
 		}
 	}
-	health := make([]runtimeexecutorlocal.BasementCoreHealthExpectation, 0, len(profile.Health))
+	health := make([]nativehost.BasementCoreHealthExpectation, 0, len(profile.Health))
 	for _, want := range profile.Health {
 		item, ok := bySource[want.SourceRef]
 		if !ok {
 			return nil, errors.New("verified Basement runtime lacks one of its exact profile postconditions")
 		}
-		expectation := runtimeexecutorlocal.BasementCoreHealthExpectation{
+		expectation := nativehost.BasementCoreHealthExpectation{
 			RequirementID: item.ID, SourceRef: item.SourceRef, Kind: item.Kind,
 			Port: want.Port, Path: want.Path,
 			ExpectedStatuses: append([]int(nil), want.ExpectedStatuses...),

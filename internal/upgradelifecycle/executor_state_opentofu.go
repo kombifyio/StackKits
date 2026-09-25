@@ -13,7 +13,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutoropentofu"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 )
 
 // Generation targets whose runtime the executor-state snapshot captures.
@@ -25,7 +25,7 @@ const (
 	executorStateTargetTerramate = "terramate"
 )
 
-var executorStateOpenTofuRootPattern = regexp.MustCompile(`^\.stackkit/runtime/(?:(` + runtimeexecutoropentofu.ApplicationsDir + `|` + runtimeexecutoropentofu.ModulesDir + `)/)?([a-z0-9][a-z0-9-]{0,62})/` + runtimeexecutoropentofu.RootDirName + `$`)
+var executorStateOpenTofuRootPattern = regexp.MustCompile(`^\.stackkit/runtime/(?:(` + opentofu.ApplicationsDir + `|` + opentofu.ModulesDir + `)/)?([a-z0-9][a-z0-9-]{0,62})/` + opentofu.RootDirName + `$`)
 
 // ExecutorStateOpenTofuRootInput is one OpenTofu root captured when the
 // generation target executes OpenTofu: its local-backend state and root
@@ -135,7 +135,7 @@ func executorStateOpenTofuRootsFromPayloads(inputs []ExecutorStateOpenTofuRootIn
 }
 
 // validateExecutorStateOpenTofuRoots checks the closed root layout written by
-// runtimeexecutoropentofu and binds every root configuration, and the Core
+// internal/runtimeexecutor/opentofu and binds every root configuration, and the Core
 // root in particular, to a governed generation artifact.
 func validateExecutorStateOpenTofuRoots(
 	roots []ExecutorStateOpenTofuRoot,
@@ -167,12 +167,12 @@ func validateExecutorStateOpenTofuRoots(
 		seenRoots[root.Root] = struct{}{}
 		seenModules[root.ModuleRef] = struct{}{}
 		runtimeDir := path.Dir(root.Root)
-		if root.State.Path != path.Join(root.Root, runtimeexecutoropentofu.StateFile) || root.State.Mode != "0600" ||
-			root.Config.Path != path.Join(root.Root, runtimeexecutoropentofu.ConfigFile) || root.Config.Mode != "0640" {
+		if root.State.Path != path.Join(root.Root, opentofu.StateFile) || root.State.Mode != "0600" ||
+			root.Config.Path != path.Join(root.Root, opentofu.ConfigFile) || root.Config.Mode != "0640" {
 			return errors.New("executor state: OpenTofu root files are not the governed state and configuration")
 		}
-		composeFile := root.Compose.Path == path.Join(runtimeDir, runtimeexecutoropentofu.ComposeFile) && root.Compose.Mode == "0600"
-		environmentFile := root.Environment.Path == path.Join(runtimeDir, runtimeexecutoropentofu.EnvFile) && root.Environment.Mode == "0600" &&
+		composeFile := root.Compose.Path == path.Join(runtimeDir, opentofu.ComposeFile) && root.Compose.Mode == "0600"
+		environmentFile := root.Environment.Path == path.Join(runtimeDir, opentofu.EnvFile) && root.Environment.Mode == "0600" &&
 			root.Environment.ID == executorStateStandaloneEnvironmentID(match[2])
 		switch match[1] {
 		case "":
@@ -183,7 +183,7 @@ func validateExecutorStateOpenTofuRoots(
 			if _, governed := artifactDigests[root.Config.SHA256]; !governed {
 				return errors.New("executor state: OpenTofu root configuration differs from every governed generation artifact")
 			}
-		case runtimeexecutoropentofu.ApplicationsDir:
+		case opentofu.ApplicationsDir:
 			// Workload root: the executor renders its configuration from the
 			// Compose project it applies; the private .env stays beside it.
 			if !composeFile || !environmentFile {
@@ -202,7 +202,7 @@ func validateExecutorStateOpenTofuRoots(
 	if core == nil {
 		return errors.New("executor state: the selected Core module has no captured OpenTofu root")
 	}
-	coreConfigRef := path.Join(path.Dir(profile.ComposeOutputRef), runtimeexecutoropentofu.ConfigFile)
+	coreConfigRef := path.Join(path.Dir(profile.ComposeOutputRef), opentofu.ConfigFile)
 	sourceMatches := 0
 	for _, artifact := range artifacts {
 		if artifact.Path == coreConfigRef &&
@@ -227,7 +227,7 @@ func validateExecutorStateOpenTofuRoots(
 // runtime executor writes; roots are returned in path order.
 func CollectOpenTofuRootStates(workspaceRoot string) ([]ExecutorStateOpenTofuRootInput, error) {
 	roots := make([]ExecutorStateOpenTofuRootInput, 0)
-	for _, parent := range []string{"", runtimeexecutoropentofu.ApplicationsDir, runtimeexecutoropentofu.ModulesDir} {
+	for _, parent := range []string{"", opentofu.ApplicationsDir, opentofu.ModulesDir} {
 		parentRelative := path.Join(".stackkit", "runtime", parent)
 		entries, err := os.ReadDir(filepath.Join(workspaceRoot, filepath.FromSlash(parentRelative)))
 		if parent != "" && errors.Is(err, os.ErrNotExist) {
@@ -237,7 +237,7 @@ func CollectOpenTofuRootStates(workspaceRoot string) ([]ExecutorStateOpenTofuRoo
 			return nil, fmt.Errorf("executor state: list runtime directories: %w", err)
 		}
 		for _, entry := range entries {
-			if !entry.IsDir() || parent == "" && (entry.Name() == runtimeexecutoropentofu.ApplicationsDir || entry.Name() == runtimeexecutoropentofu.ModulesDir) {
+			if !entry.IsDir() || parent == "" && (entry.Name() == opentofu.ApplicationsDir || entry.Name() == opentofu.ModulesDir) {
 				continue
 			}
 			root, found, err := collectOpenTofuRootState(workspaceRoot, parent, entry.Name())
@@ -258,7 +258,7 @@ func CollectOpenTofuRootStates(workspaceRoot string) ([]ExecutorStateOpenTofuRoo
 
 func collectOpenTofuRootState(workspaceRoot, parent, name string) (ExecutorStateOpenTofuRootInput, bool, error) {
 	runtimeDir := path.Join(".stackkit", "runtime", parent, name)
-	relative := path.Join(runtimeDir, runtimeexecutoropentofu.RootDirName)
+	relative := path.Join(runtimeDir, opentofu.RootDirName)
 	absolute := filepath.Join(workspaceRoot, filepath.FromSlash(relative))
 	info, err := os.Lstat(absolute)
 	if errors.Is(err, os.ErrNotExist) {
@@ -267,7 +267,7 @@ func collectOpenTofuRootState(workspaceRoot, parent, name string) (ExecutorState
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return ExecutorStateOpenTofuRootInput{}, false, fmt.Errorf("executor state: OpenTofu root %s is not a plain directory", relative)
 	}
-	marker, err := runtimeexecutoropentofu.ReadRootMarker(absolute)
+	marker, err := opentofu.ReadRootMarker(absolute)
 	if err != nil {
 		return ExecutorStateOpenTofuRootInput{}, false, fmt.Errorf("executor state: %s: %w", relative, err)
 	}
@@ -283,19 +283,19 @@ func collectOpenTofuRootState(workspaceRoot, parent, name string) (ExecutorState
 		idSuffix = parent + "-" + name
 	}
 	root := ExecutorStateOpenTofuRootInput{ModuleRef: marker.ModuleRef, Root: relative}
-	if root.State, err = read(path.Join(relative, runtimeexecutoropentofu.StateFile), "opentofu-state-"+idSuffix, "0600"); err != nil {
+	if root.State, err = read(path.Join(relative, opentofu.StateFile), "opentofu-state-"+idSuffix, "0600"); err != nil {
 		return ExecutorStateOpenTofuRootInput{}, false, err
 	}
-	if root.Config, err = read(path.Join(relative, runtimeexecutoropentofu.ConfigFile), "opentofu-config-"+idSuffix, "0640"); err != nil {
+	if root.Config, err = read(path.Join(relative, opentofu.ConfigFile), "opentofu-config-"+idSuffix, "0640"); err != nil {
 		return ExecutorStateOpenTofuRootInput{}, false, err
 	}
-	if parent != runtimeexecutoropentofu.ModulesDir {
-		if root.Compose, err = read(path.Join(runtimeDir, runtimeexecutoropentofu.ComposeFile), "opentofu-compose-"+idSuffix, "0600"); err != nil {
+	if parent != opentofu.ModulesDir {
+		if root.Compose, err = read(path.Join(runtimeDir, opentofu.ComposeFile), "opentofu-compose-"+idSuffix, "0600"); err != nil {
 			return ExecutorStateOpenTofuRootInput{}, false, err
 		}
 	}
-	if parent == runtimeexecutoropentofu.ApplicationsDir {
-		if root.Environment, err = read(path.Join(runtimeDir, runtimeexecutoropentofu.EnvFile), executorStateStandaloneEnvironmentID(name), "0600"); err != nil {
+	if parent == opentofu.ApplicationsDir {
+		if root.Environment, err = read(path.Join(runtimeDir, opentofu.EnvFile), executorStateStandaloneEnvironmentID(name), "0600"); err != nil {
 			return ExecutorStateOpenTofuRootInput{}, false, err
 		}
 	}

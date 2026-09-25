@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -12,13 +12,13 @@ const productFederationControlAgentAdapterID = "stackkits-federation-control-age
 
 type productFederationControlAgentFactory struct {
 	runtimeVersion string
-	operations     runtimeexecutorlocal.FederationControlAgentOperations
+	operations     nativehost.FederationControlAgentOperations
 }
 
 // NewProductFederationControlAgentRegistration binds exactly one governed
 // Modern Site/node to service-constructed outbound control operations. The
 // Operations implementation retains transport, credential and custody details.
-func NewProductFederationControlAgentRegistration(runtimeVersion string, operations runtimeexecutorlocal.FederationControlAgentOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductFederationControlAgentRegistration(runtimeVersion string, operations nativehost.FederationControlAgentOperations) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("federation control-agent product registration requires a runtime version and operations owner")
 	}
@@ -37,7 +37,7 @@ func (f *productFederationControlAgentFactory) PrepareRuntimeOwner(request Produ
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewFederationControlAgentExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef}, runtimeexecutorlocal.FederationControlAgentAuthority{ProviderContractHash: target.ProviderContractHash, ModuleContractHash: target.ModuleContractHash, HealthContractHash: health[0].ContractHash}, f.operations), nil
+	return nativehost.NewFederationControlAgentExecutor(identity, nativehost.LocalTargetBinding{SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef}, nativehost.FederationControlAgentAuthority{ProviderContractHash: target.ProviderContractHash, ModuleContractHash: target.ModuleContractHash, HealthContractHash: health[0].ContractHash}, f.operations), nil
 }
 
 func productFederationControlAgentSelector() ProductRuntimeOwnerSelector {

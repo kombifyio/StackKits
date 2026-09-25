@@ -21,7 +21,7 @@ This document covers StackKits OSS/S1 installation and rollout paths:
 - external agent execution through SSH or equivalent remote shell;
 - native MCP connector execution through `stackkit-server` or `stackkit-mcp`, with remote connector operation treated as a target/day-2 capability rather than a default first-install path.
 
-Out of scope:
+Not implemented yet:
 
 - managed-serverless provisioning;
 - SaaS placement orchestration beyond StackKits S1;

@@ -29,6 +29,7 @@ type CUEContractValidator struct {
 	boundCatalog    *expectedCatalogBodyBinding
 	cueContext      *cueapi.Context
 	authorityScope  cueapi.Value
+	envelopes       map[string]cueapi.Value
 	compileMu       sync.Mutex
 	initialized     bool
 }
@@ -86,7 +87,7 @@ func NewCUEContractValidatorFromSourcesForAuthority(virtualModuleRoot string, so
 		return nil, fmt.Errorf("load StackKits Architecture v2 in-memory CUE authority: %w", err)
 	}
 	validator.initialized = true
-	if err := validator.validateExpression("constructor", "foundation.#ArchitectureAPIVersion"); err != nil {
+	if err := validator.validateContract("constructor", "foundation.#ArchitectureAPIVersion"); err != nil {
 		return nil, fmt.Errorf("load StackKits Architecture v2 in-memory CUE authority: %w", err)
 	}
 	return validator, nil
@@ -143,7 +144,7 @@ func NewCUEContractValidatorForAuthority(moduleRoot string, authority PlanAuthor
 		return nil, fmt.Errorf("load StackKits Architecture v2 CUE authority: %w", err)
 	}
 	validator.initialized = true
-	if err := validator.validateExpression("constructor", "foundation.#ArchitectureAPIVersion"); err != nil {
+	if err := validator.validateContract("constructor", "foundation.#ArchitectureAPIVersion"); err != nil {
 		return nil, fmt.Errorf("load StackKits Architecture v2 CUE authority: %w", err)
 	}
 	return validator, nil
@@ -158,14 +159,14 @@ func (v *CUEContractValidator) normalizeBinding(definition KitDefinition, spec S
 	if err != nil {
 		return nil, nil, fmt.Errorf("marshal StackSpecV2: %w", err)
 	}
-	value, err := v.normalizeExpression("binding", "foundation.#KitSpecBinding & {definition: "+string(definitionJSON)+", spec: "+string(specJSON)+"}")
+	value, err := v.normalizeContract("binding", "foundation.#KitSpecBinding", "{definition: "+string(definitionJSON)+", spec: "+string(specJSON)+"}")
 	if err != nil {
 		// If both documents are valid on their own, a failure of the binding is
 		// specifically a definition/spec profile mismatch. If either standalone
 		// document is invalid (for example an unknown field), preserve that as a
 		// general contract-validation failure.
-		definitionErr := v.validateExpression("definition", "foundation.#KitDefinition & "+string(definitionJSON))
-		specErr := v.validateExpression("spec", "foundation.#StackSpecV2 & "+string(specJSON))
+		definitionErr := v.validateContract("definition", "foundation.#KitDefinition", string(definitionJSON))
+		specErr := v.validateContract("spec", "foundation.#StackSpecV2", string(specJSON))
 		return nil, nil, &cueBindingError{cause: err, profileMismatch: definitionErr == nil && specErr == nil}
 	}
 	normalizedDefinition, err := decodeCUEField[KitDefinition](value, "definition")
@@ -192,7 +193,7 @@ func (v *CUEContractValidator) normalizeDefinition(definition KitDefinition) (Ki
 	if err != nil {
 		return nil, fmt.Errorf("marshal KitDefinition: %w", err)
 	}
-	value, err := v.normalizeExpression("definition", "foundation.#KitDefinition & "+string(definitionJSON))
+	value, err := v.normalizeContract("definition", "foundation.#KitDefinition", string(definitionJSON))
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +209,7 @@ func (v *CUEContractValidator) normalizeInventory(inventory InventoryFacts) (Inv
 	if err != nil {
 		return nil, fmt.Errorf("marshal InventoryFacts: %w", err)
 	}
-	value, err := v.normalizeExpression("inventory", "foundation.#InventoryFacts & "+string(inventoryJSON))
+	value, err := v.normalizeContract("inventory", "foundation.#InventoryFacts", string(inventoryJSON))
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +225,7 @@ func (v *CUEContractValidator) normalizeResolvedSystem(system map[string]any) (m
 	if err != nil {
 		return nil, fmt.Errorf("marshal resolved system: %w", err)
 	}
-	value, err := v.normalizeExpression("resolved-system", "foundation.#ResolvedSystemPlanV2 & "+string(systemJSON))
+	value, err := v.normalizeContract("resolved-system", "foundation.#ResolvedSystemPlanV2", string(systemJSON))
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +284,7 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 	if err != nil {
 		return Catalog{}, fmt.Errorf("marshal Architecture v2 catalog: %w", err)
 	}
-	value, err := v.normalizeExpression("catalog", "foundation.#ArchitectureV2CatalogContract & "+string(catalogJSON))
+	value, err := v.normalizeContract("catalog", "foundation.#ArchitectureV2CatalogContract", string(catalogJSON))
 	if err != nil {
 		return Catalog{}, err
 	}
@@ -395,9 +396,9 @@ func (v *CUEContractValidator) validateBoundDefinition(plan ResolvedPlan) error 
 	if err != nil {
 		return fmt.Errorf("marshal authority KitDefinition %s: %w", slug, err)
 	}
-	_, err = v.normalizeExpression(
-		"plan-definition-binding",
-		"foundation.#ResolvedPlanDefinitionBinding & {definition: "+string(definitionJSON)+", plan: "+string(planJSON)+"}",
+	_, err = v.normalizeContract(
+		"plan-definition-binding", "foundation.#ResolvedPlanDefinitionBinding",
+		"{definition: "+string(definitionJSON)+", plan: "+string(planJSON)+"}",
 	)
 	return err
 }
@@ -415,7 +416,7 @@ func (v *CUEContractValidator) normalizePlanSchema(plan ResolvedPlan) (ResolvedP
 	if err != nil {
 		return nil, fmt.Errorf("marshal expected plan authority: %w", err)
 	}
-	value, err := v.normalizeExpression("plan", "foundation.#ResolvedPlanValidation & {plan: "+string(planJSON)+"} & {plan: {authority: "+string(authorityJSON)+"}}")
+	value, err := v.normalizeContract("plan", "foundation.#ResolvedPlanValidation", "{plan: "+string(planJSON)+"}", "{plan: {authority: "+string(authorityJSON)+"}}")
 	if err != nil {
 		return nil, err
 	}
@@ -434,12 +435,23 @@ func (v *CUEContractValidator) normalizePlanSchema(plan ResolvedPlan) (ResolvedP
 	return normalized, nil
 }
 
-func (v *CUEContractValidator) validateExpression(label, expression string) error {
-	_, err := v.normalizeExpression(label, expression)
+func (v *CUEContractValidator) validateContract(label, contract string, inputs ...string) error {
+	_, err := v.normalizeContract(label, contract, inputs...)
 	return err
 }
 
-func (v *CUEContractValidator) normalizeExpression(label, expression string) (cueapi.Value, error) {
+// normalizeContract unifies one governed contract (a foundation reference)
+// with concrete data documents and returns the fully validated result.
+//
+// cue.Context indexes every compiled file, together with the graph evaluated
+// on it, for the Context's lifetime. Compiling each envelope as a file would
+// therefore pin every evaluated plan (hundreds of MB per resolution) to the
+// long-lived authority scope. Instead one small envelope file per contract
+// shape is compiled once, the data is built as an unindexed expression, and
+// the unified root is a fresh vertex that the GC reclaims once the caller
+// drops the result. The envelope keeps the file-root evaluation the contracts
+// were written for.
+func (v *CUEContractValidator) normalizeContract(label, contract string, inputs ...string) (cueapi.Value, error) {
 	if v == nil || !v.initialized || v.moduleRoot == "" || v.cueContext == nil {
 		return cueapi.Value{}, fmt.Errorf("CUE contract validator is not initialized")
 	}
@@ -448,10 +460,42 @@ func (v *CUEContractValidator) normalizeExpression(label, expression string) (cu
 	}
 	v.compileMu.Lock()
 	defer v.compileMu.Unlock()
-	virtualDir := filepath.Join(v.moduleRoot, ".stackkit-cue-validator")
-	virtualFile := filepath.Join(virtualDir, label+".cue")
-	source := "value: " + expression + "\n"
-	root := v.cueContext.CompileString(source, cueapi.Scope(v.authorityScope), cueapi.Filename(virtualFile))
+	virtualFile := filepath.Join(v.moduleRoot, ".stackkit-cue-validator", label+".cue")
+	envelopeKey := fmt.Sprintf("%s\x00%d", contract, len(inputs))
+	envelope, cached := v.envelopes[envelopeKey]
+	if !cached {
+		var source strings.Builder
+		source.WriteString("value: " + contract)
+		for index := range inputs {
+			fmt.Fprintf(&source, " & input%d", index)
+		}
+		source.WriteString("\n")
+		for index := range inputs {
+			fmt.Fprintf(&source, "input%d: _\n", index)
+		}
+		envelope = v.cueContext.CompileString(source.String(), cueapi.Scope(v.authorityScope), cueapi.Filename(virtualFile))
+		if v.envelopes == nil {
+			v.envelopes = map[string]cueapi.Value{}
+		}
+		v.envelopes[envelopeKey] = envelope
+	}
+	root := envelope
+	if len(inputs) > 0 {
+		var document strings.Builder
+		document.WriteString("{")
+		for index, input := range inputs {
+			if index > 0 {
+				document.WriteString(", ")
+			}
+			fmt.Fprintf(&document, "input%d: %s", index, input)
+		}
+		document.WriteString("}")
+		data, err := parser.ParseExpr(virtualFile, document.String())
+		if err != nil {
+			return cueapi.Value{}, err
+		}
+		root = envelope.Unify(v.cueContext.BuildExpr(data))
+	}
 	// All() ensures every regular field in validation envelopes is evaluated,
 	// including the regular projections of package-hidden cross-graph proofs.
 	// A concrete public projection alone is insufficient for those envelopes.

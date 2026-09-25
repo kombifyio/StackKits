@@ -387,6 +387,13 @@
       ],
       "events": [
         {
+          "phase": "advanced.change-set.prepare.",
+          "match": "prefix",
+          "statuses": [
+            "started"
+          ]
+        },
+        {
           "phase": "advanced.change-set.materialize-host",
           "match": "exact",
           "statuses": [
@@ -658,6 +665,13 @@
       ],
       "events": [
         {
+          "phase": "advanced.change-set.prepare.",
+          "match": "prefix",
+          "statuses": [
+            "started"
+          ]
+        },
+        {
           "phase": "advanced.change-set.materialize-host",
           "match": "exact",
           "statuses": [
@@ -746,7 +760,15 @@
           "description": "Fail-closed admission denial before any side effect."
         }
       ],
-      "events": [],
+      "events": [
+        {
+          "phase": "advanced.change-set.prepare.",
+          "match": "prefix",
+          "statuses": [
+            "started"
+          ]
+        }
+      ],
       "modes": {
         "standard": "denied",
         "advanced": "capability"

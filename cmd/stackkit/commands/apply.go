@@ -116,6 +116,11 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 		"auto_approve": strconv.FormatBool(applyAutoApprove),
 	})
 	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Apply, applyV2ExecutionOptions); handled {
+		if err == nil {
+			// The runtime converged: the owner is set up in every
+			// application, as on every other execution path.
+			runAutomaticOwnerSetup(cmd.Context(), wd)
+		}
 		return err
 	}
 	if err := requireNativeV2StackSpec(wd, specFile, architectureV2Apply); err != nil {

@@ -137,6 +137,44 @@ func (s *Service) VerifyProductApplyResult(input ProductApplyResultVerificationI
 	if s == nil || len(input.Plan.Canonical()) == 0 {
 		return VerifiedApplyResult{}, resolveError(ErrApplyAuthorization, "Apply result verification requires a verified current plan", nil)
 	}
+	if s.productExecutionScope == nil {
+		return s.verifyProductApplyResultForPlan(input)
+	}
+	// A host-scoped service accepts the result of its own scope. The Foundation
+	// Node additionally accepts a whole-plan result it applied before any member
+	// was certified; a member never accepts a result outside its tuple.
+	scoped, err := s.scopeProductPlan(input.Plan)
+	if err != nil {
+		return VerifiedApplyResult{}, err
+	}
+	candidates := []generationartifact.VerifiedPlan{scoped}
+	if s.productExecutionScope.Role == generationartifact.ApplyExecutionRoleAuthority {
+		candidates = append(candidates, input.Plan)
+	}
+	var probe struct {
+		RequirementsHash string `json:"requirementsHash"`
+	}
+	if err := json.Unmarshal(input.Result, &probe); err != nil {
+		return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrInvalidContract, "apply.result", "decode persisted Apply result requirements", err)
+	}
+	for _, candidate := range candidates {
+		request, err := candidate.ApplyEvidenceRequest()
+		if err != nil {
+			return VerifiedApplyResult{}, err
+		}
+		if request.RequirementsHash == probe.RequirementsHash {
+			input.Plan = candidate
+			return s.verifyProductApplyResultForPlan(input)
+		}
+	}
+	return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrBindingMismatch, "apply.result.requirementsHash", "does not match the Apply requirements of this host's execution scope", nil)
+}
+
+//nolint:gocyclo // One fail-closed result verification rule set is easier to audit in one place.
+func (s *Service) verifyProductApplyResultForPlan(input ProductApplyResultVerificationInput) (VerifiedApplyResult, error) {
+	if s == nil || len(input.Plan.Canonical()) == 0 {
+		return VerifiedApplyResult{}, resolveError(ErrApplyAuthorization, "Apply result verification requires a verified current plan", nil)
+	}
 	if err := input.Plan.VerifyCompatibility(input.Versions); err != nil {
 		return VerifiedApplyResult{}, err
 	}

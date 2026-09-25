@@ -12,5 +12,5 @@ func (v *CUEContractValidator) ValidateFederationRemoteActionEnvelope(raw []byte
 	if len(raw) == 0 || len(raw) > 64<<10 || !json.Valid(raw) {
 		return fmt.Errorf("invalid bounded Federation action JSON")
 	}
-	return v.validateExpression("federation-remote-action", "foundation.#FederationRemoteActionEnvelopeV1 & ("+string(bytes.TrimSpace(raw))+")")
+	return v.validateContract("federation-remote-action", "foundation.#FederationRemoteActionEnvelopeV1", string(bytes.TrimSpace(raw)))
 }

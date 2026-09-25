@@ -55,10 +55,11 @@ func (f ObserverFunc) Observe(ctx context.Context, expectation applyevidence.Exp
 
 // OwnerCollector is the local, owner-anchored applyevidence.Collector.
 type OwnerCollector struct {
-	key       OwnerKey
-	version   string
-	observers map[string]Observer
-	now       func() time.Time
+	key        OwnerKey
+	producerID string
+	version    string
+	observers  map[string]Observer
+	now        func() time.Time
 }
 
 // CollectorConfig configures one workspace-scoped collector.
@@ -97,7 +98,7 @@ func NewOwnerCollector(config CollectorConfig) (*OwnerCollector, error) {
 		}
 		observers[kind] = observer
 	}
-	return &OwnerCollector{key: config.Key, version: version, observers: observers, now: now}, nil
+	return &OwnerCollector{key: config.Key, producerID: producerID, version: version, observers: observers, now: now}, nil
 }
 
 // ProducerTrust returns the public half of this construction-owned producer.
@@ -107,7 +108,7 @@ func (c *OwnerCollector) ProducerTrust() (applyevidence.Producer, []byte, error)
 	if c == nil || c.key.KeyID == "" || len(c.key.Public()) != ed25519.PublicKeySize {
 		return applyevidence.Producer{}, nil, errors.New("localevidence: collector has no valid producer trust")
 	}
-	return applyevidence.Producer{ID: producerID, Version: c.version, KeyID: c.key.KeyID},
+	return applyevidence.Producer{ID: c.producerID, Version: c.version, KeyID: c.key.KeyID},
 		append([]byte(nil), c.key.Public()...), nil
 }
 
@@ -128,7 +129,7 @@ func (c *OwnerCollector) CollectApplyEvidence(ctx context.Context, collection ap
 		return nil, fmt.Errorf("localevidence: reject collection request: %w", err)
 	}
 
-	producer := applyevidence.Producer{ID: producerID, Version: c.version, KeyID: c.key.KeyID}
+	producer := applyevidence.Producer{ID: c.producerID, Version: c.version, KeyID: c.key.KeyID}
 	stage = "validate collection clock window"
 	producerNow := c.now().UTC()
 	if collection.EvaluatedAt.Before(producerNow.Add(-collectionClockSkew)) ||

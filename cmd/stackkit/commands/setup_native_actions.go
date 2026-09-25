@@ -10,7 +10,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/appsetup"
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/localevidence"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 )
 
 type nativeOwnerSetupObservation struct {
@@ -21,7 +21,7 @@ type nativeOwnerSetupObservation struct {
 	Preparation        string
 }
 
-func validateNativeOwnerSetupAction(deployment runtimeexecutorlocal.SelectedPaaSWorkloadDeployment, action string, options nativeSetupOptions) error {
+func validateNativeOwnerSetupAction(deployment nativehost.SelectedPaaSWorkloadDeployment, action string, options nativeSetupOptions) error {
 	switch action {
 	case "jellyfin-owner-bootstrap":
 		_, err := architecturev2renderer.ParseJellyfinWorkloadBundle(deployment.Bundle)
@@ -70,7 +70,7 @@ func validateNativeOwnerSetupAction(deployment runtimeexecutorlocal.SelectedPaaS
 	}
 }
 
-func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, baseURL, workspace string, deployment runtimeexecutorlocal.SelectedPaaSWorkloadDeployment, release, action string, options nativeSetupOptions) (observation nativeOwnerSetupObservation, returnErr error) {
+func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, baseURL, workspace string, deployment nativehost.SelectedPaaSWorkloadDeployment, release, action string, options nativeSetupOptions) (observation nativeOwnerSetupObservation, returnErr error) {
 	switch action {
 	case "jellyfin-owner-bootstrap":
 		var credentials struct {
@@ -235,7 +235,7 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 // executePterodactylGameServerSetup creates one curated game server through
 // the Panel APIs with keys derived from owner custody (ADR-0043). The owner's
 // EULA acceptance is part of the private input and never assumed.
-func executePterodactylGameServerSetup(ctx context.Context, client *http.Client, baseURL, workspace string, deployment runtimeexecutorlocal.SelectedPaaSWorkloadDeployment, release string, options nativeSetupOptions) (nativeOwnerSetupObservation, error) {
+func executePterodactylGameServerSetup(ctx context.Context, client *http.Client, baseURL, workspace string, deployment nativehost.SelectedPaaSWorkloadDeployment, release string, options nativeSetupOptions) (nativeOwnerSetupObservation, error) {
 	var credentials struct {
 		Profile    string   `json:"profile"`
 		Name       string   `json:"name"`
@@ -267,7 +267,7 @@ func executePterodactylGameServerSetup(ctx context.Context, client *http.Client,
 
 // pterodactylCustodyKeys derives the Panel's Application and Client API keys
 // from owner custody exactly as the bootstrap minted them (ADR-0043).
-func pterodactylCustodyKeys(workspace string, deployment runtimeexecutorlocal.SelectedPaaSWorkloadDeployment) (string, string, error) {
+func pterodactylCustodyKeys(workspace string, deployment nativehost.SelectedPaaSWorkloadDeployment) (string, string, error) {
 	bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(deployment.Bundle)
 	if err != nil {
 		return "", "", err
@@ -298,7 +298,7 @@ func pterodactylCustodyKeys(workspace string, deployment runtimeexecutorlocal.Se
 // the Mail workload's persistent mailbox volume (never the password), then
 // verifies a real login through Roundcube's own form. A failed login restores
 // the previously active endpoints, so a typo never replaces a working setup.
-func executeRoundcubeMailboxSetup(ctx context.Context, client *http.Client, baseURL, workspace string, deployment runtimeexecutorlocal.SelectedPaaSWorkloadDeployment, release string, options nativeSetupOptions) (nativeOwnerSetupObservation, error) {
+func executeRoundcubeMailboxSetup(ctx context.Context, client *http.Client, baseURL, workspace string, deployment nativehost.SelectedPaaSWorkloadDeployment, release string, options nativeSetupOptions) (nativeOwnerSetupObservation, error) {
 	var credentials struct {
 		IMAPHost     string `json:"imapHost"`
 		IMAPPort     int    `json:"imapPort"`
@@ -321,14 +321,14 @@ func executeRoundcubeMailboxSetup(ctx context.Context, client *http.Client, base
 	if err != nil {
 		return nativeOwnerSetupObservation{}, err
 	}
-	if err := runtimeexecutorlocal.ConfigureStandaloneComposeRoundcubeMailbox(ctx, workspace, deployment, imap.URI(), smtp.URI()); err != nil {
+	if err := nativehost.ConfigureStandaloneComposeRoundcubeMailbox(ctx, workspace, deployment, imap.URI(), smtp.URI()); err != nil {
 		return nativeOwnerSetupObservation{}, err
 	}
 	observed, err := appsetup.VerifyRoundcubeMailboxLogin(ctx, client, baseURL, appsetup.RoundcubeMailboxLoginRequest{
 		IMAP: imap, Username: credentials.Username, Password: credentials.Password, ExpectedRelease: release,
 	})
 	if err != nil {
-		if revertErr := runtimeexecutorlocal.RevertStandaloneComposeRoundcubeMailbox(context.WithoutCancel(ctx), workspace, deployment); revertErr != nil {
+		if revertErr := nativehost.RevertStandaloneComposeRoundcubeMailbox(context.WithoutCancel(ctx), workspace, deployment); revertErr != nil {
 			return nativeOwnerSetupObservation{}, errors.Join(err, fmt.Errorf("restore the previous mailbox endpoints: %w", revertErr))
 		}
 		return nativeOwnerSetupObservation{}, err

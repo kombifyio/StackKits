@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -12,7 +12,7 @@ const productSecurityBaselineAdapterID = "stackkits-security-baseline-local"
 
 type productSecurityBaselineFactory struct {
 	runtimeVersion string
-	runner         runtimeexecutorlocal.CommandRunner
+	runner         nativehost.CommandRunner
 }
 
 // NewProductSecurityBaselineRegistration binds the shared, node-local
@@ -23,7 +23,7 @@ func NewProductSecurityBaselineRegistration(runtimeVersion string) (ProductRunti
 	return newProductSecurityBaselineRegistration(runtimeVersion, nil)
 }
 
-func newProductSecurityBaselineRegistration(runtimeVersion string, runner runtimeexecutorlocal.CommandRunner) (ProductRuntimeOwnerRegistration, error) {
+func newProductSecurityBaselineRegistration(runtimeVersion string, runner nativehost.CommandRunner) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("security-baseline product registration requires a runtime version")
 	}
@@ -48,7 +48,7 @@ func (f *productSecurityBaselineFactory) PrepareRuntimeOwner(request ProductRunt
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewSecurityBaselineExecutor(identity, f.runner), nil
+	return nativehost.NewSecurityBaselineExecutor(identity, f.runner), nil
 }
 
 func productSecurityBaselineSelector() ProductRuntimeOwnerSelector {

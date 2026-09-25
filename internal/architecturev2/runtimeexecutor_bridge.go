@@ -195,9 +195,26 @@ func unsealedSharedExecutionRequest(request applyRuntimeExecutionRequest) (runti
 		}
 	}
 	adapterArtifactRefs := sharedRuntimeAdapterArtifactRefs(request.Requirements.RuntimeInstances)
+	// A host-scoped request carries every generated artifact in its immutable
+	// snapshot, but only the executable material of its own runtime targets
+	// crosses to the executor; another host executes the rest.
+	var scopedRuntimeArtifactRefs map[string]struct{}
+	if request.Requirements.ExecutionScope != nil {
+		scopedRuntimeArtifactRefs = map[string]struct{}{}
+		for _, target := range request.Requirements.RuntimeInstances {
+			for _, ref := range target.ArtifactRefs {
+				scopedRuntimeArtifactRefs[ref] = struct{}{}
+			}
+		}
+	}
 	for _, artifact := range request.Artifacts {
 		if artifact.ExecutionClass == generationartifact.ApplyExecutionClassArtifactOnly {
 			continue
+		}
+		if scopedRuntimeArtifactRefs != nil && artifact.ExecutionClass == generationartifact.ApplyExecutionClassExecutable {
+			if _, selected := scopedRuntimeArtifactRefs[artifact.ID]; !selected {
+				continue
+			}
 		}
 		if artifact.ExecutionClass == generationartifact.ApplyExecutionClassContractHandoff {
 			if _, selected := adapterArtifactRefs[artifact.ID]; !selected {

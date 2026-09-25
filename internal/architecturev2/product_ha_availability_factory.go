@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -22,12 +22,12 @@ var productHAAvailabilityProviders = map[string]string{
 type productHAAvailabilityFactory struct {
 	runtimeVersion string
 	moduleRef      string
-	operations     runtimeexecutorlocal.HAAvailabilityOperations
+	operations     nativehost.HAAvailabilityOperations
 }
 
 // NewProductHAAvailabilityRegistration binds one of the six concrete CUE
 // catalog realizations to the single provider-free member-local owner.
-func NewProductHAAvailabilityRegistration(runtimeVersion, moduleRef string, operations runtimeexecutorlocal.HAAvailabilityOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductHAAvailabilityRegistration(runtimeVersion, moduleRef string, operations nativehost.HAAvailabilityOperations) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) ||
 		moduleRef != strings.TrimSpace(moduleRef) || productHAAvailabilityProviders[moduleRef] == "" ||
 		nilProductRuntimeOwnerValue(operations) {
@@ -55,9 +55,9 @@ func (f *productHAAvailabilityFactory) PrepareRuntimeOwner(request ProductRuntim
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewHAAvailabilityExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{
+	return nativehost.NewHAAvailabilityExecutor(identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
-	}, runtimeexecutorlocal.HAAvailabilityAuthority{
+	}, nativehost.HAAvailabilityAuthority{
 		ProviderContractHash: target.ProviderContractHash,
 		ModuleContractHash:   target.ModuleContractHash,
 		HealthContractHash:   health[0].ContractHash,

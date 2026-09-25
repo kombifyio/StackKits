@@ -17,6 +17,15 @@ and classification of standalone Compose solely as a fallback for new native
 StackKits. Explicit existing selections retain their authority.
 **Related:** ADR-0031, ADR-0035, ADR-0039, ADR-0040.
 
+**Superseded in part (2026-09-25):** ADR-0045 supersedes this ADR's
+Compose-executor default for the execution layer: every deployment is now
+executed and tracked by OpenTofu, with Terramate orchestrating managed
+deployments. Docker Compose remains the default application/workload payload
+and the native fallback executor; containers run as Compose workloads inside
+the OpenTofu-tracked stack. This ADR's decision below on standalone Compose as
+the primary product experience, and on Komodo/Coolify as optional platform
+adapters, remains authoritative for product boundaries and is unchanged.
+
 ## Decision
 
 Standard Mode is the complete, account-free, standalone product. Docker

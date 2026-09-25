@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutoropentofu"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/terramatehost"
 )
 
@@ -34,10 +34,23 @@ type Request struct {
 	// Environment adds process environment for one stack's OpenTofu run,
 	// such as the Compose interpolation environment of a Core payload.
 	Environment func(Stack) ([]string, error)
-	Timeout     time.Duration
+	// Native runs the native Apply side steps around a restored or
+	// recreated stack's forced apply, the steps the runtime executor runs
+	// around its own `tofu apply`; nil runs none.
+	Native  NativeSteps
+	Timeout time.Duration
 	// Event receives `stack` progress with the per-stack status.
 	Event func(phase, status string, attributes map[string]string)
 	Now   func() time.Time
+}
+
+// NativeSteps binds a stack to the native Apply side steps a Compose payload
+// cannot express. Prepare runs after the checkpoint files are written and
+// before the forced apply; the returned completion (nil for a stack without
+// side steps) runs after the apply and before the convergence plan. A
+// failure of either fails the stack, and a resumed rollback repeats both.
+type NativeSteps interface {
+	Prepare(ctx context.Context, stack Stack) (complete func(context.Context) error, err error)
 }
 
 func (request Request) now() time.Time {
@@ -302,6 +315,12 @@ func runStep(ctx context.Context, request Request, journal *Journal, step Step, 
 		if detail := ensureInitialized(request.WorkspaceRoot, step.RuntimeRoot, run); detail != "" {
 			return finish(StackFailed, detail)
 		}
+		var complete func(context.Context) error
+		if request.Native != nil {
+			if complete, err = request.Native.Prepare(ctx, stack); err != nil {
+				return finish(StackFailed, "prepare the native side steps: "+err.Error())
+			}
+		}
 		// Restored state and payload plan as a no-op even when newer
 		// containers still run, so the wrapper trigger is replaced
 		// explicitly: its create-time provisioner runs `up` against the
@@ -309,6 +328,11 @@ func runStep(ctx context.Context, request Request, journal *Journal, step Step, 
 		applied, err := run("apply", "-auto-approve", "-input=false", "-no-color", "-replace="+address)
 		if err != nil || applied.ExitCode != 0 {
 			return finish(StackFailed, commandDetail("tofu apply -replace="+address, applied, err))
+		}
+		if complete != nil {
+			if err := complete(ctx); err != nil {
+				return finish(StackFailed, "complete the native side steps: "+err.Error())
+			}
 		}
 		planned, err := run("plan", "-detailed-exitcode", "-input=false", "-no-color")
 		if err != nil {
@@ -358,10 +382,10 @@ func ensureInitialized(
 
 func rootFilePaths(runtimeRoot string) (state, config, compose, environment string) {
 	parent := path.Dir(runtimeRoot)
-	return path.Join(runtimeRoot, runtimeexecutoropentofu.StateFile),
-		path.Join(runtimeRoot, runtimeexecutoropentofu.ConfigFile),
-		path.Join(parent, runtimeexecutoropentofu.ComposeFile),
-		path.Join(parent, runtimeexecutoropentofu.EnvFile)
+	return path.Join(runtimeRoot, opentofu.StateFile),
+		path.Join(runtimeRoot, opentofu.ConfigFile),
+		path.Join(parent, opentofu.ComposeFile),
+		path.Join(parent, opentofu.EnvFile)
 }
 
 func hasAppliedRoot(workspaceRoot, runtimeRoot string) (bool, error) {
@@ -434,7 +458,7 @@ func rootEquals(workspaceRoot, runtimeRoot string, files RootFiles) (bool, error
 // executor's root marker: the runtime executor, not the rollback, creates
 // roots.
 func restoreRoot(workspaceRoot, runtimeRoot string, files RootFiles) error {
-	marker, err := confinedFile(workspaceRoot, path.Join(runtimeRoot, runtimeexecutoropentofu.MarkerFile), false)
+	marker, err := confinedFile(workspaceRoot, path.Join(runtimeRoot, opentofu.MarkerFile), false)
 	if err != nil {
 		return err
 	}
@@ -474,8 +498,8 @@ func removeRoot(workspaceRoot, runtimeRoot string) error {
 	target := runtimeRoot
 	parent := path.Dir(runtimeRoot)
 	switch path.Dir(parent) {
-	case path.Join(".stackkit", "runtime", runtimeexecutoropentofu.ApplicationsDir),
-		path.Join(".stackkit", "runtime", runtimeexecutoropentofu.ModulesDir):
+	case path.Join(".stackkit", "runtime", opentofu.ApplicationsDir),
+		path.Join(".stackkit", "runtime", opentofu.ModulesDir):
 		target = parent
 	}
 	absolute, err := confinedFile(workspaceRoot, target, false)

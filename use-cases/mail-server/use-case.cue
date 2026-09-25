@@ -18,7 +18,7 @@ Package: foundation.#UseCasePackage & {
 		layer:       "application"
 		category:    "mail-server"
 		lifecycle:   "experimental"
-		description: "Your own mail server through Stalwart on a Cloud node: domain mailboxes with SMTP, submission and IMAP. DNS records are printed for the owner, never created."
+		description: "Your own mail server through Stalwart on a dedicated Cloud node with a fixed public IPv4: domain mailboxes with SMTP, submission and IMAP. DNS records are printed for the owner, never created."
 	}
 
 	selection: {
@@ -35,8 +35,8 @@ Package: foundation.#UseCasePackage & {
 
 	defaultRuntimeProfile: "cloud-mail-server"
 	runtimeProfiles: "cloud-mail-server": {
-		displayName: "Own mail server on a Cloud node"
-		description: "Stalwart with its embedded RocksDB store runs on one public Cloud node through Standalone Compose; the node publishes SMTP (25), submissions (465), submission (587), IMAPS (993) and ManageSieve (4190)."
+		displayName: "Own mail server on a dedicated Cloud node"
+		description: "Stalwart with its embedded RocksDB store runs through Standalone Compose on one dedicated public Cloud node with a fixed public IPv4 that hosts no other application workload; the node publishes SMTP (25), submissions (465), submission (587), IMAPS (993) and ManageSieve (4190)."
 		realization: "oss"
 		placementModes: ["standard"]
 		managedServerlessEligible: false
@@ -44,7 +44,12 @@ Package: foundation.#UseCasePackage & {
 		requiresLocalBridge:       false
 		notes: [
 			"The mail host name is the workload's route host, mail-server.<domain>. The web administration is served there through the router with Stalwart's own login.",
-			"Home nodes are refused for now: sending from a home connection needs an outbound relay, and StackKits has no owner relay input yet (ADR-0046).",
+			"Dedicated node: the workload contract sets exclusiveNode, so the mail server resolves to exactly one node and no other application workload may share it; platform services stay. A single-node Cloud Kit whose only application is the mail server qualifies.",
+			"Fixed public IPv4: the node is a Cloud node whose fixed public IPv4 the owner or Techstack provides; setup refuses a mail host without a public IPv4 address record, because IPv6-only loses mail from IPv4-only senders.",
+			"kombify-managed IONOS Cloud (DCD) nodes: Techstack provisions a Basic Cube XS (1 vCPU, 2 GB, 60 GB) with a reserved public IPv4, a PTR record through the IONOS Cloud DNS reverse-record API and a NIC firewall opening 25, 465, 587, 993, 4190 and 443. Whether DCD allows outbound port 25 is pending the first live test.",
+			"Optional outbound relay (smarthost) in the setup input: all non-local mail then leaves through it with TLS required and the certificate verified; its password reaches Stalwart once and is never stored by StackKits.",
+			"Home nodes stay refused: home publication is home-outbound through an external fabric, so a home node cannot be the direct-inbound MX host at its own fixed public IPv4 (ADR-0046 amendment 2026-09-25).",
+			"kombify does not operate mail servers for customers; kombify's managed mail is Paperwork, the kombify-managed-paperwork profile of the Mail use case.",
 			"StackKits never creates DNS records. The setup action prints MX, SPF, DKIM, DMARC and client autoconfiguration records for the owner to publish.",
 		]
 	}
@@ -78,7 +83,7 @@ Package: foundation.#UseCasePackage & {
 		drops: [{
 			name:        "mail-domain"
 			policy:      "on_demand"
-			description: "After owner approval, create the owner's mail domain and first mailbox in Stalwart, print the DNS records to publish, and verify an IMAP login and a submission handshake on the node. The mailbox password is used once and never stored."
+			description: "After owner approval, create the owner's mail domain and first mailbox in Stalwart, optionally route outbound mail through the owner's relay, print the DNS records to publish, and verify an IMAP login and a submission handshake on the node. Mailbox and relay passwords are used once and never stored."
 		}]
 	}
 
@@ -92,7 +97,7 @@ Package: foundation.#UseCasePackage & {
 	}
 
 	agentSurface: {
-		equipPolicy:  "on-generate"
+		equipPolicy: "on-generate"
 		lifecycleMcp: {}
 		productMcps: []
 		apis: [{
@@ -109,7 +114,7 @@ Package: foundation.#UseCasePackage & {
 		}]
 		cliHelpers: [{
 			command: "stackkit setup mail-server"
-			purpose: "Create the mail domain and first mailbox after owner approval, print DNS records and verify IMAP and submission."
+			purpose: "Create the mail domain and first mailbox after owner approval, optionally configure the outbound relay, print DNS records and verify IMAP and submission."
 		}, {
 			command: "stackkit agent mcp-config"
 			purpose: "Print the stackkit lifecycle MCP client connection."

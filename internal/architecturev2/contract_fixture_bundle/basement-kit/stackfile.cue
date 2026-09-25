@@ -193,7 +193,10 @@ Definition: foundation.#ProductKitDefinition & {
 	generation: {
 		defaultStrategy: "kit-template"
 		allowedStrategies: ["kit-template", "module-fragments"]
-		defaultTarget: "compose"
+		// ADR-0045 Stage 1: OpenTofu is the Standard default after real-host
+		// runs pve_d103313cb1 (fresh opentofu) and pve_9d6ca7708a (Compose install
+		// adopted without recreating containers), docs/data/os-compat/receipts.
+		defaultTarget: "opentofu"
 		allowedTargets: ["opentofu", "compose", "terramate"]
 		contractVersion: "1.0.0"
 	}

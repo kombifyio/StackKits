@@ -24,8 +24,8 @@ import (
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/localevidence"
-	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/standaloneoperations"
 	"github.com/kombifyio/stackkits/internal/terramatehost"
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
 	"github.com/spf13/cobra"
@@ -58,13 +58,35 @@ type advancedMutationResult struct {
 	// coordinated rollback a failed change set ran for a Terramate-target
 	// checkpoint.
 	RollbackResult *advancedrollback.Report `json:"rollbackResult,omitempty"`
+	// ReleaseAuthority names the release authority that executed the
+	// target: the running executable or the workspace release cache.
+	ReleaseAuthority *releaseAuthorityRecord `json:"releaseAuthority,omitempty"`
 }
 
+// verifiedAdvancedMutation is an admission whose fresh renders matched the
+// Owner-signed change set. The renders are done, so it keeps the verified
+// candidate plan and releases the embedded authority and resolutions.
 type verifiedAdvancedMutation struct {
-	admission advancedChangeSetAdmission
-	record    advancedchangeset.Record
-	digest    string
-	candidate architecturev2renderer.RenderResult
+	admission     advancedChangeSetAdmission
+	record        advancedchangeset.Record
+	digest        string
+	candidate     architecturev2renderer.RenderResult
+	candidatePlan generationartifact.VerifiedPlan
+}
+
+// advancedMutationFingerprint is the comparable identity of a pre-side-effect
+// verification; the locked revalidation compares against it without keeping
+// the first verification's authority alive.
+type advancedMutationFingerprint struct {
+	admission   advancedAdmissionFingerprint
+	changeSetID string
+	digest      string
+}
+
+func (verified verifiedAdvancedMutation) fingerprint() advancedMutationFingerprint {
+	return advancedMutationFingerprint{
+		admission: verified.admission.fingerprint(), changeSetID: verified.record.ChangeSetID, digest: verified.digest,
+	}
 }
 
 // advancedTerramateFailedPhase marks a change set whose post-apply Terramate
@@ -168,6 +190,11 @@ func runAdvancedChangeSetApply(cmd *cobra.Command, _ []string) error {
 		ChangeSetSHA:   strings.TrimSpace(advancedChangeSetDigest),
 		Operation:      advancedcapability.OperationTerramateChangeSetApply,
 	})
+	if err == nil {
+		// A workload the change set added ends with its owner set up, as a
+		// Standard install of it does.
+		runAutomaticOwnerSetup(cmd.Context(), getWorkDir())
+	}
 	if advancedChangeSetApplyJSON {
 		status := "success"
 		if err != nil {
@@ -237,12 +264,7 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 		orchestration = &advancedTerramateOrchestration{tools: tools}
 	}
 	result.PlanHash = verified.admission.candidate.PlanHash
-	candidatePlan, err := verified.admission.candidateService.VerifyCanonicalPlan(
-		verified.admission.candidate.CanonicalPlan,
-	)
-	if err != nil {
-		return result, fmt.Errorf("verify Advanced candidate lifecycle plan: %w", err)
-	}
+	candidatePlan := verified.candidatePlan
 	lifecycleOperation, err := advancedApplicationLifecycleOperation(request.Operation)
 	if err != nil {
 		return result, err
@@ -264,18 +286,23 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 		)
 	}
 
-	kit, receipt, resolution, err := currentAdvancedReleaseAuthority(cmd, workspace)
+	// The target of an Advanced mutation is the release already executing.
+	// Without a workspace release cache for it (a Techstack-managed host) the
+	// running executable is the release authority; see
+	// resolveLifecycleReleaseAuthority.
+	release, err := currentLifecycleReleaseAuthority(cmd, workspace)
 	if err != nil {
 		return result, failApplications(
 			"Advanced target release authority could not be established before mutation", err,
 		)
 	}
+	result.ReleaseAuthority = &release.record
 	var checkpoint publicUpgradeCheckpoint
 	mutation, err := beginPublicUpgradeMutation(
 		workspace,
 		func() (lifecyclemutation.BeginRequest, error) {
 			prepared, prepareErr := preparePublicUpgradeCheckpoint(
-				ctx, workspace, kit, resolution,
+				ctx, workspace, release.kit, release.resolution(),
 			)
 			if prepareErr != nil {
 				return lifecyclemutation.BeginRequest{}, fmt.Errorf(
@@ -288,13 +315,8 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 			if loadErr != nil {
 				return lifecyclemutation.BeginRequest{}, loadErr
 			}
-			var executableDigest string
-			if executableErr := withPublicUpgradeInstalledExecutable(
-				ctx, receipt, func(path string) error {
-					var digestErr error
-					executableDigest, digestErr = executableFileSHA256(path)
-					return digestErr
-				},
+			if executableErr := release.withExecutable(
+				ctx, func(string) error { return nil },
 			); executableErr != nil {
 				return lifecyclemutation.BeginRequest{}, executableErr
 			}
@@ -306,16 +328,8 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 					ExecutorStateSnapshotID: prepared.ExecutorStateSnapshotID,
 					KopiaAnchorID:           prepared.KopiaAnchorID,
 				},
-				Target: lifecyclemutation.ReleaseAuthority{
-					Version:          architectureV2ComponentVersion(receipt.Version),
-					ArchiveSHA256:    "sha256:" + receipt.ArchiveSHA256,
-					ExecutableSHA256: executableDigest,
-				},
-				Prior: lifecyclemutation.ReleaseAuthority{
-					Version:          architectureV2ComponentVersion(snapshot.Release.Version),
-					ArchiveSHA256:    snapshot.Release.ArchiveSHA256,
-					ExecutableSHA256: snapshot.Executable.Blob.SHA256,
-				},
+				Target: release.journal(release.record.SHA256),
+				Prior:  priorReleaseAuthority(snapshot),
 			}, nil
 		},
 	)
@@ -328,7 +342,7 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 	result.Checkpoint = checkpoint
 
 	transaction, transactionErr := executeAdvancedMutation(
-		ctx, workspace, receipt, checkpoint, mutation, request, verified,
+		ctx, workspace, &release, checkpoint, mutation, request, verified.fingerprint(),
 		absoluteCapability, absoluteCandidate, now, orchestration,
 	)
 	result.Transaction = transaction
@@ -342,12 +356,20 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 	return result, transactionErr
 }
 
+// advancedApplicationLifecycleOperation projects an Advanced mutation onto the
+// standalone application lifecycle. Change-set apply and Advanced reconcile
+// run the public upgrade mutation (installed-release target, mandatory
+// rollback checkpoint, lifecycle journal) and bind the upgrade stage evidence,
+// so they are recorded as that stage's only registry operation,
+// stackkit.upgrade. The lifecycle admits registry operations only (95p5); the
+// Advanced sub-kind stays in the upgrade-result evidence, the
+// stackkit.advanced-mutation/v1 result that names the capability operation
+// and the change set.
 func advancedApplicationLifecycleOperation(operation string) (string, error) {
 	switch operation {
-	case advancedcapability.OperationTerramateChangeSetApply:
-		return "stackkit.advanced.change-set.apply", nil
-	case advancedcapability.OperationDriftReconcileAdvanced:
-		return "stackkit.drift.reconcile.advanced", nil
+	case advancedcapability.OperationTerramateChangeSetApply,
+		advancedcapability.OperationDriftReconcileAdvanced:
+		return string(standaloneoperations.Upgrade), nil
 	default:
 		return "", &advancedcapability.Denial{
 			Code:   advancedcapability.ReasonCapabilityOperationDenied,
@@ -501,7 +523,7 @@ func verifyAdvancedMutation(
 		OwnerRef:             admission.grant.OwnerRef,
 		UIManagerRef:         admission.grant.UIManagerRef,
 		RILRef:               admission.grant.RILRef,
-		BaselinePlanHash:     admission.baseline.PlanHash,
+		BaselinePlanHash:     admission.baselinePlanHash,
 		CandidatePlanHash:    admission.candidate.PlanHash,
 		CapabilityExpiresAt:  admission.grant.ExpiresAt,
 		VerifyOwnerSignature: verifyOwner,
@@ -513,6 +535,10 @@ func verifyAdvancedMutation(
 	baseline, candidate, err := renderAdvancedAdmission(ctx, admission)
 	if err != nil {
 		return verifiedAdvancedMutation{}, err
+	}
+	candidatePlan, err := admission.service.VerifyCanonicalPlan(admission.candidate.CanonicalPlan)
+	if err != nil {
+		return verifiedAdvancedMutation{}, fmt.Errorf("verify Advanced candidate lifecycle plan: %w", err)
 	}
 	baselineHash, err := advancedchangeset.RenderSHA256(baseline)
 	if err != nil {
@@ -548,10 +574,15 @@ func verifyAdvancedMutation(
 		}
 	}
 	digest := sha256.Sum256(raw)
+	// The target regenerates through the installed release; the embedded
+	// authority and both resolutions are no longer needed.
+	admission.service = nil
+	admission.baselineCurrent = architecturev2.CurrentResolution{}
+	admission.candidateCurrent = architecturev2.CurrentResolution{}
 	return verifiedAdvancedMutation{
 		admission: admission, record: record,
 		digest:    "sha256:" + hex.EncodeToString(digest[:]),
-		candidate: candidate,
+		candidate: candidate, candidatePlan: candidatePlan,
 	}, nil
 }
 
@@ -596,91 +627,76 @@ func loadPinnedAdvancedChangeSet(
 	return record, raw, nil
 }
 
+// renderAdvancedAdmission renders the baseline in the governed workspace and
+// the candidate in a private temporary workspace, one after the other: each
+// authorization is closed before the next one opens, so only the two compact
+// render results outlive their phase.
 func renderAdvancedAdmission(
 	ctx context.Context,
 	admission advancedChangeSetAdmission,
-) (architecturev2renderer.RenderResult, architecturev2renderer.RenderResult, error) {
-	tempRoot, err := os.MkdirTemp("", "stackkit-advanced-verify-*")
+) (baseline, candidate architecturev2renderer.RenderResult, err error) {
+	tempRoot, err := os.MkdirTemp("", "stackkit-advanced-render-*")
 	if err != nil {
-		return architecturev2renderer.RenderResult{}, architecturev2renderer.RenderResult{}, err
+		return baseline, candidate, fmt.Errorf("create bounded Advanced render workspace: %w", err)
 	}
-	defer os.RemoveAll(tempRoot)
+	defer func() { _ = os.RemoveAll(tempRoot) }()
 	if err := os.Chmod(tempRoot, 0o700); err != nil {
-		return architecturev2renderer.RenderResult{}, architecturev2renderer.RenderResult{}, err
+		return baseline, candidate, fmt.Errorf("protect Advanced render workspace: %w", err)
 	}
 	if err := backupcustody.ProtectPrivatePath(tempRoot, true); err != nil {
-		return architecturev2renderer.RenderResult{}, architecturev2renderer.RenderResult{}, err
-	}
-	candidatePlan, err := admission.candidateService.VerifyCanonicalPlan(admission.candidate.CanonicalPlan)
-	if err != nil {
-		return architecturev2renderer.RenderResult{}, architecturev2renderer.RenderResult{}, err
-	}
-	candidatePlanPath, _, _ := candidatePlan.MetadataPaths(tempRoot)
-	if _, err := admission.candidateService.PersistCanonicalPlan(candidatePlanPath, admission.candidate.CanonicalPlan); err != nil {
-		return architecturev2renderer.RenderResult{}, architecturev2renderer.RenderResult{}, err
+		return baseline, candidate, fmt.Errorf("protect Advanced render workspace ACL: %w", err)
 	}
 	workspace, err := filepath.Abs(admission.workspace)
 	if err != nil {
-		return architecturev2renderer.RenderResult{}, architecturev2renderer.RenderResult{}, err
+		return baseline, candidate, err
 	}
-	baselineAuth, err := admission.baselineService.AuthorizeGeneration(architecturev2.GenerationAuthorizationInput{
-		Current: admission.baselineCurrent, WorkspaceRoot: filepath.Clean(workspace),
-		Versions: advancedComponentVersions(),
-	})
-	if err != nil {
-		return architecturev2renderer.RenderResult{}, architecturev2renderer.RenderResult{}, err
-	}
-	defer baselineAuth.Close()
-	candidateAuth, err := admission.candidateService.AuthorizeGeneration(architecturev2.GenerationAuthorizationInput{
-		Current: admission.candidateCurrent, WorkspaceRoot: filepath.Clean(tempRoot),
-		Versions: advancedComponentVersions(),
-	})
-	if err != nil {
-		return architecturev2renderer.RenderResult{}, architecturev2renderer.RenderResult{}, err
-	}
-	defer candidateAuth.Close()
 	registry, err := architecturev2renderer.NewProductRegistry()
 	if err != nil {
-		return architecturev2renderer.RenderResult{}, architecturev2renderer.RenderResult{}, err
+		return baseline, candidate, err
 	}
-	baseline, err := baselineAuth.Render(ctx, registry)
+	advancedChangeSetPrepareEvent("render-baseline")
+	baseline, err = renderAdvancedResolution(ctx, admission.service, admission.baselineCurrent, filepath.Clean(workspace), registry)
 	if err != nil {
-		return architecturev2renderer.RenderResult{}, architecturev2renderer.RenderResult{}, err
+		return baseline, candidate, err
 	}
-	candidate, err := candidateAuth.Render(ctx, registry)
+	advancedChangeSetPrepareEvent("render-candidate")
+	candidatePlan, err := admission.service.VerifyCanonicalPlan(admission.candidate.CanonicalPlan)
+	if err != nil {
+		return baseline, candidate, err
+	}
+	candidatePlanPath, _, _ := candidatePlan.MetadataPaths(tempRoot)
+	if _, err := admission.service.PersistCanonicalPlan(candidatePlanPath, admission.candidate.CanonicalPlan); err != nil {
+		return baseline, candidate, err
+	}
+	candidate, err = renderAdvancedResolution(ctx, admission.service, admission.candidateCurrent, filepath.Clean(tempRoot), registry)
 	return baseline, candidate, err
 }
 
-func currentAdvancedReleaseAuthority(
-	cmd *cobra.Command, workspace string,
-) (string, releaseindex.Receipt, releaseindex.Resolution, error) {
-	kit, err := loadWorkspaceKit(workspace)
+func renderAdvancedResolution(
+	ctx context.Context,
+	service *architecturev2.Service,
+	current architecturev2.CurrentResolution,
+	workspaceRoot string,
+	registry *architecturev2renderer.Registry,
+) (architecturev2renderer.RenderResult, error) {
+	authorization, err := service.AuthorizeGeneration(architecturev2.GenerationAuthorizationInput{
+		Current: current, WorkspaceRoot: workspaceRoot, Versions: advancedComponentVersions(),
+	})
 	if err != nil {
-		return "", releaseindex.Receipt{}, releaseindex.Resolution{}, err
+		return architecturev2renderer.RenderResult{}, err
 	}
-	receipts, err := verifyWorkspaceReleaseReceipts(cmd, workspace)
-	if err != nil {
-		return "", releaseindex.Receipt{}, releaseindex.Resolution{}, err
-	}
-	receipt, err := currentDriftReconcileReceipt(receipts, kit)
-	if err != nil {
-		return "", releaseindex.Receipt{}, releaseindex.Resolution{}, err
-	}
-	resolution := releaseindex.Resolution{Asset: releaseindex.Asset{
-		Kit: receipt.Kit, Version: receipt.Version, Channel: receipt.Channel,
-		Platform: receipt.Platform, Archive: releaseindex.Blob{SHA256: receipt.ArchiveSHA256},
-	}}
-	return kit, receipt, resolution, nil
+	defer func() { _ = authorization.Close() }()
+	return authorization.Render(ctx, registry)
 }
 
 func executeAdvancedMutation(
 	ctx context.Context,
 	workspace string,
-	receipt releaseindex.Receipt,
+	release *lifecycleReleaseAuthority,
 	checkpoint publicUpgradeCheckpoint,
 	mutation publicUpgradeLifecycleSession,
 	request advancedMutationRequest,
-	initial verifiedAdvancedMutation,
+	initial advancedMutationFingerprint,
 	capabilityPath, candidatePath string,
 	now time.Time,
 	orchestration *advancedTerramateOrchestration,
@@ -689,7 +705,7 @@ func executeAdvancedMutation(
 		APIVersion:  publicUpgradeTransactionAPIVersion,
 		OperationID: checkpoint.OperationID,
 		Status:      "pending",
-		Target:      publicUpgradeExecution{ReleaseVersion: receipt.Version},
+		Target:      publicUpgradeExecution{ReleaseVersion: release.version()},
 		Rollback: publicUpgradeRollback{
 			Status: "not-started", RecoverySnapshotID: checkpoint.ExecutorStateSnapshotID,
 		},
@@ -729,14 +745,12 @@ func executeAdvancedMutation(
 		if verifyErr != nil {
 			return verifyErr
 		}
-		if !equalAdvancedAdmission(initial.admission, revalidated.admission) ||
-			initial.record.ChangeSetID != revalidated.record.ChangeSetID ||
-			initial.digest != revalidated.digest {
+		if revalidated.fingerprint() != initial {
 			return errors.New("Advanced authority changed after pre-side-effect admission")
 		}
 
-		targetErr := withPublicUpgradeInstalledExecutable(
-			operationCtx, receipt, func(binary string) error {
+		targetErr := release.withExecutable(
+			operationCtx, func(binary string) error {
 				// Promoting intent is the first target side effect. The exact
 				// prior StackSpec is already sealed in the rollback checkpoint.
 				if writeErr := writeAdvancedCandidateIntent(
@@ -745,8 +759,8 @@ func executeAdvancedMutation(
 					return writeErr
 				}
 				return executeAdvancedTarget(
-					operationCtx, binary, workspace, receipt, snapshot,
-					revalidated.admission.candidate.PlanHash,
+					operationCtx, binary, workspace, release, snapshot,
+					revalidated.admission.candidate,
 					mutation, checkpoint.OperationID, &result.Target,
 					orchestration.step(workspace, revalidated),
 				)
@@ -762,7 +776,7 @@ func executeAdvancedMutation(
 			)
 		}, orchestration.coordinatedRollback(func() (*advancedrollback.Report, error) {
 			return rollbackAdvancedChangeSetCoordinated(
-				operationCtx, workspace, receipt, checkpoint, mutation, control,
+				operationCtx, workspace, release, checkpoint, mutation, control,
 				revalidated, orchestration.tools, &result,
 			)
 		}))
@@ -816,24 +830,40 @@ func writeAdvancedCandidateIntent(workspace, requestedSpec string, raw []byte) (
 func executeAdvancedTarget(
 	ctx context.Context,
 	binary, workspace string,
-	receipt releaseindex.Receipt,
+	release *lifecycleReleaseAuthority,
 	snapshot upgradelifecycle.ExecutorStateSnapshot,
-	candidatePlanHash string,
+	candidate architecturev2.Result,
 	mutation publicUpgradeLifecycleSession,
 	operationID string,
 	result *publicUpgradeExecution,
 	orchestrate func(context.Context) error,
 ) error {
+	candidatePlanHash := candidate.PlanHash
 	runner := newPublicUpgradeTransactionRunner()
 	common := publicUpgradeCommandPrefix(workspace, specFile)
 	executableDigest, err := hashPublicUpgradeExecutable(binary)
 	if err != nil {
 		return err
 	}
+	// The candidate was approved against the stable Inventory projection (the
+	// baseline generation's free-space sample). A plain generate re-measures
+	// free disk, so the child regenerates from the exact approved Inventory.
+	// plan, apply and verify keep their own attestation: they project the
+	// fresh sample onto the persisted plan, and apply admits the host from
+	// the fresh observation.
+	inventoryPath, cleanupInventory, err := materializePlanInventory(candidate.CanonicalPlan)
+	if err != nil {
+		return fmt.Errorf("materialize the approved candidate Inventory: %w", err)
+	}
+	defer cleanupInventory()
+	generateCommand := []string{"generate"}
+	if inventoryPath != "" {
+		generateCommand = append(generateCommand, "--inventory", inventoryPath)
+	}
 	generateNonce, err := mutation.BeginJoin(
 		lifecyclemutation.PhasePrepared,
 		lifecyclemutation.PhaseTargetGenerateStarted,
-		"generate", architectureV2ComponentVersion(receipt.Version), executableDigest,
+		"generate", architectureV2ComponentVersion(release.version()), executableDigest,
 	)
 	if err != nil {
 		return err
@@ -841,7 +871,7 @@ func executeAdvancedTarget(
 	result.GenerateInvoked = true
 	if _, err := runner.Run(ctx, binary, append(
 		append(common, lifecycleChildFlags(operationID, lifecyclemutation.PhaseTargetGenerateStarted, generateNonce)...),
-		"generate",
+		generateCommand...,
 	), workspace); err != nil {
 		return err
 	}
@@ -869,7 +899,7 @@ func executeAdvancedTarget(
 	applyNonce, err := mutation.BeginJoin(
 		lifecyclemutation.PhaseTargetGenerateSucceeded,
 		lifecyclemutation.PhaseTargetApplyStarted,
-		"apply", architectureV2ComponentVersion(receipt.Version), executableDigest,
+		"apply", architectureV2ComponentVersion(release.version()), executableDigest,
 	)
 	if err != nil {
 		return err
@@ -898,7 +928,7 @@ func executeAdvancedTarget(
 	verifyNonce, err := mutation.BeginJoin(
 		lifecyclemutation.PhaseTargetApplySucceeded,
 		lifecyclemutation.PhaseTargetVerifyStarted,
-		"verify", architectureV2ComponentVersion(receipt.Version), executableDigest,
+		"verify", architectureV2ComponentVersion(release.version()), executableDigest,
 	)
 	if err != nil {
 		return err
@@ -911,8 +941,8 @@ func executeAdvancedTarget(
 	if err != nil {
 		return err
 	}
-	report, err := decodeAndValidateUpgradeVerify(
-		rawVerify, candidatePlanHash, receipt,
+	report, err := decodeAndValidateVerifyReport(
+		rawVerify, candidatePlanHash, release.verifyReceipt(),
 		snapshot.OwnerRef, snapshot.Lineage.OwnerBindingDigest,
 	)
 	if err != nil {

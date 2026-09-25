@@ -19,8 +19,8 @@ import (
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/restoreactivation"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutoropentofu"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 )
 
 const (
@@ -159,10 +159,10 @@ func CurrentStateCoreProfileForPlan(
 	}
 	requirements := plan.ApplyRequirements()
 	var runtime generationartifact.ApplyRuntimeRequirement
-	var runtimeProfile runtimeexecutorlocal.BasementCoreRuntimeProfile
+	var runtimeProfile nativehost.BasementCoreRuntimeProfile
 	runtimeMatches := 0
 	for _, candidate := range requirements.RuntimeInstances {
-		profile, supported := runtimeexecutorlocal.BasementCoreRuntimeProfileForModule(candidate.ModuleRef)
+		profile, supported := nativehost.BasementCoreRuntimeProfileForModule(candidate.ModuleRef)
 		unitRef := profile.UnitRef
 		if target != executorStateTargetCompose {
 			// The OpenTofu and Terramate twins are named after their target.
@@ -189,7 +189,7 @@ func CurrentStateCoreProfileForPlan(
 	coreKind, coreFormat, coreOutputRef := "compose", "yaml", runtimeProfile.OutputRef
 	if target != executorStateTargetCompose {
 		coreKind, coreFormat = target, "hcl"
-		coreOutputRef = path.Join(path.Dir(runtimeProfile.OutputRef), runtimeexecutoropentofu.ConfigFile)
+		coreOutputRef = path.Join(path.Dir(runtimeProfile.OutputRef), opentofu.ConfigFile)
 	}
 	var compose, policy generationartifact.ApplyArtifactRequirement
 	composeMatches, policyMatches := 0, 0
@@ -233,7 +233,7 @@ func currentStateCoreProfileForCapture(
 		// every new CoreLite snapshot.
 		moduleRef = localbackuppolicy.CoreModuleRef
 	}
-	runtimeProfile, supported := runtimeexecutorlocal.BasementCoreRuntimeProfileForModule(moduleRef)
+	runtimeProfile, supported := nativehost.BasementCoreRuntimeProfileForModule(moduleRef)
 	if !supported {
 		return CurrentStateCoreProfile{}, errors.New("current state authority: executor-state Core profile is unsupported")
 	}
@@ -385,8 +385,8 @@ func NewVerifiedExecutorStateCapture(input CurrentStateAuthorityInput) (Verified
 	); err != nil {
 		return VerifiedExecutorStateCapture{}, err
 	}
-	release, err := verifyExecutorStateReleaseProof(
-		input.Capture.Release, input.Capture.Executable,
+	release, err := verifyExecutorStateCaptureRelease(
+		input.Capture.Release, input.Capture.RunningRelease, input.Capture.Executable,
 	)
 	if err != nil {
 		return VerifiedExecutorStateCapture{}, err
@@ -540,11 +540,11 @@ func verifyCurrentStateCoreOpenTofuRoot(
 	if capture.RuntimeCompose.ID != "" || capture.RuntimeCompose.Path != "" || len(capture.RuntimeCompose.Data) != 0 {
 		return errors.New("current state authority: an OpenTofu install carries its runtime Compose in its Core OpenTofu root")
 	}
-	runtimeDir, _, ok := runtimeexecutorlocal.NativeComposeProject(profile.ModuleRef)
+	runtimeDir, _, ok := nativehost.NativeComposeProject(profile.ModuleRef)
 	if !ok {
 		return errors.New("current state authority: the selected Core module has no native runtime directory")
 	}
-	rootPath, err := runtimeexecutoropentofu.RootRelativePath(runtimeDir)
+	rootPath, err := opentofu.RootRelativePath(runtimeDir)
 	if err != nil {
 		return err
 	}
@@ -555,7 +555,7 @@ func verifyCurrentStateCoreOpenTofuRoot(
 		}
 		matches++
 		if root.ModuleRef != profile.ModuleRef || !bytes.Equal(root.Config.Data, coreArtifact) ||
-			root.Compose.Path != path.Join(path.Dir(rootPath), runtimeexecutoropentofu.ComposeFile) ||
+			root.Compose.Path != path.Join(path.Dir(rootPath), opentofu.ComposeFile) ||
 			!bytes.Equal(root.Compose.Data, composeBytes) || len(root.State.Data) == 0 {
 			return errors.New("current state authority: Core OpenTofu root differs from the governed Core root artifact and its Compose payload")
 		}
@@ -622,7 +622,7 @@ func appendStandaloneComposeRuntimeCustody(input *CurrentStateAuthorityInput) er
 		if executorStateTargetExecutesOpenTofu(input.Capture.GenerationTarget) {
 			// The workload OpenTofu root already carries this project's
 			// Compose file and .env; bind them instead of capturing twice.
-			root, ok := openTofuRoots[path.Join(path.Dir(filepathToSlash(runtime.Compose.Path)), runtimeexecutoropentofu.RootDirName)]
+			root, ok := openTofuRoots[path.Join(path.Dir(filepathToSlash(runtime.Compose.Path)), opentofu.RootDirName)]
 			if !ok || filepathToSlash(root.Compose.Path) != filepathToSlash(runtime.Compose.Path) ||
 				!bytes.Equal(root.Compose.Data, runtime.Compose.Data) ||
 				filepathToSlash(root.Environment.Path) != filepathToSlash(runtime.Environment.Path) ||

@@ -1244,14 +1244,18 @@ func (c *Compiler) buildWorkloads(resolved *resolution, modules []any) ([]any, e
 			}
 			resolvedAlternative["infrastructure"] = resolvedInfrastructure
 		}
-		result = append(result, map[string]any{
+		resolvedWorkload := map[string]any{
 			"id": id, "version": version, "contractHash": contractHash, "kind": kind,
 			"functionalCapabilities": stringSliceAny(functionalCapabilities),
 			"dataClasses":            stringSliceAny(dataClasses),
 			"alternative":            resolvedAlternative,
 			"siteRefs":               stringSliceAny(selection.siteRefs), "nodeRefs": stringSliceAny(selection.nodeRefs),
 			"settings": settings, "secretRefs": secretRefs,
-		})
+		}
+		if selection.exclusiveNode {
+			resolvedWorkload["exclusiveNode"] = true
+		}
+		result = append(result, resolvedWorkload)
 	}
 	return result, nil
 }

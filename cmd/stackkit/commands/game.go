@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/appsetup"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/spf13/cobra"
 )
 
@@ -135,7 +135,7 @@ func withGamePanel(cmd *cobra.Command, timeout time.Duration, use func(ctx conte
 	if err != nil {
 		return err
 	}
-	return runtimeexecutorlocal.WithStandaloneComposeHTTP(ctx, workspace, deployment, func(client *http.Client, baseURL string) error {
+	return nativehost.WithStandaloneComposeHTTP(ctx, workspace, deployment, func(client *http.Client, baseURL string) error {
 		return use(ctx, client, baseURL, applicationKey, clientKey)
 	})
 }

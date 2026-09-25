@@ -999,14 +999,18 @@ _architectureV2WorkloadContracts: [
 		metadata: {
 			id:          "mail-server"
 			version:     "1.0.0"
-			description: "Own mail server: Stalwart receives and sends mail for the owner's domain on a public Cloud node. DNS records are printed for the owner, never created."
+			description: "Own mail server: Stalwart receives and sends mail for the owner's domain on a dedicated public Cloud node. DNS records are printed for the owner, never created."
 		}
 		kind:       "application"
 		useCaseRef: "mail-server"
 		functionalCapabilities: ["mail-server", "mailbox-hosting", "smtp-delivery", "imap-access"]
-		// Cloud only: a home node has no clean outbound port 25 and no relay
-		// input yet, so home placement is refused rather than degraded.
+		// Cloud only (ADR-0046 amendment 2026-09-25): home publication is
+		// home-outbound through an external fabric, so a home node cannot be
+		// the direct-inbound MX host with its own fixed public IPv4.
 		supportedSiteKinds: ["cloud"]
+		// The mail server runs on a dedicated node that hosts no other
+		// application workload.
+		exclusiveNode: true
 		dataClasses: ["personal"]
 		defaultAlternative: "stalwart"
 		computeTiers: {
@@ -4618,7 +4622,7 @@ _architectureV2Modules: list.Concat([[
 		}, {
 			id:           "opentofu", kind:                                "opentofu", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core/opentofu/v1.tf", version: "1.0.0"
-			contractHash: "sha256:6a79e0654824079a664efee247a0a47f060ebe8624f6aa6ddadd68e482c927ee"
+			contractHash: "sha256:17c124c1205256710d1161ad728885fe34af3fe07aee4111441172143d3bd0ce"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/cloud-core/main.tf"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -4641,7 +4645,7 @@ _architectureV2Modules: list.Concat([[
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 		}, {
 			id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
-			contractHash: "sha256:6a79e0654824079a664efee247a0a47f060ebe8624f6aa6ddadd68e482c927ee"
+			contractHash: "sha256:17c124c1205256710d1161ad728885fe34af3fe07aee4111441172143d3bd0ce"
 			unitRefs: ["opentofu"], artifactRefs: ["cloud-core-opentofu"]
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 		}, {
@@ -4732,7 +4736,7 @@ _architectureV2Modules: list.Concat([[
 		}, {
 			id:           "opentofu", kind:                                           "opentofu", rendererRef: "stackkit"
 			templateRef:  "builtin://cloud/core-standalone/opentofu/v1.tf", version: "1.0.0"
-			contractHash: "sha256:b8846b7c2e2728b89b5d585078496070fa1bdfce3fd569e07e0ef3545fc40a24"
+			contractHash: "sha256:686105c4ab42b787a3a884041751eb577e0821a5aae4ad1f8bedbcaf096723de"
 			publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
 			secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
 			planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
@@ -4761,7 +4765,7 @@ _architectureV2Modules: list.Concat([[
 			publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 		}, {
 			id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
-			contractHash: "sha256:b8846b7c2e2728b89b5d585078496070fa1bdfce3fd569e07e0ef3545fc40a24"
+			contractHash: "sha256:686105c4ab42b787a3a884041751eb577e0821a5aae4ad1f8bedbcaf096723de"
 			unitRefs: ["opentofu", "source-policy"], artifactRefs: ["cloud-core-standalone-opentofu", "cloud-kopia-backup-source-policy"]
 			publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 		}, {

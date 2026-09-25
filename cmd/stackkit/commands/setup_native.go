@@ -21,7 +21,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/backupcustody"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/spf13/cobra"
 )
@@ -69,10 +69,29 @@ func runNativeSetup(cmd *cobra.Command, workload string, options nativeSetupOpti
 	}
 	ctx, cancel := context.WithTimeout(commandContext(cmd), timeout)
 	defer cancel()
-	workspace := getWorkDir()
+	result, err := executeNativeSetup(ctx, getWorkDir(), workload, options)
+	if err != nil {
+		return machineAwareCommandError(cmd, err)
+	}
+	if options.outputJSON {
+		return json.NewEncoder(cmd.OutOrStdout()).Encode(result)
+	}
+	if result.Preparation != "" {
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s setup preparation %q recorded; complete the owner's encrypted account setup in the official client.\nPlan: %s\n", workload, result.Preparation, result.Authority.PlanHash)
+		return err
+	}
+	_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s owner login verified. Onboarding complete: %t\nPlan: %s\n", workload, result.OnboardingComplete, result.Authority.PlanHash)
+	return err
+}
+
+// executeNativeSetup runs one Plan-declared setup action of an applied
+// workload under the setup lifecycle mutation and records it in the
+// application lifecycle. `stackkit setup` and the automatic owner setup after
+// Apply, change-set apply and Advanced reconcile share it.
+func executeNativeSetup(ctx context.Context, workspace, workload string, options nativeSetupOptions) (applicationlifecycle.SetupResult, error) {
 	initial, err := inspectNativeV2AppliedAuthority(ctx, workspace, specFile)
 	if err != nil {
-		return err
+		return applicationlifecycle.SetupResult{}, err
 	}
 	var result applicationlifecycle.SetupResult
 	execute := func() error {
@@ -120,7 +139,7 @@ func runNativeSetup(cmd *cobra.Command, workload string, options nativeSetupOpti
 				return errors.Join(cause, journalErr)
 			}
 			var observed nativeOwnerSetupObservation
-			err = runtimeexecutorlocal.WithStandaloneComposeHTTP(ctx, workspace, deployment, func(client *http.Client, baseURL string) error {
+			err = nativehost.WithStandaloneComposeHTTP(ctx, workspace, deployment, func(client *http.Client, baseURL string) error {
 				value, setupErr := executeNativeOwnerSetupAction(ctx, client, baseURL, current.WorkspaceRoot, deployment, deployment.Release, setup.ActionRefs[0], options)
 				observed = value
 				return setupErr
@@ -151,19 +170,10 @@ func runNativeSetup(cmd *cobra.Command, workload string, options nativeSetupOpti
 			return err
 		})
 	}
-	err = withLifecycleMutation(workspace, "setup", execute)
-	if err != nil {
-		return machineAwareCommandError(cmd, err)
+	if err := withLifecycleMutation(workspace, "setup", execute); err != nil {
+		return applicationlifecycle.SetupResult{}, err
 	}
-	if options.outputJSON {
-		return json.NewEncoder(cmd.OutOrStdout()).Encode(result)
-	}
-	if result.Preparation != "" {
-		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s setup preparation %q recorded; complete the owner's encrypted account setup in the official client.\nPlan: %s\n", workload, result.Preparation, result.Authority.PlanHash)
-		return err
-	}
-	_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s owner login verified. Onboarding complete: %t\nPlan: %s\n", workload, result.OnboardingComplete, result.Authority.PlanHash)
-	return err
+	return result, nil
 }
 
 func beginNativeSetup(store applicationlifecycle.Store, contract applicationlifecycle.Contract, requested string) (string, error) {
@@ -234,27 +244,27 @@ func readNativeSetupCredentialJSON(workspace, path string, value any) error {
 
 // nativeAppliedWorkloadDeployment narrows the shared signed-Apply authority to
 // one owner-local application bundle. Setup and backup use the same selector.
-func nativeAppliedWorkloadDeployment(authority nativeV2AppliedAuthority, workload string) (runtimeexecutorlocal.SelectedPaaSWorkloadDeployment, error) {
+func nativeAppliedWorkloadDeployment(authority nativeV2AppliedAuthority, workload string) (nativehost.SelectedPaaSWorkloadDeployment, error) {
 	root, err := confinedfs.Open(authority.WorkspaceRoot)
 	if err != nil {
-		return runtimeexecutorlocal.SelectedPaaSWorkloadDeployment{}, err
+		return nativehost.SelectedPaaSWorkloadDeployment{}, err
 	}
 	defer root.Close()
 	transaction, err := root.BeginTransaction()
 	if err != nil {
-		return runtimeexecutorlocal.SelectedPaaSWorkloadDeployment{}, err
+		return nativehost.SelectedPaaSWorkloadDeployment{}, err
 	}
 	defer transaction.Close()
-	var selected *runtimeexecutorlocal.SelectedPaaSWorkloadDeployment
+	var selected *nativehost.SelectedPaaSWorkloadDeployment
 	for _, target := range authority.Plan.ApplyRequirements().RuntimeInstances {
 		if target.WorkloadRef != workload {
 			continue
 		}
 		if target.RuntimeAdapter == nil || target.RuntimeAdapter.ID != "standalone-compose" {
-			return runtimeexecutorlocal.SelectedPaaSWorkloadDeployment{}, errors.New("local application operation requires the explicitly selected standalone-compose adapter")
+			return nativehost.SelectedPaaSWorkloadDeployment{}, errors.New("local application operation requires the explicitly selected standalone-compose adapter")
 		}
 		if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 || target.SiteRefs[0] != authority.Owner.Binding.SiteRef || target.NodeRefs[0] != authority.Owner.Binding.NodeRef {
-			return runtimeexecutorlocal.SelectedPaaSWorkloadDeployment{}, errors.New("native application setup requires the exact local owner-bound placement")
+			return nativehost.SelectedPaaSWorkloadDeployment{}, errors.New("native application setup requires the exact local owner-bound placement")
 		}
 		// The existing verifier has already authenticated the complete Plan,
 		// artifact graph and runtime-owner result. Narrow that signed result to
@@ -263,13 +273,13 @@ func nativeAppliedWorkloadDeployment(authority nativeV2AppliedAuthority, workloa
 		for _, candidate := range authority.AppliedWorkloads {
 			if candidate.WorkloadRef == workload && candidate.RequirementID == target.ID && candidate.InstanceRef == target.InstanceRef {
 				if applied != nil {
-					return runtimeexecutorlocal.SelectedPaaSWorkloadDeployment{}, errors.New("application setup has ambiguous applied workload identity")
+					return nativehost.SelectedPaaSWorkloadDeployment{}, errors.New("application setup has ambiguous applied workload identity")
 				}
 				applied = &candidate
 			}
 		}
 		if applied == nil || applied.RuntimeOwnerRef != target.RuntimeAdapter.ID || len(applied.Placements) != 1 || applied.Placements[0].SiteRef != authority.Owner.Binding.SiteRef || applied.Placements[0].NodeRef != authority.Owner.Binding.NodeRef || (applied.Placements[0].ExecutionChannelRef != "" && applied.Placements[0].ExecutionChannelRef != authority.Owner.Binding.ChannelRef) {
-			return runtimeexecutorlocal.SelectedPaaSWorkloadDeployment{}, errors.New("application setup has no signed Apply for the exact local execution channel")
+			return nativehost.SelectedPaaSWorkloadDeployment{}, errors.New("application setup has no signed Apply for the exact local execution channel")
 		}
 		if applied.Placements[0].ExecutionChannelRef == "" {
 			// A native local host carries its channel in verified Owner custody;
@@ -281,7 +291,7 @@ func nativeAppliedWorkloadDeployment(authority nativeV2AppliedAuthority, workloa
 				}
 			}
 			if !localHost {
-				return runtimeexecutorlocal.SelectedPaaSWorkloadDeployment{}, errors.New("application setup cannot infer an external execution channel")
+				return nativehost.SelectedPaaSWorkloadDeployment{}, errors.New("application setup cannot infer an external execution channel")
 			}
 		}
 		for _, artifact := range authority.Manifest.Artifacts {
@@ -290,18 +300,18 @@ func nativeAppliedWorkloadDeployment(authority nativeV2AppliedAuthority, workloa
 			}
 			raw, _, err := transaction.ReadStable(artifact.Path)
 			if err != nil {
-				return runtimeexecutorlocal.SelectedPaaSWorkloadDeployment{}, err
+				return nativehost.SelectedPaaSWorkloadDeployment{}, err
 			}
 			digest := sha256.Sum256(raw)
 			if "sha256:"+hex.EncodeToString(digest[:]) != artifact.SHA256 {
-				return runtimeexecutorlocal.SelectedPaaSWorkloadDeployment{}, errors.New("application setup bundle differs from the admitted generation artifact")
+				return nativehost.SelectedPaaSWorkloadDeployment{}, errors.New("application setup bundle differs from the admitted generation artifact")
 			}
 			bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(raw)
 			if err != nil {
 				continue
 			}
 			if !slices.Contains(applied.Artifacts, architecturev2.AppliedArtifactIdentity{Ref: artifact.ID, Digest: artifact.SHA256}) {
-				return runtimeexecutorlocal.SelectedPaaSWorkloadDeployment{}, errors.New("application setup artifact differs from the signed applied workload")
+				return nativehost.SelectedPaaSWorkloadDeployment{}, errors.New("application setup artifact differs from the signed applied workload")
 			}
 			expectedEntry := target.UnitRef
 			if target.ModuleRef == "stackkits-pterodactyl-runtime" {
@@ -309,20 +319,20 @@ func nativeAppliedWorkloadDeployment(authority nativeV2AppliedAuthority, workloa
 				expectedEntry = "panel"
 			}
 			if bundle.WorkloadRef != workload || bundle.ModuleRef != target.ModuleRef || bundle.InstanceRef != target.InstanceRef || bundle.EntryComponent != expectedEntry || bundle.SiteRef != target.SiteRefs[0] || bundle.NodeRef != target.NodeRefs[0] {
-				return runtimeexecutorlocal.SelectedPaaSWorkloadDeployment{}, errors.New("application bundle is outside its exact applied workload contract")
+				return nativehost.SelectedPaaSWorkloadDeployment{}, errors.New("application bundle is outside its exact applied workload contract")
 			}
 			if selected != nil {
-				return runtimeexecutorlocal.SelectedPaaSWorkloadDeployment{}, errors.New("application setup has ambiguous local runtime bundles")
+				return nativehost.SelectedPaaSWorkloadDeployment{}, errors.New("application setup has ambiguous local runtime bundles")
 			}
 			adapter := target.RuntimeAdapter
-			selected = &runtimeexecutorlocal.SelectedPaaSWorkloadDeployment{WorkloadRef: workload, ModuleRef: target.ModuleRef, UnitRef: target.UnitRef, Release: bundle.Release, SiteRef: bundle.SiteRef, NodeRef: bundle.NodeRef, InstanceRef: target.InstanceRef,
+			selected = &nativehost.SelectedPaaSWorkloadDeployment{WorkloadRef: workload, ModuleRef: target.ModuleRef, UnitRef: target.UnitRef, Release: bundle.Release, SiteRef: bundle.SiteRef, NodeRef: bundle.NodeRef, InstanceRef: target.InstanceRef,
 				ExecutionChannelRef: authority.Owner.Binding.ChannelRef, ArtifactRef: artifact.ID, ArtifactDigest: artifact.SHA256, Bundle: raw, Route: bundle.Route,
 				RuntimeAdapter: runtimeexecutor.RuntimeAdapterBinding{ID: adapter.ID, ProviderRef: adapter.ProviderRef, ProviderVersion: adapter.ProviderVersion, ProviderContractHash: adapter.ProviderContractHash, ModuleRef: adapter.ModuleRef, ModuleVersion: adapter.ModuleVersion, ModuleContractHash: adapter.ModuleContractHash},
 			}
 		}
 	}
 	if selected == nil {
-		return runtimeexecutorlocal.SelectedPaaSWorkloadDeployment{}, errors.New("no admitted local application setup bundle is available")
+		return nativehost.SelectedPaaSWorkloadDeployment{}, errors.New("no admitted local application setup bundle is available")
 	}
 	return *selected, nil
 }

@@ -56,7 +56,7 @@ func validateResolvedWorkloadBodies(plan ResolvedPlan, catalog *indexedCatalog) 
 		if err != nil || haveHash != wantHash {
 			return nil, nil, nil, fmt.Errorf("%s.contractHash does not match the bound workload body", path)
 		}
-		for _, field := range []string{"kind", "functionalCapabilities", "dataClasses"} {
+		for _, field := range []string{"kind", "functionalCapabilities", "dataClasses", "exclusiveNode"} {
 			if err := requireCatalogField(value, contract, path, field); err != nil {
 				return nil, nil, nil, err
 			}

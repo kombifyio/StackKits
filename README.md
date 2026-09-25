@@ -1,16 +1,23 @@
 # StackKits
 
 StackKits is an open-source infrastructure blueprint system for self-hosted
-homelab and small-server deployments. **Standalone Docker Compose is the
-complete primary experience, including applications.** Standard Mode runs
-independently, without a Kombify account, Techstack, Coolify, or Komodo.
+homelab and small-server deployments. **Every deployment is executed and
+tracked by OpenTofu; managed deployments are orchestrated by Terramate**
+(ADR-0045). Standalone Docker Compose remains the complete primary application
+experience: containers run as Compose workloads inside that OpenTofu-tracked
+stack. Standard Mode runs independently, without a Kombify account, Techstack,
+Coolify, or Komodo. Basement Kit defaults to the `opentofu` execution target;
+Cloud Kit and Modern Homelab currently default to `compose`, with
+`opentofu`/`terramate` available, switching after each kit's own end-to-end
+run.
 
 The CLI is an optional user-facing interface to the same governed lifecycle,
 not a separate full edition. Komodo and Coolify are explicit opt-in
 integrations. Development proceeds from complete standalone Compose to Komodo,
 then Coolify; Dokploy remains draft. Existing explicit platform selections are
 preserved. See [the standalone decision](docs/ADR/ADR-0042-standalone-default-and-optional-platforms.md)
-for the contract and the separate runtime-evidence requirements.
+for the application-default contract and the separate runtime-evidence
+requirements.
 
 ## Install
 

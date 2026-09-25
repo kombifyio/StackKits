@@ -21,25 +21,26 @@ const budgetedPackageScope = "changed-packages-budgeted"
 // tests evaluate the Architecture v2 CUE authority and took 444 of those
 // seconds; the other 207 tests took about two. Refresh the list the same way on
 // that runner class and register every top-level test that takes at least one
-// second.
+// second. Added 2026-09-25 from a local measurement (the runner run timed
+// out): TestAdvancedChangeSetAdmissionIgnoresRemeasuredFreeDiskOnly (37 s),
+// TestAgentInstallPlanInitStepInitializesAWorkspace (5 s) and
+// TestAdvancedChangeSetCreateAddsFilesWorkload (58 s, two local CPUs).
 var sliceBudgetSlowTests = map[string][]string{
 	"cmd/stackkit/commands": {
+		"TestAdvancedChangeSetAdmissionIgnoresRemeasuredFreeDiskOnly",
+		"TestAdvancedChangeSetCreateAddsFilesWorkload",
+		"TestAgentInstallPlanInitStepInitializesAWorkspace",
 		"TestArchitectureV2AccessManifestProjectsRuntimeServiceMeaning",
 		"TestArchitectureV2AccessSummaryPrintsSecureContextURLsForInternalTLS",
 		"TestArchitectureV2AddonListRejectsV1AsMigrationInput",
 		"TestArchitectureV2AddonListUsesEmbeddedCatalogWithoutSpec",
 		"TestArchitectureV2AddonListValidatesAndFiltersCurrentSpec",
 		"TestArchitectureV2HTTPProbeAccessIncludesPlatformCoreRoutes",
-		"TestArchitectureV2OfflineVerifyUsesCloudRuntimeCustody",
 		"TestBuildArchitectureV2RuntimeObservationsProjectsLiveCloudServices",
 		"TestExecuteNativeWorkloadRemovalDispatchesSealedComposeRequest",
 		"TestFederationControlCLISignsExactHomeAction",
-		"TestGenerateEmitsBasementLowLiteArtifacts",
 		"TestGenerateEmitsBasementStandardHomeAssistant",
-		"TestGenerateEmitsBasementStandardJellyfin",
-		"TestGenerateEmitsBasementStandardPhotosFilesVault",
 		"TestGenerateRejectsV1OnExactV06BeforeWritingOutputOrState",
-		"TestGenerateWritesPhotosAgentSurfaceWithoutProductMCP",
 		"TestInitNativeMixedModuleProfilesResolveWithoutGlobalTier",
 		"TestLocalRuntimeOwnersExecuteGeneratedApplicationWorkloads",
 		"TestMigrateCompletionFailsClosedOnUnknownFieldsAndPlaintextSecretRefs",
@@ -70,11 +71,96 @@ var sliceBudgetSlowTests = map[string][]string{
 		"TestRunArchitectureV2InitUseCaseSelectsLocalRuntimeOwner",
 		"TestRunArchitectureV2InitUsesExistingSpecAliasWithoutCreatingSecondAuthority",
 		"TestRunArchitectureV2InitUsesExpectedHashCASAndRejectsForce",
-		"TestRunArchitectureV2InitWritesBasementLowCatalogAlternatives",
 		"TestRunInitRoutesDevToEmbeddedV2BeforeLegacyDiscovery",
 		"TestSecretsRevealRequiresDeclaredOwnerCustody",
 		"TestSupportExportCommandRetainsDiagnosticsAndRedactsSecrets",
 		"TestValidateNativeFilesSpecWithoutTargetInventory",
+	},
+	// internal/architecturev2, measured 2026-09-25 locally with two CPUs
+	// (GOMAXPROCS=2) in groups of six: the whole package exceeded the
+	// five-minute hang guard on the Fast Gate runner when an import-path move
+	// selected it. These 32 tests took at least one second each (181 seconds
+	// together; the other 64 took under one second in total).
+	// TestInitialStackSpecsResolveEveryAdvertisedGenerationTarget,
+	// TestModernTerramateStacksAreSiteScopedAndFederationWaitsForBothSites and
+	// TestTerramateStacksCoverEveryComposeBearingModuleInOrder were stopped
+	// above 4.5 GB of memory before finishing and are registered as slow.
+	"internal/architecturev2": {
+		"TestAuthorizedRenderAndManagedOutputTransaction",
+		"TestAuthorizedRenderRejectsSameRendererRefWithWrongTemplateHash",
+		"TestExternalHomeAssistantGeneratesBoundInstanceWithoutLocalOrigin",
+		"TestGenerationAuthorizationBindsHeldWorkspaceAndUsageLease",
+		"TestInitialStackSpecsResolveEveryAdvertisedGenerationTarget",
+		"TestListSupportedAddOnsRejectsInvalidProfile",
+		"TestListSupportedAddOnsUsesEmbeddedCatalogOutsideCheckout",
+		"TestMailServerResolvesOnlyOnOneDedicatedNode",
+		"TestManagedOutputFailsFastWhenAnotherProcessOwnsOutputLock",
+		"TestManagedOutputRejectsDotRootAndSymlinkedExistingTree",
+		"TestMaterializeCloudInitialStackSpecRejectsUndeclaredLowComputeTier",
+		"TestMaterializeInitialStackSpecCarriesAbsoluteHostStorageRoots",
+		"TestMaterializeInitialStackSpecUsesEmbeddedDefinitionAuthority",
+		"TestMaterializeModernInitialStackSpecResolves",
+		"TestModernTerramateStacksAreSiteScopedAndFederationWaitsForBothSites",
+		"TestNativeCatalogDefaultsPersistExplicitIntent",
+		"TestPaperlessRenderedDeliveryBindsApplicationIndependentOfComponentOrder",
+		"TestProductApplyRecoveryCapsulePersistsExactPreMutationAuthority",
+		"TestProductBasementApplyBlocksWithoutAttestedCapacity",
+		"TestProductBasementApplyReadyWithAttestedCapacity",
+		"TestPublicRendererAuthorizationBindsInstallationToExactWorkspace",
+		"TestRenderAndInstallCannotBeRedirectedByWorkspacePathReplacement",
+		"TestResolveAmbiguousV1ReturnsBlockedMigrationReport",
+		"TestResolveBasementLowSelectsLiteCore",
+		"TestResolveBasementV2UsesCurrentCUEAuthorityAndIsByteDeterministic",
+		"TestRoundcubeRenderedDeliveryKeepsTheSessionKeyInCustody",
+		"TestTerramateStacksCoverEveryComposeBearingModuleInOrder",
+		"TestValidateStackSpecDefaultsOmittedWorkloadPlacement",
+		"TestVerifiedApplyAuthorizationOneShotExpiryAndTOCTOU",
+		"TestVerifyCanonicalPlanRejectsRehashedFalseReadyState",
+	},
+	// internal/generationartifact, measured 2026-09-25 locally with two CPUs
+	// (GOMAXPROCS=2): the package took 95 seconds and exceeded the five-minute
+	// hang guard on the Fast Gate runner. Every registered test resolves or
+	// verifies plans through the CUE authority and took at least one second.
+	"internal/generationartifact": {
+		"TestApplyEvidenceRequestSeparatesPreconditionsFromExecutorPostconditions",
+		"TestArtifactHardLinkAliasIsDuplicate",
+		"TestCanonicalReadersRejectUnknownDuplicateAndReformattedContracts",
+		"TestEmbeddedServicePlanCanCrossGenerationVerificationBoundary",
+		"TestExecutionGateBindsVerifiedObjectsToCanonicalControls",
+		"TestGenerationGateFailsClosedForStalePlanChangedMissingAndWrongHashes",
+		"TestInspectExecutionProjectsVerifiedGenerationDefensivelyAndDeterministically",
+		"TestModernApplyHealthIsBoundToOneExactRuntime",
+		"TestPlanPersistenceRejectsTargetAndParentSymlinks",
+		"TestPlanPersistenceRequiresCUEAuthorityAndIsCanonicalAtomic0600",
+		"TestSharedApplyEvidenceProducerContractInteroperatesWithVerifier",
+		"TestVerifiedPlanCarriesStructuredReadinessAndPortableMetadataPaths",
+		"TestVerifyApplyEvidenceBundleRequiresExactAuthenticatedFreshSet",
+		"TestVerifyPlanRejectsRehashedProductAuthorityIssuerAndFingerprintTampering",
+	},
+	// internal/cue, measured 2026-09-25 locally under GOMAXPROCS=2/GOFLAGS=-p=1
+	// with `go test -v ./internal/cue`: 100 seconds locally, but the PR #1411
+	// Fast Gate run (two-vCPU runner) exceeded the 300s hard timeout on this
+	// package alone. Every registered test resolves or verifies CUE authority
+	// fixtures (module/service catalog extraction, Architecture v2 negative
+	// fixtures, OTLP/monitoring/backup/drift contract closure) and took at
+	// least one second locally.
+	"internal/cue": {
+		"TestArchitectureV2NegativeFixtures",
+		"TestOptionalOTLPSignalLanesAreBoundedAndExternal",
+		"TestBackupGrantV1SelectsCoverageAndCadence",
+		"TestOTLPProcessorContractsMatchCollectorArtifacts",
+		"TestResolvedGenerationPlanRejectsArtifactIdentityCollisions",
+		"TestBackupPolicyV1IsClosedAndBounded",
+		"TestMonitoringContractKeepsCollectorBaselineIndependentOfBackends",
+		"TestArchitectureV2DashboardIntentIsExternalAndProviderFree",
+		"TestArchitectureV2PublicDNSNameRejectsAddressLiterals",
+		"TestArchitectureV2OTLPBaselineProjectionExcludesBackendAndCredentialAuthority",
+		"TestArchitectureV2OptionalOTLPSignalProjectionIsClosedAndProfileBound",
+		"TestArchitectureV2ModuleInputBindingContractIsClosedAndTyped",
+		"TestDriftPolicyV1IsClosedAndEvidenceBound",
+		"TestMonitoringProfilesBindClosedBudgetsAndRetention",
+		"TestArchitectureV2ModuleInputBindingTargetMustBeDeclaredPublic",
+		"TestArchitectureV2TimestampMatchesCanonicalRFC3339NanoUTC",
 	},
 }
 

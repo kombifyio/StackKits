@@ -8,7 +8,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -16,14 +16,14 @@ const productCoreHostBootstrapAdapterID = "stackkits-core-host-bootstrap-local"
 
 type productCoreHostBootstrapFactory struct {
 	runtimeVersion string
-	operations     runtimeexecutorlocal.CoreHostBootstrapOperations
+	operations     nativehost.CoreHostBootstrapOperations
 }
 
 // NewProductCoreHostBootstrapRegistration binds the exact Core host-bootstrap
 // selector to one construction-owned node-local operations capability. The
 // factory derives Site, node, and execution-channel scope only from the
 // already verified RuntimeTarget passed by ProductRuntimeOwnerRegistry.
-func NewProductCoreHostBootstrapRegistration(runtimeVersion string, operations runtimeexecutorlocal.CoreHostBootstrapOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductCoreHostBootstrapRegistration(runtimeVersion string, operations nativehost.CoreHostBootstrapOperations) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("Core host-bootstrap product registration requires a runtime version and operations owner")
 	}
@@ -48,7 +48,7 @@ func (f *productCoreHostBootstrapFactory) PrepareRuntimeOwner(request ProductRun
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewCoreHostBootstrapExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{
+	return nativehost.NewCoreHostBootstrapExecutor(identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
 	}, f.operations), nil
 }

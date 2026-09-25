@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -12,10 +12,10 @@ const productInternalPKIAdapterID = "stackkits-internal-pki-local"
 
 type productInternalPKIFactory struct {
 	runtimeVersion string
-	root           runtimeexecutorlocal.InternalPKIRootOperations
-	leaf           runtimeexecutorlocal.InternalPKILeafOperations
-	trust          runtimeexecutorlocal.InternalPKITrustOperations
-	verify         runtimeexecutorlocal.InternalPKIVerifyOperations
+	root           nativehost.InternalPKIRootOperations
+	leaf           nativehost.InternalPKILeafOperations
+	trust          nativehost.InternalPKITrustOperations
+	verify         nativehost.InternalPKIVerifyOperations
 }
 
 // NewProductInternalPKIRegistration binds the single authority-node policy to
@@ -23,10 +23,10 @@ type productInternalPKIFactory struct {
 // authenticated transport remain outside StackKits.
 func NewProductInternalPKIRegistration(
 	runtimeVersion string,
-	root runtimeexecutorlocal.InternalPKIRootOperations,
-	leaf runtimeexecutorlocal.InternalPKILeafOperations,
-	trust runtimeexecutorlocal.InternalPKITrustOperations,
-	verify runtimeexecutorlocal.InternalPKIVerifyOperations,
+	root nativehost.InternalPKIRootOperations,
+	leaf nativehost.InternalPKILeafOperations,
+	trust nativehost.InternalPKITrustOperations,
+	verify nativehost.InternalPKIVerifyOperations,
 ) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) ||
 		nilProductRuntimeOwnerValue(root) || nilProductRuntimeOwnerValue(leaf) ||
@@ -59,12 +59,12 @@ func (f *productInternalPKIFactory) PrepareRuntimeOwner(request ProductRuntimeOw
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewInternalPKIExecutor(
+	return nativehost.NewInternalPKIExecutor(
 		identity,
-		runtimeexecutorlocal.LocalTargetBinding{
+		nativehost.LocalTargetBinding{
 			SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
 		},
-		runtimeexecutorlocal.InternalPKIAuthority{
+		nativehost.InternalPKIAuthority{
 			ProviderContractHash: target.ProviderContractHash,
 			ModuleContractHash:   target.ModuleContractHash,
 			HealthContractHash:   health[0].ContractHash,

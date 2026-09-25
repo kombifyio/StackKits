@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -14,14 +14,14 @@ type productPrivateAISelectedPaaSFactory struct {
 	runtimeVersion          string
 	runtimeAdapterRef       string
 	runtimeAdapterModuleRef string
-	operations              runtimeexecutorlocal.SelectedPaaSWorkloadOperations
+	operations              nativehost.SelectedPaaSWorkloadOperations
 }
 
 func NewProductPrivateAISelectedPaaSRegistration(
 	runtimeVersion string,
 	runtimeAdapterRef string,
 	runtimeAdapterModuleRef string,
-	operations runtimeexecutorlocal.SelectedPaaSWorkloadOperations,
+	operations nativehost.SelectedPaaSWorkloadOperations,
 ) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) ||
 		runtimeAdapterRef == "" || runtimeAdapterRef != strings.TrimSpace(runtimeAdapterRef) ||
@@ -70,14 +70,14 @@ func (f *productPrivateAISelectedPaaSFactory) PrepareRuntimeOwner(request Produc
 	if err != nil {
 		return nil, err
 	}
-	authority := runtimeexecutorlocal.PrivateAIWorkloadAuthority{
+	authority := nativehost.PrivateAIWorkloadAuthority{
 		ProviderContractHash: target.ProviderContractHash,
 		ModuleContractHash:   target.ModuleContractHash,
 		UnitContractHash:     target.UnitContractHash,
 		HealthContractHash:   health[moduleHealthIndex].ContractHash,
 		RuntimeAdapter:       selectedPaaSRuntimeAdapterAuthority(*target.RuntimeAdapter),
 	}
-	return runtimeexecutorlocal.NewPrivateAISelectedPaaSExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{
+	return nativehost.NewPrivateAISelectedPaaSExecutor(identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
 	}, authority, f.operations), nil
 }

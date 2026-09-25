@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/hostconformance"
 	"github.com/kombifyio/stackkits/internal/localevidence"
@@ -19,6 +20,10 @@ import (
 )
 
 var errInventoryNodeUnbound = errors.New("local inventory probe requires --local-node/--local-site when the spec has multiple enabled nodes")
+
+// observeLocalInventory replaces the host observation behind lifecycle
+// Inventory attestation. Nil (production) observes the local host.
+var observeLocalInventory func(context.Context) (hostconformance.NodeInventoryFacts, error)
 
 type inventorySpecView struct {
 	Sites     []inventorySpecSite    `yaml:"sites"`
@@ -101,6 +106,11 @@ func inventoryForGeneratedPlan(wd string, rawSpec, inventory []byte, options arc
 	if options.inventoryPath != "" {
 		return inventory, false, nil
 	}
+	if architectureV2WorkspaceIsMember(wd) {
+		// A member never re-measures facts into the shared Inventory, so the
+		// admitted document is already the stable projection.
+		return inventory, false, nil
+	}
 	nodeRef, _, err := localInventoryNode(wd, rawSpec, options)
 	if err != nil {
 		return nil, false, err
@@ -136,6 +146,71 @@ func inventoryForGeneratedPlan(wd string, rawSpec, inventory []byte, options arc
 	return encoded, err == nil, err
 }
 
+// inventoryForPersistedGeneration applies inventoryForGeneratedPlan for
+// callers that read the workspace Inventory without executing a lifecycle
+// phase (Advanced admission and rollback). Every non-generate command
+// re-attests the local free-space sample, so the on-disk Inventory must be
+// projected onto the persisted generated plan exactly as normal execution does
+// before the binding is compared. Without a persisted plan the Inventory is
+// returned unchanged and the caller's own plan read reports the absence.
+func inventoryForPersistedGeneration(service *architecturev2.Service, wd string, rawSpec, inventory []byte) ([]byte, error) {
+	resolved, err := service.Resolve(architecturev2.ResolveInput{StackSpec: rawSpec, Inventory: inventory})
+	if err != nil {
+		return nil, err
+	}
+	current, err := service.VerifyCanonicalPlan(resolved.CanonicalPlan)
+	if err != nil {
+		return nil, err
+	}
+	planPath, _, _ := current.MetadataPaths(wd)
+	if _, err := os.Lstat(planPath); errors.Is(err, os.ErrNotExist) {
+		return inventory, nil
+	}
+	persisted, err := service.ReadCanonicalPlan(planPath)
+	if err != nil {
+		return nil, err
+	}
+	stable, _, err := inventoryForGeneratedPlan(wd, rawSpec, inventory, architectureV2ExecutionCLIOptions{}, persisted)
+	return stable, err
+}
+
+// materializePlanInventory writes the Inventory document a canonical
+// ResolvedPlan was resolved from to a private temporary file. A child command
+// given that file with --inventory resolves exactly that plan instead of a
+// freshly re-measured local free-space sample; an explicit Inventory is never
+// re-attested. An empty path means the plan recorded no Inventory document.
+func materializePlanInventory(canonicalPlan []byte) (path string, cleanup func(), err error) {
+	var plan struct {
+		Source struct {
+			Inventory struct {
+				Document json.RawMessage `json:"document"`
+			} `json:"inventory"`
+		} `json:"source"`
+	}
+	if err := json.Unmarshal(canonicalPlan, &plan); err != nil {
+		return "", nil, err
+	}
+	var document map[string]json.RawMessage
+	if json.Unmarshal(plan.Source.Inventory.Document, &document) != nil || len(document) == 0 {
+		return "", func() {}, nil
+	}
+	directory, err := os.MkdirTemp("", "stackkit-plan-inventory-*")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup = func() { _ = os.RemoveAll(directory) }
+	path = filepath.Join(directory, "inventory.json")
+	if err := os.Chmod(directory, 0o700); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	if err := os.WriteFile(path, plan.Source.Inventory.Document, 0o600); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	return path, cleanup, nil
+}
+
 func attestLocalInventoryFacts(
 	ctx context.Context,
 	wd string,
@@ -145,6 +220,15 @@ func attestLocalInventoryFacts(
 	observe func(context.Context) (hostconformance.NodeInventoryFacts, error),
 ) (merged []byte, persistPath string, err error) {
 	if strings.TrimSpace(options.inventoryPath) != "" {
+		return inventory, "", nil
+	}
+	if architectureV2WorkspaceIsMember(wd) {
+		// The Foundation Node owns the shared Inventory. A member compiles
+		// exactly the admitted document so its plan hash cannot drift from the
+		// Home plan through locally observed facts.
+		if len(bytes.TrimSpace(inventory)) == 0 {
+			return nil, "", errors.New("a Fleet member executes only with the shared Inventory the Home owner admitted; pass --inventory or keep the admitted .stackkit/inventory.yaml")
+		}
 		return inventory, "", nil
 	}
 	if observe == nil {
@@ -220,9 +304,9 @@ func localInventoryNode(wd string, rawSpec []byte, options architectureV2Executi
 		if custody, loadErr := localevidence.LoadOwnerCustody(wd); loadErr == nil {
 			requested = strings.TrimSpace(custody.Binding.NodeRef)
 		} else if errors.As(loadErr, &memberDenial) {
-			// The Foundation Node owns the shared Inventory; a member must not
-			// merge its own observations and diverge from the admitted plan.
-			return "", "", fmt.Errorf("local Inventory attestation on a Fleet member is not available yet: %w", memberDenial)
+			// A member is bound to its admitted tuple. It never merges its own
+			// observations into the shared Inventory (see attestLocalInventoryFacts).
+			requested = strings.TrimSpace(memberDenial.Binding.NodeRef)
 		} else if !errors.Is(loadErr, localevidence.ErrOwnerCustodyMissing) {
 			return "", "", fmt.Errorf("load local owner binding for inventory: %w", loadErr)
 		}
@@ -350,4 +434,12 @@ func persistInventoryDocument(path string, data []byte) error {
 		}
 	}
 	return nil
+}
+
+// architectureV2WorkspaceIsMember reports whether the workspace holds Fleet
+// member custody.
+func architectureV2WorkspaceIsMember(wd string) bool {
+	_, err := localevidence.LoadOwnerCustody(wd)
+	var memberDenial *localevidence.MemberSigningDenial
+	return errors.As(err, &memberDenial)
 }

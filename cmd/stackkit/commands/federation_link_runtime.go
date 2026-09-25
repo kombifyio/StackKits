@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +21,7 @@ func init() {
 		defer input.Close()
 		decoder := json.NewDecoder(io.LimitReader(input, 64<<10))
 		decoder.DisallowUnknownFields()
-		var custody runtimeexecutorlocal.WireGuardFabricCustody
+		var custody nativehost.WireGuardFabricCustody
 		if err := decoder.Decode(&custody); err != nil {
 			return err
 		}
@@ -29,15 +29,15 @@ func init() {
 		if err := decoder.Decode(&extra); err != io.EOF {
 			return errors.New("one external fabric custody document required")
 		}
-		if err := withLifecycleMutation(getWorkDir(), "federation link bind", func() error { return runtimeexecutorlocal.BindWireGuardFabric(getWorkDir(), custody) }); err != nil {
+		if err := withLifecycleMutation(getWorkDir(), "federation link bind", func() error { return nativehost.BindWireGuardFabric(getWorkDir(), custody) }); err != nil {
 			return err
 		}
-		return writeCommandResult(cmd, cmd.CommandPath(), map[string]any{"fabricRef": custody.FabricRef, "interface": runtimeexecutorlocal.WireGuardFabricInterface(custody.FabricRef), "bound": true})
+		return writeCommandResult(cmd, cmd.CommandPath(), map[string]any{"fabricRef": custody.FabricRef, "interface": nativehost.WireGuardFabricInterface(custody.FabricRef), "bound": true})
 	}}
 	bind.Flags().StringVar(&file, "file", "", "External fabric custody JSON; contains no private keys")
 	stop := &cobra.Command{Use: "stop", Short: "Stop the adopted interface without deleting the external fabric", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		if err := withLifecycleMutation(getWorkDir(), "federation link stop", func() error {
-			return runtimeexecutorlocal.NewOSFederationLinkOperations(getWorkDir()).StopInterSiteLink(cmd.Context(), fabric)
+			return nativehost.NewOSFederationLinkOperations(getWorkDir()).StopInterSiteLink(cmd.Context(), fabric)
 		}); err != nil {
 			return err
 		}

@@ -209,7 +209,7 @@ Process-backed v1 init/generate/apply/update and the combined rollout macro are
 not rebuilt. Immutable published v0.6 artifacts remain the historical rollback
 boundary.
 
-Out of scope:
+Not implemented yet:
 
 - `stackkit app add`
 - customer app rollout

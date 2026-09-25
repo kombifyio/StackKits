@@ -132,8 +132,7 @@ func validateExplicitRecoveryAuthority(
 		snapshot.KopiaSnapshotAnchor.ID != record.Checkpoint.KopiaAnchorID ||
 		snapshot.OwnerRef != record.OwnerRef ||
 		architectureV2ComponentVersion(snapshot.Release.Version) != record.Prior.Version ||
-		snapshot.Release.ArchiveSHA256 != record.Prior.ArchiveSHA256 ||
-		snapshot.Executable.Blob.SHA256 != record.Prior.ExecutableSHA256 {
+		priorReleaseAuthority(snapshot) != record.Prior {
 		return errors.New(
 			"explicit recovery checkpoint or prior executor differs from the signed lifecycle journal",
 		)

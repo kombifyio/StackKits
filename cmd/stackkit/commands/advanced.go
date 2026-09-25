@@ -155,19 +155,55 @@ func init() {
 	rootCmd.AddCommand(advancedCmd)
 }
 
+// advancedChangeSetAdmission is one verified Advanced admission. Baseline and
+// candidate resolve through one embedded authority (each in its own authority
+// scope, because both carry the same Stack ID); the admission keeps the two
+// sealed resolutions for rendering and only the baseline plan hash otherwise.
 type advancedChangeSetAdmission struct {
 	workspace        string
-	baselineService  *architecturev2.Service
-	candidateService *architecturev2.Service
+	service          *architecturev2.Service
 	baselineCurrent  architecturev2.CurrentResolution
 	candidateCurrent architecturev2.CurrentResolution
-	baseline         architecturev2.Result
+	baselinePlanHash string
 	candidate        architecturev2.Result
 	grant            advancedcapability.Grant
 	capabilityRaw    []byte
 	candidateRaw     []byte
 	owner            localevidence.OwnerCustody
 	trustSHA256      string
+}
+
+// advancedAdmissionFingerprint is the comparable identity of an admission. A
+// pre-lock admission keeps only this, so its authority and resolutions are
+// reclaimable before the locked revalidation resolves again.
+type advancedAdmissionFingerprint struct {
+	workspace         string
+	baselinePlanHash  string
+	candidatePlanHash string
+	capabilityID      string
+	keyID             string
+	ownerRef          string
+	ownerKeyID        string
+	ownerSignature    string
+	trustSHA256       string
+	capabilitySHA256  [sha256.Size]byte
+	candidateSHA256   [sha256.Size]byte
+}
+
+func (admission advancedChangeSetAdmission) fingerprint() advancedAdmissionFingerprint {
+	return advancedAdmissionFingerprint{
+		workspace:         admission.workspace,
+		baselinePlanHash:  admission.baselinePlanHash,
+		candidatePlanHash: admission.candidate.PlanHash,
+		capabilityID:      admission.grant.CapabilityID,
+		keyID:             admission.grant.KeyID,
+		ownerRef:          admission.owner.OwnerRef,
+		ownerKeyID:        admission.owner.KeyID,
+		ownerSignature:    admission.owner.Signature,
+		trustSHA256:       admission.trustSHA256,
+		capabilitySHA256:  sha256.Sum256(admission.capabilityRaw),
+		candidateSHA256:   sha256.Sum256(admission.candidateRaw),
+	}
 }
 
 type advancedChangeSetResult struct {
@@ -204,12 +240,7 @@ func runAdvancedChangeSetCreate(cmd *cobra.Command, _ []string) error {
 	}
 	now := advancedChangeSetDeps.now().UTC().Truncate(time.Second)
 	workspace := getWorkDir()
-	admission, err := advancedChangeSetDeps.admit(
-		cmd.Context(), workspace,
-		resolvePathFromWorkDir(workspace, capabilityPath),
-		resolvePathFromWorkDir(workspace, candidatePath),
-		now,
-	)
+	admitted, err := admitAdvancedChangeSetFingerprint(cmd.Context(), workspace, capabilityPath, candidatePath, now)
 	if err != nil {
 		return writeAdvancedChangeSetDenial(cmd, err)
 	}
@@ -224,7 +255,7 @@ func runAdvancedChangeSetCreate(cmd *cobra.Command, _ []string) error {
 		if revalidateErr != nil {
 			return revalidateErr
 		}
-		if !equalAdvancedAdmission(admission, revalidated) {
+		if revalidated.fingerprint() != admitted {
 			return errors.New("advanced change-set inputs changed after admission")
 		}
 		var createErr error
@@ -239,6 +270,24 @@ func runAdvancedChangeSetCreate(cmd *cobra.Command, _ []string) error {
 	}
 	_, err = fmt.Fprintf(cmd.OutOrStdout(), "Advanced change set: %s\nPath: %s\nChanges: %d\n", result.ChangeSetID, result.Path, len(result.Changes))
 	return err
+}
+
+// admitAdvancedChangeSetFingerprint runs the pre-lock admission and keeps only
+// its comparable identity, so the locked revalidation never holds two
+// admissions' authorities at once.
+func admitAdvancedChangeSetFingerprint(
+	ctx context.Context, workspace, capabilityPath, candidatePath string, now time.Time,
+) (advancedAdmissionFingerprint, error) {
+	admission, err := advancedChangeSetDeps.admit(
+		ctx, workspace,
+		resolvePathFromWorkDir(workspace, capabilityPath),
+		resolvePathFromWorkDir(workspace, candidatePath),
+		now,
+	)
+	if err != nil {
+		return advancedAdmissionFingerprint{}, err
+	}
+	return admission.fingerprint(), nil
 }
 
 func runAdvancedTrustImport(cmd *cobra.Command, _ []string) error {

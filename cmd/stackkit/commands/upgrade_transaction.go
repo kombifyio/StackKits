@@ -650,14 +650,8 @@ func rollbackPublicUpgrade(
 			if runErr != nil {
 				return fmt.Errorf("prior release verify: %w", runErr)
 			}
-			priorReceipt := releaseindex.Receipt{
-				SchemaVersion: releaseindex.ReceiptSchemaVersion,
-				Kit:           snapshot.Release.Kit, Version: snapshot.Release.Version,
-				Channel: snapshot.Release.Channel, Platform: snapshot.Release.Platform,
-				ArchiveSHA256: strings.TrimPrefix(snapshot.Release.ArchiveSHA256, "sha256:"),
-			}
-			report, runErr := decodeAndValidateUpgradeVerify(
-				rawVerify, snapshot.Lineage.Binding.PlanHash, priorReceipt,
+			report, runErr := decodeAndValidateVerifyReport(
+				rawVerify, snapshot.Lineage.Binding.PlanHash, snapshotVerifyReceipt(snapshot),
 				snapshot.OwnerRef, snapshot.Lineage.OwnerBindingDigest,
 			)
 			if runErr != nil {
@@ -918,6 +912,18 @@ func decodeAndValidateUpgradeVerify(
 	receipt releaseindex.Receipt,
 	expectedOwnerRef, expectedOwnerBindingHash string,
 ) (architectureV2VerifyReport, error) {
+	return decodeAndValidateVerifyReport(raw, planHash, &receipt, expectedOwnerRef, expectedOwnerBindingHash)
+}
+
+// decodeAndValidateVerifyReport validates a joined target verify. A nil
+// receipt is a running-executable target: no release cache receipt exists,
+// and the lifecycle join already bound the verifying executable's digest.
+func decodeAndValidateVerifyReport(
+	raw []byte,
+	planHash string,
+	receipt *releaseindex.Receipt,
+	expectedOwnerRef, expectedOwnerBindingHash string,
+) (architectureV2VerifyReport, error) {
 	var envelope publicUpgradeRawCommandResult
 	if err := decodeUpgradeExactJSON(raw, &envelope); err != nil {
 		return architectureV2VerifyReport{}, fmt.Errorf("decode command result: %w", err)
@@ -953,6 +959,9 @@ func decodeAndValidateUpgradeVerify(
 		return architectureV2VerifyReport{}, errors.New(
 			"target verify result does not prove the exact live Plan, Apply, Owner, and runtime closure",
 		)
+	}
+	if receipt == nil {
+		return report, nil
 	}
 	releaseMatched := false
 	for _, candidate := range report.Releases {

@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
-	"github.com/kombifyio/stackkits/internal/hostconformance"
 	"github.com/kombifyio/stackkits/internal/localevidence"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutoropentofu"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -25,6 +25,11 @@ type architectureV2ProductRuntimeAuthority struct {
 	*architecturev2.Service
 	journal *architecturev2.ProductApplyFileJournal
 }
+
+// architectureV2RuntimeOwnerRegistrationsOverride lets a test replace the
+// local Operations behind each production selector with a stub. It is nil in
+// every production composition.
+var architectureV2RuntimeOwnerRegistrationsOverride func([]architecturev2.ProductRuntimeOwnerRegistration) []architecturev2.ProductRuntimeOwnerRegistration
 
 func (a *architectureV2ProductRuntimeAuthority) Close() error {
 	if a == nil || a.journal == nil {
@@ -61,16 +66,48 @@ func (a *architectureV2ProductRuntimeAuthority) LoadAppliedRuntimeRequest(ctx co
 // An authenticated service integration still supplies its own collector
 // through newArchitectureV2ProductRuntimeAuthorityWithCollector; both paths
 // share one custody model.
+//
+// A joined Fleet member composes the same authority from its Home-certified
+// member evidence key and executes only its own Site/node/channel tuple; a
+// Foundation Node with certified members leaves their local targets to them.
 func newArchitectureV2ProductRuntimeAuthority(workspaceRoot string, options architectureV2ExecutionCLIOptions) (architectureV2ExecutionAuthority, error) {
-	collector, anchor, binding, err := newLocalOwnerApplyEvidenceCollector(workspaceRoot)
+	local, err := loadArchitectureV2LocalExecution(workspaceRoot, time.Now())
+	if err != nil {
+		return nil, localApplyCustodyError(err)
+	}
+	collector, anchor, err := local.applyEvidence(workspaceRoot)
 	if err != nil {
 		return nil, err
 	}
-	options, err = bindArchitectureV2LocalExecutionOptions(options, binding)
+	options, err = bindArchitectureV2LocalExecutionOptions(options, local.binding)
 	if err != nil {
 		return nil, err
 	}
-	return newArchitectureV2ProductRuntimeAuthorityWithCollectorAndTrust(workspaceRoot, options, collector, []architecturev2.ProductApplyTrustAnchor{anchor})
+	authority, err := newArchitectureV2ProductRuntimeAuthorityWithCollectorAndTrust(workspaceRoot, options, collector, []architecturev2.ProductApplyTrustAnchor{anchor})
+	if err != nil {
+		return nil, err
+	}
+	if err := local.bindScope(authority); err != nil {
+		if closer, ok := authority.(interface{ Close() error }); ok {
+			err = errors.Join(err, closer.Close())
+		}
+		return nil, err
+	}
+	return authority, nil
+}
+
+// localApplyCustodyError keeps the established guidance for a workspace that
+// has neither owner nor member custody.
+func localApplyCustodyError(err error) error {
+	if errors.Is(err, localevidence.ErrOwnerCustodyMissing) {
+		var memberDenial *localevidence.MemberSigningDenial
+		if !errors.As(err, &memberDenial) {
+			return fmt.Errorf(
+				"this workspace has no local Apply evidence custody; run `stackkit init --owner-source=local` to establish the homelab owner before Apply",
+			)
+		}
+	}
+	return err
 }
 
 // newArchitectureV2ProductVerifyAuthority derives public verification trust
@@ -78,7 +115,11 @@ func newArchitectureV2ProductRuntimeAuthority(workspaceRoot string, options arch
 // runtime identity. It opens existing runtime custody for read-only inspection
 // without constructing an execution channel or mutating runtime owner.
 func newArchitectureV2ProductVerifyAuthority(workspaceRoot string, _ architectureV2ExecutionCLIOptions) (architectureV2ExecutionAuthority, error) {
-	_, anchor, _, err := newLocalOwnerApplyEvidenceCollector(workspaceRoot)
+	local, err := loadArchitectureV2LocalExecution(workspaceRoot, time.Now())
+	if err != nil {
+		return nil, localApplyCustodyError(err)
+	}
+	_, anchor, err := local.applyEvidence(workspaceRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -94,6 +135,11 @@ func newArchitectureV2ProductVerifyAuthority(workspaceRoot string, _ architectur
 	if err != nil {
 		return nil, err
 	}
+	if local.scope != nil {
+		if err := service.BindProductExecutionScope(*local.scope); err != nil {
+			return nil, err
+		}
+	}
 	journal, err := architecturev2.NewProductApplyFileJournal(workspaceRoot)
 	if err != nil {
 		return nil, fmt.Errorf("open read-only Product Apply runtime custody: %w", err)
@@ -107,14 +153,6 @@ func newArchitectureV2ProductVerifyAuthority(workspaceRoot string, _ architectur
 // workspace had no owner to anchor evidence to.
 func newLocalOwnerApplyEvidenceCollector(workspaceRoot string) (architecturev2.ProductApplyEvidenceCollector, architecturev2.ProductApplyTrustAnchor, localevidence.LocalBinding, error) {
 	custody, err := localevidence.LoadOwnerCustody(workspaceRoot)
-	var memberDenial *localevidence.MemberSigningDenial
-	if errors.As(err, &memberDenial) {
-		// Member-local execution needs its own evidence custody; until it
-		// exists the Foundation Node remains the only Apply authority.
-		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf(
-			"member-local Apply and Verify are not available yet; run them on the Foundation Node: %w", memberDenial,
-		)
-	}
 	if errors.Is(err, localevidence.ErrOwnerCustodyMissing) {
 		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf(
 			"this workspace has no local Apply evidence custody; run `stackkit init --owner-source=local` to establish the homelab owner before Apply",
@@ -132,18 +170,14 @@ func newLocalOwnerApplyEvidenceCollector(workspaceRoot string) (architecturev2.P
 	if err != nil {
 		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf("load local Apply evidence custody: %w", err)
 	}
-	hostObserver, err := localevidence.NewHostObserver(hostconformance.LocalProbe{})
+	observers, err := architectureV2LocalEvidenceObservers(workspaceRoot)
 	if err != nil {
-		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf("configure local host observer: %w", err)
-	}
-	secretObserver, err := localevidence.NewSecretObserver(workspaceRoot)
-	if err != nil {
-		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf("configure local secret observer: %w", err)
+		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, err
 	}
 	collector, err := localevidence.NewOwnerCollector(localevidence.CollectorConfig{
 		Key:       key,
 		Version:   architectureV2ComponentVersion(version),
-		Observers: map[string]localevidence.Observer{"host": hostObserver, "secret": secretObserver},
+		Observers: observers,
 	})
 	if err != nil {
 		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf("configure local Apply evidence collector: %w", err)
@@ -187,6 +221,9 @@ func newArchitectureV2ProductRuntimeAuthorityWithCollectorAndTrust(
 	registrations, err := architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion, options)
 	if err != nil {
 		return nil, err
+	}
+	if architectureV2RuntimeOwnerRegistrationsOverride != nil {
+		registrations = architectureV2RuntimeOwnerRegistrationsOverride(registrations)
 	}
 	channels, err := architectureV2ProductExecutionChannels(options)
 	if err != nil {
@@ -240,22 +277,22 @@ func architectureV2LocalRuntimeOwnerRegistrations(workspaceRoot, runtimeVersion 
 }
 
 func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion string, options architectureV2ExecutionCLIOptions) ([]architecturev2.ProductRuntimeOwnerRegistration, error) {
-	policies, err := runtimeexecutorlocal.NewOSBasementPolicyOperations(workspaceRoot)
+	policies, err := nativehost.NewOSBasementPolicyOperations(workspaceRoot)
 	if err != nil {
 		return nil, fmt.Errorf("configure owner-bound local policy operations: %w", err)
 	}
-	basementCoreOperations, err := runtimeexecutorlocal.NewOSBasementCoreOperations(workspaceRoot)
+	basementCoreOperations, err := nativehost.NewOSBasementCoreOperations(workspaceRoot)
 	if err != nil {
 		return nil, fmt.Errorf("configure local Basement core operations: %w", err)
 	}
 	// The standard OpenTofu executor (ADR-0045 Stage 1): Core roots, workload
 	// roots, and edge and federation contract roots under the opentofu and
 	// terramate targets. Under compose every owner stays native (S-F).
-	nativeCompose, err := runtimeexecutorlocal.NewOSNativeComposeRuntime(workspaceRoot)
+	nativeCompose, err := nativehost.NewOSNativeComposeRuntime(workspaceRoot)
 	if err != nil {
 		return nil, fmt.Errorf("configure the native Verify owner for OpenTofu roots: %w", err)
 	}
-	openTofuRuntime := runtimeexecutoropentofu.Runtime{WorkspaceRoot: workspaceRoot, Native: nativeCompose}
+	openTofuRuntime := opentofu.Runtime{WorkspaceRoot: workspaceRoot, Native: nativeCompose}
 	constructors := []func() (architecturev2.ProductRuntimeOwnerRegistration, error){
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return newArchitectureV2CloudBackupRegistration(workspaceRoot, runtimeVersion)
@@ -267,13 +304,13 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return architecturev2.NewProductSecurityBaselineRegistration(runtimeVersion)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
-			return architecturev2.NewProductCoreHostBootstrapRegistration(runtimeVersion, runtimeexecutorlocal.NewOSCoreHostBootstrapOperations())
+			return architecturev2.NewProductCoreHostBootstrapRegistration(runtimeVersion, nativehost.NewOSCoreHostBootstrapOperations())
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
-			return architecturev2.NewProductHomeBackupTargetRegistration(runtimeVersion, runtimeexecutorlocal.NewOSHomeBackupTargetOperations())
+			return architecturev2.NewProductHomeBackupTargetRegistration(runtimeVersion, nativehost.NewOSHomeBackupTargetOperations())
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
-			operations, err := runtimeexecutorlocal.NewOSInternalPKIOperations(workspaceRoot)
+			operations, err := nativehost.NewOSInternalPKIOperations(workspaceRoot)
 			if err != nil {
 				return architecturev2.ProductRuntimeOwnerRegistration{}, err
 			}
@@ -286,23 +323,23 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return architecturev2.NewProductBasementCoreLiteRegistration(runtimeVersion, basementCoreOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
-			operations, err := runtimeexecutorlocal.NewOSCloudCoreOperations(workspaceRoot)
+			operations, err := nativehost.NewOSCloudCoreOperations(workspaceRoot)
 			if err != nil {
 				return architecturev2.ProductRuntimeOwnerRegistration{}, err
 			}
 			return architecturev2.NewProductCloudCoreRegistration(runtimeVersion, operations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
-			operations, err := runtimeexecutorlocal.NewOSCloudStandaloneCoreOperations(workspaceRoot)
+			operations, err := nativehost.NewOSCloudStandaloneCoreOperations(workspaceRoot)
 			if err != nil {
 				return architecturev2.ProductRuntimeOwnerRegistration{}, err
 			}
 			return architecturev2.NewProductCloudStandaloneCoreRegistration(runtimeVersion, operations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
-			constructor := runtimeexecutorlocal.NewOSCloudHostSecurityOperations
+			constructor := nativehost.NewOSCloudHostSecurityOperations
 			if architectureV2DispatchedLocalChannel(options) {
-				constructor = runtimeexecutorlocal.NewOSCloudHostSecurityOperationsForDispatchedChannel
+				constructor = nativehost.NewOSCloudHostSecurityOperationsForDispatchedChannel
 			}
 			operations, err := constructor(workspaceRoot)
 			if err != nil {
@@ -311,7 +348,7 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return architecturev2.NewProductCloudHostSecurityRegistration(runtimeVersion, operations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
-			operations, err := runtimeexecutorlocal.NewOSCloudPublicEdgeOperations(workspaceRoot)
+			operations, err := nativehost.NewOSCloudPublicEdgeOperations(workspaceRoot)
 			if err != nil {
 				return architecturev2.ProductRuntimeOwnerRegistration{}, err
 			}
@@ -322,14 +359,14 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return architecturev2.WithProductOpenTofuContractRoot(registration, openTofuRuntime)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
-			operations, err := runtimeexecutorlocal.NewOSPublicTLSOperations(workspaceRoot)
+			operations, err := nativehost.NewOSPublicTLSOperations(workspaceRoot)
 			if err != nil {
 				return architecturev2.ProductRuntimeOwnerRegistration{}, err
 			}
 			return architecturev2.NewProductPublicTLSRegistration(runtimeVersion, operations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
-			operations, err := runtimeexecutorlocal.NewOSCloudIdentityTrustPolicyOperations(workspaceRoot)
+			operations, err := nativehost.NewOSCloudIdentityTrustPolicyOperations(workspaceRoot)
 			if err != nil {
 				return architecturev2.ProductRuntimeOwnerRegistration{}, err
 			}
@@ -348,14 +385,14 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return architecturev2.NewProductLocalAutonomyRegistration(runtimeVersion, policies)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
-			registration, err := architecturev2.NewProductBridgeOriginMTLSRegistration(runtimeVersion, runtimeexecutorlocal.NewOSBridgeOriginMTLSOperations(workspaceRoot))
+			registration, err := architecturev2.NewProductBridgeOriginMTLSRegistration(runtimeVersion, nativehost.NewOSBridgeOriginMTLSOperations(workspaceRoot))
 			if err != nil {
 				return architecturev2.ProductRuntimeOwnerRegistration{}, err
 			}
 			return architecturev2.WithProductOpenTofuContractRoot(registration, openTofuRuntime)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
-			registration, err := architecturev2.NewProductFederationLinkRegistration(runtimeVersion, runtimeexecutorlocal.NewOSFederationLinkOperations(workspaceRoot))
+			registration, err := architecturev2.NewProductFederationLinkRegistration(runtimeVersion, nativehost.NewOSFederationLinkOperations(workspaceRoot))
 			if err != nil {
 				return architecturev2.ProductRuntimeOwnerRegistration{}, err
 			}
@@ -373,19 +410,19 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 	// The standard OpenTofu executor owns the opentofu and terramate units of
 	// the same Core modules whose compose unit stays on the native executor
 	// above (S-F).
-	openTofu, err := architecturev2.NewProductOpenTofuRegistrations(runtimeVersion, openTofuRuntime, runtimeexecutoropentofu.DefaultModuleBindings())
+	openTofu, err := architecturev2.NewProductOpenTofuRegistrations(runtimeVersion, openTofuRuntime, opentofu.DefaultModuleBindings())
 	if err != nil {
 		return nil, fmt.Errorf("register OpenTofu runtime owners: %w", err)
 	}
 	registrations = append(registrations, openTofu...)
-	nativeStandalone, err := runtimeexecutorlocal.NewOSStandaloneComposeWorkloadOperations(workspaceRoot)
+	nativeStandalone, err := nativehost.NewOSStandaloneComposeWorkloadOperations(workspaceRoot)
 	if err != nil {
 		return nil, fmt.Errorf("configure standalone Compose application adapter: %w", err)
 	}
 	// Workload bundles keep one selector per application under every target;
 	// the operations owner applies the Compose project natively under compose
 	// and through its OpenTofu wrapper root under opentofu and terramate.
-	standaloneOperations, err := runtimeexecutoropentofu.NewWorkloadOperations(nativeStandalone, openTofuRuntime)
+	standaloneOperations, err := opentofu.NewWorkloadOperations(nativeStandalone, openTofuRuntime)
 	if err != nil {
 		return nil, fmt.Errorf("configure OpenTofu standalone Compose application roots: %w", err)
 	}
@@ -449,18 +486,7 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 		// Public TLS is a StackKits-owned edge operation. Keep it out of the
 		// remote static set so an Inventory-backed hybrid channel cannot route
 		// certificate verification through an unbound Techstack adapter.
-		remote, err := architecturev2.NewProductRemoteStaticRuntimeOwnerRegistrations(
-			architecturev2.ProductRuntimeOwnerModernHomeIdentity,
-			architecturev2.ProductRuntimeOwnerModernCloudIdentity,
-			architecturev2.ProductRuntimeOwnerFederationControlAgent,
-			architecturev2.ProductRuntimeOwnerBridgePublication,
-			architecturev2.ProductRuntimeOwnerModernFederationPolicy,
-			architecturev2.ProductRuntimeOwnerFederationBackup,
-			architecturev2.ProductRuntimeOwnerFederationObservability,
-			architecturev2.ProductRuntimeOwnerHomePrivateRemoteAccess,
-			architecturev2.ProductRuntimeOwnerHAModernWarm,
-			architecturev2.ProductRuntimeOwnerHAModernQuorum,
-		)
+		remote, err := architecturev2.NewProductRemoteStaticRuntimeOwnerRegistrations(architectureV2ProcessDispatchedOwners...)
 		if err != nil {
 			return nil, fmt.Errorf("register Modern process runtime owners: %w", err)
 		}

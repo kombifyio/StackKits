@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -14,14 +14,14 @@ type productVaultwardenSelectedPaaSFactory struct {
 	runtimeVersion          string
 	runtimeAdapterRef       string
 	runtimeAdapterModuleRef string
-	operations              runtimeexecutorlocal.SelectedPaaSWorkloadOperations
+	operations              nativehost.SelectedPaaSWorkloadOperations
 }
 
 func NewProductVaultwardenSelectedPaaSRegistration(
 	runtimeVersion string,
 	runtimeAdapterRef string,
 	runtimeAdapterModuleRef string,
-	operations runtimeexecutorlocal.SelectedPaaSWorkloadOperations,
+	operations nativehost.SelectedPaaSWorkloadOperations,
 ) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) ||
 		runtimeAdapterRef == "" || runtimeAdapterRef != strings.TrimSpace(runtimeAdapterRef) ||
@@ -70,14 +70,14 @@ func (f *productVaultwardenSelectedPaaSFactory) PrepareRuntimeOwner(request Prod
 	if err != nil {
 		return nil, err
 	}
-	authority := runtimeexecutorlocal.VaultwardenWorkloadAuthority{
+	authority := nativehost.VaultwardenWorkloadAuthority{
 		ProviderContractHash: target.ProviderContractHash,
 		ModuleContractHash:   target.ModuleContractHash,
 		UnitContractHash:     target.UnitContractHash,
 		HealthContractHash:   health[moduleHealthIndex].ContractHash,
 		RuntimeAdapter:       selectedPaaSRuntimeAdapterAuthority(*target.RuntimeAdapter),
 	}
-	return runtimeexecutorlocal.NewVaultwardenSelectedPaaSExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{
+	return nativehost.NewVaultwardenSelectedPaaSExecutor(identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
 	}, authority, f.operations), nil
 }

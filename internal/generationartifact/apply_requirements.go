@@ -37,6 +37,10 @@ type ApplyRequirements struct {
 	BackupTargetBindings []ApplyBackupTargetBindingRequirement `json:"backupTargetBindings,omitempty"`
 	EvidenceRequirements []ApplyEvidenceRequirement            `json:"evidenceRequirements"`
 	HealthRequirements   []ApplyHealthRequirement              `json:"healthRequirements"`
+	// ExecutionScope is set only on a host-scoped projection of a multi-host
+	// plan (see VerifiedPlan.WithExecutionScope). It is part of the requirements
+	// hash, so a scoped Apply can never be mistaken for a whole-plan Apply.
+	ExecutionScope *ApplyExecutionScope `json:"executionScope,omitempty"`
 }
 
 type ApplyWorkloadRequirement struct {
@@ -2203,6 +2207,7 @@ func cloneApplyRequirements(source ApplyRequirements) ApplyRequirements {
 		result.HealthRequirements[index].NodeRefs = append([]string(nil), source.HealthRequirements[index].NodeRefs...)
 		result.HealthRequirements[index].Probe = cloneApplyHealthProbe(source.HealthRequirements[index].Probe)
 	}
+	result.ExecutionScope = source.ExecutionScope.clone()
 	return result
 }
 

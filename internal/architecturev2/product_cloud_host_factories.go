@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -17,28 +17,28 @@ const (
 
 type productCloudHostSecurityFactory struct {
 	runtimeVersion string
-	operations     runtimeexecutorlocal.CloudHostSecurityOperations
+	operations     nativehost.CloudHostSecurityOperations
 }
 
 type productCloudPublicEdgeFactory struct {
 	runtimeVersion string
-	operations     runtimeexecutorlocal.CloudPublicEdgeOperations
+	operations     nativehost.CloudPublicEdgeOperations
 }
 
 type productCloudOffsiteBackupFactory struct {
 	runtimeVersion string
-	operations     runtimeexecutorlocal.CloudOffsiteBackupOperations
+	operations     nativehost.CloudOffsiteBackupOperations
 }
 
 type productPublicTLSFactory struct {
 	runtimeVersion string
-	operations     runtimeexecutorlocal.PublicTLSOperations
+	operations     nativehost.PublicTLSOperations
 }
 
 // NewProductCloudHostSecurityRegistration binds the exact node-local Cloud
 // firewall/hardening owner to an authenticated host-channel implementation.
 // Provider lifecycle and host transport remain outside the registration.
-func NewProductCloudHostSecurityRegistration(runtimeVersion string, operations runtimeexecutorlocal.CloudHostSecurityOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductCloudHostSecurityRegistration(runtimeVersion string, operations nativehost.CloudHostSecurityOperations) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("Cloud host-security product registration requires a runtime version and operations owner")
 	}
@@ -63,9 +63,9 @@ func (f *productCloudHostSecurityFactory) PrepareRuntimeOwner(request ProductRun
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewCloudHostSecurityExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{
+	return nativehost.NewCloudHostSecurityExecutor(identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
-	}, runtimeexecutorlocal.CloudHostSecurityAuthority{
+	}, nativehost.CloudHostSecurityAuthority{
 		ProviderContractHash: target.ProviderContractHash,
 		ModuleContractHash:   target.ModuleContractHash,
 		HealthContractHash:   health[0].ContractHash,
@@ -75,7 +75,7 @@ func (f *productCloudHostSecurityFactory) PrepareRuntimeOwner(request ProductRun
 // NewProductCloudPublicEdgeRegistration binds only the Cloud node-local edge
 // policy owner. DNS, certificate issuance, secrets, provider resources, and
 // generic proxy commands are not part of its Operations capability.
-func NewProductCloudPublicEdgeRegistration(runtimeVersion string, operations runtimeexecutorlocal.CloudPublicEdgeOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductCloudPublicEdgeRegistration(runtimeVersion string, operations nativehost.CloudPublicEdgeOperations) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("Cloud public-edge product registration requires a runtime version and operations owner")
 	}
@@ -100,9 +100,9 @@ func (f *productCloudPublicEdgeFactory) PrepareRuntimeOwner(request ProductRunti
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewCloudPublicEdgeExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{
+	return nativehost.NewCloudPublicEdgeExecutor(identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
-	}, runtimeexecutorlocal.CloudPublicEdgeAuthority{
+	}, nativehost.CloudPublicEdgeAuthority{
 		ProviderContractHash: target.ProviderContractHash,
 		ModuleContractHash:   target.ModuleContractHash,
 		HealthContractHash:   health[0].ContractHash,
@@ -112,7 +112,7 @@ func (f *productCloudPublicEdgeFactory) PrepareRuntimeOwner(request ProductRunti
 // NewProductCloudOffsiteBackupRegistration binds the exact node-local backup
 // target verifier. Provider selection, target lifecycle, connection material,
 // and credentials remain inside the authenticated Operations implementation.
-func NewProductCloudOffsiteBackupRegistration(runtimeVersion string, operations runtimeexecutorlocal.CloudOffsiteBackupOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductCloudOffsiteBackupRegistration(runtimeVersion string, operations nativehost.CloudOffsiteBackupOperations) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("Cloud offsite-backup product registration requires a runtime version and operations owner")
 	}
@@ -138,9 +138,9 @@ func (f *productCloudOffsiteBackupFactory) PrepareRuntimeOwner(request ProductRu
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewCloudOffsiteBackupExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{
+	return nativehost.NewCloudOffsiteBackupExecutor(identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
-	}, runtimeexecutorlocal.CloudOffsiteBackupAuthority{
+	}, nativehost.CloudOffsiteBackupAuthority{
 		ProviderContractHash: target.ProviderContractHash,
 		ModuleContractHash:   target.ModuleContractHash,
 		HealthContractHash:   health[0].ContractHash,
@@ -150,7 +150,7 @@ func (f *productCloudOffsiteBackupFactory) PrepareRuntimeOwner(request ProductRu
 // NewProductPublicTLSRegistration binds the node-local public TLS policy to an
 // authenticated Cloud operations implementation. ACME credentials and
 // certificate material remain construction-owned by that implementation.
-func NewProductPublicTLSRegistration(runtimeVersion string, operations runtimeexecutorlocal.PublicTLSOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductPublicTLSRegistration(runtimeVersion string, operations nativehost.PublicTLSOperations) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("public TLS product registration requires a runtime version and operations owner")
 	}
@@ -175,9 +175,9 @@ func (f *productPublicTLSFactory) PrepareRuntimeOwner(request ProductRuntimeOwne
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewPublicTLSExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{
+	return nativehost.NewPublicTLSExecutor(identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
-	}, runtimeexecutorlocal.PublicTLSAuthority{
+	}, nativehost.PublicTLSAuthority{
 		ProviderContractHash: target.ProviderContractHash,
 		ModuleContractHash:   target.ModuleContractHash,
 		HealthContractHash:   health[0].ContractHash,

@@ -11,7 +11,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/load"
-	"github.com/kombifyio/stackkits/internal/platformdeploy"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 

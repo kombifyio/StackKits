@@ -63,26 +63,33 @@ type HermeticIssueRequest struct {
 }
 
 type externalBindingWire struct {
-	APIVersion             string   `json:"apiVersion"`
-	Kind                   string   `json:"kind"`
-	BindingRef             string   `json:"bindingRef"`
-	FabricRef              string   `json:"fabricRef"`
-	CustodyAttestationRef  string   `json:"custodyAttestationRef"`
-	StackID                string   `json:"stackId"`
-	CapabilityRef          string   `json:"capabilityRef"`
-	ContractOwnerRef       string   `json:"contractOwnerRef"`
-	CapabilityContractHash string   `json:"capabilityContractHash"`
-	HomeSiteRefs           []string `json:"homeSiteRefs"`
-	CloudSiteRefs          []string `json:"cloudSiteRefs"`
-	TargetNodes            []string `json:"targetNodes"`
-	BridgeContractHash     string   `json:"bridgeContractHash"`
-	RequirementsHash       string   `json:"requirementsHash"`
-	StackKitsVersion       string   `json:"stackkitsVersion"`
-	CandidateDigest        string   `json:"candidateDigest"`
-	SpecHash               string   `json:"specHash"`
-	IssuedAt               string   `json:"issuedAt"`
-	ValidUntil             string   `json:"validUntil"`
-	BindingHash            string   `json:"bindingHash"`
+	APIVersion             string                     `json:"apiVersion"`
+	Kind                   string                     `json:"kind"`
+	BindingRef             string                     `json:"bindingRef"`
+	FabricRef              string                     `json:"fabricRef"`
+	CustodyAttestationRef  string                     `json:"custodyAttestationRef"`
+	StackID                string                     `json:"stackId"`
+	CapabilityRef          string                     `json:"capabilityRef"`
+	ContractOwnerRef       string                     `json:"contractOwnerRef"`
+	CapabilityContractHash string                     `json:"capabilityContractHash"`
+	HomeSiteRefs           []string                   `json:"homeSiteRefs"`
+	CloudSiteRefs          []string                   `json:"cloudSiteRefs"`
+	TargetNodes            []federationTargetNodeWire `json:"targetNodes"`
+	BridgeContractHash     string                     `json:"bridgeContractHash"`
+	RequirementsHash       string                     `json:"requirementsHash"`
+	StackKitsVersion       string                     `json:"stackkitsVersion"`
+	CandidateDigest        string                     `json:"candidateDigest"`
+	SpecHash               string                     `json:"specHash"`
+	IssuedAt               string                     `json:"issuedAt"`
+	ValidUntil             string                     `json:"validUntil"`
+	BindingHash            string                     `json:"bindingHash"`
+}
+
+// federationTargetNodeWire is one compiler-derived {siteRef, nodeRef} pair of
+// the FederationLinkRequirement the binding must match exactly.
+type federationTargetNodeWire struct {
+	SiteRef string `json:"siteRef"`
+	NodeRef string `json:"nodeRef"`
 }
 
 // DecodeUnsignedProductionBinding accepts only the closed, unsigned external

@@ -334,11 +334,7 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 						ArchiveSHA256:    "sha256:" + installed.ArchiveSHA256,
 						ExecutableSHA256: targetExecutableDigest,
 					},
-					Prior: lifecyclemutation.ReleaseAuthority{
-						Version:          architectureV2ComponentVersion(snapshot.Release.Version),
-						ArchiveSHA256:    snapshot.Release.ArchiveSHA256,
-						ExecutableSHA256: snapshot.Executable.Blob.SHA256,
-					},
+					Prior: priorReleaseAuthority(snapshot),
 				}, nil
 			},
 		)

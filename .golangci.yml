@@ -176,7 +176,7 @@ linters:
       - path: "internal/kitio/roundtrip\\.go"
         linters:
           - goconst
-      - path: "internal/platformdeploy/.*\\.go"
+      - path: "internal/runtimeexecutor/fallback/platformdeploy/.*\\.go"
         linters:
           - goconst
       - path: "internal/registry/client\\.go"

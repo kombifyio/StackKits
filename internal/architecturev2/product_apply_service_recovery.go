@@ -55,6 +55,11 @@ func (s *Service) reconcileProductApplyWithClock(ctx context.Context, input Prod
 	if clock == nil {
 		return VerifiedApplyResult{}, resolveError(ErrApplyAuthorization, "Product Apply reconcile requires a clock", nil)
 	}
+	scopedPlan, err := s.scopeProductPlan(current.plan)
+	if err != nil {
+		return VerifiedApplyResult{}, err
+	}
+	current.plan = scopedPlan
 	if !s.generation.beginApplyAuthorization(current.key, current.epoch, current.plan.Binding()) {
 		return VerifiedApplyResult{}, resolveError(ErrApplyAuthorization, "current resolution is stale, superseded, or already consumed", nil)
 	}

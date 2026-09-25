@@ -162,7 +162,7 @@
       "cliHelpers": [
         {
           "command": "stackkit setup mail-server",
-          "purpose": "Create the mail domain and first mailbox after owner approval, print DNS records and verify IMAP and submission."
+          "purpose": "Create the mail domain and first mailbox after owner approval, optionally configure the outbound relay, print DNS records and verify IMAP and submission."
         },
         {
           "command": "stackkit agent mcp-config",

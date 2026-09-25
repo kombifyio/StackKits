@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:3c8d3b2271ec1e4cf92aca114c0531eab5b67d1500c0a1c5053dfbe069bc585d",
+  "contentDigest": "sha256:d58c16620934666faafe5468655215fde4bb2cf71c75f136f13696598f83248f",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -668,7 +668,7 @@
         }
       },
       "defaultAlternative": "stalwart",
-      "description": "Your own mail server on a Cloud node through Stalwart: mailboxes for your domain with SMTP, IMAP and submission. StackKits prints the DNS records you publish; it never changes DNS.",
+      "description": "Your own mail server on a dedicated Cloud node through Stalwart: mailboxes for your domain with SMTP, IMAP and submission. StackKits prints the DNS records you publish; it never changes DNS.",
       "docs": "/guides/stackkits/use-cases/mail",
       "id": "mail-server",
       "mainUseCase": {

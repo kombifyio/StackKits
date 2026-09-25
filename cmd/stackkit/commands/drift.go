@@ -478,6 +478,9 @@ func runDriftReconcile(cmd *cobra.Command, _ []string) error {
 		})
 		result := advancedDriftReconcileResult{advancedMutationResult: mutation}
 		if err == nil {
+			// Reconcile re-applies every workload; one without its owner
+			// gets it, as after a Standard install.
+			runAutomaticOwnerSetup(cmd.Context(), getWorkDir())
 			// Post-reconcile proof: the same drift report, including the
 			// per-stack detailed-exitcode plans, observed after the mutation.
 			ctx := cmd.Context()
@@ -647,11 +650,7 @@ func runStandardDriftReconcile(cmd *cobra.Command) error {
 					ArchiveSHA256:    "sha256:" + receipt.ArchiveSHA256,
 					ExecutableSHA256: executableDigest,
 				},
-				Prior: lifecyclemutation.ReleaseAuthority{
-					Version:          architectureV2ComponentVersion(snapshot.Release.Version),
-					ArchiveSHA256:    snapshot.Release.ArchiveSHA256,
-					ExecutableSHA256: snapshot.Executable.Blob.SHA256,
-				},
+				Prior: priorReleaseAuthority(snapshot),
 			}, nil
 		},
 	)

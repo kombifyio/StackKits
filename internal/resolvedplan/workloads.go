@@ -3,6 +3,7 @@ package resolvedplan
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 type resolvedWorkloadSelection struct {
@@ -20,6 +21,7 @@ type resolvedWorkloadSelection struct {
 	secretRefs                map[string]any
 	siteRefs                  []string
 	nodeRefs                  []string
+	exclusiveNode             bool
 }
 
 func resolveWorkloadSelections(profile *profileView, spec *specView, catalog *indexedCatalog) (map[string]*resolvedWorkloadSelection, error) {
@@ -123,15 +125,53 @@ func resolveWorkloadSelections(profile *profileView, spec *specView, catalog *in
 		if err != nil {
 			return nil, err
 		}
+		exclusiveNode, err := boolFieldDefault(contract, "catalog.workloads."+id, "exclusiveNode", false)
+		if err != nil {
+			return nil, err
+		}
 		resolved[id] = &resolvedWorkloadSelection{
 			id: id, alternativeID: alternativeID, providerID: providerID, moduleID: moduleID,
 			runtimeAdapterID: adapterID, runtimeAdapterProviderID: adapterProviderID, runtimeAdapterModuleID: adapterModuleID,
 			runtimeAdapterFallbackIDs: fallbackIDs,
 			contract:                  contract, alternative: alternative, settings: settings, secretRefs: secretRefs,
-			siteRefs: siteRefs, nodeRefs: nodeRefs,
+			siteRefs: siteRefs, nodeRefs: nodeRefs, exclusiveNode: exclusiveNode,
 		}
 	}
+	if err := validateExclusiveNodePlacements(resolved); err != nil {
+		return nil, err
+	}
 	return resolved, nil
+}
+
+// validateExclusiveNodePlacements enforces #WorkloadContractV2.exclusiveNode:
+// the workload resolves to exactly one node and no other application workload
+// resolves to that node. Platform services stay allowed on it.
+func validateExclusiveNodePlacements(resolved map[string]*resolvedWorkloadSelection) error {
+	for _, id := range sortedStringMapKeys(resolved) {
+		workload := resolved[id]
+		if !workload.exclusiveNode {
+			continue
+		}
+		path := "spec.workloads." + id + ".placement"
+		if len(workload.nodeRefs) != 1 {
+			return fail(ErrUnresolvedPlacement, path, "workload %q needs one dedicated node but resolves to %d nodes (%s); set placement.nodeRefs to exactly one node", id, len(workload.nodeRefs), strings.Join(workload.nodeRefs, ", "))
+		}
+		node := workload.nodeRefs[0]
+		var shared []string
+		for _, otherID := range sortedStringMapKeys(resolved) {
+			other := resolved[otherID]
+			if otherID == id || !contains(other.nodeRefs, node) {
+				continue
+			}
+			if kind, _ := other.contract["kind"].(string); kind == "application" {
+				shared = append(shared, otherID)
+			}
+		}
+		if len(shared) > 0 {
+			return fail(ErrUnresolvedPlacement, path, "workload %q needs a dedicated node, but node %q also hosts %s; add a separate node for %q and set placement.nodeRefs so the other workloads stay off node %q", id, node, strings.Join(shared, ", "), id, node)
+		}
+	}
+	return nil
 }
 
 func resolveWorkloadRuntimeFallbacks(workloadID string, selection, alternative map[string]any, primary string) ([]string, error) {

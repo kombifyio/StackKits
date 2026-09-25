@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -15,18 +15,18 @@ const (
 
 type productHomeAccessFactory struct {
 	runtimeVersion string
-	operations     runtimeexecutorlocal.HomeAccessPolicyOperations
+	operations     nativehost.HomeAccessPolicyOperations
 }
 
 type productLocalAutonomyFactory struct {
 	runtimeVersion string
-	operations     runtimeexecutorlocal.LocalAutonomyPolicyOperations
+	operations     nativehost.LocalAutonomyPolicyOperations
 }
 
 // NewProductHomeAccessRegistration binds the exact node-local Home access
 // selector to construction-owned enforcement operations. Discovery, endpoints,
 // credentials, transports, and provider lifecycle remain outside this factory.
-func NewProductHomeAccessRegistration(runtimeVersion string, operations runtimeexecutorlocal.HomeAccessPolicyOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductHomeAccessRegistration(runtimeVersion string, operations nativehost.HomeAccessPolicyOperations) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("Home access product registration requires a runtime version and operations owner")
 	}
@@ -50,16 +50,16 @@ func (f *productHomeAccessFactory) PrepareRuntimeOwner(request ProductRuntimeOwn
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewHomeAccessPolicyExecutor(identity, runtimeexecutorlocal.HomeAccessPolicyBinding{
+	return nativehost.NewHomeAccessPolicyExecutor(identity, nativehost.HomeAccessPolicyBinding{
 		SiteRefs: target.SiteRefs, NodeRefs: target.NodeRefs, ExecutionChannelRef: target.ExecutionChannelRef,
-	}, runtimeexecutorlocal.HomeAccessPolicyAuthority{
+	}, nativehost.HomeAccessPolicyAuthority{
 		ProviderContractHash: target.ProviderContractHash, ModuleContractHash: target.ModuleContractHash, HealthContractHash: health[0].ContractHash,
 	}, f.operations), nil
 }
 
 // NewProductLocalAutonomyRegistration binds the exact Home control-authority
 // node to construction-owned offline-autonomy enforcement operations.
-func NewProductLocalAutonomyRegistration(runtimeVersion string, operations runtimeexecutorlocal.LocalAutonomyPolicyOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductLocalAutonomyRegistration(runtimeVersion string, operations nativehost.LocalAutonomyPolicyOperations) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("local-autonomy product registration requires a runtime version and operations owner")
 	}
@@ -83,9 +83,9 @@ func (f *productLocalAutonomyFactory) PrepareRuntimeOwner(request ProductRuntime
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewLocalAutonomyPolicyExecutor(identity, runtimeexecutorlocal.LocalAutonomyPolicyBinding{
+	return nativehost.NewLocalAutonomyPolicyExecutor(identity, nativehost.LocalAutonomyPolicyBinding{
 		HomeSiteRefs: target.SiteRefs, NodeRefs: target.NodeRefs, ExecutionChannelRef: target.ExecutionChannelRef,
-	}, runtimeexecutorlocal.LocalAutonomyPolicyAuthority{
+	}, nativehost.LocalAutonomyPolicyAuthority{
 		ProviderContractHash: target.ProviderContractHash, ModuleContractHash: target.ModuleContractHash, HealthContractHash: health[0].ContractHash,
 	}, f.operations), nil
 }

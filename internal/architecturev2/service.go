@@ -75,6 +75,7 @@ type Service struct {
 	productApplyEvidenceCollector ProductApplyEvidenceCollector
 	productRuntimeOwners          *ProductRuntimeOwnerRegistry
 	productApplyVerifyExecutor    generationartifact.ApplyExecutorIdentity
+	productExecutionScope         *generationartifact.ApplyExecutionScope
 	rendererRegistry              *architecturev2renderer.Registry
 }
 

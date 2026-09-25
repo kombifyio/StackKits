@@ -19,7 +19,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
 	"gopkg.in/yaml.v3"
 )
@@ -515,7 +515,7 @@ func withPreparedHistoricalUpgradeCapture(
 	if coreModuleRef == "" {
 		coreModuleRef = "stackkits-basement-core-runtime"
 	}
-	coreProfile, ok := runtimeexecutorlocal.BasementCoreRuntimeProfileForModule(coreModuleRef)
+	coreProfile, ok := nativehost.BasementCoreRuntimeProfileForModule(coreModuleRef)
 	if !ok {
 		return errors.New("historical generation has no supported Basement Core profile")
 	}

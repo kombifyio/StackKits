@@ -15,13 +15,14 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/advancedrollback"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutoropentofu"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/terramatehost"
 	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
@@ -41,7 +42,7 @@ import (
 type coordinatedRollback struct {
 	workspace   string
 	session     publicUpgradeLifecycleSession
-	receipt     releaseindex.Receipt
+	release     *lifecycleReleaseAuthority
 	custody     upgradelifecycle.ExecutorStateRollbackCustody
 	current     *terramatehost.Layout
 	target      terramatehost.Layout
@@ -134,15 +135,17 @@ func (rollback *coordinatedRollback) run(ctx context.Context) error {
 			}
 			rollback.report.AuthorityRestored = true
 			advancedRollbackEvent("restore-authority", "succeeded", map[string]string{"targetSnapshotId": snapshot.ID})
-			if !advancedRollbackSameRelease(snapshot.Release, rollback.receipt) {
+			if !advancedRollbackSameRelease(snapshot, rollback.release) {
 				// The checkpoint's release differs from the running one: its
 				// captured executable regenerates and verifies, as the
 				// existing upgrade rollback does.
 				rollback.report.PriorReleaseExecuted = true
-				return rollback.phases(recoveryContext, priorBinary, advancedRollbackPriorReceipt(snapshot), request, journal, resumed)
+				return rollback.phases(recoveryContext, priorBinary, snapshot.Release.Version,
+					snapshotVerifyReceipt(snapshot), request, journal, resumed)
 			}
-			return withPublicUpgradeInstalledExecutable(recoveryContext, rollback.receipt, func(binary string) error {
-				return rollback.phases(recoveryContext, binary, rollback.receipt, request, journal, resumed)
+			return rollback.release.withExecutable(recoveryContext, func(binary string) error {
+				return rollback.phases(recoveryContext, binary, rollback.release.version(),
+					rollback.release.verifyReceipt(), request, journal, resumed)
 			})
 		},
 	)
@@ -162,7 +165,8 @@ func (rollback *coordinatedRollback) run(ctx context.Context) error {
 func (rollback *coordinatedRollback) phases(
 	ctx context.Context,
 	binary string,
-	binaryReceipt releaseindex.Receipt,
+	binaryVersion string,
+	verifyReceipt *releaseindex.Receipt,
 	request advancedrollback.Request,
 	journal advancedrollback.Journal,
 	resumed bool,
@@ -176,7 +180,7 @@ func (rollback *coordinatedRollback) phases(
 	if err != nil {
 		return fmt.Errorf("hash rollback executable: %w", err)
 	}
-	componentVersion := architectureV2ComponentVersion(binaryReceipt.Version)
+	componentVersion := architectureV2ComponentVersion(binaryVersion)
 
 	if session.Record().Phase == lifecyclemutation.PhaseRollbackStarted {
 		advancedRollbackEvent("generate", "started", nil)
@@ -187,8 +191,16 @@ func (rollback *coordinatedRollback) phases(
 		if err != nil {
 			return fmt.Errorf("authorize rollback generate: %w", err)
 		}
+		// The checkpoint plan records the exact Inventory it was generated
+		// from; a plain generate would re-measure free disk and could never
+		// reproduce the checkpoint plan hash its verify requires.
+		generateCommand, cleanupInventory, err := advancedRollbackGenerateCommand(rollback.custody)
+		if err != nil {
+			return err
+		}
+		defer cleanupInventory()
 		if _, err := runner.Run(ctx, binary, append(append(common,
-			lifecycleChildFlags(operationID, lifecyclemutation.PhaseRollbackGenerateStarted, nonce)...), "generate"),
+			lifecycleChildFlags(operationID, lifecyclemutation.PhaseRollbackGenerateStarted, nonce)...), generateCommand...),
 			rollback.workspace); err != nil {
 			rolloutFailure(advancedRollbackRolloutPrefix+"generate", err)
 			return fmt.Errorf("rollback generate: %w", err)
@@ -204,6 +216,10 @@ func (rollback *coordinatedRollback) phases(
 		}
 	}
 	if session.Record().Phase == lifecyclemutation.PhaseRollbackApplyStarted {
+		// The release being restored stages its own stackkit-server.
+		request.Native = advancedRollbackNativeSteps{
+			workspace: rollback.workspace, executable: binary, artifacts: rollback.custody.Artifacts,
+		}
 		report, err := advancedrollback.Execute(ctx, request, journal, resumed)
 		rollback.mergeStackReport(report)
 		if err != nil {
@@ -234,8 +250,8 @@ func (rollback *coordinatedRollback) phases(
 			rolloutFailure(advancedRollbackRolloutPrefix+"verify", err)
 			return fmt.Errorf("rollback verify: %w", err)
 		}
-		verified, err := decodeAndValidateUpgradeVerify(
-			raw, snapshot.Lineage.Binding.PlanHash, binaryReceipt,
+		verified, err := decodeAndValidateVerifyReport(
+			raw, snapshot.Lineage.Binding.PlanHash, verifyReceipt,
 			snapshot.OwnerRef, snapshot.Lineage.OwnerBindingDigest,
 		)
 		if err != nil {
@@ -253,6 +269,24 @@ func (rollback *coordinatedRollback) phases(
 		return session.Transition(lifecyclemutation.PhaseRollbackVerifyDone, lifecyclemutation.PhaseRollbackSucceeded)
 	}
 	return nil
+}
+
+// advancedRollbackGenerateCommand is the joined rollback generate, bound to
+// the Inventory document of the checkpoint's own ResolvedPlan when the
+// checkpoint captured one.
+func advancedRollbackGenerateCommand(custody upgradelifecycle.ExecutorStateRollbackCustody) ([]string, func(), error) {
+	plan, found := custody.Artifacts[nativehost.ResolvedPlanArtifactID]
+	if !found {
+		return []string{"generate"}, func() {}, nil
+	}
+	path, cleanup, err := materializePlanInventory(plan)
+	if err != nil {
+		return nil, nil, fmt.Errorf("materialize the checkpoint Inventory: %w", err)
+	}
+	if path == "" {
+		return []string{"generate"}, cleanup, nil
+	}
+	return []string{"generate", "--inventory", path}, cleanup, nil
 }
 
 func (rollback *coordinatedRollback) mergeStackReport(report advancedrollback.Report) {
@@ -296,13 +330,13 @@ func executeAdvancedRollback(
 		return report, err
 	}
 	advancedRollbackEvent("resolve-target", "succeeded", map[string]string{"targetSnapshotId": snapshotID})
-	kit, receipt, resolution, err := currentAdvancedReleaseAuthority(cmd, workspace)
+	release, err := currentLifecycleReleaseAuthority(cmd, workspace)
 	if err != nil {
 		return report, err
 	}
 
 	rollback := &coordinatedRollback{
-		workspace: workspace, receipt: receipt, custody: custody, target: target,
+		workspace: workspace, release: &release, custody: custody, target: target,
 		tools: request.tools, changeSetID: changeSetID, report: report,
 	}
 	journal, found, err := advancedrollback.LoadJournal(workspace, snapshotID)
@@ -340,12 +374,7 @@ func executeAdvancedRollback(
 		}
 		rollback.rollbackID = "rollback-" + strings.TrimPrefix(snapshotID, "sha256:")[:16] + "-" +
 			strings.ToLower(request.now.Format("20060102t150405z"))
-		var executableDigest string
-		if err := withPublicUpgradeInstalledExecutable(ctx, receipt, func(path string) error {
-			var digestErr error
-			executableDigest, digestErr = executableFileSHA256(path)
-			return digestErr
-		}); err != nil {
+		if err := release.withExecutable(ctx, func(string) error { return nil }); err != nil {
 			return report, err
 		}
 		begun, beginErr := beginPublicUpgradeMutation(workspace, func() (lifecyclemutation.BeginRequest, error) {
@@ -355,16 +384,8 @@ func executeAdvancedRollback(
 					ExecutorStateSnapshotID: custody.Snapshot.ID,
 					KopiaAnchorID:           custody.Snapshot.KopiaSnapshotAnchor.ID,
 				},
-				Target: lifecyclemutation.ReleaseAuthority{
-					Version:          architectureV2ComponentVersion(receipt.Version),
-					ArchiveSHA256:    "sha256:" + receipt.ArchiveSHA256,
-					ExecutableSHA256: executableDigest,
-				},
-				Prior: lifecyclemutation.ReleaseAuthority{
-					Version:          architectureV2ComponentVersion(custody.Snapshot.Release.Version),
-					ArchiveSHA256:    custody.Snapshot.Release.ArchiveSHA256,
-					ExecutableSHA256: custody.Snapshot.Executable.Blob.SHA256,
-				},
+				Target: release.journal(release.record.SHA256),
+				Prior:  priorReleaseAuthority(custody.Snapshot),
 			}, nil
 		})
 		if beginErr != nil {
@@ -389,7 +410,7 @@ func executeAdvancedRollback(
 		return rollback.report, err
 	}
 	_ = session.Close()
-	sealAdvancedRollback(ctx, workspace, kit, resolution, &rollback.report)
+	sealAdvancedRollback(ctx, workspace, release.kit, release.resolution(), &rollback.report)
 	return rollback.report, nil
 }
 
@@ -452,7 +473,7 @@ func selectAdvancedChangeSetRollback(
 func rollbackAdvancedChangeSetCoordinated(
 	ctx context.Context,
 	workspace string,
-	receipt releaseindex.Receipt,
+	release *lifecycleReleaseAuthority,
 	checkpoint publicUpgradeCheckpoint,
 	mutation publicUpgradeLifecycleSession,
 	control *confinedfs.Transaction,
@@ -485,7 +506,7 @@ func rollbackAdvancedChangeSetCoordinated(
 		return &report, err
 	}
 	rollback := &coordinatedRollback{
-		workspace: workspace, session: mutation, receipt: receipt, custody: custody,
+		workspace: workspace, session: mutation, release: release, custody: custody,
 		current: &current, target: target, tools: tools, changeSetID: verified.record.ChangeSetID,
 		rollbackID: checkpoint.OperationID + "-rollback", report: report,
 	}
@@ -498,18 +519,17 @@ func rollbackAdvancedChangeSetCoordinated(
 	return &rollback.report, nil
 }
 
-func advancedRollbackSameRelease(release upgradelifecycle.ExecutorStateRelease, receipt releaseindex.Receipt) bool {
-	return release.Version == receipt.Version &&
-		release.ArchiveSHA256 == "sha256:"+strings.TrimPrefix(receipt.ArchiveSHA256, "sha256:")
-}
-
-func advancedRollbackPriorReceipt(snapshot upgradelifecycle.ExecutorStateSnapshot) releaseindex.Receipt {
-	return releaseindex.Receipt{
-		SchemaVersion: releaseindex.ReceiptSchemaVersion,
-		Kit:           snapshot.Release.Kit, Version: snapshot.Release.Version,
-		Channel: snapshot.Release.Channel, Platform: snapshot.Release.Platform,
-		ArchiveSHA256: strings.TrimPrefix(snapshot.Release.ArchiveSHA256, "sha256:"),
+// advancedRollbackSameRelease reports whether the checkpoint's release is the
+// release executing the rollback: the same verified archive for a release
+// cache authority, the same executable digest for the running executable.
+func advancedRollbackSameRelease(snapshot upgradelifecycle.ExecutorStateSnapshot, release *lifecycleReleaseAuthority) bool {
+	if snapshot.Release.Version != release.version() {
+		return false
 	}
+	if release.runningExecutable() {
+		return snapshot.Executable.Blob.SHA256 == release.record.SHA256
+	}
+	return snapshot.Release.ArchiveSHA256 == "sha256:"+strings.TrimPrefix(release.receipt.ArchiveSHA256, "sha256:")
 }
 
 func advancedRollbackStacks(layout terramatehost.Layout) []advancedrollback.Stack {
@@ -572,6 +592,10 @@ func currentAdvancedRollbackLayout(workspace, siteRef, nodeRef string) (terramat
 	if err != nil {
 		return terramatehost.Layout{}, err
 	}
+	inventory, err = inventoryForPersistedGeneration(service, workspace, specRaw, inventory)
+	if err != nil {
+		return terramatehost.Layout{}, err
+	}
 	current, err := service.ResolveCurrent(architecturev2.ResolveInput{StackSpec: specRaw, Inventory: inventory})
 	if err != nil {
 		return terramatehost.Layout{}, err
@@ -620,9 +644,9 @@ func currentAdvancedRollbackLayout(workspace, siteRef, nodeRef string) (terramat
 // interpolation environment of a Core payload and the Compose project name
 // the root marker records.
 func advancedRollbackStackEnvironment(workspace string) func(advancedrollback.Stack) ([]string, error) {
-	var native runtimeexecutorlocal.NativeComposeRuntime
+	var native nativehost.NativeComposeRuntime
 	return func(stack advancedrollback.Stack) ([]string, error) {
-		marker, err := runtimeexecutoropentofu.ReadRootMarker(filepath.Join(workspace, filepath.FromSlash(stack.RuntimeRoot)))
+		marker, err := opentofu.ReadRootMarker(filepath.Join(workspace, filepath.FromSlash(stack.RuntimeRoot)))
 		if err != nil {
 			// No executor root: nothing runs a Compose project.
 			return nil, nil
@@ -630,7 +654,7 @@ func advancedRollbackStackEnvironment(workspace string) func(advancedrollback.St
 		environment := make([]string, 0, 8)
 		if marker.Kind == "" {
 			if native == nil {
-				if native, err = runtimeexecutorlocal.NewOSNativeComposeRuntime(workspace); err != nil {
+				if native, err = nativehost.NewOSNativeComposeRuntime(workspace); err != nil {
 					return nil, err
 				}
 			}
@@ -645,6 +669,65 @@ func advancedRollbackStackEnvironment(workspace string) func(advancedrollback.St
 		}
 		return environment, nil
 	}
+}
+
+// advancedRollbackNativeSteps runs the native Apply side steps around each
+// restored or recreated stack's forced apply, through the same native code
+// the runtime executor runs around its own `tofu apply`: the Core preparation
+// and completion (stackkit-server staging and recreation, step-ca reload,
+// PocketID owner realization, TinyAuth reconcile) for a Core root, and the
+// workload completion (Wings recreation, readiness, origin backend) for a
+// workload root, bound to the checkpoint's own workload bundle. Contract
+// roots of edge and federation owners start no process and have none.
+type advancedRollbackNativeSteps struct {
+	workspace, executable string
+	artifacts             map[string][]byte
+}
+
+func (n advancedRollbackNativeSteps) Prepare(ctx context.Context, stack advancedrollback.Stack) (func(context.Context) error, error) {
+	marker, err := opentofu.ReadRootMarker(filepath.Join(n.workspace, filepath.FromSlash(stack.RuntimeRoot)))
+	if err != nil {
+		// No executor root: nothing runs a Compose project.
+		return nil, nil
+	}
+	switch marker.Kind {
+	case "":
+		steps, err := nativehost.PrepareNativeComposeRoot(ctx, n.workspace, marker.ModuleRef, n.executable)
+		if err != nil {
+			return nil, err
+		}
+		return steps.Complete, nil
+	case opentofu.RootKindWorkload:
+		bundle, err := advancedRollbackWorkloadBundle(n.artifacts, marker.ModuleRef, marker.InstanceRef)
+		if err != nil {
+			return nil, err
+		}
+		return func(ctx context.Context) error {
+			return nativehost.CompleteRestoredWorkloadCompose(ctx, n.workspace, bundle)
+		}, nil
+	default:
+		return nil, nil
+	}
+}
+
+// advancedRollbackWorkloadBundle selects the checkpoint's one workload bundle
+// of the restored root's module instance.
+func advancedRollbackWorkloadBundle(artifacts map[string][]byte, moduleRef, instanceRef string) ([]byte, error) {
+	var selected []byte
+	for _, raw := range artifacts {
+		bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(raw)
+		if err != nil || bundle.ModuleRef != moduleRef || bundle.InstanceRef != instanceRef {
+			continue
+		}
+		if selected != nil {
+			return nil, fmt.Errorf("the checkpoint holds several workload bundles of %s", instanceRef)
+		}
+		selected = raw
+	}
+	if selected == nil {
+		return nil, fmt.Errorf("the checkpoint holds no workload bundle of %s", instanceRef)
+	}
+	return selected, nil
 }
 
 // resolveAdvancedRollbackTarget maps --to to the target checkpoint. A stored

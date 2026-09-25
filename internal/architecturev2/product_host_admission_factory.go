@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -40,10 +40,10 @@ func (f *productHostAdmissionFactory) PrepareRuntimeOwner(request ProductRuntime
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewHostAdmissionExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{
+	return nativehost.NewHostAdmissionExecutor(identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0],
 		ExecutionChannelRef: target.ExecutionChannelRef,
-	}, runtimeexecutorlocal.HostAdmissionAuthority{
+	}, nativehost.HostAdmissionAuthority{
 		ProviderContractHash: target.ProviderContractHash,
 		HealthContractHash:   health[0].ContractHash,
 	}), nil

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -13,10 +13,10 @@ const productCloudCoreAdapterID = "stackkits-cloud-core-local"
 type productCloudCoreFactory struct {
 	standalone     bool
 	runtimeVersion string
-	operations     runtimeexecutorlocal.CloudCoreOperations
+	operations     nativehost.CloudCoreOperations
 }
 
-func NewProductCloudStandaloneCoreRegistration(runtimeVersion string, operations runtimeexecutorlocal.CloudCoreOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductCloudStandaloneCoreRegistration(runtimeVersion string, operations nativehost.CloudCoreOperations) (ProductRuntimeOwnerRegistration, error) {
 	registration, err := NewProductCloudCoreRegistration(runtimeVersion, operations)
 	if err != nil {
 		return registration, err
@@ -26,7 +26,7 @@ func NewProductCloudStandaloneCoreRegistration(runtimeVersion string, operations
 	return registration, nil
 }
 
-func NewProductCloudCoreRegistration(runtimeVersion string, operations runtimeexecutorlocal.CloudCoreOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductCloudCoreRegistration(runtimeVersion string, operations nativehost.CloudCoreOperations) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("Cloud core registration requires a runtime version and host operations owner")
 	}
@@ -63,12 +63,12 @@ func (f *productCloudCoreFactory) PrepareRuntimeOwner(request ProductRuntimeOwne
 	if err != nil {
 		return nil, err
 	}
-	constructor := runtimeexecutorlocal.NewCloudCoreExecutor
+	constructor := nativehost.NewCloudCoreExecutor
 	if f.standalone {
-		constructor = runtimeexecutorlocal.NewCloudStandaloneCoreExecutor
+		constructor = nativehost.NewCloudStandaloneCoreExecutor
 	}
-	return constructor(identity, runtimeexecutorlocal.LocalTargetBinding{SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef},
-		runtimeexecutorlocal.CloudCoreAuthority{ProviderContractHash: target.ProviderContractHash, ModuleContractHash: target.ModuleContractHash, HealthContractHashes: healthHashes}, f.operations), nil
+	return constructor(identity, nativehost.LocalTargetBinding{SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef},
+		nativehost.CloudCoreAuthority{ProviderContractHash: target.ProviderContractHash, ModuleContractHash: target.ModuleContractHash, HealthContractHashes: healthHashes}, f.operations), nil
 }
 
 func productCloudCoreSelector() ProductRuntimeOwnerSelector {

@@ -32,6 +32,18 @@
       "description": "change-set apply only: the coordinated per-stack rollback a failed change set ran for a checkpoint of a generation.target=terramate install.",
       "$ref": "stackkit-rollback-result-v1.schema.json"
     },
+    "releaseAuthority": {
+      "description": "The release authority that executed the target, present once it was established. running-executable: the target is the release already executing and the workspace holds no release cache for it (a Techstack-managed host); sha256 is the running executable digest. workspace-release-cache: a Sigstore-verified receipt under .stackkit/releases; sha256 is the digest of its executable once materialized.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "version", "platform"],
+      "properties": {
+        "kind": { "enum": ["running-executable", "workspace-release-cache"] },
+        "version": { "type": "string" },
+        "platform": { "type": "string" },
+        "sha256": { "type": "string" }
+      }
+    },
     "driftReport": {
       "description": "drift reconcile only: the drift report observed after the reconcile.",
       "$ref": "stackkit-drift-report-v1.schema.json"

@@ -2,14 +2,10 @@ package localevidence
 
 import (
 	"crypto/ed25519"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
-	"strings"
-
-	"github.com/kombifyio/stackkits/internal/applyevidencev2"
 )
 
 const (
@@ -151,11 +147,7 @@ func SignOwnerMemberAdmission(workspaceRoot string, canonical []byte) (OwnerPoli
 // VerifyMemberAdmission verifies a member admission against the public Home
 // key the member pinned. The key ID must be derived from that exact key.
 func VerifyMemberAdmission(canonical []byte, signature OwnerPolicyStateSignature, ownerRef, keyID string, public ed25519.PublicKey) error {
-	value, err := base64.RawStdEncoding.Strict().DecodeString(signature.Value)
-	if len(canonical) == 0 || len(public) != ed25519.PublicKeySize || err != nil ||
-		strings.TrimSpace(ownerRef) == "" || signature.OwnerRef != ownerRef || signature.KeyID != keyID ||
-		applyevidence.ProducerKeyID(public) != keyID ||
-		!ed25519.Verify(public, ownerRestoreDigest(memberAdmissionDomain, canonical), value) {
+	if !verifyPinnedOwnerSignature(memberAdmissionDomain, canonical, signature, ownerRef, keyID, public) {
 		return errors.New("localevidence: member admission does not verify against the pinned Home owner key")
 	}
 	return nil

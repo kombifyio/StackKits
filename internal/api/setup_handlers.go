@@ -23,7 +23,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/config"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
-	"github.com/kombifyio/stackkits/internal/platformdeploy"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	"github.com/kombifyio/stackkits/internal/servicecatalog"
 	"github.com/kombifyio/stackkits/pkg/models"
 )

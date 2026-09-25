@@ -3,7 +3,7 @@ package commands
 import (
 	"fmt"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +33,7 @@ public key on the execution-channel Linux account.`,
 				}
 				return fmt.Errorf("host prepare is for Cloud Kit workspaces; this workspace selected %q", kit)
 			}
-			if err := runtimeexecutorlocal.PrepareCloudExecutionChannel(cmd.Context(), workspace, false); err != nil {
+			if err := nativehost.PrepareCloudExecutionChannel(cmd.Context(), workspace, false); err != nil {
 				return err
 			}
 			if !humanOutputSuppressed() {

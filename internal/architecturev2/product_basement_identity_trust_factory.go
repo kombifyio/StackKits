@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -12,10 +12,10 @@ const productBasementIdentityTrustAdapterID = "stackkits-basement-identity-trust
 
 type productBasementIdentityTrustFactory struct {
 	runtimeVersion string
-	operations     runtimeexecutorlocal.BasementIdentityTrustPolicyOperations
+	operations     nativehost.BasementIdentityTrustPolicyOperations
 }
 
-func NewProductBasementIdentityTrustRegistration(runtimeVersion string, operations runtimeexecutorlocal.BasementIdentityTrustPolicyOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductBasementIdentityTrustRegistration(runtimeVersion string, operations nativehost.BasementIdentityTrustPolicyOperations) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("Basement identity-trust product registration requires a runtime version and operations owner")
 	}
@@ -36,9 +36,9 @@ func (f *productBasementIdentityTrustFactory) PrepareRuntimeOwner(request Produc
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewBasementIdentityTrustPolicyExecutor(identity, runtimeexecutorlocal.BasementIdentityTrustPolicyBinding{
+	return nativehost.NewBasementIdentityTrustPolicyExecutor(identity, nativehost.BasementIdentityTrustPolicyBinding{
 		SiteRefs: target.SiteRefs, NodeRefs: target.NodeRefs, ExecutionChannelRef: target.ExecutionChannelRef,
-	}, runtimeexecutorlocal.BasementIdentityTrustPolicyAuthority{
+	}, nativehost.BasementIdentityTrustPolicyAuthority{
 		ProviderContractHash: target.ProviderContractHash, ModuleContractHash: target.ModuleContractHash, HealthContractHash: health[0].ContractHash,
 	}, f.operations), nil
 }

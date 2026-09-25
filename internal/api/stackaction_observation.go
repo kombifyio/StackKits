@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/docker"
-	"github.com/kombifyio/stackkits/internal/platformdeploy"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	stackaction "github.com/kombifyio/stackkits/internal/stackaction"
 	"github.com/kombifyio/stackkits/pkg/models"
 )

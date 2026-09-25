@@ -99,9 +99,14 @@ stackkit init modern-homelab --non-interactive --name my-modern-homelab \
   --use-case-alternative basement-core=standalone \
   --use-case-alternative photos=immich \
   --module-compute-profile stackkits-basement-core-runtime=standard \
-  --module-compute-profile stackkits-immich-runtime=standard
+  --module-compute-profile stackkits-immich-runtime=standard \
+  --owner-source=local --owner-email you@example.com
 stackkit validate stack-spec.yaml
 ```
+
+The owner flags establish local Home owner custody. Without them, `generate`
+needs explicit `--local-node`/`--local-site` flags and Federation binding
+adoption fails with `no local owner custody`.
 
 Replace the example domain with your intended domain. Native v2alpha2 records
 both workload alternatives and their independent module profiles explicitly.

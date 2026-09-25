@@ -14,6 +14,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/smtp"
 	"regexp"
 	"sort"
@@ -50,10 +51,33 @@ type StalwartMailDomainRequest struct {
 	AdminPassword      []byte
 	ACMEContact        string
 	RequestCertificate bool
+	// Relay optionally routes all outbound mail through the owner's
+	// smarthost. Its password is sent to Stalwart once and never logged,
+	// returned or persisted by StackKits; Stalwart masks it on read.
+	Relay *StalwartRelay
 	// Dial reaches the node's published mail ports; nil dials the loopback
 	// address of the node the setup runs on.
 	Dial func(ctx context.Context, port int) (net.Conn, error)
+	// LookupIPv4 resolves the mail host's IPv4 addresses; nil uses the
+	// system resolver.
+	LookupIPv4 func(ctx context.Context, host string) ([]netip.Addr, error)
 }
+
+// StalwartRelay is the owner's outbound relay (smarthost). Security is "ssl"
+// (implicit TLS) or "starttls"; TLS is always required and the relay
+// certificate is always verified.
+type StalwartRelay struct {
+	Host     string
+	Port     int
+	Security string
+	Username string
+	Password string
+}
+
+const (
+	stalwartRelayRouteName = "stackkit-relay"
+	stalwartRelayTLSName   = "stackkit-relay-tls"
+)
 
 // StalwartDNSRecord is one record the owner publishes. StackKits never
 // creates DNS records.
@@ -68,8 +92,13 @@ type StalwartDNSRecord struct {
 // StalwartMailDomainResult is secret-free. MailboxRef is a digest of the
 // mailbox address so lifecycle evidence never records the address itself.
 type StalwartMailDomainResult struct {
-	MailboxRef         string
-	Address            string
+	MailboxRef string
+	Address    string
+	// PublicIPv4 are the mail host's public IPv4 addresses; the owner sets
+	// reverse DNS for them.
+	PublicIPv4 []string
+	// Outbound says how the server sends mail: directly or through the relay.
+	Outbound           string
 	DomainCreated      bool
 	MailboxCreated     bool
 	IMAPLoginVerified  bool
@@ -110,10 +139,18 @@ func SetupStalwartMailDomain(ctx context.Context, client *http.Client, baseURL s
 	if len(request.AdminPassword) == 0 {
 		return StalwartMailDomainResult{}, errors.New("the custody-held Stalwart administrator password is unavailable")
 	}
+	relay, err := normalizeStalwartRelay(request.Relay)
+	if err != nil {
+		return StalwartMailDomainResult{}, err
+	}
+	publicIPv4, err := stalwartPublicIPv4(ctx, request.LookupIPv4, mailHost)
+	if err != nil {
+		return StalwartMailDomainResult{}, err
+	}
 	api := stalwartAPI{client: client, endpoint: strings.TrimRight(baseURL, "/") + "/jmap/", auth: "admin:" + string(request.AdminPassword)}
 	defer func() { api.auth = "" }()
 	address := localPart + "@" + domain
-	result := StalwartMailDomainResult{Address: address, MailboxRef: stalwartDigest(mailHost + "\x00" + address)}
+	result := StalwartMailDomainResult{Address: address, MailboxRef: stalwartDigest(mailHost + "\x00" + address), PublicIPv4: publicIPv4}
 
 	state, err := api.call(ctx,
 		stalwartCall("x:Domain/get", map[string]any{"properties": []string{"name"}}, "domains"),
@@ -180,6 +217,14 @@ func SetupStalwartMailDomain(ctx context.Context, client *http.Client, baseURL s
 		result.MailboxCreated = true
 	}
 
+	result.Outbound = "direct delivery to each recipient's MX host on port 25"
+	if relay != nil {
+		if err := stalwartConfigureRelay(ctx, api, *relay); err != nil {
+			return StalwartMailDomainResult{}, fmt.Errorf("configure the outbound relay: %w", err)
+		}
+		result.Outbound = fmt.Sprintf("through the relay %s:%d (%s, TLS required, certificate verified)", relay.Host, relay.Port, relay.Security)
+	}
+
 	result.Certificate = "not requested; IMAP and SMTP present Stalwart's self-signed certificate"
 	if request.RequestCertificate {
 		result.Certificate = stalwartRequestCertificate(ctx, api, state, domainID, mailHost, request.ACMEContact, domain)
@@ -230,6 +275,125 @@ func SetupStalwartMailDomain(ctx context.Context, client *http.Client, baseURL s
 	}
 	result.SubmissionVerified = true
 	return result, nil
+}
+
+// stalwartPublicIPv4 requires a public IPv4 address record for the mail
+// host. An IPv6-only mail server loses mail from IPv4-only senders, so the
+// setup refuses it (ADR-0046 amendment 2026-09-25).
+func stalwartPublicIPv4(ctx context.Context, lookup func(context.Context, string) ([]netip.Addr, error), mailHost string) ([]string, error) {
+	if lookup == nil {
+		lookup = func(ctx context.Context, host string) ([]netip.Addr, error) {
+			return net.DefaultResolver.LookupNetIP(ctx, "ip4", host)
+		}
+	}
+	addresses, _ := lookup(ctx, mailHost)
+	var public []string
+	for _, address := range addresses {
+		address = address.Unmap()
+		if address.Is4() && address.IsGlobalUnicast() && !address.IsPrivate() {
+			public = append(public, address.String())
+		}
+	}
+	if len(public) == 0 {
+		return nil, fmt.Errorf("%s has no public IPv4 address record; publish an A record pointing at this node's fixed public IPv4 (an IPv6-only mail server loses mail from IPv4-only senders) and rerun setup", mailHost)
+	}
+	sort.Strings(public)
+	return public, nil
+}
+
+func normalizeStalwartRelay(relay *StalwartRelay) (*StalwartRelay, error) {
+	if relay == nil {
+		return nil, nil
+	}
+	normalized := *relay
+	normalized.Host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(relay.Host), "."))
+	if _, err := netip.ParseAddr(normalized.Host); err != nil && (len(normalized.Host) > 253 || !stalwartDomainPattern.MatchString(normalized.Host)) {
+		return nil, errors.New("relay.host must be your relay's host name, for example smtp.example.net")
+	}
+	if normalized.Port < 1 || normalized.Port > 65535 {
+		return nil, errors.New("relay.port must be the relay's submission port, usually 465 or 587")
+	}
+	switch normalized.Security {
+	case "ssl", "starttls":
+	default:
+		return nil, errors.New(`relay.security must be "ssl" (implicit TLS, usually port 465) or "starttls" (usually port 587)`)
+	}
+	normalized.Username = strings.TrimSpace(relay.Username)
+	if normalized.Username == "" || len(normalized.Username) > 512 || strings.IndexFunc(normalized.Username, unicode.IsControl) >= 0 {
+		return nil, errors.New("relay.username must be the relay account's user name")
+	}
+	if relay.Password == "" || len(relay.Password) > 1024 || strings.IndexFunc(relay.Password, unicode.IsControl) >= 0 {
+		return nil, errors.New("relay.password must be the relay account's password (printable characters)")
+	}
+	return &normalized, nil
+}
+
+// stalwartConfigureRelay creates or updates the StackKits relay route and a
+// TLS strategy that requires TLS with a verified certificate, points every
+// non-local delivery at that route and reloads Stalwart's settings. Local
+// domains keep local delivery. The password is sent once; Stalwart masks it
+// on read.
+func stalwartConfigureRelay(ctx context.Context, api stalwartAPI, relay StalwartRelay) error {
+	state, err := api.call(ctx,
+		stalwartCall("x:MtaRoute/get", map[string]any{"properties": []string{"name"}}, "routes"),
+		stalwartCall("x:MtaTlsStrategy/get", map[string]any{"properties": []string{"name"}}, "tls"),
+	)
+	if err != nil {
+		return err
+	}
+	route := map[string]any{
+		"@type": "Relay", "name": stalwartRelayRouteName, "description": "Owner relay configured by stackkit setup mail-server",
+		"address": relay.Host, "port": relay.Port, "protocol": "smtp", "implicitTls": relay.Security == "ssl", "allowInvalidCerts": false,
+		"authUsername": relay.Username, "authSecret": map[string]any{"@type": "Value", "secret": relay.Password},
+	}
+	tlsStrategy := map[string]any{
+		"name": stalwartRelayTLSName, "description": "Owner relay: TLS required, certificate verified",
+		"startTls": "require", "allowInvalidCerts": false, "dane": "disable", "mtaSts": "disable",
+	}
+	for _, item := range []struct {
+		response, method string
+		object           map[string]any
+	}{
+		{"routes", "x:MtaRoute/set", route},
+		{"tls", "x:MtaTlsStrategy/set", tlsStrategy},
+	} {
+		existing, err := state.list(item.response)
+		if err != nil {
+			return err
+		}
+		id := ""
+		for _, candidate := range existing {
+			if stringValue(candidate["name"]) == stringValue(item.object["name"]) {
+				id = stringValue(candidate["id"])
+			}
+		}
+		if id == "" {
+			if _, err := api.create(ctx, item.method, item.object); err != nil {
+				return err
+			}
+			continue
+		}
+		patch := make(map[string]any, len(item.object))
+		for key, value := range item.object {
+			// The variant and the referenced name are read-only once created.
+			if key != "@type" && key != "name" {
+				patch[key] = value
+			}
+		}
+		if err := api.update(ctx, item.method, id, patch); err != nil {
+			return err
+		}
+	}
+	if err := api.update(ctx, "x:MtaOutboundStrategy/set", "singleton", map[string]any{
+		"route": map[string]any{"match": map[string]any{"0": map[string]any{"if": "is_local_domain(rcpt_domain)", "then": "'local'"}}, "else": "'" + stalwartRelayRouteName + "'"},
+		"tls":   map[string]any{"match": map[string]any{}, "else": "'" + stalwartRelayTLSName + "'"},
+	}); err != nil {
+		return err
+	}
+	if _, err := api.create(ctx, "x:Action/set", map[string]any{"@type": "ReloadSettings"}); err != nil {
+		return fmt.Errorf("reload settings: %w", err)
+	}
+	return nil
 }
 
 // stalwartRequestCertificate asks Stalwart for a publicly trusted certificate

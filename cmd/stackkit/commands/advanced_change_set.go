@@ -17,8 +17,6 @@ import (
 	"github.com/kombifyio/stackkits/internal/advancedchangeset"
 	"github.com/kombifyio/stackkits/internal/advancedtrust"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
-	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
-	"github.com/kombifyio/stackkits/internal/backupcustody"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/spf13/cobra"
@@ -76,15 +74,24 @@ func admitAdvancedChangeSetOperation(
 	if err != nil {
 		return advancedChangeSetAdmission{}, err
 	}
-	baselineService, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(version))
+	// Baseline and candidate resolve one after the other through one embedded
+	// authority; both carry the same Stack ID, so each resolution is sealed in
+	// its own authority scope and neither supersedes the other.
+	advancedChangeSetPrepareEvent("resolve-baseline")
+	service, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(version))
 	if err != nil {
 		return advancedChangeSetAdmission{}, err
 	}
-	candidateService, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(version))
+	// Baseline and candidate resolve from the Inventory the baseline was
+	// generated from, so the persisted plan and the change set compare like
+	// with like.
+	inventory, err = inventoryForPersistedGeneration(service, workspace, baselineRaw, inventory)
 	if err != nil {
 		return advancedChangeSetAdmission{}, err
 	}
-	baselineCurrent, err := baselineService.ResolveCurrent(architecturev2.ResolveInput{StackSpec: baselineRaw, Inventory: inventory})
+	baselineCurrent, err := service.ResolveCurrentScoped(
+		architecturev2.ResolveInput{StackSpec: baselineRaw, Inventory: inventory}, advancedBaselineAuthorityScope,
+	)
 	if err != nil {
 		return advancedChangeSetAdmission{}, err
 	}
@@ -92,7 +99,10 @@ func admitAdvancedChangeSetOperation(
 	if err != nil {
 		return advancedChangeSetAdmission{}, err
 	}
-	candidateCurrent, err := candidateService.ResolveCurrent(architecturev2.ResolveInput{StackSpec: candidateRaw, Inventory: inventory})
+	advancedChangeSetPrepareEvent("resolve-candidate")
+	candidateCurrent, err := service.ResolveCurrentScoped(
+		architecturev2.ResolveInput{StackSpec: candidateRaw, Inventory: inventory}, advancedCandidateAuthorityScope,
+	)
 	if err != nil {
 		return advancedChangeSetAdmission{}, err
 	}
@@ -126,12 +136,12 @@ func admitAdvancedChangeSetOperation(
 			Code: advancedcapability.ReasonAdvancedChangeSetInvalid, Field: "candidate", Detail: "stackId and outputRoot must match the baseline",
 		}
 	}
-	baselinePlan, err := baselineService.VerifyCanonicalPlan(baseline.CanonicalPlan)
+	baselinePlan, err := service.VerifyCanonicalPlan(baseline.CanonicalPlan)
 	if err != nil {
 		return advancedChangeSetAdmission{}, err
 	}
 	planPath, manifestPath, receiptPath := baselinePlan.MetadataPaths(workspace)
-	persisted, err := baselineService.ReadCanonicalPlan(planPath)
+	persisted, err := service.ReadCanonicalPlan(planPath)
 	if err != nil {
 		return advancedChangeSetAdmission{}, err
 	}
@@ -152,64 +162,36 @@ func admitAdvancedChangeSetOperation(
 		return advancedChangeSetAdmission{}, err
 	}
 	return advancedChangeSetAdmission{
-		workspace: workspace, baselineService: baselineService, candidateService: candidateService,
+		workspace: workspace, service: service,
 		baselineCurrent: baselineCurrent, candidateCurrent: candidateCurrent,
-		baseline: baseline, candidate: candidate, grant: grant,
+		baselinePlanHash: baseline.PlanHash, candidate: candidate, grant: grant,
 		capabilityRaw: bytes.Clone(capabilityRaw), candidateRaw: bytes.Clone(candidateRaw),
 		owner: owner, trustSHA256: trust.BundleSHA256,
 	}, nil
 }
 
+// Authority scopes of the two resolutions of one Advanced admission. They
+// isolate freshness state only and never enter a plan, wire or output.
+const (
+	advancedBaselineAuthorityScope  = "stackkit.advanced.baseline"
+	advancedCandidateAuthorityScope = "stackkit.advanced.candidate"
+)
+
+// advancedChangeSetPreparePhase prefixes the rollout events emitted before
+// each heavy phase of an Advanced admission, so a stuck or killed run shows
+// the phase it was in.
+const advancedChangeSetPreparePhase = advancedChangeSetRolloutPrefix + "prepare."
+
+func advancedChangeSetPrepareEvent(step string) {
+	rolloutEvent(advancedChangeSetPreparePhase+step, "started", "advanced change-set "+step+" started", nil)
+}
+
 func createAdvancedChangeSet(ctx context.Context, admitted advancedChangeSetAdmission, now time.Time) (advancedChangeSetResult, error) {
-	tempRoot, err := os.MkdirTemp("", "stackkit-advanced-change-set-*")
-	if err != nil {
-		return advancedChangeSetResult{}, fmt.Errorf("create bounded Advanced render workspace: %w", err)
-	}
-	defer func() { _ = os.RemoveAll(tempRoot) }()
-	if err := os.Chmod(tempRoot, 0o700); err != nil {
-		return advancedChangeSetResult{}, fmt.Errorf("protect Advanced render workspace: %w", err)
-	}
-	if err := backupcustody.ProtectPrivatePath(tempRoot, true); err != nil {
-		return advancedChangeSetResult{}, fmt.Errorf("protect Advanced render workspace ACL: %w", err)
-	}
-	candidatePlan, err := admitted.candidateService.VerifyCanonicalPlan(admitted.candidate.CanonicalPlan)
+	baselineRender, candidateRender, err := renderAdvancedAdmission(ctx, admitted)
 	if err != nil {
 		return advancedChangeSetResult{}, err
 	}
-	candidatePlanPath, _, _ := candidatePlan.MetadataPaths(tempRoot)
-	if _, err := admitted.candidateService.PersistCanonicalPlan(candidatePlanPath, admitted.candidate.CanonicalPlan); err != nil {
-		return advancedChangeSetResult{}, err
-	}
-	workspaceAbsolute, err := filepath.Abs(admitted.workspace)
-	if err != nil {
-		return advancedChangeSetResult{}, err
-	}
-	baselineAuthorization, err := admitted.baselineService.AuthorizeGeneration(architecturev2.GenerationAuthorizationInput{
-		Current: admitted.baselineCurrent, WorkspaceRoot: filepath.Clean(workspaceAbsolute), Versions: advancedComponentVersions(),
-	})
-	if err != nil {
-		return advancedChangeSetResult{}, err
-	}
-	defer func() { _ = baselineAuthorization.Close() }()
-	candidateAuthorization, err := admitted.candidateService.AuthorizeGeneration(architecturev2.GenerationAuthorizationInput{
-		Current: admitted.candidateCurrent, WorkspaceRoot: filepath.Clean(tempRoot), Versions: advancedComponentVersions(),
-	})
-	if err != nil {
-		return advancedChangeSetResult{}, err
-	}
-	defer func() { _ = candidateAuthorization.Close() }()
-	registry, err := architecturev2renderer.NewProductRegistry()
-	if err != nil {
-		return advancedChangeSetResult{}, err
-	}
-	baselineRender, err := baselineAuthorization.Render(ctx, registry)
-	if err != nil {
-		return advancedChangeSetResult{}, err
-	}
-	candidateRender, err := candidateAuthorization.Render(ctx, registry)
-	if err != nil {
-		return advancedChangeSetResult{}, err
-	}
+	advancedChangeSetPrepareEvent("diff")
 	capabilityDigest := sha256.Sum256(admitted.capabilityRaw)
 	expiresAt := now.Add(advancedchangeset.MaxLifetime)
 	if admitted.grant.ExpiresAt.Before(expiresAt) {
@@ -230,7 +212,7 @@ func createAdvancedChangeSet(ctx context.Context, admitted advancedChangeSetAdmi
 		CapabilitySHA256: "sha256:" + hex.EncodeToString(capabilityDigest[:]),
 		KeyID:            admitted.grant.KeyID, StackID: admitted.grant.StackID, OwnerRef: admitted.grant.OwnerRef,
 		UIManagerRef: admitted.grant.UIManagerRef, RILRef: admitted.grant.RILRef,
-		BaselinePlanHash: admitted.baseline.PlanHash, CandidatePlanHash: admitted.candidate.PlanHash,
+		BaselinePlanHash: admitted.baselinePlanHash, CandidatePlanHash: admitted.candidate.PlanHash,
 		LocalSiteRef: admitted.owner.Binding.SiteRef, LocalNodeRef: admitted.owner.Binding.NodeRef,
 		CreatedAt: now, ExpiresAt: expiresAt, CapabilityExpiresAt: admitted.grant.ExpiresAt,
 		Sign: sign, VerifyOwnerSignature: verify,
@@ -243,7 +225,7 @@ func createAdvancedChangeSet(ctx context.Context, admitted advancedChangeSetAdmi
 		CapabilitySHA256: "sha256:" + hex.EncodeToString(capabilityDigest[:]),
 		KeyID:            admitted.grant.KeyID, StackID: admitted.grant.StackID, OwnerRef: admitted.grant.OwnerRef,
 		UIManagerRef: admitted.grant.UIManagerRef, RILRef: admitted.grant.RILRef,
-		BaselinePlanHash: admitted.baseline.PlanHash, CandidatePlanHash: admitted.candidate.PlanHash,
+		BaselinePlanHash: admitted.baselinePlanHash, CandidatePlanHash: admitted.candidate.PlanHash,
 		CapabilityExpiresAt: admitted.grant.ExpiresAt, VerifyOwnerSignature: verify,
 	})
 	if err != nil {
@@ -294,20 +276,6 @@ func advancedComponentVersions() generationartifact.ComponentVersions {
 
 func ptrTrustBundle(bundle advancedcapability.TrustBundle) *advancedcapability.TrustBundle {
 	return &bundle
-}
-
-func equalAdvancedAdmission(left, right advancedChangeSetAdmission) bool {
-	return left.workspace == right.workspace &&
-		left.baseline.PlanHash == right.baseline.PlanHash &&
-		left.candidate.PlanHash == right.candidate.PlanHash &&
-		left.grant.CapabilityID == right.grant.CapabilityID &&
-		left.grant.KeyID == right.grant.KeyID &&
-		left.owner.OwnerRef == right.owner.OwnerRef &&
-		left.owner.KeyID == right.owner.KeyID &&
-		left.owner.Signature == right.owner.Signature &&
-		left.trustSHA256 == right.trustSHA256 &&
-		bytes.Equal(left.capabilityRaw, right.capabilityRaw) &&
-		bytes.Equal(left.candidateRaw, right.candidateRaw)
 }
 
 func writeAdvancedChangeSetDenial(cmd *cobra.Command, err error) error {

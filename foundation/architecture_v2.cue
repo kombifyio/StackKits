@@ -7484,6 +7484,12 @@ _servicePublicationShape: {
 	functionalCapabilities: [...#ContractID] & list.MinItems(1)
 	supportedSiteKinds: [...#SiteKind] & list.MinItems(1)
 	dataClasses: [...#DataClass] | *[]
+	// exclusiveNode reserves one dedicated node for the workload: it resolves
+	// to exactly one node, and no other application workload may resolve to
+	// that node. Platform services (kind "service") that the node needs stay
+	// allowed. It only strengthens placement; the own mail server uses it
+	// (ADR-0046 amendment 2026-09-25).
+	exclusiveNode?: true
 	defaultAlternative?: #ContractID
 	alternatives: [...#WorkloadAlternativeV2] & list.MinItems(1)
 	// Optional per-graph alternative. Init writes it; compiler rejects
@@ -7566,6 +7572,8 @@ _servicePublicationShape: {
 	kind:         "application" | "service"
 	functionalCapabilities: [...#ContractID] & list.MinItems(1)
 	dataClasses: [...#DataClass] | *[]
+	// Projected from #WorkloadContractV2.exclusiveNode.
+	exclusiveNode?: true
 	alternative: {
 		id:           #ContractID
 		contractHash: #ContentHash
@@ -8339,6 +8347,18 @@ _servicePublicationShape: {
 			] & list.MinItems(1) & list.MaxItems(1)
 		},
 	]
+	// A workload with exclusiveNode owns one dedicated node: exactly one node,
+	// shared with no other application workload.
+	_exclusiveNodeWorkloads: [for workload in workloads if workload.exclusiveNode != _|_ {
+		workloadID: workload.id
+		nodeCount:  len(workload.nodeRefs) & 1
+		sharedWith: [
+			for other in workloads
+			if other.id != workload.id && other.kind == "application"
+			for nodeRef in other.nodeRefs
+			if list.Contains(workload.nodeRefs, nodeRef) {other.id},
+		] & list.MaxItems(0)
+	}]
 	_placementWorkloadRefsUnique: list.UniqueItems([for item in placement {item.workloadRef}]) & true
 	_placementWorkloadRefsExact: [for item in placement {
 		workloadRef: item.workloadRef

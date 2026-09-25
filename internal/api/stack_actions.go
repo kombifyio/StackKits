@@ -23,7 +23,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/applyledger"
 	"github.com/kombifyio/stackkits/internal/auth"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
-	"github.com/kombifyio/stackkits/internal/platformdeploy"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	"github.com/kombifyio/stackkits/internal/servicecontrol"
 	stackaction "github.com/kombifyio/stackkits/internal/stackaction"
 	"github.com/kombifyio/stackkits/internal/telemetry"

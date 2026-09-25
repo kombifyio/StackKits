@@ -28,17 +28,6 @@ const perKitTemplateParityTest = "TestPerKitTemplatesMatchCanonical"
 
 const kitInventoryParityTest = "TestProductKitsMatchesCUEDerivedAuthorityProfiles"
 
-var kitDocumentParityTests = []string{
-	"TestKitDocumentIdentityMatchesItsContentShape",
-	"TestKitYAMLMetadataMatchesCUEDefinition",
-	"TestKitYAMLContextsAreDeclaredByModeMatrix",
-	"TestKitYAMLDeclaresKnownMaturity",
-	"TestKitDeclaresModeMatrix",
-	"TestModeMatrixPreviewKitsClaimNoSupport",
-	"TestModeMatrixContainsExactlyProductKits",
-	"TestModeMatrixDoesNotContradictStackkitYAML",
-}
-
 // kitRoots are the directories whose contents define an active product kit.
 var kitRoots = activeKitPaths("", "/")
 
@@ -88,16 +77,16 @@ var filePublicTestBoundaries = map[string]struct {
 	// OpenTofu workload roots (P1.1 follow-up W): the native standalone
 	// Compose halves and the wrapper renderer are exercised through the
 	// OpenTofu executor's public boundary.
-	"internal/runtimeexecutorlocal/standalone_compose_halves.go": {
-		Package: "internal/runtimeexecutoropentofu",
+	"internal/runtimeexecutor/nativehost/standalone_compose_halves.go": {
+		Package: "internal/runtimeexecutor/opentofu",
 		Tests:   []string{"TestWorkloadRootEmbedsTheNativeComposeFileAndNotItsEnv", "TestWorkloadApplyRunsTofuInTheGraphRootOnlyUnderOpenTofuTargets"},
 	},
-	"internal/runtimeexecutorlocal/generation_target.go": {
+	"internal/runtimeexecutor/nativehost/generation_target.go": {
 		Package: "cmd/stackkit/commands",
 		Tests:   []string{"TestLocalRuntimeOwnersExecuteGeneratedApplicationWorkloads"},
 	},
 	"internal/architecturev2renderer/compose_payload_opentofu.go": {
-		Package: "internal/runtimeexecutoropentofu",
+		Package: "internal/runtimeexecutor/opentofu",
 		Tests:   []string{"TestWorkloadRootEmbedsTheNativeComposeFileAndNotItsEnv"},
 	},
 }
@@ -114,7 +103,6 @@ var fileFocusedTests = map[string][]string{
 		"TestRequirePrivatePathAcceptsOnlyExpectedPrivateTypeAndMode",
 	},
 	"cmd/stackkit/commands/backup.go": {
-		"TestBackupCommandContract",
 		"TestLegacyV06BackupMigrationForwardsExactImporterArguments",
 		"TestNativeV2RetiresLegacyBackupUtilityCommandsBeforeSideEffects",
 		"TestNativeV2BackupCommandFailsBeforeSideEffectsOnTamperedAuthority",
@@ -176,7 +164,6 @@ var fileFocusedTests = map[string][]string{
 		"TestNativeV2BackupOperationContextCapsDeadlineAtFifteenMinutes",
 	},
 	"cmd/stackkit/commands/backup_activation.go": {
-		"TestNativeV2BackupCommandSurface",
 		"TestApplicationLifecycleBackupRequiresSelectedAdapterSupport",
 	},
 	"cmd/stackkit/commands/init_architecture_v2.go": {
@@ -203,7 +190,7 @@ var fileFocusedTests = map[string][]string{
 	"internal/architecturev2/output_transaction.go": {
 		"TestRetiredOutputGCContractIsExplicitAndTwoPhase",
 	},
-	"internal/runtimeexecutorlocal/modern_identity_site_policy_test.go": {
+	"internal/runtimeexecutor/nativehost/modern_identity_site_policy_test.go": {
 		"TestModernIdentitySiteExecutorsKeepHomeAndCloudAuthoritySeparate",
 		"TestModernIdentitySiteExecutorsRejectCrossSiteAndChannelSubstitution",
 	},
@@ -250,22 +237,22 @@ var fileFocusedTests = map[string][]string{
 	"internal/architecturev2renderer/compose_payload_opentofu.go": {
 		"TestComposePayloadOpenTofuEmbedsTheByteIdenticalComposeArtifact",
 	},
-	"internal/runtimeexecutorlocal/selected_paas_workload.go": {
+	"internal/runtimeexecutor/nativehost/selected_paas_workload.go": {
 		"TestImmichSelectedPaaSExecutorAppliesAndObservesExactBundle",
 		"TestImmichSelectedPaaSExecutorRejectsSubstitution",
 	},
-	"internal/runtimeexecutorlocal/standalone_compose_workload.go": {
+	"internal/runtimeexecutor/nativehost/standalone_compose_workload.go": {
 		"TestStandaloneComposeApplyWaitsForApplicationReadiness",
 		"TestStandaloneComposeOperationsApplyAndObserveExactRoute",
 		"TestStandaloneComposeRefusesGameNodeAuthorityForOtherWorkloads",
 	},
-	"internal/runtimeexecutorlocal/standalone_compose_halves.go": {},
-	"internal/runtimeexecutorlocal/generation_target.go":         {},
+	"internal/runtimeexecutor/nativehost/standalone_compose_halves.go": {},
+	"internal/runtimeexecutor/nativehost/generation_target.go":         {},
 	"internal/upgradelifecycle/executor_state_opentofu.go": {
 		"TestExecutorStateOpenTofuCheckpointRestoresCapturedStateOnRecover",
 		"TestExecutorStateCheckpointRestoresWorkloadAndContractRootStates",
 	},
-	"internal/runtimeexecutorlocal/basement_core_os.go": {
+	"internal/runtimeexecutor/nativehost/basement_core_os.go": {
 		"TestOSBasementCoreApplyRejectsMissingCustodyBeforeFilesystemOrDocker",
 		"TestOSBasementCoreApplyUsesVerifiedCustodyAndPrivateStableArtifact",
 		"TestOSBasementCoreApplyRequiresOwnerRealizationAfterCompose",
@@ -273,11 +260,11 @@ var fileFocusedTests = map[string][]string{
 		"TestOSBasementCoreVerifyProjectPropagatesContextTerminationWithoutDriftClassification",
 		"TestBasementCoreVerifyNamesEveryUnhealthyContractWithoutLeakingItsCause",
 	},
-	"internal/runtimeexecutorlocal/cloud_core_os.go": {
+	"internal/runtimeexecutor/nativehost/cloud_core_os.go": {
 		"TestCloudCoreCustodyRejectsImplicitProfileTransition",
 		"TestOSCloudCoreApplyBindsPocketIDOwnerBeforeTinyAuthReconcile",
 	},
-	"internal/runtimeexecutorlocal/native_compose_observer.go": {
+	"internal/runtimeexecutor/nativehost/native_compose_observer.go": {
 		"TestOSBasementCoreVerifyProjectIsByteForByteReadOnly",
 		"TestOSCloudCoreApplyBindsPocketIDOwnerBeforeTinyAuthReconcile",
 	},
@@ -432,29 +419,12 @@ func buildPlan(input plannerInput) testPlan {
 			goSelection.CompileOnly = sortedUnique(append(goSelection.CompileOnly, rendererPattern))
 		}
 	}
-	// A kit root holds the three documents that define what a kit IS: its
+	// A kit root holds the documents that define what a kit IS: its
 	// KitDefinition (stackfile.cue), its exported metadata (stackkit.yaml) and
-	// its reality grading (mode_matrix.cue). Every parity test guarding them
-	// lives elsewhere, so without this rule a kit change ran `cue vet` at best
-	// and hygiene alone for the YAML — which is how cloud-kit once shipped a
-	// byte copy of basement-kit's manifest.
-	//
-	// Select the existing metadata, mode-matrix and document-identity boundaries
-	// without pulling unrelated CUE runtime tests into a kit-only edit. A direct
-	// Go change keeps its normal full or focused selection. Bundle drift stays
-	// on `mise run generate:architecture-v2`.
+	// its reality grading (mode_matrix.cue). CUE vet validates them; a kit edit
+	// additionally runs the Go product-kit inventory parity boundary. Bundle
+	// drift stays on `mise run generate:architecture-v2`.
 	if anyPathUnder(files, kitRoots...) {
-		const cuePackage = "internal/cue"
-		const cuePattern = "./internal/cue"
-		_, alreadyFocused := focusedTests[cuePackage]
-		if !slicesContain(goSelection.Changed, cuePattern) || alreadyFocused {
-			focusedTests[cuePackage] = sortedUnique(append(focusedTests[cuePackage], kitDocumentParityTests...))
-		}
-		goSelection.Changed = sortedUnique(append(goSelection.Changed, cuePattern))
-		goSelection.TestOnly = withoutString(goSelection.TestOnly, cuePattern)
-		goSelection.CompileOnly = withoutString(goSelection.CompileOnly, cuePattern)
-		goSelection.Reverse = withoutString(goSelection.Reverse, cuePattern)
-
 		const authorityPattern = "./internal/architecturev2"
 		goSelection.CompileOnly = withoutString(goSelection.CompileOnly, authorityPattern)
 		goSelection.Reverse = withoutString(goSelection.Reverse, authorityPattern)

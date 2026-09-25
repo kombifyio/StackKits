@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -12,12 +12,12 @@ const productBridgeOriginMTLSAdapterID = "stackkits-bridge-origin-mtls-local"
 
 type productBridgeOriginMTLSFactory struct {
 	runtimeVersion string
-	operations     runtimeexecutorlocal.BridgeOriginMTLSOperations
+	operations     nativehost.BridgeOriginMTLSOperations
 }
 
 // NewProductBridgeOriginMTLSRegistration binds the exact node-local Modern
 // origin policy to an authenticated Home operations implementation.
-func NewProductBridgeOriginMTLSRegistration(runtimeVersion string, operations runtimeexecutorlocal.BridgeOriginMTLSOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductBridgeOriginMTLSRegistration(runtimeVersion string, operations nativehost.BridgeOriginMTLSOperations) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("origin mTLS product registration requires a runtime version and operations owner")
 	}
@@ -42,9 +42,9 @@ func (f *productBridgeOriginMTLSFactory) PrepareRuntimeOwner(request ProductRunt
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewBridgeOriginMTLSExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{
+	return nativehost.NewBridgeOriginMTLSExecutor(identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
-	}, runtimeexecutorlocal.BridgeOriginMTLSAuthority{
+	}, nativehost.BridgeOriginMTLSAuthority{
 		ProviderContractHash: target.ProviderContractHash,
 		ModuleContractHash:   target.ModuleContractHash,
 		HealthContractHash:   health[0].ContractHash,

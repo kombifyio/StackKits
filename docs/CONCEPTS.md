@@ -114,7 +114,7 @@ Compiler capacity (`runtimeRequirements` vs attested inventory) is a separate
 admission plane. It can refuse Apply of the selected graph; it cannot change
 which graph was selected.
 
-### 4. Three live axes (do not add a fourth)
+### 4. Three live axes
 
 **Deployment engine** (`install.mode`):
 - `bootstrapped` = current Basement Kit default with packaged Compose/OpenTofu, Hub, local PocketID/TinyAuth Owner binding, and setup automation

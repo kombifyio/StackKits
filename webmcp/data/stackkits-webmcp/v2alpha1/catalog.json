@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "1aa4727fc2b7693faedf21cbfe067832e8d9e9e9",
-  "authority_bundle_sha256": "ae88ebcd95d141989b302ac36d47c5975262bde43c2027a45c38a38bcc235697",
+  "source_sha": "944aa179368e93d1b68630e221748250ec9ceffd",
+  "authority_bundle_sha256": "7f00da47332f2bbaa1ec325802bc291f44f3562cf8c409813bafc0d8595224c3",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -2987,7 +2987,7 @@
         {
           "use_case_id": "mail-server",
           "title": "Own Mail Server",
-          "description": "Your own mail server on a Cloud node through Stalwart: mailboxes for your domain with SMTP, IMAP and submission. StackKits prints the DNS records you publish; it never changes DNS.",
+          "description": "Your own mail server on a dedicated Cloud node through Stalwart: mailboxes for your domain with SMTP, IMAP and submission. StackKits prints the DNS records you publish; it never changes DNS.",
           "required": false,
           "selected_by_default": false,
           "default_alternative_id": "stalwart",
@@ -6010,5 +6010,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "8199e3c92351ac2b7deab620f9108e677373e28415bb04e5a6ec4a8ee0d77942"
+  "catalog_sha256": "4330d596a45605ec1d5acf82b84ef9785864b5cb73bd21b65c3ef99b27aef87b"
 }

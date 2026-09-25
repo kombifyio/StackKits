@@ -34,7 +34,7 @@ rollout matrices graduate.
 - No claim that any non-PaaS fallback proves the Coolify-managed application-layer rollout.
 - No unsupported public release path from the private development repo.
 - No production claim for backup controller or backup agent scaffolds until durable storage, queueing, enrollment, and OIDC operator auth land.
-- No requirement that StackKits deploy customer-owned user apps; that lifecycle remains owned by the selected PaaS or Admin product surface. Product-bundled ready-to-use use cases are in scope for the Coolify-managed application-layer gate.
+- Customer-owned user app lifecycle is owned by the selected PaaS or Admin product surface. Product-bundled ready-to-use use cases are in scope for the Coolify-managed application-layer gate.
 
 ## Security Model
 

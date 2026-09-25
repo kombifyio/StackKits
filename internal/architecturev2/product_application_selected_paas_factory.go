@@ -5,27 +5,27 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
 type productApplicationSelectedPaaSFactory struct {
-	application             runtimeexecutorlocal.SelectedPaaSApplication
-	refs                    runtimeexecutorlocal.SelectedPaaSApplicationRefs
+	application             nativehost.SelectedPaaSApplication
+	refs                    nativehost.SelectedPaaSApplicationRefs
 	runtimeVersion          string
 	runtimeAdapterRef       string
 	runtimeAdapterModuleRef string
-	operations              runtimeexecutorlocal.SelectedPaaSWorkloadOperations
+	operations              nativehost.SelectedPaaSWorkloadOperations
 }
 
 // NewProductJellyfinSelectedPaaSRegistration binds the Media Library workload
 // to one explicitly selected application adapter implementation.
 func NewProductJellyfinSelectedPaaSRegistration(
 	runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef string,
-	operations runtimeexecutorlocal.SelectedPaaSWorkloadOperations,
+	operations nativehost.SelectedPaaSWorkloadOperations,
 ) (ProductRuntimeOwnerRegistration, error) {
 	return newProductApplicationSelectedPaaSRegistration(
-		runtimeexecutorlocal.SelectedPaaSApplicationJellyfin, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations,
+		nativehost.SelectedPaaSApplicationJellyfin, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations,
 	)
 }
 
@@ -33,10 +33,10 @@ func NewProductJellyfinSelectedPaaSRegistration(
 // existing standalone application adapter and lifecycle owner (ADR-0043).
 func NewProductPterodactylSelectedPaaSRegistration(
 	runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef string,
-	operations runtimeexecutorlocal.SelectedPaaSWorkloadOperations,
+	operations nativehost.SelectedPaaSWorkloadOperations,
 ) (ProductRuntimeOwnerRegistration, error) {
 	return newProductApplicationSelectedPaaSRegistration(
-		runtimeexecutorlocal.SelectedPaaSApplicationPterodactyl, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations,
+		nativehost.SelectedPaaSApplicationPterodactyl, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations,
 	)
 }
 
@@ -44,10 +44,10 @@ func NewProductPterodactylSelectedPaaSRegistration(
 // workload to the existing standalone application adapter and lifecycle owner.
 func NewProductRoundcubeSelectedPaaSRegistration(
 	runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef string,
-	operations runtimeexecutorlocal.SelectedPaaSWorkloadOperations,
+	operations nativehost.SelectedPaaSWorkloadOperations,
 ) (ProductRuntimeOwnerRegistration, error) {
 	return newProductApplicationSelectedPaaSRegistration(
-		runtimeexecutorlocal.SelectedPaaSApplicationRoundcube, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations,
+		nativehost.SelectedPaaSApplicationRoundcube, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations,
 	)
 }
 
@@ -56,10 +56,10 @@ func NewProductRoundcubeSelectedPaaSRegistration(
 // lifecycle owner.
 func NewProductStalwartSelectedPaaSRegistration(
 	runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef string,
-	operations runtimeexecutorlocal.SelectedPaaSWorkloadOperations,
+	operations nativehost.SelectedPaaSWorkloadOperations,
 ) (ProductRuntimeOwnerRegistration, error) {
 	return newProductApplicationSelectedPaaSRegistration(
-		runtimeexecutorlocal.SelectedPaaSApplicationStalwart, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations,
+		nativehost.SelectedPaaSApplicationStalwart, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations,
 	)
 }
 
@@ -67,10 +67,10 @@ func NewProductStalwartSelectedPaaSRegistration(
 // the existing standalone application adapter and lifecycle owner.
 func NewProductPaperlessSelectedPaaSRegistration(
 	runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef string,
-	operations runtimeexecutorlocal.SelectedPaaSWorkloadOperations,
+	operations nativehost.SelectedPaaSWorkloadOperations,
 ) (ProductRuntimeOwnerRegistration, error) {
 	return newProductApplicationSelectedPaaSRegistration(
-		runtimeexecutorlocal.SelectedPaaSApplicationPaperless, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations,
+		nativehost.SelectedPaaSApplicationPaperless, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations,
 	)
 }
 
@@ -80,17 +80,17 @@ func NewProductPaperlessSelectedPaaSRegistration(
 // container workloads and never match this selector.
 func NewProductHomeAssistantSelectedPaaSRegistration(
 	runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef string,
-	operations runtimeexecutorlocal.SelectedPaaSWorkloadOperations,
+	operations nativehost.SelectedPaaSWorkloadOperations,
 ) (ProductRuntimeOwnerRegistration, error) {
 	return newProductApplicationSelectedPaaSRegistration(
-		runtimeexecutorlocal.SelectedPaaSApplicationHomeAssistant, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations,
+		nativehost.SelectedPaaSApplicationHomeAssistant, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations,
 	)
 }
 
 func newProductApplicationSelectedPaaSRegistration(
-	application runtimeexecutorlocal.SelectedPaaSApplication,
+	application nativehost.SelectedPaaSApplication,
 	runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef string,
-	operations runtimeexecutorlocal.SelectedPaaSWorkloadOperations,
+	operations nativehost.SelectedPaaSWorkloadOperations,
 ) (ProductRuntimeOwnerRegistration, error) {
 	refs, known := application.Refs()
 	if !known {
@@ -141,14 +141,14 @@ func (f *productApplicationSelectedPaaSFactory) PrepareRuntimeOwner(request Prod
 	if err != nil {
 		return nil, err
 	}
-	authority := runtimeexecutorlocal.SelectedPaaSWorkloadAuthority{
+	authority := nativehost.SelectedPaaSWorkloadAuthority{
 		ProviderContractHash: target.ProviderContractHash,
 		ModuleContractHash:   target.ModuleContractHash,
 		UnitContractHash:     target.UnitContractHash,
 		HealthContractHash:   health[moduleHealthIndex].ContractHash,
 		RuntimeAdapter:       selectedPaaSRuntimeAdapterAuthority(*target.RuntimeAdapter),
 	}
-	return runtimeexecutorlocal.NewSelectedPaaSApplicationExecutor(f.application, identity, runtimeexecutorlocal.LocalTargetBinding{
+	return nativehost.NewSelectedPaaSApplicationExecutor(f.application, identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
 	}, authority, f.operations), nil
 }

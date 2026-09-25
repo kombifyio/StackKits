@@ -218,7 +218,12 @@ var (
 		ContractRef: ref(OperationDenialSchemaVersion, OperationDenialSchema),
 		Description: "Fail-closed admission denial before any side effect.",
 	}
-	changeSetEvents = []EventPhase{
+	// changeSetPrepareEvents mark each heavy admission phase (resolve
+	// baseline, resolve candidate, render baseline, render candidate, diff)
+	// before it starts, so a stuck or killed run names its phase.
+	changeSetPrepareEvents = EventPhase{Phase: "advanced.change-set.prepare.", Match: "prefix", Statuses: []string{"started"}}
+	changeSetEvents        = []EventPhase{
+		changeSetPrepareEvents,
 		{Phase: "advanced.change-set.materialize-host", Match: "exact", Statuses: []string{"started", "succeeded", "failed"}},
 		{Phase: "advanced.change-set.run-order", Match: "exact", Statuses: []string{"started", "succeeded", "failed"}},
 		{Phase: "advanced.change-set.converge", Match: "exact", Statuses: []string{"converged", "drifted", "failed", "pending_root", "other_host"}},
@@ -390,7 +395,7 @@ func New() Catalog {
 					{Status: "success", ContractRef: ref(ChangeSetSchemaVersion, ChangeSetCreateResultSchema), Description: "Summary of the stored " + ChangeSetSchemaVersion + " record (" + ChangeSetRecordSchema + ")."},
 					denialOutcome,
 				},
-				Events: []EventPhase{},
+				Events: []EventPhase{changeSetPrepareEvents},
 				Modes:  capabilityModes,
 			},
 		},

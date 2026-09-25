@@ -117,7 +117,38 @@ func (s *Service) MaterializeInitialStackSpec(profile stackspecmigration.KitProf
 	if err != nil {
 		return StackSpecValidation{}, err
 	}
+	if err := refuseSharedExclusiveNodeUseCases(s.authority.catalog, workloadSelections); err != nil {
+		return StackSpecValidation{}, err
+	}
 	return materializeInitialStackSpec(profile, definition, overrides, workloadSelections, s.ValidateStackSpec)
+}
+
+// refuseSharedExclusiveNodeUseCases stops init early when a use case that
+// needs a dedicated node (#WorkloadContractV2.exclusiveNode) is selected with
+// another application use case: the initial spec has one node, so the plan
+// could never resolve.
+func refuseSharedExclusiveNodeUseCases(catalog resolvedplan.Catalog, selections map[string]useCaseWorkloadSelection) error {
+	var exclusive, applications []string
+	for _, candidate := range catalog.Workloads {
+		object := map[string]any(candidate)
+		metadata, _ := object["metadata"].(map[string]any)
+		id, _ := metadata["id"].(string)
+		if _, selected := selections[id]; !selected {
+			continue
+		}
+		if flag, _ := object["exclusiveNode"].(bool); flag {
+			exclusive = append(exclusive, id)
+		} else if kind, _ := object["kind"].(string); kind == "application" {
+			applications = append(applications, id)
+		}
+	}
+	if len(exclusive) == 0 || len(exclusive)+len(applications) < 2 {
+		return nil
+	}
+	sort.Strings(exclusive)
+	others := append(append([]string{}, exclusive[1:]...), applications...)
+	sort.Strings(others)
+	return resolveError(ErrInvalidStackSpec, fmt.Sprintf("use case %q needs a dedicated node and cannot share the initial node with %s; initialize it in its own StackSpec (its own node), or add a separate node and set placement.nodeRefs", exclusive[0], strings.Join(others, ", ")), nil)
 }
 
 // resolveUseCaseWorkloadSelections maps requested use-case IDs onto the kit's

@@ -436,12 +436,67 @@ custody holds no private key and closes enrollment, signing, credential
 issuance, and ControlAuthority as `false`; its integrity is the embedded
 Owner-signed admission. A workspace holds either owner custody or member
 custody. On a member, every owner-custody operation (Owner signing, owner
-init, Inventory attestation, Apply) is denied with reason
-`member_custody_verify_only`. Both hosts therefore compute the same plan hash
+init, Owner key certification) is denied with reason
+`member_custody_verify_only`. A member never merges locally observed facts
+into the shared Inventory. Both hosts therefore compute the same plan hash
 and the same `stackkit.terramate-stack-graph/v1`, whose host projects carry
-each node's execution channel. Member-local Apply, member change sets, and
-member evidence custody are not implemented yet; until then the Foundation
-Node remains the only Apply authority.
+each node's execution channel.
+
+#### Member-local execution (Modern Cloud edge)
+
+Member evidence key (integrator decision 2026-09-25, reversible). ADR-0029
+keeps enrollment and identity signing at Home, so a member cannot sign Apply
+evidence with an Owner key. Instead, `fleet join` also generates a member
+evidence key in member custody (`.stackkit/custody/member-evidence-key.json`,
+capability `evidence-attestation`) and writes one
+`stackkit.member-evidence-key-request/v1` file with a proof of possession.
+The Foundation Node runs `stackkit fleet certify-member-key <request>
+[--output <file>] [--valid-for 720h]`: it recompiles the current plan,
+requires the request tuple to be the member the plan admits under the join
+rules and the member plan hash to equal the Home plan hash, and returns one
+Owner-signed `stackkit.member-evidence-key/v1` certificate (dedicated
+signature domain, at most 90 days). The certificate binds the StackInstance,
+plan hash, admission digest, Home and member Site/node/channel tuples, the
+member key, and closed grants: no enrollment, identity signing, credential
+issuance, ControlAuthority, or Owner authority. The Foundation Node records it
+under `.stackkit/fleet/member-evidence-keys/`. On the member, `stackkit fleet
+import-member-key <certificate>` verifies it against the Home key pinned at
+join and its own key. `fleetmember.VerifyEvidenceKeyCertificate` is the only
+acceptance rule for member evidence: exact tuple, StackInstance, plan, and
+admission, inside the validity window. The relay is one file each way after
+the admission.
+
+Host-scoped Apply. `generationartifact.VerifiedPlan.WithExecutionScope`
+projects the Apply requirements of a multi-host plan onto one host: its
+runtime targets, the health gates the runtime registry assigns to them, the
+local host fact only, and the secrets and workloads those targets own. The
+generated artifact set is unchanged; only the executable artifacts of the
+scoped targets cross to the executor. The scope is part of the requirements
+hash, so evidence collection, authorization, execution, recovery, and result
+verification all bind to it. On a member, `stackkit apply` executes exactly
+the targets on its own tuple whose owner is not a remote-only process owner,
+admits them through its own execution channel, and signs the host evidence
+and a `stackkit.member-apply-result-receipt/v1` with the certified key; a
+verifier accepts that evidence only under a valid certificate for the
+member's tuple. Apply and Verify on a member require the admitted plan hash
+and the shared Inventory the Home admitted (explicit `--inventory` or the
+admitted `.stackkit/inventory.yaml`); a changed plan needs a new admission and
+certificate. Once the Foundation Node holds a certificate record, its Apply
+executes its own tuple plus the remote-only process owners (federation control
+agent, bridge publication, and the other Techstack-bound owners) of every
+Site through their execution channels, and no longer runs a certified
+member's local owners in-process. A target that belongs to no certified member
+and not to the Foundation Node fails closed. Both hosts report the other
+host's targets as `out_of_scope` in the Apply outcome ledger and name the
+scope in `executionScope` of `stackkit.apply-result/v2`. `stackkit verify` on
+a member verifies its own scoped result and reports the member evidence key.
+A single-host StackInstance and a Foundation Node without certified members
+are unchanged.
+
+Not covered yet: member change sets (Advanced admission needs Owner custody
+and the Owner-approved local trust bundle on the member, and change-set
+records are Owner-signed), cross-host ordering of the two hosts' Apply runs
+(Techstack), key rotation or revocation before expiry, and runtime evidence.
 
 ### Kit-specific workload runtime ownership
 
@@ -1339,22 +1394,22 @@ for the same unit and wrap its bytes.
 
 ### OpenTofu runtime executor (Stage 1)
 
-ADR-0045 makes
-OpenTofu the execution standard. `internal/runtimeexecutoropentofu` is that
-executor for the wrapper roots described above; `internal/runtimeexecutorlocal`
-stays the native Compose fallback behind the `compose` unit (S-F structure
-rule).
+ADR-0045 makes OpenTofu the execution standard.
+`internal/runtimeexecutor/opentofu` is that executor for the wrapper roots
+described above; `internal/runtimeexecutor/nativehost` stays the native
+Compose fallback behind the `compose` unit (S-F structure rule, see
+[Execution folders](#execution-folders-adr-0045-structure-rule)).
 
 - **Selection.** Two registrations per Core module match the runtime target
   whose `unitRef` is `opentofu` (target `opentofu`) or `terramate` (target
   `terramate`). The registry matches whole selectors, so
-  `runtimeexecutoropentofu.DefaultModuleBindings` is the closed module list
+  `opentofu.DefaultModuleBindings` is the closed module list
   (Basement core, Basement core Lite, Cloud core, Cloud standalone core); new
   OpenTofu units extend it. The native registrations keep `unitRef: compose`.
   Workload, edge and federation owners have one selector under every target,
   so their registrations stay the native ones and switch on the generation
   target of the request's plan-owned `resolved-plan` artifact
-  (`runtimeexecutorlocal.GenerationTargetFromArtifacts`); under `compose` they
+  (`nativehost.GenerationTargetFromArtifacts`); under `compose` they
   run the native executor unchanged.
 - **Root.** The executor accepts exactly one `opentofu`/`hcl` artifact owned
   by the target (under `terramate`: the `main.tf` and `stack.tm.hcl`
@@ -1376,7 +1431,7 @@ rule).
   native completion against the Compose file OpenTofu wrote (stackkit-server
   recreation, step-ca reload, PocketID owner realization, and the reconciling
   `up` that binds TinyAuth). Both come from the native operations
-  (`runtimeexecutorlocal.NativeComposeRuntime`), so the two executors share
+  (`nativehost.NativeComposeRuntime`), so the two executors share
   one implementation. The native Cloud core `up` does not wait; the wrapper
   root waits for health.
 - **Verify.** The native Verify of the module runs against
@@ -1399,7 +1454,7 @@ rule).
   resolves from `STACKKIT_TOFU_PROVIDERS_DIR`, else `providers/` beside the
   executable. A missing mirror or binary fails closed before any write.
 - **Workload roots.** Under `opentofu` and `terramate` the ten selected-PaaS
-  workload bundles run through `runtimeexecutoropentofu.WorkloadOperations`,
+  workload bundles run through `opentofu.WorkloadOperations`,
   which wraps the native standalone Compose owner. The native preparation
   (`PrepareWorkloadCompose`) validates the bundle and persists `compose.yaml`
   and the private `.env` (0600) under
@@ -1452,6 +1507,29 @@ rule).
   the Basement `socket-proxy` helper, which has a native executor and Product
   factory but no CLI registration and is not a Terramate stack, still run on
   the native executor under every target.
+
+### Execution folders (ADR-0045 structure rule)
+
+The runtime-target seam is the Product runtime-owner registry
+(`ProductRuntimeOwnerRegistry` in `internal/architecturev2`). Registrations
+match whole selectors, and the selector's `unitRef` names the runtime target
+(`compose`, `opentofu`, `terramate`); the CLI binds every registration in
+`cmd/stackkit/commands/architecture_v2_product_runtime.go`. There is no second
+target registry. Executor code lives in named folders so the standard path and
+the retained fallbacks read apart:
+
+| Folder | Role |
+| --- | --- |
+| `internal/runtimeexecutor/opentofu` | Standard executor (ADR-0045): the `opentofu` and `terramate` units, workload roots and contract roots. |
+| `internal/runtimeexecutor/nativehost` | Native host executors: the S-F Compose fallback behind `compose` (native `up` for the Core and standalone workloads), plus the shared halves the standard executor calls (Compose prepare and complete, native Verify, project naming, generation-target reading) and the native host owners that have no OpenTofu counterpart. |
+| `internal/runtimeexecutor/fallback/platformdeploy` | Fallback in-house Komodo, Coolify and Dokploy HTTP adapters, retained until each platform's OpenTofu provider target has real-host parity. |
+
+`nativehost` is not under `fallback/` because the standard executor imports
+its shared halves. Its fallback-only `up` paths are methods on the same OS
+operations types as those halves and share unexported helpers, so separating
+them needs code changes; that split belongs to the evidence-gated P4
+retirement slice, not to the structure rule. Retirement of either fallback is
+a separate P4 slice per component with parity evidence.
 
 ### Terramate stack graph (Stage 1)
 
@@ -1551,8 +1629,17 @@ Terramate (`stackkit apply` under `compose` or `opentofu` is unchanged).
   graph order across hosts), and `terramateHostManifestSha256`. Apply
   re-derives both from the fresh renders and treats a difference as a stale
   change set.
+- Admission memory: create, apply and Advanced reconcile resolve baseline and
+  candidate through one embedded authority (each in its own authority scope,
+  because both carry the same Stack ID) and render them one after the other.
+  The pre-lock admission keeps only a comparable fingerprint, so the locked
+  revalidation never holds two authorities. Each heavy phase first emits an
+  `advanced.change-set.prepare.<phase>` `started` rollout event
+  (`resolve-baseline`, `resolve-candidate`, `render-baseline`,
+  `render-candidate`, and `diff` for create), so a stuck or killed run names
+  its phase. Peak memory stays within one `generate`.
 - Apply: the mutation skeleton stays generate, plan, apply, verify through the
-  installed release under the lifecycle journal. Missing packaged Terramate or
+  target release (see Release authority) under the lifecycle journal. Missing packaged Terramate or
   OpenTofu fails before the checkpoint. After the target apply succeeds and
   before verify starts, the parent process materializes the host project,
   requires `terramate list --run-order --tags stackkit` to equal the host run
@@ -1563,6 +1650,44 @@ Terramate (`stackkit apply` under `compose` or `opentofu` is unchanged).
   stack's OpenTofu exit code is taken from its `(in /<stack>): exit status
   <n>` line. The plan only reads state; the apply already ran through the
   runtime executor.
+- Application lifecycle: apply and `stackkit drift reconcile --mode advanced`
+  open the application lifecycle of every workload of the candidate plan in
+  the `upgrade` stage as `stackkit.upgrade`, before the rollback checkpoint.
+  Both run the public upgrade mutation (release-authority target, mandatory
+  checkpoint, lifecycle journal) and bind the same `snapshot-anchor`,
+  `upgrade-result` and `owner-observation` evidence as `stackkit upgrade`. The
+  standalone lifecycle admits only operations of the standalone operation
+  registry, so the upgrade stage lists `stackkit.upgrade` alone (95p5 removed
+  the Advanced operation IDs that #554 had added to the CUE only); the Advanced
+  sub-kind, capability operation and change set are recorded in the
+  `upgrade-result` evidence, the `stackkit.advanced-mutation/v1` result under
+  `.stackkit/advanced/results/`. A workload the change set adds (for example
+  Files) starts its lifecycle history with that upgrade operation.
+- Release authority: change-set apply, Advanced reconcile and coordinated
+  rollback target the release that is already executing, so the running
+  executable can be that release. When the target is the running release
+  (exact tag and platform) and the workspace holds no release cache entry for
+  it under `.stackkit/releases/<kit>/<version>/<os>-<arch>/`, the authority is
+  the running executable itself: its path comes from `os.Executable()`, its
+  sha256 is re-checked before each use (a replaced binary fails closed), the
+  lifecycle journal records it as `authority: running-executable` with the
+  executable digest and no archive digest, and the joined children run that
+  same binary. This is the normal case on a Techstack-managed host: `stackkit
+  init` creates no release cache, and the Techstack Agent already verified
+  the pinned release, archive, index and executable before starting the CLI
+  (ADR-0031 section 5). The rollback checkpoint follows the same rule for the
+  prior release: when the applied release is the running one and no cache
+  entry exists, the executor-state snapshot captures the running executable
+  (and the `stackkit-server` beside it) with release authority
+  `running-executable` instead of an attested archive identity. An existing
+  cache entry must still verify, and a cross-version target (`stackkit
+  upgrade --to`, or any target that is not the running release) always
+  requires the Sigstore-verified workspace release cache and fails closed
+  without it. The `stackkit.advanced-mutation/v1` result records the choice
+  as `releaseAuthority` (`kind` `running-executable` or
+  `workspace-release-cache`, `version`, `platform`, `sha256`). A target
+  verify of a running-executable target reports no release receipt; the
+  lifecycle join binds the verifying executable by digest instead.
 - Results: per stack `converged` (exit 0), `drifted` (exit 2 after apply),
   `failed` (the plan could not run), `pending_root` (no `main.tf` in the root)
   or `other_host` (the stack belongs to another host and runs through that
@@ -1755,11 +1880,107 @@ of `stackkit advanced change-set apply` runs the same path.
   `terramate` install seals its checkpoint before the target apply and the
   rollback reports `sealStatus` `sealed` after it seals the rolled back
   runtime.
-- Not yet covered: the native Core side steps around `up` (stackkit-server
-  staging and recreation, step-ca reload, PocketID owner realization) do not
-  run during a forced apply, data volumes are not rolled back (the Kopia
-  anchor stays available for an explicit restore), `other_host` stacks need
-  Techstack dispatch, and there is no runtime evidence yet (P1.9).
+- Native side steps: a `restored` or `recreated` stack runs the native
+  Apply side steps around its forced apply, through the code the runtime
+  executor runs around its own `tofu apply`
+  (`advancedrollback.Request.Native`, wired by the command's
+  `advancedRollbackNativeSteps`). A Core root runs the Core preparation
+  after its checkpoint files are written (origin provisioner check,
+  stackkit-server staging of the release being restored, taken from beside
+  that release's executable) and the Core completion after the apply
+  (stackkit-server recreation, step-ca reload, PocketID owner realization,
+  the TinyAuth reconciling `up`); a workload root runs the workload
+  completion (Wings recreation for the game node, readiness, origin backend
+  record) after proving that its restored `compose.yaml`, `.env` and
+  configuration files are what the checkpoint's workload bundle renders.
+  The completion runs before the convergence plan; a failure fails the
+  stack and a resumed rollback repeats both halves. Health probes stay with
+  the joined rollback verify.
+- Not yet covered: data volumes are not rolled back (the Kopia anchor stays
+  available for an explicit restore), `other_host` stacks need Techstack
+  dispatch, and there is no runtime evidence yet (P1.9).
+
+### Bootstrap and configuration parity across execution paths
+
+The product is a homelab whose owner is already signed in and configured in
+every tool, not only running containers. Every bootstrap and configuration
+step therefore runs the same native Go code on every execution path; ADR-0045
+Stage 1 keeps container execution and state in OpenTofu and orchestrates the
+native steps around `tofu`. Paths: native `compose` (S-F fallback), Standard
+`opentofu`, Advanced `terramate` initial apply, an Advanced change set that
+adds a workload, Advanced reconcile, coordinated rollback and restore
+activation. A change set and Advanced reconcile both run the target apply as
+a joined `stackkit apply` child (`advanced_change_set_apply.go:903`,
+`runAdvancedMutation`), so they run exactly the executor the plan's target
+selects; their column equals the `terramate` column plus the lifecycle
+difference noted below.
+
+Paths: `nh` is `internal/runtimeexecutor/nativehost`, `ot` is
+`internal/runtimeexecutor/opentofu`, `cmd` is `cmd/stackkit/commands`.
+"shared" means one registration serves every target
+(`cmd/architecture_v2_product_runtime.go`).
+
+| Step | `compose` | `opentofu` | `terramate` initial | change set adds workload | Advanced reconcile | coordinated rollback | restore activation |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Owner custody (email, username, PocketID trust) | `stackkit init`, before any Apply | same | same | same | same | restored with the checkpoint authority | restored with the backup |
+| Basement: origin provisioner check, stackkit-server staging | runs (`nh/basement_core_os.go:174`) | runs (`ot/executor.go:100` via `PrepareCompose`) | runs (same executor) | runs (joined apply) | runs (joined apply) | runs (`nh/restored_root_side_steps.go`, `PrepareNativeComposeRoot`) | not run (below) |
+| Basement: stackkit-server recreate, step-ca reload | runs (`nh/basement_core_os.go:195`) | runs (`ot/executor.go:143` via `CompleteCompose`) | runs | runs | runs | runs (`NativeComposeRootSteps.Complete`) | not run |
+| Basement: PocketID owner realization and TinyAuth OIDC client | runs (`nh/basement_core_os.go:216`) | runs (same completion) | runs | runs | runs | runs | not run |
+| Basement: TinyAuth reconciling `up` | runs (`nh/basement_core_os.go:223`) | runs | runs | runs | runs | runs | not run |
+| Cloud: identity address check, stackkit-server staging | runs (`nh/cloud_core_os.go:94`) | runs (`PrepareCompose`) | runs | runs | runs | runs (`PrepareNativeComposeRoot`) | not run |
+| Cloud: stackkit-server recreate, readiness, PocketID owner and TinyAuth client, reconciling `up` | runs (`nh/cloud_core_os.go:118`) | runs (`CompleteCompose`) | runs | runs | runs | runs (readiness by container state; probes in rollback verify) | not run |
+| Cloud: public TLS, identity trust policy, host security, offsite backup | runs (shared, `cmd/architecture_v2_product_runtime.go:296-373`) | runs (shared) | runs (shared) | runs (shared) | runs (shared) | not applicable (not stacks) | not applicable |
+| Cloud: public edge | runs (native owner) | runs (native owner, then contract root, `:359`) | runs | runs | runs | contract root restored, owner not re-run | not applicable |
+| Basement: internal PKI, identity trust, home access, LAN DNS policy | runs (shared, `:313-382`) | runs (shared) | runs (shared) | runs (shared) | runs (shared) | LAN DNS served by the restored Core payload | Core payload started |
+| Workload: `.env` secrets, config files, data directory render and persist | runs (`nh/standalone_compose_workload.go:126`) | runs (`ot/workload.go:64` via `PrepareWorkloadCompose`) | runs | runs | runs | checkpoint files restored and proven against the bundle | data restored |
+| Workload: Wings recreate, readiness, origin backend record | runs (`nh/standalone_compose_workload.go:165`) | runs (`ot/workload.go:106` via `CompleteWorkloadCompose`) | runs | runs | runs | runs (`CompleteRestoredWorkloadCompose`) | readiness only (own loop, `internal/restoreactivation/docker.go:239`) |
+| Workload: owner account and app onboarding (`internal/appsetup`) | runs after the converged Apply (`cmd/setup_automatic.go`, `runAutomaticOwnerSetup` from `cmd/apply.go`) | runs (same) | runs (same) | runs after the change set (`cmd/advanced_change_set_apply.go`) | runs after reconcile (`cmd/drift.go`) | the account lives in the restored application data; `stackkit setup` re-verifies | `stackkit setup` re-verifies |
+| Workload: per-application OIDC client | not implemented on any path | not implemented | not implemented | not implemented | not implemented | not implemented | not implemented |
+| Workload: household users | PocketID household group only (`internal/localowner/household.go`), not provisioned inside applications | same | same | same | same | same | same |
+| Workload: Kopia source registration (`stackkit backup configure`) | target-neutral, resolves the Core unit of any target (`cmd/backup_native_v2.go:478`) | same | same | same | same | same | not applicable |
+| Application lifecycle record | `stackkit.apply`, stage `install` (`cmd/architecture_v2_execution.go:977`) | same | same | `stackkit.upgrade`, stage `upgrade` (`cmd/advanced_change_set_apply.go:267`) | same as change set (`cmd/drift.go:224`) | lifecycle mutation journal, no application record | `stackkit.restore` |
+
+- Owner setup runs automatically after the runtime converged, on every
+  path. A top-level `stackkit apply` (standalone, or the Techstack-managed
+  rollout), `stackkit advanced change-set apply` and `stackkit drift
+  reconcile --mode advanced` end with `runAutomaticOwnerSetup`; a joined
+  child apply leaves it to its parent. It runs, per workload whose Plan
+  declares one on-demand native owner setup action, the code `stackkit
+  setup` runs (`executeNativeSetup`), under the `setup` lifecycle mutation
+  and recorded as a `stackkit.setup` operation. Credentials come from the
+  private file the action's setup guide names when the owner or
+  orchestrator placed one there before Apply; otherwise they are derived
+  from the owner custody identity (email, username, display name) plus a
+  generated password and written owner-only to that file, so `stackkit
+  setup <workload>` repairs with the same account. Owner-account actions
+  qualify (Files, Photos, Media, Smart Home, and the Vault invitation
+  preparation); the game server (EULA, profile) and mail (mailbox, domain)
+  need owner decisions the Plan does not hold and are reported
+  `owner-input-required`. A workload with a succeeded setup is not set up
+  again. A failure never undoes the converged runtime: it is an
+  `owner-setup.workload` rollout event with status `failed`, a failed setup
+  operation, and a warning naming `stackkit setup <workload>`; the next
+  Apply retries it. Applying the Plan that selects Files is the owner's
+  authorization of its first owner registration.
+- The setup admits the project through `WithStandaloneComposeHTTP`, which
+  re-renders the bundle and requires the persisted `compose.yaml`, `.env`
+  and configuration files to match. The OpenTofu root writes the identical
+  Compose bytes (`local_file`, mode 0600), so the same admission holds after
+  every path. `TestOwnerSetupAdmitsTheWorkloadOnEveryExecutionPath` creates
+  the Files owner through a stubbed Cloudreve API after the native Apply,
+  after the OpenTofu executor halves and after a coordinated-rollback
+  restore; `TestAutomaticOwnerSetupRunsOwnerAccountActionsFromTheOwnerIdentity`
+  covers the selection and the derived private credentials.
+- A workload added by a change set starts its lifecycle history with
+  `stackkit.upgrade`, not `stackkit.apply`; its `setup` operation follows
+  it as after a Standard install.
+- Remaining gaps, common to every target and therefore not parity gaps:
+  restore activation starts Compose runtimes with its own `up` and readiness
+  loop and runs neither the Core completion (owner realization, TinyAuth
+  rebind) nor the workload completion (Wings recreation, origin backend
+  record); no application has its own PocketID OIDC client (only TinyAuth
+  and the step-up client register one, `internal/localowner/service.go`).
+  Each needs its own slice.
 
 ### Runtime network instances
 

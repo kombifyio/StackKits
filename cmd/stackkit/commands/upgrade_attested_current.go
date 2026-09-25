@@ -345,33 +345,12 @@ func materializeHistoricalPlanInventory(
 	if !info.Mode().IsRegular() || len(raw) == 0 {
 		return "", nil, errors.New("historical resolved Plan is not a bounded regular file")
 	}
-	var plan struct {
-		Source struct {
-			Inventory struct {
-				Document json.RawMessage `json:"document"`
-			} `json:"inventory"`
-		} `json:"source"`
-	}
-	if err := json.Unmarshal(raw, &plan); err != nil {
+	path, cleanup, err := materializePlanInventory(raw)
+	if err != nil {
 		return "", nil, fmt.Errorf("decode historical Plan Inventory projection: %w", err)
 	}
-	var document map[string]json.RawMessage
-	if err := json.Unmarshal(plan.Source.Inventory.Document, &document); err != nil || len(document) == 0 {
+	if path == "" {
 		return "", nil, errors.New("historical Plan has no valid Inventory document")
 	}
-	file, err := os.CreateTemp("", "stackkit-historical-inventory-*.json")
-	if err != nil {
-		return "", nil, err
-	}
-	cleanup := func() { _ = os.Remove(file.Name()) }
-	if _, err := file.Write(plan.Source.Inventory.Document); err != nil {
-		_ = file.Close()
-		cleanup()
-		return "", nil, err
-	}
-	if err := file.Close(); err != nil {
-		cleanup()
-		return "", nil, err
-	}
-	return file.Name(), cleanup, nil
+	return path, cleanup, nil
 }

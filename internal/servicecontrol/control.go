@@ -27,8 +27,8 @@ import (
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/logging"
-	"github.com/kombifyio/stackkits/internal/platformdeploy"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"gopkg.in/yaml.v3"
 )

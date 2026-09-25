@@ -62,6 +62,32 @@ package foundation
 		dockge?:  #PaasStatus
 	}
 
-	// Canonical E2E scenario IDs backing the "supported" cells (e.g. "SK-S1").
-	evidence?: [...string]
+	// Per-cell evidence citations proving each "supported"/"default" cell.
+	// Keyed by "<axis>.<key>" (the same cell path the citation validator
+	// computes, e.g. "install.advanced", "context.cloud", "paas.coolify");
+	// each value is the list of citations for that one cell. A citation is
+	// either a canonical E2E scenario ID (e.g. "SK-S1") or an os-compat lab
+	// receipt run id (a directory name under
+	// docs/data/os-compat/receipts/<runId>/, e.g. "pve_e20d4a0a77"). A cell
+	// graded "supported"/"default" with no entry here, or whose citations do
+	// not resolve to a real artifact, fails `mise run
+	// release:mode-matrix-citations`; a citation clears only the cell it is
+	// filed under, never a kit's other supported cells.
+	//
+	// install.advanced is the go-live gate cell (ADR-0045 Acceptance;
+	// docs/plans/2026-09-24-replanning/11-steering-2026-09-25.md "Gate for
+	// go-live" item 4): its citations must resolve to an os-compat receipt
+	// with `dispatcher: "techstack-core"`, a real substrate (`"proxmox-ve"`
+	// for the Basement/Proxmox lane or `"managed-vps"` for the
+	// Techstack-managed Cloud VPS lane), overall `status: "passed"`, and a
+	// passed phase entry for every one of: apply, verify, drift-detect,
+	// change-set, reconcile, rollback, restore-drill. A receipt missing any
+	// one of those phases (for example the unmanaged proxmox-lab.py or
+	// managed-vps Standard lifecycle, which never runs change-set/
+	// reconcile/rollback/restore-drill, or a Techstack-dispatched run whose
+	// change-set/reconcile/rollback failed) never satisfies install.advanced,
+	// no matter how many other phases passed.
+	evidence?: {
+		[string]: [...string]
+	}
 }

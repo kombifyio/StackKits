@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutoropentofu"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -14,8 +14,8 @@ const productOpenTofuAdapterID = "stackkits-opentofu-local"
 
 type productOpenTofuFactory struct {
 	runtimeVersion string
-	module         runtimeexecutoropentofu.ModuleBinding
-	runtime        runtimeexecutoropentofu.Runtime
+	module         opentofu.ModuleBinding
+	runtime        opentofu.Runtime
 	selector       ProductRuntimeOwnerSelector
 }
 
@@ -23,7 +23,7 @@ type productOpenTofuFactory struct {
 // module to the standard OpenTofu executor. Selectors are exact per module
 // because the registry matches whole selectors; the native Compose
 // registrations keep the compose unit of the same modules (S-F fallback).
-func NewProductOpenTofuRegistrations(runtimeVersion string, runtime runtimeexecutoropentofu.Runtime, modules []runtimeexecutoropentofu.ModuleBinding) ([]ProductRuntimeOwnerRegistration, error) {
+func NewProductOpenTofuRegistrations(runtimeVersion string, runtime opentofu.Runtime, modules []opentofu.ModuleBinding) ([]ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) ||
 		strings.TrimSpace(runtime.WorkspaceRoot) == "" || nilProductRuntimeOwnerValue(runtime.Native) || len(modules) == 0 {
 		return nil, errors.New("OpenTofu registrations require a runtime version, workspace, native Verify owner, and modules")
@@ -35,7 +35,7 @@ func NewProductOpenTofuRegistrations(runtimeVersion string, runtime runtimeexecu
 		}
 		// The opentofu unit (target opentofu) and the terramate unit (target
 		// terramate: the same root plus its stack file) of one Core module.
-		for _, unitRef := range []string{runtimeexecutoropentofu.UnitRef, runtimeexecutoropentofu.TerramateUnitRef} {
+		for _, unitRef := range []string{opentofu.UnitRef, opentofu.TerramateUnitRef} {
 			selector := productOpenTofuSelector(module, unitRef)
 			registrations = append(registrations, ProductRuntimeOwnerRegistration{
 				Selector: selector,
@@ -53,7 +53,7 @@ func NewProductOpenTofuRegistrations(runtimeVersion string, runtime runtimeexecu
 // contract root under the opentofu and terramate targets. The selector,
 // execution mode, and compensation stay the native registration's; under
 // the compose target the prepared executor is the native one.
-func WithProductOpenTofuContractRoot(registration ProductRuntimeOwnerRegistration, runtime runtimeexecutoropentofu.Runtime) (ProductRuntimeOwnerRegistration, error) {
+func WithProductOpenTofuContractRoot(registration ProductRuntimeOwnerRegistration, runtime opentofu.Runtime) (ProductRuntimeOwnerRegistration, error) {
 	if nilProductRuntimeOwnerFactory(registration.Factory) || registration.Execution == ProductRuntimeOwnerExecutionRemoteOnly ||
 		strings.TrimSpace(runtime.WorkspaceRoot) == "" {
 		return ProductRuntimeOwnerRegistration{}, errors.New("an OpenTofu contract root requires a local native owner registration and a workspace")
@@ -64,7 +64,7 @@ func WithProductOpenTofuContractRoot(registration ProductRuntimeOwnerRegistratio
 
 type productOpenTofuContractRootFactory struct {
 	native  ProductRuntimeOwnerFactory
-	runtime runtimeexecutoropentofu.Runtime
+	runtime opentofu.Runtime
 }
 
 func (f *productOpenTofuContractRootFactory) PrepareRuntimeOwner(request ProductRuntimeOwnerRequest) (runtimeexecutor.Executor, error) {
@@ -75,7 +75,7 @@ func (f *productOpenTofuContractRootFactory) PrepareRuntimeOwner(request Product
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutoropentofu.NewContractRootExecutor(native, f.runtime), nil
+	return opentofu.NewContractRootExecutor(native, f.runtime), nil
 }
 
 func (f *productOpenTofuFactory) PrepareRuntimeOwner(request ProductRuntimeOwnerRequest) (runtimeexecutor.Executor, error) {
@@ -103,17 +103,17 @@ func (f *productOpenTofuFactory) PrepareRuntimeOwner(request ProductRuntimeOwner
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutoropentofu.NewExecutor(identity, runtimeexecutorlocal.LocalTargetBinding{
+	return opentofu.NewExecutor(identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0],
 		ExecutionChannelRef: target.ExecutionChannelRef,
-	}, runtimeexecutoropentofu.Authority{
+	}, opentofu.Authority{
 		ProviderContractHash: target.ProviderContractHash,
 		ModuleContractHash:   target.ModuleContractHash,
 		HealthContractHashes: healthHashes,
 	}, f.module, f.runtime), nil
 }
 
-func productOpenTofuSelector(module runtimeexecutoropentofu.ModuleBinding, unitRef string) ProductRuntimeOwnerSelector {
+func productOpenTofuSelector(module opentofu.ModuleBinding, unitRef string) ProductRuntimeOwnerSelector {
 	return ProductRuntimeOwnerSelector{
 		OwnerKind: "module", OwnerRef: module.ModuleRef,
 		ProviderRef: module.ProviderRef, ModuleRef: module.ModuleRef,

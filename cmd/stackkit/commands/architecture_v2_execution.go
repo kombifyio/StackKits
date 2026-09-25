@@ -25,7 +25,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/kombifyio/stackkits/internal/runtimeobservation"
 	"github.com/kombifyio/stackkits/internal/servicecontrol"
@@ -89,6 +89,9 @@ type architectureV2ExecutionCLIOptions struct {
 	removalEvidenceJSON bool
 	removalEvidenceSink func(workloadremoval.Evidence) error
 	preflightPolicy     string
+	// executionScope is the host scope of a multi-host Apply, derived from the
+	// same local custody the product authority is composed from.
+	executionScope *generationartifact.ApplyExecutionScope
 }
 
 type architectureV2ExecutionAuthority interface {
@@ -416,7 +419,7 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	inventory, persistPath, err := attestLocalInventoryFacts(ctx, wd, rawSpec, inventory, inventoryPath, options, nil)
+	inventory, persistPath, err := attestLocalInventoryFacts(ctx, wd, rawSpec, inventory, inventoryPath, options, observeLocalInventory)
 	if err != nil {
 		return err
 	}
@@ -439,6 +442,11 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 	}
 	if closer, ok := authority.(interface{ Close() error }); ok {
 		defer func() { returnErr = errors.Join(returnErr, closer.Close()) }()
+	}
+	if mode == architectureV2Apply {
+		if local, localErr := loadArchitectureV2LocalExecution(wd, time.Now()); localErr == nil {
+			options.executionScope = local.scope
+		}
 	}
 	currentResolution, err := authority.ResolveCurrent(architecturev2.ResolveInput{StackSpec: rawSpec, Inventory: inventory})
 	if err != nil {
@@ -497,6 +505,11 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 		}
 		if err := persisted.VerifyCompatibility(g.versions); err != nil {
 			return err
+		}
+		if mode == architectureV2Apply || mode == architectureV2Verify {
+			if err := requireArchitectureV2MemberPlan(wd, persisted); err != nil {
+				return err
+			}
 		}
 		// Mutating modes reach execute only while the lifecycle and exact
 		// output-root locks are held. Keep the caller's admitted plan identity
@@ -860,13 +873,16 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 			}
 			owner, runtime, err = verifyArchitectureV2LocalState(verifyContext, wd, persisted, manifest, options.verifyOffline, appliedRequest)
 		}
-		ownerCustody, custodyErr := localevidence.LoadOwnerCustody(wd)
+		verifyLocal, custodyErr := loadArchitectureV2LocalExecution(wd, time.Now())
 		if custodyErr != nil {
-			return custodyErr
+			return localApplyCustodyError(custodyErr)
+		}
+		if verifyLocal.member != nil && !processRuntime {
+			return errors.New("member Verify requires the shared Inventory execution channels the Home owner admitted")
 		}
 		verifyObservedAt, verifyObservationRunID := historicalRuntimeObservationIdentity(result.Summary().AppliedAt)
 		observationSource, observationLive := runtimeobservation.SourceVerifiedApplyEvidence, false
-		var cloudVerify *runtimeexecutorlocal.CloudCoreVerifyObservation
+		var cloudVerify *nativehost.CloudCoreVerifyObservation
 		if runtime != nil && runtime.cloud != nil {
 			now := time.Now
 			if g.now != nil {
@@ -885,8 +901,8 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 			Source: observationSource, Live: observationLive,
 			ObservedAt: verifyObservedAt, RunID: verifyObservationRunID,
 			Apply: result.Summary(), Outcomes: result.ObservationSummary(),
-			FallbackSiteRef: ownerCustody.Binding.SiteRef, FallbackNodeRef: ownerCustody.Binding.NodeRef,
-			FallbackChannelRef: ownerCustody.Binding.ChannelRef,
+			FallbackSiteRef: verifyLocal.binding.SiteRef, FallbackNodeRef: verifyLocal.binding.NodeRef,
+			FallbackChannelRef: verifyLocal.binding.ChannelRef,
 			RolloutEvidence:    rolloutRecorder != nil || deployLog != nil,
 			AccessEvidence:     access != nil,
 			CloudVerify:        cloudVerify,
@@ -938,18 +954,27 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	if executionContext == nil {
 		executionContext = context.Background()
 	}
-	applyInput := architecturev2.ProductApplyInput{
-		Current: current, Workspace: transaction, OutputLock: outputLock, Versions: g.versions,
-	}
 	now := time.Now
 	if g.now != nil {
 		now = g.now
 	}
+	local, err := loadArchitectureV2LocalExecution(wd, now().UTC())
+	if err != nil {
+		return localApplyCustodyError(err)
+	}
+	scopedPersisted, err := local.scopedPlan(persisted)
+	if err != nil {
+		return err
+	}
+	options.executionScope = local.scope
+	applyInput := architecturev2.ProductApplyInput{
+		Current: current, Workspace: transaction, OutputLock: outputLock, Versions: g.versions,
+	}
 	lifecycleStartedAt := now().UTC()
 	var lifecycleRuns []architectureV2ApplicationLifecycleRun
 	if strings.TrimSpace(lifecycleJoinOperation) == "" {
-		lifecycleRuns, err = beginArchitectureV2ApplicationLifecycles(
-			wd, persisted, "install", "stackkit.apply", "", lifecycleStartedAt,
+		lifecycleRuns, err = beginArchitectureV2HostApplicationLifecycles(
+			wd, persisted, scopedPersisted, "install", "stackkit.apply", lifecycleStartedAt,
 		)
 		if err != nil {
 			return err
@@ -979,7 +1004,7 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 			wd, lifecycleRuns, "Product Apply failed before owner evidence was persisted", now().UTC(), err,
 		)
 	}
-	persistedResult, err := persistArchitectureV2ApplyResult(transaction, result)
+	persistedResult, err := persistArchitectureV2ApplyResult(transaction, result, local)
 	if err != nil {
 		return requireArchitectureV2ApplicationLifecycleRecovery(
 			wd, lifecycleRuns,
@@ -1016,13 +1041,7 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 			persistedResult.ResultPath, now().UTC(), err,
 		)
 	}
-	ownerCustody, err := localevidence.LoadOwnerCustody(wd)
-	if err != nil {
-		return requireArchitectureV2ApplicationLifecycleRecovery(
-			wd, lifecycleRuns, "Product Apply completed but its exact owner runtime binding could not be loaded",
-			persistedResult.ResultPath, now().UTC(), err,
-		)
-	}
+	localBinding := local.binding
 	configuredRuntime, _, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
 	if err != nil {
 		return requireArchitectureV2ApplicationLifecycleRecovery(
@@ -1035,8 +1054,8 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		Source: runtimeobservation.SourceLocalRuntime, Live: true, ObservedAt: result.Summary().AppliedAt,
 		RunID: runtimeObservationRunID(result.Summary().AppliedAt), Apply: result.Summary(),
 		Outcomes:        result.ObservationSummary(),
-		FallbackSiteRef: ownerCustody.Binding.SiteRef, FallbackNodeRef: ownerCustody.Binding.NodeRef,
-		FallbackChannelRef: ownerCustody.Binding.ChannelRef,
+		FallbackSiteRef: localBinding.SiteRef, FallbackNodeRef: localBinding.NodeRef,
+		FallbackChannelRef: localBinding.ChannelRef,
 		RolloutEvidence:    rolloutRecorder != nil || deployLog != nil,
 		AccessEvidence:     true,
 		ProcessChannelRefs: runtimeObservationProcessChannelRefs(configuredRuntime),
@@ -1089,15 +1108,20 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	rolloutEvent("architecture_v2.apply", "succeeded", "native Architecture v2 Apply result persisted", map[string]string{
 		"result_hash": result.ResultHash(), "result_path": persistedResult.ResultPath,
 	})
-	ledger := applyledger.Applied(persisted.ApplyRequirements(), persisted.Binding().PlanHash, result.Summary().AppliedAt)
+	ledger := scopeApplyLedger(options, applyledger.Applied(persisted.ApplyRequirements(), persisted.Binding().PlanHash, result.Summary().AppliedAt))
 	persistApplyLedger(ledger)
+	receiptKind := "owner-apply-result-receipt"
+	if local.member != nil {
+		receiptKind = "member-apply-result-receipt"
+	}
 	applyOutput := architectureV2ApplyCommandResult{
 		SchemaVersion: "stackkit.apply-result/v2", Status: string(ledger.Overall), Apply: result.Summary(), Observations: observations,
 		EvidenceLinks: []runtimeobservation.EvidenceLink{
 			{Kind: "apply-result", Ref: persistedResult.ResultPath, Digest: result.ResultHash()},
-			{Kind: "owner-apply-result-receipt", Ref: persistedResult.OwnerReceiptPath, Digest: persistedResult.OwnerReceiptDigest},
+			{Kind: receiptKind, Ref: persistedResult.OwnerReceiptPath, Digest: persistedResult.OwnerReceiptDigest},
 		},
-		Outcomes: &ledger,
+		Outcomes:       &ledger,
+		ExecutionScope: local.scope,
 	}
 	if options.applySink != nil {
 		return options.applySink(applyOutput)
@@ -1324,11 +1348,11 @@ func (g architectureV2ExecutionGate) executeNativeWorkloadRemoval(
 	}
 	remove := g.removeCompose
 	if remove == nil {
-		remove = runtimeexecutorlocal.RemoveStandaloneComposeWorkload
+		remove = nativehost.RemoveStandaloneComposeWorkload
 	}
 	result, err := remove(ctx, wd, request)
 	if err != nil {
-		var progress *runtimeexecutorlocal.RemovalProgressError
+		var progress *nativehost.RemovalProgressError
 		if resumed || (errors.As(err, &progress) && progress.Progressed) {
 			return requireArchitectureV2ApplicationLifecycleRecovery(
 				wd, lifecycleRuns,
@@ -1569,6 +1593,7 @@ type architectureV2PersistedApplyResult struct {
 func persistArchitectureV2ApplyResult(
 	transaction *confinedfs.Transaction,
 	result architecturev2.VerifiedApplyResult,
+	local architectureV2LocalExecution,
 ) (architectureV2PersistedApplyResult, error) {
 	canonical, err := result.Canonical()
 	if err != nil {
@@ -1589,7 +1614,12 @@ func persistArchitectureV2ApplyResult(
 			return architectureV2PersistedApplyResult{}, fmt.Errorf("persist content-addressed Architecture v2 Apply result: %w", err)
 		}
 	}
-	_, canonicalReceipt, err := newOwnerApplyResultReceipt(transaction.Name(), result)
+	var canonicalReceipt []byte
+	if local.member != nil {
+		canonicalReceipt, err = newMemberApplyResultReceipt(local.member.Key, canonical, result.ResultHash())
+	} else {
+		_, canonicalReceipt, err = newOwnerApplyResultReceipt(transaction.Name(), result)
+	}
 	if err != nil {
 		return architectureV2PersistedApplyResult{}, err
 	}
@@ -1693,7 +1723,7 @@ func maybePrepareCloudExecutionChannelBeforeApply(ctx context.Context, workspace
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return runtimeexecutorlocal.PrepareCloudExecutionChannel(ctx, workspace, dispatched)
+	return nativehost.PrepareCloudExecutionChannel(ctx, workspace, dispatched)
 }
 
 // architectureV2DispatchedLocalChannel reports whether this Apply arrives
@@ -1778,6 +1808,7 @@ func admitApplyHost(
 // reportApplyLedger persists and emits one per-unit Apply account through the
 // same path whether the host was blocked or execution stopped part-way.
 func reportApplyLedger(options architectureV2ExecutionCLIOptions, ledger applyledger.Ledger) {
+	ledger = scopeApplyLedger(options, ledger)
 	persistApplyLedger(ledger)
 	if options.applySink != nil {
 		_ = options.applySink(architectureV2ApplyCommandResult{
@@ -1788,6 +1819,18 @@ func reportApplyLedger(options architectureV2ExecutionCLIOptions, ledger applyle
 		return
 	}
 	printApplyLedger(ledger)
+}
+
+// scopeApplyLedger records another host's runtime targets as out_of_scope
+// in a host-scoped Apply instead of reporting them skipped or applied.
+func scopeApplyLedger(options architectureV2ExecutionCLIOptions, ledger applyledger.Ledger) applyledger.Ledger {
+	if options.executionScope == nil {
+		return ledger
+	}
+	scope := options.executionScope
+	return applyledger.WithExecutionScope(ledger, func(subject applyledger.Subject) bool {
+		return architectureV2ScopeIncludesSubject(scope, subject.RuntimeOwnerRef, subject.SiteRef, subject.NodeRef)
+	})
 }
 
 // reportApplyLedgerForFailure emits the per-unit account of a partial Apply

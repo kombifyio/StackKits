@@ -463,7 +463,7 @@
     ],
     "contractVersion": "1.0.0",
     "defaultStrategy": "kit-template",
-    "defaultTarget": "compose"
+    "defaultTarget": "opentofu"
   },
   "hostRequirements": {
     "headroomFactor": 0.8,

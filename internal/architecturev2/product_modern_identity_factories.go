@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -15,18 +15,18 @@ const (
 
 type productModernHomeIdentityFactory struct {
 	runtimeVersion string
-	operations     runtimeexecutorlocal.ModernHomeIdentityTrustPolicyOperations
+	operations     nativehost.ModernHomeIdentityTrustPolicyOperations
 }
 
 type productModernCloudIdentityFactory struct {
 	runtimeVersion string
-	operations     runtimeexecutorlocal.ModernCloudIdentityVerifierPolicyOperations
+	operations     nativehost.ModernCloudIdentityVerifierPolicyOperations
 }
 
 // NewProductModernHomeIdentityRegistration binds only the node-local Home
 // authority target. Transport, endpoints, credentials and provider lifecycle
 // remain outside StackKits and outside this factory.
-func NewProductModernHomeIdentityRegistration(runtimeVersion string, operations runtimeexecutorlocal.ModernHomeIdentityTrustPolicyOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductModernHomeIdentityRegistration(runtimeVersion string, operations nativehost.ModernHomeIdentityTrustPolicyOperations) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("Modern Home identity registration requires a runtime version and operations owner")
 	}
@@ -45,14 +45,14 @@ func (f *productModernHomeIdentityFactory) PrepareRuntimeOwner(request ProductRu
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewModernHomeIdentityTrustPolicyExecutor(identity, runtimeexecutorlocal.ModernIdentitySitePolicyBinding{SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef}, runtimeexecutorlocal.ModernIdentityTrustPolicyAuthority{
+	return nativehost.NewModernHomeIdentityTrustPolicyExecutor(identity, nativehost.ModernIdentitySitePolicyBinding{SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef}, nativehost.ModernIdentityTrustPolicyAuthority{
 		ProviderContractHash: target.ProviderContractHash, ModuleContractHash: target.ModuleContractHash, HealthContractHash: health[0].ContractHash,
 	}, f.operations), nil
 }
 
 // NewProductModernCloudIdentityRegistration binds only the node-local Cloud
 // verifier target. It cannot construct or obtain a Home-authority executor.
-func NewProductModernCloudIdentityRegistration(runtimeVersion string, operations runtimeexecutorlocal.ModernCloudIdentityVerifierPolicyOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductModernCloudIdentityRegistration(runtimeVersion string, operations nativehost.ModernCloudIdentityVerifierPolicyOperations) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("Modern Cloud identity registration requires a runtime version and operations owner")
 	}
@@ -71,7 +71,7 @@ func (f *productModernCloudIdentityFactory) PrepareRuntimeOwner(request ProductR
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewModernCloudIdentityVerifierPolicyExecutor(identity, runtimeexecutorlocal.ModernIdentitySitePolicyBinding{SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef}, runtimeexecutorlocal.ModernIdentityTrustPolicyAuthority{
+	return nativehost.NewModernCloudIdentityVerifierPolicyExecutor(identity, nativehost.ModernIdentitySitePolicyBinding{SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef}, nativehost.ModernIdentityTrustPolicyAuthority{
 		ProviderContractHash: target.ProviderContractHash, ModuleContractHash: target.ModuleContractHash, HealthContractHash: health[0].ContractHash,
 	}, f.operations), nil
 }

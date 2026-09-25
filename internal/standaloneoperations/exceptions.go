@@ -27,6 +27,7 @@ const (
 	scopeAlias      = "CLI alias of a projected operation"
 	scopeAgent      = "agent bootstrap before an MCP connection exists"
 	scopeTransport  = "signed execution-channel transport"
+	scopeTrust      = "owner trust enrollment of a fleet member"
 )
 
 var exceptions = []Exception{
@@ -69,6 +70,10 @@ var exceptions = []Exception{
 
 	// Execution channel for signed bundles.
 	{Command: []string{"runtime", "execute"}, Reason: "Receiver for a signed execution-channel bundle on stdin from an external executor; exposing it would add a second dispatch path. The lifecycle operations it runs are projected individually.", Scope: scopeTransport, Removal: "When the execution channel is replaced by the projected operations."},
+	{Command: []string{"fleet", "admit-member"}, Reason: "Signs a member admission with the Foundation Node owner key; an agent must not be able to extend the fleet's trust root.", Scope: scopeTrust, Removal: "When admission requires a separate owner approval that the MCP caller cannot grant itself."},
+	{Command: []string{"fleet", "join"}, Reason: "Runs on the new member host before any connector exists there, and the owner compares the home key ID out of band.", Scope: scopeTrust, Removal: "Never while joining bootstraps the member's first trust."},
+	{Command: []string{"fleet", "certify-member-key"}, Reason: "Signs a member's evidence key with the Home owner key; an agent must not be able to certify trust for a fleet member.", Scope: scopeTrust, Removal: "When certification requires a separate owner approval that the MCP caller cannot grant itself."},
+	{Command: []string{"fleet", "import-member-key"}, Reason: "Installs the owner certificate on the member host as part of the same trust enrollment, before a connector is bound there.", Scope: scopeTrust, Removal: "Never while it completes the member's first trust."},
 
 	// Repository build and documentation tooling.
 	{Command: []string{"compat", "emit-os-matrix"}, Reason: "Renders the public OS compatibility projection into the StackKits website and docs sources.", Scope: scopeRepository, Removal: "Never; it is release tooling, not a server capability."},

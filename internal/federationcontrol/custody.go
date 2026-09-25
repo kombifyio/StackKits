@@ -13,7 +13,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorprocess"
 )
 
@@ -35,17 +35,17 @@ type HomeTrust struct {
 // TLS keys are externally issued and held in confined files, not transported
 // in this record or in an action. Only the selected Cloud node may receive.
 type ReceiverCustody struct {
-	Trust             HomeTrust                                              `json:"trust"`
-	Policy            runtimeexecutorlocal.FederationControlAgentApplyPolicy `json:"policy"`
-	PlanPath          string                                                 `json:"planPath"`
-	PlanHash          string                                                 `json:"planHash"`
-	Executable        string                                                 `json:"executable"`
-	ExecutableSHA256  string                                                 `json:"executableSHA256"`
-	ExecutableVersion string                                                 `json:"executableVersion"`
-	ServerName        string                                                 `json:"serverName"`
-	CertificatePath   string                                                 `json:"certificatePath"`
-	PrivateKeyPath    string                                                 `json:"privateKeyPath"`
-	Active            bool                                                   `json:"active"`
+	Trust             HomeTrust                                    `json:"trust"`
+	Policy            nativehost.FederationControlAgentApplyPolicy `json:"policy"`
+	PlanPath          string                                       `json:"planPath"`
+	PlanHash          string                                       `json:"planHash"`
+	Executable        string                                       `json:"executable"`
+	ExecutableSHA256  string                                       `json:"executableSHA256"`
+	ExecutableVersion string                                       `json:"executableVersion"`
+	ServerName        string                                       `json:"serverName"`
+	CertificatePath   string                                       `json:"certificatePath"`
+	PrivateKeyPath    string                                       `json:"privateKeyPath"`
+	Active            bool                                         `json:"active"`
 }
 
 type signedState struct {

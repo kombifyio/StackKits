@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -12,10 +12,10 @@ const productCloudIdentityTrustAdapterID = "stackkits-cloud-identity-trust-local
 
 type productCloudIdentityTrustFactory struct {
 	runtimeVersion string
-	operations     runtimeexecutorlocal.CloudIdentityTrustPolicyOperations
+	operations     nativehost.CloudIdentityTrustPolicyOperations
 }
 
-func NewProductCloudIdentityTrustRegistration(runtimeVersion string, operations runtimeexecutorlocal.CloudIdentityTrustPolicyOperations) (ProductRuntimeOwnerRegistration, error) {
+func NewProductCloudIdentityTrustRegistration(runtimeVersion string, operations nativehost.CloudIdentityTrustPolicyOperations) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("Cloud identity-trust product registration requires a runtime version and operations owner")
 	}
@@ -36,9 +36,9 @@ func (f *productCloudIdentityTrustFactory) PrepareRuntimeOwner(request ProductRu
 	if err != nil {
 		return nil, err
 	}
-	return runtimeexecutorlocal.NewCloudIdentityTrustPolicyExecutor(identity, runtimeexecutorlocal.CloudIdentityTrustPolicyBinding{
+	return nativehost.NewCloudIdentityTrustPolicyExecutor(identity, nativehost.CloudIdentityTrustPolicyBinding{
 		SiteRefs: target.SiteRefs, NodeRefs: target.NodeRefs, ExecutionChannelRef: target.ExecutionChannelRef,
-	}, runtimeexecutorlocal.CloudIdentityTrustPolicyAuthority{
+	}, nativehost.CloudIdentityTrustPolicyAuthority{
 		ProviderContractHash: target.ProviderContractHash, ModuleContractHash: target.ModuleContractHash, HealthContractHash: health[0].ContractHash,
 	}, f.operations), nil
 }

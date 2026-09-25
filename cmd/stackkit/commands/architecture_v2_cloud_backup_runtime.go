@@ -8,11 +8,11 @@ import (
 	"github.com/kombifyio/stackkits/internal/backupcustody"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorlocal"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 )
 
 func newArchitectureV2CloudBackupRegistration(workspace, runtimeVersion string) (architecturev2.ProductRuntimeOwnerRegistration, error) {
-	operations, err := runtimeexecutorlocal.NewOSCloudOffsiteBackupOperations(workspace, func(ctx context.Context) (localbackuppolicy.Policy, backupcustody.S3TargetAuthority, error) {
+	operations, err := nativehost.NewOSCloudOffsiteBackupOperations(workspace, func(ctx context.Context) (localbackuppolicy.Policy, backupcustody.S3TargetAuthority, error) {
 		var policy localbackuppolicy.Policy
 		var target backupcustody.S3TargetAuthority
 		generated, err := inspectNativeV2GeneratedAuthority(ctx, workspace, specFile)

@@ -41,6 +41,9 @@ const (
 	// OutcomeUnverified means the unit applied but its health could not be
 	// observed. It is never reported as applied.
 	OutcomeUnverified Outcome = "unverified"
+	// OutcomeOutOfScope means another host of the same StackInstance executes
+	// the unit. It is neither a failure nor evidence that the unit applied.
+	OutcomeOutOfScope Outcome = "out_of_scope"
 )
 
 // Overall is the closed aggregate vocabulary for a whole Apply.
@@ -133,6 +136,7 @@ type Summary struct {
 	Failed     int `json:"failed"`
 	Skipped    int `json:"skipped"`
 	Unverified int `json:"unverified"`
+	OutOfScope int `json:"outOfScope,omitempty"`
 }
 
 // Next tells the caller how to continue after an incomplete Apply.
@@ -190,6 +194,35 @@ func Applied(requirements generationartifact.ApplyRequirements, planHash string,
 	}
 	finalize(&ledger)
 	return ledger
+}
+
+// WithExecutionScope marks every unit this host does not execute as
+// out_of_scope and recomputes the aggregate over the units it does execute.
+// A host-scoped Apply thereby lists the whole plan without claiming, or
+// failing on, another host's targets.
+func WithExecutionScope(ledger Ledger, inScope func(Subject) bool) Ledger {
+	if inScope == nil {
+		return ledger
+	}
+	result := ledger
+	result.Units = append([]Unit(nil), ledger.Units...)
+	for index := range result.Units {
+		unit := &result.Units[index]
+		if inScope(unit.Subject) {
+			continue
+		}
+		unit.Outcome, unit.Failure, unit.Health = OutcomeOutOfScope, nil, nil
+		unit.StepID, unit.JournalState = "", ""
+	}
+	result.Summary = Summary{}
+	if result.Overall != OverallBlocked {
+		result.Overall = ""
+	}
+	finalize(&result)
+	if result.Overall == OverallApplied {
+		result.Next = nil
+	}
+	return result
 }
 
 // StepOutcome is one journaled child step, paired with its recorded state.
@@ -355,6 +388,8 @@ func finalize(ledger *Ledger) {
 		case OutcomeUnverified:
 			ledger.Summary.Unverified++
 			incomplete = true
+		case OutcomeOutOfScope:
+			ledger.Summary.OutOfScope++
 		}
 	}
 	if ledger.Overall == OverallBlocked {

@@ -41,6 +41,43 @@ func beginArchitectureV2ApplicationLifecyclesWithID(
 	operationID string,
 	now time.Time,
 ) ([]architectureV2ApplicationLifecycleRun, error) {
+	return beginArchitectureV2ApplicationLifecyclesMatching(workspace, plan, stage, operationRef, workloadRef, operationID, nil, now)
+}
+
+// beginArchitectureV2HostApplicationLifecycles starts the lifecycles of only
+// the workloads a host-scoped Apply executes; another host records its own.
+func beginArchitectureV2HostApplicationLifecycles(
+	workspace string,
+	plan generationartifact.VerifiedPlan,
+	scoped generationartifact.VerifiedPlan,
+	stage string,
+	operationRef string,
+	now time.Time,
+) ([]architectureV2ApplicationLifecycleRun, error) {
+	if scoped.ExecutionScope() == nil {
+		return beginArchitectureV2ApplicationLifecycles(workspace, plan, stage, operationRef, "", now)
+	}
+	workloads := map[string]struct{}{}
+	for _, workload := range scoped.ApplyRequirements().Workloads {
+		workloads[workload.ID] = struct{}{}
+	}
+	include := func(workloadRef string) bool {
+		_, ok := workloads[workloadRef]
+		return ok
+	}
+	return beginArchitectureV2ApplicationLifecyclesMatching(workspace, plan, stage, operationRef, "", "", include, now)
+}
+
+func beginArchitectureV2ApplicationLifecyclesMatching(
+	workspace string,
+	plan generationartifact.VerifiedPlan,
+	stage string,
+	operationRef string,
+	workloadRef string,
+	operationID string,
+	include func(string) bool,
+	now time.Time,
+) ([]architectureV2ApplicationLifecycleRun, error) {
 	resolved, err := resolvedplan.DecodeCanonicalPlan(plan.Canonical())
 	if err != nil {
 		return nil, fmt.Errorf("decode verified ResolvedPlan application lifecycles: %w", err)
@@ -52,7 +89,7 @@ func beginArchitectureV2ApplicationLifecyclesWithID(
 	store := applicationlifecycle.Store{Workspace: workspace}
 	runs := make([]architectureV2ApplicationLifecycleRun, 0, len(contracts))
 	for _, contract := range contracts {
-		if workloadRef != "" && contract.WorkloadRef != workloadRef {
+		if workloadRef != "" && contract.WorkloadRef != workloadRef || include != nil && !include(contract.WorkloadRef) {
 			continue
 		}
 		if !applicationLifecycleStageSupportedByDelivery(contract, stage) {
