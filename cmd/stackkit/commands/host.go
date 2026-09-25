@@ -52,6 +52,9 @@ func newHostCommand(deps hostConformanceCommandDeps) *cobra.Command {
 	host.AddCommand(newHostRemediateCommand())
 	host.AddCommand(newHostConformanceCommand(deps))
 	host.AddCommand(newHostConformanceAttachCommand(defaultHostConformanceAttachDeps()))
+	host.AddCommand(newHostUpdatesCommand(defaultHostMaintenanceDeps()))
+	host.AddCommand(newHostRebootCommand(defaultHostMaintenanceDeps()))
+	host.AddCommand(newHostRebootGuardCommand(defaultHostMaintenanceDeps()))
 	return host
 }
 

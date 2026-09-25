@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.dev/schemas/stackkit-host-maintenance-v1.schema.json",
+  "title": "StackKit host maintenance result v1",
+  "description": "Result of `stackkit host updates plan`, `stackkit host updates apply` and `stackkit host reboot`, carried as data of the stackkit.command-result/v1 envelope for every status. internal/hostmaintenance owns the semantics. Envelope status denied carries refusal (nothing on the host changed; exit 3); status failed carries failure (exit 1, or exit 4 with outcome running when apply stopped waiting while its update unit keeps running); status success carries neither. v1 supports Debian-family nodes with apt and systemd. Absent list fields mean empty lists. Messages are diagnostic and must not be used as policy input; codes are stable.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "operation", "observed_at"],
+  "properties": {
+    "schema_version": { "const": "stackkit.host-maintenance/v1" },
+    "operation": { "enum": ["updates.plan", "updates.apply", "reboot"] },
+    "observed_at": { "type": "string", "format": "date-time" },
+    "os": {
+      "description": "Identity from /etc/os-release.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string" },
+        "version_id": { "type": "string" },
+        "pretty_name": { "type": "string" }
+      }
+    },
+    "package_manager": {
+      "description": "Detected package manager; only apt is supported in v1.",
+      "enum": ["apt", "dnf", "yum", "zypper", "apk", "pacman"]
+    },
+    "plan_digest": {
+      "description": "sha256: plus the hex SHA-256 of the lexically sorted `name=version` lines (each terminated by LF) of the packages apply installs. Held packages are excluded. `stackkit host updates apply --plan-digest` must repeat it.",
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "pending_count": { "description": "Number of packages apply installs (held packages are not counted).", "type": "integer", "minimum": 0 },
+    "security_count": { "description": "Pending packages whose candidate comes from a security archive.", "type": "integer", "minimum": 0 },
+    "packages": { "description": "Packages apply installs, sorted by name.", "type": "array", "items": { "$ref": "#/$defs/package" } },
+    "held": {
+      "description": "Pending upgrades held by default and never installed by apply: the container runtime (docker.io, docker-engine, docker-ce*, containerd*, runc, crun, podman, moby-engine, moby-containerd, moby-runc), because upgrading it restarts every workload. The hold binds `stackkit host updates apply` only; unattended-upgrades is governed by the StackKit base policy. Apply pins every installed held package to its installed version.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/package" }
+    },
+    "hold_scope": { "description": "Human-readable statement of the hold scope, reported with every plan.", "type": "string" },
+    "kept_back": { "description": "Packages apt keeps back from a plain upgrade (new dependencies or phased updates).", "type": "array", "items": { "type": "string" } },
+    "reboot_likely": { "description": "The planned set updates the kernel, the C library or systemd.", "type": "boolean" },
+    "dpkg_problems": { "description": "Lines reported by `dpkg --audit`. apply refuses with dpkg_broken while any exist.", "type": "array", "items": { "type": "string" } },
+    "outcome": {
+      "description": "apply only. applied: the planned set was installed; noop: nothing was pending; failed: apt failed (changes lists what changed anyway); running: the CLI stopped waiting after 20 minutes while the update unit keeps running.",
+      "enum": ["applied", "noop", "failed", "running"]
+    },
+    "unit": {
+      "description": "Transient systemd unit: kombify-host-update-<digest prefix>-<unix time> for apply, kombify-host-reboot-<unix time> for reboot.",
+      "type": "string",
+      "pattern": "^kombify-host-(update-[0-9a-f]{12}|reboot)-[0-9]+$"
+    },
+    "changes": {
+      "description": "apply only: each planned package's installed version before and after (dpkg-query). An empty version means not installed.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "before", "after"],
+        "properties": {
+          "name": { "type": "string" },
+          "before": { "type": "string" },
+          "after": { "type": "string" }
+        }
+      }
+    },
+    "reboot_required": { "description": "apply only: /var/run/reboot-required exists after the run. apply never reboots.", "type": "boolean" },
+    "auto_marks_not_restored": { "description": "apply only: planned packages that were automatically installed before and are marked manual afterwards because restoring the mark failed.", "type": "array", "items": { "type": "string" } },
+    "reboot_required_packages": { "description": "Packages listed in /var/run/reboot-required.pkgs.", "type": "array", "items": { "type": "string" } },
+    "started_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": "string", "format": "date-time" },
+    "scheduled": { "description": "reboot only: the reboot timer was created. This is the acknowledgement; the command does not wait for the reboot. When the timer fires, `stackkit host reboot-guard` checks the node again, waits up to 15 minutes for package operations and host updates, and requests the reboot while holding the host maintenance and dpkg locks; a node that stays busy, or that now runs the control plane, is not rebooted and keeps its boot ID.", "const": true },
+    "boot_id_before": { "description": "reboot only: /proc/sys/kernel/random/boot_id before the reboot; a different boot ID afterwards proves the node rebooted.", "type": "string", "minLength": 1 },
+    "scheduled_at": { "description": "reboot only: when the reboot timer fires.", "type": "string", "format": "date-time" },
+    "delay_seconds": { "type": "integer", "minimum": 1, "maximum": 300 },
+    "refusal": {
+      "description": "Present with envelope status denied. Written before any side effect. package_manager_busy covers held apt/dpkg locks, a running host update, a scheduled reboot (apply) and a concurrent host maintenance operation; unattended_reboot_unsupported covers crypttab volumes whose key field is empty, none or - (unless noauto) and nodes without apt.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "enum": [
+            "unsupported_package_manager",
+            "unsupported_os",
+            "plan_stale",
+            "package_manager_busy",
+            "control_plane_host",
+            "unattended_reboot_unsupported",
+            "dpkg_broken"
+          ]
+        },
+        "message": { "type": "string" },
+        "guidance": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "failure": {
+      "description": "Present with envelope status failed. host_probe_failed is also how reboot fails closed when it cannot rule out a Techstack control plane (for example a Docker daemon that does not answer, or a process it may not read) or read /etc/crypttab.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "enum": [
+            "host_probe_failed",
+            "package_index_refresh_failed",
+            "simulation_failed",
+            "install_set_rejected",
+            "install_failed",
+            "reboot_schedule_failed",
+            "apply_wait_expired"
+          ]
+        },
+        "message": { "type": "string" },
+        "guidance": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "$defs": {
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "from", "to", "security"],
+      "properties": {
+        "name": { "description": "Package name, with :arch for a foreign architecture.", "type": "string", "minLength": 1 },
+        "from": { "description": "Installed version.", "type": "string" },
+        "to": { "description": "Candidate version apply installs.", "type": "string", "minLength": 1 },
+        "security": { "type": "boolean" }
+      }
+    },
+    "settled": {
+      "not": { "anyOf": [{ "required": ["refusal"] }, { "required": ["failure"] }] }
+    }
+  },
+  "allOf": [
+    { "not": { "required": ["refusal", "failure"] } },
+    {
+      "if": { "required": ["operation"], "properties": { "operation": { "enum": ["updates.plan", "updates.apply"] } }, "$ref": "#/$defs/settled" },
+      "then": { "required": ["os", "package_manager", "plan_digest", "pending_count", "security_count", "reboot_likely", "hold_scope"] }
+    },
+    {
+      "if": { "required": ["operation"], "properties": { "operation": { "const": "updates.apply" } }, "not": { "required": ["refusal"] } },
+      "then": { "required": ["outcome", "started_at"] }
+    },
+    {
+      "if": { "required": ["operation"], "properties": { "operation": { "const": "reboot" } }, "$ref": "#/$defs/settled" },
+      "then": { "required": ["scheduled", "boot_id_before", "scheduled_at", "delay_seconds", "unit"] }
+    }
+  ]
+}

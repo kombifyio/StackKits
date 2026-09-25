@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://stackkits.kombify.io/schemas/stackkit-rollout-event.schema.json",
   "title": "StackKit Rollout Progress Event",
-  "description": "Redacted stackkit.rollout-event/v1 JSONL event emitted by StackKit CLI rollout, prepare and Advanced phases (--progress-jsonl).",
+  "description": "Redacted stackkit.rollout-event/v1 JSONL event emitted by StackKit CLI rollout, prepare, Advanced and host maintenance phases (--progress-jsonl).",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -37,7 +37,11 @@
         "advanced.restore-drill.stage-restore",
         "advanced.restore-drill.verify-staged-restore",
         "advanced.restore-drill.cleanup-staging",
-        "advanced.restore-drill.verify-live-unchanged"
+        "advanced.restore-drill.verify-live-unchanged",
+        "host.updates.refresh",
+        "host.updates.simulate",
+        "host.updates.install",
+        "host.reboot.schedule"
       ]
     },
     "status": {

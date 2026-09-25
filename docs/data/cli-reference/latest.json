@@ -2564,7 +2564,9 @@
         "stackkit host environment",
         "stackkit host preflight",
         "stackkit host prepare",
-        "stackkit host remediate"
+        "stackkit host reboot",
+        "stackkit host remediate",
+        "stackkit host updates"
       ]
     },
     {
@@ -2731,6 +2733,49 @@
       "subcommands": []
     },
     {
+      "path": "stackkit host reboot",
+      "name": "reboot",
+      "parent": "stackkit host",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host reboot [flags]",
+      "short": "Schedule a reboot of this node",
+      "description": "Schedule a reboot of this node after a short delay and return immediately.\n\nThe returned boot_id_before identifies the current boot, so a caller can tell\nthe node came back by reading a different boot ID. The command refuses a node\nthat runs the Techstack control plane, a node where apt or dpkg holds its lock\nor a host update runs, and a node that cannot boot unattended (volumes in\n/etc/crypttab that need a passphrase, or no apt).\n\nWhen the delay ends a guard checks again, waits up to 15 minutes for any\npackage operation to finish, and requests the reboot while holding the dpkg\nlocks. A node that stays busy is not rebooted; its boot ID stays the same.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "sudo stackkit host reboot --yes",
+          "description": "Reboot this node in 30 seconds"
+        },
+        {
+          "command": "sudo stackkit host reboot --yes --delay 2m --json",
+          "description": "Reboot in two minutes and report the boot ID to compare against"
+        }
+      ],
+      "flags": [
+        {
+          "name": "delay",
+          "type": "duration",
+          "default": "30s",
+          "description": "Time until the reboot starts (1s to 5m)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the stackkit.host-maintenance/v1 result as machine-readable JSON",
+          "required": false
+        },
+        {
+          "name": "yes",
+          "type": "bool",
+          "description": "Confirm that this node may reboot",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit host remediate",
       "name": "remediate",
       "parent": "stackkit host",
@@ -2783,6 +2828,91 @@
           "name": "yes",
           "type": "bool",
           "description": "Confirm that the named resolution may change this host",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit host updates",
+      "name": "updates",
+      "parent": "stackkit host",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host updates [flags]",
+      "short": "Plan and apply operating-system package updates on this node",
+      "description": "Plan and apply operating-system package updates on this Debian or Ubuntu node.\n\nThe container runtime (docker.io, docker-ce*, containerd*, runc) is held: it\nis listed in the plan but never installed by apply, because upgrading it\nrestarts every workload. Apply never removes packages, never runs autoremove,\nand never reboots; use 'stackkit host reboot' for that.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit host updates apply",
+        "stackkit host updates plan"
+      ]
+    },
+    {
+      "path": "stackkit host updates apply",
+      "name": "apply",
+      "parent": "stackkit host updates",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host updates apply [flags]",
+      "short": "Install exactly the reviewed update plan",
+      "description": "Install exactly the package set a reviewed 'stackkit host updates plan' reported.\n\nThe pending set is simulated again first; when its digest differs from\n--plan-digest nothing is installed (plan_stale). apt runs non-interactively in\na transient systemd unit (kombify-host-update-*), keeping existing\nconfiguration files, so a CLI or agent timeout stops only the wait and never\ndpkg. The result records every package's version before and after and\nwhether the node now requires a reboot.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "sudo stackkit host updates apply --plan-digest sha256:<digest> --yes",
+          "description": "Apply the plan you reviewed"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the stackkit.host-maintenance/v1 result as machine-readable JSON",
+          "required": false
+        },
+        {
+          "name": "plan-digest",
+          "type": "string",
+          "description": "plan_digest of the reviewed plan (sha256:<hex>)",
+          "required": true
+        },
+        {
+          "name": "yes",
+          "type": "bool",
+          "description": "Confirm that the planned packages may be installed",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit host updates plan",
+      "name": "plan",
+      "parent": "stackkit host updates",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host updates plan [flags]",
+      "short": "Refresh the package index and show the pending updates",
+      "description": "Refresh the package index and show what 'stackkit host updates apply' would install.\n\nThe result lists every pending package with its current and new version, the\nheld container-runtime packages, packages apt keeps back, whether a reboot is\nlikely (kernel, C library or systemd), and dpkg problems. plan_digest binds\nthe exact package set; apply refuses when it no longer matches.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "sudo stackkit host updates plan",
+          "description": "Show the pending updates of this node"
+        },
+        {
+          "command": "sudo stackkit host updates plan --json",
+          "description": "Machine-readable plan with its plan_digest"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the stackkit.host-maintenance/v1 result as machine-readable JSON",
           "required": false
         }
       ],

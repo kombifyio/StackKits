@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+* **host:** `stackkit host updates plan|apply` and `stackkit host reboot` maintain the operating system of a Debian or Ubuntu node. Plan reports pending and security updates, a `plan_digest` and whether a reboot is likely. Apply installs exactly the reviewed set inside a transient systemd unit, so a timeout never interrupts dpkg. The container runtime is held (for this CLI; unattended-upgrades follows the StackKit base), and apply never removes packages or reboots. Reboot schedules a guarded systemd timer and returns the current boot ID; at fire time the guard re-checks and reboots while holding the dpkg locks. It refuses the Techstack control plane host (failing closed when it cannot tell), a busy package manager and volumes that need a boot passphrase. Results use `stackkit.host-maintenance/v1`
 * **mail:** client-first Mail use case: optional Roundcube Webmail workload (1.6.19, digest-pinned, SQLite) for an existing external IMAP/SMTP mailbox on Basement, Cloud and Modern; no mail server, SMTP listener or DNS is created. `stackkit setup mail` stores the owner's IMAP and SMTP servers with an explicit `ssl`/`starttls` mode on a backed-up volume and verifies a real login through Roundcube's own form; before setup Roundcube refuses logins and never offers a free-form server. The mail route serves Mozilla autoconfig, Outlook autodiscover and an Apple configuration profile. The session key comes from owner custody; login rate limiting and IP-bound sessions are on
 * **game:** `stackkit game list|power|allow` and the matching MCP tools operate game servers through the installed Panel with custody-derived keys, so neither the owner nor an agent handles a Panel key
 * **game:** backups and restores stop the owner's running game servers with their own stop command (so worlds are saved) and start them again afterwards; an interrupted hold is resumed by the next backup or restore
@@ -37,6 +38,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **photos:** keep Apply and restore available when optional machine learning is degraded, while reporting its health and retaining blocking checks for core services
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
+
+## [0.46.6](https://github.com/kombifyio/StackKits/compare/v0.46.5...v0.46.6) (2026-09-25)
+
+
+### Added
+
+* **host:** plan and apply OS updates and schedule reboots on a node
 
 ## [0.46.5](https://github.com/kombifyio/StackKits/compare/v0.46.4...v0.46.5) (2026-09-25)
 

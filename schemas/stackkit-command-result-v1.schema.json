@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://stackkits.dev/schemas/stackkit-command-result-v1.schema.json",
   "title": "StackKit command result v1",
-  "description": "Stdout envelope of every stackkit command run with --json. command is the command path (for example `stackkit drift detect`). For the Advanced commands the data payload per status is bound below; docs/data/advanced-operations/latest.json (stackkit.advanced-operations/v1) maps each Advanced operation to its argv and to these payloads. A nonzero exit without an envelope on stdout is an unclassified failure.",
+  "description": "Stdout envelope of every stackkit command run with --json. command is the command path (for example `stackkit drift detect`). For the Advanced commands and the host maintenance commands the data payload per status is bound below; docs/data/advanced-operations/latest.json (stackkit.advanced-operations/v1) maps each Advanced operation to its argv and to these payloads. A nonzero exit without an envelope on stdout is an unclassified failure.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "command", "status", "data"],
@@ -21,7 +21,10 @@
         "stackkit advanced restore-drill run",
         "stackkit advanced rollback run",
         "stackkit drift detect",
-        "stackkit drift reconcile"
+        "stackkit drift reconcile",
+        "stackkit host updates plan",
+        "stackkit host updates apply",
+        "stackkit host reboot"
       ]
     },
     "status": {
@@ -30,6 +33,13 @@
     "data": {}
   },
   "allOf": [
+    {
+      "if": {
+        "required": ["command"],
+        "properties": { "command": { "enum": ["stackkit host updates plan", "stackkit host updates apply", "stackkit host reboot"] } }
+      },
+      "then": { "properties": { "data": { "$ref": "stackkit-host-maintenance-v1.schema.json" } } }
+    },
     {
       "if": { "$ref": "#/$defs/trustCommand" },
       "then": { "properties": { "data": { "$ref": "stackkit-local-advanced-trust-v1.schema.json" } } }

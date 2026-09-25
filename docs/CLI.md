@@ -926,6 +926,59 @@ install: the finding it targets was a warning, and refusing to install because
 an optional improvement did not take is the failure this admission exists to
 remove.
 
+### `stackkit host updates` and `stackkit host reboot`
+
+Operating-system maintenance for one Debian or Ubuntu node with apt and
+systemd. Techstack dispatches these commands to its agent; an owner can run
+them directly. Other package managers are refused with
+`unsupported_package_manager`.
+
+- `host updates plan [--json]` refreshes the package index (`apt-get update`
+  with a lock timeout and bounded retries), simulates a plain `apt-get upgrade`
+  and reports the pending packages (`name`, `from`, `to`, `security`), the held
+  packages, the packages apt keeps back, `reboot_likely` (kernel, C library or
+  systemd), `dpkg --audit` problems and `plan_digest`. The whole command is
+  bounded to 3 minutes.
+- `host updates apply --plan-digest <sha256:…> --yes [--json]` simulates again
+  and refuses with `plan_stale` when the digest differs. It installs exactly
+  the planned `name=version` pairs non-interactively, keeping existing
+  configuration files, inside the transient unit `kombify-host-update-*`. A CLI
+  or agent timeout stops only the 20-minute wait, never dpkg. The result
+  records each package's version before and after and whether
+  `/var/run/reboot-required` exists.
+- `host reboot --yes [--delay 30s] [--json]` (delay at most 5 minutes)
+  schedules the reboot through a systemd timer and returns immediately with
+  `scheduled`, `boot_id_before` and `scheduled_at`. A different boot ID
+  afterwards proves the node rebooted. The timer does not run a bare
+  `systemctl reboot`: it runs this binary's reboot guard, which checks the
+  node again, waits up to 15 minutes for package operations and host updates
+  to finish, and requests the reboot while holding the host maintenance and
+  dpkg locks, so no apt or dpkg run can start before the shutdown. A node
+  that stays busy, or now runs the control plane, is not rebooted.
+- Apply refuses while a reboot is scheduled. Apply, reboot scheduling and the
+  reboot guard serialize on `/run/kombify-host-maintenance.lock`.
+
+The container runtime (`docker.io`, `docker-ce*`, `containerd*`, `runc`) is
+held: the plan lists it under `held` and apply never installs it, because
+upgrading it restarts every workload; apply pins every installed held package
+to its installed version. The hold binds this CLI only; unattended-upgrades is
+governed by the StackKit base policy. Apply never removes packages, never runs
+autoremove and never reboots.
+
+Refusals exit `3` and change nothing: `unsupported_os`,
+`unsupported_package_manager`, `plan_stale`, `package_manager_busy` (apt or dpkg
+holds its lock past the wait, or a host update is running),
+`control_plane_host` (`techstack.service` is running or restarting, a
+`techstack serve` process runs, or a container of the Techstack image or
+Compose service runs; a `techstack agent` worker does not count), `dpkg_broken`, and `unattended_reboot_unsupported`
+(`/etc/crypttab` volumes whose key field is empty, `none` or `-`, or no apt).
+Reboot fails closed with `host_probe_failed` when it cannot rule out the
+control plane, for example when the Docker daemon does not answer.
+Apply exits `4` when it stopped waiting while its unit keeps running. `--json`
+returns `stackkit.host-maintenance/v1` inside `stackkit.command-result/v1`
+(`schemas/stackkit-host-maintenance-v1.schema.json`); `--progress-jsonl` emits
+the `host.updates.*` and `host.reboot.schedule` phases.
+
 ### `stackkit compat`
 
 Resolves the current operating system and architecture against the published OS
