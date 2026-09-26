@@ -83,6 +83,36 @@ type selectedPaaSRuntimeComponent struct {
 	PublishedPorts       []selectedPaaSPublishedPort `json:"publishedPorts,omitempty"`
 	RouteHostEnvironment map[string]string           `json:"routeHostEnvironment,omitempty"`
 	AcmeTLSALPNPort      int                         `json:"acmeTlsAlpnPort,omitempty"`
+	// Owner-chosen LAN rights: a listener published on the host and a host
+	// device passed through. Catalog components declare them with the
+	// workload setting that enables them; bundles carry only enabled ones.
+	LANListeners      []selectedPaaSLANListener      `json:"lanListeners,omitempty"`
+	DevicePassthrough *selectedPaaSDevicePassthrough `json:"devicePassthrough,omitempty"`
+	Devices           []selectedPaaSDevice           `json:"devices,omitempty"`
+	PeerNetworks      []selectedPaaSPeerNetwork      `json:"peerNetworks,omitempty"`
+}
+
+// selectedPaaSPeerNetwork names the internal network of another workload an
+// add-on component joins on the same node.
+type selectedPaaSPeerNetwork struct {
+	WorkloadRef string `json:"workloadRef"`
+	NetworkRef  string `json:"networkRef"`
+}
+
+type selectedPaaSLANListener struct {
+	Port       int    `json:"port"`
+	Protocol   string `json:"protocol"`
+	SettingRef string `json:"settingRef"`
+}
+
+type selectedPaaSDevicePassthrough struct {
+	SettingRef string `json:"settingRef"`
+	Target     string `json:"target"`
+}
+
+type selectedPaaSDevice struct {
+	HostPath string `json:"hostPath"`
+	Target   string `json:"target"`
 }
 
 type selectedPaaSPublishedPort struct {

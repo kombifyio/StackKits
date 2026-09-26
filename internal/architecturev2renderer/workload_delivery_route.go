@@ -132,6 +132,32 @@ type ApplicationDeliveryComponentDescriptor struct {
 	PublishedTCPPorts    []int
 	RouteHostEnvironment []string
 	ACMETLSALPNPort      int
+	// LANListeners are published on every host address and Devices passed
+	// through; both exist only when the owner enabled their workload setting.
+	LANListeners []ApplicationDeliveryLANListener
+	Devices      []ApplicationDeliveryDevice
+	// PeerNetworks are internal networks of other workloads on the node this
+	// add-on component joins; governed per module.
+	PeerNetworks []ApplicationDeliveryPeerNetwork
+}
+
+// ApplicationDeliveryPeerNetwork is one governed internal network of another
+// workload on the same node.
+type ApplicationDeliveryPeerNetwork struct {
+	WorkloadRef string
+	NetworkRef  string
+}
+
+// ApplicationDeliveryLANListener is one owner-enabled non-HTTP LAN listener.
+type ApplicationDeliveryLANListener struct {
+	Port     int
+	Protocol string
+}
+
+// ApplicationDeliveryDevice is one owner-chosen host device passthrough.
+type ApplicationDeliveryDevice struct {
+	HostPath string
+	Target   string
 }
 
 // ApplicationDeliveryResourcesDescriptor is the declared per-container ceiling
@@ -265,6 +291,14 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		if (component.RouteHostLoopback || component.DockerLifecycleOwner != nil) && bundle.Workload.ModuleRef != pterodactylWorkloadModuleID {
 			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath, "loopback route host and Docker lifecycle ownership are admitted only for the governed game node")
 		}
+		lanListeners, devices, err := parseLANRights(component, bundle.Workload.ModuleRef, componentPath)
+		if err != nil {
+			return ApplicationDeliveryBundleDescriptor{}, err
+		}
+		peerNetworks, err := parsePeerNetworks(component, bundle.Workload.ModuleRef, componentPath)
+		if err != nil {
+			return ApplicationDeliveryBundleDescriptor{}, err
+		}
 		mailNode, err := parseMailNodeComponentFields(component, bundle.Workload.ModuleRef, bundle.DeliveryRoute, componentPath)
 		if err != nil {
 			return ApplicationDeliveryBundleDescriptor{}, err
@@ -293,6 +327,9 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 			PublishedTCPPorts:    mailNode.PublishedTCPPorts,
 			RouteHostEnvironment: mailNode.RouteHostEnvironment,
 			ACMETLSALPNPort:      mailNode.ACMETLSALPNPort,
+			LANListeners:         lanListeners,
+			Devices:              devices,
+			PeerNetworks:         peerNetworks,
 		}
 	}
 	if !entryFound || len(components) == 0 {

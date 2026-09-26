@@ -164,6 +164,51 @@ _architectureV2JellyfinComputeProfiles: {
 	high:     _architectureV2JellyfinComputeProfile
 }
 
+_architectureV2ImmichPowerToolsComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Library maintenance through Immich Power Tools behind the gateway login. It reaches Immich and its database on the node's internal photos network with an Immich-issued API key and the photos database credential."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.125
+	components: ["immich-power-tools"]
+}
+_architectureV2ImmichPowerToolsComputeProfiles: {standard: _architectureV2ImmichPowerToolsComputeProfile, high: _architectureV2ImmichPowerToolsComputeProfile}
+
+_architectureV2ImmichKioskComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Photo-frame slideshow through Immich Kiosk behind the gateway login. It reaches Immich on the node's internal photos network with an API key the Immich owner issues through stackkit setup."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.0625
+	components: ["immich-kiosk"]
+}
+_architectureV2ImmichKioskComputeProfiles: {standard: _architectureV2ImmichKioskComputeProfile, high: _architectureV2ImmichKioskComputeProfile}
+
+_architectureV2ImmichPublicProxyComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Public share links through Immich Public Proxy. It reaches Immich on the node's internal photos network, holds no Immich credentials and exposes no Immich login or API; the route is public by design."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.0625
+	components: ["immich-public-proxy"]
+}
+_architectureV2ImmichPublicProxyComputeProfiles: {standard: _architectureV2ImmichPublicProxyComputeProfile, high: _architectureV2ImmichPublicProxyComputeProfile}
+
+_architectureV2Zigbee2mqttComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Zigbee bridge through Zigbee2MQTT. The owner chooses the Zigbee USB adapter and the MQTT broker address; the frontend stays behind the gateway login."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.125
+	components: ["zigbee2mqtt"]
+}
+_architectureV2Zigbee2mqttComputeProfiles: {standard: _architectureV2Zigbee2mqttComputeProfile, high: _architectureV2Zigbee2mqttComputeProfile}
+
+_architectureV2MosquittoComputeProfile: #ModuleComputeProfileV2 & {
+	description: "MQTT broker through Eclipse Mosquitto with password authentication. The MQTT listener on port 1883 is published on the LAN only when the owner enables it; the broker statistics API stays behind the gateway login."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.03125
+	components: ["mosquitto"]
+}
+_architectureV2MosquittoComputeProfiles: {standard: _architectureV2MosquittoComputeProfile, high: _architectureV2MosquittoComputeProfile}
+
 _architectureV2EuroofficeComputeProfile: #ModuleComputeProfileV2 & {
 	description: "Browser office editing through Euro-Office Document Server (ONLYOFFICE fork). Every request carries a JWT signed with the custodied secret that the Nextcloud connector app also uses; the server has no user login of its own."
 	maturity:    "beta", executable: true, realization: "apply-ready"

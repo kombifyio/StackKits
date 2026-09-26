@@ -1,0 +1,317 @@
+package foundation
+
+// Native module profiles declare the StackKits hosting envelope. Core host
+// floors come from the existing kit contracts and are reused by application
+// profiles as an explicit Kombify support policy, not upstream measurements.
+// Application RAM reservations are the sum of the pinned runtime component
+// reservations expressed exactly in GiB. A reservation is not a
+// host minimum or a recommendation. These absolute host floors aggregate by
+// maximum; application data capacity is separately governed by DataBinding.
+// Equal high/standard profiles do not imply a measured performance benefit.
+_architectureV2CoreComputeProfile: #ModuleComputeProfileV2 & {
+	maturity:           "supported", executable: true, realization: "apply-ready"
+	platformManagement: "selected-provider"
+	hostFloor: {minCpuCores: 2, minRamGB: 4, minStorageGB: 20}
+	recommended: {cpuCores: 4, ramGB: 4, storageGB: 20}
+}
+
+_architectureV2CloudCoreComputeProfile: _architectureV2CoreComputeProfile & {
+	description: "Cloud routing, owner identity, application management, the hub and the StackKits server with its MCP endpoint. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability."
+	components: ["router", "socket-proxy", "pocketid", "tinyauth", "coolify", "coolify-postgres", "coolify-redis", "coolify-realtime", "hub", "stackkit-server"]
+}
+_architectureV2CloudCoreComputeProfiles: {
+	standard: _architectureV2CloudCoreComputeProfile
+	high:     _architectureV2CloudCoreComputeProfile
+}
+
+_architectureV2CloudStandaloneCoreComputeProfile: #ModuleComputeProfileV2 & {
+	description:        "Cloud routing, owner identity, public edge, the hub and the StackKits server with its MCP endpoint using standalone Compose. Coolify and Komodo are omitted; public TLS, offsite backup and provider lifecycle remain separately owned contracts."
+	maturity:           "supported", executable: true, realization: "apply-ready"
+	platformManagement: "standalone"
+	hostFloor:          _architectureV2CoreComputeProfile.hostFloor
+	recommended:        _architectureV2CoreComputeProfile.recommended
+	components: ["router", "socket-proxy", "pocketid", "tinyauth", "hub", "stackkit-server", "kopia-agent"]
+	degradations: ["paas-management-omitted"]
+}
+_architectureV2CloudStandaloneCoreComputeProfiles: {
+	standard: _architectureV2CloudStandaloneCoreComputeProfile
+	high:     _architectureV2CloudStandaloneCoreComputeProfile
+}
+
+_architectureV2BasementCoreComputeProfile: _architectureV2CoreComputeProfile & {
+	description: "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent, the hub and the StackKits server with its MCP endpoint. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability."
+	components: ["router", "socket-proxy", "pocketid", "tinyauth", "step-ca", "lan-dns", "coolify", "coolify-postgres", "coolify-redis", "coolify-realtime", "kopia-agent", "hub", "stackkit-server"]
+}
+_architectureV2BasementCoreComputeProfiles: {
+	standard: _architectureV2BasementCoreComputeProfile
+	high:     _architectureV2BasementCoreComputeProfile
+}
+
+_architectureV2BasementStandaloneCoreComputeProfile: #ModuleComputeProfileV2 & {
+	description:        "Local routing, owner identity, internal certificates, the site resolver, backup agent, the hub and the StackKits server with its MCP endpoint using standalone Compose. PaaS management is omitted. Photos, Media and other applications keep their own explicitly selected profiles."
+	maturity:           "supported", executable: true, realization: "apply-ready"
+	platformManagement: "standalone"
+	hostFloor: {minCpuCores: 2, minRamGB: 2, minStorageGB: 10}
+	recommended: {cpuCores: 2, ramGB: 2, storageGB: 10}
+	components: ["router", "socket-proxy", "pocketid", "tinyauth", "step-ca", "lan-dns", "kopia-agent", "hub", "stackkit-server"]
+	degradations: ["paas-management-omitted"]
+}
+
+// All profiles retain the same complete standalone service graph. The module
+// identity is preserved for existing Core Lite installations; resource profile
+// names never turn a platform manager on or select a different application.
+_architectureV2BasementCoreLiteComputeProfiles: {
+	low:      _architectureV2BasementStandaloneCoreComputeProfile
+	standard: _architectureV2BasementStandaloneCoreComputeProfile
+	high:     _architectureV2BasementStandaloneCoreComputeProfile
+}
+
+_architectureV2ImmichStorageFilesystemRequirement: #StorageFilesystemRequirementV2 & {
+	sourceRef:     "system.container.dataRoot"
+	requiredClass: "local-posix"
+	allowedFilesystemTypes: ["ext2", "ext3", "ext4", "xfs", "btrfs", "zfs"]
+	requireOwnership: true
+}
+
+_architectureV2ImmichComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Photo library and mobile backup with the machine-learning service, PostgreSQL and Valkey. Standard and high have the same declared resources and features; neither guarantees a user count or ingest rate. Photo-library growth needs a separate data budget."
+	maturity:    "supported", executable: true, realization: "apply-ready"
+	// CPU/RAM: Immich v2.7.0 docs/install/requirements.md. Disk is the
+	// Kombify platform floor; it is not space reserved for the photo library.
+	hostFloor: {
+		minCpuCores:                    2
+		minRamGB:                       6
+		minStorageGB:                   _architectureV2CoreComputeProfile.hostFloor.minStorageGB
+		minAMD64MicroarchitectureLevel: 2
+		storageFilesystem:              _architectureV2ImmichStorageFilesystemRequirement
+	}
+	// 512 + 512 + 256 + 64 MiB = 1344 MiB; one-shot init has no reservation.
+	reservation: ramGB: 1.3125
+	components: ["immich-server", "immich-machine-learning", "immich-postgres", "immich-postgres-init", "immich-valkey"]
+}
+_architectureV2ImmichComputeProfiles: {
+	standard: _architectureV2ImmichComputeProfile
+	high:     _architectureV2ImmichComputeProfile
+}
+_architectureV2ImmichLiteComputeProfiles: low: #ModuleComputeProfileV2 & {
+	description: "Photo library and mobile backup with PostgreSQL and Valkey. The machine-learning service and ML search are omitted to reduce resident memory. Photo-library growth needs a separate data budget."
+	maturity:    "supported", executable: true, realization: "apply-ready"
+	// The upstream 4 GiB path requires the declared omission of ML.
+	hostFloor: {
+		minCpuCores:       2
+		minRamGB:          4
+		minStorageGB:      _architectureV2BasementCoreLiteComputeProfiles.low.hostFloor.minStorageGB
+		storageFilesystem: _architectureV2ImmichStorageFilesystemRequirement
+	}
+	// 512 + 256 + 64 MiB = 832 MiB; no machine-learning worker is selected.
+	reservation: ramGB: 0.8125
+	components: ["immich-server", "immich-postgres", "immich-postgres-init", "immich-valkey"]
+	degradations: ["machine-learning-disabled"]
+}
+
+_architectureV2CloudreveComputeProfile: #ModuleComputeProfileV2 & {
+	description: "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget."
+	maturity:    "supported", executable: true, realization: "apply-ready"
+	reservation: ramGB: 0.125 // Existing 128 MiB component reservation.
+	components: ["cloudreve"]
+}
+_architectureV2CloudreveComputeProfiles: {
+	low: _architectureV2CloudreveComputeProfile & {hostFloor: _architectureV2BasementCoreLiteComputeProfiles.low.hostFloor}
+	standard: _architectureV2CloudreveComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+	high: _architectureV2CloudreveComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+}
+
+_architectureV2NextcloudComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Files, sharing and collaboration through Nextcloud Server with PostgreSQL and Valkey. Office editing is a separate add-on. Standard and high are equivalent; storage growth needs a separate data budget."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.75
+	components: ["nextcloud", "nextcloud-postgres", "nextcloud-valkey"]
+}
+_architectureV2NextcloudComputeProfiles: {standard: _architectureV2NextcloudComputeProfile, high: _architectureV2NextcloudComputeProfile}
+
+_architectureV2VaultwardenComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password."
+	maturity:    "supported", executable: true, realization: "apply-ready"
+	reservation: ramGB: 0.0625 // Existing 64 MiB component reservation.
+	components: ["vaultwarden"]
+}
+_architectureV2VaultwardenComputeProfiles: {
+	low: _architectureV2VaultwardenComputeProfile & {hostFloor: _architectureV2BasementCoreLiteComputeProfiles.low.hostFloor}
+	standard: _architectureV2VaultwardenComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+	high: _architectureV2VaultwardenComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+}
+
+_architectureV2PassboltComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Team password manager through Passbolt Community Edition with MariaDB. The owner registers with the Passbolt browser extension, which creates the owner's OpenPGP key on the device. Standard and high are equivalent."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.5
+	components: ["passbolt", "passbolt-mariadb"]
+}
+_architectureV2PassboltComputeProfiles: {standard: _architectureV2PassboltComputeProfile, high: _architectureV2PassboltComputeProfile}
+
+_architectureV2JellyfinComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Media library and playback through Jellyfin. Standard and high have the same declared application and resources; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage."
+	maturity:    "supported", executable: true, realization: "apply-ready"
+	// A hosting baseline, not a guarantee of any transcoding concurrency.
+	hostFloor: _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.5 // Existing 512 MiB component reservation.
+	components: ["jellyfin"]
+}
+_architectureV2JellyfinComputeProfiles: {
+	standard: _architectureV2JellyfinComputeProfile
+	high:     _architectureV2JellyfinComputeProfile
+}
+
+_architectureV2Zigbee2mqttComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Zigbee bridge through Zigbee2MQTT. The owner chooses the Zigbee USB adapter and the MQTT broker address; the frontend stays behind the gateway login."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.125
+	components: ["zigbee2mqtt"]
+}
+_architectureV2Zigbee2mqttComputeProfiles: {standard: _architectureV2Zigbee2mqttComputeProfile, high: _architectureV2Zigbee2mqttComputeProfile}
+
+_architectureV2MosquittoComputeProfile: #ModuleComputeProfileV2 & {
+	description: "MQTT broker through Eclipse Mosquitto with password authentication. The MQTT listener on port 1883 is published on the LAN only when the owner enables it; the broker statistics API stays behind the gateway login."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.03125
+	components: ["mosquitto"]
+}
+_architectureV2MosquittoComputeProfiles: {standard: _architectureV2MosquittoComputeProfile, high: _architectureV2MosquittoComputeProfile}
+
+_architectureV2EuroofficeComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Browser office editing through Euro-Office Document Server (ONLYOFFICE fork). Every request carries a JWT signed with the custodied secret that the Nextcloud connector app also uses; the server has no user login of its own."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 2
+	components: ["euro-office"]
+}
+_architectureV2EuroofficeComputeProfiles: {standard: _architectureV2EuroofficeComputeProfile, high: _architectureV2EuroofficeComputeProfile}
+
+_architectureV2ESPHomeComputeProfile: #ModuleComputeProfileV2 & {
+	description: "ESPHome dashboard for building and updating ESP32/ESP8266 firmware over the network. Firmware builds are CPU-bound bursts; the dashboard itself has no user store and stays behind the gateway login."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.25
+	components: ["esphome"]
+}
+_architectureV2ESPHomeComputeProfiles: {standard: _architectureV2ESPHomeComputeProfile, high: _architectureV2ESPHomeComputeProfile}
+
+_architectureV2AudiobookshelfComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Audiobooks and podcasts through Audiobookshelf with progress sync. The owner supplies the library; the administrator is created on first visit behind the gateway login, and Pocket ID OIDC can be enabled in the app."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.125
+	components: ["audiobookshelf"]
+}
+_architectureV2AudiobookshelfComputeProfiles: {standard: _architectureV2AudiobookshelfComputeProfile, high: _architectureV2AudiobookshelfComputeProfile}
+
+_architectureV2NavidromeComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Music streaming through Navidrome for Subsonic-compatible apps. The owner supplies the music library; the administrator is created on first visit behind the gateway login."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.125
+	components: ["navidrome"]
+}
+_architectureV2NavidromeComputeProfiles: {standard: _architectureV2NavidromeComputeProfile, high: _architectureV2NavidromeComputeProfile}
+
+_architectureV2EmbyComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Media library and playback through Emby Server. Some client features need an Emby Premiere licence; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.5
+	components: ["emby"]
+}
+_architectureV2EmbyComputeProfiles: {
+	standard: _architectureV2EmbyComputeProfile
+	high:     _architectureV2EmbyComputeProfile
+}
+
+_architectureV2HomeAssistantComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included."
+	maturity:    "supported", executable: true, realization: "apply-ready"
+	reservation: ramGB: 0.5 // Existing 512 MiB component reservation.
+	components: ["home-assistant"]
+}
+_architectureV2HomeAssistantComputeProfiles: {
+	low: _architectureV2HomeAssistantComputeProfile & {hostFloor: _architectureV2BasementCoreLiteComputeProfiles.low.hostFloor}
+	standard: _architectureV2HomeAssistantComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+	high: _architectureV2HomeAssistantComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+}
+
+_architectureV2PrivateAIComputeProfiles: {
+	standard: #ModuleComputeProfileV2 & {
+		description: "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile."
+		maturity:    "beta", executable: true, realization: "apply-ready"
+		hostFloor: {minCpuCores: 4, minRamGB: 12, minStorageGB: 40}
+		recommended: {cpuCores: 8, ramGB: 16, storageGB: 80}
+		reservation: ramGB: 1.5
+		components: ["open-webui", "ollama"]
+	}
+	high: standard
+}
+
+_architectureV2GiteaComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Private Git hosting with SQLite and persistent repositories, LFS objects and configuration. CI runners and SSH are not included. Repository growth needs a separate data budget."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.25
+	components: ["gitea"]
+}
+_architectureV2GiteaComputeProfiles: {standard: _architectureV2GiteaComputeProfile, high: _architectureV2GiteaComputeProfile}
+
+_architectureV2ForgejoComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Private Git hosting through Forgejo with SQLite and persistent repositories, LFS objects and configuration. Actions runners and SSH are not included. Repository growth needs a separate data budget."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.25
+	components: ["forgejo"]
+}
+_architectureV2ForgejoComputeProfiles: {standard: _architectureV2ForgejoComputeProfile, high: _architectureV2ForgejoComputeProfile}
+
+_architectureV2PaperlessComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Document ingestion, OCR, indexing and search through Paperless-ngx with PostgreSQL and Valkey. StackKits configures and operates the upstream services; document features remain owned by Paperless-ngx. Document growth needs a separate data budget."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 1.25
+	components: ["paperless", "paperless-postgres", "paperless-valkey"]
+}
+_architectureV2PaperlessComputeProfiles: {standard: _architectureV2PaperlessComputeProfile, high: _architectureV2PaperlessComputeProfile}
+
+_architectureV2PterodactylComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Pterodactyl Panel with MariaDB and Valkey plus the Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor: {minCpuCores: 2, minRamGB: 4, minStorageGB: _architectureV2CoreComputeProfile.hostFloor.minStorageGB}
+	reservation: ramGB: 1.25
+	components: ["panel", "panel-database", "panel-cache", "panel-bootstrap", "wings"]
+}
+_architectureV2PterodactylComputeProfiles: {standard: _architectureV2PterodactylComputeProfile, high: _architectureV2PterodactylComputeProfile}
+
+_architectureV2RoundcubeComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Roundcube Webmail with SQLite as a client for an existing external IMAP/SMTP mailbox. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. No mail server, spam filter or DNS is included; mail storage stays with the owner's provider."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	reservation: ramGB: 0.125 // 128 MiB component reservation.
+	components: ["roundcube"]
+}
+_architectureV2RoundcubeComputeProfiles: {
+	low: _architectureV2RoundcubeComputeProfile & {hostFloor: _architectureV2BasementCoreLiteComputeProfiles.low.hostFloor}
+	standard: _architectureV2RoundcubeComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+	high: _architectureV2RoundcubeComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+}
+
+// ADR-0046: Stalwart is light; the reservation covers RocksDB caches, the
+// spam classifier and a handful of mailboxes.
+_architectureV2StalwartComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Stalwart Mail Server with its embedded RocksDB store for one owner domain and a few mailboxes. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent."
+	maturity:    "experimental", executable: true, realization: "apply-ready"
+	reservation: ramGB: 0.5 // 512 MiB component reservation.
+	components: ["stalwart"]
+}
+_architectureV2StalwartComputeProfiles: {
+	low: _architectureV2StalwartComputeProfile & {hostFloor: _architectureV2BasementCoreLiteComputeProfiles.low.hostFloor}
+	standard: _architectureV2StalwartComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+	high: _architectureV2StalwartComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+}

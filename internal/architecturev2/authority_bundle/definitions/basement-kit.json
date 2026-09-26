@@ -245,7 +245,12 @@
         "media-music",
         "media-audiobooks",
         "smart-home-esphome",
-        "files-office"
+        "files-office",
+        "smart-home-mqtt",
+        "smart-home-zigbee",
+        "photos-share",
+        "photos-kiosk",
+        "photos-tools"
       ]
     },
     "standaloneOwner": {
@@ -877,7 +882,12 @@
       "media-music",
       "media-audiobooks",
       "smart-home-esphome",
-      "files-office"
+      "files-office",
+      "smart-home-mqtt",
+      "smart-home-zigbee",
+      "photos-share",
+      "photos-kiosk",
+      "photos-tools"
     ],
     "required": [
       "basement-core"

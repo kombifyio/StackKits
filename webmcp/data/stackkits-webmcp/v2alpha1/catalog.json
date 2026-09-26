@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "c154cc13906d109d9168b65370857269d5571369",
-  "authority_bundle_sha256": "6e4b2cd0bbb23bbc227f0f3808e9bd1ae2157d7f3280cdc899261c99bd9b798b",
+  "source_sha": "e99a92311aa5e363e14a7cd879b2f185d2174dc3",
+  "authority_bundle_sha256": "ee2e10357bf73f225ee3a2120bf176e1441f8175093340268d5cb1b68e5bf773",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -880,6 +880,68 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-immich-kiosk-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos-kiosk"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Photo-frame slideshow through Immich Kiosk behind the gateway login. It reaches Immich on the node's internal photos network with an API key the Immich owner issues through stackkit setup.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-kiosk"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "3e6ab735e6b6743e80cf3af940f1834861543281739e646be36ba6dc48bcc6b8"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Photo-frame slideshow through Immich Kiosk behind the gateway login. It reaches Immich on the node's internal photos network with an API key the Immich owner issues through stackkit setup.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-kiosk"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "2e31d6cb737b8db43d823e6c134adf39f78274edc7c277d0dc235c58ffca973f"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-immich-lite-runtime",
           "role": "workload",
           "required": false,
@@ -932,6 +994,130 @@
                 "machine-learning-disabled"
               ],
               "profile_sha256": "a02de99d453a5665b84cf113626148ca5aed32cec940f8e4ad55549b69aa9f1d"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-immich-power-tools-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos-tools"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Library maintenance through Immich Power Tools behind the gateway login. It reaches Immich and its database on the node's internal photos network with an Immich-issued API key and the photos database credential.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-power-tools"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "416528f5b3c4e1969d01df95938d8998c51e006212c9ea388294b200f06cd3bf"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Library maintenance through Immich Power Tools behind the gateway login. It reaches Immich and its database on the node's internal photos network with an Immich-issued API key and the photos database credential.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-power-tools"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "6ca428e9f5f72a14527e5c857b16906d31bdf8bcc6cead4b85744594db303413"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-immich-public-proxy-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos-share"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Public share links through Immich Public Proxy. It reaches Immich on the node's internal photos network, holds no Immich credentials and exposes no Immich login or API; the route is public by design.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-public-proxy"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "65d0046d7f8ba794053e7c634b00d991b2f41c5e3fd6ab7d7a2469901d6c1ca3"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Public share links through Immich Public Proxy. It reaches Immich on the node's internal photos network, holds no Immich credentials and exposes no Immich login or API; the route is public by design.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-public-proxy"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "daf91cea2721979b9eed1d7060d0febfffed989ec497463457ac88cbe645c9a4"
             }
           ],
           "storage_profiles": [],
@@ -1096,6 +1282,68 @@
               "capabilities": [],
               "degradations": [],
               "profile_sha256": "eef51aa6477a9ad116e6adf7d726b9ef658299e2d25992372740e8f45fe11c1c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-mosquitto-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home-mqtt"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "MQTT broker through Eclipse Mosquitto with password authentication. The MQTT listener on port 1883 is published on the LAN only when the owner enables it; the broker statistics API stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.03125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "mosquitto"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d934dedb90357eecacf59edb32c75697e343ef7e2373316bbcf321257c36a7da"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "MQTT broker through Eclipse Mosquitto with password authentication. The MQTT listener on port 1883 is published on the LAN only when the owner enables it; the broker statistics API stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.03125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "mosquitto"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "74311bb3b2d0b3d2e436d4f1af4efc224368aab4d9e33afd883e38c383e625ac"
             }
           ],
           "storage_profiles": [],
@@ -1674,6 +1922,68 @@
           ],
           "storage_profiles": [],
           "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-zigbee2mqtt-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home-zigbee"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Zigbee bridge through Zigbee2MQTT. The owner chooses the Zigbee USB adapter and the MQTT broker address; the frontend stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "zigbee2mqtt"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "f9cfae39194118f73e80789ba9ce9e2f077cd65fa808662f36ca6e34bcc74aff"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Zigbee bridge through Zigbee2MQTT. The owner chooses the Zigbee USB adapter and the MQTT broker address; the frontend stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "zigbee2mqtt"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "e976916de83284a81db0b7ef3013bca4edc08345eb17ea3874f477b26df39fcc"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
         }
       ],
       "use_cases": [
@@ -2065,6 +2375,75 @@
           ]
         },
         {
+          "use_case_id": "photos-kiosk",
+          "title": "photos-kiosk",
+          "description": "Immich Kiosk slideshow for photo frames and TVs, selected in addition to the photos workload; it reads Immich with an Immich-issued API key.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "immich-kiosk",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "immich-kiosk",
+              "module_id": "stackkits-immich-kiosk-runtime",
+              "functions": [
+                "slideshow"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "photos-share",
+          "title": "photos-share",
+          "description": "Immich Public Proxy serving only the share links the owner creates in Immich to people without an account, selected in addition to the photos workload.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "immich-public-proxy",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "immich-public-proxy",
+              "module_id": "stackkits-immich-public-proxy-runtime",
+              "functions": [
+                "public-sharing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "photos-tools",
+          "title": "photos-tools",
+          "description": "Immich Power Tools for bulk library maintenance, selected in addition to the photos workload; it uses an Immich-issued API key and the Immich database.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "immich-power-tools",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "immich-power-tools",
+              "module_id": "stackkits-immich-power-tools-runtime",
+              "functions": [
+                "library-maintenance"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
           "use_case_id": "smart-home",
           "title": "Smart Home",
           "description": "Home automation centered on Home Assistant, native product interfaces, and optional local device adjacency.",
@@ -2141,6 +2520,52 @@
               "module_id": "stackkits-esphome-runtime",
               "functions": [
                 "device-firmware"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "smart-home-mqtt",
+          "title": "smart-home-mqtt",
+          "description": "Eclipse Mosquitto MQTT broker for Home Assistant, Zigbee2MQTT and ESPHome devices, selected in addition to the smart-home workload.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "mosquitto",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "mosquitto",
+              "module_id": "stackkits-mosquitto-runtime",
+              "functions": [
+                "mqtt-broker"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "smart-home-zigbee",
+          "title": "smart-home-zigbee",
+          "description": "Zigbee2MQTT bridge that exposes Zigbee devices to Home Assistant over MQTT, selected in addition to the smart-home workload with an owner-chosen Zigbee adapter.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "zigbee2mqtt",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "zigbee2mqtt",
+              "module_id": "stackkits-zigbee2mqtt-runtime",
+              "functions": [
+                "zigbee-bridge"
               ],
               "load": {
                 "residency": "always-on",
@@ -3048,6 +3473,68 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-immich-kiosk-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos-kiosk"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Photo-frame slideshow through Immich Kiosk behind the gateway login. It reaches Immich on the node's internal photos network with an API key the Immich owner issues through stackkit setup.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-kiosk"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "3e6ab735e6b6743e80cf3af940f1834861543281739e646be36ba6dc48bcc6b8"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Photo-frame slideshow through Immich Kiosk behind the gateway login. It reaches Immich on the node's internal photos network with an API key the Immich owner issues through stackkit setup.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-kiosk"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "2e31d6cb737b8db43d823e6c134adf39f78274edc7c277d0dc235c58ffca973f"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-immich-lite-runtime",
           "role": "workload",
           "required": false,
@@ -3100,6 +3587,130 @@
                 "machine-learning-disabled"
               ],
               "profile_sha256": "a02de99d453a5665b84cf113626148ca5aed32cec940f8e4ad55549b69aa9f1d"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-immich-power-tools-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos-tools"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Library maintenance through Immich Power Tools behind the gateway login. It reaches Immich and its database on the node's internal photos network with an Immich-issued API key and the photos database credential.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-power-tools"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "416528f5b3c4e1969d01df95938d8998c51e006212c9ea388294b200f06cd3bf"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Library maintenance through Immich Power Tools behind the gateway login. It reaches Immich and its database on the node's internal photos network with an Immich-issued API key and the photos database credential.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-power-tools"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "6ca428e9f5f72a14527e5c857b16906d31bdf8bcc6cead4b85744594db303413"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-immich-public-proxy-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos-share"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Public share links through Immich Public Proxy. It reaches Immich on the node's internal photos network, holds no Immich credentials and exposes no Immich login or API; the route is public by design.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-public-proxy"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "65d0046d7f8ba794053e7c634b00d991b2f41c5e3fd6ab7d7a2469901d6c1ca3"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Public share links through Immich Public Proxy. It reaches Immich on the node's internal photos network, holds no Immich credentials and exposes no Immich login or API; the route is public by design.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-public-proxy"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "daf91cea2721979b9eed1d7060d0febfffed989ec497463457ac88cbe645c9a4"
             }
           ],
           "storage_profiles": [],
@@ -3264,6 +3875,68 @@
               "capabilities": [],
               "degradations": [],
               "profile_sha256": "eef51aa6477a9ad116e6adf7d726b9ef658299e2d25992372740e8f45fe11c1c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-mosquitto-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home-mqtt"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "MQTT broker through Eclipse Mosquitto with password authentication. The MQTT listener on port 1883 is published on the LAN only when the owner enables it; the broker statistics API stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.03125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "mosquitto"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d934dedb90357eecacf59edb32c75697e343ef7e2373316bbcf321257c36a7da"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "MQTT broker through Eclipse Mosquitto with password authentication. The MQTT listener on port 1883 is published on the LAN only when the owner enables it; the broker statistics API stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.03125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "mosquitto"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "74311bb3b2d0b3d2e436d4f1af4efc224368aab4d9e33afd883e38c383e625ac"
             }
           ],
           "storage_profiles": [],
@@ -3940,6 +4613,68 @@
           ],
           "storage_profiles": [],
           "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-zigbee2mqtt-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home-zigbee"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Zigbee bridge through Zigbee2MQTT. The owner chooses the Zigbee USB adapter and the MQTT broker address; the frontend stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "zigbee2mqtt"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "f9cfae39194118f73e80789ba9ce9e2f077cd65fa808662f36ca6e34bcc74aff"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Zigbee bridge through Zigbee2MQTT. The owner chooses the Zigbee USB adapter and the MQTT broker address; the frontend stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "zigbee2mqtt"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "e976916de83284a81db0b7ef3013bca4edc08345eb17ea3874f477b26df39fcc"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
         }
       ],
       "use_cases": [
@@ -4338,6 +5073,75 @@
           ]
         },
         {
+          "use_case_id": "photos-kiosk",
+          "title": "photos-kiosk",
+          "description": "Immich Kiosk slideshow for photo frames and TVs, selected in addition to the photos workload; it reads Immich with an Immich-issued API key.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "immich-kiosk",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "immich-kiosk",
+              "module_id": "stackkits-immich-kiosk-runtime",
+              "functions": [
+                "slideshow"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "photos-share",
+          "title": "photos-share",
+          "description": "Immich Public Proxy serving only the share links the owner creates in Immich to people without an account, selected in addition to the photos workload.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "immich-public-proxy",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "immich-public-proxy",
+              "module_id": "stackkits-immich-public-proxy-runtime",
+              "functions": [
+                "public-sharing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "photos-tools",
+          "title": "photos-tools",
+          "description": "Immich Power Tools for bulk library maintenance, selected in addition to the photos workload; it uses an Immich-issued API key and the Immich database.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "immich-power-tools",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "immich-power-tools",
+              "module_id": "stackkits-immich-power-tools-runtime",
+              "functions": [
+                "library-maintenance"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
           "use_case_id": "smart-home",
           "title": "Smart Home",
           "description": "Home automation centered on Home Assistant, native product interfaces, and optional local device adjacency.",
@@ -4414,6 +5218,52 @@
               "module_id": "stackkits-esphome-runtime",
               "functions": [
                 "device-firmware"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "smart-home-mqtt",
+          "title": "smart-home-mqtt",
+          "description": "Eclipse Mosquitto MQTT broker for Home Assistant, Zigbee2MQTT and ESPHome devices, selected in addition to the smart-home workload.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "mosquitto",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "mosquitto",
+              "module_id": "stackkits-mosquitto-runtime",
+              "functions": [
+                "mqtt-broker"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "smart-home-zigbee",
+          "title": "smart-home-zigbee",
+          "description": "Zigbee2MQTT bridge that exposes Zigbee devices to Home Assistant over MQTT, selected in addition to the smart-home workload with an owner-chosen Zigbee adapter.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "zigbee2mqtt",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "zigbee2mqtt",
+              "module_id": "stackkits-zigbee2mqtt-runtime",
+              "functions": [
+                "zigbee-bridge"
               ],
               "load": {
                 "residency": "always-on",
@@ -5344,6 +6194,68 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-immich-kiosk-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos-kiosk"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Photo-frame slideshow through Immich Kiosk behind the gateway login. It reaches Immich on the node's internal photos network with an API key the Immich owner issues through stackkit setup.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-kiosk"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "3e6ab735e6b6743e80cf3af940f1834861543281739e646be36ba6dc48bcc6b8"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Photo-frame slideshow through Immich Kiosk behind the gateway login. It reaches Immich on the node's internal photos network with an API key the Immich owner issues through stackkit setup.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-kiosk"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "2e31d6cb737b8db43d823e6c134adf39f78274edc7c277d0dc235c58ffca973f"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-immich-lite-runtime",
           "role": "workload",
           "required": false,
@@ -5396,6 +6308,130 @@
                 "machine-learning-disabled"
               ],
               "profile_sha256": "a02de99d453a5665b84cf113626148ca5aed32cec940f8e4ad55549b69aa9f1d"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-immich-power-tools-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos-tools"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Library maintenance through Immich Power Tools behind the gateway login. It reaches Immich and its database on the node's internal photos network with an Immich-issued API key and the photos database credential.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-power-tools"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "416528f5b3c4e1969d01df95938d8998c51e006212c9ea388294b200f06cd3bf"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Library maintenance through Immich Power Tools behind the gateway login. It reaches Immich and its database on the node's internal photos network with an Immich-issued API key and the photos database credential.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-power-tools"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "6ca428e9f5f72a14527e5c857b16906d31bdf8bcc6cead4b85744594db303413"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-immich-public-proxy-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos-share"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Public share links through Immich Public Proxy. It reaches Immich on the node's internal photos network, holds no Immich credentials and exposes no Immich login or API; the route is public by design.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-public-proxy"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "65d0046d7f8ba794053e7c634b00d991b2f41c5e3fd6ab7d7a2469901d6c1ca3"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Public share links through Immich Public Proxy. It reaches Immich on the node's internal photos network, holds no Immich credentials and exposes no Immich login or API; the route is public by design.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "immich-public-proxy"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "daf91cea2721979b9eed1d7060d0febfffed989ec497463457ac88cbe645c9a4"
             }
           ],
           "storage_profiles": [],
@@ -5560,6 +6596,68 @@
               "capabilities": [],
               "degradations": [],
               "profile_sha256": "eef51aa6477a9ad116e6adf7d726b9ef658299e2d25992372740e8f45fe11c1c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-mosquitto-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home-mqtt"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "MQTT broker through Eclipse Mosquitto with password authentication. The MQTT listener on port 1883 is published on the LAN only when the owner enables it; the broker statistics API stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.03125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "mosquitto"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d934dedb90357eecacf59edb32c75697e343ef7e2373316bbcf321257c36a7da"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "MQTT broker through Eclipse Mosquitto with password authentication. The MQTT listener on port 1883 is published on the LAN only when the owner enables it; the broker statistics API stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.03125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "mosquitto"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "74311bb3b2d0b3d2e436d4f1af4efc224368aab4d9e33afd883e38c383e625ac"
             }
           ],
           "storage_profiles": [],
@@ -6138,6 +7236,68 @@
           ],
           "storage_profiles": [],
           "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-zigbee2mqtt-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home-zigbee"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Zigbee bridge through Zigbee2MQTT. The owner chooses the Zigbee USB adapter and the MQTT broker address; the frontend stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "zigbee2mqtt"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "f9cfae39194118f73e80789ba9ce9e2f077cd65fa808662f36ca6e34bcc74aff"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Zigbee bridge through Zigbee2MQTT. The owner chooses the Zigbee USB adapter and the MQTT broker address; the frontend stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "zigbee2mqtt"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "e976916de83284a81db0b7ef3013bca4edc08345eb17ea3874f477b26df39fcc"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
         }
       ],
       "use_cases": [
@@ -6529,6 +7689,75 @@
           ]
         },
         {
+          "use_case_id": "photos-kiosk",
+          "title": "photos-kiosk",
+          "description": "Immich Kiosk slideshow for photo frames and TVs, selected in addition to the photos workload; it reads Immich with an Immich-issued API key.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "immich-kiosk",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "immich-kiosk",
+              "module_id": "stackkits-immich-kiosk-runtime",
+              "functions": [
+                "slideshow"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "photos-share",
+          "title": "photos-share",
+          "description": "Immich Public Proxy serving only the share links the owner creates in Immich to people without an account, selected in addition to the photos workload.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "immich-public-proxy",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "immich-public-proxy",
+              "module_id": "stackkits-immich-public-proxy-runtime",
+              "functions": [
+                "public-sharing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "photos-tools",
+          "title": "photos-tools",
+          "description": "Immich Power Tools for bulk library maintenance, selected in addition to the photos workload; it uses an Immich-issued API key and the Immich database.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "immich-power-tools",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "immich-power-tools",
+              "module_id": "stackkits-immich-power-tools-runtime",
+              "functions": [
+                "library-maintenance"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
           "use_case_id": "smart-home",
           "title": "Smart Home",
           "description": "Home automation centered on Home Assistant, native product interfaces, and optional local device adjacency.",
@@ -6605,6 +7834,52 @@
               "module_id": "stackkits-esphome-runtime",
               "functions": [
                 "device-firmware"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "smart-home-mqtt",
+          "title": "smart-home-mqtt",
+          "description": "Eclipse Mosquitto MQTT broker for Home Assistant, Zigbee2MQTT and ESPHome devices, selected in addition to the smart-home workload.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "mosquitto",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "mosquitto",
+              "module_id": "stackkits-mosquitto-runtime",
+              "functions": [
+                "mqtt-broker"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "smart-home-zigbee",
+          "title": "smart-home-zigbee",
+          "description": "Zigbee2MQTT bridge that exposes Zigbee devices to Home Assistant over MQTT, selected in addition to the smart-home workload with an owner-chosen Zigbee adapter.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "zigbee2mqtt",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "zigbee2mqtt",
+              "module_id": "stackkits-zigbee2mqtt-runtime",
+              "functions": [
+                "zigbee-bridge"
               ],
               "load": {
                 "residency": "always-on",
@@ -7960,5 +9235,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "49c15c2702dd1e7c74dab4b46bbd5ed564fe8a675a0a060ce0734cfc7dacb19c"
+  "catalog_sha256": "7f407a258404f7c12ff0edaa5cc6e53515fd1de8d6bbed3852c7fa3c27dff33d"
 }

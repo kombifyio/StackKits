@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:945d6c91ed26c9549abcf746ad9531d2eb6b95b3cd2ad7e1d8d4ef7a21fd2367",
+  "contentDigest": "sha256:8138aef7be7b02a832959997289eee910494ccc476c7c4f12952b3280210645a",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -1069,6 +1069,65 @@
       "title": "Media Library"
     },
     {
+      "addOns": [
+        {
+          "alternatives": [
+            {
+              "id": "immich-kiosk",
+              "modules": [
+                {
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-immich-kiosk-runtime"
+                }
+              ],
+              "name": "immich-kiosk"
+            }
+          ],
+          "defaultAlternative": "immich-kiosk",
+          "id": "photos-kiosk"
+        },
+        {
+          "alternatives": [
+            {
+              "id": "immich-public-proxy",
+              "modules": [
+                {
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-immich-public-proxy-runtime"
+                }
+              ],
+              "name": "immich-public-proxy"
+            }
+          ],
+          "defaultAlternative": "immich-public-proxy",
+          "id": "photos-share"
+        },
+        {
+          "alternatives": [
+            {
+              "id": "immich-power-tools",
+              "modules": [
+                {
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-immich-power-tools-runtime"
+                }
+              ],
+              "name": "immich-power-tools"
+            }
+          ],
+          "defaultAlternative": "immich-power-tools",
+          "id": "photos-tools"
+        }
+      ],
       "alternatives": [
         {
           "id": "immich",
@@ -1240,7 +1299,8 @@
           "id": "public-sharing",
           "kind": "toggle",
           "name": "Public share links",
-          "realization": "recorded"
+          "realization": "install",
+          "workloadRef": "photos-share"
         },
         {
           "default": false,
@@ -1250,7 +1310,8 @@
           "id": "kiosk",
           "kind": "toggle",
           "name": "Photo frame and TV slideshow",
-          "realization": "recorded"
+          "realization": "install",
+          "workloadRef": "photos-kiosk"
         },
         {
           "default": false,
@@ -1260,7 +1321,8 @@
           "id": "power-tools",
           "kind": "toggle",
           "name": "Library power tools",
-          "realization": "recorded"
+          "realization": "install",
+          "workloadRef": "photos-tools"
         }
       ],
       "title": "Photos and Memories"
@@ -1317,6 +1379,44 @@
           ],
           "defaultAlternative": "esphome",
           "id": "smart-home-esphome"
+        },
+        {
+          "alternatives": [
+            {
+              "id": "mosquitto",
+              "modules": [
+                {
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-mosquitto-runtime"
+                }
+              ],
+              "name": "mosquitto"
+            }
+          ],
+          "defaultAlternative": "mosquitto",
+          "id": "smart-home-mqtt"
+        },
+        {
+          "alternatives": [
+            {
+              "id": "zigbee2mqtt",
+              "modules": [
+                {
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-zigbee2mqtt-runtime"
+                }
+              ],
+              "name": "zigbee2mqtt"
+            }
+          ],
+          "defaultAlternative": "zigbee2mqtt",
+          "id": "smart-home-zigbee"
         }
       ],
       "alternatives": [
@@ -1528,17 +1628,19 @@
           "id": "mqtt-broker",
           "kind": "toggle",
           "name": "MQTT broker",
-          "realization": "recorded"
+          "realization": "install",
+          "workloadRef": "smart-home-mqtt"
         },
         {
           "default": false,
           "depth": "summary",
           "group": "features",
-          "help": "Add Zigbee2MQTT to use Zigbee lights and sensors without vendor hubs. Needs a Zigbee USB stick and the MQTT broker.",
+          "help": "Add Zigbee2MQTT to use Zigbee lights and sensors without vendor hubs. You choose the Zigbee USB adapter and the MQTT broker address.",
           "id": "zigbee-bridge",
           "kind": "toggle",
           "name": "Zigbee devices",
-          "realization": "recorded"
+          "realization": "install",
+          "workloadRef": "smart-home-zigbee"
         },
         {
           "default": false,

@@ -215,7 +215,8 @@ UseCaseCatalog: #UseCaseCatalog & {
 					depth:       "advanced"
 					help:        "Add Eclipse Mosquitto so MQTT devices, Zigbee2MQTT and ESPHome can talk to Home Assistant."
 					default:     false
-					realization: "recorded"
+					realization: "install"
+					workloadRef: "smart-home-mqtt"
 				},
 				{
 					id:          "zigbee-bridge"
@@ -223,9 +224,10 @@ UseCaseCatalog: #UseCaseCatalog & {
 					kind:        "toggle"
 					group:       "features"
 					depth:       "summary"
-					help:        "Add Zigbee2MQTT to use Zigbee lights and sensors without vendor hubs. Needs a Zigbee USB stick and the MQTT broker."
+					help:        "Add Zigbee2MQTT to use Zigbee lights and sensors without vendor hubs. You choose the Zigbee USB adapter and the MQTT broker address."
 					default:     false
-					realization: "recorded"
+					realization: "install"
+					workloadRef: "smart-home-zigbee"
 				},
 				{
 					id:          "esphome"
@@ -288,7 +290,8 @@ UseCaseCatalog: #UseCaseCatalog & {
 					depth:       "summary"
 					help:        "Add Immich Public Proxy so people without an account can open the albums you share, while Immich itself stays private."
 					default:     false
-					realization: "recorded"
+					realization: "install"
+					workloadRef: "photos-share"
 				},
 				{
 					id:          "kiosk"
@@ -298,7 +301,8 @@ UseCaseCatalog: #UseCaseCatalog & {
 					depth:       "advanced"
 					help:        "Add Immich Kiosk to show albums or people as a slideshow on a photo frame, TV or tablet."
 					default:     false
-					realization: "recorded"
+					realization: "install"
+					workloadRef: "photos-kiosk"
 				},
 				{
 					id:          "power-tools"
@@ -308,7 +312,8 @@ UseCaseCatalog: #UseCaseCatalog & {
 					depth:       "advanced"
 					help:        "Add Immich Power Tools for bulk work: merge people, fix missing locations and tidy albums."
 					default:     false
-					realization: "recorded"
+					realization: "install"
+					workloadRef: "photos-tools"
 				},
 			]
 		}

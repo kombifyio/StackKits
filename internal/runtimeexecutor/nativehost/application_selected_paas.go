@@ -18,21 +18,26 @@ import (
 type SelectedPaaSApplication string
 
 const (
-	SelectedPaaSApplicationGitea          SelectedPaaSApplication = "gitea"
-	SelectedPaaSApplicationForgejo        SelectedPaaSApplication = "forgejo"
-	SelectedPaaSApplicationEmby           SelectedPaaSApplication = "emby"
-	SelectedPaaSApplicationPassbolt       SelectedPaaSApplication = "passbolt"
-	SelectedPaaSApplicationNextcloud      SelectedPaaSApplication = "nextcloud"
-	SelectedPaaSApplicationNavidrome      SelectedPaaSApplication = "navidrome"
-	SelectedPaaSApplicationAudiobookshelf SelectedPaaSApplication = "audiobookshelf"
-	SelectedPaaSApplicationEsphome        SelectedPaaSApplication = "esphome"
-	SelectedPaaSApplicationEurooffice     SelectedPaaSApplication = "euro-office"
-	SelectedPaaSApplicationPaperless      SelectedPaaSApplication = "paperless-ngx"
-	SelectedPaaSApplicationPterodactyl    SelectedPaaSApplication = "pterodactyl"
-	SelectedPaaSApplicationRoundcube      SelectedPaaSApplication = "roundcube"
-	SelectedPaaSApplicationStalwart       SelectedPaaSApplication = "stalwart"
-	SelectedPaaSApplicationJellyfin       SelectedPaaSApplication = "jellyfin"
-	SelectedPaaSApplicationHomeAssistant  SelectedPaaSApplication = "home-assistant"
+	SelectedPaaSApplicationGitea             SelectedPaaSApplication = "gitea"
+	SelectedPaaSApplicationForgejo           SelectedPaaSApplication = "forgejo"
+	SelectedPaaSApplicationEmby              SelectedPaaSApplication = "emby"
+	SelectedPaaSApplicationPassbolt          SelectedPaaSApplication = "passbolt"
+	SelectedPaaSApplicationNextcloud         SelectedPaaSApplication = "nextcloud"
+	SelectedPaaSApplicationNavidrome         SelectedPaaSApplication = "navidrome"
+	SelectedPaaSApplicationAudiobookshelf    SelectedPaaSApplication = "audiobookshelf"
+	SelectedPaaSApplicationEsphome           SelectedPaaSApplication = "esphome"
+	SelectedPaaSApplicationEurooffice        SelectedPaaSApplication = "euro-office"
+	SelectedPaaSApplicationMosquitto         SelectedPaaSApplication = "mosquitto"
+	SelectedPaaSApplicationZigbee2mqtt       SelectedPaaSApplication = "zigbee2mqtt"
+	SelectedPaaSApplicationImmichPublicProxy SelectedPaaSApplication = "immich-public-proxy"
+	SelectedPaaSApplicationImmichKiosk       SelectedPaaSApplication = "immich-kiosk"
+	SelectedPaaSApplicationImmichPowerTools  SelectedPaaSApplication = "immich-power-tools"
+	SelectedPaaSApplicationPaperless         SelectedPaaSApplication = "paperless-ngx"
+	SelectedPaaSApplicationPterodactyl       SelectedPaaSApplication = "pterodactyl"
+	SelectedPaaSApplicationRoundcube         SelectedPaaSApplication = "roundcube"
+	SelectedPaaSApplicationStalwart          SelectedPaaSApplication = "stalwart"
+	SelectedPaaSApplicationJellyfin          SelectedPaaSApplication = "jellyfin"
+	SelectedPaaSApplicationHomeAssistant     SelectedPaaSApplication = "home-assistant"
 )
 
 const (
@@ -166,6 +171,61 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 			rendererContract: architecturev2renderer.EuroofficeWorkloadBundleRendererContract,
 			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
 				descriptor, err := architecturev2renderer.ParseEuroofficeWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationMosquitto:
+		return selectedPaaSApplicationSpec{
+			name: "Mosquitto", providerRef: "stackkits-mosquitto", moduleRef: "stackkits-mosquitto-runtime",
+			unitRef: "mosquitto", workloadRef: "smart-home-mqtt", artifactRef: "mosquitto-workload-bundle",
+			outputRef: "workloads/mosquitto/bundle.json", healthRef: "mosquitto-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.MosquittoWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseMosquittoWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationZigbee2mqtt:
+		return selectedPaaSApplicationSpec{
+			name: "Zigbee2mqtt", providerRef: "stackkits-zigbee2mqtt", moduleRef: "stackkits-zigbee2mqtt-runtime",
+			unitRef: "zigbee2mqtt", workloadRef: "smart-home-zigbee", artifactRef: "zigbee2mqtt-workload-bundle",
+			outputRef: "workloads/zigbee2mqtt/bundle.json", healthRef: "zigbee2mqtt-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.Zigbee2mqttWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseZigbee2mqttWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationImmichPublicProxy:
+		return selectedPaaSApplicationSpec{
+			name: "ImmichPublicProxy", providerRef: "stackkits-immich-public-proxy", moduleRef: "stackkits-immich-public-proxy-runtime",
+			unitRef: "immich-public-proxy", workloadRef: "photos-share", artifactRef: "immich-public-proxy-workload-bundle",
+			outputRef: "workloads/immich-public-proxy/bundle.json", healthRef: "immich-public-proxy-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.ImmichPublicProxyWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseImmichPublicProxyWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationImmichKiosk:
+		return selectedPaaSApplicationSpec{
+			name: "ImmichKiosk", providerRef: "stackkits-immich-kiosk", moduleRef: "stackkits-immich-kiosk-runtime",
+			unitRef: "immich-kiosk", workloadRef: "photos-kiosk", artifactRef: "immich-kiosk-workload-bundle",
+			outputRef: "workloads/immich-kiosk/bundle.json", healthRef: "immich-kiosk-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.ImmichKioskWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseImmichKioskWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationImmichPowerTools:
+		return selectedPaaSApplicationSpec{
+			name: "ImmichPowerTools", providerRef: "stackkits-immich-power-tools", moduleRef: "stackkits-immich-power-tools-runtime",
+			unitRef: "immich-power-tools", workloadRef: "photos-tools", artifactRef: "immich-power-tools-workload-bundle",
+			outputRef: "workloads/immich-power-tools/bundle.json", healthRef: "immich-power-tools-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.ImmichPowerToolsWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseImmichPowerToolsWorkloadBundle(content)
 				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
 			},
 		}, true

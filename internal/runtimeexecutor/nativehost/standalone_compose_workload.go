@@ -452,6 +452,7 @@ type standaloneComposeService struct {
 	Volumes     []any                                  `yaml:"volumes,omitempty"`
 	Networks    []string                               `yaml:"networks"`
 	Ports       []string                               `yaml:"ports,omitempty"`
+	Devices     []string                               `yaml:"devices,omitempty"`
 	ExtraHosts  []string                               `yaml:"extra_hosts,omitempty"`
 	StopSignal  string                                 `yaml:"stop_signal,omitempty"`
 	Labels      map[string]string                      `yaml:"labels,omitempty"`
@@ -827,6 +828,21 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 		}
 		if err := standaloneComposeMailNode(bundle, component, &service); err != nil {
 			return nil, nil, nil, err
+		}
+		// Owner-enabled LAN rights, already validated against the governed
+		// component declaration by the bundle parser.
+		for _, listener := range component.LANListeners {
+			service.Ports = append(service.Ports, fmt.Sprintf("%d:%d/%s", listener.Port, listener.Port, listener.Protocol))
+		}
+		for _, device := range component.Devices {
+			service.Devices = append(service.Devices, device.HostPath+":"+device.Target)
+		}
+		// A governed add-on joins its primary workload's internal network on
+		// this node; Compose fails closed when that workload is not applied.
+		for _, peer := range component.PeerNetworks {
+			key := "peer-" + peer.WorkloadRef + "-" + peer.NetworkRef
+			document.Networks[key] = standaloneComposeNetwork{Name: "stackkit-" + peer.WorkloadRef + "-" + bundle.NodeRef + "_" + peer.NetworkRef, External: true}
+			service.Networks = append(service.Networks, key)
 		}
 		sort.Strings(service.Networks)
 		sort.SliceStable(service.Volumes, func(i, j int) bool {

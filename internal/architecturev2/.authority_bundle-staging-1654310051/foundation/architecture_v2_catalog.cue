@@ -1,0 +1,9355 @@
+// Package foundation - governed Architecture v2 capability, implementation-adapter,
+// and add-on contracts. The established CapabilityProvider/providerRef wire
+// names describe StackKits adapters (PaaS, mesh, renderer, host-local modules),
+// never server providers. Kit definitions declare what must exist; this catalog
+// declares which immutable implementation contracts may realize it.
+package foundation
+
+import (
+	"list"
+	"strings"
+)
+
+_architectureV2ImmichServerImage: {ref: "ghcr.io/immich-app/immich-server:v2.7.0", digest: "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"}
+
+_architectureV2PrivateAIImage: {ref: "ghcr.io/open-webui/open-webui:v0.11.3", digest: "sha256:41daa0cf2561a5d4c8d1ff31ee2a98d93ab4d3ac2605cac69366ff6a3374a933"}
+
+// Paperless-ngx is the single application-version authority for every derived
+// module and runtime projection. PostgreSQL and Valkey follow the compatible
+// versions in the upstream v3.1.3 Compose example and are pinned independently.
+_architectureV2PaperlessImage: {ref: "ghcr.io/paperless-ngx/paperless-ngx:3.1.3", digest: "sha256:aa810a36942c63d4ee70d00eda7236cd3d6acfb7eb3f7987fb568ed14df8817a"}
+_architectureV2PaperlessPostgresImage: {ref: "docker.io/library/postgres:18", digest: "sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280"}
+_architectureV2PaperlessValkeyImage: {ref: "docker.io/valkey/valkey:9-alpine", digest: "sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b"}
+
+// Pterodactyl (ADR-0043) is the single Game platform version authority. The
+// Panel and Wings releases are the upstream pair; MariaDB and Valkey follow
+// the upstream Panel Compose example and are pinned independently.
+_architectureV2PterodactylPanelImage: {ref: "ghcr.io/pterodactyl/panel:v1.15.1", digest: "sha256:bbf51a5501ff1492946816490d5275250570d3358124bad12c6b75f0077facf2"}
+_architectureV2PterodactylWingsImage: {ref: "ghcr.io/pterodactyl/wings:v1.13.3", digest: "sha256:c89b9b9a48a992d8cfd488837bfd76426c2af07579699b4fe41f9e910701405c"}
+_architectureV2PterodactylDatabaseImage: {ref: "docker.io/library/mariadb:11.8", digest: "sha256:de4cf325ed1fc8a22460b4f285de7b9e06d89edbd593505e678ec480f86e501b"}
+_architectureV2PterodactylCacheImage: {ref: "docker.io/valkey/valkey:8.1-alpine", digest: "sha256:32627109abf6f741121096b45c732f758876803efd7b2e1018ebc0350d117119"}
+
+// Roundcube Webmail is the client-first Mail default: a webmail client for an
+// existing external IMAP/SMTP mailbox; no mail server is installed. The pin
+// is the official 1.6.x Apache multi-arch index (amd64 and arm64 included).
+_architectureV2RoundcubeImage: {ref: "docker.io/roundcube/roundcubemail:1.6.19-apache", digest: "sha256:f1256d1ce06ca5c52660f67f8511f3971def5d3b80aab3e3809df970489b1c46"}
+
+// Stalwart Mail Server is the own-mail-server default (ADR-0046). The pin is
+// the official v0.16 multi-arch index (amd64 and arm64 included).
+_architectureV2StalwartImage: {ref: "docker.io/stalwartlabs/stalwart:v0.16.23", digest: "sha256:be215678796691bc39bdda918ecc50d14a9032a099a1d1950e51950aec7e2592"}
+
+// The governed Stalwart entrypoint (ADR-0046): it writes the data-store
+// pointer, binds the custody password to the recovery administrator and, on
+// the first start only, seeds the submission listener (587) and stdout
+// logging before the server's real start. No secret enters a file or argument.
+_architectureV2StalwartEntrypointScript: ##"set -eu; printf '%s' '{"@type":"RocksDb","path":"/var/lib/stalwart/"}' > /etc/stalwart/config.json; export STALWART_RECOVERY_ADMIN="admin:${STACKKIT_ADMIN_SECRET:?}"; unset STACKKIT_ADMIN_SECRET; if [ ! -f /var/lib/stalwart/.stackkit-seed-v1 ]; then /usr/local/bin/stalwart --config /etc/stalwart/config.json & pid=$!; i=0; until curl -fs -o /dev/null http://127.0.0.1:8080/healthz/ready; do i=$((i+1)); [ "$i" -lt 90 ] || exit 1; sleep 1; done; printf 'user = "%s"\n' "$STALWART_RECOVERY_ADMIN" | curl -fsS -K - -H 'Content-Type: application/json' -o /tmp/stackkit-seed.json -d '{"using":["urn:ietf:params:jmap:core","urn:stalwart:jmap"],"methodCalls":[["x:Tracer/get",{"properties":["id"]},"t0"],["x:Tracer/set",{"#destroy":{"resultOf":"t0","name":"x:Tracer/get","path":"/list/*/id"},"create":{"stdout":{"@type":"Stdout","level":"info","ansi":false}}},"t1"],["x:NetworkListener/set",{"create":{"submission":{"name":"submission","bind":{"[::]:587":true},"protocol":"smtp","tlsImplicit":false}}},"l1"]]}' http://127.0.0.1:8080/jmap/; grep -q '"submission":{"id"' /tmp/stackkit-seed.json; grep -q '"stdout":{"id"' /tmp/stackkit-seed.json; rm -f /tmp/stackkit-seed.json; kill "$pid"; wait "$pid" || true; touch /var/lib/stalwart/.stackkit-seed-v1; fi; exec /usr/local/bin/stalwart --config /etc/stalwart/config.json"##
+
+_architectureV2CoreCapabilities: [
+	"topology-core",
+	"host-bootstrap",
+	"external-host-admission",
+	"host-conformance",
+	"security-baseline",
+	"human-identity-core",
+	"device-trust-core",
+	"access-policy",
+	"runtime-paas",
+	"service-catalog",
+	"secrets-recovery",
+	"storage-data-policy",
+	"backup-core",
+	"observability-evidence",
+	"lifecycle-update",
+]
+
+// Topology is declarative plan authority, not host runtime work. Keeping it
+// outside the residual Core module prevents a generated executor handoff from
+// falsely claiming that it creates sites or owns their lifecycle.
+_architectureV2CoreTopologyCapabilities: ["topology-core"]
+
+// The service catalog is resolved plan data consumed by runtime owners. It is
+// neither a daemon nor a generated executor contract of its own.
+_architectureV2ServiceCatalogCapabilities: ["service-catalog"]
+
+// These are shared policy contracts consumed by kit-specific enforcement and
+// runtime owners. Selection binds plan intent; it does not enforce access or
+// mutate storage on its own.
+_architectureV2AccessPolicyCapabilities: ["access-policy"]
+_architectureV2StorageDataPolicyCapabilities: ["storage-data-policy"]
+
+// runtime-paas is the historical capability ID for the shared workload
+// delivery interface. Native v2 binds the concrete application-adapter
+// separately, including the non-PaaS standalone Compose implementation.
+// Basement Compose, Cloud runtime, and Modern federation remain distinct
+// realizations and must not be inferred from this cross-kit contract.
+_architectureV2WorkloadRuntimeContractCapabilities: ["runtime-paas"]
+
+_architectureV2PhotosInfrastructure: #WorkloadInfrastructureV1 & {
+	storageAllocation: {
+		moduleRef: "stackkits-storage-allocation"
+		allocations: [
+			{
+				componentRef: "immich-server", volumeRef: "library", target:                               "/data"
+				class:        "persistent", backup:       true, dataClasses: ["personal"], dataBindingRef: "photos"
+			},
+			{
+				componentRef: "immich-machine-learning", volumeRef: "model-cache", target: "/cache"
+				class:        "cache", backup:                      false, dataClasses: []
+			},
+			{
+				componentRef: "immich-postgres", volumeRef: "database", target:                              "/var/lib/postgresql/data"
+				class:        "persistent", backup:         true, dataClasses: ["personal"], dataBindingRef: "photos"
+			},
+		]
+	}
+	dataBinding: {
+		moduleRef:  "stackkits-workload-data-binding"
+		bindingRef: "photos"
+		classes: ["personal"]
+		locality: "primary-site"
+	}
+	backupSource: {
+		moduleRef: "stackkits-backup-source"
+		allocations: [
+			for allocation in storageAllocation.allocations
+			if allocation.backup {
+				componentRef: allocation.componentRef
+				volumeRef:    allocation.volumeRef
+				dataClasses:  allocation.dataClasses
+			},
+		]
+	}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Nextcloud keeps its code, config.php and user files in the html volume and
+// metadata in PostgreSQL; the workload is quiesced before both are captured.
+_architectureV2FilesNextcloudInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: _architectureV2FilesInfrastructure.dataBinding
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "nextcloud", volumeRef: "html", target: "/var/www/html", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "files"},
+		{componentRef: "nextcloud-postgres", volumeRef: "database", target: "/var/lib/postgresql", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "files"},
+		{componentRef: "nextcloud-valkey", volumeRef: "cache", target: "/data", class: "cache", backup: false, dataClasses: []},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2FilesInfrastructure: #WorkloadInfrastructureV1 & {
+	storageAllocation: {
+		moduleRef: "stackkits-storage-allocation"
+		allocations: [{
+			componentRef: "cloudreve", volumeRef: "data", target:                                  "/cloudreve/data"
+			class:        "persistent", backup:   true, dataClasses: ["personal"], dataBindingRef: "files"
+		}]
+	}
+	dataBinding: {
+		moduleRef:  "stackkits-workload-data-binding"
+		bindingRef: "files"
+		classes: ["personal"]
+		locality: "primary-site"
+	}
+	backupSource: {
+		moduleRef: "stackkits-backup-source"
+		allocations: [
+			for allocation in storageAllocation.allocations
+			if allocation.backup {
+				componentRef: allocation.componentRef
+				volumeRef:    allocation.volumeRef
+				dataClasses:  allocation.dataClasses
+			},
+		]
+	}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2VaultInfrastructure: #WorkloadInfrastructureV1 & {
+	storageAllocation: {
+		moduleRef: "stackkits-storage-allocation"
+		allocations: [{
+			componentRef: "vaultwarden", volumeRef: "data", target:                                "/data"
+			class:        "persistent", backup:     true, dataClasses: ["secret"], dataBindingRef: "vault"
+		}]
+	}
+	dataBinding: {
+		moduleRef:  "stackkits-workload-data-binding"
+		bindingRef: "vault"
+		classes: ["secret"]
+		locality: "primary-site"
+	}
+	backupSource: {
+		moduleRef: "stackkits-backup-source"
+		allocations: [
+			for allocation in storageAllocation.allocations
+			if allocation.backup {
+				componentRef: allocation.componentRef
+				volumeRef:    allocation.volumeRef
+				dataClasses:  allocation.dataClasses
+			},
+		]
+	}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Passbolt keeps its server OpenPGP and JWT keys in two backed-up volumes and
+// all encrypted secrets in MariaDB; the workload is quiesced before capture.
+_architectureV2VaultPassboltInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: _architectureV2VaultInfrastructure.dataBinding
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "passbolt", volumeRef: "gpg", target: "/etc/passbolt/gpg", class: "persistent", backup: true, dataClasses: ["secret"], dataBindingRef: "vault"},
+		{componentRef: "passbolt", volumeRef: "jwt", target: "/etc/passbolt/jwt", class: "persistent", backup: true, dataClasses: ["secret"], dataBindingRef: "vault"},
+		{componentRef: "passbolt-mariadb", volumeRef: "database", target: "/var/lib/mysql", class: "persistent", backup: true, dataClasses: ["secret"], dataBindingRef: "vault"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2DevInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "dev", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "gitea", volumeRef: "data", target: "/var/lib/gitea", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "dev"},
+		{componentRef: "gitea", volumeRef: "config", target: "/etc/gitea", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "dev"},
+	]}
+	// The existing compiler-owned applicationRuntimes quiesces the sole writer
+	// before both allocations are captured: SQLite, repositories, LFS and keys.
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Forgejo keeps SQLite, repositories, LFS objects and app.ini (custom/conf)
+// in one data volume; the sole writer is quiesced before capture.
+_architectureV2DevForgejoInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: _architectureV2DevInfrastructure.dataBinding
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "forgejo", volumeRef: "data", target: "/var/lib/gitea", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "dev"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2DocumentsInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "documents", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "paperless", volumeRef: "data", target: "/usr/src/paperless/data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "documents"},
+		{componentRef: "paperless", volumeRef: "media", target: "/usr/src/paperless/media", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "documents"},
+		{componentRef: "paperless", volumeRef: "consume", target: "/usr/src/paperless/consume", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "documents"},
+		{componentRef: "paperless", volumeRef: "export", target: "/usr/src/paperless/export", class: "persistent", backup: false, dataClasses: ["personal"], dataBindingRef: "documents"},
+		{componentRef: "paperless-postgres", volumeRef: "database", target: "/var/lib/postgresql", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "documents"},
+		{componentRef: "paperless-valkey", volumeRef: "cache", target: "/data", class: "cache", backup: false, dataClasses: []},
+	]}
+	// The existing application-runtime snapshot owner quiesces the complete
+	// workload, including PostgreSQL, before copying these related allocations.
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Game data: Wings keeps worlds, install scratch space and passwd files in its
+// data volume, mounted at its own host path so Wings can hand that path to the
+// Docker daemon (ADR-0043). The Panel database holds servers, users and keys.
+_architectureV2GameInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "game", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "wings", volumeRef: "data", target: "/stackkit/game-data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "game"},
+		{componentRef: "panel-database", volumeRef: "database", target: "/var/lib/mysql", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "game"},
+		{componentRef: "panel", volumeRef: "var", target: "/app/var", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "game"},
+		{componentRef: "panel-cache", volumeRef: "cache", target: "/data", class: "cache", backup: false, dataClasses: []},
+		// Reproducible startup and log space; declared so restore activation
+		// can account for every Compose volume of the workload.
+		{componentRef: "panel", volumeRef: "nginx", target: "/etc/nginx/http.d", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "panel", volumeRef: "stackkit", target: "/stackkit", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "panel-bootstrap", volumeRef: "stackkit", target: "/stackkit", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "wings", volumeRef: "logs", target: "/var/log/pterodactyl", class: "cache", backup: false, dataClasses: []},
+	]}
+	// The application-runtime snapshot owner quiesces the Compose graph; the
+	// CLI first stops running Wings-owned game servers with their own stop
+	// command and starts them again afterwards (ADR-0043 consequences).
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Mail client data: Roundcube keeps preferences, identities and the address
+// book in SQLite; the mailbox volume holds the owner's server endpoints. The mail itself stays in the owner's external mailbox and is
+// not a StackKits dataset. The config volume only carries the governed startup
+// file and the temp volume upload scratch space; both are reproducible.
+_architectureV2MailInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "mail", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "roundcube", volumeRef: "database", target: "/var/roundcube/db", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "mail"},
+		// The owner's IMAP/SMTP endpoints written by the setup action (never a
+		// password); restored with the database so a restore keeps the mailbox.
+		{componentRef: "roundcube", volumeRef: "mailbox", target: "/var/roundcube/mailbox", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "mail"},
+		{componentRef: "roundcube", volumeRef: "config", target: "/var/roundcube/config", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "roundcube", volumeRef: "temp", target: "/tmp/roundcube-temp", class: "cache", backup: false, dataClasses: []},
+	]}
+	// The application-runtime snapshot owner quiesces Roundcube, the sole
+	// SQLite writer, before the database allocation is captured.
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Own mail server data (ADR-0046): Stalwart keeps every mailbox, the
+// directory, DKIM keys and its settings in RocksDB under the data volume. The
+// config volume only holds the pointer file the governed entrypoint rewrites
+// at every start.
+_architectureV2MailServerInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "mail-server", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "stalwart", volumeRef: "data", target: "/var/lib/stalwart", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "mail-server"},
+		{componentRef: "stalwart", volumeRef: "config", target: "/etc/stalwart", class: "cache", backup: false, dataClasses: []},
+	]}
+	// The application-runtime snapshot owner quiesces Stalwart, the sole
+	// RocksDB writer, before the data allocation is captured.
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2AIInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "ai", classes: ["personal"], locality: "primary-site"}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [{componentRef: "open-webui", volumeRef: "data", dataClasses: ["personal"]}]}
+	storageAllocation: {
+		moduleRef: "stackkits-storage-allocation"
+		allocations: [
+			{componentRef: "open-webui", volumeRef: "data", target: "/app/backend/data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai"},
+			{componentRef: "ollama", volumeRef: "models", target: "/root/.ollama", class: "persistent", backup: false, dataClasses: ["personal"], dataBindingRef: "ai"},
+		]
+	}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2MediaInfrastructure: #WorkloadInfrastructureV1 & {
+	storageAllocation: {
+		moduleRef: "stackkits-storage-allocation"
+		allocations: [
+			{
+				componentRef: "jellyfin", volumeRef: "config", target:                                "/config"
+				class:        "persistent", backup:  true, dataClasses: ["personal"], dataBindingRef: "media"
+			},
+			{
+				componentRef: "jellyfin", volumeRef: "cache", target: "/cache"
+				class:        "cache", backup:       false, dataClasses: []
+			},
+			{
+				componentRef: "jellyfin", volumeRef: "library", target:                                "/media"
+				class:        "persistent", backup:  false, dataClasses: ["personal"], dataBindingRef: "media"
+			},
+		]
+	}
+	dataBinding: {
+		moduleRef:  "stackkits-workload-data-binding"
+		bindingRef: "media"
+		classes: ["personal"]
+		locality: "primary-site"
+	}
+	backupSource: {
+		moduleRef: "stackkits-backup-source"
+		allocations: [
+			for allocation in storageAllocation.allocations
+			if allocation.backup {
+				componentRef: allocation.componentRef
+				volumeRef:    allocation.volumeRef
+				dataClasses:  allocation.dataClasses
+			},
+		]
+	}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Emby keeps its configuration, users and metadata in the backed-up config
+// volume; the owner-custodied media library is mounted read-only.
+_architectureV2MediaEmbyInfrastructure: #WorkloadInfrastructureV1 & {
+	storageAllocation: {
+		moduleRef: "stackkits-storage-allocation"
+		allocations: [
+			{
+				componentRef: "emby", volumeRef: "config", target: "/config"
+				class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "media"
+			},
+			{
+				componentRef: "emby", volumeRef: "library", target: "/media"
+				class: "persistent", backup: false, dataClasses: ["personal"], dataBindingRef: "media"
+			},
+		]
+	}
+	dataBinding: _architectureV2MediaInfrastructure.dataBinding
+	backupSource: {
+		moduleRef: "stackkits-backup-source"
+		allocations: [for allocation in storageAllocation.allocations if allocation.backup {
+			componentRef: allocation.componentRef
+			volumeRef:    allocation.volumeRef
+			dataClasses:  allocation.dataClasses
+		}]
+	}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2NavidromeInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "media-music", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "navidrome", volumeRef: "data", target: "/data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "media-music"},
+		{componentRef: "navidrome", volumeRef: "library", target: "/music", class: "persistent", backup: false, dataClasses: ["personal"], dataBindingRef: "media-music"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2AudiobookshelfInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "media-audiobooks", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "audiobookshelf", volumeRef: "config", target: "/config", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "media-audiobooks"},
+		{componentRef: "audiobookshelf", volumeRef: "metadata", target: "/metadata", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "media-audiobooks"},
+		{componentRef: "audiobookshelf", volumeRef: "library", target: "/audiobooks", class: "persistent", backup: false, dataClasses: ["personal"], dataBindingRef: "media-audiobooks"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2ESPHomeInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "smart-home-esphome", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "esphome", volumeRef: "config", target: "/config", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "smart-home-esphome"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2EuroofficeInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "files-office", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "euro-office", volumeRef: "data", target: "/var/www/euro-office/Data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "files-office"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2MosquittoInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "smart-home-mqtt", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "mosquitto", volumeRef: "data", target: "/mosquitto/data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "smart-home-mqtt"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2Zigbee2mqttInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "smart-home-zigbee", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "zigbee2mqtt", volumeRef: "data", target: "/app/data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "smart-home-zigbee"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2SmartHomeInfrastructure: #WorkloadInfrastructureV1 & {
+	storageAllocation: {
+		moduleRef: "stackkits-storage-allocation"
+		allocations: [{
+			componentRef: "home-assistant", volumeRef: "config", target:                                "/config"
+			class:        "persistent", backup:        true, dataClasses: ["personal"], dataBindingRef: "smart-home"
+		}]
+	}
+	dataBinding: {
+		moduleRef:  "stackkits-workload-data-binding"
+		bindingRef: "smart-home"
+		classes: ["personal"]
+		locality: "primary-site"
+	}
+	backupSource: {
+		moduleRef: "stackkits-backup-source"
+		allocations: [
+			for allocation in storageAllocation.allocations
+			if allocation.backup {
+				componentRef: allocation.componentRef
+				volumeRef:    allocation.volumeRef
+				dataClasses:  allocation.dataClasses
+			},
+		]
+	}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2HostAdmissionCapabilities: [
+	"external-host-admission",
+	"host-conformance",
+]
+
+_architectureV2IdentityCapabilities: [
+	"human-identity-core",
+	"device-trust-core",
+]
+
+// These shared Core capabilities are contracts consumed by kit-specific
+// owners. None of them is permission for one generic host executor.
+_architectureV2SecretsRecoveryCapabilities: ["secrets-recovery"]
+_architectureV2BackupCoreCapabilities: ["backup-core"]
+_architectureV2ObservabilityEvidenceCapabilities: ["observability-evidence"]
+_architectureV2TelemetryCollectionCapabilities: ["telemetry-collection"]
+_architectureV2LifecycleUpdateCapabilities: ["lifecycle-update"]
+_architectureV2SecurityBaselineCapabilities: ["security-baseline"]
+_architectureV2CoreHostBootstrapCapabilities: ["host-bootstrap"]
+
+_architectureV2LocalCapabilities: [
+	"site-local",
+	"lan-discovery",
+	"local-ingress",
+	"lan-access-policy",
+	"device-enrollment-home",
+	"local-control-authority",
+	"offline-autonomy",
+	"local-backup-target",
+	"local-backup-runtime",
+	"lan-dns",
+	"private-remote-access",
+	"public-publish-egress",
+	"encrypted-offsite-backup",
+]
+
+_architectureV2LocalAutonomyCapabilities: ["offline-autonomy"]
+
+_architectureV2InternalPKICapabilities: ["internal-pki"]
+
+_architectureV2HomeAccessCapabilities: ["local-ingress", "lan-access-policy"]
+
+_architectureV2HomeLANDiscoveryCapabilities: ["lan-discovery"]
+
+_architectureV2HomeIdentityAuthorityCapabilities: [
+	"device-enrollment-home",
+	"local-control-authority",
+]
+
+// A prepared Home backup target is an executable, node-bound concern. It is
+// selected by Basement Kit because that kit requires local-backup-target; a
+// Modern Homelab has a Home site but does not inherit this Basement default.
+_architectureV2HomeBackupTargetCapabilities: ["local-backup-target"]
+_architectureV2BasementCoreCapabilities: ["local-backup-runtime"]
+
+_architectureV2LocalTopologyCapabilities: ["site-local"]
+
+_architectureV2HomeLANDNSCapabilities: ["lan-dns"]
+_architectureV2HomePrivateRemoteAccessCapabilities: ["private-remote-access"]
+_architectureV2HomePublicPublishEgressCapabilities: ["public-publish-egress"]
+_architectureV2HomeEncryptedOffsiteBackupCapabilities: ["encrypted-offsite-backup"]
+
+// The first product Compose lowering lane is Basement-owned rather than a
+// generic home-site behavior. Modern Homelab also has home sites, so placing
+// this capability on stackkits-local would incorrectly select Basement
+// rollout machinery into the hybrid kit.
+_architectureV2BasementComposeCapabilities: ["basement-compose-runtime"]
+
+_architectureV2CloudCapabilities: [
+	"site-cloud",
+	"cloud-core-runtime",
+	"host-local-internet-firewall",
+	"public-edge",
+	"public-dns",
+	"internet-host-hardening",
+	"remote-owner-bootstrap",
+	"offsite-object-backup",
+	"cloud-control-authority",
+	"private-admin-mesh",
+	"failure-domain-placement",
+]
+
+_architectureV2CloudIdentityAuthorityCapabilities: [
+	"remote-owner-bootstrap",
+	"cloud-control-authority",
+]
+
+_architectureV2CloudTopologyCapabilities: ["site-cloud"]
+_architectureV2CloudPlacementPolicyCapabilities: ["failure-domain-placement"]
+_architectureV2CloudHostSecurityCapabilities: [
+	"host-local-internet-firewall",
+	"internet-host-hardening",
+]
+_architectureV2CloudPublicDNSCapabilities: ["public-dns"]
+_architectureV2CloudPublicEdgeCapabilities: ["public-edge"]
+_architectureV2CloudOffsiteBackupCapabilities: ["offsite-object-backup"]
+_architectureV2CloudPrivateAdminMeshCapabilities: ["private-admin-mesh"]
+_architectureV2CloudCoreCapabilities: ["cloud-core-runtime"]
+
+_architectureV2PublicTLSCapabilities: ["public-tls"]
+
+// Public edge, DNS, and TLS capabilities above are desired host/service
+// behavior. DNS is declarative only; edge and TLS are separate generation
+// handoffs. None authorize a server-provider or DNS-provider mutation; an
+// external platform adapter owns any such realization.
+// Application selection is owned exclusively by logical Workload contracts.
+// It must never re-enter the architecture capability closure.
+_architectureV2ApplicationCapabilityContracts: []
+
+_architectureV2WorkloadContracts: [
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "basement-core"
+			version:     "1.0.0"
+			description: "Required standalone Basement control plane with local routing, owner identity, internal PKI, container management, and operator hub."
+		}
+		kind: "service"
+		functionalCapabilities: [
+			"local-routing",
+			"owner-identity",
+			"forward-auth",
+			"internal-ca",
+			"container-platform",
+			"operator-hub",
+		]
+		supportedSiteKinds: ["home"]
+		dataClasses: []
+		defaultAlternative: "standalone-compose"
+		alternatives: [{
+			id:          "standalone-compose"
+			providerRef: "stackkits-basement-core"
+			moduleRef:   "stackkits-basement-core-lite-runtime"
+			route: {serviceRef: "basement-hub", healthRef: "basement-hub-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["stackkit"]
+				allowedAdapterRefs: []
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+		}, {
+			id:          "standalone"
+			providerRef: "stackkits-basement-core"
+			moduleRef:   "stackkits-basement-core-runtime"
+			route: {serviceRef: "basement-hub", healthRef: "basement-hub-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["stackkit"]
+				allowedAdapterRefs: []
+			}
+			setup: {
+				mode:  "manual"
+				owner: "operator"
+				actionRefs: []
+			}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+		}, {
+			id:          "standalone-lite"
+			providerRef: "stackkits-basement-core"
+			moduleRef:   "stackkits-basement-core-lite-runtime"
+			route: {serviceRef: "basement-hub", healthRef: "basement-hub-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["stackkit"]
+				allowedAdapterRefs: []
+			}
+			setup: {
+				mode:  "manual"
+				owner: "operator"
+				actionRefs: []
+			}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "cloud-core"
+			version:     "1.0.0"
+			description: "Required provider-neutral Cloud control plane installed on an externally supplied host; provider and server lifecycle remain outside StackKits."
+		}
+		kind: "service"
+		functionalCapabilities: [
+			"public-routing",
+			"owner-identity",
+			"forward-auth",
+			"container-platform",
+			"operator-hub",
+		]
+		supportedSiteKinds: ["cloud"]
+		dataClasses: []
+		defaultAlternative: "standalone-compose"
+		alternatives: [{
+			id:          "standalone-compose"
+			providerRef: "stackkits-cloud-core"
+			moduleRef:   "stackkits-cloud-core-standalone-runtime"
+			route: {serviceRef: "base", healthRef: "cloud-hub-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["stackkit"]
+				allowedAdapterRefs: []
+			}
+			setup: {
+				mode:  "manual"
+				owner: "operator"
+				actionRefs: []
+			}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+		}, {
+			id:          "standalone"
+			providerRef: "stackkits-cloud-core"
+			moduleRef:   "stackkits-cloud-core-runtime"
+			route: {serviceRef: "base", healthRef: "cloud-hub-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["stackkit"]
+				allowedAdapterRefs: []
+			}
+			setup: {
+				mode:  "manual"
+				owner: "operator"
+				actionRefs: []
+			}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "photos"
+			version:     "1.2.0"
+			description: "Self-hosted photo management selected independently from kit architecture capabilities."
+		}
+		kind:       "application"
+		useCaseRef: "photos"
+		functionalCapabilities: ["photo-library", "mobile-photo-backup"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "immich"
+		computeTiers: {
+			low: {included: true, alternativeID: "immich-lite"}
+			standard: {included: true, alternativeID: "immich"}
+			high: {included: true, alternativeID: "immich"}
+		}
+		alternatives: [{
+			id:          "immich"
+			providerRef: "stackkits-immich"
+			moduleRef:   "stackkits-immich-runtime"
+			route: {serviceRef: "photos", healthRef: "immich-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["coolify", "komodo", "standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {
+				mode:  "on-demand"
+				owner: "module"
+				actionRefs: ["immich-owner-bootstrap"]
+			}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["database-password"]
+					requiredRefs: ["database-password"]
+				}
+			}
+			infrastructure: _architectureV2PhotosInfrastructure
+		}, {
+			id:          "immich-lite"
+			providerRef: "stackkits-immich-lite"
+			moduleRef:   "stackkits-immich-lite-runtime"
+			route: {serviceRef: "photos", healthRef: "immich-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {
+				mode:  "on-demand"
+				owner: "module"
+				actionRefs: ["immich-owner-bootstrap"]
+			}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["database-password"]
+					requiredRefs: ["database-password"]
+				}
+			}
+			infrastructure: _architectureV2PhotosLiteInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "files"
+			version:     "1.2.0"
+			description: "Self-hosted file management and sharing selected independently from kit architecture capabilities."
+		}
+		kind:       "application"
+		useCaseRef: "files"
+		functionalCapabilities: ["file-library", "file-sharing"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "cloudreve"
+		computeTiers: {
+			low: {included: true, alternativeID: "cloudreve"}
+			standard: {included: true, alternativeID: "cloudreve"}
+			high: {included: true, alternativeID: "cloudreve"}
+		}
+		alternatives: [{
+			id:          "cloudreve"
+			providerRef: "stackkits-cloudreve"
+			moduleRef:   "stackkits-cloudreve-runtime"
+			route: {serviceRef: "files", healthRef: "cloudreve-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["coolify", "komodo", "standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["cloudreve-owner-bootstrap"]}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+			infrastructure: _architectureV2FilesInfrastructure
+		}, {
+			id:          "nextcloud"
+			providerRef: "stackkits-nextcloud"
+			moduleRef:   "stackkits-nextcloud-runtime"
+			route: {serviceRef: "files", healthRef: "nextcloud-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// The upstream image installs Nextcloud with administrator owner from
+			// custody on first start; no setup action is needed.
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["database-password", "owner-password"]
+					requiredRefs: ["database-password", "owner-password"]
+				}
+			}
+			infrastructure: _architectureV2FilesNextcloudInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "vault"
+			version:     "1.1.0"
+			description: "Self-hosted password vault selected independently from kit architecture capabilities."
+		}
+		kind:       "application"
+		useCaseRef: "vault"
+		functionalCapabilities: ["password-vault", "secure-notes"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["secret"]
+		defaultAlternative: "vaultwarden"
+		computeTiers: {
+			low: {included: true, alternativeID: "vaultwarden"}
+			standard: {included: true, alternativeID: "vaultwarden"}
+			high: {included: true, alternativeID: "vaultwarden"}
+		}
+		alternatives: [{
+			id:          "vaultwarden"
+			providerRef: "stackkits-vaultwarden"
+			moduleRef:   "stackkits-vaultwarden-runtime"
+			route: {serviceRef: "vault", healthRef: "vaultwarden-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["coolify", "komodo", "standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["vault-owner-invite"]}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["admin-token"]
+					requiredRefs: ["admin-token"]
+				}
+			}
+			infrastructure: _architectureV2VaultInfrastructure
+		}, {
+			id:          "passbolt"
+			providerRef: "stackkits-passbolt"
+			moduleRef:   "stackkits-passbolt-runtime"
+			route: {serviceRef: "vault", healthRef: "passbolt-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// The first administrator completes registration with the Passbolt
+			// browser extension, which creates the owner's OpenPGP key locally.
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["database-password", "database-root-password"]
+					requiredRefs: ["database-password", "database-root-password"]
+				}
+			}
+			infrastructure: _architectureV2VaultPassboltInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "ai"
+			version:     "1.1.0"
+			description: "Private AI chat and local model serving selected independently from kit architecture capabilities."
+		}
+		kind:       "application"
+		useCaseRef: "ai"
+		functionalCapabilities: ["model-serving", "local-inference", "chat-interface"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "private-ai"
+		computeTiers: {
+			low: {included: false, reason: "CPU inference requires the explicit standard profile and model-specific capacity."}
+			standard: {included: true, alternativeID: "private-ai"}
+			high: {included: true, alternativeID: "private-ai"}
+		}
+		alternatives: [{
+			id:          "private-ai"
+			providerRef: "stackkits-private-ai"
+			moduleRef:   "stackkits-private-ai-runtime"
+			route: {serviceRef: "ai", healthRef: "private-ai-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["owner-password", "session-key"]
+					requiredRefs: ["owner-password", "session-key"]
+				}
+			}
+			infrastructure: _architectureV2AIInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "dev"
+			version:     "1.1.0"
+			description: "Private Git hosting and private repository collaboration selected independently from kit architecture capabilities."
+		}
+		kind:       "application"
+		useCaseRef: "dev"
+		functionalCapabilities: ["source-control", "git-hosting", "developer-collaboration"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "gitea"
+		computeTiers: {
+			low: {included: false, reason: "Git hosting is available on the standard profile; repository growth needs a separate data budget."}
+			standard: {included: true, alternativeID: "gitea"}
+			high: {included: true, alternativeID: "gitea"}
+		}
+		alternatives: [{
+			id:          "gitea"
+			providerRef: "stackkits-gitea"
+			moduleRef:   "stackkits-gitea-runtime"
+			route: {serviceRef: "dev", healthRef: "gitea-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["owner-password"]
+					requiredRefs: ["owner-password"]
+				}
+			}
+			infrastructure: _architectureV2DevInfrastructure
+		}, {
+			id:          "forgejo"
+			providerRef: "stackkits-forgejo"
+			moduleRef:   "stackkits-forgejo-runtime"
+			route: {serviceRef: "dev", healthRef: "forgejo-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["owner-password"]
+					requiredRefs: ["owner-password"]
+				}
+			}
+			infrastructure: _architectureV2DevForgejoInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "documents"
+			version:     "1.0.0"
+			description: "Self-hosted document management through upstream Paperless-ngx, selected independently from kit architecture capabilities."
+		}
+		kind:       "application"
+		useCaseRef: "documents"
+		functionalCapabilities: ["document-ingestion", "ocr", "document-search", "document-management"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "paperless-ngx"
+		computeTiers: {
+			low: {included: false, reason: "The first Paperless-ngx path uses the standard profile and a separate data budget."}
+			standard: {included: true, alternativeID: "paperless-ngx"}
+			high: {included: true, alternativeID: "paperless-ngx"}
+		}
+		alternatives: [{
+			id:          "paperless-ngx"
+			providerRef: "stackkits-paperless-ngx"
+			moduleRef:   "stackkits-paperless-runtime"
+			route: {serviceRef: "documents", healthRef: "paperless-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// Paperless performs its idempotent owner bootstrap from the official
+			// PAPERLESS_ADMIN_* environment at application start.
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["database-password", "owner-password", "session-key"]
+					requiredRefs: ["database-password", "owner-password", "session-key"]
+				}
+			}
+			infrastructure: _architectureV2DocumentsInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "game"
+			version:     "1.0.0"
+			description: "Self-hosted game servers through upstream Pterodactyl Panel and Wings with curated Minecraft profiles (ADR-0043)."
+		}
+		kind:       "application"
+		useCaseRef: "game"
+		functionalCapabilities: ["game-server-hosting", "game-server-management"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "pterodactyl"
+		computeTiers: {
+			low: {included: false, reason: "Game servers need the standard profile and their own memory budget."}
+			standard: {included: true, alternativeID: "pterodactyl"}
+			high: {included: true, alternativeID: "pterodactyl"}
+		}
+		alternatives: [{
+			id:          "pterodactyl"
+			providerRef: "stackkits-pterodactyl"
+			moduleRef:   "stackkits-pterodactyl-runtime"
+			route: {serviceRef: "game", healthRef: "pterodactyl-panel-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// The bootstrap component creates the owner, node and API keys from
+			// custody; game servers are created by the owner-approved setup action.
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["pterodactyl-game-server-setup"]}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: _architectureV2PterodactylSecretSlots
+					requiredRefs: _architectureV2PterodactylSecretSlots
+				}
+			}
+			infrastructure: _architectureV2GameInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "mail"
+			version:     "1.0.0"
+			description: "Client-first private mail: Roundcube webmail for an existing external IMAP/SMTP mailbox. No mail server, DNS or MX record is created."
+		}
+		kind:       "application"
+		useCaseRef: "mail"
+		functionalCapabilities: ["webmail-client", "mailbox-access", "address-book"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "roundcube"
+		computeTiers: {
+			low: {included: true, alternativeID: "roundcube"}
+			standard: {included: true, alternativeID: "roundcube"}
+			high: {included: true, alternativeID: "roundcube"}
+		}
+		alternatives: [{
+			id:          "roundcube"
+			providerRef: "stackkits-roundcube"
+			moduleRef:   "stackkits-roundcube-runtime"
+			route: {serviceRef: "mail", healthRef: "roundcube-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// The owner-approved action stores the owner's IMAP/SMTP endpoints
+			// (never the password) and verifies a real mailbox login through
+			// Roundcube's own login form. Before it runs, logins are refused.
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["roundcube-mailbox-login"]}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["session-key"]
+					requiredRefs: ["session-key"]
+				}
+			}
+			infrastructure: _architectureV2MailInfrastructure
+		}]
+	},
+	// ADR-0046: the own mail server is a separate optional workload grouped
+	// under the Mail main use case; it never changes the mail client selection.
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "mail-server"
+			version:     "1.0.0"
+			description: "Own mail server: Stalwart receives and sends mail for the owner's domain on a dedicated public Cloud node. DNS records are printed for the owner, never created."
+		}
+		kind:       "application"
+		useCaseRef: "mail-server"
+		functionalCapabilities: ["mail-server", "mailbox-hosting", "smtp-delivery", "imap-access"]
+		// Cloud only (ADR-0046 amendment 2026-09-25): home publication is
+		// home-outbound through an external fabric, so a home node cannot be
+		// the direct-inbound MX host with its own fixed public IPv4.
+		supportedSiteKinds: ["cloud"]
+		// The mail server runs on a dedicated node that hosts no other
+		// application workload.
+		exclusiveNode: true
+		dataClasses: ["personal"]
+		defaultAlternative: "stalwart"
+		computeTiers: {
+			low: {included: true, alternativeID: "stalwart"}
+			standard: {included: true, alternativeID: "stalwart"}
+			high: {included: true, alternativeID: "stalwart"}
+		}
+		alternatives: [{
+			id:          "stalwart"
+			providerRef: "stackkits-stalwart"
+			moduleRef:   "stackkits-stalwart-runtime"
+			route: {serviceRef: "mail-server", healthRef: "stalwart-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// The owner-approved action creates the mail domain and first
+			// mailbox, prints the DNS records and verifies IMAP and submission.
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["stalwart-mail-domain-setup"]}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["admin-password"]
+					requiredRefs: ["admin-password"]
+				}
+			}
+			infrastructure: _architectureV2MailServerInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "media"
+			version:     "1.0.0"
+			description: "Self-hosted media library selected independently from kit architecture capabilities."
+		}
+		kind:       "application"
+		useCaseRef: "media"
+		functionalCapabilities: ["media-server", "video-stream"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "jellyfin"
+		computeTiers: {
+			low: {included: false, reason: "Jellyfin library and transcode are not on the Basement low graph."}
+			standard: {included: true, alternativeID: "jellyfin"}
+			high: {included: true, alternativeID: "jellyfin"}
+		}
+		alternatives: [{
+			id:          "jellyfin"
+			providerRef: "stackkits-jellyfin"
+			moduleRef:   "stackkits-jellyfin-runtime"
+			route: {serviceRef: "media", healthRef: "jellyfin-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["coolify", "komodo", "standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["jellyfin-owner-bootstrap"]}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+			infrastructure: _architectureV2MediaInfrastructure
+		}, {
+			id:          "emby"
+			providerRef: "stackkits-emby"
+			moduleRef:   "stackkits-emby-runtime"
+			route: {serviceRef: "media", healthRef: "emby-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// Emby's first-run wizard creates the administrator behind the
+			// TinyAuth forward-auth gate; StackKits holds no Emby credential.
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+			infrastructure: _architectureV2MediaEmbyInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "media-music"
+			version:     "1.0.0"
+			description: "Music streaming through Navidrome from the owner-custodied media library, selected in addition to the media workload."
+		}
+		kind:       "application"
+		useCaseRef: "media"
+		functionalCapabilities: ["music-stream"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "navidrome"
+		alternatives: [{
+			id:          "navidrome"
+			providerRef: "stackkits-navidrome"
+			moduleRef:   "stackkits-navidrome-runtime"
+			route: {serviceRef: "media-music", healthRef: "navidrome-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+			infrastructure: _architectureV2NavidromeInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "media-audiobooks"
+			version:     "1.0.0"
+			description: "Audiobooks and podcasts through Audiobookshelf from the owner-custodied media library, selected in addition to the media workload."
+		}
+		kind:       "application"
+		useCaseRef: "media"
+		functionalCapabilities: ["audiobook-stream", "podcast-library"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "audiobookshelf"
+		alternatives: [{
+			id:          "audiobookshelf"
+			providerRef: "stackkits-audiobookshelf"
+			moduleRef:   "stackkits-audiobookshelf-runtime"
+			route: {serviceRef: "media-audiobooks", healthRef: "audiobookshelf-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+			infrastructure: _architectureV2AudiobookshelfInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "smart-home-esphome"
+			version:     "1.0.0"
+			description: "ESPHome dashboard that builds and updates firmware for ESP devices reporting to Home Assistant, selected in addition to the smart-home workload."
+		}
+		kind:       "application"
+		useCaseRef: "smart-home"
+		functionalCapabilities: ["device-firmware"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "esphome"
+		alternatives: [{
+			id:          "esphome"
+			providerRef: "stackkits-esphome"
+			moduleRef:   "stackkits-esphome-runtime"
+			route: {serviceRef: "smart-home-esphome", healthRef: "esphome-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+			infrastructure: _architectureV2ESPHomeInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "files-office"
+			version:     "1.0.0"
+			description: "Euro-Office Document Server for browser editing of documents, spreadsheets and presentations, selected in addition to the files workload and connected to Nextcloud through the eurooffice-nextcloud app."
+		}
+		kind:       "application"
+		useCaseRef: "files"
+		functionalCapabilities: ["office-editing"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "euro-office"
+		alternatives: [{
+			id:          "euro-office"
+			providerRef: "stackkits-euro-office"
+			moduleRef:   "stackkits-euro-office-runtime"
+			route: {serviceRef: "files-office", healthRef: "euro-office-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: ["jwt-secret"], requiredRefs: ["jwt-secret"]}
+			}
+			infrastructure: _architectureV2EuroofficeInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "smart-home-mqtt"
+			version:     "1.0.0"
+			description: "Eclipse Mosquitto MQTT broker for Home Assistant, Zigbee2MQTT and ESPHome devices, selected in addition to the smart-home workload."
+		}
+		kind:       "application"
+		useCaseRef: "smart-home"
+		functionalCapabilities: ["mqtt-broker"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "mosquitto"
+		alternatives: [{
+			id:          "mosquitto"
+			providerRef: "stackkits-mosquitto"
+			moduleRef:   "stackkits-mosquitto-runtime"
+			route: {serviceRef: "smart-home-mqtt", healthRef: "mosquitto-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: ["lan-listener"], requiredRefs: []}
+				secretInputs: {allowedRefs: ["mqtt-password"], requiredRefs: ["mqtt-password"]}
+			}
+			infrastructure: _architectureV2MosquittoInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "smart-home-zigbee"
+			version:     "1.0.0"
+			description: "Zigbee2MQTT bridge that exposes Zigbee devices to Home Assistant over MQTT, selected in addition to the smart-home workload with an owner-chosen Zigbee adapter."
+		}
+		kind:       "application"
+		useCaseRef: "smart-home"
+		functionalCapabilities: ["zigbee-bridge"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "zigbee2mqtt"
+		alternatives: [{
+			id:          "zigbee2mqtt"
+			providerRef: "stackkits-zigbee2mqtt"
+			moduleRef:   "stackkits-zigbee2mqtt-runtime"
+			route: {serviceRef: "smart-home-zigbee", healthRef: "zigbee2mqtt-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: ["usb-device", "mqtt-server", "zigbee-adapter"], requiredRefs: ["usb-device", "mqtt-server"]}
+				secretInputs: {allowedRefs: ["mqtt-password"], requiredRefs: ["mqtt-password"]}
+			}
+			infrastructure: _architectureV2Zigbee2mqttInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "smart-home"
+			version:     "1.0.0"
+			description: "Self-hosted Home Assistant container selected independently from kit architecture capabilities."
+		}
+		kind:       "application"
+		useCaseRef: "smart-home"
+		functionalCapabilities: ["smart-home-hub", "automation"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "home-assistant"
+		computeTiers: {
+			low: {included: true, alternativeID: "home-assistant"}
+			standard: {included: true, alternativeID: "home-assistant"}
+			high: {included: true, alternativeID: "home-assistant"}
+		}
+		alternatives: list.Concat([[{
+			id:          "home-assistant"
+			providerRef: "stackkits-home-assistant"
+			moduleRef:   "stackkits-home-assistant-runtime"
+			route: {serviceRef: "smart-home", healthRef: "home-assistant-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["coolify", "komodo", "standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["home-assistant-owner-bootstrap"]}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+			infrastructure: _architectureV2SmartHomeInfrastructure
+		}], _architectureV2HomeAssistantInstanceAlternatives])
+	},
+]
+
+_architectureV2ApplicationLifecycleContracts: [
+	#ApplicationLifecycleContractV1 & {metadata: {id: "media-music", version: "1.0.0", description: "Music streaming add-on of the media use case."}, workloadRef: "media-music", useCaseRef: "media", packageRef: "media", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "media-audiobooks", version: "1.0.0", description: "Audiobook and podcast add-on of the media use case."}, workloadRef: "media-audiobooks", useCaseRef: "media", packageRef: "media", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "smart-home-esphome", version: "1.0.0", description: "ESPHome add-on of the smart-home use case."}, workloadRef: "smart-home-esphome", useCaseRef: "smart-home", packageRef: "smart-home", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "files-office", version: "1.0.0", description: "Office editing add-on of the files use case."}, workloadRef: "files-office", useCaseRef: "files", packageRef: "files", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "smart-home-mqtt", version: "1.0.0", description: "MQTT broker add-on of the smart-home use case."}, workloadRef: "smart-home-mqtt", useCaseRef: "smart-home", packageRef: "smart-home", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "smart-home-zigbee", version: "1.0.0", description: "Zigbee bridge add-on of the smart-home use case."}, workloadRef: "smart-home-zigbee", useCaseRef: "smart-home", packageRef: "smart-home", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "dev", version: "1.0.0", description: "Private Git lifecycle; CI runners are a separate selection."}, workloadRef: "dev", useCaseRef: "dev", packageRef: "dev", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {
+		metadata: {id: "game", version: "1.0.0", description: "Owner-controlled Pterodactyl game lifecycle; game servers are created by the owner-approved setup action (ADR-0043)."}
+		workloadRef: "game", useCaseRef: "game", packageRef: "game"
+		lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
+	},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "documents", version: "1.0.0", description: "Owner-controlled Paperless-ngx document lifecycle using the shared application operations."}, workloadRef: "documents", useCaseRef: "documents", packageRef: "documents", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {
+		metadata: {id: "mail", version: "1.0.0", description: "Owner-controlled Roundcube webmail lifecycle; the mailbox stays with the owner's external provider and is verified by the owner-approved setup action."}
+		workloadRef: "mail", useCaseRef: "mail", packageRef: "mail"
+		lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
+	},
+	#ApplicationLifecycleContractV1 & {
+		metadata: {id: "mail-server", version: "1.0.0", description: "Owner-controlled Stalwart mail server lifecycle; the mail domain and first mailbox are created by the owner-approved setup action (ADR-0046)."}
+		workloadRef: "mail-server", useCaseRef: "mail-server", packageRef: "mail-server"
+		lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
+	},
+	#ApplicationLifecycleContractV1 & {
+		metadata: {id: "ai", version: "1.0.0", description: "Owner-controlled Private AI lifecycle; model download is an explicit owner operation."}
+		workloadRef: "ai", useCaseRef: "ai", packageRef: "ai"
+		lifecycle:   #StandardUseCaseLifecycle
+	},
+	#ApplicationLifecycleContractV1 & {
+		metadata: {
+			id:          "photos"
+			version:     "1.0.0"
+			description: "Reusable owner-controlled lifecycle for the Photos Application Kit."
+		}
+		workloadRef: "photos"
+		useCaseRef:  "photos"
+		packageRef:  "photos"
+		lifecycle: #StandardUseCaseLifecycle & {
+			referenceVertical: true
+			stages: setup: {}
+		}
+	},
+	#ApplicationLifecycleContractV1 & {
+		metadata: {
+			id:          "files"
+			version:     "1.0.0"
+			description: "Reusable owner-controlled lifecycle for the Files Application Kit."
+		}
+		workloadRef: "files"
+		useCaseRef:  "files"
+		packageRef:  "files"
+		lifecycle:   #StandardUseCaseLifecycle & {stages: setup: {}}
+	},
+	#ApplicationLifecycleContractV1 & {
+		metadata: {
+			id:          "vault"
+			version:     "1.0.0"
+			description: "Reusable owner-controlled lifecycle for the Vault Application Kit."
+		}
+		workloadRef: "vault"
+		useCaseRef:  "vault"
+		packageRef:  "vault"
+		lifecycle:   #StandardUseCaseLifecycle & {stages: setup: {}}
+	},
+	#ApplicationLifecycleContractV1 & {
+		metadata: {
+			id:          "media"
+			version:     "1.0.0"
+			description: "Reusable owner-controlled lifecycle for the Media Application Kit."
+		}
+		workloadRef: "media"
+		useCaseRef:  "media"
+		packageRef:  "media"
+		lifecycle:   #StandardUseCaseLifecycle & {stages: setup: {}}
+	},
+	#ApplicationLifecycleContractV1 & {
+		metadata: {
+			id:          "smart-home"
+			version:     "1.0.0"
+			description: "Reusable owner-controlled lifecycle for the Smart Home Application Kit."
+		}
+		workloadRef: "smart-home"
+		useCaseRef:  "smart-home"
+		packageRef:  "smart-home"
+		lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
+	},
+]
+
+_architectureV2TLSCapabilityContracts: [
+	{
+		metadata: {
+			id:          "internal-pki"
+			version:     "1.0.0"
+			description: "Home-private certificate policy resolved through a dedicated internal CA adapter."
+			layer:       "platform"
+		}
+		supportedSiteKinds: ["home"]
+		evidence: ["internal-pki-contract"]
+		tlsProfile: {
+			id:   "stackkits-internal-pki-profile", capabilityRef: "internal-pki"
+			mode: "internal", trustDomain:                         "private", minimumVersion: "TLS1.2"
+			allowedIssuerKinds: ["internal-ca"]
+		}
+	},
+	{
+		metadata: {
+			id:          "public-tls"
+			version:     "1.0.0"
+			description: "Public WebPKI certificate policy resolved through a dedicated ACME edge adapter."
+			layer:       "platform"
+		}
+		supportedSiteKinds: ["cloud"]
+		evidence: ["public-tls-contract"]
+		tlsProfile: {
+			id:   "stackkits-public-tls-profile", capabilityRef: "public-tls"
+			mode: "terminate-at-edge", trustDomain:              "web-pki", minimumVersion: "TLS1.2"
+			allowedIssuerKinds: ["acme"]
+		}
+	},
+]
+
+// Product-private catalog extensions override these defaults in a separate CUE
+// source owned by the corresponding authority profile. A public projection can
+// therefore omit the entire extension source without editing catalog text.
+_architectureV2ProfileExtensionCapabilityContracts: [...#CapabilityContract] | *[]
+_architectureV2ProfileExtensionProviders: [...#CapabilityProvider] | *[]
+_architectureV2ProfileExtensionModules: [...#ModuleContractV2] | *[]
+_architectureV2ProfileExtensionPrivilegedInterfaceApprovals: [...#PrivilegedInterfaceApprovalV2] | *[]
+
+_architectureV2HACapabilities: ["availability-ha"]
+
+// HA remains one add-on surface, while each kit and control-plane mode selects
+// a distinct governed capability-adapter/module realization. The KitDefinition owns the
+// policy envelope and references these immutable catalog IDs.
+_architectureV2HARealizations: [
+	{
+		providerID: "stackkits-ha-basement-warm", moduleID: "stackkits-ha-basement-warm-runtime"
+		supportedSiteKinds: ["home"], healthID: "ha-basement-warm-contract"
+		authoritySelection:                     "any"
+		evidenceRef:                            "ha-basement-warm-standby-failure-domain-proof"
+	},
+	{
+		providerID: "stackkits-ha-basement-quorum", moduleID: "stackkits-ha-basement-quorum-runtime"
+		supportedSiteKinds: ["home"], healthID: "ha-basement-quorum-contract"
+		authoritySelection:                     "any"
+		evidenceRef:                            "ha-basement-quorum-failure-domain-proof"
+	},
+	{
+		providerID: "stackkits-ha-cloud-warm", moduleID: "stackkits-ha-cloud-warm-runtime"
+		supportedSiteKinds: ["cloud"], healthID: "ha-cloud-warm-contract"
+		authoritySelection:                      "any"
+		evidenceRef:                             "ha-cloud-warm-standby-failure-domain-proof"
+	},
+	{
+		providerID: "stackkits-ha-cloud-quorum", moduleID: "stackkits-ha-cloud-quorum-runtime"
+		supportedSiteKinds: ["cloud"], healthID: "ha-cloud-quorum-contract"
+		authoritySelection:                      "any"
+		evidenceRef:                             "ha-cloud-quorum-failure-domain-majority-proof"
+	},
+	{
+		providerID: "stackkits-ha-modern-warm", moduleID: "stackkits-ha-modern-warm-runtime"
+		supportedSiteKinds: ["home", "cloud"], healthID: "ha-modern-warm-contract"
+		authoritySelection:                              "control-authority-site"
+		evidenceRef:                                     "ha-modern-warm-standby-partition-isolation-proof"
+	},
+	{
+		providerID: "stackkits-ha-modern-quorum", moduleID: "stackkits-ha-modern-quorum-runtime"
+		supportedSiteKinds: ["home", "cloud"], healthID: "ha-modern-quorum-contract"
+		authoritySelection:                              "control-authority-site"
+		evidenceRef:                                     "ha-modern-quorum-partition-majority-proof"
+	},
+]
+
+// The canonical plan snapshot and, under the terramate target, the Terramate
+// stack graph (stackkit.terramate-stack-graph/v1, derived from plan facts
+// only) are the only artifacts that exist independently of selected modules.
+// Compose/OpenTofu/Terramate outputs belong to concrete module contracts and
+// must never be enumerated by Go compiler configuration.
+_architectureV2PlanArtifacts: [#CatalogPlanArtifactV2 & {
+	id:       "resolved-plan"
+	kind:     "metadata"
+	path:     ".stackkit/resolved-plan.json"
+	format:   "json"
+	mode:     "0600"
+	required: true
+	compatibleTargets: ["compose", "opentofu", "terramate"]
+}, #CatalogPlanArtifactV2 & {
+	id:       "terramate-stack-graph"
+	kind:     "metadata"
+	path:     ".stackkit/terramate-stack-graph.json"
+	format:   "json"
+	mode:     "0640"
+	required: true
+	compatibleTargets: ["terramate"]
+}]
+
+// These capabilities are intentionally catalogued without a provider. A kit
+// that forbids one can therefore explain the governed contract, while any
+// attempt to enable it still fails closed because no realization is approved.
+_architectureV2DeniedCapabilities: [
+	"cloud-enrollment-authority",
+	"broad-lan-route-advertisement",
+]
+
+_architectureV2Capabilities: list.Concat([
+	[for capabilityID in _architectureV2CoreCapabilities {
+		metadata: {
+			id:          capabilityID
+			version:     "1.0.0"
+			description: "Shared StackKits Architecture v2 contract for \(capabilityID)."
+			layer:       "foundation"
+		}
+		supportedSiteKinds: ["home", "cloud"]
+		evidence: ["resolved-plan-contract"]
+	}],
+	[for capabilityID in _architectureV2TelemetryCollectionCapabilities {
+		metadata: {
+			id:          capabilityID
+			version:     "1.0.0"
+			description: "Optional per-node OTLP collector-intent generation; runtime lifecycle, credentials, and telemetry backend ownership remain external."
+			layer:       "platform"
+		}
+		requires: [{id: "observability-evidence"}]
+		supportedSiteKinds: ["home", "cloud"]
+		evidence: ["monitoring-agent-intent-contract"]
+	}],
+	[for capabilityID in _architectureV2LocalCapabilities {
+		metadata: {
+			id:          capabilityID
+			version:     "1.0.0"
+			description: "Home-site Architecture v2 contract for \(capabilityID)."
+			layer:       "platform"
+		}
+		supportedSiteKinds: ["home"]
+		evidence: ["SK-S1"]
+	}],
+	[for capabilityID in _architectureV2BasementComposeCapabilities {
+		metadata: {
+			id:          capabilityID
+			version:     "1.0.0"
+			description: "Basement-owned Compose rollout contract; it is not inferred from a home site or legacy context."
+			layer:       "platform"
+		}
+		requires: [{id: "site-local"}]
+		supportedSiteKinds: ["home"]
+		evidence: ["basement-compose-contract-governance"]
+	}],
+	[for capabilityID in _architectureV2CloudCapabilities {
+		metadata: {
+			id:          capabilityID
+			version:     "1.0.0"
+			description: "Cloud-site Architecture v2 contract for \(capabilityID)."
+			layer:       "platform"
+		}
+		supportedSiteKinds: ["cloud"]
+		evidence: ["SK-S2", "SK-S3"]
+	}],
+	_architectureV2ApplicationCapabilityContracts,
+	_architectureV2TLSCapabilityContracts,
+	_architectureV2ProfileExtensionCapabilityContracts,
+	[for capabilityID in _architectureV2HACapabilities {
+		metadata: {
+			id:          capabilityID
+			version:     "1.0.0"
+			description: "High-availability add-on contract for \(capabilityID)."
+			layer:       "operations"
+		}
+		supportedSiteKinds: ["home", "cloud"]
+		evidence: ["ha-failure-domain-proof"]
+	}],
+	[for capabilityID in _architectureV2DeniedCapabilities {
+		metadata: {
+			id:          capabilityID
+			version:     "1.0.0"
+			description: "Known unsafe or profile-incompatible contract for \(capabilityID)."
+			layer:       "foundation"
+		}
+		supportedSiteKinds: ["home", "cloud"]
+	}],
+])
+
+_architectureV2Providers: list.Concat([[
+	{
+		metadata: {id: "stackkits-core-topology", version: "1.0.0"}
+		provides: _architectureV2CoreTopologyCapabilities
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "topology", topology: {siteKinds: ["home", "cloud"]}}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+	},
+	{
+		metadata: {id: "stackkits-service-catalog", version: "1.0.0"}
+		provides: _architectureV2ServiceCatalogCapabilities
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+	},
+	{
+		metadata: {id: "stackkits-access-policy-contract", version: "1.0.0"}
+		provides: _architectureV2AccessPolicyCapabilities
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+	},
+	{
+		metadata: {id: "stackkits-storage-data-policy", version: "1.1.0"}
+		provides: _architectureV2StorageDataPolicyCapabilities
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: ["stackkits-storage-allocation", "stackkits-workload-data-binding"]
+				optional: []
+			}
+		}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+		health: [{id: "storage-data-policy-contract", kind: "contract"}]
+		evidence: ["storage-allocation-contract", "workload-data-binding-contract"]
+	},
+	{
+		metadata: {id: "stackkits-workload-runtime-contract", version: "1.0.0"}
+		provides: _architectureV2WorkloadRuntimeContractCapabilities
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+	},
+	{
+		metadata: {id: "stackkits-secrets-recovery-contract", version: "1.0.0"}
+		provides: _architectureV2SecretsRecoveryCapabilities
+		requires: [{id: "storage-data-policy"}]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+	},
+	{
+		metadata: {id: "stackkits-backup-core-contract", version: "1.1.0"}
+		provides: _architectureV2BackupCoreCapabilities
+		requires: [{id: "storage-data-policy"}]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: [
+					"stackkits-backup-source",
+					"stackkits-snapshot",
+					"stackkits-restore",
+					"stackkits-recovery",
+				]
+				optional: []
+			}
+		}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+		health: [{id: "backup-lifecycle-contract", kind: "contract"}]
+		evidence: [
+			"backup-source-contract",
+			"snapshot-anchor",
+			"restore-result",
+			"recovery-evidence",
+		]
+	},
+	{
+		metadata: {id: "stackkits-observability-evidence-contract", version: "1.0.0"}
+		provides: _architectureV2ObservabilityEvidenceCapabilities
+		requires: [{id: "topology-core"}]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+	},
+	{
+		metadata: {id: "stackkits-monitoring-agent", version: "1.1.0"}
+		provides: _architectureV2TelemetryCollectionCapabilities
+		requires: [{id: "observability-evidence"}]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-monitoring-agent-runtime"], optional: []}}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+		health: [{id: "monitoring-agent-intent-contract", kind: "contract"}]
+		evidence: ["monitoring-agent-intent-contract"]
+	},
+	{
+		metadata: {id: "stackkits-lifecycle-update-contract", version: "1.0.0"}
+		provides: _architectureV2LifecycleUpdateCapabilities
+		requires: [{id: "topology-core"}]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+	},
+	{
+		metadata: {id: "stackkits-security-baseline", version: "1.0.0"}
+		provides: _architectureV2SecurityBaselineCapabilities
+		requires: [{id: "topology-core"}, {id: "external-host-admission"}]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "modules", moduleRefs: {required: ["security-baseline"], optional: []}}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+		health: [{id: "security-baseline-contract", kind: "contract"}]
+		evidence: ["security-baseline-executor-contract"]
+	},
+	{
+		metadata: {id: "stackkits-core-host-bootstrap", version: "1.0.0"}
+		provides: _architectureV2CoreHostBootstrapCapabilities
+		requires: [{id: "topology-core"}, {id: "external-host-admission"}, {id: "storage-data-policy"}]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-core-host-bootstrap"], optional: []}}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+		health: [{id: "core-host-bootstrap-contract", kind: "contract"}]
+		evidence: ["core-host-bootstrap-executor-contract"]
+	},
+	{
+		metadata: {id: "stackkits-host-admission", version: "1.0.0"}
+		provides: _architectureV2HostAdmissionCapabilities
+		requires: [{id: "topology-core"}]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind:               "host"
+			ownerRef:           "stackkits-host-admission"
+			realizationSupport: _architectureV2HostAdmissionSupport
+			inputBindings: {}
+		}
+		selection: defaultForSiteKinds: ["home", "cloud"]
+		health: [{id: "stackkits-host-admission-contract", kind: "contract"}]
+		evidence: ["host-conformance-receipt-contract"]
+	},
+	{
+		metadata: {id: "stackkits-home-device-authority", version: "1.0.0"}
+		provides: _architectureV2HomeIdentityAuthorityCapabilities
+		requires: [{id: "topology-core"}, {id: "device-trust-core"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-home-device-authority-policy-manifest"], optional: []}}
+		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "home-device-authority-policy-contract", kind: "contract"}]
+		evidence: ["home-device-authority-policy-contract"]
+	},
+	{
+		metadata: {id: "stackkits-basement-identity-trust-policy", version: "1.0.0"}
+		provides: _architectureV2IdentityCapabilities
+		requires: [{id: "topology-core"}, {id: "device-enrollment-home"}, {id: "local-control-authority"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-basement-identity-trust-policy-manifest"], optional: []}}
+		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "basement-identity-trust-policy-contract", kind: "contract"}]
+		evidence: ["basement-identity-trust-policy-contract"]
+	},
+	{
+		metadata: {id: "stackkits-cloud-identity-trust-policy", version: "1.0.0"}
+		provides: list.Concat([_architectureV2IdentityCapabilities, _architectureV2CloudIdentityAuthorityCapabilities])
+		requires: [{id: "topology-core"}]
+		supportedSiteKinds: ["cloud"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-cloud-identity-trust-policy-manifest"], optional: []}}
+		selection: defaultForSiteKinds: ["cloud"]
+		health: [{id: "cloud-identity-trust-policy-contract", kind: "contract"}]
+		evidence: ["cloud-identity-trust-policy-contract"]
+	},
+	{
+		metadata: {id: "stackkits-local", version: "1.0.0"}
+		provides: _architectureV2LocalTopologyCapabilities
+		requires: [{id: "topology-core"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "topology", topology: {siteKinds: ["home"]}}
+		selection: defaultForSiteKinds: ["home"]
+	},
+	{
+		metadata: {id: "stackkits-home-lan-dns-contract", version: "1.0.0"}
+		provides: _architectureV2HomeLANDNSCapabilities
+		requires: [{id: "site-local"}, {id: "service-catalog"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-home-lan-dns-manifest"], optional: []}}
+		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "home-lan-dns-policy-contract", kind: "contract"}]
+		evidence: ["home-lan-dns-policy-contract"]
+	},
+	{
+		metadata: {id: "stackkits-home-private-remote-access", version: "1.0.0"}
+		provides: _architectureV2HomePrivateRemoteAccessCapabilities
+		requires: [{id: "site-local"}, {id: "lan-access-policy"}, {id: "device-trust-core"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-home-private-remote-access-runtime"], optional: []}}
+		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "home-private-remote-access-contract", kind: "contract"}]
+		evidence: ["home-private-remote-access-contract"]
+	},
+	{
+		metadata: {id: "stackkits-home-public-publish-egress", version: "1.0.0"}
+		provides: _architectureV2HomePublicPublishEgressCapabilities
+		requires: [{id: "site-local"}, {id: "access-policy"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-home-public-publish-egress-runtime"], optional: []}}
+		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "home-public-publish-egress-contract", kind: "contract"}]
+		evidence: ["home-public-publish-egress-contract"]
+	},
+	{
+		metadata: {id: "stackkits-home-encrypted-offsite-backup", version: "1.0.0"}
+		provides: _architectureV2HomeEncryptedOffsiteBackupCapabilities
+		requires: [{id: "site-local"}, {id: "backup-core"}, {id: "storage-data-policy"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-home-encrypted-offsite-backup-runtime"], optional: []}}
+		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "home-encrypted-offsite-backup-contract", kind: "contract"}]
+		evidence: ["home-encrypted-offsite-backup-contract"]
+	},
+	{
+		metadata: {id: "stackkits-home-backup-target", version: "1.0.0"}
+		provides: _architectureV2HomeBackupTargetCapabilities
+		requires: [{id: "host-bootstrap"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-home-backup-target"], optional: []}}
+		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "home-backup-target-contract", kind: "contract"}]
+		evidence: ["home-backup-target-executor-contract"]
+	},
+	{
+		metadata: {id: "stackkits-internal-pki", version: "1.0.0"}
+		provides: _architectureV2InternalPKICapabilities
+		requires: [{id: "site-local"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-internal-pki-contract"], optional: []}}
+		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "internal-pki-renewal-contract", kind: "contract"}]
+		evidence: ["internal-pki-contract"]
+		certificateIssuers: [{
+			id: "stackkits-internal-ca", capabilityRef: "internal-pki", kind: "internal-ca", challenge: "none"
+			supportedSiteKinds: ["home"], validitySeconds: 86400
+			owner: {providerRef: "stackkits-internal-pki", moduleRef: "stackkits-internal-pki-contract", materializationSupport: "native-local"}
+			requiredInputSlotIDs: []
+			materialSlots: [
+				{id: "root-certificate", purpose: "certificate-chain", sensitivity: "public"},
+				{id: "root-private-key", purpose: "private-key", sensitivity: "secret"},
+				{id: "trust-root", purpose: "trust-root", sensitivity: "public"},
+			]
+			renewal: {required: true, healthGateRef: "internal-pki-renewal-contract", renewBeforeSeconds: 21000}
+		}]
+	},
+	{
+		metadata: {id: "stackkits-local-autonomy-policy", version: "1.0.0"}
+		provides: _architectureV2LocalAutonomyCapabilities
+		requires: [{id: "site-local"}, {id: "local-control-authority"}, {id: "device-enrollment-home"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-local-autonomy-policy-manifest"], optional: []}}
+		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "stackkits-local-autonomy-contract", kind: "contract"}]
+		evidence: ["local-autonomy-policy-contract"]
+	},
+	{
+		metadata: {id: "stackkits-home-access-policy", version: "1.0.0"}
+		provides: _architectureV2HomeAccessCapabilities
+		requires: [{id: "site-local"}, {id: "device-enrollment-home"}, {id: "device-trust-core"}, {id: "access-policy"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-home-access-policy-manifest"], optional: []}}
+		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "stackkits-home-access-policy-contract", kind: "contract"}]
+		evidence: ["home-access-policy-contract"]
+	},
+	{
+		metadata: {id: "stackkits-home-lan-discovery-policy", version: "1.0.0"}
+		provides: _architectureV2HomeLANDiscoveryCapabilities
+		requires: [{id: "site-local"}, {id: "local-ingress"}, {id: "lan-access-policy"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-home-lan-discovery-policy-manifest"], optional: []}}
+		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "stackkits-home-lan-discovery-policy-contract", kind: "contract"}]
+		evidence: ["home-lan-discovery-policy-contract"]
+	},
+	{
+		metadata: {id: "stackkits-cloud-topology", version: "1.0.0"}
+		provides: _architectureV2CloudTopologyCapabilities
+		requires: [{id: "topology-core"}]
+		supportedSiteKinds: ["cloud"]
+		realization: {kind: "topology", topology: {siteKinds: ["cloud"]}}
+		selection: defaultForSiteKinds: ["cloud"]
+	},
+	{
+		metadata: {id: "stackkits-cloud-placement-policy", version: "1.0.0"}
+		provides: _architectureV2CloudPlacementPolicyCapabilities
+		requires: [{id: "site-cloud"}]
+		supportedSiteKinds: ["cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["cloud"]
+	},
+	{
+		metadata: {id: "stackkits-cloud-host-security", version: "1.1.0"}
+		provides: _architectureV2CloudHostSecurityCapabilities
+		requires: [{id: "site-cloud"}, {id: "host-bootstrap"}, {id: "security-baseline"}]
+		supportedSiteKinds: ["cloud"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-cloud-host-security-runtime"], optional: []}}
+		selection: defaultForSiteKinds: ["cloud"]
+		health: [{id: "cloud-host-security-contract", kind: "contract"}]
+		evidence: ["cloud-host-security-contract"]
+	},
+	{
+		metadata: {id: "stackkits-cloud-public-dns-contract", version: "1.0.0"}
+		provides: _architectureV2CloudPublicDNSCapabilities
+		requires: [{id: "site-cloud"}]
+		supportedSiteKinds: ["cloud"]
+		realization: {kind: "contract"}
+		selection: defaultForSiteKinds: ["cloud"]
+	},
+	{
+		metadata: {id: "stackkits-cloud-public-edge", version: "1.0.0"}
+		provides: _architectureV2CloudPublicEdgeCapabilities
+		requires: [{id: "site-cloud"}, {id: "host-local-internet-firewall"}, {id: "internet-host-hardening"}]
+		supportedSiteKinds: ["cloud"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-cloud-public-edge-runtime"], optional: []}}
+		selection: defaultForSiteKinds: ["cloud"]
+		health: [{id: "cloud-public-edge-contract", kind: "contract"}]
+		evidence: ["cloud-public-edge-contract"]
+	},
+	{
+		metadata: {id: "stackkits-cloud-offsite-backup", version: "1.0.0"}
+		provides: _architectureV2CloudOffsiteBackupCapabilities
+		requires: [{id: "site-cloud"}, {id: "storage-data-policy"}, {id: "backup-core"}]
+		supportedSiteKinds: ["cloud"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-cloud-offsite-backup-runtime"], optional: []}}
+		selection: defaultForSiteKinds: ["cloud"]
+		health: [{id: "cloud-offsite-backup-contract", kind: "contract"}]
+		evidence: ["cloud-offsite-backup-contract"]
+	},
+	{
+		metadata: {id: "stackkits-cloud-private-admin-mesh", version: "1.0.0"}
+		provides: _architectureV2CloudPrivateAdminMeshCapabilities
+		requires: [{id: "site-cloud"}, {id: "host-local-internet-firewall"}, {id: "device-trust-core"}, {id: "human-identity-core"}]
+		supportedSiteKinds: ["cloud"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-cloud-private-admin-mesh-runtime"], optional: []}}
+		health: [{id: "cloud-private-admin-mesh-contract", kind: "contract"}]
+		evidence: ["cloud-private-admin-mesh-contract"]
+	},
+	{
+		metadata: {id: "stackkits-public-tls", version: "1.0.0"}
+		provides: _architectureV2PublicTLSCapabilities
+		requires: [{id: "site-cloud"}, {id: "public-edge"}]
+		supportedSiteKinds: ["cloud"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-public-tls-contract"], optional: []}}
+		selection: defaultForSiteKinds: ["cloud"]
+		health: [{id: "public-tls-renewal-contract", kind: "contract"}]
+		evidence: ["public-tls-contract"]
+		certificateIssuers: [{
+			id: "stackkits-public-acme", capabilityRef: "public-tls", kind: "acme", challenge: "http-01"
+			supportedSiteKinds: ["cloud"], validitySeconds: 7776000
+			owner: {providerRef: "stackkits-public-tls", moduleRef: "stackkits-public-tls-contract", materializationSupport: "contract-only"}
+			requiredInputSlotIDs: []
+			materialSlots: [
+				{id: "certificate", purpose: "certificate-chain", sensitivity: "public"},
+				{id: "private-key", purpose: "private-key", sensitivity: "secret"},
+				{id: "acme-account-key", purpose: "issuer-account-key", sensitivity: "secret"},
+			]
+			renewal: {required: true, healthGateRef: "public-tls-renewal-contract", renewBeforeSeconds: 2592000}
+		}]
+	},
+	{
+		metadata: {id: "stackkits-basement-compose", version: "1.0.0"}
+		provides: _architectureV2BasementComposeCapabilities
+		requires: [{id: "topology-core"}, {id: "site-local"}]
+		supportedSiteKinds: ["home"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: ["stackkits-basement-compose-runtime"]
+				optional: ["socket-proxy"]
+			}
+		}
+		health: [{id: "stackkits-basement-compose-contract", kind: "contract"}]
+		evidence: ["basement-compose-contract-governance"]
+	},
+	{
+		metadata: {id: "stackkits-basement-core", version: "1.0.0"}
+		provides: _architectureV2BasementCoreCapabilities
+		workloadRefs: ["basement-core"]
+		requires: [
+			{id: "backup-core"},
+			{id: "host-bootstrap"},
+			{id: "local-backup-target"},
+			{id: "local-ingress"},
+			{id: "service-catalog"},
+		]
+		supportedSiteKinds: ["home"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-basement-core-runtime", "stackkits-basement-core-lite-runtime"]
+			}
+		}
+		health: [{id: "basement-core-provider-contract", kind: "contract"}]
+		evidence: ["basement-core-runtime-evidence"]
+	},
+	{
+		metadata: {id: "stackkits-cloud-core", version: "1.0.0"}
+		provides: _architectureV2CloudCoreCapabilities
+		workloadRefs: ["cloud-core"]
+		requires: [
+			{id: "host-bootstrap"},
+			{id: "public-edge"},
+			{id: "public-tls"},
+			{id: "service-catalog"},
+		]
+		supportedSiteKinds: ["cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-cloud-core-runtime", "stackkits-cloud-core-standalone-runtime"]
+			}
+		}
+		health: [{id: "cloud-core-provider-contract", kind: "contract"}]
+		evidence: ["cloud-core-runtime-evidence"]
+	},
+	{
+		metadata: {id: "stackkits-immich", version: "1.1.0"}
+		provides: []
+		workloadRefs: ["photos"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-immich-runtime"]
+			}
+		}
+		evidence: ["SK-S1", "SK-S2", "SK-S4"]
+	},
+	{
+		metadata: {id: "stackkits-immich-lite", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["photos"]
+		requires: [
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-immich-lite-runtime"]
+			}
+		}
+		evidence: ["SK-S1", "SK-S2", "SK-S4"]
+	},
+	{
+		metadata: {id: "stackkits-nextcloud", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["files"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-nextcloud-runtime"]
+			}
+		}
+		evidence: ["nextcloud-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-cloudreve", version: "1.1.0"}
+		provides: []
+		workloadRefs: ["files"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-cloudreve-runtime"]
+			}
+		}
+		evidence: ["cloudreve-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-passbolt", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["vault"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-passbolt-runtime"]
+			}
+		}
+		evidence: ["passbolt-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-vaultwarden", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["vault"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-vaultwarden-runtime"]
+			}
+		}
+		evidence: ["vaultwarden-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-private-ai", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["ai"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-private-ai-runtime"]
+			}
+		}
+		evidence: ["private-ai-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-gitea", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["dev"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-gitea-runtime"]
+			}
+		}
+		evidence: ["gitea-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-forgejo", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["dev"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-forgejo-runtime"]
+			}
+		}
+		evidence: ["forgejo-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-paperless-ngx", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["documents"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {required: [], optional: ["stackkits-paperless-runtime"]}
+		}
+		evidence: ["paperless-generated-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-pterodactyl", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["game"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {required: [], optional: ["stackkits-pterodactyl-runtime"]}
+		}
+		evidence: ["pterodactyl-generated-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-roundcube", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["mail"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {required: [], optional: ["stackkits-roundcube-runtime"]}
+		}
+		evidence: ["roundcube-generated-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-stalwart", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["mail-server"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {required: [], optional: ["stackkits-stalwart-runtime"]}
+		}
+		evidence: ["stalwart-generated-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-emby", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["media"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-emby-runtime"]
+			}
+		}
+		evidence: ["emby-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-navidrome", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["media-music"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-navidrome-runtime"]
+			}
+		}
+		evidence: ["navidrome-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-audiobookshelf", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["media-audiobooks"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-audiobookshelf-runtime"]
+			}
+		}
+		evidence: ["audiobookshelf-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-esphome", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["smart-home-esphome"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-esphome-runtime"]
+			}
+		}
+		evidence: ["esphome-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-euro-office", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["files-office"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-euro-office-runtime"]
+			}
+		}
+		evidence: ["euro-office-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-mosquitto", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["smart-home-mqtt"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-mosquitto-runtime"]
+			}
+		}
+		evidence: ["mosquitto-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-zigbee2mqtt", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["smart-home-zigbee"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-zigbee2mqtt-runtime"]
+			}
+		}
+		evidence: ["zigbee2mqtt-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-jellyfin", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["media"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-jellyfin-runtime"]
+			}
+		}
+		evidence: ["jellyfin-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-home-assistant", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["smart-home"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-home-assistant-runtime"]
+			}
+		}
+		evidence: ["home-assistant-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-coolify", version: "1.0.0"}
+		provides: []
+		runtimeAdapterRefs: ["coolify"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: ["stackkits-coolify-runtime"]
+				optional: []
+			}
+		}
+		health: [{id: "coolify-runtime-contract", kind: "contract"}]
+		evidence: ["coolify-adapter-contract"]
+	},
+	{
+		metadata: {id: "stackkits-komodo", version: "1.0.0"}
+		provides: []
+		runtimeAdapterRefs: ["komodo"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: ["stackkits-komodo-core-runtime", "stackkits-komodo-periphery-runtime"]
+				optional: []
+			}
+		}
+		health: [
+			{id: "komodo-core-runtime-contract", kind: "contract"},
+			{id: "komodo-periphery-runtime-contract", kind: "contract"},
+		]
+		evidence: ["komodo-core-adapter-contract", "komodo-periphery-agent-contract"]
+	},
+	{
+		metadata: {id: "stackkits-standalone-compose", version: "1.0.0"}
+		provides: []
+		runtimeAdapterRefs: ["standalone-compose"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: ["stackkits-standalone-compose-runtime"]
+				optional: []
+			}
+		}
+		health: [{id: "standalone-compose-runtime-contract", kind: "contract"}]
+		evidence: ["standalone-compose-adapter-contract"]
+	},
+],
+	_architectureV2ProfileExtensionProviders,
+	[for haRealization in _architectureV2HARealizations {
+		metadata: {id: haRealization.providerID, version: "1.0.0"}
+		provides: _architectureV2HACapabilities
+		requires: [{id: "topology-core"}]
+		supportedSiteKinds: haRealization.supportedSiteKinds
+		realization: {kind: "modules", moduleRefs: {required: [haRealization.moduleID], optional: []}}
+		health: [{id: haRealization.healthID, kind: "contract"}]
+		evidence: [haRealization.evidenceRef, "ha-availability-runtime-contract"]
+	}],
+])
+
+_architectureV2UmbrellaSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "umbrella"
+	level:           "contract-only"
+	compatibleRendererRefs: []
+	inputs: {
+		contractComplete: false
+		requiredRefs: []
+	}
+	artifacts: requiredRefs: []
+	evidence: requiredRefs: []
+}
+
+_architectureV2HAAvailabilityRuntimeSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {contractComplete: true, requiredRefs: ["stackId", "kit", "sites", "controlPlane", "moduleTargets", "moduleCapabilities", "availability"]}
+	artifacts: {}
+	evidence: requiredRefs: ["ha-availability-runtime-contract"]
+}
+
+_architectureV2TLSContractSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "contract-only"
+	compatibleRendererRefs: []
+	inputs: {contractComplete: false, requiredRefs: []}
+	planInputs: {contractComplete: false, requiredRefs: []}
+	artifacts: {requiredRefs: [], outputBindings: [], contracts: []}
+	evidence: requiredRefs: []
+}
+
+_architectureV2SharedInfrastructureContractSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "contract-only"
+	compatibleRendererRefs: []
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {requiredRefs: [], outputBindings: [], contracts: []}
+	evidence: requiredRefs: []
+}
+
+_architectureV2InternalPKIGenerationSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {contractComplete: true, requiredRefs: ["internalPKI", "kit", "stackId"]}
+	artifacts: {
+		requiredRefs: ["internal-pki-executor-contract"]
+		outputBindings: [{artifactRef: "internal-pki-executor-contract", unitRef: "executor-contract", outputRef: "home/tls/internal-pki-executor-contract.json"}]
+		contracts: [{
+			id: "internal-pki-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["opentofu", "compose"]
+			unitRef: "executor-contract", outputRef: "home/tls/internal-pki-executor-contract.json"
+		}]
+	}
+	evidence: requiredRefs: ["internal-pki-contract"]
+}
+
+_architectureV2PublicTLSGenerationSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {contractComplete: true, requiredRefs: ["kit", "moduleTargets", "publicTLS", "stackId"]}
+	artifacts: {
+		requiredRefs: ["public-tls-executor-contract"]
+		outputBindings: [{artifactRef: "public-tls-executor-contract", unitRef: "executor-contract", outputRef: "cloud/tls/executor-contract.json"}]
+		contracts: [{
+			id: "public-tls-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["opentofu", "compose"]
+			unitRef: "executor-contract", outputRef: "cloud/tls/executor-contract.json"
+		}]
+	}
+	evidence: requiredRefs: ["public-tls-contract"]
+}
+
+_architectureV2CoreHostBootstrapSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["host-runtime", "storage-roots"]}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
+	}
+	artifacts: {
+		requiredRefs: ["core-host-bootstrap-policy", _architectureV2TerramateProjectRoot.contract.id]
+		outputBindings: [{
+			artifactRef: "core-host-bootstrap-policy", unitRef: "host-policy", outputRef: "foundation/host-bootstrap/policy.json"
+		}, _architectureV2TerramateProjectRoot.binding]
+		contracts: [{
+			id: "core-host-bootstrap-policy", kind: "native-config", format: "json", mode: "0600", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "host-policy", outputRef: "foundation/host-bootstrap/policy.json"
+		}, _architectureV2TerramateProjectRoot.contract]
+	}
+	evidence: requiredRefs: ["core-host-bootstrap-executor-contract"]
+}
+
+_architectureV2HomeBackupTargetSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["backup-root"]}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
+	}
+	artifacts: {
+		requiredRefs: ["home-backup-target-policy"]
+		outputBindings: [{
+			artifactRef: "home-backup-target-policy", unitRef: "backup-policy", outputRef: "home/backup/target-policy.json"
+		}]
+		contracts: [{
+			id: "home-backup-target-policy", kind: "native-config", format: "json", mode: "0600", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "backup-policy", outputRef: "home/backup/target-policy.json"
+		}]
+	}
+	evidence: requiredRefs: ["home-backup-target-executor-contract"]
+}
+
+_architectureV2HomeExtensionRuntimeArtifacts: {
+	privateRemoteAccess: {
+		id:                    "home-private-remote-access-executor-contract"
+		outputRef:             "home/remote-access/executor-contract.json"
+		requiresAccessBinding: true
+	}
+	publicPublishEgress: {
+		id:                    "home-public-publish-egress-executor-contract"
+		outputRef:             "home/publication/executor-contract.json"
+		requiresAccessBinding: true
+	}
+	encryptedOffsiteBackup: {
+		id:                    "home-encrypted-offsite-backup-executor-contract"
+		outputRef:             "home/backup/offsite-executor-contract.json"
+		requiresAccessBinding: false
+		requiresBackupBinding: true
+	}
+	privateRemoteAccess: requiresBackupBinding: false
+	publicPublishEgress: requiresBackupBinding: false
+}
+
+_architectureV2HomeExtensionRuntimeSupports: {
+	for runtimeName, artifact in _architectureV2HomeExtensionRuntimeArtifacts {
+		"\(runtimeName)": #ModuleRealizationSupportV2 & {
+			contractVersion: "1.0.0"
+			scope:           "concrete"
+			if runtimeName == "privateRemoteAccess" {
+				level: "apply-ready"
+			}
+			if runtimeName != "privateRemoteAccess" {
+				level: "generation-ready"
+			}
+			compatibleRendererRefs: ["stackkit"]
+			inputs: {contractComplete: true, requiredRefs: []}
+			planInputs: {
+				contractComplete: true
+				requiredRefs: list.Concat([
+					["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"],
+					[for ref in ["homeAccessHandoff"] if artifact.requiresAccessBinding {ref}],
+					[for ref in ["homeOffsiteBackup"] if artifact.requiresBackupBinding {ref}],
+				])
+			}
+			artifacts: {
+				requiredRefs: [artifact.id]
+				outputBindings: [{artifactRef: artifact.id, unitRef: "executor-contract", outputRef: artifact.outputRef}]
+				contracts: [{
+					id: artifact.id, kind: "native-config", format: "json", mode: "0640", required: true
+					compatibleTargets: ["compose", "opentofu"]
+					unitRef: "executor-contract", outputRef: artifact.outputRef
+				}]
+			}
+			evidence: requiredRefs: [for ref in ["home-private-remote-access-evidence"] if runtimeName == "privateRemoteAccess" {ref}]
+		}
+	}
+}
+
+_architectureV2BasementComposeExecutorContractSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
+	}
+	artifacts: {
+		requiredRefs: ["basement-compose-runtime-executor-contract"]
+		outputBindings: [{
+			artifactRef: "basement-compose-runtime-executor-contract", unitRef: "executor-contract", outputRef: "basement/runtime/executor-contract.json"
+		}]
+		contracts: [{
+			id: "basement-compose-runtime-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "executor-contract", outputRef: "basement/runtime/executor-contract.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+_architectureV2CloudHostSecuritySupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["host-security-network"]}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
+	}
+	artifacts: {
+		requiredRefs: ["cloud-host-security-executor-contract"]
+		outputBindings: [{artifactRef: "cloud-host-security-executor-contract", unitRef: "executor-contract", outputRef: "cloud/host-security/executor-contract.json"}]
+		contracts: [{
+			id: "cloud-host-security-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "executor-contract", outputRef: "cloud/host-security/executor-contract.json"
+		}]
+	}
+	evidence: requiredRefs: ["cloud-host-security-evidence"]
+}
+
+_architectureV2CloudPublicEdgeSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "publicEdge"]
+	}
+	artifacts: {
+		requiredRefs: ["cloud-public-edge-executor-contract", _architectureV2CloudPublicEdgeTerramateStack.contract.id]
+		outputBindings: [{artifactRef: "cloud-public-edge-executor-contract", unitRef: "executor-contract", outputRef: "cloud/public-edge/executor-contract.json"}, _architectureV2CloudPublicEdgeTerramateStack.binding]
+		contracts: [{
+			id: "cloud-public-edge-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "executor-contract", outputRef: "cloud/public-edge/executor-contract.json"
+		}, _architectureV2CloudPublicEdgeTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["cloud-public-edge-evidence"]
+}
+
+_architectureV2CloudOffsiteBackupSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "cloudOffsiteBackup"]
+	}
+	artifacts: {
+		requiredRefs: ["cloud-offsite-backup-executor-contract"]
+		outputBindings: [{artifactRef: "cloud-offsite-backup-executor-contract", unitRef: "executor-contract", outputRef: "cloud/backup/executor-contract.json"}]
+		contracts: [{
+			id: "cloud-offsite-backup-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "executor-contract", outputRef: "cloud/backup/executor-contract.json"
+		}]
+	}
+	evidence: requiredRefs: ["cloud-offsite-backup-evidence"]
+}
+
+_architectureV2CloudPrivateAdminMeshSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "cloudAdminMesh"]
+	}
+	artifacts: {
+		requiredRefs: ["cloud-private-admin-mesh-executor-contract"]
+		outputBindings: [{artifactRef: "cloud-private-admin-mesh-executor-contract", unitRef: "executor-contract", outputRef: "cloud/admin-mesh/executor-contract.json"}]
+		contracts: [{
+			id: "cloud-private-admin-mesh-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "executor-contract", outputRef: "cloud/admin-mesh/executor-contract.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+_architectureV2MonitoringAgentSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["observability", "sites"]
+	}
+	artifacts: {
+		requiredRefs: ["monitoring-agent-collector-intent"]
+		outputBindings: [{
+			artifactRef: "monitoring-agent-collector-intent"
+			unitRef:     "collector-intent"
+			outputRef:   "observability/monitoring-agent/collector-intent.json"
+		}]
+		contracts: [{
+			id:       "monitoring-agent-collector-intent"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "collector-intent"
+			outputRef: "observability/monitoring-agent/collector-intent.json"
+		}]
+	}
+	evidence: requiredRefs: ["monitoring-agent-runtime-evidence"]
+}
+
+// Host admission and conformance are pre-generation runtime gates, not
+// generated files. Their concrete implementation is the binding/receipt
+// producer and admission path; modeling them as a host owner keeps them out of
+// the residual Core module without fabricating a render unit or artifact.
+_architectureV2HostAdmissionSupport: #NonRenderingProviderOwnerRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: []
+	inputs: {
+		contractComplete: true
+		requiredRefs: []
+	}
+	artifacts: requiredRefs: []
+	evidence: requiredRefs: ["host-conformance-receipt-contract"]
+}
+
+_architectureV2SecurityBaselineSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {
+		contractComplete: true
+		requiredRefs: []
+	}
+	artifacts: {
+		requiredRefs: ["security-baseline-host-policy"]
+		outputBindings: [{
+			artifactRef: "security-baseline-host-policy"
+			unitRef:     "host-policy"
+			outputRef:   "foundation/security-baseline/apply.sh"
+		}]
+		contracts: [{
+			id:       "security-baseline-host-policy"
+			kind:     "script"
+			format:   "shell"
+			mode:     "0700"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "host-policy"
+			outputRef: "foundation/security-baseline/apply.sh"
+		}]
+	}
+	evidence: requiredRefs: ["security-baseline-executor-contract"]
+}
+
+_architectureV2LocalAutonomySupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {
+		contractComplete: true
+		requiredRefs: ["local-autonomy-policy"]
+	}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: []
+	}
+	artifacts: {
+		requiredRefs: ["local-autonomy-policy"]
+		outputBindings: [{
+			artifactRef: "local-autonomy-policy"
+			unitRef:     "policy-bundle"
+			outputRef:   "local/autonomy/policy.json"
+		}]
+		contracts: [{
+			id:       "local-autonomy-policy"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "policy-bundle"
+			outputRef: "local/autonomy/policy.json"
+		}]
+	}
+	evidence: requiredRefs: ["local-autonomy-enforcement"]
+}
+
+_architectureV2HomeAccessSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {
+		contractComplete: true
+		requiredRefs: ["home-access-policy"]
+	}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: []
+	}
+	artifacts: {
+		requiredRefs: ["home-access-policy"]
+		outputBindings: [{
+			artifactRef: "home-access-policy"
+			unitRef:     "policy-bundle"
+			outputRef:   "local/network/access-policy.json"
+		}]
+		contracts: [{
+			id:       "home-access-policy"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "policy-bundle"
+			outputRef: "local/network/access-policy.json"
+		}]
+	}
+	evidence: requiredRefs: ["home-access-enforcement"]
+}
+
+_architectureV2HomeLANDiscoverySupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {
+		contractComplete: true
+		requiredRefs: []
+	}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit", "sites", "homeLANDiscovery"]
+	}
+	artifacts: {
+		requiredRefs: ["home-lan-discovery-policy"]
+		outputBindings: [{
+			artifactRef: "home-lan-discovery-policy"
+			unitRef:     "policy-bundle"
+			outputRef:   "local/network/discovery-policy.json"
+		}]
+		contracts: [{
+			id:       "home-lan-discovery-policy"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "policy-bundle"
+			outputRef: "local/network/discovery-policy.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+_architectureV2HomeLANDNSSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {
+		contractComplete: true
+		requiredRefs: []
+	}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit", "sites"]
+	}
+	artifacts: {
+		requiredRefs: ["home-lan-dns-policy"]
+		outputBindings: [{
+			artifactRef: "home-lan-dns-policy"
+			unitRef:     "policy-bundle"
+			outputRef:   "local/network/lan-dns-policy.json"
+		}]
+		contracts: [{
+			id:       "home-lan-dns-policy"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "policy-bundle"
+			outputRef: "local/network/lan-dns-policy.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+_architectureV2HomeDeviceAuthoritySupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["home-device-authority"]}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit"]
+	}
+	artifacts: {
+		requiredRefs: ["home-device-authority-policy"]
+		outputBindings: [{
+			artifactRef: "home-device-authority-policy"
+			unitRef:     "policy-bundle"
+			outputRef:   "local/identity/device-authority-policy.json"
+		}]
+		contracts: [{
+			id: "home-device-authority-policy", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "policy-bundle", outputRef: "local/identity/device-authority-policy.json"
+		}]
+	}
+	evidence: requiredRefs: ["home-device-authority-enforcement"]
+}
+
+_architectureV2BasementIdentityTrustSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["basement-verification-policy"]}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit"]
+	}
+	artifacts: {
+		requiredRefs: ["basement-identity-trust-policy"]
+		outputBindings: [{
+			artifactRef: "basement-identity-trust-policy"
+			unitRef:     "policy-bundle"
+			outputRef:   "local/identity/trust-policy.json"
+		}]
+		contracts: [{
+			id: "basement-identity-trust-policy", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "policy-bundle", outputRef: "local/identity/trust-policy.json"
+		}]
+	}
+	evidence: requiredRefs: ["basement-identity-trust-enforcement"]
+}
+
+_architectureV2CloudIdentityTrustSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["cloud-identity-authority"]}
+	planInputs: {
+		contractComplete: true
+		requiredRefs: ["stackId", "kit"]
+	}
+	artifacts: {
+		requiredRefs: ["cloud-identity-trust-policy"]
+		outputBindings: [{
+			artifactRef: "cloud-identity-trust-policy"
+			unitRef:     "policy-bundle"
+			outputRef:   "cloud/identity/trust-policy.json"
+		}]
+		contracts: [{
+			id: "cloud-identity-trust-policy", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "policy-bundle", outputRef: "cloud/identity/trust-policy.json"
+		}]
+	}
+	evidence: requiredRefs: ["cloud-identity-trust-enforcement"]
+}
+
+_architectureV2SocketProxySupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {
+		contractComplete: true
+		requiredRefs: []
+	}
+	artifacts: {
+		requiredRefs: ["socket-proxy-compose"]
+		outputBindings: [{
+			artifactRef: "socket-proxy-compose"
+			unitRef:     "compose"
+			outputRef:   "foundation/socket-proxy/compose.yaml"
+		}]
+		contracts: [{
+			id:       "socket-proxy-compose"
+			kind:     "compose"
+			format:   "yaml"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose"]
+			unitRef:   "compose"
+			outputRef: "foundation/socket-proxy/compose.yaml"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+// Terramate companion stacks (ADR-0045 section 2 and section 5). A stack unit
+// is artifact-only: it renders one stack.tm.hcl for its exact node-local
+// instance and never reaches a runtime executor. Its OpenTofu root is
+// materialized by the executor at apply time next to the Compose project.
+_architectureV2TerramateStackHashes: {
+	workload:   "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88"
+	edge:       "sha256:2bfd93c2a631984ee2c36a7218c185dcb876c045f60d2411e35d1b34325324af"
+	federation: "sha256:302cbdd332b95e48a9afe674b45d16ceacb0473884b66eb8c3fbd9d030878020"
+}
+
+_architectureV2TerramateStack: {
+	_role:        "workload" | "edge" | "federation"
+	_outputRef:   string
+	_artifactRef: string
+	// The stack unit mirrors the exact placement of the unit it wraps, so
+	// both resolve to the same node-local instances.
+	_placement: {scope: "node-local", ...}
+	unit: {
+		id:           "terramate-stack", kind:                          "terramate", rendererRef: "stackkit", applyMode: "artifact-only"
+		templateRef:  "builtin://terramate/stack/\(_role)/v1", version: "1.0.0"
+		contractHash: _architectureV2TerramateStackHashes[_role]
+		outputs: [_outputRef]
+		placement: _placement
+	}
+	binding: {artifactRef: _artifactRef, unitRef: "terramate-stack", outputRef: _outputRef}
+	contract: {
+		id: _artifactRef, kind: "terramate", format: "hcl", mode: "0640", required: true
+		compatibleTargets: ["terramate"], unitRef: "terramate-stack", outputRef: _outputRef
+	}
+}
+
+_architectureV2WorkloadTerramateStack: _architectureV2TerramateStack & {
+	_slug:        string
+	_role:        "workload"
+	_outputRef:   "platform/applications/\(_slug)/stack.tm.hcl"
+	_artifactRef: "\(_slug)-terramate-stack"
+}
+
+_architectureV2ImmichTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "immich", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2ImmichLiteTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "immich-lite", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2CloudreveTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "cloudreve", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2NextcloudTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "nextcloud", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2VaultwardenTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "vaultwarden", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2PassboltTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "passbolt", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2PterodactylTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "pterodactyl", _placement: {scope: "node-local", cardinality: "one-per-daemon", daemonRef: "docker-default"}}
+_architectureV2PrivateAITerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "private-ai", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2GiteaTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "gitea", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2ForgejoTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "forgejo", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2PaperlessTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "paperless-ngx", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2JellyfinTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "jellyfin", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2Zigbee2mqttTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "zigbee2mqtt", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2MosquittoTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "mosquitto", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2EuroofficeTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "euro-office", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2ESPHomeTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "esphome", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2AudiobookshelfTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "audiobookshelf", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2NavidromeTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "navidrome", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2EmbyTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "emby", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2HomeAssistantTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "home-assistant", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+
+_architectureV2CloudPublicEdgeTerramateStack: _architectureV2TerramateStack & {
+	_role: "edge", _outputRef: "cloud/public-edge/stack.tm.hcl", _artifactRef: "cloud-public-edge-terramate-stack"
+	_placement: {scope: "node-local", cardinality: "one-per-node"}
+}
+
+// The Terramate project root of one host. The Core host bootstrap owner exists
+// on every node, so each host gets exactly one self-contained project whose
+// root is the executor-managed runtime tree.
+_architectureV2TerramateProjectRoot: {
+	unit: {
+		id:           "terramate-root", kind:                         "terramate", rendererRef: "stackkit", applyMode: "artifact-only"
+		templateRef:  "builtin://terramate/project-root/v1", version: "1.0.0"
+		contractHash: "sha256:dc4d971747ce764e5cf4c50eaad155b1040e70093ff931243e879b75ffd5f428"
+		outputs: ["foundation/terramate/terramate.tm.hcl"]
+		placement: {scope: "node-local", cardinality: "one-per-node"}
+	}
+	binding: {artifactRef: "core-host-bootstrap-terramate-root", unitRef: "terramate-root", outputRef: "foundation/terramate/terramate.tm.hcl"}
+	contract: {
+		id: "core-host-bootstrap-terramate-root", kind: "terramate", format: "hcl", mode: "0640", required: true
+		compatibleTargets: ["terramate"], unitRef: "terramate-root", outputRef: "foundation/terramate/terramate.tm.hcl"
+	}
+}
+
+// Immich owns one complete provider-neutral, target-bound selected-PaaS bundle.
+// Apply is admitted only through the exact selected-PaaS runtime registration
+// and an authenticated execution channel; provider/PaaS lifecycle and
+// credentials remain in the external operations owner's custody.
+_architectureV2ImmichSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {
+		contractComplete: true
+		requiredRefs: ["database-password"]
+	}
+	artifacts: {
+		requiredRefs: ["immich-workload-bundle", _architectureV2ImmichTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "immich-workload-bundle"
+			unitRef:     "immich-server"
+			outputRef:   "workloads/immich/bundle.json"
+		}, _architectureV2ImmichTerramateStack.binding]
+		contracts: [{
+			id:       "immich-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "immich-server"
+			outputRef: "workloads/immich/bundle.json"
+		}, _architectureV2ImmichTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["immich-selected-paas-runtime-contract"]
+}
+
+_architectureV2ImmichLiteSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {
+		contractComplete: true
+		requiredRefs: ["database-password"]
+	}
+	artifacts: {
+		requiredRefs: ["immich-lite-workload-bundle", _architectureV2ImmichLiteTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "immich-lite-workload-bundle"
+			unitRef:     "immich-server"
+			outputRef:   "workloads/immich-lite/bundle.json"
+		}, _architectureV2ImmichLiteTerramateStack.binding]
+		contracts: [{
+			id:       "immich-lite-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "immich-server"
+			outputRef: "workloads/immich-lite/bundle.json"
+		}, _architectureV2ImmichLiteTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["immich-selected-paas-runtime-contract"]
+}
+
+// Cloudreve is the second Application Kit vertical on the reusable lifecycle.
+// Its artifact carries a complete pinned single-container runtime while the
+// selected PaaS retains endpoint, credential, and provider lifecycle custody.
+_architectureV2CloudreveSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["cloudreve-workload-bundle", _architectureV2CloudreveTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "cloudreve-workload-bundle"
+			unitRef:     "cloudreve"
+			outputRef:   "workloads/cloudreve/bundle.json"
+		}, _architectureV2CloudreveTerramateStack.binding]
+		contracts: [{
+			id:       "cloudreve-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "cloudreve"
+			outputRef: "workloads/cloudreve/bundle.json"
+		}, _architectureV2CloudreveTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["cloudreve-selected-paas-runtime-contract"]
+}
+
+_architectureV2NextcloudSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["database-password", "owner-password"]}
+	artifacts: {
+		requiredRefs: ["nextcloud-workload-bundle", _architectureV2NextcloudTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "nextcloud-workload-bundle"
+			unitRef:     "nextcloud"
+			outputRef:   "workloads/nextcloud/bundle.json"
+		}, _architectureV2NextcloudTerramateStack.binding]
+		contracts: [{
+			id:       "nextcloud-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "nextcloud"
+			outputRef: "workloads/nextcloud/bundle.json"
+		}, _architectureV2NextcloudTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["nextcloud-selected-paas-runtime-contract"]
+}
+
+// Vaultwarden is the third Application Kit vertical on the reusable
+// lifecycle. Its bundle contains only an opaque admin-token reference; the
+// selected PaaS retains credential material, endpoint, and provider custody.
+_architectureV2VaultwardenSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["admin-token"]}
+	artifacts: {
+		requiredRefs: ["vaultwarden-workload-bundle", _architectureV2VaultwardenTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "vaultwarden-workload-bundle"
+			unitRef:     "vaultwarden"
+			outputRef:   "workloads/vaultwarden/bundle.json"
+		}, _architectureV2VaultwardenTerramateStack.binding]
+		contracts: [{
+			id:       "vaultwarden-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "vaultwarden"
+			outputRef: "workloads/vaultwarden/bundle.json"
+		}, _architectureV2VaultwardenTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["vaultwarden-selected-paas-runtime-contract"]
+}
+
+_architectureV2PassboltSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["database-password", "database-root-password"]}
+	artifacts: {
+		requiredRefs: ["passbolt-workload-bundle", _architectureV2PassboltTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "passbolt-workload-bundle"
+			unitRef:     "passbolt"
+			outputRef:   "workloads/passbolt/bundle.json"
+		}, _architectureV2PassboltTerramateStack.binding]
+		contracts: [{
+			id:       "passbolt-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "passbolt"
+			outputRef: "workloads/passbolt/bundle.json"
+		}, _architectureV2PassboltTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["passbolt-selected-paas-runtime-contract"]
+}
+
+_architectureV2PterodactylSecretSlots: ["database-password", "database-root-password", "app-key", "hashids-salt", "owner-password", "application-api-key", "client-api-key"]
+
+_architectureV2PterodactylSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: _architectureV2PterodactylSecretSlots}
+	artifacts: {
+		requiredRefs: ["pterodactyl-workload-bundle", _architectureV2PterodactylTerramateStack.contract.id]
+		outputBindings: [{artifactRef: "pterodactyl-workload-bundle", unitRef: "pterodactyl", outputRef: "workloads/pterodactyl/bundle.json"}, _architectureV2PterodactylTerramateStack.binding]
+		contracts: [{
+			id: "pterodactyl-workload-bundle", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"], unitRef: "pterodactyl", outputRef: "workloads/pterodactyl/bundle.json"
+		}, _architectureV2PterodactylTerramateStack.contract]
+	}
+	// A renderable runtime contract only; game joins, world persistence and
+	// restore stay pending until exercised against the pinned upstream pair.
+	evidence: requiredRefs: ["pterodactyl-generated-runtime-contract"]
+}
+
+// Jellyfin is the Media Library vertical. Config is a StackKits backup source;
+// the library volume is owner-custodied and excluded from backup.
+_architectureV2PrivateAISupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["owner-password", "session-key"]}
+	artifacts: {
+		requiredRefs: ["private-ai-workload-bundle", _architectureV2PrivateAITerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "private-ai-workload-bundle"
+			unitRef:     "private-ai"
+			outputRef:   "workloads/private-ai/bundle.json"
+		}, _architectureV2PrivateAITerramateStack.binding]
+		contracts: [{
+			id:       "private-ai-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "private-ai"
+			outputRef: "workloads/private-ai/bundle.json"
+		}, _architectureV2PrivateAITerramateStack.contract]
+	}
+	evidence: requiredRefs: ["private-ai-selected-paas-runtime-contract"]
+}
+
+_architectureV2GiteaSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["owner-password"]}
+	artifacts: {
+		requiredRefs: ["gitea-workload-bundle", _architectureV2GiteaTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "gitea-workload-bundle"
+			unitRef:     "gitea"
+			outputRef:   "workloads/gitea/bundle.json"
+		}, _architectureV2GiteaTerramateStack.binding]
+		contracts: [{
+			id:       "gitea-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "gitea"
+			outputRef: "workloads/gitea/bundle.json"
+		}, _architectureV2GiteaTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["gitea-selected-paas-runtime-contract"]
+}
+
+_architectureV2ForgejoSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["owner-password"]}
+	artifacts: {
+		requiredRefs: ["forgejo-workload-bundle", _architectureV2ForgejoTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "forgejo-workload-bundle"
+			unitRef:     "forgejo"
+			outputRef:   "workloads/forgejo/bundle.json"
+		}, _architectureV2ForgejoTerramateStack.binding]
+		contracts: [{
+			id:       "forgejo-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "forgejo"
+			outputRef: "workloads/forgejo/bundle.json"
+		}, _architectureV2ForgejoTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["forgejo-selected-paas-runtime-contract"]
+}
+
+_architectureV2PaperlessSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["database-password", "owner-password", "session-key"]}
+	artifacts: {
+		requiredRefs: ["paperless-workload-bundle", _architectureV2PaperlessTerramateStack.contract.id]
+		outputBindings: [{artifactRef: "paperless-workload-bundle", unitRef: "paperless", outputRef: "workloads/paperless-ngx/bundle.json"}, _architectureV2PaperlessTerramateStack.binding]
+		contracts: [{
+			id: "paperless-workload-bundle", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"], unitRef: "paperless", outputRef: "workloads/paperless-ngx/bundle.json"
+		}, _architectureV2PaperlessTerramateStack.contract]
+	}
+	// This proves a renderable runtime contract only. Application and restore
+	// use remain pending until exercised against the pinned upstream services.
+	evidence: requiredRefs: ["paperless-generated-runtime-contract"]
+}
+
+_architectureV2RoundcubeSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["session-key"]}
+	artifacts: {
+		requiredRefs: ["roundcube-workload-bundle"]
+		outputBindings: [{artifactRef: "roundcube-workload-bundle", unitRef: "roundcube", outputRef: "workloads/roundcube/bundle.json"}]
+		contracts: [{
+			id: "roundcube-workload-bundle", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"], unitRef: "roundcube", outputRef: "workloads/roundcube/bundle.json"
+		}]
+	}
+	// A renderable runtime contract only; a real mailbox login and restore
+	// stay pending until exercised against the pinned upstream image.
+	evidence: requiredRefs: ["roundcube-generated-runtime-contract"]
+}
+
+_architectureV2StalwartSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["admin-password"]}
+	artifacts: {
+		requiredRefs: ["stalwart-workload-bundle"]
+		outputBindings: [{artifactRef: "stalwart-workload-bundle", unitRef: "stalwart", outputRef: "workloads/stalwart/bundle.json"}]
+		contracts: [{
+			id: "stalwart-workload-bundle", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"], unitRef: "stalwart", outputRef: "workloads/stalwart/bundle.json"
+		}]
+	}
+	// A renderable runtime contract only; delivery from a real Cloud node and
+	// a restore stay pending until exercised against the pinned image.
+	evidence: requiredRefs: ["stalwart-generated-runtime-contract"]
+}
+
+// Jellyfin is the Media Library vertical. Config is a StackKits backup source;
+// the library volume is owner-custodied and excluded from backup.
+_architectureV2JellyfinSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["storage-roots"]}
+	artifacts: {
+		requiredRefs: ["jellyfin-workload-bundle", _architectureV2JellyfinTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "jellyfin-workload-bundle"
+			unitRef:     "jellyfin"
+			outputRef:   "workloads/jellyfin/bundle.json"
+		}, _architectureV2JellyfinTerramateStack.binding]
+		contracts: [{
+			id:       "jellyfin-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "jellyfin"
+			outputRef: "workloads/jellyfin/bundle.json"
+		}, _architectureV2JellyfinTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["jellyfin-selected-paas-runtime-contract"]
+}
+
+_architectureV2Zigbee2mqttSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["mqtt-password"]}
+	artifacts: {
+		requiredRefs: ["zigbee2mqtt-workload-bundle", _architectureV2Zigbee2mqttTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "zigbee2mqtt-workload-bundle"
+			unitRef:     "zigbee2mqtt"
+			outputRef:   "workloads/zigbee2mqtt/bundle.json"
+		}, _architectureV2Zigbee2mqttTerramateStack.binding]
+		contracts: [{
+			id:       "zigbee2mqtt-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "zigbee2mqtt"
+			outputRef: "workloads/zigbee2mqtt/bundle.json"
+		}, _architectureV2Zigbee2mqttTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["zigbee2mqtt-selected-paas-runtime-contract"]
+}
+
+_architectureV2MosquittoSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["mqtt-password"]}
+	artifacts: {
+		requiredRefs: ["mosquitto-workload-bundle", _architectureV2MosquittoTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "mosquitto-workload-bundle"
+			unitRef:     "mosquitto"
+			outputRef:   "workloads/mosquitto/bundle.json"
+		}, _architectureV2MosquittoTerramateStack.binding]
+		contracts: [{
+			id:       "mosquitto-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "mosquitto"
+			outputRef: "workloads/mosquitto/bundle.json"
+		}, _architectureV2MosquittoTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["mosquitto-selected-paas-runtime-contract"]
+}
+
+_architectureV2EuroofficeSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["jwt-secret"]}
+	artifacts: {
+		requiredRefs: ["euro-office-workload-bundle", _architectureV2EuroofficeTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "euro-office-workload-bundle"
+			unitRef:     "euro-office"
+			outputRef:   "workloads/euro-office/bundle.json"
+		}, _architectureV2EuroofficeTerramateStack.binding]
+		contracts: [{
+			id:       "euro-office-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "euro-office"
+			outputRef: "workloads/euro-office/bundle.json"
+		}, _architectureV2EuroofficeTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["euro-office-selected-paas-runtime-contract"]
+}
+
+_architectureV2ESPHomeSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["esphome-workload-bundle", _architectureV2ESPHomeTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "esphome-workload-bundle"
+			unitRef:     "esphome"
+			outputRef:   "workloads/esphome/bundle.json"
+		}, _architectureV2ESPHomeTerramateStack.binding]
+		contracts: [{
+			id:       "esphome-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "esphome"
+			outputRef: "workloads/esphome/bundle.json"
+		}, _architectureV2ESPHomeTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["esphome-selected-paas-runtime-contract"]
+}
+
+_architectureV2AudiobookshelfSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["storage-roots"]}
+	artifacts: {
+		requiredRefs: ["audiobookshelf-workload-bundle", _architectureV2AudiobookshelfTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "audiobookshelf-workload-bundle"
+			unitRef:     "audiobookshelf"
+			outputRef:   "workloads/audiobookshelf/bundle.json"
+		}, _architectureV2AudiobookshelfTerramateStack.binding]
+		contracts: [{
+			id:       "audiobookshelf-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "audiobookshelf"
+			outputRef: "workloads/audiobookshelf/bundle.json"
+		}, _architectureV2AudiobookshelfTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["audiobookshelf-selected-paas-runtime-contract"]
+}
+
+_architectureV2NavidromeSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["storage-roots"]}
+	artifacts: {
+		requiredRefs: ["navidrome-workload-bundle", _architectureV2NavidromeTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "navidrome-workload-bundle"
+			unitRef:     "navidrome"
+			outputRef:   "workloads/navidrome/bundle.json"
+		}, _architectureV2NavidromeTerramateStack.binding]
+		contracts: [{
+			id:       "navidrome-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "navidrome"
+			outputRef: "workloads/navidrome/bundle.json"
+		}, _architectureV2NavidromeTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["navidrome-selected-paas-runtime-contract"]
+}
+
+_architectureV2EmbySupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["storage-roots"]}
+	artifacts: {
+		requiredRefs: ["emby-workload-bundle", _architectureV2EmbyTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "emby-workload-bundle"
+			unitRef:     "emby"
+			outputRef:   "workloads/emby/bundle.json"
+		}, _architectureV2EmbyTerramateStack.binding]
+		contracts: [{
+			id:       "emby-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "emby"
+			outputRef: "workloads/emby/bundle.json"
+		}, _architectureV2EmbyTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["emby-selected-paas-runtime-contract"]
+}
+
+_architectureV2HomeAssistantSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["home-assistant-workload-bundle", _architectureV2HomeAssistantTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "home-assistant-workload-bundle"
+			unitRef:     "home-assistant"
+			outputRef:   "workloads/home-assistant/bundle.json"
+		}, _architectureV2HomeAssistantTerramateStack.binding]
+		contracts: [{
+			id:       "home-assistant-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "home-assistant"
+			outputRef: "workloads/home-assistant/bundle.json"
+		}, _architectureV2HomeAssistantTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["home-assistant-selected-paas-runtime-contract"]
+}
+
+// Coolify owns a deterministic provider-free adapter handoff. Generation does
+// not claim that StackKits can install Coolify, hold its credentials, discover
+// an endpoint, or mutate its provider lifecycle.
+_architectureV2CoolifyAdapterSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["coolify-runtime-adapter"]
+		outputBindings: [{
+			artifactRef: "coolify-runtime-adapter"
+			unitRef:     "coolify-adapter"
+			outputRef:   "platform/coolify/runtime-adapter.json"
+		}]
+		contracts: [{
+			id:       "coolify-runtime-adapter"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "coolify-adapter"
+			outputRef: "platform/coolify/runtime-adapter.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+// Standalone Compose is a StackKits-owned execution adapter over an already
+// admitted Docker host. It consumes the same closed workload and route
+// authority as PaaS adapters and owns neither host nor server-provider
+// lifecycle.
+_architectureV2StandaloneComposeAdapterSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["standalone-compose-runtime-adapter"]
+		outputBindings: [{
+			artifactRef: "standalone-compose-runtime-adapter"
+			unitRef:     "standalone-compose-adapter"
+			outputRef:   "platform/standalone-compose/runtime-adapter.json"
+		}]
+		contracts: [{
+			id:       "standalone-compose-runtime-adapter"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "standalone-compose-adapter"
+			outputRef: "platform/standalone-compose/runtime-adapter.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+_architectureV2KomodoCoreAdapterSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["komodo-core-runtime-adapter"]
+		outputBindings: [{
+			artifactRef: "komodo-core-runtime-adapter"
+			unitRef:     "komodo-core-adapter"
+			outputRef:   "platform/komodo/core-runtime-adapter.json"
+		}]
+		contracts: [{
+			id:       "komodo-core-runtime-adapter"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "komodo-core-adapter"
+			outputRef: "platform/komodo/core-runtime-adapter.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+_architectureV2KomodoPeripheryAgentSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "generation-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["komodo-periphery-runtime-agent"]
+		outputBindings: [{
+			artifactRef: "komodo-periphery-runtime-agent"
+			unitRef:     "komodo-periphery-agent"
+			outputRef:   "platform/komodo/periphery-agent.json"
+		}]
+		contracts: [{
+			id:       "komodo-periphery-runtime-agent"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "komodo-periphery-agent"
+			outputRef: "platform/komodo/periphery-agent.json"
+		}]
+	}
+	evidence: requiredRefs: []
+}
+
+_basementCoreLiteServiceEndpoints: [
+	for endpoint in _basementCoreServiceEndpoints
+	if endpoint.serviceRef != "coolify" {endpoint},
+]
+_basementCoreLiteRuntimeListeners: [
+	for listener in _basementCoreRuntimeListeners
+	if listener.componentRef != "coolify" {listener},
+]
+_basementCoreLiteServiceControls: [
+	for control in _basementCoreServiceControls
+	if control.serviceRef != "coolify" {control},
+]
+_architectureV2PhotosLiteInfrastructure: #WorkloadInfrastructureV1 & {
+	storageAllocation: {
+		moduleRef: "stackkits-storage-allocation"
+		allocations: [
+			for allocation in _architectureV2PhotosInfrastructure.storageAllocation.allocations
+			if allocation.componentRef != "immich-machine-learning" {allocation},
+		]
+	}
+	dataBinding: _architectureV2PhotosInfrastructure.dataBinding
+	backupSource: {
+		moduleRef: "stackkits-backup-source"
+		allocations: [
+			for allocation in storageAllocation.allocations
+			if allocation.backup {
+				componentRef: allocation.componentRef
+				volumeRef:    allocation.volumeRef
+				dataClasses:  allocation.dataClasses
+			},
+		]
+	}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_basementCoreServiceEndpoints: [
+	{
+		serviceRef:        "basement-hub", upstreamProtocol: "http", targetPort: 80
+		requiredPrivilege: "admin"
+		ingressAuth:       "forward-auth"
+		allowedIngressProtocols: ["http", "https"]
+		allowedExposures: ["local", "remote-private"]
+		originSelector: "control-authority-site"
+		healthRef:      "basement-hub-http"
+	},
+	{
+		serviceRef: "id", upstreamProtocol: "http", targetPort: 1411
+		requiredPrivilege: "identity"
+		ingressAuth:       "none"
+		allowedIngressProtocols: ["http", "https"]
+		allowedExposures: ["local", "remote-private"]
+		originSelector: "control-authority-site"
+		healthRef:      "pocketid-http"
+	},
+	{
+		serviceRef: "auth", upstreamProtocol: "http", targetPort: 3000
+		requiredPrivilege: "identity"
+		ingressAuth:       "none"
+		allowedIngressProtocols: ["http", "https"]
+		allowedExposures: ["local", "remote-private"]
+		originSelector: "control-authority-site"
+		healthRef:      "tinyauth-http"
+	},
+	{
+		serviceRef: "coolify", upstreamProtocol: "http", targetPort: 8080
+		requiredPrivilege: "admin"
+		ingressAuth:       "forward-auth"
+		allowedIngressProtocols: ["http", "https"]
+		allowedExposures: ["local", "remote-private"]
+		originSelector: "control-authority-site"
+		healthRef:      "coolify-http"
+	},
+]
+
+_cloudCoreServiceEndpoints: [
+	{
+		serviceRef: "base", upstreamProtocol: "http", targetPort: 80
+		requiredPrivilege: "admin"
+		ingressAuth:       "forward-auth"
+		allowedIngressProtocols: ["http", "https"]
+		allowedExposures: ["remote-private", "public"]
+		originSelector: "control-authority-site"
+		healthRef:      "cloud-hub-http"
+	},
+	{
+		serviceRef:        "id", upstreamProtocol: "http", targetPort: 1411
+		requiredPrivilege: "identity"
+		ingressAuth:       "none"
+		allowedIngressProtocols: ["http", "https"]
+		allowedExposures: ["remote-private", "public"]
+		originSelector: "control-authority-site"
+		healthRef:      "cloud-pocketid-http"
+	},
+	{
+		serviceRef:        "auth", upstreamProtocol: "http", targetPort: 3000
+		requiredPrivilege: "identity"
+		ingressAuth:       "none"
+		allowedIngressProtocols: ["http", "https"]
+		allowedExposures: ["remote-private", "public"]
+		originSelector: "control-authority-site"
+		healthRef:      "cloud-tinyauth-http"
+	},
+	{
+		serviceRef:        "coolify", upstreamProtocol: "http", targetPort: 8080
+		requiredPrivilege: "admin"
+		ingressAuth:       "forward-auth"
+		allowedIngressProtocols: ["http", "https"]
+		allowedExposures: ["remote-private", "public"]
+		originSelector: "control-authority-site"
+		healthRef:      "cloud-coolify-http"
+	},
+]
+
+// The router is the only host listener reachable from outside the node. Every
+// direct component listener binds to loopback: node-local consumers (Owner
+// custody, Coolify platform config, Verify probes) already address 127.0.0.1,
+// and a LAN or Internet client must traverse the router and its route policy.
+_cloudCoreRuntimeListeners: [
+	{id: "web-http", componentRef: "router", transport: "tcp", bindAddress: "0.0.0.0", port: 80, targetPort: 80, sharing: "virtual-host", listenerGroupRef: "public-web", exposure: "public", sourceServiceRefs: []},
+	{id: "web-https", componentRef: "router", transport: "tcp", bindAddress: "0.0.0.0", port: 443, targetPort: 443, sharing: "virtual-host", listenerGroupRef: "public-web", exposure: "public", sourceServiceRefs: []},
+	{id: "router-admin", componentRef: "router", transport: "tcp", bindAddress: "127.0.0.1", port: 8080, targetPort: 8080, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+	{id: "pocketid-direct", componentRef: "pocketid", transport: "tcp", bindAddress: "127.0.0.1", port: 1411, targetPort: 1411, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+	{id: "tinyauth-direct", componentRef: "tinyauth", transport: "tcp", bindAddress: "127.0.0.1", port: 4000, targetPort: 3000, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+	{id: "coolify-direct", componentRef: "coolify", transport: "tcp", bindAddress: "127.0.0.1", port: 8000, targetPort: 8080, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+	// Owner-local MCP and Verify probes; remote agents reach /mcp only through
+	// the router on the base host.
+	{id: "stackkit-server-direct", componentRef: "stackkit-server", transport: "tcp", bindAddress: "127.0.0.1", port: 8082, targetPort: 8082, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+]
+
+_cloudCoreVerificationRuntimeListeners: list.Concat([_cloudCoreRuntimeListeners, [
+	{id: "hub-health", componentRef: "hub", transport: "tcp", bindAddress: "127.0.0.1", port: 8081, targetPort: 80, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+]])
+
+_basementCoreRuntimeListeners: list.Concat([_cloudCoreRuntimeListeners, [
+	{id: "step-ca-direct", componentRef: "step-ca", transport: "tcp", bindAddress: "127.0.0.1", port: 9000, targetPort: 9000, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
+	{id: "lan-dns-udp", componentRef: "lan-dns", bindAddressSource: "node-site", transport: "udp", bindAddress: "0.0.0.0", port: 53, targetPort: 53, sharing: "exclusive", exposure: "lan", sourceServiceRefs: []},
+	{id: "lan-dns-tcp", componentRef: "lan-dns", bindAddressSource: "node-site", transport: "tcp", bindAddress: "0.0.0.0", port: 53, targetPort: 53, sharing: "exclusive", exposure: "lan", sourceServiceRefs: []},
+]])
+
+// Two core components may bind a host listener another device can reach, and
+// for opposite reasons: the router publishes the site, and the resolver answers
+// it. A resolver on loopback resolves nothing, so LAN binding is its function
+// rather than an exception to tolerate. Everything else stays on loopback. The
+// Basement list is a superset of the Cloud list, so one check covers both.
+_coreLANReachableComponents: ["router", "lan-dns"]
+
+_coreDirectListenersLoopbackOnly: [...("127.0.0.1")] & [
+	for listener in _basementCoreRuntimeListeners
+	if !list.Contains(_coreLANReachableComponents, listener.componentRef) {listener.bindAddress},
+]
+
+// The carve-out is not a hole: the resolver may bind port 53 and nothing else,
+// and it must say "lan" rather than borrow the router's "public". A widened
+// port, transport, or exposure fails here instead of shipping.
+_coreLANDNSListenersAreResolverOnly: [...({port: 53, exposure: "lan"})] & [
+	for listener in _basementCoreRuntimeListeners
+	if listener.componentRef == "lan-dns" {{port: listener.port, exposure: listener.exposure}},
+]
+
+_sharedCoreServiceControls: [
+	{key: "auth", serviceRef: "auth", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["tinyauth"], allowedActions: ["start", "restart", "logs"], critical: true},
+	{key: "coolify", serviceRef: "coolify", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["coolify", "coolify-postgres", "coolify-redis", "coolify-realtime"], allowedActions: ["start", "stop", "restart", "logs"], critical: false},
+	{key: "id", serviceRef: "id", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["pocketid"], allowedActions: ["start", "restart", "logs"], critical: true},
+]
+
+_cloudCoreServiceControls: list.Concat([_sharedCoreServiceControls, [
+	{key: "base", serviceRef: "base", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["router", "socket-proxy", "hub", "stackkit-server"], allowedActions: ["start", "restart", "logs"], critical: true},
+]])
+
+_basementCoreServiceControls: list.Concat([_sharedCoreServiceControls, [
+	{key: "base", serviceRef: "basement-hub", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["router", "socket-proxy", "step-ca", "kopia-agent", "hub", "lan-dns", "stackkit-server"], allowedActions: ["start", "restart", "logs"], critical: true},
+]])
+
+_architectureV2LocalKopiaComponent: {
+	_networkRef: string | *"basement-backup"
+	id:          "kopia-agent", role: "application", lifecycle: "daemon"
+	image: {
+		ref:    "docker.io/kopia/kopia:0.18.2"
+		digest: "sha256:b6cb1f09a5fa832a320ee06d7803e82cdd7f69ac6f61d76a0d55fbbf1495c043"
+	}
+	dependsOn: [], networkRefs: [_networkRef]
+	volumes: [
+		{id: "kopia-repository", target: "/app/repository", class: "persistent", backup: false},
+		{id: "kopia-config", target: "/app/config", class: "persistent", backup: false},
+		{id: "kopia-cache", target: "/app/cache", class: "cache", backup: false},
+		{id: "kopia-restore-staging", target: "/restore-staging", class: "persistent", backup: false},
+	]
+	health: {kind: "command", command: ["kopia", "--version"]}
+	// Kopia verifies every restored file (100 %) before staging; at 256m the
+	// kernel OOM-killed `snapshot verify` on a 300 MB Immich Postgres volume
+	// (Depot run ktwlw82dlp, v0.31.1). 1g is a cap, not a reservation.
+	resources: {memoryLimit: "1g"}
+}
+
+_architectureV2LocalKopiaSourceRenderUnit: {
+	_outputRef:   string | *"home/backup/kopia-source-policy.json"
+	id:           "source-policy"
+	kind:         "native-config"
+	rendererRef:  "stackkit"
+	applyMode:    "artifact-only"
+	templateRef:  "builtin://home/backup/kopia-source/v1.json"
+	version:      "1.0.0"
+	contractHash: "sha256:7edfa9c808cedb14d3f58a7101f7a31f597fa09ea1488002587225a4ee43bee3"
+	compatibleTargets: ["compose", "opentofu", "terramate"]
+	publicInputRefs: ["backup-source"], secretInputRefs: []
+	planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities", "backupPolicy"]
+	inputBindings: [{
+		targetRef:   "backup-source"
+		sourceRef:   "backup.localKopiaSource"
+		valueType:   "local-kopia-backup-source-v1"
+		cardinality: "single"
+		required:    true
+	}]
+	outputs: [_outputRef]
+	placement: {scope: "node-local", cardinality: "one-per-node"}
+}
+
+// Compiler-owned backup source on Core Compose units so kopia-agent mounts
+// the same ManagedVolumeNames as the source policy. Not caller material.
+_architectureV2KopiaComposeRenderInputs: {
+	publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs
+	secretInputRefs: []
+	planInputRefs:   []
+	inputBindings:   _architectureV2LocalKopiaSourceRenderUnit.inputBindings
+}
+
+_architectureV2Modules: list.Concat([[
+	{
+		metadata: {
+			id:          "stackkits-storage-allocation"
+			version:     "1.0.0"
+			description: "Reusable resolved-plan storage allocation authority shared by Application Kits."
+		}
+		role:        "foundation"
+		providerRef: "stackkits-storage-data-policy"
+		planOnly:    true
+		provides:    _architectureV2StorageDataPolicyCapabilities
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority:           "any"
+			controlPlaneMembers: "any"
+			requiredRoles: ["worker"]
+		}
+		storageAllocationContract: {
+			apiVersion:            "stackkit.storage-allocation/v1"
+			kind:                  "StorageAllocationContract"
+			authority:             "resolved-plan"
+			rootSourceRef:         "storage.dataRoot"
+			volumeDriverSourceRef: "storage.volumeDriver"
+			allocationIdentity:    "workload/component/volume"
+			supportedClasses: ["persistent", "cache"]
+			providerLifecycleOwned:        false
+			credentialCustodyOwned:        false
+			multiServerOrchestrationOwned: false
+		}
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		realizationSupport: _architectureV2SharedInfrastructureContractSupport
+		health: [{id: "storage-allocation-contract", kind: "contract"}]
+		evidence: ["storage-allocation-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-workload-data-binding"
+			version:     "1.0.0"
+			description: "Reusable workload-to-data-placement binding authority shared by Application Kits."
+		}
+		role:        "foundation"
+		providerRef: "stackkits-storage-data-policy"
+		planOnly:    true
+		provides:    _architectureV2StorageDataPolicyCapabilities
+		requires: ["stackkits-storage-allocation"]
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority:           "any"
+			controlPlaneMembers: "any"
+			requiredRoles: ["worker"]
+		}
+		dataBindingContract: {
+			apiVersion:                    "stackkit.workload-data-binding/v1"
+			kind:                          "WorkloadDataBindingContract"
+			authority:                     "resolved-plan"
+			sourceRef:                     "data.bindings"
+			bindingIdentity:               "workload/service"
+			classValidation:               "workload-subset"
+			placementValidation:           "primary-or-declared-replica"
+			storageAllocationModuleRef:    "stackkits-storage-allocation"
+			providerLifecycleOwned:        false
+			credentialCustodyOwned:        false
+			multiServerOrchestrationOwned: false
+		}
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		realizationSupport: _architectureV2SharedInfrastructureContractSupport
+		health: [{id: "workload-data-binding-contract", kind: "contract"}]
+		evidence: ["workload-data-binding-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-backup-source"
+			version:     "1.0.0"
+			description: "Reusable ResolvedPlan backup-source authority derived from workload storage allocations."
+		}
+		role:        "foundation"
+		providerRef: "stackkits-backup-core-contract"
+		planOnly:    true
+		provides:    _architectureV2BackupCoreCapabilities
+		requires: ["stackkits-storage-allocation", "stackkits-workload-data-binding"]
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority:           "any"
+			controlPlaneMembers: "any"
+			requiredRoles: ["worker"]
+		}
+		backupSourceContract: {
+			apiVersion:                    "stackkit.backup-source/v1"
+			kind:                          "BackupSourceContract"
+			authority:                     "resolved-plan"
+			sourceRef:                     "workloads[].alternative.infrastructure.backupSource"
+			storageAllocationModuleRef:    "stackkits-storage-allocation"
+			workloadDataBindingModuleRef:  "stackkits-workload-data-binding"
+			eligibleStorageClass:          "persistent"
+			backupIntentRequired:          true
+			providerLifecycleOwned:        false
+			credentialCustodyOwned:        false
+			targetLifecycleOwned:          false
+			multiServerOrchestrationOwned: false
+		}
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		realizationSupport: _architectureV2SharedInfrastructureContractSupport
+		health: [{id: "backup-source-contract", kind: "contract"}]
+		evidence: ["backup-source-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-snapshot"
+			version:     "1.0.0"
+			description: "Reusable snapshot stage contract bound to one Application Kit backup source and lifecycle evidence."
+		}
+		role:        "operations"
+		providerRef: "stackkits-backup-core-contract"
+		planOnly:    true
+		provides:    _architectureV2BackupCoreCapabilities
+		requires: ["stackkits-backup-source"]
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority:           "any"
+			controlPlaneMembers: "any"
+			requiredRoles: ["worker"]
+		}
+		snapshotContract: {
+			apiVersion: "stackkit.snapshot/v1"
+			kind:       "SnapshotContract"
+			authority:  "resolved-plan"
+			stageRef:   "applicationLifecycles[].lifecycle.stages.backup"
+			operation:  "stackkit.backup"
+			phases: ["snapshot", "verify"]
+			evidence: ["snapshot-anchor"]
+			backupSourceModuleRef:         "stackkits-backup-source"
+			ownerApprovalRequired:         true
+			providerLifecycleOwned:        false
+			credentialCustodyOwned:        false
+			targetLifecycleOwned:          false
+			multiServerOrchestrationOwned: false
+		}
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		realizationSupport: _architectureV2SharedInfrastructureContractSupport
+		health: [{id: "snapshot-contract", kind: "contract"}]
+		evidence: ["snapshot-anchor"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-restore"
+			version:     "1.0.0"
+			description: "Reusable staged restore contract with a mandatory safety snapshot and verification."
+		}
+		role:        "operations"
+		providerRef: "stackkits-backup-core-contract"
+		planOnly:    true
+		provides:    _architectureV2BackupCoreCapabilities
+		requires: ["stackkits-snapshot"]
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority:           "any"
+			controlPlaneMembers: "any"
+			requiredRoles: ["worker"]
+		}
+		restoreContract: {
+			apiVersion: "stackkit.restore/v1"
+			kind:       "RestoreContract"
+			authority:  "resolved-plan"
+			stageRef:   "applicationLifecycles[].lifecycle.stages.restore"
+			operations: ["stackkit.restore", "stackkit.verify"]
+			phases: ["stage", "safety-snapshot", "activate", "verify", "recover"]
+			evidence: ["owner-observation", "restore-result", "snapshot-anchor"]
+			snapshotModuleRef:             "stackkits-snapshot"
+			stagedActivation:              true
+			safetySnapshotRequired:        true
+			ownerApprovalRequired:         true
+			providerLifecycleOwned:        false
+			credentialCustodyOwned:        false
+			targetLifecycleOwned:          false
+			multiServerOrchestrationOwned: false
+		}
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		realizationSupport: _architectureV2SharedInfrastructureContractSupport
+		health: [{id: "restore-contract", kind: "contract"}]
+		evidence: ["restore-result"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-recovery"
+			version:     "1.0.0"
+			description: "Reusable durable recovery contract over the shared Application Lifecycle state and evidence chain."
+		}
+		role:        "operations"
+		providerRef: "stackkits-backup-core-contract"
+		planOnly:    true
+		provides:    _architectureV2BackupCoreCapabilities
+		requires: ["stackkits-restore"]
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority:           "any"
+			controlPlaneMembers: "any"
+			requiredRoles: ["worker"]
+		}
+		recoveryContract: {
+			apiVersion:                    "stackkit.recovery/v1"
+			kind:                          "RecoveryContract"
+			authority:                     "resolved-plan"
+			stageRef:                      "applicationLifecycles[].lifecycle.stages.restore"
+			phase:                         "recover"
+			restoreModuleRef:              "stackkits-restore"
+			stateSourceRef:                "application-lifecycle"
+			evidenceSourceRef:             "application-lifecycle"
+			resumeRequiresOwnerApproval:   true
+			recoveryEvidenceRequired:      true
+			providerLifecycleOwned:        false
+			credentialCustodyOwned:        false
+			targetLifecycleOwned:          false
+			multiServerOrchestrationOwned: false
+		}
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		realizationSupport: _architectureV2SharedInfrastructureContractSupport
+		health: [{id: "recovery-contract", kind: "contract"}]
+		evidence: ["recovery-evidence"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-monitoring-agent-runtime"
+			version:     "1.1.0"
+			description: "Node-local OTLP collector intent consumed only by the separately authenticated monitoring-agent runtime owner."
+		}
+		role:        "platform"
+		providerRef: "stackkits-monitoring-agent"
+		provides:    _architectureV2TelemetryCollectionCapabilities
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority:           "any"
+			controlPlaneMembers: "any"
+		}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
+		enforcementRequirement: {
+			status:   "bound"
+			ownerRef: "stackkits-monitoring-agent-executor"
+			policyArtifactRefs: ["monitoring-agent-collector-intent"]
+			targetScope: "selected-nodes"
+			operations: [
+				"apply-monitoring-agent-intent",
+				"reconcile-monitoring-agent-intent",
+				"verify-monitoring-agent-runtime",
+				"commit-monitoring-agent-evidence",
+			]
+			requiredHealthRef:   "monitoring-agent-runtime-health"
+			requiredEvidenceRef: "monitoring-agent-runtime-evidence"
+		}
+		renderUnits: [{
+			id:           "collector-intent"
+			kind:         "native-config"
+			rendererRef:  "stackkit"
+			templateRef:  "builtin://observability/monitoring-agent/collector-intent/v1.json"
+			version:      "1.1.0"
+			contractHash: "sha256:c5f0045e9115ca6e39475c6ee001ce6e498cf4a8b375d72b6a90ddc2056d998b"
+			publicInputRefs: []
+			secretInputRefs: []
+			planInputRefs: ["observability", "sites"]
+			outputs: ["observability/monitoring-agent/collector-intent.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+		}]
+		realizationSupport: _architectureV2MonitoringAgentSupport
+		health: [{id: "monitoring-agent-runtime-health", kind: "contract", scope: "each-node"}]
+		evidence: ["monitoring-agent-runtime-evidence"]
+	},
+	{
+		metadata: {
+			id:          "security-baseline"
+			version:     "1.0.0"
+			description: "Deterministic target-neutral OS-hardening policy generated once for every managed StackKit node; access and network controls remain delegated."
+		}
+		role:        "platform"
+		providerRef: "stackkits-security-baseline"
+		provides: ["security-baseline"]
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority:           "any"
+			controlPlaneMembers: "any"
+		}
+		runtime: {kind: "host", delivery: "stackkit"}
+		renderUnits: [{
+			id:           "host-policy"
+			kind:         "host"
+			rendererRef:  "stackkit"
+			templateRef:  "builtin://foundation/security-baseline/apply.sh"
+			version:      "1.0.0"
+			contractHash: "sha256:a8f629c2e7df8fb9f38b2f57c1b10d6bc76c67d8be615c116310c68e48a6d6e4"
+			publicInputRefs: []
+			secretInputRefs: []
+			outputs: ["foundation/security-baseline/apply.sh"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+		}]
+		realizationSupport: _architectureV2SecurityBaselineSupport
+		health: [{id: "security-baseline-contract", kind: "contract", scope: "each-node"}]
+		evidence: ["resolved-plan-contract", "security-baseline-executor-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-core-host-bootstrap"
+			version:     "1.0.0"
+			description: "Node-local, provider-free Core host preparation owner; it creates only declared StackKit storage roots and observes the required pre-existing runtime."
+		}
+		role:        "foundation"
+		providerRef: "stackkits-core-host-bootstrap"
+		provides: ["host-bootstrap"]
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority:           "any"
+			controlPlaneMembers: "any"
+		}
+		runtime: {kind: "host", delivery: "stackkit"}
+		renderUnits: [{
+			id:           "host-policy"
+			kind:         "native-config"
+			rendererRef:  "stackkit"
+			templateRef:  "builtin://foundation/host-bootstrap/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:871d10265613851dc4ad928b4b8e280a874eb10d99b10dfa289bac1f56cc0e35"
+			publicInputRefs: ["host-runtime", "storage-roots"], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
+			inputBindings: [
+				{
+					targetRef:   "host-runtime"
+					sourceRef:   "host.bootstrapRuntime"
+					valueType:   "host-bootstrap-runtime-v1"
+					cardinality: "single"
+					required:    true
+				},
+				{
+					targetRef:   "storage-roots"
+					sourceRef:   "storage.hostRoots"
+					valueType:   "host-storage-roots-v1"
+					cardinality: "single"
+					required:    true
+				},
+			]
+			outputs: ["foundation/host-bootstrap/policy.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}, _architectureV2TerramateProjectRoot.unit]
+		realizationSupport: _architectureV2CoreHostBootstrapSupport
+		health: [{id: "core-host-bootstrap-contract", kind: "contract", scope: "each-node"}]
+		evidence: ["core-host-bootstrap-executor-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-home-backup-target"
+			version:     "1.0.0"
+			description: "Node-local Home backup-target verifier; it observes the CUE-declared backup root on Home control-plane nodes after Core host bootstrap and owns no provider, network, discovery, or backup-job lifecycle."
+		}
+		role:        "foundation"
+		providerRef: "stackkits-home-backup-target"
+		provides:    _architectureV2HomeBackupTargetCapabilities
+		requires: ["stackkits-core-host-bootstrap"]
+		supportedSiteKinds: ["home"]
+		nodeSelection: {
+			authority:           "control-authority-site"
+			controlPlaneMembers: "only"
+		}
+		runtime: {kind: "host", delivery: "stackkit"}
+		renderUnits: [{
+			id:           "backup-policy"
+			kind:         "native-config"
+			rendererRef:  "stackkit"
+			templateRef:  "builtin://home/backup-target/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:7add0b8b8e643141ca2adb61b03a3aa229daf2c6a08b65ba169870aceb2abe83"
+			publicInputRefs: ["backup-root"], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "sites", "moduleTargets", "moduleCapabilities"]
+			inputBindings: [{
+				targetRef:   "backup-root"
+				sourceRef:   "storage.backupRoot"
+				valueType:   "local-backup-root-v1"
+				cardinality: "single"
+				required:    true
+			}]
+			outputs: ["home/backup/target-policy.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		realizationSupport: _architectureV2HomeBackupTargetSupport
+		health: [{id: "home-backup-target-contract", kind: "contract", scope: "each-node"}]
+		evidence: ["home-backup-target-executor-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-home-private-remote-access-runtime"
+			version:     "1.0.0"
+			description: "Provider-neutral Home private-access binding; transport, endpoints, credentials, provider lifecycle, discovery, and general LAN reachability remain external."
+		}
+		role: "platform", providerRef: "stackkits-home-private-remote-access", provides: _architectureV2HomePrivateRemoteAccessCapabilities
+		requires: ["stackkits-core-host-bootstrap", "stackkits-home-access-policy-manifest"]
+		supportedSiteKinds: ["home"]
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "bound", ownerRef: "stackkits-home-private-remote-access-executor"
+			policyArtifactRefs: ["home-private-remote-access-executor-contract"]
+			targetScope: "home-sites", operations: ["bind-private-remote-access", "remove-private-remote-access", "verify-private-remote-access"]
+			requiredHealthRef: "home-private-remote-access-health", requiredEvidenceRef: "home-private-remote-access-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                         "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://home/remote-access/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:d534d74860c5453ec0fb4f377306371e9a388b9ecf7725c495bff4b092219978"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "homeAccessHandoff"]
+			inputBindings: [], outputs: ["home/remote-access/executor-contract.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		realizationSupport: _architectureV2HomeExtensionRuntimeSupports.privateRemoteAccess
+		health: [{id: "home-private-remote-access-health", kind: "contract", scope: "each-node"}]
+		evidence: ["home-private-remote-access-evidence"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-home-public-publish-egress-runtime"
+			version:     "1.0.0"
+			description: "Outbound-only Home publication boundary; public DNS, TLS issuance, credentials, inbound tunnels, and provider lifecycle remain external."
+		}
+		role: "platform", providerRef: "stackkits-home-public-publish-egress", provides: _architectureV2HomePublicPublishEgressCapabilities
+		requires: ["stackkits-core-host-bootstrap", "stackkits-home-access-policy-manifest"]
+		supportedSiteKinds: ["home"]
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		runtimeOwnerRequirement: {
+			status:         "unbound", ownerRef: "stackkits-home-public-publish-egress-executor"
+			capabilityRefs: _architectureV2HomePublicPublishEgressCapabilities
+			targetScope:    "home-sites", operations: ["bind-public-publish-egress", "remove-public-publish-egress", "verify-public-publish-egress"]
+			requiredHealthRef: "home-public-publish-egress-health", requiredEvidenceRef: "home-public-publish-egress-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                       "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://home/publication/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:16f928871e35f06c1f5960f90acfa8d88cebd23fb9aefe8630c0f0017d65a387"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "homeAccessHandoff"]
+			inputBindings: [], outputs: ["home/publication/executor-contract.json"]
+			placement: {scope: "module", cardinality: "single"}
+		}]
+		realizationSupport: _architectureV2HomeExtensionRuntimeSupports.publicPublishEgress
+		health: [{id: "home-public-publish-egress-contract", kind: "contract"}]
+		evidence: ["home-public-publish-egress-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-home-encrypted-offsite-backup-runtime"
+			version:     "1.0.0"
+			description: "Provider-neutral encrypted Home offsite-backup binding; repositories, endpoints, credentials, retention execution, restore execution, and provider lifecycle remain external."
+		}
+		role: "foundation", providerRef: "stackkits-home-encrypted-offsite-backup", provides: _architectureV2HomeEncryptedOffsiteBackupCapabilities
+		requires: ["stackkits-core-host-bootstrap"]
+		supportedSiteKinds: ["home"]
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		runtimeOwnerRequirement: {
+			status:         "unbound", ownerRef: "stackkits-home-encrypted-offsite-backup-executor"
+			capabilityRefs: _architectureV2HomeEncryptedOffsiteBackupCapabilities
+			targetScope:    "home-sites", operations: ["bind-encrypted-offsite-backup", "remove-encrypted-offsite-backup", "verify-encrypted-offsite-backup"]
+			requiredHealthRef: "home-encrypted-offsite-backup-health", requiredEvidenceRef: "home-encrypted-offsite-backup-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                          "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://home/backup/offsite-executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:c6ba1e9050b63a30fc9436a5325f86801b2adf08e3857708aac91c6a93cab05b"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "homeOffsiteBackup"]
+			inputBindings: [], outputs: ["home/backup/offsite-executor-contract.json"]
+			placement: {scope: "module", cardinality: "single"}
+		}]
+		realizationSupport: _architectureV2HomeExtensionRuntimeSupports.encryptedOffsiteBackup
+		health: [{id: "home-encrypted-offsite-backup-contract", kind: "contract"}]
+		evidence: ["home-encrypted-offsite-backup-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-internal-pki-contract"
+			version:     "1.0.0"
+			description: "Provider-free authenticated Home PKI owner on one explicit authority node. Root/leaf custody remains owner-held while exact public trust targets and compiler-derived leaf identities are closed in the generated policy."
+		}
+		role:        "platform"
+		providerRef: "stackkits-internal-pki"
+		provides:    _architectureV2InternalPKICapabilities
+		requires: ["stackkits-core-host-bootstrap"]
+		supportedSiteKinds: ["home"]
+		nodeSelection: {
+			authority:           "control-authority-site"
+			controlPlaneMembers: "only"
+			requiredRoles: ["controller"]
+		}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                            "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://home/tls/internal-pki-executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:af28e0a1d23129fcfa1a2e91e8510c0ce5e57ff3d032a29dd03a3a345531a056"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "internalPKI"]
+			outputs: ["home/tls/internal-pki-executor-contract.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		realizationSupport: _architectureV2InternalPKIGenerationSupport
+		health: [{id: "internal-pki-renewal-contract", kind: "contract"}]
+		evidence: ["internal-pki-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-home-device-authority-policy-manifest"
+			version:     "1.0.0"
+			description: "Node-local Home enrollment and credential-authority policy enforced by an explicit runtime owner; credential material, endpoints, and provider lifecycle are excluded."
+		}
+		role:        "platform"
+		providerRef: "stackkits-home-device-authority"
+		provides:    _architectureV2HomeIdentityAuthorityCapabilities
+		supportedSiteKinds: ["home"]
+		nodeSelection: {
+			authority:           "control-authority-site"
+			controlPlaneMembers: "only"
+			requiredRoles: ["controller"]
+		}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "bound", ownerRef: "stackkits-home-device-authority-enforcer"
+			policyArtifactRefs: ["home-device-authority-policy"]
+			targetScope: "home-control-authority"
+			operations: ["configure-device-enrollment", "configure-device-credential-issuer", "configure-device-credential-revocation"]
+			requiredHealthRef:   "home-device-authority-enforcement"
+			requiredEvidenceRef: "home-device-authority-enforcement"
+		}
+		renderUnits: [{
+			id:           "policy-bundle", kind:                                     "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://home/device-authority-policy/v1.json", version: "1.0.0"
+			contractHash: "sha256:6645794f097ca1b778fa3833075c1ffdc1dea7aff3cfbbc5e3ac7f0801466ffa"
+			publicInputRefs: ["home-device-authority"], secretInputRefs: []
+			inputBindings: [{
+				targetRef: "home-device-authority", sourceRef:      "identityTrust.homeDeviceAuthority"
+				valueType: "home-device-authority-v1", cardinality: "single", required: true
+			}]
+			planInputRefs: ["stackId", "kit"]
+			outputs: ["local/identity/device-authority-policy.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		realizationSupport: _architectureV2HomeDeviceAuthoritySupport
+		health: [{id: "home-device-authority-enforcement", kind: "contract", scope: "each-node"}]
+		evidence: ["home-device-authority-enforcement"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-basement-identity-trust-policy-manifest"
+			version:     "1.0.0"
+			description: "Node-local Basement identity verifier and trust policy enforced on the Home control authority; credential material and provider lifecycle are excluded."
+		}
+		role:        "platform"
+		providerRef: "stackkits-basement-identity-trust-policy"
+		provides:    _architectureV2IdentityCapabilities
+		requires: ["stackkits-home-device-authority-policy-manifest"]
+		supportedSiteKinds: ["home"]
+		nodeSelection: {authority: "control-authority-site", controlPlaneMembers: "only", requiredRoles: ["controller"]}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "bound", ownerRef: "stackkits-basement-identity-trust-enforcer"
+			policyArtifactRefs: ["basement-identity-trust-policy"]
+			targetScope: "home-control-authority"
+			operations: ["verify-device-session", "verify-human-session", "verify-workload-identity"]
+			requiredHealthRef:   "basement-identity-trust-enforcement"
+			requiredEvidenceRef: "basement-identity-trust-enforcement"
+		}
+		renderUnits: [{
+			id:           "policy-bundle", kind:                                       "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://basement/identity-trust-policy/v1.json", version: "1.0.0"
+			contractHash: "sha256:57e0d7eaba4751adc07c689bb78ae99df3e331def33694af68fad6bc770f6c7f"
+			publicInputRefs: ["basement-verification-policy"], secretInputRefs: []
+			inputBindings: [{
+				targetRef: "basement-verification-policy", sourceRef:        "identityTrust.basementVerification"
+				valueType: "basement-identity-verification-v1", cardinality: "single", required: true
+			}]
+			planInputRefs: ["stackId", "kit"]
+			outputs: ["local/identity/trust-policy.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		realizationSupport: _architectureV2BasementIdentityTrustSupport
+		health: [{id: "basement-identity-trust-enforcement", kind: "contract", scope: "each-node"}]
+		evidence: ["basement-identity-trust-enforcement"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-local-autonomy-policy-manifest"
+			version:     "1.0.0"
+			description: "Node-local Home control-authority offline-autonomy policy; air-gapped installation remains a separate claim."
+		}
+		role:        "platform"
+		providerRef: "stackkits-local-autonomy-policy"
+		provides:    _architectureV2LocalAutonomyCapabilities
+		supportedSiteKinds: ["home"]
+		nodeSelection: {authority: "control-authority-site", controlPlaneMembers: "only", requiredRoles: ["controller"]}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "bound", ownerRef: "stackkits-local-autonomy-enforcer"
+			policyArtifactRefs: ["local-autonomy-policy"]
+			targetScope: "home-control-authority"
+			operations: ["deny-forbidden-cross-site-session", "enforce-link-loss-policy", "preserve-local-control"]
+			requiredHealthRef:   "local-autonomy-enforcement"
+			requiredEvidenceRef: "local-autonomy-enforcement"
+		}
+		renderUnits: [{
+			id:           "policy-bundle"
+			kind:         "native-config"
+			rendererRef:  "stackkit"
+			templateRef:  "builtin://home/local-autonomy/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:423ed27c579f6e7232c069535203c07dd2993183758525fcde6303795f20094c"
+			publicInputRefs: ["local-autonomy-policy"]
+			secretInputRefs: []
+			planInputRefs: []
+			inputBindings: [{
+				targetRef: "local-autonomy-policy", sourceRef:      "localAutonomy.policy"
+				valueType: "local-autonomy-policy-v1", cardinality: "single", required: true
+			}]
+			outputs: ["local/autonomy/policy.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		realizationSupport: _architectureV2LocalAutonomySupport
+		health: [{id: "local-autonomy-enforcement", kind: "contract", scope: "each-node"}]
+		evidence: ["local-autonomy-enforcement"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-home-access-policy-manifest"
+			version:     "1.0.0"
+			description: "Node-local Home local-ingress and LAN access enforcement policy; discovery remains a separate optional claim."
+		}
+		role:        "platform"
+		providerRef: "stackkits-home-access-policy"
+		provides:    _architectureV2HomeAccessCapabilities
+		supportedSiteKinds: ["home"]
+		nodeSelection: {authority: "any", controlPlaneMembers: "any"}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "bound", ownerRef: "stackkits-home-access-enforcer"
+			policyArtifactRefs: ["home-access-policy"]
+			targetScope: "home-sites"
+			operations: ["enforce-lan-access", "enforce-local-ingress", "enforce-privileged-step-up"]
+			requiredHealthRef:   "home-access-enforcement"
+			requiredEvidenceRef: "home-access-enforcement"
+		}
+		renderUnits: [{
+			id:           "policy-bundle"
+			kind:         "native-config"
+			rendererRef:  "stackkit"
+			templateRef:  "builtin://home/access/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:e1b1ce9e91127bc3ddee758fba419f77d82d48e013df151836823b4d9fafeb88"
+			publicInputRefs: ["home-access-policy"]
+			secretInputRefs: []
+			planInputRefs: []
+			inputBindings: [{
+				targetRef: "home-access-policy", sourceRef:           "access.homeEnforcement"
+				valueType: "home-access-enforcement-v1", cardinality: "single", required: true
+			}]
+			outputs: ["local/network/access-policy.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		realizationSupport: _architectureV2HomeAccessSupport
+		health: [{id: "home-access-enforcement", kind: "contract", scope: "each-node"}]
+		evidence: ["home-access-enforcement"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-home-lan-discovery-policy-manifest"
+			version:     "1.0.0"
+			description: "Generation-only explicit Home LAN discovery policy; empty intent emits no advertisements and runtime publication remains separately verified."
+		}
+		role:        "platform"
+		providerRef: "stackkits-home-lan-discovery-policy"
+		provides:    _architectureV2HomeLANDiscoveryCapabilities
+		requires: ["stackkits-home-access-policy-manifest"]
+		supportedSiteKinds: ["home"]
+		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		renderUnits: [{
+			id:           "policy-bundle"
+			kind:         "native-config"
+			rendererRef:  "stackkit"
+			templateRef:  "builtin://home/lan-discovery/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:48eb8152174d0a9de62e57b7eb3d93dad25ee36894611caf5005d05f452ec68d"
+			publicInputRefs: []
+			secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "sites", "homeLANDiscovery"]
+			outputs: ["local/network/discovery-policy.json"]
+			placement: {
+				scope:       "module"
+				cardinality: "single"
+			}
+		}]
+		realizationSupport: _architectureV2HomeLANDiscoverySupport
+		health: [{id: "home-lan-discovery-policy-contract", kind: "contract"}]
+		evidence: ["home-lan-discovery-policy-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-home-lan-dns-manifest"
+			version:     "1.0.0"
+			description: "Home LAN DNS resolver policy; Unbound is the declared resolver with a pinned image, owned at runtime by the Basement core compose runtime."
+		}
+		role:        "platform"
+		providerRef: "stackkits-home-lan-dns-contract"
+		provides:    _architectureV2HomeLANDNSCapabilities
+		supportedSiteKinds: ["home"]
+		nodeSelection: {authority: "any", controlPlaneMembers: "any"}
+		// The policy is handed to the executable Basement core, which owns the
+		// Unbound component. It is not a second independently executed module.
+		runtime: {execution: "contract-handoff", kind: "native", delivery: "stackkit"}
+		renderUnits: [{
+			id:           "policy-bundle"
+			kind:         "native-config"
+			rendererRef:  "stackkit"
+			templateRef:  "builtin://home/lan-dns/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:f8f0e8ee1989dcd48a2430740abc1f397cb06af3b6f716625d00727bb80e9575"
+			publicInputRefs: []
+			secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "sites"]
+			outputs: ["local/network/lan-dns-policy.json"]
+			placement: {
+				scope:       "module"
+				cardinality: "single"
+			}
+		}]
+		realizationSupport: _architectureV2HomeLANDNSSupport
+		health: [{id: "home-lan-dns-policy-contract", kind: "contract"}]
+		evidence: ["home-lan-dns-policy-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-cloud-host-security-runtime"
+			version:     "1.1.0"
+			description: "Cloud-only node-local firewall and Internet-host hardening boundary; it owns no public edge, DNS, backup, mesh, or server-provider lifecycle."
+		}
+		role:        "platform"
+		providerRef: "stackkits-cloud-host-security"
+		provides:    _architectureV2CloudHostSecurityCapabilities
+		requires: ["stackkits-core-host-bootstrap", "security-baseline"]
+		supportedSiteKinds: ["cloud"]
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
+		enforcementRequirement: {
+			status:      "bound", ownerRef: "stackkits-cloud-host-security-executor"
+			targetScope: "cloud-sites"
+			operations: ["apply-cloud-host-firewall", "reconcile-cloud-host-firewall", "apply-cloud-host-hardening", "verify-cloud-host-security", "commit-cloud-host-security-evidence"]
+			policyArtifactRefs: ["cloud-host-security-executor-contract"]
+			requiredHealthRef:   "cloud-host-security-health"
+			requiredEvidenceRef: "cloud-host-security-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                          "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/host-security/executor-contract/v2.json", version: "1.1.0"
+			contractHash: "sha256:577d15449a15753e08b2c39af519ebba03e4159b7f772a19ae47b9974195f2a8"
+			publicInputRefs: ["host-security-network"], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
+			inputBindings: [{
+				targetRef: "host-security-network", sourceRef:           "network.cloudHostSecurity"
+				valueType: "cloud-host-security-policy-v2", cardinality: "single", required: true
+			}]
+			outputs: ["cloud/host-security/executor-contract.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:4d6339d1b9ae81c6b62edd28e3738f100f4d12959b54867a611497cca4e5056c"
+				unitRefs: ["executor-contract"]
+				artifactRefs: ["cloud-host-security-executor-contract"]
+				publicInputRefs: ["host-security-network"], secretInputRefs: []
+				planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:4764ee33223ee9b43f03c4880b23168f807503f3ed120016c7a5c4d7f9873ace"
+				unitRefs: ["executor-contract"]
+				artifactRefs: ["cloud-host-security-executor-contract"]
+				publicInputRefs: ["host-security-network"], secretInputRefs: []
+				planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
+			},
+		]
+		realizationSupport: _architectureV2CloudHostSecuritySupport
+		health: [{id: "cloud-host-security-health", kind: "contract", scope: "each-node"}]
+		evidence: ["cloud-host-security-evidence"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-cloud-public-edge-runtime"
+			version:     "1.1.0"
+			description: "Cloud-only public edge boundary; DNS provider mutation, TLS issuance, host hardening, backup, mesh, and server lifecycle remain separate."
+		}
+		role:        "platform"
+		providerRef: "stackkits-cloud-public-edge"
+		provides:    _architectureV2CloudPublicEdgeCapabilities
+		requires: ["stackkits-cloud-host-security-runtime"]
+		supportedSiteKinds: ["cloud"]
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
+		enforcementRequirement: {
+			status:      "bound", ownerRef: "stackkits-cloud-public-edge-executor"
+			targetScope: "cloud-sites"
+			operations: ["apply-public-edge", "remove-obsolete-public-edge", "verify-public-edge", "commit-cloud-public-edge-evidence"]
+			policyArtifactRefs: ["cloud-public-edge-executor-contract"]
+			requiredHealthRef:   "cloud-public-edge-health"
+			requiredEvidenceRef: "cloud-public-edge-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                        "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/public-edge/executor-contract/v2.json", version: "1.1.0"
+			contractHash: "sha256:a452f3a9f9651f4bb96ff5abdb32328eab08be7e896397e2de72fae5029a8b0d"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "publicEdge"]
+			outputs: ["cloud/public-edge/executor-contract.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}, _architectureV2CloudPublicEdgeTerramateStack.unit]
+		realizationSupport: _architectureV2CloudPublicEdgeSupport
+		health: [{id: "cloud-public-edge-health", kind: "contract", scope: "each-node"}]
+		evidence: ["cloud-public-edge-evidence"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-cloud-offsite-backup-runtime"
+			version:     "1.1.0"
+			description: "Provider-neutral node-local Cloud offsite-backup binding and verification; object-storage provider lifecycle, buckets, endpoints, credentials, and target custody remain external."
+		}
+		role:        "foundation"
+		providerRef: "stackkits-cloud-offsite-backup"
+		provides:    _architectureV2CloudOffsiteBackupCapabilities
+		supportedSiteKinds: ["cloud"]
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
+		enforcementRequirement: {
+			status:      "bound", ownerRef: "stackkits-cloud-offsite-backup-executor"
+			targetScope: "cloud-sites"
+			operations: ["bind-offsite-backup-target", "remove-obsolete-offsite-backup-binding", "verify-offsite-backup-target", "commit-cloud-offsite-backup-evidence"]
+			policyArtifactRefs: ["cloud-offsite-backup-executor-contract"]
+			requiredHealthRef:   "cloud-offsite-backup-health"
+			requiredEvidenceRef: "cloud-offsite-backup-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                   "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/backup/executor-contract/v2.json", version: "1.1.0"
+			contractHash: "sha256:f6a804316a73cbb9f424f1fdd68de1e8555bde39298a46a6c65de2eccf9b17b9"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "cloudOffsiteBackup"]
+			outputs: ["cloud/backup/executor-contract.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		realizationSupport: _architectureV2CloudOffsiteBackupSupport
+		health: [{id: "cloud-offsite-backup-health", kind: "contract", scope: "each-node"}]
+		evidence: ["cloud-offsite-backup-evidence"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-cloud-private-admin-mesh-runtime"
+			version:     "1.0.0"
+			description: "Optional provider-neutral private admin-mesh policy handoff; transport, endpoints, credentials, identity issuance, provider lifecycle, federation, and LAN reachability remain separate."
+		}
+		role:        "platform"
+		providerRef: "stackkits-cloud-private-admin-mesh"
+		provides:    _architectureV2CloudPrivateAdminMeshCapabilities
+		requires: ["stackkits-cloud-host-security-runtime", "stackkits-cloud-identity-trust-policy-manifest"]
+		supportedSiteKinds: ["cloud"]
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		runtimeOwnerRequirement: {
+			status:         "unbound", ownerRef: "stackkits-cloud-private-admin-mesh-executor"
+			capabilityRefs: _architectureV2CloudPrivateAdminMeshCapabilities
+			targetScope:    "cloud-sites"
+			operations: ["bind-private-admin-mesh", "remove-private-admin-mesh-binding", "verify-private-admin-mesh"]
+			requiredHealthRef:   "cloud-private-admin-mesh-health"
+			requiredEvidenceRef: "cloud-private-admin-mesh-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                       "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/admin-mesh/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:009e99ba8c84136dccaad45e99a1166cbdda3be9bf08b615d769538d5b290f1a"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane", "cloudAdminMesh"]
+			inputBindings: []
+			outputs: ["cloud/admin-mesh/executor-contract.json"]
+			placement: {scope: "module", cardinality: "single"}
+		}]
+		realizationSupport: _architectureV2CloudPrivateAdminMeshSupport
+		health: [{id: "cloud-private-admin-mesh-contract", kind: "contract"}]
+		evidence: ["cloud-private-admin-mesh-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-public-tls-contract"
+			version:     "1.0.0"
+			description: "Exact public TLS termination and renewal handoff; certificate material and ACME credentials remain owned by an authenticated external operations implementation."
+		}
+		role:        "platform"
+		providerRef: "stackkits-public-tls"
+		provides:    _architectureV2PublicTLSCapabilities
+		requires: ["stackkits-cloud-public-edge-runtime"]
+		supportedSiteKinds: ["cloud"]
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "bound", ownerRef: "stackkits-public-tls-enforcer"
+			policyArtifactRefs: ["public-tls-executor-contract"]
+			targetScope: "cloud-sites"
+			operations: ["materialize-public-tls", "renew-public-tls", "verify-public-tls"]
+			requiredHealthRef:   "public-tls-renewal-contract"
+			requiredEvidenceRef: "public-tls-contract"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/tls/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:7779966dc102170d25a75c0a508427d5cb7462b2b7108b311036b2b3b02f97c8"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["kit", "moduleTargets", "publicTLS", "stackId"]
+			outputs: ["cloud/tls/executor-contract.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		realizationSupport: _architectureV2PublicTLSGenerationSupport
+		health: [{id: "public-tls-renewal-contract", kind: "contract", scope: "each-node"}]
+		evidence: ["public-tls-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-cloud-identity-trust-policy-manifest"
+			version:     "1.0.0"
+			description: "Node-local Cloud identity trust policy with external device authority and Cloud-local enforcement; no device issuance or enrollment is owned."
+		}
+		role:        "platform"
+		providerRef: "stackkits-cloud-identity-trust-policy"
+		provides: list.Concat([_architectureV2IdentityCapabilities, _architectureV2CloudIdentityAuthorityCapabilities])
+		supportedSiteKinds: ["cloud"]
+		nodeSelection: {authority: "control-authority-site", controlPlaneMembers: "only", requiredRoles: ["controller"]}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
+		enforcementRequirement: {
+			status: "bound", ownerRef: "stackkits-cloud-identity-trust-enforcer"
+			policyArtifactRefs: ["cloud-identity-trust-policy"]
+			targetScope: "cloud-sites"
+			operations: ["configure-human-credential-issuer", "configure-workload-credential-issuer", "verify-device-session", "verify-human-session", "verify-workload-identity"]
+			requiredHealthRef:   "cloud-identity-trust-enforcement"
+			requiredEvidenceRef: "cloud-identity-trust-enforcement"
+		}
+		renderUnits: [{
+			id:           "policy-bundle", kind:                                    "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/identity-trust-policy/v1.json", version: "1.0.0"
+			contractHash: "sha256:0522a70d6833d2c6d9b1a85971fa90e549b7a105a3042843929b9ab14c442362"
+			publicInputRefs: ["cloud-identity-authority"], secretInputRefs: []
+			inputBindings: [{
+				targetRef: "cloud-identity-authority", sourceRef:      "identityTrust.cloudAuthority"
+				valueType: "cloud-identity-authority-v1", cardinality: "single", required: true
+			}]
+			planInputRefs: ["stackId", "kit"]
+			outputs: ["cloud/identity/trust-policy.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		realizationSupport: _architectureV2CloudIdentityTrustSupport
+		health: [{id: "cloud-identity-trust-enforcement", kind: "contract", scope: "each-node"}]
+		evidence: ["cloud-identity-trust-enforcement"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-basement-compose-runtime"
+			version:     "1.0.0"
+			description: "Residual Basement-only Compose rollout owner; concrete foundation helpers lower independently beneath it."
+		}
+		role:        "platform"
+		providerRef: "stackkits-basement-compose"
+		provides:    _architectureV2BasementComposeCapabilities
+		requires: ["stackkits-core-host-bootstrap"]
+		supportedSiteKinds: ["home"]
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		runtimeOwnerRequirement: {
+			status:         "unbound", ownerRef: "stackkits-basement-compose-executor"
+			capabilityRefs: _architectureV2BasementComposeCapabilities
+			targetScope:    "home-sites"
+			operations: ["apply-compose-project", "remove-compose-project", "verify-compose-project"]
+			requiredHealthRef:   "basement-compose-runtime-health"
+			requiredEvidenceRef: "basement-compose-runtime-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                       "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://basement/runtime/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:3e9795cc29f1d063184a5be004b796341f1c408d40bd7c4e41b814f979c795ad"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
+			outputs: ["basement/runtime/executor-contract.json"]
+			placement: {scope: "module", cardinality: "single"}
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:caa13cedcc306755ce50179a0e6ba5f6eecefa8c58f8e472770c04c8cde92212"
+				unitRefs: ["executor-contract"]
+				artifactRefs: ["basement-compose-runtime-executor-contract"]
+				publicInputRefs: [], secretInputRefs: []
+				planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:d4b39bdc9ca285e10c899bbf0619035cbe66c596365bace374d69def776d69d4"
+				unitRefs: ["executor-contract"]
+				artifactRefs: ["basement-compose-runtime-executor-contract"]
+				publicInputRefs: [], secretInputRefs: []
+				planInputRefs: ["stackId", "kit", "moduleTargets", "moduleCapabilities", "sites", "controlPlane"]
+			},
+		]
+		realizationSupport: _architectureV2BasementComposeExecutorContractSupport
+		health: [{id: "stackkits-basement-compose-contract", kind: "contract"}]
+		evidence: ["basement-compose-contract-governance"]
+	},
+	{
+		metadata: {
+			id:          "socket-proxy"
+			version:     "1.0.0"
+			description: "Basement node-local Docker API isolation proxy backed by one explicitly approved daemon socket."
+		}
+		role:        "platform"
+		providerRef: "stackkits-basement-compose"
+		// This helper provides an implementation interface, not a product
+		// capability. The Basement Compose runtime owner above carries the
+		// capability selection and readiness responsibility.
+		provides: []
+		requires: ["stackkits-basement-compose-runtime"]
+		supportedSiteKinds: ["home"]
+		nodeSelection: {
+			authority:           "any"
+			controlPlaneMembers: "any"
+		}
+		runtime: {
+			kind:     "container"
+			delivery: "stackkit"
+			engine:   "docker"
+			image: {
+				ref:    "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2"
+				digest: "sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476"
+			}
+		}
+		renderUnits: [{
+			id:           "compose"
+			kind:         "compose"
+			rendererRef:  "stackkit"
+			templateRef:  "builtin://foundation/socket-proxy/compose.yaml"
+			version:      "1.0.0"
+			contractHash: "sha256:7f7beb9fdefe9f6c4f4acfdae8d0f71a754356f9dd29112992927f884438a47c"
+			publicInputRefs: []
+			secretInputRefs: []
+			outputs: ["foundation/socket-proxy/compose.yaml"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-daemon"
+				daemonRef:   "docker-default"
+			}
+			providesInterfaces: [{
+				id:       "docker-api-readonly"
+				kind:     "docker-http-readonly-v1"
+				protocol: "docker-http"
+				version:  "v1"
+				endpoint: {
+					ref:        "docker-api"
+					visibility: "node-local"
+					transport:  "tcp"
+					networkRef: "docker-api-readonly"
+					address:    "socket-proxy"
+					port:       2375
+				}
+				scopes: ["CONTAINERS", "EVENTS", "NETWORKS", "PING", "VERSION"]
+				coLocation:    "same-node-and-network"
+				daemonRef:     "docker-default"
+				policyProfile: "docker-readonly-baseline"
+			}]
+			requiresInterfaces: [{
+				id:       "docker-provider-backing"
+				kind:     "docker-socket-direct-v1"
+				protocol: "docker-engine"
+				version:  "v1"
+				endpoint: {
+					visibility: "node-local"
+					transport:  "unix-socket"
+					pathSource: "daemon-binding"
+				}
+				scopes: ["docker-api:full"]
+				coLocation:    "same-node"
+				daemonRef:     "docker-default"
+				policyProfile: "docker-provider-backing"
+			}]
+		}]
+		renderVariants: [{
+			id:           "compose", target: "compose", rendererRef: "stackkit"
+			contractHash: "sha256:bf2cf9138330226055c10bf0de998ff20b4c96d61de2a183aca3b4a1997c3cdd"
+			unitRefs: ["compose"]
+			artifactRefs: ["socket-proxy-compose"]
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+		}]
+		realizationSupport: _architectureV2SocketProxySupport
+		health: [{id: "socket-proxy-contract", kind: "contract"}]
+		evidence: ["socket-proxy-provider-backing-governance"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-cloud-core-runtime"
+			version:     "1.0.0"
+			description: "Provider-neutral Cloud core runtime for routing, local identity, access control, Coolify, and the operator hub on an externally supplied host."
+		}
+		role:        "workload"
+		providerRef: "stackkits-cloud-core"
+		provides:    _architectureV2CloudCoreCapabilities
+		requires: ["stackkits-public-tls-contract"]
+		supportedSiteKinds: ["cloud"]
+		nodeSelection: {
+			authority:           "control-authority-site"
+			controlPlaneMembers: "only"
+			requiredRoles: ["controller", "worker"]
+		}
+		runtimeRequirements: {
+			minCpuCores:  2
+			minRamGB:     4
+			minStorageGB: 20
+		}
+		computeProfiles:       _architectureV2CloudCoreComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "stackkit"
+			engine:   "docker"
+			image: {
+				ref:    "ghcr.io/coollabsio/coolify:4.1.2"
+				digest: "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f"
+			}
+			entryComponentRef: "coolify"
+			components:        _architectureV2CloudCoreFullComponents
+		}
+		serviceControls: _cloudCoreServiceControls
+		renderUnits: [{
+			id:           "compose", kind:                                 "compose", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/core/compose/v1.yaml", version: "1.0.0"
+			contractHash: "sha256:6a165719c9945b0c7e15c8a24aa5003a8fbbb909bcd7439381ed4ee10686c7c4"
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			outputs: ["platform/cloud-core/compose.yaml"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: _cloudCoreServiceEndpoints
+			runtimeListeners: _cloudCoreVerificationRuntimeListeners
+		}, {
+			id:           "opentofu", kind:                                "opentofu", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/core/opentofu/v1.tf", version: "1.0.0"
+			contractHash: "sha256:17c124c1205256710d1161ad728885fe34af3fe07aee4111441172143d3bd0ce"
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			outputs: ["platform/cloud-core/main.tf"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: _cloudCoreServiceEndpoints
+			runtimeListeners: _cloudCoreVerificationRuntimeListeners
+		}, {
+			id:           "terramate", kind:                            "terramate", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/core/terramate/v1", version: "1.0.0"
+			contractHash: "sha256:8254232c208f363dea7ff27a07ed8b2af616eb8324141e78797707ff5e296a48"
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			outputs: ["platform/cloud-core/main.tf", "platform/cloud-core/stack.tm.hcl"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: _cloudCoreServiceEndpoints
+			runtimeListeners: _cloudCoreVerificationRuntimeListeners
+		}]
+		renderVariants: [{
+			id:           "compose", target: "compose", rendererRef: "stackkit"
+			contractHash: "sha256:6a165719c9945b0c7e15c8a24aa5003a8fbbb909bcd7439381ed4ee10686c7c4"
+			unitRefs: ["compose"], artifactRefs: ["cloud-core-compose"]
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+		}, {
+			id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+			contractHash: "sha256:17c124c1205256710d1161ad728885fe34af3fe07aee4111441172143d3bd0ce"
+			unitRefs: ["opentofu"], artifactRefs: ["cloud-core-opentofu"]
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+		}, {
+			id:           "terramate", target: "terramate", rendererRef: "stackkit"
+			contractHash: "sha256:5dc111fb152e893248c944eead9e58911abed6665aeaabb46b5bd813a8f69f13"
+			unitRefs: ["terramate"], artifactRefs: ["cloud-core-terramate-opentofu", "cloud-core-terramate-stack"]
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+		}]
+		realizationSupport: {
+			contractVersion: "1.0.0", scope: "concrete", level: "apply-ready"
+			compatibleRendererRefs: ["stackkit"]
+			inputs: {contractComplete: true, requiredRefs: []}
+			planInputs: {contractComplete: true, requiredRefs: []}
+			artifacts: {
+				requiredRefs: ["cloud-core-compose", "cloud-core-opentofu", "cloud-core-terramate-opentofu", "cloud-core-terramate-stack"]
+				outputBindings: [
+					{artifactRef: "cloud-core-compose", unitRef: "compose", outputRef: "platform/cloud-core/compose.yaml"},
+					{artifactRef: "cloud-core-opentofu", unitRef: "opentofu", outputRef: "platform/cloud-core/main.tf"},
+					{artifactRef: "cloud-core-terramate-opentofu", unitRef: "terramate", outputRef: "platform/cloud-core/main.tf"},
+					{artifactRef: "cloud-core-terramate-stack", unitRef: "terramate", outputRef: "platform/cloud-core/stack.tm.hcl"},
+				]
+				contracts: [{
+					id: "cloud-core-compose", kind: "compose", format: "yaml", mode: "0640", required: true
+					compatibleTargets: ["compose"], unitRef: "compose", outputRef: "platform/cloud-core/compose.yaml"
+				}, {
+					id: "cloud-core-opentofu", kind: "opentofu", format: "hcl", mode: "0640", required: true
+					compatibleTargets: ["opentofu"], unitRef: "opentofu", outputRef: "platform/cloud-core/main.tf"
+				}, {
+					id: "cloud-core-terramate-opentofu", kind: "terramate", format: "hcl", mode: "0640", required: true
+					compatibleTargets: ["terramate"], unitRef: "terramate", outputRef: "platform/cloud-core/main.tf"
+				}, {
+					id: "cloud-core-terramate-stack", kind: "terramate", format: "hcl", mode: "0640", required: true
+					compatibleTargets: ["terramate"], unitRef: "terramate", outputRef: "platform/cloud-core/stack.tm.hcl"
+				}]
+			}
+			evidence: requiredRefs: ["cloud-core-runtime-evidence"]
+		}
+		health: _architectureV2CloudCoreHealthContracts
+		evidence: ["cloud-core-runtime-evidence"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-cloud-core-standalone-runtime"
+			version:     "1.0.0"
+			description: "Account-free Cloud core runtime with routing, owner identity, access control and the operator hub on standalone Compose; platform-manager services are omitted."
+		}
+		role:        "workload"
+		providerRef: "stackkits-cloud-core"
+		provides:    _architectureV2CloudCoreCapabilities
+		requires: ["stackkits-public-tls-contract"]
+		supportedSiteKinds: ["cloud"]
+		nodeSelection: {
+			authority:           "control-authority-site"
+			controlPlaneMembers: "only"
+			requiredRoles: ["controller", "worker"]
+		}
+		runtimeRequirements: {
+			minCpuCores:  2
+			minRamGB:     4
+			minStorageGB: 20
+		}
+		computeProfiles:       _architectureV2CloudStandaloneCoreComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "stackkit"
+			engine:   "docker"
+			image: {
+				ref:    "docker.io/library/nginx:alpine"
+				digest: "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"
+			}
+			entryComponentRef: "hub"
+			components:        _architectureV2CloudCoreStandaloneComponents
+		}
+		serviceControls: _architectureV2CloudStandaloneServiceControls
+		renderUnits: [{
+			id:           "compose", kind:                                            "compose", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/core-standalone/compose/v1.yaml", version: "1.0.0"
+			contractHash: "sha256:10b557a8c1d690d0db2673a50a0dc96f2e08247047a99a2639fc75308ceb30ef"
+			publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+			secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+			planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+			inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+			outputs: ["platform/cloud-core-standalone/compose.yaml"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: _architectureV2CloudStandaloneServiceEndpoints
+			runtimeListeners: _architectureV2CloudStandaloneRuntimeListeners
+		}, {
+			id:           "opentofu", kind:                                           "opentofu", rendererRef: "stackkit"
+			templateRef:  "builtin://cloud/core-standalone/opentofu/v1.tf", version: "1.0.0"
+			contractHash: "sha256:686105c4ab42b787a3a884041751eb577e0821a5aae4ad1f8bedbcaf096723de"
+			publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+			secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+			planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+			inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+			outputs: ["platform/cloud-core-standalone/main.tf"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: _architectureV2CloudStandaloneServiceEndpoints
+			runtimeListeners: _architectureV2CloudStandaloneRuntimeListeners
+		}, {
+			id:              "terramate", kind:                                       "terramate", rendererRef: "stackkit"
+			templateRef:     "builtin://cloud/core-standalone/terramate/v1", version: "1.0.0"
+			contractHash:    "sha256:d5fb144e69281318cc5041cc6fcee478a10df2cb8206295ee4f1e52590483b4a"
+			publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+			secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+			planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+			inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+			outputs: ["platform/cloud-core-standalone/main.tf", "platform/cloud-core-standalone/stack.tm.hcl"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: _architectureV2CloudStandaloneServiceEndpoints
+			runtimeListeners: _architectureV2CloudStandaloneRuntimeListeners
+		}, _architectureV2LocalKopiaSourceRenderUnit & {_outputRef: "cloud/backup/kopia-source-policy.json"}]
+		renderVariants: [{
+			id:           "compose", target: "compose", rendererRef: "stackkit"
+			contractHash: "sha256:10b557a8c1d690d0db2673a50a0dc96f2e08247047a99a2639fc75308ceb30ef"
+			unitRefs: ["compose", "source-policy"], artifactRefs: ["cloud-core-standalone-compose", "cloud-kopia-backup-source-policy"]
+			publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
+		}, {
+			id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+			contractHash: "sha256:686105c4ab42b787a3a884041751eb577e0821a5aae4ad1f8bedbcaf096723de"
+			unitRefs: ["opentofu", "source-policy"], artifactRefs: ["cloud-core-standalone-opentofu", "cloud-kopia-backup-source-policy"]
+			publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
+		}, {
+			id:           "terramate", target: "terramate", rendererRef: "stackkit"
+			contractHash: "sha256:3f2c14c5ddeb144811f8ba25a28fbf5311692b301c37423d9f197b1bdf76c665"
+			unitRefs: ["terramate", "source-policy"], artifactRefs: ["cloud-core-standalone-terramate-opentofu", "cloud-core-standalone-terramate-stack", "cloud-kopia-backup-source-policy"]
+			publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
+		}]
+		realizationSupport: {
+			contractVersion: "1.0.0", scope: "concrete", level: "apply-ready"
+			compatibleRendererRefs: ["stackkit"]
+			inputs: {contractComplete: true, requiredRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs}
+			planInputs: {contractComplete: true, requiredRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs}
+			artifacts: {
+				requiredRefs: ["cloud-core-standalone-compose", "cloud-core-standalone-opentofu", "cloud-core-standalone-terramate-opentofu", "cloud-core-standalone-terramate-stack", "cloud-kopia-backup-source-policy"]
+				outputBindings: [
+					{artifactRef: "cloud-core-standalone-compose", unitRef: "compose", outputRef: "platform/cloud-core-standalone/compose.yaml"},
+					{artifactRef: "cloud-core-standalone-opentofu", unitRef: "opentofu", outputRef: "platform/cloud-core-standalone/main.tf"},
+					{artifactRef: "cloud-core-standalone-terramate-opentofu", unitRef: "terramate", outputRef: "platform/cloud-core-standalone/main.tf"},
+					{artifactRef: "cloud-core-standalone-terramate-stack", unitRef: "terramate", outputRef: "platform/cloud-core-standalone/stack.tm.hcl"},
+					{artifactRef: "cloud-kopia-backup-source-policy", unitRef: "source-policy", outputRef: "cloud/backup/kopia-source-policy.json"},
+				]
+				contracts: [{
+					id: "cloud-core-standalone-compose", kind: "compose", format: "yaml", mode: "0640", required: true
+					compatibleTargets: ["compose"], unitRef: "compose", outputRef: "platform/cloud-core-standalone/compose.yaml"
+				}, {
+					id: "cloud-core-standalone-opentofu", kind: "opentofu", format: "hcl", mode: "0640", required: true
+					compatibleTargets: ["opentofu"], unitRef: "opentofu", outputRef: "platform/cloud-core-standalone/main.tf"
+				}, {
+					id: "cloud-core-standalone-terramate-opentofu", kind: "terramate", format: "hcl", mode: "0640", required: true
+					compatibleTargets: ["terramate"], unitRef: "terramate", outputRef: "platform/cloud-core-standalone/main.tf"
+				}, {
+					id: "cloud-core-standalone-terramate-stack", kind: "terramate", format: "hcl", mode: "0640", required: true
+					compatibleTargets: ["terramate"], unitRef: "terramate", outputRef: "platform/cloud-core-standalone/stack.tm.hcl"
+				}, {id: "cloud-kopia-backup-source-policy", kind: "native-config", format: "json", mode: "0600", required: true, compatibleTargets: ["compose", "opentofu", "terramate"], unitRef: "source-policy", outputRef: "cloud/backup/kopia-source-policy.json"}]
+			}
+			evidence: requiredRefs: ["cloud-core-runtime-evidence"]
+		}
+		health: _architectureV2CloudStandaloneHealthContracts
+		evidence: ["cloud-core-runtime-evidence"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-basement-core-runtime"
+			version:     "1.0.0"
+			description: "Required standalone Basement core runtime with exact Compose and OpenTofu realizations for routing, identity, internal PKI, Coolify, and the operator hub."
+		}
+		role:        "workload"
+		providerRef: "stackkits-basement-core"
+		provides:    _architectureV2BasementCoreCapabilities
+		requires: ["stackkits-home-backup-target"]
+		supportedSiteKinds: ["home"]
+		nodeSelection: {
+			authority:           "control-authority-site"
+			controlPlaneMembers: "only"
+			requiredRoles: ["controller", "worker"]
+		}
+		runtimeRequirements: {
+			minCpuCores:  2
+			minRamGB:     4
+			minStorageGB: 20
+		}
+		computeProfiles:       _architectureV2BasementCoreComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "stackkit"
+			engine:   "docker"
+			image: {
+				ref:    "ghcr.io/coollabsio/coolify:4.1.2"
+				digest: "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f"
+			}
+			entryComponentRef: "coolify"
+			components: [
+				{
+					id: "router", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/traefik/traefik:v3"
+						digest: "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8"
+					}
+					dependsOn: ["socket-proxy"], networkRefs: ["basement-core", "basement-control"]
+					health: {kind: "http", path: "/ping", port: 8080}
+					resources: {memoryLimit: "256m"}
+				},
+				{
+					id: "socket-proxy", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2"
+						digest: "sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476"
+					}
+					dependsOn: [], networkRefs: ["basement-control"]
+					health: {kind: "image"}
+					resources: {memoryLimit: "128m"}
+				},
+				{
+					id: "pocketid", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/pocket-id/pocket-id:v2.7.0"
+						digest: "sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e"
+					}
+					dependsOn: [], networkRefs: ["basement-core"]
+					volumes: [{id: "pocketid-data", target: "/app/data", class: "persistent", backup: true}]
+					health: {kind: "http", path: "/health", port: 1411}
+					resources: {memoryLimit: "512m"}
+				},
+				{
+					id: "tinyauth", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/steveiliop56/tinyauth:v5.0.7"
+						digest: "sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6"
+					}
+					dependsOn: ["pocketid"], networkRefs: ["basement-core"]
+					volumes: [{id: "tinyauth-data", target: "/data", class: "persistent", backup: true}]
+					health: {kind: "command", command: ["tinyauth", "healthcheck"]}
+					resources: {memoryLimit: "256m"}
+				},
+				{
+					id: "step-ca", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "smallstep/step-ca:0.30.2"
+						digest: "sha256:a2b17872915c193259b75a5474c398326f41bd199f0842093e52cf4182bc8270"
+					}
+					dependsOn: [], networkRefs: ["basement-core"]
+					volumes: [{id: "step-ca-db", target: "/home/step/db", class: "persistent", backup: true}]
+					health: {kind: "http", path: "/health", port: 9000}
+					resources: {memoryLimit: "256m"}
+				},
+				{
+					// The resolver that makes the site's own names answer on the
+					// LAN. Pin and architecture match the lan-dns policy manifest
+					// exactly, so the declared contract and the running container
+					// cannot drift apart. Health defers to the image's own check
+					// rather than assuming which tools it ships.
+					id: "lan-dns", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/mvance/unbound:1.22.0"
+						digest: "sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90"
+					}
+					dependsOn: [], networkRefs: ["basement-core"]
+					volumes: [{id: "lan-dns-data", target: "/opt/unbound/etc/unbound", class: "persistent", backup: false}]
+					// Deliberately not the image's own HEALTHCHECK: that one runs
+					// "drill @127.0.0.1 cloudflare.com", which makes core health
+					// depend on reaching the Internet. A site that is healthy
+					// while offline must not report otherwise, so this asks the
+					// resolver for a name it answers from its built-in local
+					// zone. Site names are proven by verify, not by liveness.
+					health: {kind: "command", command: ["drill", "@127.0.0.1", "localhost", "A"]}
+					resources: {memoryLimit: "256m"}
+				},
+				{
+					id: "coolify", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/coollabsio/coolify:4.1.2"
+						digest: "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f"
+					}
+					dependsOn: ["coolify-postgres", "coolify-redis", "coolify-realtime"], networkRefs: ["basement-core", "basement-control"]
+					environment: {
+						AUTOUPDATE:         "false"
+						CDN_URL:            "http://hub/.stackkit/offline/coolify/cdn"
+						VERSIONS_URL:       "http://hub/.stackkit/offline/coolify/versions.json"
+						UPGRADE_SCRIPT_URL: "http://hub/.stackkit/offline/coolify/upgrade.sh"
+						RELEASES_URL:       "http://hub/.stackkit/offline/coolify/releases.json"
+					}
+					volumes: [
+						{id: "coolify-data", target: "/var/www/html/storage", class: "persistent", backup: true},
+						{id: "coolify-ssh", target: "/var/www/html/storage/app/ssh", class: "persistent", backup: true},
+						{id: "coolify-applications", target: "/var/www/html/storage/app/applications", class: "persistent", backup: true},
+						{id: "coolify-databases", target: "/var/www/html/storage/app/databases", class: "persistent", backup: true},
+						{id: "coolify-services", target: "/var/www/html/storage/app/services", class: "persistent", backup: true},
+						{id: "coolify-backups", target: "/var/www/html/storage/app/backups", class: "persistent", backup: true},
+					]
+					health: {kind: "http", path: "/api/health", port: 8080}
+					resources: {memoryLimit: "1g"}
+				},
+				{
+					id: "coolify-postgres", role: "database", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/library/postgres:15-alpine"
+						digest: "sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f"
+					}
+					dependsOn: [], networkRefs: ["basement-control"]
+					volumes: [{id: "coolify-postgres-data", target: "/var/lib/postgresql/data", class: "persistent", backup: true}]
+					health: {kind: "command", command: ["pg_isready", "-U", "coolify"]}
+					resources: {memoryLimit: "512m"}
+				},
+				{
+					id: "coolify-redis", role: "cache", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/library/redis:7-alpine"
+						digest: "sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99"
+					}
+					dependsOn: [], networkRefs: ["basement-control"]
+					volumes: [{id: "coolify-redis-data", target: "/data", class: "persistent", backup: true}]
+					health: {kind: "command", command: ["redis-cli", "ping"]}
+					resources: {memoryLimit: "256m"}
+				},
+				{
+					id: "coolify-realtime", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/coollabsio/coolify-realtime:1.0.16"
+						digest: "sha256:b5bb9d1c95d9b4ca59773b82d1e1a2bf4ccac5fbed33be19b9b3906574db3629"
+					}
+					dependsOn: ["coolify-redis"], networkRefs: ["basement-control"]
+					health: {kind: "http", path: "/ready", port: 6001}
+				},
+				_architectureV2LocalKopiaComponent,
+				{
+					id: "hub", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/library/nginx:alpine"
+						digest: "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"
+					}
+					dependsOn: ["tinyauth"], networkRefs: ["basement-core"]
+					health: {kind: "http", path: "/healthz", port: 80}
+					resources: {memoryLimit: "256m"}
+				},
+				_architectureV2StackKitServerComponent & {_networkRef: "basement-core"},
+			]
+		}
+		serviceControls: _basementCoreServiceControls
+		renderUnits: [
+			{
+				id:           "compose", kind:                                    "compose", rendererRef: "stackkit"
+				templateRef:  "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
+				contractHash: "sha256:5f9513fc2a4482d42ef0e0eb8b28f848fa1f13cdc561ff124dc36effa82c6f76"
+				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+				outputs: ["platform/basement-core/compose.yaml"]
+				placement: {scope: "node-local", cardinality: "one-per-node"}
+				serviceEndpoints: _basementCoreServiceEndpoints
+				runtimeListeners: _basementCoreRuntimeListeners
+			},
+			{
+				id:           "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
+				templateRef:  "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
+				contractHash: "sha256:4b5d98e6f322f5d922cb924369be44544c747d78fc8cabe0d06beb1a24c50cbf"
+				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+				outputs: ["platform/basement-core/main.tf"]
+				placement: {scope: "node-local", cardinality: "one-per-node"}
+				serviceEndpoints: _basementCoreServiceEndpoints
+				runtimeListeners: _basementCoreRuntimeListeners
+			},
+			{
+				id:              "terramate", kind:                               "terramate", rendererRef: "stackkit"
+				templateRef:     "builtin://basement/core/terramate/v1", version: "1.0.0"
+				contractHash:    "sha256:7ec10f279cb5483f6d0260ffe4f715f33f3db852838a894ba0c78e4d24baf4da"
+				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+				outputs: [
+					"platform/basement-core/main.tf",
+					"platform/basement-core/stack.tm.hcl",
+				]
+				placement: {scope: "node-local", cardinality: "one-per-node"}
+				serviceEndpoints: _basementCoreServiceEndpoints
+				runtimeListeners: _basementCoreRuntimeListeners
+			},
+			_architectureV2LocalKopiaSourceRenderUnit,
+		]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:4db83db58296db815c26fdd95b16e1f1099c6c18648be77cf60efa74da9a2e53"
+				unitRefs: ["compose", "source-policy"], artifactRefs: ["basement-core-compose", "local-kopia-backup-source-policy"]
+				publicInputRefs: ["backup-source"], secretInputRefs: []
+				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:c7628f0520224fa57f4934e20711c55f15a50f2ed00721f67e662941a616037c"
+				unitRefs: ["opentofu", "source-policy"], artifactRefs: ["basement-core-opentofu", "local-kopia-backup-source-policy"]
+				publicInputRefs: ["backup-source"], secretInputRefs: []
+				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: "sha256:7ec10f279cb5483f6d0260ffe4f715f33f3db852838a894ba0c78e4d24baf4da"
+				unitRefs: ["terramate", "source-policy"]
+				artifactRefs: [
+					"basement-core-terramate-opentofu",
+					"basement-core-terramate-stack",
+					"local-kopia-backup-source-policy",
+				]
+				publicInputRefs: ["backup-source"], secretInputRefs: []
+				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
+			},
+		]
+		realizationSupport: {
+			contractVersion: "1.0.0"
+			scope:           "concrete"
+			level:           "apply-ready"
+			compatibleRendererRefs: ["stackkit"]
+			inputs: {contractComplete: true, requiredRefs: ["backup-source"]}
+			planInputs: {
+				contractComplete: true
+				requiredRefs:     _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
+			}
+			artifacts: {
+				requiredRefs: [
+					"basement-core-compose",
+					"basement-core-opentofu",
+					"basement-core-terramate-opentofu",
+					"basement-core-terramate-stack",
+					"local-kopia-backup-source-policy",
+				]
+				outputBindings: [
+					{
+						artifactRef: "basement-core-compose", unitRef: "compose"
+						outputRef:   "platform/basement-core/compose.yaml"
+					},
+					{
+						artifactRef: "basement-core-opentofu", unitRef: "opentofu"
+						outputRef:   "platform/basement-core/main.tf"
+					},
+					{
+						artifactRef: "basement-core-terramate-opentofu", unitRef: "terramate"
+						outputRef:   "platform/basement-core/main.tf"
+					},
+					{
+						artifactRef: "basement-core-terramate-stack", unitRef: "terramate"
+						outputRef:   "platform/basement-core/stack.tm.hcl"
+					},
+					{
+						artifactRef: "local-kopia-backup-source-policy", unitRef: "source-policy"
+						outputRef:   "home/backup/kopia-source-policy.json"
+					},
+				]
+				contracts: [
+					{
+						id: "basement-core-compose", kind: "compose", format: "yaml", mode: "0640", required: true
+						compatibleTargets: ["compose"], unitRef: "compose"
+						outputRef:                               "platform/basement-core/compose.yaml"
+					},
+					{
+						id: "basement-core-opentofu", kind: "opentofu", format: "hcl", mode: "0640", required: true
+						compatibleTargets: ["opentofu"], unitRef: "opentofu"
+						outputRef:                                "platform/basement-core/main.tf"
+					},
+					{
+						id: "basement-core-terramate-opentofu", kind: "terramate", format: "hcl", mode: "0640", required: true
+						compatibleTargets: ["terramate"], unitRef: "terramate"
+						outputRef:                                 "platform/basement-core/main.tf"
+					},
+					{
+						id: "basement-core-terramate-stack", kind: "terramate", format: "hcl", mode: "0640", required: true
+						compatibleTargets: ["terramate"], unitRef: "terramate"
+						outputRef:                                 "platform/basement-core/stack.tm.hcl"
+					},
+					{
+						id: "local-kopia-backup-source-policy", kind: "native-config", format: "json", mode: "0600", required: true
+						compatibleTargets: ["compose", "opentofu", "terramate"], unitRef: "source-policy"
+						outputRef:                                                        "home/backup/kopia-source-policy.json"
+					},
+				]
+			}
+			evidence: requiredRefs: ["basement-core-runtime-evidence"]
+		}
+		health: [
+			{id: "basement-router-http", kind: "http", path: "/ping", port: 8080, expectedStatuses: [200]},
+			{id: "pocketid-http", kind: "http", path: "/", port: 1411, expectedStatuses: [200, 302]},
+			{id: "tinyauth-http", kind: "http", path: "/", port: 4000, expectedStatuses: [200, 302]},
+			{id: "step-ca-tcp", kind: "tcp", port: 9000},
+			{id: "coolify-http", kind: "http", path: "/", port: 8000, expectedStatuses: [200, 302]},
+			{id: "local-kopia-runtime-container", kind: "container", scope: "each-node"},
+			{id: "basement-hub-http", kind: "http", path: "/healthz", port: 80, expectedStatuses: [200, 301]},
+			{id: "stackkit-server-http", kind: "http", path: "/health", port: 8082, expectedStatuses: [200]},
+			{id: "stackkit-mcp-route", kind: "http", path: "/api/http/routers/stackkit-mcp@docker", port: 8080, expectedStatuses: [200]},
+		]
+		evidence: ["basement-core-runtime-evidence"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-basement-core-lite-runtime"
+			version:     "1.0.0"
+			description: "Basement core runtime without Coolify PaaS: routing, identity, internal PKI, and the operator hub."
+		}
+		role:        "workload"
+		providerRef: "stackkits-basement-core"
+		provides:    _architectureV2BasementCoreCapabilities
+		requires: ["stackkits-home-backup-target"]
+		supportedSiteKinds: ["home"]
+		nodeSelection: {
+			authority:           "control-authority-site"
+			controlPlaneMembers: "only"
+			requiredRoles: ["controller", "worker"]
+		}
+		runtimeRequirements: {
+			minCpuCores:  2
+			minRamGB:     2
+			minStorageGB: 10
+		}
+		computeProfiles:       _architectureV2BasementCoreLiteComputeProfiles
+		defaultComputeProfile: "low"
+		runtime: {
+			kind:     "container"
+			delivery: "stackkit"
+			engine:   "docker"
+			image: {
+				ref:    "docker.io/library/nginx:alpine"
+				digest: "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"
+			}
+			entryComponentRef: "hub"
+			components: [
+				{
+					id: "router", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/traefik/traefik:v3"
+						digest: "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8"
+					}
+					dependsOn: ["socket-proxy"], networkRefs: ["basement-core", "basement-control"]
+					health: {kind: "http", path: "/ping", port: 8080}
+					resources: {memoryLimit: "256m"}
+				},
+				{
+					id: "socket-proxy", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2"
+						digest: "sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476"
+					}
+					dependsOn: [], networkRefs: ["basement-control"]
+					health: {kind: "image"}
+					resources: {memoryLimit: "128m"}
+				},
+				{
+					id: "pocketid", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/pocket-id/pocket-id:v2.7.0"
+						digest: "sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e"
+					}
+					dependsOn: [], networkRefs: ["basement-core"]
+					volumes: [{id: "pocketid-data", target: "/app/data", class: "persistent", backup: true}]
+					health: {kind: "http", path: "/health", port: 1411}
+					resources: {memoryLimit: "512m"}
+				},
+				{
+					id: "tinyauth", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/steveiliop56/tinyauth:v5.0.7"
+						digest: "sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6"
+					}
+					dependsOn: ["pocketid"], networkRefs: ["basement-core"]
+					volumes: [{id: "tinyauth-data", target: "/data", class: "persistent", backup: true}]
+					health: {kind: "command", command: ["tinyauth", "healthcheck"]}
+					resources: {memoryLimit: "256m"}
+				},
+				{
+					id: "step-ca", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "smallstep/step-ca:0.30.2"
+						digest: "sha256:a2b17872915c193259b75a5474c398326f41bd199f0842093e52cf4182bc8270"
+					}
+					dependsOn: [], networkRefs: ["basement-core"]
+					volumes: [{id: "step-ca-db", target: "/home/step/db", class: "persistent", backup: true}]
+					health: {kind: "http", path: "/health", port: 9000}
+					resources: {memoryLimit: "256m"}
+				},
+				{
+					// The resolver that makes the site's own names answer on the
+					// LAN. Pin and architecture match the lan-dns policy manifest
+					// exactly, so the declared contract and the running container
+					// cannot drift apart. Health defers to the image's own check
+					// rather than assuming which tools it ships.
+					id: "lan-dns", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/mvance/unbound:1.22.0"
+						digest: "sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90"
+					}
+					dependsOn: [], networkRefs: ["basement-core"]
+					volumes: [{id: "lan-dns-data", target: "/opt/unbound/etc/unbound", class: "persistent", backup: false}]
+					// Deliberately not the image's own HEALTHCHECK: that one runs
+					// "drill @127.0.0.1 cloudflare.com", which makes core health
+					// depend on reaching the Internet. A site that is healthy
+					// while offline must not report otherwise, so this asks the
+					// resolver for a name it answers from its built-in local
+					// zone. Site names are proven by verify, not by liveness.
+					health: {kind: "command", command: ["drill", "@127.0.0.1", "localhost", "A"]}
+					resources: {memoryLimit: "256m"}
+				},
+				_architectureV2LocalKopiaComponent,
+				{
+					id: "hub", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/library/nginx:alpine"
+						digest: "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"
+					}
+					dependsOn: ["tinyauth"], networkRefs: ["basement-core"]
+					health: {kind: "http", path: "/healthz", port: 80}
+					resources: {memoryLimit: "256m"}
+				},
+				_architectureV2StackKitServerComponent & {_networkRef: "basement-core"},
+			]
+		}
+		serviceControls: _basementCoreLiteServiceControls
+		renderUnits: [
+			{
+				id:           "compose", kind:                                         "compose", rendererRef: "stackkit"
+				templateRef:  "builtin://basement/core-lite/compose/v1.yaml", version: "1.0.0"
+				contractHash: "sha256:9347b8814c03c8e33f0120768078f82bc4d02ab5e490983a7931abfe0ea65b4c"
+				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+				outputs: ["platform/basement-core-lite/compose.yaml"]
+				placement: {scope: "node-local", cardinality: "one-per-node"}
+				serviceEndpoints: _basementCoreLiteServiceEndpoints
+				runtimeListeners: _basementCoreLiteRuntimeListeners
+			},
+			{
+				id:           "opentofu", kind:                                       "opentofu", rendererRef: "stackkit"
+				templateRef:  "builtin://basement/core-lite/opentofu/v1.tf", version: "1.0.0"
+				contractHash: "sha256:c2a2fc6d92a29440e3fb39232815f4df8007731e52798eaae8511f2fc8a9caf0"
+				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+				outputs: ["platform/basement-core-lite/main.tf"]
+				placement: {scope: "node-local", cardinality: "one-per-node"}
+				serviceEndpoints: _basementCoreLiteServiceEndpoints
+				runtimeListeners: _basementCoreLiteRuntimeListeners
+			},
+			{
+				id:              "terramate", kind:                                    "terramate", rendererRef: "stackkit"
+				templateRef:     "builtin://basement/core-lite/terramate/v1", version: "1.0.0"
+				contractHash:    "sha256:23d947aef35b7fbfe3b7667765361fdf0033ce3a2e44f8223c1b7ac090949036"
+				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+				outputs: [
+					"platform/basement-core-lite/main.tf",
+					"platform/basement-core-lite/stack.tm.hcl",
+				]
+				placement: {scope: "node-local", cardinality: "one-per-node"}
+				serviceEndpoints: _basementCoreLiteServiceEndpoints
+				runtimeListeners: _basementCoreLiteRuntimeListeners
+			},
+			_architectureV2LocalKopiaSourceRenderUnit & {_outputRef: "home/backup/kopia-source-policy-lite.json"},
+		]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:01285f8be5db5c502de2ee4b53337ff4a46d8466e11ee14bfa43e8bb49702848"
+				unitRefs: ["compose", "source-policy"], artifactRefs: ["basement-core-lite-compose", "local-kopia-backup-source-policy-lite"]
+				publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: []
+				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:bf2e7666c7d2b3b994e82cf64a5469323521a4a4070d9bafc6a73b179029c6a7"
+				unitRefs: ["opentofu", "source-policy"], artifactRefs: ["basement-core-lite-opentofu", "local-kopia-backup-source-policy-lite"]
+				publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: []
+				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: "sha256:23d947aef35b7fbfe3b7667765361fdf0033ce3a2e44f8223c1b7ac090949036"
+				unitRefs: ["terramate", "source-policy"]
+				artifactRefs: [
+					"basement-core-lite-terramate-opentofu",
+					"basement-core-lite-terramate-stack",
+					"local-kopia-backup-source-policy-lite",
+				]
+				publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: []
+				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
+			},
+		]
+		realizationSupport: {
+			contractVersion: "1.0.0"
+			scope:           "concrete"
+			level:           "apply-ready"
+			compatibleRendererRefs: ["stackkit"]
+			inputs: {contractComplete: true, requiredRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs}
+			planInputs: {contractComplete: true, requiredRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs}
+			artifacts: {
+				requiredRefs: [
+					"basement-core-lite-compose",
+					"basement-core-lite-opentofu",
+					"basement-core-lite-terramate-opentofu",
+					"basement-core-lite-terramate-stack",
+					"local-kopia-backup-source-policy-lite",
+				]
+				outputBindings: [
+					{
+						artifactRef: "basement-core-lite-compose", unitRef: "compose"
+						outputRef:   "platform/basement-core-lite/compose.yaml"
+					},
+					{
+						artifactRef: "basement-core-lite-opentofu", unitRef: "opentofu"
+						outputRef:   "platform/basement-core-lite/main.tf"
+					},
+					{
+						artifactRef: "basement-core-lite-terramate-opentofu", unitRef: "terramate"
+						outputRef:   "platform/basement-core-lite/main.tf"
+					},
+					{
+						artifactRef: "basement-core-lite-terramate-stack", unitRef: "terramate"
+						outputRef:   "platform/basement-core-lite/stack.tm.hcl"
+					},
+					{
+						artifactRef: "local-kopia-backup-source-policy-lite", unitRef: "source-policy"
+						outputRef:   "home/backup/kopia-source-policy-lite.json"
+					},
+				]
+				contracts: [
+					{
+						id: "basement-core-lite-compose", kind: "compose", format: "yaml", mode: "0640", required: true
+						compatibleTargets: ["compose"], unitRef: "compose"
+						outputRef:                               "platform/basement-core-lite/compose.yaml"
+					},
+					{
+						id: "basement-core-lite-opentofu", kind: "opentofu", format: "hcl", mode: "0640", required: true
+						compatibleTargets: ["opentofu"], unitRef: "opentofu"
+						outputRef:                                "platform/basement-core-lite/main.tf"
+					},
+					{
+						id: "basement-core-lite-terramate-opentofu", kind: "terramate", format: "hcl", mode: "0640", required: true
+						compatibleTargets: ["terramate"], unitRef: "terramate"
+						outputRef:                                 "platform/basement-core-lite/main.tf"
+					},
+					{
+						id: "basement-core-lite-terramate-stack", kind: "terramate", format: "hcl", mode: "0640", required: true
+						compatibleTargets: ["terramate"], unitRef: "terramate"
+						outputRef:                                 "platform/basement-core-lite/stack.tm.hcl"
+					},
+					{
+						id: "local-kopia-backup-source-policy-lite", kind: "native-config", format: "json", mode: "0600", required: true
+						compatibleTargets: ["compose", "opentofu", "terramate"], unitRef: "source-policy"
+						outputRef:                                                        "home/backup/kopia-source-policy-lite.json"
+					},
+				]
+			}
+			evidence: requiredRefs: ["basement-core-runtime-evidence"]
+		}
+		health: [
+			{id: "basement-router-http", kind: "http", path: "/ping", port: 8080, expectedStatuses: [200]},
+			{id: "pocketid-http", kind: "http", path: "/", port: 1411, expectedStatuses: [200, 302]},
+			{id: "tinyauth-http", kind: "http", path: "/", port: 4000, expectedStatuses: [200, 302]},
+			{id: "step-ca-tcp", kind: "tcp", port: 9000},
+			{id: "local-kopia-runtime-container", kind: "container", scope: "each-node"},
+			{id: "basement-hub-http", kind: "http", path: "/healthz", port: 80, expectedStatuses: [200, 301]},
+			{id: "stackkit-server-http", kind: "http", path: "/health", port: 8082, expectedStatuses: [200]},
+			{id: "stackkit-mcp-route", kind: "http", path: "/api/http/routers/stackkit-mcp@docker", port: 8080, expectedStatuses: [200]},
+		]
+		evidence: ["basement-core-runtime-evidence"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-immich-runtime"
+			version:     "1.0.1"
+			description: "Immich photo service contract bound to the control-authority site and its personal-data primary."
+		}
+		role:        "workload"
+		providerRef: "stackkits-immich"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2ImmichComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "immich-server"
+			components: [
+				{
+					id:    "immich-server", role: "application", lifecycle: "daemon"
+					image: _architectureV2ImmichServerImage
+					dependsOn: ["immich-machine-learning", "immich-postgres-init", "immich-valkey"]
+					networkRefs: ["immich-internal"]
+					environment: {
+						DB_HOSTNAME:    "immich-postgres", DB_PORT:  "5432", DB_USERNAME:                 "immich", DB_DATABASE_NAME: "immich"
+						REDIS_HOSTNAME: "immich-valkey", REDIS_PORT: "6379", IMMICH_MACHINE_LEARNING_URL: "http://immich-machine-learning:3003"
+					}
+					secretEnvironment: DB_PASSWORD: "database-password"
+					volumes: [for allocation in _architectureV2PhotosInfrastructure.storageAllocation.allocations if allocation.componentRef == "immich-server" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "http", path: "/api/server/ping", port: 2283}
+					resources: {memoryLimit: "3g", memoryReservation: "512m"}
+				},
+				{
+					id: "immich-machine-learning", role: "machine-learning", lifecycle: "daemon"
+					healthFailure: "degraded"
+					image: {
+						ref:    "ghcr.io/immich-app/immich-machine-learning:v2.7.0"
+						digest: "sha256:aff861526d690bb720130a46bd48ee2827c44d2f601a194e61f31e979a591952"
+					}
+					dependsOn: [], networkRefs: ["immich-internal"], egress: true
+					volumes: [for allocation in _architectureV2PhotosInfrastructure.storageAllocation.allocations if allocation.componentRef == "immich-machine-learning" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					// The image's own healthcheck inherits Docker's defaults, which
+					// give this model server no start period and mark it unhealthy
+					// before it finishes loading. Running the same script as a
+					// declared command health gets the generous renderer timings.
+					health: {kind: "command", command: ["python3", "healthcheck.py"]}
+					resources: {memoryLimit: "3g", memoryReservation: "512m"}
+				},
+				{
+					id: "immich-postgres", role: "database", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
+						digest: "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"
+					}
+					dependsOn: [], networkRefs: ["immich-internal"]
+					environment: {POSTGRES_USER: "immich", POSTGRES_DB: "immich", POSTGRES_INITDB_ARGS: "--data-checksums"}
+					secretEnvironment: POSTGRES_PASSWORD: "database-password"
+					volumes: [for allocation in _architectureV2PhotosInfrastructure.storageAllocation.allocations if allocation.componentRef == "immich-postgres" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "command", command: ["pg_isready", "-U", "immich", "-d", "postgres"]}
+					resources: {memoryLimit: "2g", memoryReservation: "256m"}
+				},
+				{
+					id: "immich-postgres-init", role: "database-init", lifecycle: "one-shot"
+					image: {
+						ref:    "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
+						digest: "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"
+					}
+					dependsOn: ["immich-postgres"], networkRefs: ["immich-internal"]
+					command: ["sh", "-c", "until pg_isready -h immich-postgres -U immich -d postgres; do sleep 1; done; psql -h immich-postgres -U immich -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname = 'immich'\" | grep -q 1 || createdb -h immich-postgres -U immich immich"]
+					environment: {PGUSER: "immich"}
+					secretEnvironment: PGPASSWORD: "database-password"
+					health: {kind: "completion"}
+					resources: {memoryLimit: "256m"}
+				},
+				{
+					id: "immich-valkey", role: "cache", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/valkey/valkey:9"
+						digest: "sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9"
+					}
+					dependsOn: [], networkRefs: ["immich-internal"]
+					command: ["valkey-server"]
+					health: {kind: "command", command: ["redis-cli", "ping"]}
+					resources: {memoryLimit: "512m", memoryReservation: "64m"}
+				},
+			]
+		}
+		renderUnits: [{
+			id:          "immich-server"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/immich/bundle/v2.json"
+			version:      "3.1.0"
+			contractHash: "sha256:bee5bc6660563dd30c44483b33d6247c501cc2ac5c493ba18c362ed1ea403a12"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["database-password"]
+			outputs: ["workloads/immich/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "photos"
+				upstreamProtocol: "http"
+				targetPort:       2283
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "immich-http"
+				data: {
+					bindingRef:      _architectureV2PhotosInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2PhotosInfrastructure.dataBinding.classes
+					locality:        _architectureV2PhotosInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2ImmichTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:383c8a53811d3c7abb2049a188af77152367ea56b7c47716dc9a7144b7cda99e"
+				unitRefs: ["immich-server"], artifactRefs: ["immich-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:c8cafbfb8ada7743566432b94ad908dfaef53b62db343f80e38fad5c34ab9d33"
+				unitRefs: ["immich-server"], artifactRefs: ["immich-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["immich-server", "terramate-stack"], artifactRefs: ["immich-workload-bundle", _architectureV2ImmichTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2ImmichSupport
+		health: [{
+			id:             "immich-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/api/server/ping"
+			port:           2283
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["SK-S1", "SK-S2", "SK-S4", "immich-selected-paas-runtime-contract"]
+		rilActionPrimitives: [{
+			id:      "inspect-immich-runtime-health", version: "1.0.0", title:     "Inspect governed Immich runtime health", category: "verify"
+			support: "contract-only", mutation:                false, destructive: false, risk:                                        "read-only"
+			owner: {authority: "stackkits", operationClass: "immich-health-readback"}
+			extensionAuthority: {
+				kind: "module", moduleRef: "stackkits-immich-runtime", providerRef: "stackkits-immich"
+			}
+			approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+			grant: {required: true, audience: "stackkits", scopes: ["stackkit-immich-health-read"], connectorBindingRequired: true}
+			target: {scope: "module-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
+			inputs: []
+			verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["readback"]}
+			recovery: {kind: "none", requiredOnFailure: false}
+		}]
+	},
+	{
+		metadata: {
+			id:          "stackkits-immich-lite-runtime"
+			version:     "1.0.0"
+			description: "Immich photo service without machine-learning, bound to the control-authority site and its personal-data primary."
+		}
+		role:        "workload"
+		providerRef: "stackkits-immich-lite"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2ImmichLiteComputeProfiles
+		defaultComputeProfile: "low"
+		runtime: {
+			kind:              "container"
+			delivery:          "application-adapter"
+			engine:            "docker"
+			image:             _architectureV2ImmichServerImage
+			entryComponentRef: "immich-server"
+			components: [
+				{
+					id:    "immich-server", role: "application", lifecycle: "daemon"
+					image: _architectureV2ImmichServerImage
+					dependsOn: ["immich-postgres-init", "immich-valkey"]
+					networkRefs: ["immich-internal"]
+					environment: {
+						DB_HOSTNAME:                     "immich-postgres", DB_PORT:  "5432", DB_USERNAME: "immich", DB_DATABASE_NAME: "immich"
+						REDIS_HOSTNAME:                  "immich-valkey", REDIS_PORT: "6379"
+						IMMICH_MACHINE_LEARNING_ENABLED: "false"
+					}
+					secretEnvironment: DB_PASSWORD: "database-password"
+					volumes: [for allocation in _architectureV2PhotosLiteInfrastructure.storageAllocation.allocations if allocation.componentRef == "immich-server" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "http", path: "/api/server/ping", port: 2283}
+					resources: {memoryLimit: "3g", memoryReservation: "512m"}
+				},
+				{
+					id: "immich-postgres", role: "database", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
+						digest: "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"
+					}
+					dependsOn: [], networkRefs: ["immich-internal"]
+					environment: {POSTGRES_USER: "immich", POSTGRES_DB: "immich", POSTGRES_INITDB_ARGS: "--data-checksums"}
+					secretEnvironment: POSTGRES_PASSWORD: "database-password"
+					volumes: [for allocation in _architectureV2PhotosLiteInfrastructure.storageAllocation.allocations if allocation.componentRef == "immich-postgres" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "command", command: ["pg_isready", "-U", "immich", "-d", "postgres"]}
+					resources: {memoryLimit: "2g", memoryReservation: "256m"}
+				},
+				{
+					id: "immich-postgres-init", role: "database-init", lifecycle: "one-shot"
+					image: {
+						ref:    "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0"
+						digest: "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"
+					}
+					dependsOn: ["immich-postgres"], networkRefs: ["immich-internal"]
+					command: ["sh", "-c", "until pg_isready -h immich-postgres -U immich -d postgres; do sleep 1; done; psql -h immich-postgres -U immich -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname = 'immich'\" | grep -q 1 || createdb -h immich-postgres -U immich immich"]
+					environment: {PGUSER: "immich"}
+					secretEnvironment: PGPASSWORD: "database-password"
+					health: {kind: "completion"}
+					resources: {memoryLimit: "256m"}
+				},
+				{
+					id: "immich-valkey", role: "cache", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/valkey/valkey:9"
+						digest: "sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9"
+					}
+					dependsOn: [], networkRefs: ["immich-internal"]
+					command: ["valkey-server"]
+					health: {kind: "command", command: ["redis-cli", "ping"]}
+					resources: {memoryLimit: "512m", memoryReservation: "64m"}
+				},
+			]
+		}
+		renderUnits: [{
+			id:          "immich-server"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/immich-lite/bundle/v2.json"
+			version:      "3.1.0"
+			contractHash: "sha256:5eb57d279f18736169bef048d15a7328162848d3ab2750452f2d057637d0fe17"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["database-password"]
+			outputs: ["workloads/immich-lite/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "photos"
+				upstreamProtocol: "http"
+				targetPort:       2283
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "immich-http"
+				data: {
+					bindingRef:      _architectureV2PhotosLiteInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2PhotosLiteInfrastructure.dataBinding.classes
+					locality:        _architectureV2PhotosLiteInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2ImmichLiteTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:5eb57d279f18736169bef048d15a7328162848d3ab2750452f2d057637d0fe17"
+				unitRefs: ["immich-server"], artifactRefs: ["immich-lite-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:5eb57d279f18736169bef048d15a7328162848d3ab2750452f2d057637d0fe17"
+				unitRefs: ["immich-server"], artifactRefs: ["immich-lite-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["immich-server", "terramate-stack"], artifactRefs: ["immich-lite-workload-bundle", _architectureV2ImmichLiteTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2ImmichLiteSupport
+		health: [{
+			id:             "immich-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/api/server/ping"
+			port:           2283
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["SK-S1", "SK-S2", "SK-S4", "immich-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-nextcloud-runtime"
+			version:     "1.0.0"
+			description: "Nextcloud Server with upstream PostgreSQL and Valkey on one owner-selected node."
+		}
+		role:        "workload"
+		providerRef: "stackkits-nextcloud"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {authority: "control-authority-site", requiredRoles: ["worker"]}
+		computeProfiles:       _architectureV2NextcloudComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:              "container", delivery: "application-adapter", engine: "docker"
+			image:             components[0].image
+			entryComponentRef: "nextcloud"
+			components: [
+				{
+					id: "nextcloud", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/library/nextcloud:35.0.1-apache"
+						digest: "sha256:276547e033df451770dbf9c0065929e5ea179a613b1884bd3fa807ba1c2703e7"
+					}
+					dependsOn: ["nextcloud-postgres", "nextcloud-valkey"]
+					networkRefs: ["nextcloud-internal"]
+					environment: {
+						POSTGRES_HOST:        "nextcloud-postgres"
+						POSTGRES_DB:          "nextcloud"
+						POSTGRES_USER:        "nextcloud"
+						REDIS_HOST:           "nextcloud-valkey"
+						NEXTCLOUD_ADMIN_USER: "owner"
+						OVERWRITEPROTOCOL:    "https"
+						TRUSTED_PROXIES:      "10.0.0.0/8 172.16.0.0/12 192.168.0.0/16"
+					}
+					secretEnvironment: {
+						POSTGRES_PASSWORD:        "database-password"
+						NEXTCLOUD_ADMIN_PASSWORD: "owner-password"
+					}
+					volumes: [for allocation in _architectureV2FilesNextcloudInfrastructure.storageAllocation.allocations if allocation.componentRef == "nextcloud" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "http", path: "/status.php", port: 80}
+					resources: {memoryLimit: "3g", memoryReservation: "512m"}
+				},
+				{
+					id: "nextcloud-postgres", role: "database", lifecycle: "daemon"
+					image: _architectureV2PaperlessPostgresImage
+					dependsOn: [], networkRefs: ["nextcloud-internal"]
+					environment: {POSTGRES_DB: "nextcloud", POSTGRES_USER: "nextcloud"}
+					secretEnvironment: POSTGRES_PASSWORD: "database-password"
+					volumes: [for allocation in _architectureV2FilesNextcloudInfrastructure.storageAllocation.allocations if allocation.componentRef == "nextcloud-postgres" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "command", command: ["pg_isready", "-U", "nextcloud", "-d", "nextcloud"]}
+					resources: {memoryLimit: "1g", memoryReservation: "256m"}
+				},
+				{
+					id: "nextcloud-valkey", role: "cache", lifecycle: "daemon"
+					image: _architectureV2PaperlessValkeyImage
+					dependsOn: [], networkRefs: ["nextcloud-internal"]
+					command: ["valkey-server"]
+					volumes: [for allocation in _architectureV2FilesNextcloudInfrastructure.storageAllocation.allocations if allocation.componentRef == "nextcloud-valkey" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "command", command: ["valkey-cli", "ping"]}
+					resources: {memoryLimit: "256m", memoryReservation: "64m"}
+				},
+			]
+		}
+		renderUnits: [{
+			id: "nextcloud", kind: "native-config", rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/nextcloud/bundle/v2.json", version: "2.0.0"
+			contractHash: "sha256:ef3b156d4f5cf1602a6be71753c70d14ef0e28bbe5b5d096d5985ca4f61c3b4d"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
+			secretInputRefs: ["database-password", "owner-password"]
+			outputs: ["workloads/nextcloud/bundle.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: [{
+				serviceRef:        "files", upstreamProtocol: "http", targetPort: 80
+				requiredPrivilege: "user", ingressAuth: "forward-auth", allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site", healthRef: "nextcloud-http"
+				data: {bindingRef: _architectureV2FilesNextcloudInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2FilesNextcloudInfrastructure.dataBinding.classes, locality: _architectureV2FilesNextcloudInfrastructure.dataBinding.locality}
+			}]
+		}, _architectureV2NextcloudTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["nextcloud"], artifactRefs: ["nextcloud-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "owner-password"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["nextcloud"], artifactRefs: ["nextcloud-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "owner-password"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["nextcloud", "terramate-stack"], artifactRefs: ["nextcloud-workload-bundle", _architectureV2NextcloudTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "owner-password"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2NextcloudSupport
+		health: [{
+			id:             "nextcloud-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/status.php"
+			port:           80
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["nextcloud-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-cloudreve-runtime"
+			version:     "1.0.0"
+			description: "Cloudreve file service contract bound to one selected site and its personal-data primary."
+		}
+		role:        "workload"
+		providerRef: "stackkits-cloudreve"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2CloudreveComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "cloudreve"
+			components: [{
+				id: "cloudreve", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "docker.io/cloudreve/cloudreve:4.18.0"
+					digest: "sha256:f7a464100bf6325e9ba58cb2b0ee60f9a24c58fc2eb90647720bc4b8f3cddd9a"
+				}
+				dependsOn: []
+				networkRefs: ["cloudreve-internal"]
+				volumes: [for allocation in _architectureV2FilesInfrastructure.storageAllocation.allocations if allocation.componentRef == "cloudreve" {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+				}]
+				health: {kind: "http", path: "/", port: 5212}
+				resources: {memoryLimit: "1g", memoryReservation: "128m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "cloudreve"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/cloudreve/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:c7565fd38e01c503125d879f2b5e981955071a3d6d51a00ff8355abf47e1f364"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: []
+			outputs: ["workloads/cloudreve/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "files"
+				upstreamProtocol: "http"
+				targetPort:       5212
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "cloudreve-http"
+				data: {
+					bindingRef:      _architectureV2FilesInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2FilesInfrastructure.dataBinding.classes
+					locality:        _architectureV2FilesInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2CloudreveTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:351ef1abec597588906c6abedfeb95c85fe8fed5be63937c16a0c178c1210130"
+				unitRefs: ["cloudreve"], artifactRefs: ["cloudreve-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:58609d10adde5f149301184cd8f24c375da1f8eadd6f2ce8e83c58c3dca34520"
+				unitRefs: ["cloudreve"], artifactRefs: ["cloudreve-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["cloudreve", "terramate-stack"], artifactRefs: ["cloudreve-workload-bundle", _architectureV2CloudreveTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2CloudreveSupport
+		health: [{
+			id:             "cloudreve-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/"
+			port:           5212
+			timeoutSeconds: 10
+			expectedStatuses: [200, 302]
+		}]
+		evidence: ["cloudreve-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-passbolt-runtime"
+			version:     "1.0.0"
+			description: "Passbolt Community Edition with MariaDB on one owner-selected node; server keys and encrypted secrets stay on that node."
+		}
+		role:        "workload"
+		providerRef: "stackkits-passbolt"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {authority: "control-authority-site", requiredRoles: ["worker"]}
+		computeProfiles:       _architectureV2PassboltComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:              "container", delivery: "application-adapter", engine: "docker"
+			image:             components[0].image
+			entryComponentRef: "passbolt"
+			components: [
+				{
+					id: "passbolt", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/passbolt/passbolt:5.16.0-1-ce-non-root"
+						digest: "sha256:1f6aba5b18199809de9aaec17ba1525b88ac75be9390c5fc343b88a9b18f525d"
+					}
+					dependsOn: ["passbolt-mariadb"]
+					// Upstream waits for MariaDB before its install and migrations run.
+					command: ["/usr/bin/wait-for.sh", "-t", "0", "passbolt-mariadb:3306", "--", "/docker-entrypoint.sh"]
+					networkRefs: ["passbolt-internal"]
+					environment: {
+						DATASOURCES_DEFAULT_HOST:     "passbolt-mariadb"
+						DATASOURCES_DEFAULT_USERNAME: "passbolt"
+						DATASOURCES_DEFAULT_DATABASE: "passbolt"
+						PASSBOLT_SSL_FORCE:           "false"
+						PASSBOLT_REGISTRATION_PUBLIC: "false"
+					}
+					secretEnvironment: DATASOURCES_DEFAULT_PASSWORD: "database-password"
+					volumes: [for allocation in _architectureV2VaultPassboltInfrastructure.storageAllocation.allocations if allocation.componentRef == "passbolt" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "http", path: "/healthcheck/status.json", port: 8080}
+					resources: {memoryLimit: "1g", memoryReservation: "256m"}
+				},
+				{
+					id: "passbolt-mariadb", role: "database", lifecycle: "daemon"
+					image: {
+						ref:    "docker.io/library/mariadb:11.8.9"
+						digest: "sha256:79d59758afc91b89b120b0a8904d637f5a3b3e1c4900f29b740d6d46c72fef68"
+					}
+					dependsOn: [], networkRefs: ["passbolt-internal"]
+					environment: {MARIADB_DATABASE: "passbolt", MARIADB_USER: "passbolt"}
+					secretEnvironment: {MARIADB_PASSWORD: "database-password", MARIADB_ROOT_PASSWORD: "database-root-password"}
+					volumes: [for allocation in _architectureV2VaultPassboltInfrastructure.storageAllocation.allocations if allocation.componentRef == "passbolt-mariadb" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "command", command: ["healthcheck.sh", "--connect", "--innodb_initialized"]}
+					resources: {memoryLimit: "1g", memoryReservation: "256m"}
+				},
+			]
+		}
+		renderUnits: [{
+			id: "passbolt", kind: "native-config", rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/passbolt/bundle/v2.json", version: "2.0.0"
+			contractHash: "sha256:74402979766ba491481d6916fde07f10df59c9e055b49ed731d6956597b99b4c"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
+			secretInputRefs: ["database-password", "database-root-password"]
+			outputs: ["workloads/passbolt/bundle.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: [{
+				serviceRef:        "vault", upstreamProtocol: "http", targetPort: 8080
+				requiredPrivilege: "user", ingressAuth: "forward-auth", allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site", healthRef: "passbolt-http"
+				data: {bindingRef: _architectureV2VaultPassboltInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2VaultPassboltInfrastructure.dataBinding.classes, locality: _architectureV2VaultPassboltInfrastructure.dataBinding.locality}
+			}]
+		}, _architectureV2PassboltTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["passbolt"], artifactRefs: ["passbolt-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "database-root-password"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["passbolt"], artifactRefs: ["passbolt-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "database-root-password"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["passbolt", "terramate-stack"], artifactRefs: ["passbolt-workload-bundle", _architectureV2PassboltTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "database-root-password"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2PassboltSupport
+		health: [{
+			id:             "passbolt-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/healthcheck/status.json"
+			port:           8080
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["passbolt-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-vaultwarden-runtime"
+			version:     "1.0.0"
+			description: "Vaultwarden password-vault contract bound to one selected site and its secret-data primary."
+		}
+		role:        "workload"
+		providerRef: "stackkits-vaultwarden"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2VaultwardenComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "vaultwarden"
+			components: [{
+				id: "vaultwarden", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "ghcr.io/dani-garcia/vaultwarden:1.37.2"
+					digest: "sha256:094b5689ed81549bd293418395c7cf495ae9d960fc2d4928cef2083ef913d912"
+				}
+				dependsOn: []
+				networkRefs: ["vaultwarden-internal"]
+				environment: SIGNUPS_ALLOWED:   "false"
+				secretEnvironment: ADMIN_TOKEN: "admin-token"
+				volumes: [for allocation in _architectureV2VaultInfrastructure.storageAllocation.allocations if allocation.componentRef == "vaultwarden" {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+				}]
+				health: {kind: "http", path: "/alive", port: 80}
+				resources: {memoryLimit: "512m", memoryReservation: "64m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "vaultwarden"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/vaultwarden/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:9355fcb2ec38ca6805efa7eaec56029d40fc63338ff4dc3a530c650b43b52e7e"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["admin-token"]
+			outputs: ["workloads/vaultwarden/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:        "vault"
+				upstreamProtocol:  "http"
+				targetPort:        80
+				requiredPrivilege: "vault"
+				ingressAuth:        "forward-auth"
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "vaultwarden-http"
+				data: {
+					bindingRef:      _architectureV2VaultInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2VaultInfrastructure.dataBinding.classes
+					locality:        _architectureV2VaultInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2VaultwardenTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["vaultwarden"], artifactRefs: ["vaultwarden-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["admin-token"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["vaultwarden"], artifactRefs: ["vaultwarden-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["admin-token"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["vaultwarden", "terramate-stack"], artifactRefs: ["vaultwarden-workload-bundle", _architectureV2VaultwardenTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["admin-token"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2VaultwardenSupport
+		health: [{
+			id:             "vaultwarden-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/alive"
+			port:           80
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["vaultwarden-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-private-ai-runtime"
+			version:     "1.0.0"
+			description: "Private AI chat and CPU inference on one selected node with persistent models and owner data."
+		}
+		role:        "workload"
+		providerRef: "stackkits-private-ai"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2PrivateAIComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:              "container"
+			delivery:          "application-adapter"
+			engine:            "docker"
+			image:             _architectureV2PrivateAIImage
+			entryComponentRef: "open-webui"
+			components: [{
+				id:    "open-webui", role: "application", lifecycle: "daemon"
+				image: _architectureV2PrivateAIImage
+				dependsOn: ["ollama"]
+				networkRefs: ["private-ai-internal"]
+				environment: {OFFLINE_MODE: "true", HF_HUB_OFFLINE: "1", OLLAMA_BASE_URL: "http://ollama:11434", ENABLE_SIGNUP: "false", ENABLE_PERSISTENT_CONFIG: "false", ENABLE_OPENAI_API: "false", RAG_EMBEDDING_MODEL_AUTO_UPDATE: "false", WHISPER_MODEL_AUTO_UPDATE: "false"}
+				ownerEnvironment: {WEBUI_ADMIN_EMAIL: "email"}
+				secretEnvironment: {WEBUI_ADMIN_PASSWORD: "owner-password", WEBUI_SECRET_KEY: "session-key"}
+				volumes: [{id: "data", target: "/app/backend/data", class: "persistent", backup: true}]
+				health: {kind: "http", path: "/health", port: 8080}
+				resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			}, {
+				id: "ollama", role: "application", lifecycle: "daemon", egress: true
+				image: {ref: "docker.io/ollama/ollama:0.34.0", digest: "sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba"}
+				dependsOn: []
+				networkRefs: ["private-ai-internal"]
+				environment: {OLLAMA_KEEP_ALIVE: "5m"}
+				volumes: [{id: "models", target: "/root/.ollama", class: "persistent", backup: false}]
+				health: {kind: "command", command: ["ollama", "list"]}
+				resources: {memoryLimit: "6g", memoryReservation: "1g"}
+			}]
+		}
+		renderUnits: [{
+			id:          "private-ai"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/private-ai/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:a8e2e18dfbc0f0d17e11d6ac959c9313a501370c37f1d9f8ff2ea63f3e4c64bf"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["owner-password", "session-key"]
+			outputs: ["workloads/private-ai/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:        "ai"
+				upstreamProtocol:  "http"
+				targetPort:        8080
+				requiredPrivilege: "user"
+				ingressAuth:        "forward-auth"
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "private-ai-http"
+				data: {
+					bindingRef:      _architectureV2AIInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2AIInfrastructure.dataBinding.classes
+					locality:        _architectureV2AIInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2PrivateAITerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["private-ai"], artifactRefs: ["private-ai-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["private-ai"], artifactRefs: ["private-ai-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["private-ai", "terramate-stack"], artifactRefs: ["private-ai-workload-bundle", _architectureV2PrivateAITerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2PrivateAISupport
+		health: [{
+			id:             "private-ai-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/health"
+			port:           8080
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["private-ai-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-gitea-runtime"
+			version:     "1.0.0"
+			description: "Private repositories, SQLite metadata, LFS objects and configuration on one owner-selected node."
+		}
+		role:        "workload"
+		providerRef: "stackkits-gitea"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2GiteaComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:              "container"
+			delivery:          "application-adapter"
+			engine:            "docker"
+			image:             components[0].image
+			entryComponentRef: "gitea"
+			components: [
+				{
+					"id":        "gitea"
+					"role":      "application"
+					"lifecycle": "daemon"
+					"image": {
+						"ref":    "docker.gitea.com/gitea:1.27.3-rootless"
+						"digest": "sha256:1c17ecaead42eb3b5391553d8708103a4beb0e86edf5b9ebc1eb269c318845f2"
+					}
+					"dependsOn": []
+					"networkRefs": [
+						"gitea-internal",
+					]
+					"command": [
+						"/bin/sh",
+						"-ec",
+						"gitea -c \"$GITEA_APP_INI\" migrate && users=$(gitea -c \"$GITEA_APP_INI\" admin user list) && owner=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ && $2 == \"owner\" {print $3 \" \" $4 \" \" $5}') && if [ -n \"$owner\" ]; then [ \"$owner\" = \"$STACKKITS_OWNER_EMAIL true true\" ] || { echo 'Existing Gitea owner does not match local custody' >&2; exit 1; }; else count=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ {n++} END {print n+0}'); [ \"$count\" = 0 ] || { echo 'Existing Gitea users require explicit owner reconciliation' >&2; exit 1; }; gitea -c \"$GITEA_APP_INI\" admin user create --username owner --email \"$STACKKITS_OWNER_EMAIL\" --password \"$STACKKITS_OWNER_PASSWORD\" --admin --must-change-password=false; fi && unset STACKKITS_OWNER_PASSWORD && exec gitea -c \"$GITEA_APP_INI\" web",
+					]
+					"environment": {
+						"GITEA__database__DB_TYPE":             "sqlite3"
+						"GITEA__database__PATH":                "/var/lib/gitea/data/gitea.db"
+						"GITEA__security__INSTALL_LOCK":        "true"
+						"GITEA__service__DISABLE_REGISTRATION": "true"
+						"GITEA__service__REQUIRE_SIGNIN_VIEW":  "true"
+						"GITEA__repository__FORCE_PRIVATE":     "true"
+						"GITEA__repository__DEFAULT_PRIVATE":   "private"
+						"GITEA__server__DISABLE_SSH":           "true"
+						"GITEA__actions__ENABLED":              "false"
+						"GITEA__security__REVERSE_PROXY_LIMIT": "0"
+					}
+					"ownerEnvironment": {
+						"STACKKITS_OWNER_EMAIL": "email"
+					}
+					"secretEnvironment": {
+						"STACKKITS_OWNER_PASSWORD": "owner-password"
+					}
+					"volumes": [
+						{
+							"id":     "data"
+							"target": "/var/lib/gitea"
+							"class":  "persistent"
+							"backup": true
+						},
+						{
+							"id":     "config"
+							"target": "/etc/gitea"
+							"class":  "persistent"
+							"backup": true
+						},
+					]
+					"health": {
+						"kind": "http"
+						"path": "/api/healthz"
+						"port": 3000
+					}
+					"resources": {
+						"memoryLimit":       "2g"
+						"memoryReservation": "256m"
+					}
+				},
+			]
+		}
+		renderUnits: [{
+			id:          "gitea"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/gitea/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:91430de555e07a2df848d5ab81fb85d1af41008f599662c23d68cc837291ddd9"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["owner-password"]
+			outputs: ["workloads/gitea/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:        "dev"
+				upstreamProtocol:  "http"
+				targetPort:        3000
+				requiredPrivilege: "user"
+				ingressAuth:        "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "gitea-http"
+				data: {
+					bindingRef:      _architectureV2DevInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2DevInfrastructure.dataBinding.classes
+					locality:        _architectureV2DevInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2GiteaTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["gitea"], artifactRefs: ["gitea-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["gitea"], artifactRefs: ["gitea-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["gitea", "terramate-stack"], artifactRefs: ["gitea-workload-bundle", _architectureV2GiteaTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2GiteaSupport
+		health: [{
+			id:             "gitea-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/api/healthz"
+			port:           3000
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["gitea-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-forgejo-runtime"
+			version:     "1.0.0"
+			description: "Forgejo private repositories, SQLite metadata, LFS objects and configuration on one owner-selected node."
+		}
+		role:        "workload"
+		providerRef: "stackkits-forgejo"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2ForgejoComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:              "container"
+			delivery:          "application-adapter"
+			engine:            "docker"
+			image:             components[0].image
+			entryComponentRef: "forgejo"
+			components: [
+				{
+					"id":        "forgejo"
+					"role":      "application"
+					"lifecycle": "daemon"
+					"image": {
+						"ref":    "codeberg.org/forgejo/forgejo:16.0.5-rootless"
+						"digest": "sha256:5effb7305584aca479b29fde6f9631a6dbe86ae798ae02eeea33a3666f0c0bf8"
+					}
+					"dependsOn": []
+					"networkRefs": [
+						"forgejo-internal",
+					]
+					"command": [
+						"/bin/sh",
+						"-ec",
+						"forgejo migrate && users=$(forgejo admin user list) && owner=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ && $2 == \"owner\" {print $3 \" \" $4 \" \" $5}') && if [ -n \"$owner\" ]; then [ \"$owner\" = \"$STACKKITS_OWNER_EMAIL true true\" ] || { echo 'Existing Forgejo owner does not match local custody' >&2; exit 1; }; else count=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ {n++} END {print n+0}'); [ \"$count\" = 0 ] || { echo 'Existing Forgejo users require explicit owner reconciliation' >&2; exit 1; }; forgejo admin user create --username owner --email \"$STACKKITS_OWNER_EMAIL\" --password \"$STACKKITS_OWNER_PASSWORD\" --admin --must-change-password=false; fi && unset STACKKITS_OWNER_PASSWORD && exec forgejo web",
+					]
+					"environment": {
+						"FORGEJO__database__DB_TYPE":             "sqlite3"
+						"FORGEJO__database__PATH":                "/var/lib/gitea/data/forgejo.db"
+						"FORGEJO__security__INSTALL_LOCK":        "true"
+						"FORGEJO__service__DISABLE_REGISTRATION": "true"
+						"FORGEJO__service__REQUIRE_SIGNIN_VIEW":  "true"
+						"FORGEJO__repository__FORCE_PRIVATE":     "true"
+						"FORGEJO__repository__DEFAULT_PRIVATE":   "private"
+						"FORGEJO__server__DISABLE_SSH":           "true"
+						"FORGEJO__actions__ENABLED":              "false"
+						"FORGEJO__security__REVERSE_PROXY_LIMIT": "0"
+					}
+					"ownerEnvironment": {
+						"STACKKITS_OWNER_EMAIL": "email"
+					}
+					"secretEnvironment": {
+						"STACKKITS_OWNER_PASSWORD": "owner-password"
+					}
+					"volumes": [
+						{
+							"id":     "data"
+							"target": "/var/lib/gitea"
+							"class":  "persistent"
+							"backup": true
+						},
+					]
+					"health": {
+						"kind": "http"
+						"path": "/api/healthz"
+						"port": 3000
+					}
+					"resources": {
+						"memoryLimit":       "2g"
+						"memoryReservation": "256m"
+					}
+				},
+			]
+		}
+		renderUnits: [{
+			id:          "forgejo"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/forgejo/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:f11a62408becef9070eade164bc03b8322b28161053e9a8225f35ccebcb7d9c5"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["owner-password"]
+			outputs: ["workloads/forgejo/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:        "dev"
+				upstreamProtocol:  "http"
+				targetPort:        3000
+				requiredPrivilege: "user"
+				ingressAuth:        "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "forgejo-http"
+				data: {
+					bindingRef:      _architectureV2DevForgejoInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2DevForgejoInfrastructure.dataBinding.classes
+					locality:        _architectureV2DevForgejoInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2ForgejoTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["forgejo"], artifactRefs: ["forgejo-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["forgejo"], artifactRefs: ["forgejo-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["forgejo", "terramate-stack"], artifactRefs: ["forgejo-workload-bundle", _architectureV2ForgejoTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2ForgejoSupport
+		health: [{
+			id:             "forgejo-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/api/healthz"
+			port:           3000
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["forgejo-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-paperless-runtime"
+			version:     "1.0.0"
+			description: "Paperless-ngx document service with upstream PostgreSQL and Valkey dependencies on one owner-selected node."
+		}
+		role:        "workload"
+		providerRef: "stackkits-paperless-ngx"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {authority: "control-authority-site", requiredRoles: ["worker"]}
+		computeProfiles:       _architectureV2PaperlessComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:              "container", delivery: "application-adapter", engine: "docker"
+			image:             _architectureV2PaperlessImage
+			entryComponentRef: "paperless"
+			components: [
+				{
+					id:    "paperless", role: "application", lifecycle: "daemon"
+					image: _architectureV2PaperlessImage
+					dependsOn: ["paperless-postgres", "paperless-valkey"]
+					networkRefs: ["paperless-internal"]
+					environment: {
+						PAPERLESS_REDIS:      "redis://paperless-valkey:6379"
+						PAPERLESS_DBHOST:     "paperless-postgres"
+						PAPERLESS_DBENGINE:   "postgresql"
+						PAPERLESS_DBNAME:     "paperless"
+						PAPERLESS_DBUSER:     "paperless"
+						PAPERLESS_ADMIN_USER: "owner"
+					}
+					ownerEnvironment: {PAPERLESS_ADMIN_MAIL: "email"}
+					secretEnvironment: {
+						PAPERLESS_DBPASS:         "database-password"
+						PAPERLESS_ADMIN_PASSWORD: "owner-password"
+						PAPERLESS_SECRET_KEY:     "session-key"
+					}
+					volumes: [for allocation in _architectureV2DocumentsInfrastructure.storageAllocation.allocations if allocation.componentRef == "paperless" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "http", path: "/", port: 8000}
+					resources: {memoryLimit: "2g", memoryReservation: "768m"}
+				},
+				{
+					id:    "paperless-postgres", role: "database", lifecycle: "daemon"
+					image: _architectureV2PaperlessPostgresImage
+					dependsOn: [], networkRefs: ["paperless-internal"]
+					environment: {POSTGRES_DB: "paperless", POSTGRES_USER: "paperless"}
+					secretEnvironment: POSTGRES_PASSWORD: "database-password"
+					volumes: [for allocation in _architectureV2DocumentsInfrastructure.storageAllocation.allocations if allocation.componentRef == "paperless-postgres" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "command", command: ["pg_isready", "-U", "paperless", "-d", "paperless"]}
+					resources: {memoryLimit: "1g", memoryReservation: "384m"}
+				},
+				{
+					id:    "paperless-valkey", role: "cache", lifecycle: "daemon"
+					image: _architectureV2PaperlessValkeyImage
+					dependsOn: [], networkRefs: ["paperless-internal"]
+					command: ["valkey-server"]
+					volumes: [for allocation in _architectureV2DocumentsInfrastructure.storageAllocation.allocations if allocation.componentRef == "paperless-valkey" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "command", command: ["valkey-cli", "ping"]}
+					resources: {memoryLimit: "512m", memoryReservation: "128m"}
+				},
+			]
+		}
+		renderUnits: [{
+			id: "paperless", kind: "native-config", rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/paperless-ngx/bundle/v1.json", version: "1.0.0"
+			contractHash: "sha256:34f3ee240b967ba9939d5fe76e25b278992371cea9d16e5ae585ec3f2d5e62bb"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
+			secretInputRefs: ["database-password", "owner-password", "session-key"]
+			outputs: ["workloads/paperless-ngx/bundle.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: [{
+				serviceRef:        "documents", upstreamProtocol: "http", targetPort: 8000
+				requiredPrivilege: "user", ingressAuth: "forward-auth", allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site", healthRef: "paperless-http"
+				data: {bindingRef: _architectureV2DocumentsInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2DocumentsInfrastructure.dataBinding.classes, locality: _architectureV2DocumentsInfrastructure.dataBinding.locality}
+			}]
+		}, _architectureV2PaperlessTerramateStack.unit]
+		renderVariants: [
+			{id: "compose", target: "compose", rendererRef: "stackkit", contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56", unitRefs: ["paperless"], artifactRefs: ["paperless-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "owner-password", "session-key"], planInputRefs: []},
+			{id: "opentofu", target: "opentofu", rendererRef: "stackkit", contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430", unitRefs: ["paperless"], artifactRefs: ["paperless-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "owner-password", "session-key"], planInputRefs: []},
+			{id: "terramate", target: "terramate", rendererRef: "stackkit", contractHash: _architectureV2TerramateStackHashes.workload, unitRefs: ["paperless", "terramate-stack"], artifactRefs: ["paperless-workload-bundle", _architectureV2PaperlessTerramateStack.contract.id], publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "owner-password", "session-key"], planInputRefs: []},
+		]
+		realizationSupport: _architectureV2PaperlessSupport
+		health: [{id: "paperless-http", phase: "continuous", kind: "http", path: "/", port: 8000, timeoutSeconds: 10, expectedStatuses: [200, 302]}]
+		evidence: ["paperless-generated-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-roundcube-runtime"
+			version:     "1.0.0"
+			description: "Roundcube Webmail with a local SQLite database on one owner-selected node, as a client for an existing external IMAP/SMTP mailbox."
+		}
+		role:        "workload"
+		providerRef: "stackkits-roundcube"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {authority: "control-authority-site", requiredRoles: ["worker"]}
+		computeProfiles:       _architectureV2RoundcubeComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:              "container", delivery: "application-adapter", engine: "docker"
+			image:             _architectureV2RoundcubeImage
+			entryComponentRef: "roundcube"
+			components: [{
+				id:    "roundcube", role: "application", lifecycle: "daemon"
+				image: _architectureV2RoundcubeImage
+				dependsOn: [], networkRefs: ["mail-internal"]
+				// Roundcube connects out to the owner's external IMAP and SMTP
+				// servers; it publishes nothing beyond the routed web origin.
+				egress: true
+				// The governed init script installs the startup file readable by
+				// the web server user, then hands over to the upstream entrypoint.
+				entrypoint: ["/bin/sh", "/var/roundcube/config/stackkit/init.sh"]
+				command: ["apache2-foreground"]
+				environment: {
+					ROUNDCUBEMAIL_DB_TYPE:     "sqlite"
+					ROUNDCUBEMAIL_DB_DIR:       "/var/roundcube/db"
+					ROUNDCUBEMAIL_SKIN:         "elastic"
+					ROUNDCUBEMAIL_PLUGINS:      "archive,zipdownload"
+					ROUNDCUBEMAIL_TEMP_DIR:     "/tmp/roundcube-temp"
+					ROUNDCUBEMAIL_REQUEST_PATH: "/"
+				}
+				// The governed startup file derives Roundcube's 24-character key
+				// from this variable; the key never enters a file.
+				secretEnvironment: ROUNDCUBEMAIL_DES_KEY: "session-key"
+				volumes: [for allocation in _architectureV2MailInfrastructure.storageAllocation.allocations if allocation.componentRef == "roundcube" {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+				}]
+				health: {kind: "http", path: "/", port: 80}
+				resources: {memoryLimit: "256m", memoryReservation: "128m"}
+			}]
+		}
+		renderUnits: [{
+			id: "roundcube", kind: "native-config", rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/roundcube/bundle/v1.json", version: "1.0.0"
+			contractHash: "sha256:cb57a9c4f55d1675bd0f8b248b5a50ba00824468f766d253603a630e6c00c0c5"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
+			secretInputRefs: ["session-key"]
+			outputs: ["workloads/roundcube/bundle.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: [{
+				serviceRef:        "mail", upstreamProtocol: "http", targetPort: 80
+				requiredPrivilege: "user", ingressAuth: "native", allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site", healthRef: "roundcube-http"
+				data: {bindingRef: _architectureV2MailInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2MailInfrastructure.dataBinding.classes, locality: _architectureV2MailInfrastructure.dataBinding.locality}
+			}]
+		}]
+		renderVariants: [
+			{id: "compose", target: "compose", rendererRef: "stackkit", contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56", unitRefs: ["roundcube"], artifactRefs: ["roundcube-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: ["session-key"], planInputRefs: []},
+			{id: "opentofu", target: "opentofu", rendererRef: "stackkit", contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430", unitRefs: ["roundcube"], artifactRefs: ["roundcube-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: ["session-key"], planInputRefs: []},
+		]
+		realizationSupport: _architectureV2RoundcubeSupport
+		health: [{id: "roundcube-http", phase: "continuous", kind: "http", path: "/", port: 80, timeoutSeconds: 10, expectedStatuses: [200]}]
+		evidence: ["roundcube-generated-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-stalwart-runtime"
+			version:     "1.0.0"
+			description: "Stalwart Mail Server with its embedded RocksDB store on one public Cloud node: SMTP, submission, IMAP and ManageSieve published on the node, the web administration behind the router (ADR-0046)."
+		}
+		role:        "workload"
+		providerRef: "stackkits-stalwart"
+		provides: []
+		supportedSiteKinds: ["cloud"]
+		nodeSelection: {authority: "control-authority-site", requiredRoles: ["worker"]}
+		computeProfiles:       _architectureV2StalwartComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:              "container", delivery: "application-adapter", engine: "docker"
+			image:             _architectureV2StalwartImage
+			entryComponentRef: "stalwart"
+			components: [{
+				id:    "stalwart", role: "application", lifecycle: "daemon"
+				image: _architectureV2StalwartImage
+				dependsOn: [], networkRefs: ["mail-server-internal"]
+				// Outbound SMTP delivery, ACME and Stalwart's own rule and web
+				// interface downloads.
+				egress: true
+				entrypoint: ["/bin/sh", "-c", _architectureV2StalwartEntrypointScript]
+				// The custody password reaches only the entrypoint, which hands
+				// it to Stalwart as STALWART_RECOVERY_ADMIN=admin:<password>.
+				secretEnvironment: STACKKIT_ADMIN_SECRET: "admin-password"
+				// ADR-0046 mail-node fields: the route host is the mail host
+				// name, the mail ports are published on the node, and the router
+				// passes TLS-ALPN-01 challenges for that host to Stalwart.
+				routeHostEnvironment: STALWART_HOSTNAME: "route-host"
+				publishedPorts: [{port: 25, protocol: "tcp"}, {port: 465, protocol: "tcp"}, {port: 587, protocol: "tcp"}, {port: 993, protocol: "tcp"}, {port: 4190, protocol: "tcp"}]
+				acmeTlsAlpnPort: 443
+				volumes: [for allocation in _architectureV2MailServerInfrastructure.storageAllocation.allocations if allocation.componentRef == "stalwart" {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+				}]
+				health: {kind: "http", path: "/healthz/ready", port: 8080}
+				resources: {memoryLimit: "1g", memoryReservation: "512m"}
+			}]
+		}
+		renderUnits: [{
+			id: "stalwart", kind: "native-config", rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/stalwart/bundle/v1.json", version: "1.0.0"
+			contractHash: "sha256:6dcabfec2518b0b1df5db0bdbf280ffa8185348b68cc6d714ca3a2dfd7f7d868"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
+			secretInputRefs: ["admin-password"]
+			outputs: ["workloads/stalwart/bundle.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+			serviceEndpoints: [{
+				serviceRef:        "mail-server", upstreamProtocol: "http", targetPort: 8080
+				requiredPrivilege: "user", ingressAuth: "native", allowedIngressProtocols: ["https"]
+				// Mail needs a public host name; private exposures are refused.
+				allowedExposures: ["public"]
+				originSelector: "control-authority-site", healthRef: "stalwart-http"
+				data: {bindingRef: _architectureV2MailServerInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2MailServerInfrastructure.dataBinding.classes, locality: _architectureV2MailServerInfrastructure.dataBinding.locality}
+			}]
+		}]
+		renderVariants: [
+			{id: "compose", target: "compose", rendererRef: "stackkit", contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56", unitRefs: ["stalwart"], artifactRefs: ["stalwart-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: ["admin-password"], planInputRefs: []},
+			{id: "opentofu", target: "opentofu", rendererRef: "stackkit", contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430", unitRefs: ["stalwart"], artifactRefs: ["stalwart-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: ["admin-password"], planInputRefs: []},
+		]
+		realizationSupport: _architectureV2StalwartSupport
+		health: [{id: "stalwart-http", phase: "continuous", kind: "http", path: "/healthz/ready", port: 8080, timeoutSeconds: 10, expectedStatuses: [200]}]
+		evidence: ["stalwart-generated-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-pterodactyl-runtime"
+			version:     "1.0.0"
+			description: "Pterodactyl Panel with MariaDB and Valkey plus the Wings node daemon, which owns game-server containers through a governed Docker approval (ADR-0043)."
+		}
+		role:        "workload"
+		providerRef: "stackkits-pterodactyl"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {authority: "control-authority-site", requiredRoles: ["worker"]}
+		computeProfiles:       _architectureV2PterodactylComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:              "container", delivery: "application-adapter", engine: "docker"
+			image:             _architectureV2PterodactylPanelImage
+			entryComponentRef: "panel"
+			components: [
+				{
+					id:    "panel", role: "application", lifecycle: "daemon"
+					image: _architectureV2PterodactylPanelImage
+					dependsOn: ["panel-cache", "panel-database"]
+					networkRefs: ["game-internal"]
+					entrypoint: ["/bin/ash", "/stackkit/panel-entrypoint.sh"]
+					command: ["supervisord", "-n", "-c", "/etc/supervisord.conf"]
+					environment: {
+						APP_ENV:              "production"
+						APP_ENVIRONMENT_ONLY: "false"
+						APP_TIMEZONE:         "UTC"
+						CACHE_DRIVER:         "redis"
+						SESSION_DRIVER:       "redis"
+						QUEUE_DRIVER:         "redis"
+						REDIS_HOST:           "panel-cache"
+						DB_HOST:              "panel-database"
+						DB_PORT:              "3306"
+						DB_DATABASE:          "panel"
+						DB_USERNAME:          "pterodactyl"
+						MAIL_DRIVER:          "log"
+						TRUSTED_PROXIES:      "*"
+						PTERODACTYL_TELEMETRY_ENABLED: "false"
+						RECAPTCHA_ENABLED:             "false"
+					}
+					ownerEnvironment: {APP_SERVICE_AUTHOR: "email"}
+					secretEnvironment: {
+						DB_PASSWORD:              "database-password"
+						STACKKIT_APP_KEY:         "app-key"
+						STACKKIT_HASHIDS_SALT:    "hashids-salt"
+					}
+					// The Panel reaches its node under its own route host on
+					// loopback, so console and API calls never cross the router.
+					routeHostLoopback: true
+					volumes: [
+						for allocation in _architectureV2GameInfrastructure.storageAllocation.allocations if allocation.componentRef == "panel" {
+							id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+						},
+					]
+					health: {kind: "http", path: "/auth/login", port: 80}
+					resources: {memoryLimit: "1g", memoryReservation: "384m"}
+				},
+				{
+					id:    "panel-database", role: "database", lifecycle: "daemon"
+					image: _architectureV2PterodactylDatabaseImage
+					dependsOn: [], networkRefs: ["game-internal"]
+					environment: {MARIADB_DATABASE: "panel", MARIADB_USER: "pterodactyl"}
+					secretEnvironment: {MARIADB_PASSWORD: "database-password", MARIADB_ROOT_PASSWORD: "database-root-password"}
+					volumes: [for allocation in _architectureV2GameInfrastructure.storageAllocation.allocations if allocation.componentRef == "panel-database" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "command", command: ["healthcheck.sh", "--connect", "--innodb_initialized"]}
+					resources: {memoryLimit: "768m", memoryReservation: "256m"}
+				},
+				{
+					id:    "panel-cache", role: "cache", lifecycle: "daemon"
+					image: _architectureV2PterodactylCacheImage
+					dependsOn: [], networkRefs: ["game-internal"]
+					command: ["valkey-server"]
+					volumes: [for allocation in _architectureV2GameInfrastructure.storageAllocation.allocations if allocation.componentRef == "panel-cache" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "command", command: ["valkey-cli", "ping"]}
+					resources: {memoryLimit: "256m", memoryReservation: "64m"}
+				},
+				{
+					id:    "panel-bootstrap", role: "database-init", lifecycle: "one-shot"
+					image: _architectureV2PterodactylPanelImage
+					dependsOn: ["panel"]
+					networkRefs: ["game-internal"]
+					entrypoint: ["/bin/ash"]
+					command: ["/stackkit/bootstrap.sh"]
+					environment: {
+						APP_ENV:              "production"
+						APP_ENVIRONMENT_ONLY: "false"
+						APP_TIMEZONE:         "UTC"
+						CACHE_DRIVER:         "redis"
+						SESSION_DRIVER:       "redis"
+						QUEUE_DRIVER:         "redis"
+						REDIS_HOST:           "panel-cache"
+						DB_HOST:              "panel-database"
+						DB_PORT:              "3306"
+						DB_DATABASE:          "panel"
+						DB_USERNAME:          "pterodactyl"
+						MAIL_DRIVER:          "log"
+						TRUSTED_PROXIES:      "*"
+						PTERODACTYL_TELEMETRY_ENABLED: "false"
+						RECAPTCHA_ENABLED:             "false"
+					}
+					ownerEnvironment: {STACKKIT_OWNER_EMAIL: "email"}
+					secretEnvironment: {
+						DB_PASSWORD:                  "database-password"
+						STACKKIT_APP_KEY:             "app-key"
+						STACKKIT_HASHIDS_SALT:        "hashids-salt"
+						STACKKIT_OWNER_PASSWORD:      "owner-password"
+						STACKKIT_APPLICATION_API_KEY: "application-api-key"
+						STACKKIT_CLIENT_API_KEY:      "client-api-key"
+					}
+					volumes: [
+						{id: "stackkit", target: "/stackkit", class: "cache", backup: false},
+						{id: "data", target: "/stackkit/game-data", class: "persistent", backup: true, sharedFrom: {componentRef: "wings", volumeRef: "data"}},
+					]
+					health: {kind: "completion"}
+				},
+				{
+					id:    "wings", role: "application", lifecycle: "daemon"
+					image: _architectureV2PterodactylWingsImage
+					dependsOn: ["panel-bootstrap"]
+					networkRefs: ["game-internal"]
+					command: ["--config", "/stackkit/game-data/config.yml"]
+					environment: {TZ: "UTC", WINGS_UID: "988", WINGS_GID: "988", WINGS_USERNAME: "pterodactyl"}
+					// ADR-0043: the one component that owns game containers.
+					dockerLifecycleOwner: {daemonRef: "docker-default", policyProfile: "docker-game-node-lifecycle"}
+					volumes: [
+						for allocation in _architectureV2GameInfrastructure.storageAllocation.allocations if allocation.componentRef == "wings" {
+							id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+							if allocation.volumeRef == "data" {selfPath: true}
+						},
+					]
+					health: {kind: "image"}
+					resources: {memoryLimit: "512m", memoryReservation: "128m"}
+				},
+			]
+		}
+		renderUnits: [{
+			id: "pterodactyl", kind: "native-config", rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/pterodactyl/bundle/v1.json", version: "1.0.0"
+			contractHash: "sha256:a4eeeece20a25a8a41e3bacc209b4dbbe1d3ff6e6bfd56c9326ac057a4463769"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
+			secretInputRefs: _architectureV2PterodactylSecretSlots
+			outputs: ["workloads/pterodactyl/bundle.json"]
+			placement: {scope: "node-local", cardinality: "one-per-daemon", daemonRef: "docker-default"}
+			requiresInterfaces: [{
+				id:       "docker-game-node-lifecycle"
+				kind:     "docker-socket-direct-v1"
+				protocol: "docker-engine"
+				version:  "v1"
+				endpoint: {visibility: "node-local", transport: "unix-socket", pathSource: "daemon-binding"}
+				scopes: ["docker-api:full"]
+				coLocation:    "same-node"
+				daemonRef:     "docker-default"
+				policyProfile: "docker-game-node-lifecycle"
+			}]
+			serviceEndpoints: [{
+				serviceRef:        "game", upstreamProtocol: "http", targetPort: 80
+				requiredPrivilege: "user", ingressAuth: "native", allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site", healthRef: "pterodactyl-panel-http"
+				data: {bindingRef: _architectureV2GameInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2GameInfrastructure.dataBinding.classes, locality: _architectureV2GameInfrastructure.dataBinding.locality}
+			}]
+		}, _architectureV2PterodactylTerramateStack.unit]
+		renderVariants: [
+			{id: "compose", target: "compose", rendererRef: "stackkit", contractHash: "sha256:72697f2471dbafff7f7cd938c36e4f89393862fc28d19ac1d61c603afd3e010f", unitRefs: ["pterodactyl"], artifactRefs: ["pterodactyl-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: _architectureV2PterodactylSecretSlots, planInputRefs: []},
+			{id: "opentofu", target: "opentofu", rendererRef: "stackkit", contractHash: "sha256:a92e513ff795fb638fa85451c5b55b26ac9ecbfeb62a27cd12090f135095305a", unitRefs: ["pterodactyl"], artifactRefs: ["pterodactyl-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: _architectureV2PterodactylSecretSlots, planInputRefs: []},
+			{id: "terramate", target: "terramate", rendererRef: "stackkit", contractHash: _architectureV2TerramateStackHashes.workload, unitRefs: ["pterodactyl", "terramate-stack"], artifactRefs: ["pterodactyl-workload-bundle", _architectureV2PterodactylTerramateStack.contract.id], publicInputRefs: ["delivery-route"], secretInputRefs: _architectureV2PterodactylSecretSlots, planInputRefs: []},
+		]
+		realizationSupport: _architectureV2PterodactylSupport
+		health: [{id: "pterodactyl-panel-http", phase: "continuous", kind: "http", path: "/auth/login", port: 80, timeoutSeconds: 10, expectedStatuses: [200]}]
+		evidence: ["pterodactyl-generated-runtime-contract", "pterodactyl-wings-lifecycle-owner-governance"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-emby-runtime"
+			version:     "1.0.0"
+			description: "Emby media server bound to one selected site; the media library volume is owner-custodied and not a StackKits backup source."
+		}
+		role:        "workload"
+		providerRef: "stackkits-emby"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2EmbyComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "emby"
+			components: [{
+				id: "emby", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "docker.io/emby/embyserver:4.10.0.40"
+					digest: "sha256:3aafff933d3f28d23ed0bc201022abe71c0aa80deb17177566c726b9bbc686c6"
+				}
+				dependsOn: []
+				networkRefs: ["emby-internal"]
+				volumes: [for allocation in _architectureV2MediaEmbyInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					if allocation.volumeRef == "library" {readOnly: true}
+				}]
+				health: {kind: "http", path: "/emby/System/Ping", port: 8096}
+				resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "emby"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/emby/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:f73295025c0f1c638eedea36c02247f3663e506e0de3a73d120e7f8fe93e417c"
+			publicInputRefs: ["delivery-route", "storage-roots"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}, {targetRef: "storage-roots", sourceRef: "storage.hostRoots", valueType: "host-storage-roots-v1", cardinality: "single", required: true}]
+			secretInputRefs: []
+			outputs: ["workloads/emby/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "media"
+				upstreamProtocol: "http"
+				targetPort:       8096
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "emby-http"
+				data: {
+					bindingRef:      _architectureV2MediaEmbyInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2MediaEmbyInfrastructure.dataBinding.classes
+					locality:        _architectureV2MediaEmbyInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2EmbyTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:f4cc3429148975e7741e8a55171d5a9d0138d67ec7b4ef42732ede51d7b53af8"
+				unitRefs: ["emby"], artifactRefs: ["emby-workload-bundle"]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:47ffd0559451c9da935a2e115b3a7a139aef279e271c8389c8fc276674e6c9b9"
+				unitRefs: ["emby"], artifactRefs: ["emby-workload-bundle"]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["emby", "terramate-stack"], artifactRefs: ["emby-workload-bundle", _architectureV2EmbyTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2EmbySupport
+		health: [{
+			id:             "emby-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/emby/System/Ping"
+			port:           8096
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["emby-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-navidrome-runtime"
+			version:     "1.0.0"
+			description: "Music streaming through Navidrome from the owner-custodied media library, selected in addition to the media workload."
+		}
+		role:        "workload"
+		providerRef: "stackkits-navidrome"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2NavidromeComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "navidrome"
+			components: [{
+				id: "navidrome", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "docker.io/deluan/navidrome:0.64.2"
+					digest: "sha256:38dc2727bfcfd5ede290f8ada114fc90368146f265ae4701ddddbcbe2a44ee52"
+				}
+				dependsOn: []
+				networkRefs: ["navidrome-internal"]
+				environment: {ND_DATAFOLDER: "/data", ND_MUSICFOLDER: "/music"}
+				volumes: [for allocation in _architectureV2NavidromeInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					if allocation.volumeRef == "library" {readOnly: true}
+				}]
+				health: {kind: "http", path: "/ping", port: 4533}
+				resources: {memoryLimit: "512m", memoryReservation: "128m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "navidrome"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/navidrome/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:1822b405ae7068bf29ba9d5c62bd7b75cc6eef4065610b11f95d911eafba7150"
+			publicInputRefs: ["delivery-route", "storage-roots"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}, {targetRef: "storage-roots", sourceRef: "storage.hostRoots", valueType: "host-storage-roots-v1", cardinality: "single", required: true}]
+			secretInputRefs: []
+			outputs: ["workloads/navidrome/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "media-music"
+				upstreamProtocol: "http"
+				targetPort:       4533
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "navidrome-http"
+				data: {
+					bindingRef:      _architectureV2NavidromeInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2NavidromeInfrastructure.dataBinding.classes
+					locality:        _architectureV2NavidromeInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2NavidromeTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:f4cc3429148975e7741e8a55171d5a9d0138d67ec7b4ef42732ede51d7b53af8"
+				unitRefs: ["navidrome"], artifactRefs: ["navidrome-workload-bundle"]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:47ffd0559451c9da935a2e115b3a7a139aef279e271c8389c8fc276674e6c9b9"
+				unitRefs: ["navidrome"], artifactRefs: ["navidrome-workload-bundle"]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["navidrome", "terramate-stack"], artifactRefs: ["navidrome-workload-bundle", _architectureV2NavidromeTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2NavidromeSupport
+		health: [{
+			id:             "navidrome-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/ping"
+			port:           4533
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["navidrome-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-audiobookshelf-runtime"
+			version:     "1.0.0"
+			description: "Audiobooks and podcasts through Audiobookshelf from the owner-custodied media library, selected in addition to the media workload."
+		}
+		role:        "workload"
+		providerRef: "stackkits-audiobookshelf"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2AudiobookshelfComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "audiobookshelf"
+			components: [{
+				id: "audiobookshelf", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "ghcr.io/advplyr/audiobookshelf:2.36.1"
+					digest: "sha256:3528a93b6442ffe54bd46771bbbab7c97084e1101071586d9dc2254f30bb4358"
+				}
+				dependsOn: []
+				networkRefs: ["audiobookshelf-internal"]
+				volumes: [for allocation in _architectureV2AudiobookshelfInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					if allocation.volumeRef == "library" {readOnly: true}
+				}]
+				health: {kind: "http", path: "/healthcheck", port: 80}
+				resources: {memoryLimit: "1g", memoryReservation: "128m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "audiobookshelf"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/audiobookshelf/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:c9dede4af9fcd261018e2df176e7f3e586e8a6e6acc7076144a46d23fa63e2a4"
+			publicInputRefs: ["delivery-route", "storage-roots"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}, {targetRef: "storage-roots", sourceRef: "storage.hostRoots", valueType: "host-storage-roots-v1", cardinality: "single", required: true}]
+			secretInputRefs: []
+			outputs: ["workloads/audiobookshelf/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "media-audiobooks"
+				upstreamProtocol: "http"
+				targetPort:       80
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "audiobookshelf-http"
+				data: {
+					bindingRef:      _architectureV2AudiobookshelfInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2AudiobookshelfInfrastructure.dataBinding.classes
+					locality:        _architectureV2AudiobookshelfInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2AudiobookshelfTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:f4cc3429148975e7741e8a55171d5a9d0138d67ec7b4ef42732ede51d7b53af8"
+				unitRefs: ["audiobookshelf"], artifactRefs: ["audiobookshelf-workload-bundle"]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:47ffd0559451c9da935a2e115b3a7a139aef279e271c8389c8fc276674e6c9b9"
+				unitRefs: ["audiobookshelf"], artifactRefs: ["audiobookshelf-workload-bundle"]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["audiobookshelf", "terramate-stack"], artifactRefs: ["audiobookshelf-workload-bundle", _architectureV2AudiobookshelfTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2AudiobookshelfSupport
+		health: [{
+			id:             "audiobookshelf-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/healthcheck"
+			port:           80
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["audiobookshelf-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-esphome-runtime"
+			version:     "1.0.0"
+			description: "ESPHome dashboard that builds and updates firmware for ESP devices reporting to Home Assistant, selected in addition to the smart-home workload."
+		}
+		role:        "workload"
+		providerRef: "stackkits-esphome"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2ESPHomeComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "esphome"
+			components: [{
+				id: "esphome", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "ghcr.io/esphome/esphome:2026.9.0"
+					digest: "sha256:f6509fcf917a732fd80058567b237d5b9286b9dc6c8dde1b655fbb69ebd600ad"
+				}
+				dependsOn: []
+				networkRefs: ["esphome-internal"]
+				volumes: [for allocation in _architectureV2ESPHomeInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					if allocation.volumeRef == "library" {readOnly: true}
+				}]
+				health: {kind: "http", path: "/", port: 6052}
+				resources: {memoryLimit: "2g", memoryReservation: "256m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "esphome"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/esphome/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:084ad6fb66a661f15acb9dc92a90007984897de0b55666692f68f2c58f58d81b"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: []
+			outputs: ["workloads/esphome/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "smart-home-esphome"
+				upstreamProtocol: "http"
+				targetPort:       6052
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "esphome-http"
+				data: {
+					bindingRef:      _architectureV2ESPHomeInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2ESPHomeInfrastructure.dataBinding.classes
+					locality:        _architectureV2ESPHomeInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2ESPHomeTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["esphome"], artifactRefs: ["esphome-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["esphome"], artifactRefs: ["esphome-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["esphome", "terramate-stack"], artifactRefs: ["esphome-workload-bundle", _architectureV2ESPHomeTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2ESPHomeSupport
+		health: [{
+			id:             "esphome-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/"
+			port:           6052
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["esphome-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-euro-office-runtime"
+			version:     "1.0.0"
+			description: "Euro-Office Document Server for browser editing of documents, spreadsheets and presentations, selected in addition to the files workload and connected to Nextcloud through the eurooffice-nextcloud app."
+		}
+		role:        "workload"
+		providerRef: "stackkits-euro-office"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2EuroofficeComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "euro-office"
+			components: [{
+				id: "euro-office", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "ghcr.io/euro-office/documentserver:v9.3.4-hotfix.1"
+					digest: "sha256:889e681923d2dcc8bdfb92fe128d10e185fcff880d302b6a0c0c7bf339499290"
+				}
+				dependsOn: []
+				networkRefs: ["euro-office-internal"]
+				environment: {JWT_ENABLED: "true"}
+				secretEnvironment: {JWT_SECRET: "jwt-secret"}
+				volumes: [for allocation in _architectureV2EuroofficeInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					if allocation.volumeRef == "library" {readOnly: true}
+				}]
+				health: {kind: "http", path: "/healthcheck", port: 80}
+				resources: {memoryLimit: "4g", memoryReservation: "2g"}
+			}]
+		}
+		renderUnits: [{
+			id:          "euro-office"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/euro-office/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:bbf85f2b87212aa50c874c5cdf7d00025525c2dd992579d511b52e5f975ac11f"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["jwt-secret"]
+			outputs: ["workloads/euro-office/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "files-office"
+				upstreamProtocol: "http"
+				targetPort:       80
+				ingressAuth:       "native"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "euro-office-http"
+				data: {
+					bindingRef:      _architectureV2EuroofficeInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2EuroofficeInfrastructure.dataBinding.classes
+					locality:        _architectureV2EuroofficeInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2EuroofficeTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["euro-office"], artifactRefs: ["euro-office-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["jwt-secret"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["euro-office"], artifactRefs: ["euro-office-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["jwt-secret"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["euro-office", "terramate-stack"], artifactRefs: ["euro-office-workload-bundle", _architectureV2EuroofficeTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["jwt-secret"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2EuroofficeSupport
+		health: [{
+			id:             "euro-office-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/healthcheck"
+			port:           80
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["euro-office-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-mosquitto-runtime"
+			version:     "1.0.0"
+			description: "Eclipse Mosquitto MQTT broker for Home Assistant, Zigbee2MQTT and ESPHome devices, selected in addition to the smart-home workload."
+		}
+		role:        "workload"
+		providerRef: "stackkits-mosquitto"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2MosquittoComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "mosquitto"
+			components: [{
+				id: "mosquitto", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "docker.io/library/eclipse-mosquitto:2.1.2-alpine"
+					digest: "sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408"
+				}
+				dependsOn: []
+				networkRefs: ["mosquitto-internal"]
+				command: ["/bin/sh", "-ec", "printf 'per_listener_settings true\\npersistence true\\npersistence_location /mosquitto/data/\\nlistener 1883\\nallow_anonymous false\\npassword_file /mosquitto/data/passwd\\nlistener 8080\\nprotocol http_api\\nallow_anonymous true\\n' > /mosquitto/data/mosquitto.conf && mosquitto_passwd -b -c /mosquitto/data/passwd stackkit \"$MQTT_PASSWORD\" && unset MQTT_PASSWORD && chown mosquitto:mosquitto /mosquitto/data/mosquitto.conf /mosquitto/data/passwd && exec mosquitto -c /mosquitto/data/mosquitto.conf"]
+				secretEnvironment: {MQTT_PASSWORD: "mqtt-password"}
+				lanListeners: [{port: 1883, protocol: "tcp", settingRef: "lan-listener"}]
+				volumes: [for allocation in _architectureV2MosquittoInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					if allocation.volumeRef == "library" {readOnly: true}
+				}]
+				health: {kind: "http", path: "/api/v1/systree", port: 8080}
+				resources: {memoryLimit: "128m", memoryReservation: "32m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "mosquitto"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/mosquitto/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:969f57e8e598319da7072af0ef3d21b13d5ccf8e0246075e47d797764156031e"
+			publicInputRefs: ["delivery-route", "lan-listener"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["mqtt-password"]
+			outputs: ["workloads/mosquitto/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "smart-home-mqtt"
+				upstreamProtocol: "http"
+				targetPort:       8080
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "mosquitto-http"
+				data: {
+					bindingRef:      _architectureV2MosquittoInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2MosquittoInfrastructure.dataBinding.classes
+					locality:        _architectureV2MosquittoInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2MosquittoTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["mosquitto"], artifactRefs: ["mosquitto-workload-bundle"]
+				publicInputRefs: ["delivery-route", "lan-listener"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["mosquitto"], artifactRefs: ["mosquitto-workload-bundle"]
+				publicInputRefs: ["delivery-route", "lan-listener"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["mosquitto", "terramate-stack"], artifactRefs: ["mosquitto-workload-bundle", _architectureV2MosquittoTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route", "lan-listener"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2MosquittoSupport
+		health: [{
+			id:             "mosquitto-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/api/v1/systree"
+			port:           8080
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["mosquitto-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-zigbee2mqtt-runtime"
+			version:     "1.0.0"
+			description: "Zigbee2MQTT bridge that exposes Zigbee devices to Home Assistant over MQTT, selected in addition to the smart-home workload with an owner-chosen Zigbee adapter."
+		}
+		role:        "workload"
+		providerRef: "stackkits-zigbee2mqtt"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2Zigbee2mqttComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "zigbee2mqtt"
+			components: [{
+				id: "zigbee2mqtt", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "ghcr.io/koenkk/zigbee2mqtt:2.14.1"
+					digest: "sha256:fef0de769dcd04c27b3a6d277b61046eb96284bdd4198dcb1687c3a01b3020f3"
+				}
+				dependsOn: []
+				networkRefs: ["zigbee2mqtt-internal"]
+				environment: {ZIGBEE2MQTT_DATA: "/app/data", ZIGBEE2MQTT_CONFIG_SERIAL_PORT: "/dev/zigbee", ZIGBEE2MQTT_CONFIG_FRONTEND_ENABLED: "true", ZIGBEE2MQTT_CONFIG_FRONTEND_PORT: "8080", ZIGBEE2MQTT_CONFIG_HOMEASSISTANT_ENABLED: "true", ZIGBEE2MQTT_CONFIG_MQTT_USER: "stackkit", Z2M_ONBOARD_NO_SERVER: "1"}
+				secretEnvironment: {ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD: "mqtt-password"}
+				devicePassthrough: {settingRef: "usb-device", target: "/dev/zigbee"}
+				volumes: [for allocation in _architectureV2Zigbee2mqttInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					if allocation.volumeRef == "library" {readOnly: true}
+				}]
+				health: {kind: "http", path: "/", port: 8080}
+				resources: {memoryLimit: "512m", memoryReservation: "128m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "zigbee2mqtt"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/zigbee2mqtt/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:411b2ac6de886cb069361aed21f5524e42a7c15ab7f91fa8c96c0542beaf4410"
+			publicInputRefs: ["delivery-route", "usb-device", "mqtt-server", "zigbee-adapter"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["mqtt-password"]
+			outputs: ["workloads/zigbee2mqtt/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "smart-home-zigbee"
+				upstreamProtocol: "http"
+				targetPort:       8080
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "zigbee2mqtt-http"
+				data: {
+					bindingRef:      _architectureV2Zigbee2mqttInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2Zigbee2mqttInfrastructure.dataBinding.classes
+					locality:        _architectureV2Zigbee2mqttInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2Zigbee2mqttTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["zigbee2mqtt"], artifactRefs: ["zigbee2mqtt-workload-bundle"]
+				publicInputRefs: ["delivery-route", "usb-device", "mqtt-server", "zigbee-adapter"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["zigbee2mqtt"], artifactRefs: ["zigbee2mqtt-workload-bundle"]
+				publicInputRefs: ["delivery-route", "usb-device", "mqtt-server", "zigbee-adapter"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["zigbee2mqtt", "terramate-stack"], artifactRefs: ["zigbee2mqtt-workload-bundle", _architectureV2Zigbee2mqttTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route", "usb-device", "mqtt-server", "zigbee-adapter"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2Zigbee2mqttSupport
+		health: [{
+			id:             "zigbee2mqtt-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/"
+			port:           8080
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["zigbee2mqtt-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-jellyfin-runtime"
+			version:     "1.0.0"
+			description: "Jellyfin media-library contract bound to one selected site; the media library volume is owner-custodied and not a StackKits backup source."
+		}
+		role:        "workload"
+		providerRef: "stackkits-jellyfin"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2JellyfinComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "jellyfin"
+			components: [{
+				id: "jellyfin", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "docker.io/jellyfin/jellyfin:10.10.7"
+					digest: "sha256:7ae36aab93ef9b6aaff02b37f8bb23df84bb2d7a3f6054ec8fc466072a648ce2"
+				}
+				dependsOn: []
+				networkRefs: ["jellyfin-internal"]
+				volumes: [for allocation in _architectureV2MediaInfrastructure.storageAllocation.allocations if allocation.componentRef == "jellyfin" {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					if allocation.volumeRef == "library" {readOnly: true}
+				}]
+				health: {kind: "http", path: "/health", port: 8096}
+				resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "jellyfin"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/jellyfin/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:6d8bd298e33bffb6249a589cb7a845c513e0e0578bd186bb4c01bee0f00fc393"
+			publicInputRefs: ["delivery-route", "storage-roots"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}, {targetRef: "storage-roots", sourceRef: "storage.hostRoots", valueType: "host-storage-roots-v1", cardinality: "single", required: true}]
+			secretInputRefs: []
+			outputs: ["workloads/jellyfin/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "media"
+				upstreamProtocol: "http"
+				targetPort:       8096
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "jellyfin-http"
+				data: {
+					bindingRef:      _architectureV2MediaInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2MediaInfrastructure.dataBinding.classes
+					locality:        _architectureV2MediaInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2JellyfinTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:f4cc3429148975e7741e8a55171d5a9d0138d67ec7b4ef42732ede51d7b53af8"
+				unitRefs: ["jellyfin"], artifactRefs: ["jellyfin-workload-bundle"]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:47ffd0559451c9da935a2e115b3a7a139aef279e271c8389c8fc276674e6c9b9"
+				unitRefs: ["jellyfin"], artifactRefs: ["jellyfin-workload-bundle"]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["jellyfin", "terramate-stack"], artifactRefs: ["jellyfin-workload-bundle", _architectureV2JellyfinTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2JellyfinSupport
+		health: [{
+			id:             "jellyfin-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/health"
+			port:           8096
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["jellyfin-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-home-assistant-runtime"
+			version:     "1.0.0"
+			description: "Home Assistant self-hosted container contract bound to one selected site; config is a StackKits backup source. Native product MCP remains /api/mcp on the same listener."
+		}
+		role:        "workload"
+		providerRef: "stackkits-home-assistant"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2HomeAssistantComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "home-assistant"
+			components: [{
+				id: "home-assistant", role: "application", lifecycle: "daemon"
+				entrypoint: ["/bin/sh", "/config/stackkits-init.sh"]
+				image: {
+					ref:    "ghcr.io/home-assistant/home-assistant:2026.7.2"
+					digest: "sha256:1476924357b46e80735c13e94232ba5c853cac052e9df4bb28d50fa56348097b"
+				}
+				dependsOn: []
+				networkRefs: ["home-assistant-internal"]
+				volumes: [for allocation in _architectureV2SmartHomeInfrastructure.storageAllocation.allocations if allocation.componentRef == "home-assistant" {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+				}]
+				health: {kind: "http", path: "/", port: 8123}
+				resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "home-assistant"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/home-assistant/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:0c8716ed5f3b19245b14bc5304282edcbaef30f47c4bef6c65100b0070d37f77"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: []
+			outputs: ["workloads/home-assistant/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "smart-home"
+				upstreamProtocol: "http"
+				targetPort:       8123
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "home-assistant-http"
+				data: {
+					bindingRef:      _architectureV2SmartHomeInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2SmartHomeInfrastructure.dataBinding.classes
+					locality:        _architectureV2SmartHomeInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2HomeAssistantTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:158d52e1794a9dddf5a1b6ca134c51f115a6d721b1afea22f8b89add28108695"
+				unitRefs: ["home-assistant"], artifactRefs: ["home-assistant-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:d15f978c9b540c10de3c1cd311a97aed52f5bf4eef99c75ecda2c5cc0e718fb5"
+				unitRefs: ["home-assistant"], artifactRefs: ["home-assistant-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["home-assistant", "terramate-stack"], artifactRefs: ["home-assistant-workload-bundle", _architectureV2HomeAssistantTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2HomeAssistantSupport
+		health: [{
+			id:             "home-assistant-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/"
+			port:           8123
+			timeoutSeconds: 10
+			// A fresh install answers 302 to /onboarding.html until native owner
+			// setup completes: reachable and installed, not yet usable.
+			expectedStatuses: [200, 302]
+		}]
+		evidence: ["home-assistant-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-coolify-runtime"
+			version:     "1.0.0"
+			description: "Workload-scoped Coolify adapter contract; provider lifecycle, endpoints, leases, and credential material remain outside StackKits."
+		}
+		role:        "platform"
+		providerRef: "stackkits-coolify"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		runtimeAdapter: {
+			id: "coolify"
+			supportedKinds: ["container"]
+			supportedDeliveries: ["application-adapter"]
+			operations: ["apply", "observe"]
+			credentialCustody: "external-owner"
+			providerLifecycle: "not-owned"
+			evidenceRequired:  true
+		}
+		runtime: {execution: "contract-handoff", kind: "control-plane", delivery: "external-control-plane"}
+		renderUnits: [{
+			id:          "coolify-adapter"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://platform/coolify/runtime-adapter/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:0115f3bdc1a7806823330a1a271085c9721549f9b69dbb0e9fd2da25bada97ab"
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			outputs: ["platform/coolify/runtime-adapter.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:3860bf406244e848711a32034420330018147993188eeaa43fa6b7f9428cff86"
+				unitRefs: ["coolify-adapter"], artifactRefs: ["coolify-runtime-adapter"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b9331740d5a3ab65809133c45bb771fa671ad9c2c74c8b504c862c542e267d09"
+				unitRefs: ["coolify-adapter"], artifactRefs: ["coolify-runtime-adapter"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2CoolifyAdapterSupport
+		health: [{id: "coolify-runtime-contract", kind: "contract"}]
+		evidence: ["coolify-adapter-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-standalone-compose-runtime"
+			version:     "1.0.0"
+			description: "StackKits-owned no-PaaS workload adapter over an admitted Docker host; host and server-provider lifecycle remain outside this contract."
+		}
+		role:        "platform"
+		providerRef: "stackkits-standalone-compose"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		runtimeAdapter: {
+			id: "standalone-compose"
+			supportedKinds: ["container"]
+			supportedDeliveries: ["application-adapter"]
+			operations: ["apply", "observe", "remove"]
+			credentialCustody: "local-owner"
+			providerLifecycle: "not-owned"
+			evidenceRequired:  true
+			// application-setup-local-api admits native `stackkit setup` for
+			// this adapter across every generation target that binds to it
+			// (compose, opentofu, terramate). Platform adapters (coolify,
+			// komodo) do not declare it yet: P3 must add it before their
+			// targets can carry the same bootstrap outcome.
+			capabilities: ["application-setup-local-api"]
+		}
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
+		renderUnits: [{
+			id:          "standalone-compose-adapter"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://platform/standalone-compose/runtime-adapter/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:89e663f95a086364872e6ac2273422513bbeac1ffc2d56cba9b46e611101d031"
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			outputs: ["platform/standalone-compose/runtime-adapter.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:75a6431c0ad93a09a27d454c7f29712b910287b5b03668a5c1f5f089ef0daba5"
+				unitRefs: ["standalone-compose-adapter"], artifactRefs: ["standalone-compose-runtime-adapter"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b98d542d03eaf368279943dbffbd6641ddc49df854e13f988b59289ac62f067d"
+				unitRefs: ["standalone-compose-adapter"], artifactRefs: ["standalone-compose-runtime-adapter"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2StandaloneComposeAdapterSupport
+		health: [{id: "standalone-compose-runtime-contract", kind: "contract"}]
+		evidence: ["standalone-compose-adapter-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-komodo-core-runtime"
+			version:     "1.0.0"
+			description: "Workload-scoped Komodo Core API adapter contract; installation, endpoints, credentials, leases, and provider lifecycle remain outside StackKits."
+		}
+		role:        "platform"
+		providerRef: "stackkits-komodo"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority:           "control-authority-site"
+			controlPlaneMembers: "only"
+			requiredRoles: ["worker"]
+		}
+		runtimeAdapter: {
+			id: "komodo"
+			supportedKinds: ["container"]
+			supportedDeliveries: ["application-adapter"]
+			operations: ["apply", "observe"]
+			agentRefs: ["komodo-periphery"]
+			credentialCustody: "external-owner"
+			providerLifecycle: "not-owned"
+			evidenceRequired:  true
+		}
+		runtime: {execution: "contract-handoff", kind: "control-plane", delivery: "external-control-plane"}
+		renderUnits: [{
+			id:          "komodo-core-adapter"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://platform/komodo/core-runtime-adapter/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:c9f14e4bd228574a3a4c26465141fcc0f57f1eddf8d24aa5d418f28df8095c34"
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			outputs: ["platform/komodo/core-runtime-adapter.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:2c3b41071fea2cc762fe0051473e2b8dca24c7469964b875cd1bc8b5e3697274"
+				unitRefs: ["komodo-core-adapter"], artifactRefs: ["komodo-core-runtime-adapter"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:3a03864406d17b324d61c923ce55c12616364e9cdb8a844c699b81da8badaaff"
+				unitRefs: ["komodo-core-adapter"], artifactRefs: ["komodo-core-runtime-adapter"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2KomodoCoreAdapterSupport
+		health: [{id: "komodo-core-runtime-contract", kind: "contract", scope: "each-node"}]
+		evidence: ["komodo-core-adapter-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-komodo-periphery-runtime"
+			version:     "1.0.0"
+			description: "Komodo Periphery node-agent handoff for control-authority-site workers; host execution and all trust material remain executor-mediated."
+		}
+		role:        "platform"
+		providerRef: "stackkits-komodo"
+		provides: []
+		requires: ["stackkits-komodo-core-runtime"]
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority:           "control-authority-site"
+			controlPlaneMembers: "any"
+			requiredRoles: ["worker"]
+		}
+		runtimeAdapterAgent: {
+			id:          "komodo-periphery"
+			adapterRef:  "komodo"
+			role:        "node-agent"
+			targetScope: "control-authority-site-workers"
+			connection: {
+				direction:         "outbound-to-control-plane"
+				transport:         "tls"
+				minimumTLSVersion: "TLS1.3"
+				authentication:    "mutual-key"
+			}
+			credentialCustody: "external-owner"
+			hostExecution:     "executor-mediated"
+			providerLifecycle: "not-owned"
+			evidenceRequired:  true
+		}
+		runtime: {execution: "contract-handoff", kind: "host", delivery: "external-control-plane"}
+		renderUnits: [{
+			id:          "komodo-periphery-agent"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://platform/komodo/periphery-agent/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:73f2410689ff511901d9e8a255022f4a499816662fb5f387a3f2a16f9e0e6b95"
+			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			outputs: ["platform/komodo/periphery-agent.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:6ad3cfd8d11856955479bce39d0d06219cf4df410f3d5395c0b24d42c698c58a"
+				unitRefs: ["komodo-periphery-agent"], artifactRefs: ["komodo-periphery-runtime-agent"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:08fd20fcd5a4d80d0c6b3c3a8ec41dc872aa3effc1b8d33435c1d665eb280aa3"
+				unitRefs: ["komodo-periphery-agent"], artifactRefs: ["komodo-periphery-runtime-agent"]
+				publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2KomodoPeripheryAgentSupport
+		health: [{id: "komodo-periphery-runtime-contract", kind: "contract", scope: "each-node"}]
+		evidence: ["komodo-periphery-agent-contract"]
+	},
+],
+	_architectureV2ProfileExtensionModules,
+	[for haRealization in _architectureV2HARealizations {
+		metadata: {
+			id:          haRealization.moduleID
+			version:     "1.0.0"
+			description: "Kit and mode specific high-availability realization bound exclusively to explicit control-plane members."
+		}
+		role:               "operations"
+		providerRef:        haRealization.providerID
+		provides:           _architectureV2HACapabilities
+		supportedSiteKinds: haRealization.supportedSiteKinds
+		nodeSelection: {
+			authority:           haRealization.authoritySelection
+			controlPlaneMembers: "only"
+		}
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                      "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://availability/ha/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:0a7aa7b06915bb94c8846f653c8e8fad37849f35a29642f5b11bc60ec0127784"
+			publicInputRefs: [], secretInputRefs: []
+			planInputRefs: ["stackId", "kit", "sites", "controlPlane", "moduleTargets", "moduleCapabilities", "availability"]
+			outputs: ["availability/ha/\(haRealization.moduleID)/executor-contract.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		realizationSupport: _architectureV2HAAvailabilityRuntimeSupport & {
+			artifacts: {
+				requiredRefs: ["\(haRealization.moduleID)-executor-contract"]
+				outputBindings: [{artifactRef: "\(haRealization.moduleID)-executor-contract", unitRef: "executor-contract", outputRef: "availability/ha/\(haRealization.moduleID)/executor-contract.json"}]
+				contracts: [{
+					id: "\(haRealization.moduleID)-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+					compatibleTargets: ["opentofu", "compose"]
+					unitRef: "executor-contract", outputRef: "availability/ha/\(haRealization.moduleID)/executor-contract.json"
+				}]
+			}
+		}
+		health: [{id: haRealization.healthID, kind: "contract", scope: "each-node"}]
+		evidence: [haRealization.evidenceRef]
+	}],
+])
+
+_architectureV2AddOns: [{
+	metadata: {
+		id:          "ha"
+		version:     "1.0.0"
+		description: "High availability policy and topology overlay; never a standalone kit."
+	}
+	supportedKits: [for profile in ArchitectureV2AuthorityProfiles {profile.slug}]
+	provides: ["availability-ha"]
+	requires: [{id: "topology-core"}]
+	availability: {
+		policyAuthority: "kit-definition"
+		supportedModes: ["warm-standby", "quorum"]
+		selector: "control-plane-members"
+	}
+}]
+
+_architectureV2PrivilegedInterfaceApprovals: list.Concat([[
+	{
+		id:            "approve-socket-proxy-backing"
+		kind:          "docker-socket-direct-v1"
+		moduleRef:     "socket-proxy"
+		unitRef:       "compose"
+		providerRef:   "stackkits-basement-compose"
+		daemonRef:     "docker-default"
+		policyProfile: "docker-provider-backing"
+		reasonCode:    "provider-backing"
+		evidenceRef:   "socket-proxy-provider-backing-governance"
+	},
+	{
+		// ADR-0043: Wings owns game-server containers; no other workload
+		// component can request the Docker socket.
+		id:            "approve-pterodactyl-wings-lifecycle-owner"
+		kind:          "docker-socket-direct-v1"
+		moduleRef:     "stackkits-pterodactyl-runtime"
+		unitRef:       "pterodactyl"
+		providerRef:   "stackkits-pterodactyl"
+		daemonRef:     "docker-default"
+		policyProfile: "docker-game-node-lifecycle"
+		reasonCode:    "lifecycle-owner"
+		evidenceRef:   "pterodactyl-wings-lifecycle-owner-governance"
+	},
+], _architectureV2ProfileExtensionPrivilegedInterfaceApprovals])
+
+_architectureV2RILActionPrimitives: [
+	{
+		id:      "plan-drift-repair", version: "1.0.0", title:     "Plan a governed drift repair", category: "plan"
+		support: "contract-only", mutation:    false, destructive: false, risk:                              "read-only"
+		owner: {authority: "stackkits", operationClass: "plan-inspection"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-plan"], connectorBindingRequired: true}
+		target: {scope: "stack", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
+		inputs: []
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["readback"]}
+		recovery: {kind: "none", requiredOnFailure: false}
+	},
+	{
+		id:      "apply-stackkit-change", version: "1.0.0", title:    "Apply an approved StackKit change", category: "apply"
+		support: "contract-only", mutation:        true, destructive: false, risk:                                   "high"
+		owner: {authority: "stackkits", operationClass: "product-apply"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-apply"], connectorBindingRequired: true}
+		target: {scope: "stack", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
+		inputs: [{id: "approved-change-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "primitive", requiredOnFailure: true, primitiveRef: "rollback-stackkit-change"}
+	},
+	{
+		id:      "verify-stackkit-state", version: "1.0.0", title:                                   "Verify governed StackKit state", category: "verify"
+		support: "executor-bound", executorRef:    "stackkits-governed-state-verifier-v1", mutation: false, destructive:                         false, risk: "read-only"
+		owner: {authority: "stackkits", operationClass: "product-verify"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-verify"], connectorBindingRequired: true}
+		target: {scope: "stack", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
+		inputs: []
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["readback"]}
+		recovery: {kind: "none", requiredOnFailure: false}
+	},
+	{
+		id:      "rollback-stackkit-change", version: "1.0.0", title:    "Roll back an approved StackKit change", category: "rollback"
+		support: "contract-only", mutation:           true, destructive: true, risk:                                        "critical"
+		owner: {authority: "stackkits", operationClass: "product-rollback"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "break-glass", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-rollback"], connectorBindingRequired: true}
+		target: {scope: "stack", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
+		inputs: [{id: "checkpoint-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "manual", requiredOnFailure: true}
+	},
+	{
+		id:      "restart-service", version: "1.0.0", title:    "Restart one governed runtime service", category: "service"
+		support: "contract-only", mutation:  true, destructive: false, risk:                                      "high"
+		owner: {authority: "stackkits", operationClass: "runtime-service-action"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-service-restart"], connectorBindingRequired: true}
+		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
+		inputs: [{id: "runtime-instance-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "manual", requiredOnFailure: true}
+	},
+	{
+		id:      "rotate-certificate", version: "1.0.0", title:    "Rotate one governed certificate binding", category: "certificate"
+		support: "contract-only", mutation:     true, destructive: false, risk:                                         "high"
+		owner: {authority: "stackkits", operationClass: "certificate-action"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-certificate-rotate"], connectorBindingRequired: true}
+		target: {scope: "module-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: false}
+		inputs: [{id: "certificate-binding-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "manual", requiredOnFailure: true}
+	},
+	{
+		id:      "check-backup", version:   "1.0.0", title:     "Check governed backup and restore evidence", category: "backup"
+		support: "contract-only", mutation: false, destructive: false, risk:                                            "read-only"
+		owner: {authority: "stackkits", operationClass: "backup-evidence"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-backup-check"], connectorBindingRequired: true}
+		target: {scope: "module-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
+		inputs: [{id: "backup-contract-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["readback"]}
+		recovery: {kind: "none", requiredOnFailure: false}
+	},
+]
+
+_architectureV2RILActionExecutors: [{
+	schemaVersion: "stackkit.ril-action-executor/v1"
+	ref:           "stackkits-governed-state-verifier-v1"
+	version:       "1.0.0"
+	owner: authority: "stackkits"
+	operationClasses: ["product-verify"]
+	prohibitions: {
+		providerLifecycle:    true
+		providerInputs:       true
+		leaseAuthority:       true
+		credentialResolution: true
+		transport:            true
+		callerCommands:       true
+		arbitraryPaths:       true
+	}
+}]
+
+ArchitectureV2Catalog: #ArchitectureV2CatalogContract & {
+	capabilities: [for contract in _architectureV2Capabilities {#CapabilityContract & contract}]
+	providers: [for contract in list.Concat([_architectureV2Providers, _architectureV2HomeAssistantInstanceProviders]) {#CapabilityProvider & contract}]
+	addons: [for contract in _architectureV2AddOns {#AddOnContract & contract}]
+	modules: [for contract in list.Concat([_architectureV2Modules, _architectureV2HomeAssistantInstanceModules]) {#ModuleContractV2 & contract}]
+	workloads:             _architectureV2WorkloadContracts
+	applicationLifecycles: _architectureV2ApplicationLifecycleContracts
+	privilegedInterfaceApprovals: [for contract in _architectureV2PrivilegedInterfaceApprovals {#PrivilegedInterfaceApprovalV2 & contract}]
+	rilActionExecutors: [for contract in _architectureV2RILActionExecutors {#RILActionExecutorContractV1 & contract}]
+	rilActionPrimitives: list.Concat([
+		[for contract in _architectureV2RILActionPrimitives {
+			#RILActionPrimitiveContractV1 & contract & {extensionAuthority?: _|_}
+		}],
+		[for module in modules for contract in module.rilActionPrimitives {contract}],
+	])
+	planArtifacts: _architectureV2PlanArtifacts
+
+	_capabilityIDsUnique: list.UniqueItems([for contract in capabilities {contract.metadata.id}]) & true
+	_providerIDsUnique: list.UniqueItems([for contract in providers {contract.metadata.id}]) & true
+	_addOnIDsUnique: list.UniqueItems([for contract in addons {contract.metadata.id}]) & true
+}
+
+// ArchitectureV2ModuleImages projects the immutable runtime image authority for
+// legacy module consumers. It does not own a second set of version values.
+ArchitectureV2ModuleImages: {
+	for module in ArchitectureV2Catalog.modules if module.runtime.components != _|_ {
+		(module.metadata.id): {
+			for component in module.runtime.components if component.image.digest != _|_ {
+				(component.id): {
+					let parts = strings.Split(component.image.ref, ":")
+					image: strings.Join(parts[:len(parts)-1], ":")
+					tag:   "\(parts[len(parts)-1])@\(component.image.digest)"
+				}
+			}
+		}
+	}
+}

@@ -84,7 +84,51 @@ func ResolveLocalSecretMaterial(workspaceRoot, secretRef string) ([]byte, error)
 	if err != nil {
 		return nil, err
 	}
+	if record.Kind == localIssuedSecretCustodyKind {
+		// Issued secrets are handed to the application exactly as issued.
+		return base64.RawStdEncoding.Strict().DecodeString(record.Material)
+	}
 	return append([]byte(nil), record.Material...), nil
+}
+
+// Issued secrets are credentials an application or identity provider issues
+// (an API key, an OIDC client secret). They are custodied like generated
+// secrets, owner-signed and owner-only, but keep their exact issued bytes.
+const (
+	localIssuedSecretCustodyKind = "LocalIssuedSecretCustody"
+	maxIssuedSecretBytes         = 8192
+)
+
+// StoreLocalIssuedSecret custodies an issued credential under secretRef,
+// replacing a previous one so that a rotation takes effect on the next apply.
+// Neither evidence nor diagnostics contain its value or ref.
+func StoreLocalIssuedSecret(workspaceRoot, secretRef string, material []byte) error {
+	refDigest, err := localSecretRefDigest(secretRef)
+	if err != nil {
+		return err
+	}
+	if len(material) == 0 || len(material) > maxIssuedSecretBytes {
+		return errors.New("localevidence: issued secret must be 1 to 8192 bytes")
+	}
+	owner, err := LoadOwnerCustody(workspaceRoot)
+	if err != nil {
+		return fmt.Errorf("localevidence: load owner for issued secret custody: %w", err)
+	}
+	materialDigest := sha256.Sum256(material)
+	record := localSecretCustody{
+		APIVersion: localSecretCustodyAPIVersion, Kind: localIssuedSecretCustodyKind,
+		OwnerRef: owner.OwnerRef, KeyID: owner.KeyID, RefDigest: refDigest,
+		Material:       base64.RawStdEncoding.EncodeToString(material),
+		MaterialDigest: hex.EncodeToString(materialDigest[:]),
+	}
+	record.Signature, err = SignOwnerPolicyState(workspaceRoot, localSecretSigningBytes(record))
+	if err != nil {
+		return fmt.Errorf("localevidence: sign issued secret custody: %w", err)
+	}
+	if err := writeLocalSecretCustody(workspaceRoot, refDigest, record); err != nil {
+		return fmt.Errorf("localevidence: persist issued secret custody: %w", err)
+	}
+	return nil
 }
 
 // SecretObserver proves that the exact opaque secret locator in an Apply
@@ -204,11 +248,15 @@ func loadLocalSecretCustody(workspaceRoot, refDigest string) (localSecretCustody
 		return localSecretCustody{}, errors.New("localevidence: local secret custody is malformed")
 	}
 	material, err := base64.RawStdEncoding.Strict().DecodeString(record.Material)
-	if err != nil || len(material) != 32 {
+	validLength := len(material) == 32
+	if record.Kind == localIssuedSecretCustodyKind {
+		validLength = len(material) > 0 && len(material) <= maxIssuedSecretBytes
+	}
+	if err != nil || !validLength {
 		return localSecretCustody{}, errors.New("localevidence: local secret custody material is malformed")
 	}
 	digest := sha256.Sum256(material)
-	if record.APIVersion != localSecretCustodyAPIVersion || record.Kind != localSecretCustodyKind ||
+	if record.APIVersion != localSecretCustodyAPIVersion || (record.Kind != localSecretCustodyKind && record.Kind != localIssuedSecretCustodyKind) ||
 		record.RefDigest != refDigest || record.MaterialDigest != hex.EncodeToString(digest[:]) {
 		return localSecretCustody{}, errors.New("localevidence: local secret custody integrity check failed")
 	}

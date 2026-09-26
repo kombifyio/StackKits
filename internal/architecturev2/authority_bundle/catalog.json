@@ -978,6 +978,961 @@
         }
       },
       "metadata": {
+        "description": "MQTT broker add-on of the smart-home use case.",
+        "id": "smart-home-mqtt",
+        "version": "1.0.0"
+      },
+      "packageRef": "smart-home",
+      "useCaseRef": "smart-home",
+      "workloadRef": "smart-home-mqtt"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Zigbee bridge add-on of the smart-home use case.",
+        "id": "smart-home-zigbee",
+        "version": "1.0.0"
+      },
+      "packageRef": "smart-home",
+      "useCaseRef": "smart-home",
+      "workloadRef": "smart-home-zigbee"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Public share-link add-on of the photos use case.",
+        "id": "photos-share",
+        "version": "1.0.0"
+      },
+      "packageRef": "photos",
+      "useCaseRef": "photos",
+      "workloadRef": "photos-share"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Slideshow add-on of the photos use case.",
+        "id": "photos-kiosk",
+        "version": "1.0.0"
+      },
+      "packageRef": "photos",
+      "useCaseRef": "photos",
+      "workloadRef": "photos-kiosk"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Library maintenance add-on of the photos use case.",
+        "id": "photos-tools",
+        "version": "1.0.0"
+      },
+      "packageRef": "photos",
+      "useCaseRef": "photos",
+      "workloadRef": "photos-tools"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
         "description": "Private Git lifecycle; CI runners are a separate selection.",
         "id": "dev",
         "version": "1.0.0"
@@ -5572,6 +6527,56 @@
       },
       {
         "governanceMatches": [
+          "stackkits-mosquitto-runtime"
+        ],
+        "matches": [
+          "stackkits-mosquitto"
+        ],
+        "module": "stackkits-mosquitto-runtime",
+        "provider": "stackkits-mosquitto"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-zigbee2mqtt-runtime"
+        ],
+        "matches": [
+          "stackkits-zigbee2mqtt"
+        ],
+        "module": "stackkits-zigbee2mqtt-runtime",
+        "provider": "stackkits-zigbee2mqtt"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-immich-public-proxy-runtime"
+        ],
+        "matches": [
+          "stackkits-immich-public-proxy"
+        ],
+        "module": "stackkits-immich-public-proxy-runtime",
+        "provider": "stackkits-immich-public-proxy"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-immich-kiosk-runtime"
+        ],
+        "matches": [
+          "stackkits-immich-kiosk"
+        ],
+        "module": "stackkits-immich-kiosk-runtime",
+        "provider": "stackkits-immich-kiosk"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-immich-power-tools-runtime"
+        ],
+        "matches": [
+          "stackkits-immich-power-tools"
+        ],
+        "module": "stackkits-immich-power-tools-runtime",
+        "provider": "stackkits-immich-power-tools"
+      },
+      {
+        "governanceMatches": [
           "stackkits-jellyfin-runtime"
         ],
         "matches": [
@@ -6448,6 +7453,36 @@
             "files-office"
           ],
           "providerID": "stackkits-euro-office"
+        },
+        {
+          "contracts": [
+            "smart-home-mqtt"
+          ],
+          "providerID": "stackkits-mosquitto"
+        },
+        {
+          "contracts": [
+            "smart-home-zigbee"
+          ],
+          "providerID": "stackkits-zigbee2mqtt"
+        },
+        {
+          "contracts": [
+            "photos-share"
+          ],
+          "providerID": "stackkits-immich-public-proxy"
+        },
+        {
+          "contracts": [
+            "photos-kiosk"
+          ],
+          "providerID": "stackkits-immich-kiosk"
+        },
+        {
+          "contracts": [
+            "photos-tools"
+          ],
+          "providerID": "stackkits-immich-power-tools"
         },
         {
           "contracts": [
@@ -7399,6 +8434,41 @@
         ],
         "module": "stackkits-euro-office-runtime",
         "provider": "stackkits-euro-office"
+      },
+      {
+        "matches": [
+          "stackkits-mosquitto-runtime"
+        ],
+        "module": "stackkits-mosquitto-runtime",
+        "provider": "stackkits-mosquitto"
+      },
+      {
+        "matches": [
+          "stackkits-zigbee2mqtt-runtime"
+        ],
+        "module": "stackkits-zigbee2mqtt-runtime",
+        "provider": "stackkits-zigbee2mqtt"
+      },
+      {
+        "matches": [
+          "stackkits-immich-public-proxy-runtime"
+        ],
+        "module": "stackkits-immich-public-proxy-runtime",
+        "provider": "stackkits-immich-public-proxy"
+      },
+      {
+        "matches": [
+          "stackkits-immich-kiosk-runtime"
+        ],
+        "module": "stackkits-immich-kiosk-runtime",
+        "provider": "stackkits-immich-kiosk"
+      },
+      {
+        "matches": [
+          "stackkits-immich-power-tools-runtime"
+        ],
+        "module": "stackkits-immich-power-tools-runtime",
+        "provider": "stackkits-immich-power-tools"
       },
       {
         "matches": [
@@ -8555,6 +9625,146 @@
         "matches": [
           "runtime-paas"
         ],
+        "provider": "stackkits-mosquitto"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-mosquitto"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-mosquitto"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-mosquitto"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-zigbee2mqtt"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-zigbee2mqtt"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-zigbee2mqtt"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-zigbee2mqtt"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-immich-public-proxy"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-immich-public-proxy"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-immich-public-proxy"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-immich-public-proxy"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-immich-kiosk"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-immich-kiosk"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-immich-kiosk"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-immich-kiosk"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-immich-power-tools"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-immich-power-tools"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-immich-power-tools"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-immich-power-tools"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
         "provider": "stackkits-jellyfin"
       },
       {
@@ -9338,6 +10548,36 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-euro-office"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-mosquitto"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-zigbee2mqtt"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-immich-public-proxy"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-immich-kiosk"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-immich-power-tools"
         },
         {
           "capabilityBindings": [],
@@ -11623,6 +12863,478 @@
             }
           ],
           "workloadID": "files-office"
+        },
+        {
+          "alternativeID": "mosquitto",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-mosquitto-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "mosquitto"
+                  ],
+                  "ref": "mqtt-password"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "smart-home-mqtt",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "mosquitto",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": [
+                {
+                  "matches": [
+                    "mosquitto"
+                  ],
+                  "ref": "lan-listener"
+                }
+              ]
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-mosquitto",
+              "workloadOwnership": [
+                "smart-home-mqtt"
+              ]
+            }
+          ],
+          "workloadID": "smart-home-mqtt"
+        },
+        {
+          "alternativeID": "zigbee2mqtt",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-zigbee2mqtt-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "zigbee2mqtt"
+                  ],
+                  "ref": "mqtt-password"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "smart-home-zigbee",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "zigbee2mqtt",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": [
+                {
+                  "matches": [
+                    "zigbee2mqtt"
+                  ],
+                  "ref": "usb-device"
+                },
+                {
+                  "matches": [
+                    "zigbee2mqtt"
+                  ],
+                  "ref": "mqtt-server"
+                },
+                {
+                  "matches": [
+                    "zigbee2mqtt"
+                  ],
+                  "ref": "zigbee-adapter"
+                }
+              ]
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-zigbee2mqtt",
+              "workloadOwnership": [
+                "smart-home-zigbee"
+              ]
+            }
+          ],
+          "workloadID": "smart-home-zigbee"
+        },
+        {
+          "alternativeID": "immich-public-proxy",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-immich-public-proxy-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [],
+              "serviceMatches": [
+                {
+                  "unitID": "immich-public-proxy"
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-immich-public-proxy",
+              "workloadOwnership": [
+                "photos-share"
+              ]
+            }
+          ],
+          "workloadID": "photos-share"
+        },
+        {
+          "alternativeID": "immich-kiosk",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-immich-kiosk-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "immich-kiosk"
+                  ],
+                  "ref": "immich-api-key"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "photos-kiosk",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "immich-kiosk",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-immich-kiosk",
+              "workloadOwnership": [
+                "photos-kiosk"
+              ]
+            }
+          ],
+          "workloadID": "photos-kiosk"
+        },
+        {
+          "alternativeID": "immich-power-tools",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-immich-power-tools-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "immich-power-tools"
+                  ],
+                  "ref": "database-password"
+                },
+                {
+                  "matches": [
+                    "immich-power-tools"
+                  ],
+                  "ref": "immich-api-key"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "photos-tools",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "immich-power-tools",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-immich-power-tools",
+              "workloadOwnership": [
+                "photos-tools"
+              ]
+            }
+          ],
+          "workloadID": "photos-tools"
         },
         {
           "alternativeID": "home-assistant",
@@ -28727,6 +30439,1796 @@
       "computeProfiles": {
         "high": {
           "components": [
+            "mosquitto"
+          ],
+          "description": "MQTT broker through Eclipse Mosquitto with password authentication. The MQTT listener on port 1883 is published on the LAN only when the owner enables it; the broker statistics API stays behind the gateway login.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.03125
+          }
+        },
+        "standard": {
+          "components": [
+            "mosquitto"
+          ],
+          "description": "MQTT broker through Eclipse Mosquitto with password authentication. The MQTT listener on port 1883 is published on the LAN only when the owner enables it; the broker statistics API stays behind the gateway login.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.03125
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "mosquitto-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "mosquitto-http",
+          "kind": "http",
+          "path": "/api/v1/systree",
+          "phase": "continuous",
+          "port": 8080,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Eclipse Mosquitto MQTT broker for Home Assistant, Zigbee2MQTT and ESPHome devices, selected in addition to the smart-home workload.",
+        "id": "stackkits-mosquitto-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-mosquitto",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "mosquitto-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/mosquitto/bundle.json",
+              "required": true,
+              "unitRef": "mosquitto"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "mosquitto-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/mosquitto/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "mosquitto-workload-bundle",
+              "outputRef": "workloads/mosquitto/bundle.json",
+              "unitRef": "mosquitto"
+            },
+            {
+              "artifactRef": "mosquitto-terramate-stack",
+              "outputRef": "platform/applications/mosquitto/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "mosquitto-workload-bundle",
+            "mosquitto-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "mosquitto-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "mqtt-password"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:969f57e8e598319da7072af0ef3d21b13d5ccf8e0246075e47d797764156031e",
+          "id": "mosquitto",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/mosquitto/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "lan-listener"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "mqtt-password"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "smart-home-mqtt",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "mosquitto-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "smart-home-mqtt",
+              "targetPort": 8080,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/mosquitto/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/mosquitto/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "mosquitto-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "lan-listener"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "mqtt-password"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "mosquitto"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "mosquitto-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "lan-listener"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "mqtt-password"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "mosquitto"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "mosquitto-workload-bundle",
+            "mosquitto-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "lan-listener"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "mqtt-password"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "mosquitto",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "command": [
+              "/bin/sh",
+              "-ec",
+              "printf 'per_listener_settings true\\npersistence true\\npersistence_location /mosquitto/data/\\nlistener 1883\\nallow_anonymous false\\npassword_file /mosquitto/data/passwd\\nlistener 8080\\nprotocol http_api\\nallow_anonymous true\\n' \u003e /mosquitto/data/mosquitto.conf \u0026\u0026 mosquitto_passwd -b -c /mosquitto/data/passwd stackkit \"$MQTT_PASSWORD\" \u0026\u0026 unset MQTT_PASSWORD \u0026\u0026 chown mosquitto:mosquitto /mosquitto/data/mosquitto.conf /mosquitto/data/passwd \u0026\u0026 exec mosquitto -c /mosquitto/data/mosquitto.conf"
+            ],
+            "dependsOn": [],
+            "health": {
+              "kind": "http",
+              "path": "/api/v1/systree",
+              "port": 8080
+            },
+            "id": "mosquitto",
+            "image": {
+              "digest": "sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408",
+              "ref": "docker.io/library/eclipse-mosquitto:2.1.2-alpine"
+            },
+            "lanListeners": [
+              {
+                "port": 1883,
+                "protocol": "tcp",
+                "settingRef": "lan-listener"
+              }
+            ],
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "mosquitto-internal"
+            ],
+            "resources": {
+              "memoryLimit": "128m",
+              "memoryReservation": "32m"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "MQTT_PASSWORD": "mqtt-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "target": "/mosquitto/data"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "mosquitto",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408",
+          "ref": "docker.io/library/eclipse-mosquitto:2.1.2-alpine"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "zigbee2mqtt"
+          ],
+          "description": "Zigbee bridge through Zigbee2MQTT. The owner chooses the Zigbee USB adapter and the MQTT broker address; the frontend stays behind the gateway login.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.125
+          }
+        },
+        "standard": {
+          "components": [
+            "zigbee2mqtt"
+          ],
+          "description": "Zigbee bridge through Zigbee2MQTT. The owner chooses the Zigbee USB adapter and the MQTT broker address; the frontend stays behind the gateway login.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.125
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "zigbee2mqtt-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "zigbee2mqtt-http",
+          "kind": "http",
+          "path": "/",
+          "phase": "continuous",
+          "port": 8080,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Zigbee2MQTT bridge that exposes Zigbee devices to Home Assistant over MQTT, selected in addition to the smart-home workload with an owner-chosen Zigbee adapter.",
+        "id": "stackkits-zigbee2mqtt-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-zigbee2mqtt",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "zigbee2mqtt-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/zigbee2mqtt/bundle.json",
+              "required": true,
+              "unitRef": "zigbee2mqtt"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "zigbee2mqtt-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/zigbee2mqtt/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "zigbee2mqtt-workload-bundle",
+              "outputRef": "workloads/zigbee2mqtt/bundle.json",
+              "unitRef": "zigbee2mqtt"
+            },
+            {
+              "artifactRef": "zigbee2mqtt-terramate-stack",
+              "outputRef": "platform/applications/zigbee2mqtt/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "zigbee2mqtt-workload-bundle",
+            "zigbee2mqtt-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "zigbee2mqtt-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "mqtt-password"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:411b2ac6de886cb069361aed21f5524e42a7c15ab7f91fa8c96c0542beaf4410",
+          "id": "zigbee2mqtt",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/zigbee2mqtt/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "usb-device",
+            "mqtt-server",
+            "zigbee-adapter"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "mqtt-password"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "smart-home-zigbee",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "zigbee2mqtt-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "smart-home-zigbee",
+              "targetPort": 8080,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/zigbee2mqtt/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/zigbee2mqtt/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "zigbee2mqtt-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "usb-device",
+            "mqtt-server",
+            "zigbee-adapter"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "mqtt-password"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "zigbee2mqtt"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "zigbee2mqtt-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "usb-device",
+            "mqtt-server",
+            "zigbee-adapter"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "mqtt-password"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "zigbee2mqtt"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "zigbee2mqtt-workload-bundle",
+            "zigbee2mqtt-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "usb-device",
+            "mqtt-server",
+            "zigbee-adapter"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "mqtt-password"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "zigbee2mqtt",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "devicePassthrough": {
+              "settingRef": "usb-device",
+              "target": "/dev/zigbee"
+            },
+            "environment": {
+              "Z2M_ONBOARD_NO_SERVER": "1",
+              "ZIGBEE2MQTT_CONFIG_FRONTEND_ENABLED": "true",
+              "ZIGBEE2MQTT_CONFIG_FRONTEND_PORT": "8080",
+              "ZIGBEE2MQTT_CONFIG_HOMEASSISTANT_ENABLED": "true",
+              "ZIGBEE2MQTT_CONFIG_MQTT_USER": "stackkit",
+              "ZIGBEE2MQTT_CONFIG_SERIAL_PORT": "/dev/zigbee",
+              "ZIGBEE2MQTT_DATA": "/app/data"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/",
+              "port": 8080
+            },
+            "id": "zigbee2mqtt",
+            "image": {
+              "digest": "sha256:fef0de769dcd04c27b3a6d277b61046eb96284bdd4198dcb1687c3a01b3020f3",
+              "ref": "ghcr.io/koenkk/zigbee2mqtt:2.14.1"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "zigbee2mqtt-internal"
+            ],
+            "resources": {
+              "memoryLimit": "512m",
+              "memoryReservation": "128m"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD": "mqtt-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "target": "/app/data"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "zigbee2mqtt",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:fef0de769dcd04c27b3a6d277b61046eb96284bdd4198dcb1687c3a01b3020f3",
+          "ref": "ghcr.io/koenkk/zigbee2mqtt:2.14.1"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "immich-public-proxy"
+          ],
+          "description": "Public share links through Immich Public Proxy. It reaches Immich on the node's internal photos network, holds no Immich credentials and exposes no Immich login or API; the route is public by design.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.0625
+          }
+        },
+        "standard": {
+          "components": [
+            "immich-public-proxy"
+          ],
+          "description": "Public share links through Immich Public Proxy. It reaches Immich on the node's internal photos network, holds no Immich credentials and exposes no Immich login or API; the route is public by design.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.0625
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "immich-public-proxy-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "immich-public-proxy-http",
+          "kind": "http",
+          "path": "/share/healthcheck",
+          "phase": "continuous",
+          "port": 3000,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Immich Public Proxy serving only the share links the owner creates in Immich to people without an account, selected in addition to the photos workload.",
+        "id": "stackkits-immich-public-proxy-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-immich-public-proxy",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "immich-public-proxy-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/immich-public-proxy/bundle.json",
+              "required": true,
+              "unitRef": "immich-public-proxy"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "immich-public-proxy-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/immich-public-proxy/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "immich-public-proxy-workload-bundle",
+              "outputRef": "workloads/immich-public-proxy/bundle.json",
+              "unitRef": "immich-public-proxy"
+            },
+            {
+              "artifactRef": "immich-public-proxy-terramate-stack",
+              "outputRef": "platform/applications/immich-public-proxy/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "immich-public-proxy-workload-bundle",
+            "immich-public-proxy-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "immich-public-proxy-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:ae9a376446bcdd01baaa8f77617b485f769edd78b715b72cd582dfe7047a95ea",
+          "id": "immich-public-proxy",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/immich-public-proxy/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "healthRef": "immich-public-proxy-http",
+              "ingressAuth": "native",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "photos-share",
+              "targetPort": 3000,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/immich-public-proxy/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/immich-public-proxy/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "immich-public-proxy-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "immich-public-proxy"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "immich-public-proxy-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "immich-public-proxy"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "immich-public-proxy-workload-bundle",
+            "immich-public-proxy-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "terramate",
+          "unitRefs": [
+            "immich-public-proxy",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "environment": {
+              "IMMICH_URL": "http://immich-server:2283"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/share/healthcheck",
+              "port": 3000
+            },
+            "id": "immich-public-proxy",
+            "image": {
+              "digest": "sha256:b442829bb99e25f39e2979bb45bb12a6db991d98a1cd90938799b84ab262692a",
+              "ref": "ghcr.io/alangrainger/immich-public-proxy:3.4.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "immich-public-proxy-internal"
+            ],
+            "peerNetworks": [
+              {
+                "networkRef": "immich-internal",
+                "workloadRef": "photos"
+              }
+            ],
+            "resources": {
+              "memoryLimit": "256m",
+              "memoryReservation": "64m"
+            },
+            "role": "application"
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "immich-public-proxy",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:b442829bb99e25f39e2979bb45bb12a6db991d98a1cd90938799b84ab262692a",
+          "ref": "ghcr.io/alangrainger/immich-public-proxy:3.4.0"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "immich-kiosk"
+          ],
+          "description": "Photo-frame slideshow through Immich Kiosk behind the gateway login. It reaches Immich on the node's internal photos network with an API key the Immich owner issues through stackkit setup.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.0625
+          }
+        },
+        "standard": {
+          "components": [
+            "immich-kiosk"
+          ],
+          "description": "Photo-frame slideshow through Immich Kiosk behind the gateway login. It reaches Immich on the node's internal photos network with an API key the Immich owner issues through stackkit setup.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.0625
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "immich-kiosk-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "immich-kiosk-http",
+          "kind": "http",
+          "path": "/health",
+          "phase": "continuous",
+          "port": 3000,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Immich Kiosk slideshow for photo frames and TVs, selected in addition to the photos workload; it reads Immich with an Immich-issued API key.",
+        "id": "stackkits-immich-kiosk-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-immich-kiosk",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "immich-kiosk-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/immich-kiosk/bundle.json",
+              "required": true,
+              "unitRef": "immich-kiosk"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "immich-kiosk-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/immich-kiosk/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "immich-kiosk-workload-bundle",
+              "outputRef": "workloads/immich-kiosk/bundle.json",
+              "unitRef": "immich-kiosk"
+            },
+            {
+              "artifactRef": "immich-kiosk-terramate-stack",
+              "outputRef": "platform/applications/immich-kiosk/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "immich-kiosk-workload-bundle",
+            "immich-kiosk-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "immich-kiosk-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "immich-api-key"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:9d48a57999c0134b16e5bf66c60c3025ead547697d4609973871df59ca1902b7",
+          "id": "immich-kiosk",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/immich-kiosk/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "immich-api-key"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "photos-kiosk",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "immich-kiosk-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "photos-kiosk",
+              "targetPort": 3000,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/immich-kiosk/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/immich-kiosk/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "immich-kiosk-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "immich-api-key"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "immich-kiosk"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "immich-kiosk-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "immich-api-key"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "immich-kiosk"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "immich-kiosk-workload-bundle",
+            "immich-kiosk-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "immich-api-key"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "immich-kiosk",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "environment": {
+              "KIOSK_IMMICH_URL": "http://immich-server:2283"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/health",
+              "port": 3000
+            },
+            "id": "immich-kiosk",
+            "image": {
+              "digest": "sha256:b65371b9fbe93cde8355c06ba095fb4801bbb5d7c8c51065a5bfa02183536771",
+              "ref": "ghcr.io/damongolding/immich-kiosk:0.39.3"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "immich-kiosk-internal"
+            ],
+            "peerNetworks": [
+              {
+                "networkRef": "immich-internal",
+                "workloadRef": "photos"
+              }
+            ],
+            "resources": {
+              "memoryLimit": "256m",
+              "memoryReservation": "64m"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "KIOSK_IMMICH_API_KEY": "immich-api-key"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "config",
+                "target": "/config"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "immich-kiosk",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:b65371b9fbe93cde8355c06ba095fb4801bbb5d7c8c51065a5bfa02183536771",
+          "ref": "ghcr.io/damongolding/immich-kiosk:0.39.3"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "immich-power-tools"
+          ],
+          "description": "Library maintenance through Immich Power Tools behind the gateway login. It reaches Immich and its database on the node's internal photos network with an Immich-issued API key and the photos database credential.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.125
+          }
+        },
+        "standard": {
+          "components": [
+            "immich-power-tools"
+          ],
+          "description": "Library maintenance through Immich Power Tools behind the gateway login. It reaches Immich and its database on the node's internal photos network with an Immich-issued API key and the photos database credential.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.125
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "immich-power-tools-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "immich-power-tools-http",
+          "kind": "http",
+          "path": "/api/health",
+          "phase": "continuous",
+          "port": 3000,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Immich Power Tools for bulk library maintenance, selected in addition to the photos workload; it uses an Immich-issued API key and the Immich database.",
+        "id": "stackkits-immich-power-tools-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-immich-power-tools",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "immich-power-tools-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/immich-power-tools/bundle.json",
+              "required": true,
+              "unitRef": "immich-power-tools"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "immich-power-tools-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/immich-power-tools/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "immich-power-tools-workload-bundle",
+              "outputRef": "workloads/immich-power-tools/bundle.json",
+              "unitRef": "immich-power-tools"
+            },
+            {
+              "artifactRef": "immich-power-tools-terramate-stack",
+              "outputRef": "platform/applications/immich-power-tools/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "immich-power-tools-workload-bundle",
+            "immich-power-tools-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "immich-power-tools-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "database-password",
+            "immich-api-key"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:f9315100fbbd9fbbaa2636f3fd9d7bc8167923a80effacb3b51f3e25d5832bcf",
+          "id": "immich-power-tools",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/immich-power-tools/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "database-password",
+            "immich-api-key"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "photos-tools",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "immich-power-tools-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "photos-tools",
+              "targetPort": 3000,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/immich-power-tools/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/immich-power-tools/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "immich-power-tools-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "immich-api-key"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "immich-power-tools"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "immich-power-tools-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "immich-api-key"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "immich-power-tools"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "immich-power-tools-workload-bundle",
+            "immich-power-tools-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "immich-api-key"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "immich-power-tools",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "environment": {
+              "DB_DATABASE_NAME": "immich",
+              "DB_HOST": "immich-postgres",
+              "DB_PORT": "5432",
+              "DB_USERNAME": "immich",
+              "IMMICH_URL": "http://immich-server:2283"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/api/health",
+              "port": 3000
+            },
+            "id": "immich-power-tools",
+            "image": {
+              "digest": "sha256:0bb87c70270ee7a95848a5b8ecbd90cd850e7bdacc0f64b70e33e4524f123fa4",
+              "ref": "ghcr.io/immich-power-tools/immich-power-tools:0.24.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "immich-power-tools-internal"
+            ],
+            "peerNetworks": [
+              {
+                "networkRef": "immich-internal",
+                "workloadRef": "photos"
+              }
+            ],
+            "resources": {
+              "memoryLimit": "512m",
+              "memoryReservation": "128m"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "DB_PASSWORD": "database-password",
+              "IMMICH_API_KEY": "immich-api-key"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "target": "/app/data"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "immich-power-tools",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:0bb87c70270ee7a95848a5b8ecbd90cd850e7bdacc0f64b70e33e4524f123fa4",
+          "ref": "ghcr.io/immich-power-tools/immich-power-tools:0.24.0"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
             "jellyfin"
           ],
           "description": "Media library and playback through Jellyfin. Standard and high have the same declared application and resources; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
@@ -35709,6 +39211,246 @@
     {
       "certificateIssuers": [],
       "evidence": [
+        "mosquitto-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-mosquitto",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-mosquitto-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "smart-home-mqtt"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "zigbee2mqtt-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-zigbee2mqtt",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-zigbee2mqtt-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "smart-home-zigbee"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "immich-public-proxy-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-immich-public-proxy",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-immich-public-proxy-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "photos-share"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "immich-kiosk-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-immich-kiosk",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-immich-kiosk-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "photos-kiosk"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "immich-power-tools-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-immich-power-tools",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-immich-power-tools-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "photos-tools"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
         "jellyfin-selected-paas-runtime-contract"
       ],
       "metadata": {
@@ -40644,6 +44386,578 @@
         "cloud"
       ],
       "useCaseRef": "files"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "mosquitto",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "mosquitto",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "smart-home-mqtt",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "mosquitto",
+                  "dataBindingRef": "smart-home-mqtt",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/mosquitto/data",
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "mqtt-password"
+              ],
+              "requiredRefs": [
+                "mqtt-password"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [
+                "lan-listener"
+              ],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-mosquitto-runtime",
+          "providerRef": "stackkits-mosquitto",
+          "route": {
+            "healthRef": "mosquitto-http",
+            "serviceRef": "smart-home-mqtt"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "mosquitto",
+      "functionalCapabilities": [
+        "mqtt-broker"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Eclipse Mosquitto MQTT broker for Home Assistant, Zigbee2MQTT and ESPHome devices, selected in addition to the smart-home workload.",
+        "id": "smart-home-mqtt",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "smart-home"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "zigbee2mqtt",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "zigbee2mqtt",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "smart-home-zigbee",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "zigbee2mqtt",
+                  "dataBindingRef": "smart-home-zigbee",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/app/data",
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "mqtt-password"
+              ],
+              "requiredRefs": [
+                "mqtt-password"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [
+                "usb-device",
+                "mqtt-server",
+                "zigbee-adapter"
+              ],
+              "requiredRefs": [
+                "usb-device",
+                "mqtt-server"
+              ]
+            }
+          },
+          "moduleRef": "stackkits-zigbee2mqtt-runtime",
+          "providerRef": "stackkits-zigbee2mqtt",
+          "route": {
+            "healthRef": "zigbee2mqtt-http",
+            "serviceRef": "smart-home-zigbee"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "zigbee2mqtt",
+      "functionalCapabilities": [
+        "zigbee-bridge"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Zigbee2MQTT bridge that exposes Zigbee devices to Home Assistant over MQTT, selected in addition to the smart-home workload with an owner-chosen Zigbee adapter.",
+        "id": "smart-home-zigbee",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "smart-home"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "immich-public-proxy",
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-immich-public-proxy-runtime",
+          "providerRef": "stackkits-immich-public-proxy",
+          "route": {
+            "healthRef": "immich-public-proxy-http",
+            "serviceRef": "photos-share"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "dataClasses": [],
+      "defaultAlternative": "immich-public-proxy",
+      "functionalCapabilities": [
+        "public-sharing"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Immich Public Proxy serving only the share links the owner creates in Immich to people without an account, selected in addition to the photos workload.",
+        "id": "photos-share",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "photos"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "immich-kiosk",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "immich-kiosk",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "config"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "photos-kiosk",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "immich-kiosk",
+                  "dataBindingRef": "photos-kiosk",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/config",
+                  "volumeRef": "config"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "immich-api-key"
+              ],
+              "requiredRefs": [
+                "immich-api-key"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-immich-kiosk-runtime",
+          "providerRef": "stackkits-immich-kiosk",
+          "route": {
+            "healthRef": "immich-kiosk-http",
+            "serviceRef": "photos-kiosk"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [
+              "immich-add-on-api-key"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
+          }
+        }
+      ],
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "immich-kiosk",
+      "functionalCapabilities": [
+        "slideshow"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Immich Kiosk slideshow for photo frames and TVs, selected in addition to the photos workload; it reads Immich with an Immich-issued API key.",
+        "id": "photos-kiosk",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "photos"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "immich-power-tools",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "immich-power-tools",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "photos-tools",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "immich-power-tools",
+                  "dataBindingRef": "photos-tools",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/app/data",
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "database-password",
+                "immich-api-key"
+              ],
+              "requiredRefs": [
+                "database-password",
+                "immich-api-key"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-immich-power-tools-runtime",
+          "providerRef": "stackkits-immich-power-tools",
+          "route": {
+            "healthRef": "immich-power-tools-http",
+            "serviceRef": "photos-tools"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [
+              "immich-add-on-api-key"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
+          }
+        }
+      ],
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "immich-power-tools",
+      "functionalCapabilities": [
+        "library-maintenance"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Immich Power Tools for bulk library maintenance, selected in addition to the photos workload; it uses an Immich-issued API key and the Immich database.",
+        "id": "photos-tools",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "photos"
     },
     {
       "alternatives": [

@@ -77,6 +77,10 @@ func runNativeSetup(cmd *cobra.Command, workload string, options nativeSetupOpti
 	if options.outputJSON {
 		return json.NewEncoder(cmd.OutOrStdout()).Encode(result)
 	}
+	if result.Preparation == "immich-api-key-issued" {
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s: Immich issued the add-on API key into local custody; the next apply starts the add-on with it.\nPlan: %s\n", workload, result.Authority.PlanHash)
+		return err
+	}
 	if result.Preparation != "" {
 		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s setup preparation %q recorded; complete the owner's encrypted account setup in the official client.\nPlan: %s\n", workload, result.Preparation, result.Authority.PlanHash)
 		return err
@@ -140,7 +144,15 @@ func executeNativeSetup(ctx context.Context, workspace, workload string, options
 				return errors.Join(cause, journalErr)
 			}
 			var observed nativeOwnerSetupObservation
-			err = nativehost.WithStandaloneComposeHTTP(ctx, workspace, deployment, func(client *http.Client, baseURL string) error {
+			// The Immich add-on key is issued by Immich itself, so its HTTP
+			// target is the applied photos workload on the same node.
+			httpDeployment := deployment
+			if setup.ActionRefs[0] == immichAddOnAPIKeyAction {
+				if httpDeployment, err = nativeAppliedWorkloadDeployment(current, "photos"); err != nil {
+					return fail(fmt.Errorf("the Immich add-on API key needs the applied photos workload: %w", err))
+				}
+			}
+			err = nativehost.WithStandaloneComposeHTTP(ctx, workspace, httpDeployment, func(client *http.Client, baseURL string) error {
 				value, setupErr := executeNativeOwnerSetupAction(ctx, client, baseURL, current.WorkspaceRoot, deployment, deployment.Release, setup.ActionRefs[0], options)
 				observed = value
 				return setupErr

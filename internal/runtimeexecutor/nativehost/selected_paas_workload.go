@@ -230,6 +230,16 @@ func ValidateSelectedPaaSWorkloadObservation(
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationEsphome, deployment, observation)
 	case "stackkits-euro-office-runtime":
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationEurooffice, deployment, observation)
+	case "stackkits-mosquitto-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationMosquitto, deployment, observation)
+	case "stackkits-zigbee2mqtt-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationZigbee2mqtt, deployment, observation)
+	case "stackkits-immich-public-proxy-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationImmichPublicProxy, deployment, observation)
+	case "stackkits-immich-kiosk-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationImmichKiosk, deployment, observation)
+	case "stackkits-immich-power-tools-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationImmichPowerTools, deployment, observation)
 	case homeAssistantWorkloadModuleRef:
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationHomeAssistant, deployment, observation)
 	default:

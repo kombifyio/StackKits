@@ -241,6 +241,12 @@ func automaticOwnerCredentials(action string, owner localevidence.OwnerProjectio
 		return withPassword(map[string]any{"username": username, "displayName": displayName, "language": "en"}), username != "" && displayName != ""
 	case applicationlifecycle.VaultOwnerInviteActionRef:
 		return func() (map[string]any, error) { return map[string]any{"email": email}, nil }, email != ""
+	case immichAddOnAPIKeyAction:
+		// Reuses the Immich owner credentials of the photos owner setup, which
+		// runs first; without them the key cannot be issued.
+		return func() (map[string]any, error) {
+			return nil, errors.New("the photos owner setup has not stored the Immich owner credentials yet")
+		}, true
 	default:
 		return nil, false
 	}

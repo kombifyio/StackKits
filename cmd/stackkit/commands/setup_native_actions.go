@@ -35,6 +35,12 @@ func validateNativeOwnerSetupAction(deployment nativehost.SelectedPaaSWorkloadDe
 	case "immich-owner-bootstrap":
 		_, err := architecturev2renderer.ParseImmichWorkloadBundle(deployment.Bundle)
 		return err
+	case immichAddOnAPIKeyAction:
+		if options.completeOnboarding {
+			return errors.New("the Immich add-on API key has no separate onboarding; omit --complete-onboarding")
+		}
+		_, err := immichAddOnAPIKeyRef(deployment)
+		return err
 	case "home-assistant-owner-bootstrap":
 		if options.completeOnboarding {
 			return errors.New("Home Assistant personal onboarding settings must be completed in the application; omit --complete-onboarding to verify the owner account")
@@ -187,6 +193,8 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 			return nativeOwnerSetupObservation{}, errors.New("Home Assistant did not verify the owner of the admitted application version")
 		}
 		return nativeOwnerSetupObservation{AccountRef: observed.UserID, Initialized: observed.ServerInitialized, AdminLoginVerified: observed.UserIsOwner && observed.UserIsAdmin, OnboardingComplete: observed.OnboardingComplete}, nil
+	case immichAddOnAPIKeyAction:
+		return executeImmichAddOnAPIKey(ctx, client, baseURL, workspace, deployment, options)
 	case "pterodactyl-game-server-setup":
 		return executePterodactylGameServerSetup(ctx, client, baseURL, workspace, deployment, release, options)
 	case "roundcube-mailbox-login":
@@ -335,4 +343,66 @@ func executeRoundcubeMailboxSetup(ctx context.Context, client *http.Client, base
 	}
 	printInfo("Mail is set up: IMAP %s, SMTP %s. Device setup: see the mail-client guide.", imap.URI(), smtp.URI())
 	return nativeOwnerSetupObservation{AccountRef: observed.MailboxRef, Initialized: true, AdminLoginVerified: true}, nil
+}
+
+// immichAddOnAPIKeyAction issues the Immich API key of an Immich add-on
+// (kiosk, power tools). Its HTTP target is the applied photos workload.
+const immichAddOnAPIKeyAction = "immich-add-on-api-key"
+
+// immichAddOnAPIKeyRef returns the custody ref of the add-on's API key slot
+// after validating that the deployment is a governed Immich add-on.
+func immichAddOnAPIKeyRef(deployment nativehost.SelectedPaaSWorkloadDeployment) (string, error) {
+	switch deployment.ModuleRef {
+	case "stackkits-immich-kiosk-runtime":
+		if _, err := architecturev2renderer.ParseImmichKioskWorkloadBundle(deployment.Bundle); err != nil {
+			return "", err
+		}
+	case "stackkits-immich-power-tools-runtime":
+		if _, err := architecturev2renderer.ParseImmichPowerToolsWorkloadBundle(deployment.Bundle); err != nil {
+			return "", err
+		}
+	default:
+		return "", errors.New("the Immich add-on API key belongs only to the Immich kiosk and power tools add-ons")
+	}
+	bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(deployment.Bundle)
+	if err != nil {
+		return "", err
+	}
+	ref := bundle.SecretRefs["immich-api-key"]
+	if ref == "" {
+		return "", errors.New("the Immich add-on declares no API key slot")
+	}
+	return ref, nil
+}
+
+// executeImmichAddOnAPIKey signs in as the Immich owner, issues a key named
+// after the add-on workload (replacing an earlier one) and custodies it under
+// the add-on's secret slot. The key reaches the add-on on its next apply.
+func executeImmichAddOnAPIKey(ctx context.Context, client *http.Client, immichURL, workspace string, deployment nativehost.SelectedPaaSWorkloadDeployment, options nativeSetupOptions) (nativeOwnerSetupObservation, error) {
+	ref, err := immichAddOnAPIKeyRef(deployment)
+	if err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	var credentials struct {
+		Email       string `json:"email"`
+		Password    string `json:"password"`
+		DisplayName string `json:"displayName"`
+	}
+	if err := readNativeSetupCredentialJSON(workspace, options.credentialsFile, &credentials); err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	defer func() { credentials.Password = "" }()
+	issued, issueErr := appsetup.IssueImmichAddOnAPIKey(ctx, client, immichURL, credentials.Email, credentials.Password, "stackkits-"+deployment.WorkloadRef)
+	if issueErr != nil {
+		return nativeOwnerSetupObservation{}, issueErr
+	}
+	secret := []byte(issued.Secret)
+	defer clear(secret)
+	if err := localevidence.StoreLocalIssuedSecret(workspace, ref, secret); err != nil {
+		return nativeOwnerSetupObservation{}, fmt.Errorf("custody the issued Immich API key: %w", err)
+	}
+	return nativeOwnerSetupObservation{
+		AccountRef: issued.KeyID, Initialized: true, AdminLoginVerified: true,
+		Preparation: "immich-api-key-issued",
+	}, nil
 }

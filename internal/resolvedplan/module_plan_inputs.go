@@ -1,6 +1,9 @@
 package resolvedplan
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 var allowedModulePlanInputRefs = map[string]struct{}{
 	"stackId": {}, "kit": {}, "sites": {}, "controlPlane": {},
@@ -1257,6 +1260,12 @@ func safeModuleInternalPKI(moduleID string, module map[string]any, source module
 			})
 		}
 	}
+	// Routes reach this projection in resolver order at compile time and in
+	// canonical order when a plan is verified; one leaf identity order keeps
+	// both projections exact for any number of routes.
+	sort.Slice(identities, func(i, j int) bool {
+		return identities[i].(map[string]any)["id"].(string) < identities[j].(map[string]any)["id"].(string)
+	})
 	return normalizedObject(map[string]any{
 		"capabilityRef": capabilityID,
 		"providerRef":   providerRef,

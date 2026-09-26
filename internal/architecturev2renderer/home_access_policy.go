@@ -346,16 +346,18 @@ func validateNodeLocalHomeAccessPolicy(policy HomeAccessEnforcementPolicy, raw [
 }
 
 func validateHomeAccessEnforcementRoutes(routes []HomeAccessEnforcementRoute, raw []byte, path string) error {
-	previousID := ""
+	// Canonical plan normalization orders route sets by their encoding, not
+	// by id, so the ids must be unique but need not be sorted.
+	seenIDs := make(map[string]bool, len(routes))
 	for index, route := range routes {
 		routePath := fmt.Sprintf("%s.routes[%d]", path, index)
 		if err := validateHomeAccessEnforcementRoute(route, routePath); err != nil {
 			return err
 		}
-		if previousID != "" && route.ID <= previousID {
-			return fail(ErrInvalidPlan, routePath+".id", "routes must be unique and sorted by id")
+		if seenIDs[route.ID] {
+			return fail(ErrInvalidPlan, routePath+".id", "routes must be unique")
 		}
-		previousID = route.ID
+		seenIDs[route.ID] = true
 	}
 	return rejectGenerationOnlyPolicyProjectionLeaks(raw, path, "home-access policy")
 }
@@ -473,16 +475,16 @@ func validateHomeAccessPlanInputsForKit(inputs homeAccessPlanInputs, raw []byte,
 		return nil, err
 	}
 
-	previousRouteID := ""
+	seenRouteIDs := make(map[string]bool, len(inputs.LocalReachability.Routes))
 	for index, route := range inputs.LocalReachability.Routes {
 		routePath := fmt.Sprintf("%s.localReachability.routes[%d]", path, index)
 		if err := validateHomeLocalRoute(route, siteKinds, routePath); err != nil {
 			return nil, err
 		}
-		if previousRouteID != "" && route.ID <= previousRouteID {
-			return nil, fail(ErrInvalidPlan, routePath+".id", "local routes must be unique and sorted by id")
+		if seenRouteIDs[route.ID] {
+			return nil, fail(ErrInvalidPlan, routePath+".id", "local routes must be unique")
 		}
-		previousRouteID = route.ID
+		seenRouteIDs[route.ID] = true
 	}
 	if err := rejectGenerationOnlyPolicyProjectionLeaks(raw, path, "home-access policy"); err != nil {
 		return nil, err

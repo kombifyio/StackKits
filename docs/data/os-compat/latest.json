@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
-  "stackkitsVersion": "v0.39.7",
-  "generatedAt": "2026-09-24T12:40:38Z",
+  "stackkitsVersion": "v0.47.0",
+  "generatedAt": "2026-09-26T10:05:21Z",
   "results": [
     {
       "os": {
@@ -23,7 +23,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.39.7"
+      "lastVerifiedRelease": "v0.47.0"
     },
     {
       "os": {
@@ -45,7 +45,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.39.7"
+      "lastVerifiedRelease": "v0.47.0"
     },
     {
       "os": {
@@ -67,7 +67,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.39.7"
+      "lastVerifiedRelease": "v0.47.0"
     },
     {
       "os": {
@@ -97,53 +97,29 @@
     {
       "useCase": "files",
       "adapter": "standalone-compose",
-      "grade": "supported",
-      "reasonCodes": [],
-      "verifiedPhases": [
-        "install",
-        "init",
-        "generate",
-        "apply",
-        "setup-files",
-        "verify",
-        "backup",
-        "restore"
+      "grade": "unverified",
+      "reasonCodes": [
+        "current-release-receipt-pending"
       ],
-      "lastVerifiedRelease": "v0.39.7"
+      "lastVerifiedRelease": "v0.46.8"
     },
     {
       "useCase": "photos",
       "adapter": "standalone-compose",
-      "grade": "supported",
-      "reasonCodes": [],
-      "verifiedPhases": [
-        "install",
-        "init",
-        "generate",
-        "apply",
-        "setup-photos",
-        "verify",
-        "backup",
-        "restore"
+      "grade": "unverified",
+      "reasonCodes": [
+        "current-release-receipt-pending"
       ],
-      "lastVerifiedRelease": "v0.39.7"
+      "lastVerifiedRelease": "v0.46.8"
     },
     {
       "useCase": "vault",
       "adapter": "standalone-compose",
-      "grade": "supported",
-      "reasonCodes": [],
-      "verifiedPhases": [
-        "install",
-        "init",
-        "generate",
-        "apply",
-        "setup-vault",
-        "verify",
-        "backup",
-        "restore"
+      "grade": "unverified",
+      "reasonCodes": [
+        "current-release-receipt-pending"
       ],
-      "lastVerifiedRelease": "v0.39.7"
+      "lastVerifiedRelease": "v0.46.8"
     },
     {
       "useCase": "ai",
@@ -172,34 +148,18 @@
     {
       "useCase": "media",
       "adapter": "standalone-compose",
-      "grade": "supported",
-      "reasonCodes": [],
-      "verifiedPhases": [
-        "install",
-        "init",
-        "generate",
-        "apply",
-        "setup-media",
-        "verify",
-        "backup",
-        "restore"
+      "grade": "unverified",
+      "reasonCodes": [
+        "current-release-receipt-pending"
       ],
       "lastVerifiedRelease": "v0.39.7"
     },
     {
       "useCase": "smart-home",
       "adapter": "standalone-compose",
-      "grade": "supported",
-      "reasonCodes": [],
-      "verifiedPhases": [
-        "install",
-        "init",
-        "generate",
-        "apply",
-        "setup-smart-home",
-        "verify",
-        "backup",
-        "restore"
+      "grade": "unverified",
+      "reasonCodes": [
+        "current-release-receipt-pending"
       ],
       "lastVerifiedRelease": "v0.39.7"
     }
@@ -220,7 +180,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.39.7"
+      "lastVerifiedRelease": "v0.47.0"
     },
     {
       "kit": "basement-kit",
@@ -236,18 +196,11 @@
       "kit": "cloud-kit",
       "environment": "public-vps",
       "name": "Public VPS with a kombify.me address",
-      "grade": "supported",
-      "reasonCodes": [],
-      "verifiedPhases": [
-        "install",
-        "init",
-        "generate",
-        "apply",
-        "verify",
-        "backup",
-        "restore"
+      "grade": "unverified",
+      "reasonCodes": [
+        "current-release-receipt-pending"
       ],
-      "lastVerifiedRelease": "v0.39.7"
+      "lastVerifiedRelease": "v0.41.0"
     },
     {
       "kit": "modern-homelab",

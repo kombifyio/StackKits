@@ -42,6 +42,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
 
+## [0.47.1](https://github.com/kombifyio/StackKits/compare/v0.47.0...v0.47.1) (2026-09-26)
+
+
+### Added
+
+* **photos:** Immich add-ons install with Immich-issued API keys; fix route ordering with 3+ routes
+* **smart-home:** owner-chosen LAN listeners and device passthrough; Mosquitto and Zigbee2MQTT install
+
+
+### Fixed
+
+* **website:** keep nav dropdowns open on touch and tablet
+
 ## [0.47.0] (2026-09-26)
 
 ### Highlights

@@ -34,6 +34,14 @@ func DescribeNativeAction(action, adapter string) (NativeActionDescription, bool
 			GuideURL:                     "https://github.com/kombifyio/stackKits/blob/main/use-cases/files/agent/owner-setup/SKILL.md#owner-setup",
 			SupportsOnboardingCompletion: false,
 		}, true
+	case "immich-add-on-api-key":
+		// The Immich owner credentials of the photos owner setup issue the key.
+		return NativeActionDescription{
+			Title:            "Immich add-on API key",
+			CredentialFields: []string{"email", "password"},
+			CredentialsFile:  ".stackkit/setup/owner.json",
+			GuideURL:         "https://github.com/kombifyio/stackKits/blob/main/use-cases/photos/agent/family-vault/SKILL.md#owner-setup",
+		}, true
 	case "immich-owner-bootstrap":
 		return NativeActionDescription{
 			Title:                        "Photos owner setup",

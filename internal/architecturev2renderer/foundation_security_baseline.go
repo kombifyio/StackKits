@@ -172,6 +172,26 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(euroofficeWorkload.contract, euroofficeWorkload); err != nil {
 		return nil, err
 	}
+	mosquittoWorkload := newMosquittoWorkloadBundleRenderer()
+	if err := registry.Register(mosquittoWorkload.contract, mosquittoWorkload); err != nil {
+		return nil, err
+	}
+	zigbee2mqttWorkload := newZigbee2mqttWorkloadBundleRenderer()
+	if err := registry.Register(zigbee2mqttWorkload.contract, zigbee2mqttWorkload); err != nil {
+		return nil, err
+	}
+	immichPublicProxyWorkload := newImmichPublicProxyWorkloadBundleRenderer()
+	if err := registry.Register(immichPublicProxyWorkload.contract, immichPublicProxyWorkload); err != nil {
+		return nil, err
+	}
+	immichKioskWorkload := newImmichKioskWorkloadBundleRenderer()
+	if err := registry.Register(immichKioskWorkload.contract, immichKioskWorkload); err != nil {
+		return nil, err
+	}
+	immichPowerToolsWorkload := newImmichPowerToolsWorkloadBundleRenderer()
+	if err := registry.Register(immichPowerToolsWorkload.contract, immichPowerToolsWorkload); err != nil {
+		return nil, err
+	}
 	giteaWorkload := newGiteaWorkloadBundleRenderer()
 	if err := registry.Register(giteaWorkload.contract, giteaWorkload); err != nil {
 		return nil, err

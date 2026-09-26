@@ -457,6 +457,51 @@ _architectureV2EuroofficeInfrastructure: #WorkloadInfrastructureV1 & {
 	recovery: moduleRef: "stackkits-recovery"
 }
 
+_architectureV2MosquittoInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "smart-home-mqtt", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "mosquitto", volumeRef: "data", target: "/mosquitto/data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "smart-home-mqtt"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2Zigbee2mqttInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "smart-home-zigbee", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "zigbee2mqtt", volumeRef: "data", target: "/app/data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "smart-home-zigbee"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+
+_architectureV2ImmichKioskInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "photos-kiosk", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "immich-kiosk", volumeRef: "config", target: "/config", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "photos-kiosk"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2ImmichPowerToolsInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "photos-tools", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "immich-power-tools", volumeRef: "data", target: "/app/data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "photos-tools"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
 _architectureV2SmartHomeInfrastructure: #WorkloadInfrastructureV1 & {
 	storageAllocation: {
 		moduleRef: "stackkits-storage-allocation"
@@ -1449,6 +1494,182 @@ _architectureV2WorkloadContracts: [
 	},
 	#WorkloadContractV2 & {
 		metadata: {
+			id:          "smart-home-mqtt"
+			version:     "1.0.0"
+			description: "Eclipse Mosquitto MQTT broker for Home Assistant, Zigbee2MQTT and ESPHome devices, selected in addition to the smart-home workload."
+		}
+		kind:       "application"
+		useCaseRef: "smart-home"
+		functionalCapabilities: ["mqtt-broker"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "mosquitto"
+		alternatives: [{
+			id:          "mosquitto"
+			providerRef: "stackkits-mosquitto"
+			moduleRef:   "stackkits-mosquitto-runtime"
+			route: {serviceRef: "smart-home-mqtt", healthRef: "mosquitto-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: ["lan-listener"], requiredRefs: []}
+				secretInputs: {allowedRefs: ["mqtt-password"], requiredRefs: ["mqtt-password"]}
+			}
+			infrastructure: _architectureV2MosquittoInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "smart-home-zigbee"
+			version:     "1.0.0"
+			description: "Zigbee2MQTT bridge that exposes Zigbee devices to Home Assistant over MQTT, selected in addition to the smart-home workload with an owner-chosen Zigbee adapter."
+		}
+		kind:       "application"
+		useCaseRef: "smart-home"
+		functionalCapabilities: ["zigbee-bridge"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "zigbee2mqtt"
+		alternatives: [{
+			id:          "zigbee2mqtt"
+			providerRef: "stackkits-zigbee2mqtt"
+			moduleRef:   "stackkits-zigbee2mqtt-runtime"
+			route: {serviceRef: "smart-home-zigbee", healthRef: "zigbee2mqtt-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: ["usb-device", "mqtt-server", "zigbee-adapter"], requiredRefs: ["usb-device", "mqtt-server"]}
+				secretInputs: {allowedRefs: ["mqtt-password"], requiredRefs: ["mqtt-password"]}
+			}
+			infrastructure: _architectureV2Zigbee2mqttInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "photos-share"
+			version:     "1.0.0"
+			description: "Immich Public Proxy serving only the share links the owner creates in Immich to people without an account, selected in addition to the photos workload."
+		}
+		kind:       "application"
+		useCaseRef: "photos"
+		functionalCapabilities: ["public-sharing"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: []
+		defaultAlternative: "immich-public-proxy"
+		alternatives: [{
+			id:          "immich-public-proxy"
+			providerRef: "stackkits-immich-public-proxy"
+			moduleRef:   "stackkits-immich-public-proxy-runtime"
+			route: {serviceRef: "photos-share", healthRef: "immich-public-proxy-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "photos-kiosk"
+			version:     "1.0.0"
+			description: "Immich Kiosk slideshow for photo frames and TVs, selected in addition to the photos workload; it reads Immich with an Immich-issued API key."
+		}
+		kind:       "application"
+		useCaseRef: "photos"
+		functionalCapabilities: ["slideshow"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "immich-kiosk"
+		alternatives: [{
+			id:          "immich-kiosk"
+			providerRef: "stackkits-immich-kiosk"
+			moduleRef:   "stackkits-immich-kiosk-runtime"
+			route: {serviceRef: "photos-kiosk", healthRef: "immich-kiosk-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// The Immich owner issues the add-on API key into local custody.
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["immich-add-on-api-key"]}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: ["immich-api-key"], requiredRefs: ["immich-api-key"]}
+			}
+			infrastructure: _architectureV2ImmichKioskInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "photos-tools"
+			version:     "1.0.0"
+			description: "Immich Power Tools for bulk library maintenance, selected in addition to the photos workload; it uses an Immich-issued API key and the Immich database."
+		}
+		kind:       "application"
+		useCaseRef: "photos"
+		functionalCapabilities: ["library-maintenance"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "immich-power-tools"
+		alternatives: [{
+			id:          "immich-power-tools"
+			providerRef: "stackkits-immich-power-tools"
+			moduleRef:   "stackkits-immich-power-tools-runtime"
+			route: {serviceRef: "photos-tools", healthRef: "immich-power-tools-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// The Immich owner issues the add-on API key into local custody.
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["immich-add-on-api-key"]}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: ["database-password", "immich-api-key"], requiredRefs: ["database-password", "immich-api-key"]}
+			}
+			infrastructure: _architectureV2ImmichPowerToolsInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
 			id:          "smart-home"
 			version:     "1.0.0"
 			description: "Self-hosted Home Assistant container selected independently from kit architecture capabilities."
@@ -1496,6 +1717,11 @@ _architectureV2ApplicationLifecycleContracts: [
 	#ApplicationLifecycleContractV1 & {metadata: {id: "media-audiobooks", version: "1.0.0", description: "Audiobook and podcast add-on of the media use case."}, workloadRef: "media-audiobooks", useCaseRef: "media", packageRef: "media", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "smart-home-esphome", version: "1.0.0", description: "ESPHome add-on of the smart-home use case."}, workloadRef: "smart-home-esphome", useCaseRef: "smart-home", packageRef: "smart-home", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "files-office", version: "1.0.0", description: "Office editing add-on of the files use case."}, workloadRef: "files-office", useCaseRef: "files", packageRef: "files", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "smart-home-mqtt", version: "1.0.0", description: "MQTT broker add-on of the smart-home use case."}, workloadRef: "smart-home-mqtt", useCaseRef: "smart-home", packageRef: "smart-home", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "smart-home-zigbee", version: "1.0.0", description: "Zigbee bridge add-on of the smart-home use case."}, workloadRef: "smart-home-zigbee", useCaseRef: "smart-home", packageRef: "smart-home", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "photos-share", version: "1.0.0", description: "Public share-link add-on of the photos use case."}, workloadRef: "photos-share", useCaseRef: "photos", packageRef: "photos", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "photos-kiosk", version: "1.0.0", description: "Slideshow add-on of the photos use case."}, workloadRef: "photos-kiosk", useCaseRef: "photos", packageRef: "photos", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "photos-tools", version: "1.0.0", description: "Library maintenance add-on of the photos use case."}, workloadRef: "photos-tools", useCaseRef: "photos", packageRef: "photos", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "dev", version: "1.0.0", description: "Private Git lifecycle; CI runners are a separate selection."}, workloadRef: "dev", useCaseRef: "dev", packageRef: "dev", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {
 		metadata: {id: "game", version: "1.0.0", description: "Owner-controlled Pterodactyl game lifecycle; game servers are created by the owner-approved setup action (ADR-0043)."}
@@ -2541,6 +2767,106 @@ _architectureV2Providers: list.Concat([[
 		evidence: ["euro-office-selected-paas-runtime-contract"]
 	},
 	{
+		metadata: {id: "stackkits-mosquitto", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["smart-home-mqtt"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-mosquitto-runtime"]
+			}
+		}
+		evidence: ["mosquitto-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-zigbee2mqtt", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["smart-home-zigbee"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-zigbee2mqtt-runtime"]
+			}
+		}
+		evidence: ["zigbee2mqtt-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-immich-public-proxy", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["photos-share"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-immich-public-proxy-runtime"]
+			}
+		}
+		evidence: ["immich-public-proxy-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-immich-kiosk", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["photos-kiosk"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-immich-kiosk-runtime"]
+			}
+		}
+		evidence: ["immich-kiosk-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-immich-power-tools", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["photos-tools"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-immich-power-tools-runtime"]
+			}
+		}
+		evidence: ["immich-power-tools-selected-paas-runtime-contract"]
+	},
+	{
 		metadata: {id: "stackkits-jellyfin", version: "1.0.0"}
 		provides: []
 		workloadRefs: ["media"]
@@ -3325,6 +3651,11 @@ _architectureV2GiteaTerramateStack: _architectureV2WorkloadTerramateStack & {_sl
 _architectureV2ForgejoTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "forgejo", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2PaperlessTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "paperless-ngx", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2JellyfinTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "jellyfin", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2ImmichPowerToolsTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "immich-power-tools", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2ImmichKioskTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "immich-kiosk", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2ImmichPublicProxyTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "immich-public-proxy", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2Zigbee2mqttTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "zigbee2mqtt", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2MosquittoTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "mosquitto", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2EuroofficeTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "euro-office", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2ESPHomeTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "esphome", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2AudiobookshelfTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "audiobookshelf", _placement: {scope: "node-local", cardinality: "one-per-node"}}
@@ -3721,6 +4052,141 @@ _architectureV2JellyfinSupport: #ModuleRealizationSupportV2 & {
 		}, _architectureV2JellyfinTerramateStack.contract]
 	}
 	evidence: requiredRefs: ["jellyfin-selected-paas-runtime-contract"]
+}
+
+_architectureV2ImmichPowerToolsSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["database-password", "immich-api-key"]}
+	artifacts: {
+		requiredRefs: ["immich-power-tools-workload-bundle", _architectureV2ImmichPowerToolsTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "immich-power-tools-workload-bundle"
+			unitRef:     "immich-power-tools"
+			outputRef:   "workloads/immich-power-tools/bundle.json"
+		}, _architectureV2ImmichPowerToolsTerramateStack.binding]
+		contracts: [{
+			id:       "immich-power-tools-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "immich-power-tools"
+			outputRef: "workloads/immich-power-tools/bundle.json"
+		}, _architectureV2ImmichPowerToolsTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["immich-power-tools-selected-paas-runtime-contract"]
+}
+
+_architectureV2ImmichKioskSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["immich-api-key"]}
+	artifacts: {
+		requiredRefs: ["immich-kiosk-workload-bundle", _architectureV2ImmichKioskTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "immich-kiosk-workload-bundle"
+			unitRef:     "immich-kiosk"
+			outputRef:   "workloads/immich-kiosk/bundle.json"
+		}, _architectureV2ImmichKioskTerramateStack.binding]
+		contracts: [{
+			id:       "immich-kiosk-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "immich-kiosk"
+			outputRef: "workloads/immich-kiosk/bundle.json"
+		}, _architectureV2ImmichKioskTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["immich-kiosk-selected-paas-runtime-contract"]
+}
+
+_architectureV2ImmichPublicProxySupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["immich-public-proxy-workload-bundle", _architectureV2ImmichPublicProxyTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "immich-public-proxy-workload-bundle"
+			unitRef:     "immich-public-proxy"
+			outputRef:   "workloads/immich-public-proxy/bundle.json"
+		}, _architectureV2ImmichPublicProxyTerramateStack.binding]
+		contracts: [{
+			id:       "immich-public-proxy-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "immich-public-proxy"
+			outputRef: "workloads/immich-public-proxy/bundle.json"
+		}, _architectureV2ImmichPublicProxyTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["immich-public-proxy-selected-paas-runtime-contract"]
+}
+
+_architectureV2Zigbee2mqttSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["mqtt-password"]}
+	artifacts: {
+		requiredRefs: ["zigbee2mqtt-workload-bundle", _architectureV2Zigbee2mqttTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "zigbee2mqtt-workload-bundle"
+			unitRef:     "zigbee2mqtt"
+			outputRef:   "workloads/zigbee2mqtt/bundle.json"
+		}, _architectureV2Zigbee2mqttTerramateStack.binding]
+		contracts: [{
+			id:       "zigbee2mqtt-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "zigbee2mqtt"
+			outputRef: "workloads/zigbee2mqtt/bundle.json"
+		}, _architectureV2Zigbee2mqttTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["zigbee2mqtt-selected-paas-runtime-contract"]
+}
+
+_architectureV2MosquittoSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["mqtt-password"]}
+	artifacts: {
+		requiredRefs: ["mosquitto-workload-bundle", _architectureV2MosquittoTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "mosquitto-workload-bundle"
+			unitRef:     "mosquitto"
+			outputRef:   "workloads/mosquitto/bundle.json"
+		}, _architectureV2MosquittoTerramateStack.binding]
+		contracts: [{
+			id:       "mosquitto-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "mosquitto"
+			outputRef: "workloads/mosquitto/bundle.json"
+		}, _architectureV2MosquittoTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["mosquitto-selected-paas-runtime-contract"]
 }
 
 _architectureV2EuroofficeSupport: #ModuleRealizationSupportV2 & {
@@ -8282,6 +8748,536 @@ _architectureV2Modules: list.Concat([[
 			expectedStatuses: [200]
 		}]
 		evidence: ["euro-office-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-mosquitto-runtime"
+			version:     "1.0.0"
+			description: "Eclipse Mosquitto MQTT broker for Home Assistant, Zigbee2MQTT and ESPHome devices, selected in addition to the smart-home workload."
+		}
+		role:        "workload"
+		providerRef: "stackkits-mosquitto"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2MosquittoComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "mosquitto"
+			components: [{
+				id: "mosquitto", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "docker.io/library/eclipse-mosquitto:2.1.2-alpine"
+					digest: "sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408"
+				}
+				dependsOn: []
+				networkRefs: ["mosquitto-internal"]
+				command: ["/bin/sh", "-ec", "printf 'per_listener_settings true\\npersistence true\\npersistence_location /mosquitto/data/\\nlistener 1883\\nallow_anonymous false\\npassword_file /mosquitto/data/passwd\\nlistener 8080\\nprotocol http_api\\nallow_anonymous true\\n' > /mosquitto/data/mosquitto.conf && mosquitto_passwd -b -c /mosquitto/data/passwd stackkit \"$MQTT_PASSWORD\" && unset MQTT_PASSWORD && chown mosquitto:mosquitto /mosquitto/data/mosquitto.conf /mosquitto/data/passwd && exec mosquitto -c /mosquitto/data/mosquitto.conf"]
+				secretEnvironment: {MQTT_PASSWORD: "mqtt-password"}
+				lanListeners: [{port: 1883, protocol: "tcp", settingRef: "lan-listener"}]
+				volumes: [for allocation in _architectureV2MosquittoInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					if allocation.volumeRef == "library" {readOnly: true}
+				}]
+				health: {kind: "http", path: "/api/v1/systree", port: 8080}
+				resources: {memoryLimit: "128m", memoryReservation: "32m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "mosquitto"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/mosquitto/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:969f57e8e598319da7072af0ef3d21b13d5ccf8e0246075e47d797764156031e"
+			publicInputRefs: ["delivery-route", "lan-listener"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["mqtt-password"]
+			outputs: ["workloads/mosquitto/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "smart-home-mqtt"
+				upstreamProtocol: "http"
+				targetPort:       8080
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "mosquitto-http"
+				data: {
+					bindingRef:      _architectureV2MosquittoInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2MosquittoInfrastructure.dataBinding.classes
+					locality:        _architectureV2MosquittoInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2MosquittoTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["mosquitto"], artifactRefs: ["mosquitto-workload-bundle"]
+				publicInputRefs: ["delivery-route", "lan-listener"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["mosquitto"], artifactRefs: ["mosquitto-workload-bundle"]
+				publicInputRefs: ["delivery-route", "lan-listener"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["mosquitto", "terramate-stack"], artifactRefs: ["mosquitto-workload-bundle", _architectureV2MosquittoTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route", "lan-listener"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2MosquittoSupport
+		health: [{
+			id:             "mosquitto-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/api/v1/systree"
+			port:           8080
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["mosquitto-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-zigbee2mqtt-runtime"
+			version:     "1.0.0"
+			description: "Zigbee2MQTT bridge that exposes Zigbee devices to Home Assistant over MQTT, selected in addition to the smart-home workload with an owner-chosen Zigbee adapter."
+		}
+		role:        "workload"
+		providerRef: "stackkits-zigbee2mqtt"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2Zigbee2mqttComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "zigbee2mqtt"
+			components: [{
+				id: "zigbee2mqtt", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "ghcr.io/koenkk/zigbee2mqtt:2.14.1"
+					digest: "sha256:fef0de769dcd04c27b3a6d277b61046eb96284bdd4198dcb1687c3a01b3020f3"
+				}
+				dependsOn: []
+				networkRefs: ["zigbee2mqtt-internal"]
+				environment: {ZIGBEE2MQTT_DATA: "/app/data", ZIGBEE2MQTT_CONFIG_SERIAL_PORT: "/dev/zigbee", ZIGBEE2MQTT_CONFIG_FRONTEND_ENABLED: "true", ZIGBEE2MQTT_CONFIG_FRONTEND_PORT: "8080", ZIGBEE2MQTT_CONFIG_HOMEASSISTANT_ENABLED: "true", ZIGBEE2MQTT_CONFIG_MQTT_USER: "stackkit", Z2M_ONBOARD_NO_SERVER: "1"}
+				secretEnvironment: {ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD: "mqtt-password"}
+				devicePassthrough: {settingRef: "usb-device", target: "/dev/zigbee"}
+				volumes: [for allocation in _architectureV2Zigbee2mqttInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					if allocation.volumeRef == "library" {readOnly: true}
+				}]
+				health: {kind: "http", path: "/", port: 8080}
+				resources: {memoryLimit: "512m", memoryReservation: "128m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "zigbee2mqtt"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/zigbee2mqtt/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:411b2ac6de886cb069361aed21f5524e42a7c15ab7f91fa8c96c0542beaf4410"
+			publicInputRefs: ["delivery-route", "usb-device", "mqtt-server", "zigbee-adapter"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["mqtt-password"]
+			outputs: ["workloads/zigbee2mqtt/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "smart-home-zigbee"
+				upstreamProtocol: "http"
+				targetPort:       8080
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "zigbee2mqtt-http"
+				data: {
+					bindingRef:      _architectureV2Zigbee2mqttInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2Zigbee2mqttInfrastructure.dataBinding.classes
+					locality:        _architectureV2Zigbee2mqttInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2Zigbee2mqttTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["zigbee2mqtt"], artifactRefs: ["zigbee2mqtt-workload-bundle"]
+				publicInputRefs: ["delivery-route", "usb-device", "mqtt-server", "zigbee-adapter"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["zigbee2mqtt"], artifactRefs: ["zigbee2mqtt-workload-bundle"]
+				publicInputRefs: ["delivery-route", "usb-device", "mqtt-server", "zigbee-adapter"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["zigbee2mqtt", "terramate-stack"], artifactRefs: ["zigbee2mqtt-workload-bundle", _architectureV2Zigbee2mqttTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route", "usb-device", "mqtt-server", "zigbee-adapter"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2Zigbee2mqttSupport
+		health: [{
+			id:             "zigbee2mqtt-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/"
+			port:           8080
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["zigbee2mqtt-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-immich-public-proxy-runtime"
+			version:     "1.0.0"
+			description: "Immich Public Proxy serving only the share links the owner creates in Immich to people without an account, selected in addition to the photos workload."
+		}
+		role:        "workload"
+		providerRef: "stackkits-immich-public-proxy"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2ImmichPublicProxyComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "immich-public-proxy"
+			components: [{
+				id: "immich-public-proxy", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "ghcr.io/alangrainger/immich-public-proxy:3.4.0"
+					digest: "sha256:b442829bb99e25f39e2979bb45bb12a6db991d98a1cd90938799b84ab262692a"
+				}
+				dependsOn: []
+				networkRefs: ["immich-public-proxy-internal"]
+				peerNetworks: [{workloadRef: "photos", networkRef: "immich-internal"}]
+				environment: {IMMICH_URL: "http://immich-server:2283"}
+				health: {kind: "http", path: "/share/healthcheck", port: 3000}
+				resources: {memoryLimit: "256m", memoryReservation: "64m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "immich-public-proxy"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/immich-public-proxy/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:ae9a376446bcdd01baaa8f77617b485f769edd78b715b72cd582dfe7047a95ea"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: []
+			outputs: ["workloads/immich-public-proxy/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "photos-share"
+				upstreamProtocol: "http"
+				targetPort:       3000
+				ingressAuth:       "native"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "immich-public-proxy-http"
+			}]
+		}, _architectureV2ImmichPublicProxyTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["immich-public-proxy"], artifactRefs: ["immich-public-proxy-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["immich-public-proxy"], artifactRefs: ["immich-public-proxy-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["immich-public-proxy", "terramate-stack"], artifactRefs: ["immich-public-proxy-workload-bundle", _architectureV2ImmichPublicProxyTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2ImmichPublicProxySupport
+		health: [{
+			id:             "immich-public-proxy-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/share/healthcheck"
+			port:           3000
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["immich-public-proxy-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-immich-kiosk-runtime"
+			version:     "1.0.0"
+			description: "Immich Kiosk slideshow for photo frames and TVs, selected in addition to the photos workload; it reads Immich with an Immich-issued API key."
+		}
+		role:        "workload"
+		providerRef: "stackkits-immich-kiosk"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2ImmichKioskComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "immich-kiosk"
+			components: [{
+				id: "immich-kiosk", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "ghcr.io/damongolding/immich-kiosk:0.39.3"
+					digest: "sha256:b65371b9fbe93cde8355c06ba095fb4801bbb5d7c8c51065a5bfa02183536771"
+				}
+				dependsOn: []
+				networkRefs: ["immich-kiosk-internal"]
+				secretEnvironment: {KIOSK_IMMICH_API_KEY: "immich-api-key"}
+				peerNetworks: [{workloadRef: "photos", networkRef: "immich-internal"}]
+				environment: {KIOSK_IMMICH_URL: "http://immich-server:2283"}
+				volumes: [for allocation in _architectureV2ImmichKioskInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					if allocation.volumeRef == "library" {readOnly: true}
+				}]
+				health: {kind: "http", path: "/health", port: 3000}
+				resources: {memoryLimit: "256m", memoryReservation: "64m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "immich-kiosk"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/immich-kiosk/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:9d48a57999c0134b16e5bf66c60c3025ead547697d4609973871df59ca1902b7"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["immich-api-key"]
+			outputs: ["workloads/immich-kiosk/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "photos-kiosk"
+				upstreamProtocol: "http"
+				targetPort:       3000
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "immich-kiosk-http"
+				data: {
+					bindingRef:      _architectureV2ImmichKioskInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2ImmichKioskInfrastructure.dataBinding.classes
+					locality:        _architectureV2ImmichKioskInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2ImmichKioskTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["immich-kiosk"], artifactRefs: ["immich-kiosk-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["immich-api-key"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["immich-kiosk"], artifactRefs: ["immich-kiosk-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["immich-api-key"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["immich-kiosk", "terramate-stack"], artifactRefs: ["immich-kiosk-workload-bundle", _architectureV2ImmichKioskTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["immich-api-key"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2ImmichKioskSupport
+		health: [{
+			id:             "immich-kiosk-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/health"
+			port:           3000
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["immich-kiosk-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-immich-power-tools-runtime"
+			version:     "1.0.0"
+			description: "Immich Power Tools for bulk library maintenance, selected in addition to the photos workload; it uses an Immich-issued API key and the Immich database."
+		}
+		role:        "workload"
+		providerRef: "stackkits-immich-power-tools"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2ImmichPowerToolsComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "immich-power-tools"
+			components: [{
+				id: "immich-power-tools", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "ghcr.io/immich-power-tools/immich-power-tools:0.24.0"
+					digest: "sha256:0bb87c70270ee7a95848a5b8ecbd90cd850e7bdacc0f64b70e33e4524f123fa4"
+				}
+				dependsOn: []
+				networkRefs: ["immich-power-tools-internal"]
+				secretEnvironment: {IMMICH_API_KEY: "immich-api-key", DB_PASSWORD: "database-password"}
+				peerNetworks: [{workloadRef: "photos", networkRef: "immich-internal"}]
+				environment: {IMMICH_URL: "http://immich-server:2283", DB_HOST: "immich-postgres", DB_PORT: "5432", DB_USERNAME: "immich", DB_DATABASE_NAME: "immich"}
+				volumes: [for allocation in _architectureV2ImmichPowerToolsInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					if allocation.volumeRef == "library" {readOnly: true}
+				}]
+				health: {kind: "http", path: "/api/health", port: 3000}
+				resources: {memoryLimit: "512m", memoryReservation: "128m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "immich-power-tools"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/immich-power-tools/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:f9315100fbbd9fbbaa2636f3fd9d7bc8167923a80effacb3b51f3e25d5832bcf"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["database-password", "immich-api-key"]
+			outputs: ["workloads/immich-power-tools/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "photos-tools"
+				upstreamProtocol: "http"
+				targetPort:       3000
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "immich-power-tools-http"
+				data: {
+					bindingRef:      _architectureV2ImmichPowerToolsInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2ImmichPowerToolsInfrastructure.dataBinding.classes
+					locality:        _architectureV2ImmichPowerToolsInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2ImmichPowerToolsTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["immich-power-tools"], artifactRefs: ["immich-power-tools-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "immich-api-key"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["immich-power-tools"], artifactRefs: ["immich-power-tools-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "immich-api-key"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["immich-power-tools", "terramate-stack"], artifactRefs: ["immich-power-tools-workload-bundle", _architectureV2ImmichPowerToolsTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "immich-api-key"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2ImmichPowerToolsSupport
+		health: [{
+			id:             "immich-power-tools-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/api/health"
+			port:           3000
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["immich-power-tools-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {

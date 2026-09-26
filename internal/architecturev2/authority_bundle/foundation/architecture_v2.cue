@@ -3228,6 +3228,17 @@ _servicePublicationShape: {
 	// acmeTlsAlpnPort receives TLS-ALPN-01 challenges for the route host
 	// through a router passthrough; all other TLS stays with the router.
 	acmeTlsAlpnPort?: int & >=1 & <=65535
+	// Owner-chosen LAN rights. Each stays inert until the owner turns on the
+	// named workload setting; renderers admit each only for its governed
+	// component (a Zigbee adapter, an MQTT listener), never as a generic right.
+	// lanListeners publishes a non-HTTP listener on every host address.
+	lanListeners?: [...{port: int & >=1 & <=65535, protocol: "tcp" | "udp", settingRef: #ContractID}] & list.MinItems(1)
+	// devicePassthrough passes the owner-chosen serial adapter to target.
+	devicePassthrough?: {settingRef: #ContractID, target: #AbsolutePath}
+	// peerNetworks joins the internal network of another application workload
+	// on the same node (an add-on reaching its primary, such as Immich). Renderers
+	// admit each only for its governed add-on component.
+	peerNetworks?: [...{workloadRef: #WorkloadID, networkRef: #ContractID}] & list.MinItems(1)
 	command?: [...string & =~"^[^[:cntrl:]]+$"] & list.MinItems(1)
 	entrypoint?: [...string & =~"^[^[:cntrl:]]+$"] & list.MinItems(1)
 	environment?: [string]:       string
