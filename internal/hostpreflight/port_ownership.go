@@ -199,7 +199,7 @@ func currentWorkspaceOwnsListenerWithPriorCompose(ctx context.Context, workspace
 	// cannot reproduce its config hash.
 	expectedHash, ok := runtimeConfigHash(ctx, root, runtimeDir, project, service)
 	if !ok || labels["com.docker.compose.config-hash"] != expectedHash {
-		if priorCompose == "" || runtimeDir != filepath.Join(root, ".stackkit", "runtime", "basement-core") {
+		if priorCompose == "" || !isKitCoreRuntimeDirectory(root, runtimeDir) {
 			return false
 		}
 		expectedHash, ok = runtimeConfigHashFromPath(ctx, root, runtimeDir, priorCompose, project, service)
@@ -208,6 +208,18 @@ func currentWorkspaceOwnsListenerWithPriorCompose(ctx context.Context, workspace
 		}
 	}
 	return publishesHostListener(container, listener)
+}
+
+// isKitCoreRuntimeDirectory reports whether runtimeDir is the runtime of a
+// kit core whose prior Compose a checkpoint seals: the Basement core or the
+// Cloud standalone core.
+func isKitCoreRuntimeDirectory(root, runtimeDir string) bool {
+	for _, core := range []string{"basement-core", "cloud-core-standalone"} {
+		if runtimeDir == filepath.Join(root, ".stackkit", "runtime", core) {
+			return true
+		}
+	}
+	return false
 }
 
 // A verified upgrade snapshot stores the prior Compose bytes under a content

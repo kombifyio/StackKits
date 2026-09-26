@@ -1,0 +1,61 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "zigbee2mqtt",
+  "displayName": "Zigbee2MQTT",
+  "description": "Zigbee bridge that exposes Zigbee devices over MQTT to Home Assistant; needs a Zigbee USB adapter and an MQTT broker.",
+  "rationale": "Smart Home add-on: Zigbee devices without vendor hubs.",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "128m"
+    }
+  },
+  "services": [
+    {
+      "type": "application",
+      "required": false,
+      "name": "zigbee2mqtt",
+      "image": "ghcr.io/koenkk/zigbee2mqtt",
+      "tag": "2.14.1",
+      "networks": [
+        "smart-home-internal"
+      ],
+      "needs": [
+        "mosquitto"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`zigbee.{{.domain}}`)",
+        "port": 8080
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "none",
+        "reason": "The Zigbee2MQTT frontend has no user store, so the gateway login protects it."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/",
+        "port": 8080
+      },
+      "resources": {
+        "memory": "128m",
+        "memoryMax": "512m"
+      },
+      "volumes": [
+        {
+          "source": "zigbee2mqtt-data",
+          "target": "/app/data",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "upstream": {
+        "github": "Koenkk/zigbee2mqtt",
+        "registryImage": "ghcr.io/koenkk/zigbee2mqtt"
+      }
+    }
+  ]
+}

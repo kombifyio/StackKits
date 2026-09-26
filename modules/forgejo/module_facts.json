@@ -1,0 +1,64 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "forgejo",
+  "displayName": "Forgejo",
+  "description": "Forgejo community Git forge (Gitea fork) with pull requests, issues, packages and Actions.",
+  "rationale": "Dev alternative to Gitea.",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "256m"
+    }
+  },
+  "services": [
+    {
+      "type": "application",
+      "required": false,
+      "name": "forgejo",
+      "image": "codeberg.org/forgejo/forgejo",
+      "tag": "16.0.5",
+      "networks": [
+        "dev-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`dev.{{.domain}}`)",
+        "port": 3000
+      },
+      "accessPolicy": {
+        "outerAuth": "self",
+        "appAuth": "oidc-sso",
+        "ownerBootstrap": "Register Forgejo as an OIDC client in Pocket ID, then add it with forgejo admin auth add-oauth --provider openidConnect --auto-discover-url https://id.{{.domain}}/.well-known/openid-configuration."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/api/healthz",
+        "port": 3000
+      },
+      "resources": {
+        "memory": "256m",
+        "memoryMax": "2g"
+      },
+      "volumes": [
+        {
+          "source": "forgejo-data",
+          "target": "/data",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "environment": {
+        "FORGEJO__security__INSTALL_LOCK": "true",
+        "FORGEJO__service__ALLOW_ONLY_EXTERNAL_REGISTRATION": "true",
+        "FORGEJO__oauth2_client__ENABLE_AUTO_REGISTRATION": "true",
+        "FORGEJO__service__REQUIRE_SIGNIN_VIEW": "true"
+      },
+      "upstream": {
+        "github": "forgejo/forgejo",
+        "registryImage": "codeberg.org/forgejo/forgejo"
+      }
+    }
+  ]
+}

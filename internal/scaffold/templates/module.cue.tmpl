@@ -89,6 +89,12 @@ Contract: foundation.#ModuleContract & {
 			accessPolicy: {
 				outerAuth: {{quote .OuterAuth}}
 				appAuth:   {{quote .AppAuth}}
+{{- if .AccessReason}}
+				reason:    {{quote .AccessReason}}
+{{- end}}
+{{- if .AccessOwner}}
+				ownerBootstrap: {{quote .AccessOwner}}
+{{- end}}
 			}
 {{- end}}
 {{- if .Upstream}}

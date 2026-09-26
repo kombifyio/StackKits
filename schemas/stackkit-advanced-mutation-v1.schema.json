@@ -47,6 +47,26 @@
     "driftReport": {
       "description": "drift reconcile only: the drift report observed after the reconcile.",
       "$ref": "stackkit-drift-report-v1.schema.json"
+    },
+    "reconciledStacks": {
+      "description": "drift reconcile only: the drifted local stacks forced to re-converge (`tofu apply -replace` of the wrapper `_up` trigger) before the target generate, in host run order.",
+      "type": "array",
+      "items": { "$ref": "stackkit-change-set-result-v1.schema.json#/$defs/stackResult" }
+    },
+    "restoredRuntimeFiles": {
+      "description": "drift reconcile only: the governed runtime files (Compose file, workload .env and configuration files, OpenTofu root main.tf) of the forced stacks that differed from the authorized render and were rewritten to it before the rollback checkpoint, in host run order.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stackId", "path", "restoredSha256"],
+        "properties": {
+          "stackId": { "type": "string" },
+          "path": { "description": "Workspace-relative, slash-separated file path.", "type": "string" },
+          "driftedSha256": { "description": "Digest of the drifted bytes; absent when the file was missing.", "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+          "restoredSha256": { "description": "Digest of the authorized bytes written.", "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+        }
+      }
     }
   },
   "$defs": {

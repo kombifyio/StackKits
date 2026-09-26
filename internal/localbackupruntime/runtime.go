@@ -85,7 +85,14 @@ func (r *Runtime) sourceProjection() localbackuppolicy.Source {
 }
 
 func (r *Runtime) repositoryID() string {
-	if r.sourceProjection().CoreModuleRef == localbackuppolicy.CloudCoreModuleRef {
+	return RepositoryIDForCoreModule(r.sourceProjection().CoreModuleRef)
+}
+
+// RepositoryIDForCoreModule names the local Kopia repository that the kit
+// core owning the source policy writes: the Cloud standalone core its own
+// Cloud repository, every Basement core the Basement repository.
+func RepositoryIDForCoreModule(coreModuleRef string) string {
+	if coreModuleRef == localbackuppolicy.CloudCoreModuleRef {
 		return CloudRepositoryID
 	}
 	return RepositoryID

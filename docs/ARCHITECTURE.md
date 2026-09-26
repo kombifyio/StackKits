@@ -1495,7 +1495,12 @@ Compose fallback behind the `compose` unit (S-F structure rule, see
   root `main.tf` as the governed Core artifact and
   `architecturev2renderer.ExtractComposePayload` recovers the embedded Compose
   payload from it, so the Kopia managed-volume check and the Core profile are
-  exactly those of the `compose` target for the same plan. The capture binds
+  exactly those of the `compose` target for the same plan. The managed-volume
+  check compares the Kopia allowlist with the union of the managed volumes the
+  Core Compose project and every selected workload project (the policy's
+  application volumes, read from the applied
+  `.stackkit/runtime/applications/<project>/compose.yaml`) declare and mount,
+  so a checkpoint on a host with workloads seals. The capture binds
   the Core root configuration to that artifact and its runtime `compose.yaml`
   to the payload. The restore activation recovery graph carries
   `renderTarget`, points each Compose runtime at the runtime `compose.yaml` its
@@ -1628,7 +1633,12 @@ Terramate (`stackkit apply` under `compose` or `opentofu` is unchanged).
   `affectedStacks`, ordered by `terramatestackgraph.RunOrder` (the global
   graph order across hosts), and `terramateHostManifestSha256`. Apply
   re-derives both from the fresh renders and treats a difference as a stale
-  change set.
+  change set. A candidate equal to the applied StackSpec yields no artifact
+  change; that empty change set (empty `changes` and `affectedStacks`, equal
+  render digests allowed) is created only when the capability also allows
+  `drift.reconcile.advanced`, because only an Advanced drift reconcile runs
+  through it, and `advanced change-set apply` refuses it with
+  `advanced_change_set_invalid`.
 - Admission memory: create, apply and Advanced reconcile resolve baseline and
   candidate through one embedded authority (each in its own authority scope,
   because both carry the same Stack ID) and render them one after the other.
@@ -1749,12 +1759,65 @@ drift detection. `stackkit drift detect` combines both in one
   Techstack can map each stack to one drift subject.
 - Reconcile: `stackkit drift reconcile --mode advanced` keeps the capability,
   candidate and Owner-signed change-set admission of `runAdvancedMutation`;
-  a denial happens before any Terramate or OpenTofu process. After the
+  a denial happens before any Terramate or OpenTofu process. Runtime drift (a
+  stopped container, an edited `compose.yaml`) leaves the desired StackSpec
+  unchanged, so Techstack's `drift_reconcile` creates an empty change set
+  from the applied StackSpec (allowed by the `drift.reconcile.advanced`
+  capability, see the change-set create rule above) and reconciles through
+  it. After admission and before the checkpoint the command observes the
+  drift report (native part and per-stack plans, under the lifecycle lock).
+  `advanceddrift.ReconcileTargets` selects the drifted stacks; native drift
+  that no stack plan attributes (a stopped container is not in OpenTofu
+  state) selects every core and workload stack with a root. Still before the
+  checkpoint and under the lifecycle lock, the command restores the governed
+  runtime files of every selected local stack from the Owner-approved
+  baseline render, with the bytes Apply writes
+  (`restoreAdvancedReconcileRuntimeFiles`): for a Core root its governed
+  `main.tf` and the `compose.yaml` payload it embeds, for a workload root its
+  `compose.yaml`, `.env` and configuration files as the native preparation
+  renders them from the workload bundle and the `main.tf` rendered around
+  them. A drifted runtime file is what the reconcile repairs, yet the
+  checkpoint refuses it: its Kopia snapshot quiesces every selected workload
+  through the adapter custody check, which requires the runtime Compose
+  files to equal the authorized workload, and its executor-state capture
+  binds every root to its governed bytes (Basement run 23494c81 failed
+  there). Only files that differ are written, so an unchanged `.env` is
+  never rewritten; a restored `.env` carries the secret values resolved from
+  the workspace's owner-signed secret custody, the same values Apply and
+  every re-apply resolve, never newly generated ones. Nothing restarts and
+  no data changes. The checkpoint seal binds each workload root's captured
+  `compose.yaml` and `.env` to the standalone runtime custody it derives
+  (Basement run c645073d failed there because the seal's copy of the
+  captured roots lost the `.env`). Each restored file is reported in `data.restoredRuntimeFiles`
+  with its path and the digests of the drifted and the restored bytes. A
+  stack whose drift is not in its files (a stopped container) has nothing
+  to restore. Contract roots of edge and federation owners are left to the
+  forced convergence. The custody check itself stays strict for every
+  caller (`backup run`, upgrade, change set). The order is therefore:
+  admission, drift observation, governed file restore, mandatory rollback
+  checkpoint, forced convergence, target generate, plan, apply, verify.
+  Inside the governed transaction, before the target generate, each selected local
+  stack runs `terramate run --no-recursive --tags stackkit -- tofu apply
+  -auto-approve -input=false -no-color -replace=<wrapper trigger>`
+  (`terramatehost.ForceConverge`, trigger from
+  `terramatehost.ReplaceTriggerAddress`, so the `_up` resource and never the
+  destroy-time `down`), with the rollback's stack environment (Compose
+  project name, Core interpolation environment). A plain `tofu apply` of an
+  unchanged wrapper root is a no-op for its containers, and the target
+  apply's health observation would fail on a stopped container, so the
+  forced replacement runs first: its create-time `docker compose up`
+  restarts what stopped, and the same apply rewrites an edited payload file.
+  Each forced stack emits an `advanced.change-set.reconcile` rollout event and
+  is reported in `data.reconciledStacks`. Generate, plan, apply and verify
+  then run as for a change set, and after the target apply the convergence
+  plan covers the change set's affected stacks plus the forced ones. A failed
+  forced stack or convergence plan fails the reconcile and rolls back like a
+  failed change set (coordinated for a `terramate` checkpoint). After the
   mutation succeeds the command observes the full drift report again and
-  returns it as `data.driftReport` next to the unchanged
-  `stackkit.advanced-mutation/v1` fields. A post-reconcile status other than
-  `clean` fails the command; the applied change is not rolled back
-  automatically. Standard reconcile is unchanged.
+  returns it as `data.driftReport` next to the `stackkit.advanced-mutation/v1`
+  fields. A post-reconcile status other than `clean` fails the command; the
+  applied change is not rolled back automatically. Standard reconcile is
+  unchanged.
 - Not yet covered: the `opentofu` target has no stack graph, so its wrapper
   roots have no per-root plan yet; the saved-plan `tofu show -json` resource
   diff is not captured; stacks of other hosts are reported by their own host
@@ -1853,19 +1916,29 @@ of `stackkit advanced change-set apply` runs the same path.
   checkpoint is the target (its own, or the failed change set's):
   `rollback-started` (plan), `rollback-generate` (the checkpoint StackSpec and
   Inventory restored through `ExecutorStateStore.RecoverWith` with
-  `ReplaceAuthority` and `SkipOpenTofuRoots`, then a joined `generate`),
-  `rollback-apply` (the per-stack execution), `rollback-verify` (a joined
-  `verify --json` validated against the checkpoint plan hash, release and
-  Owner binding), `rollback-succeeded`, status `recovered`. The running
-  release regenerates and verifies; the checkpoint's captured executable does
-  only when its release differs.
+  `ReplaceAuthority` and `SkipOpenTofuRoots`, then a joined `generate`), the
+  per-stack execution while the journal is at `rollback-generate-done`,
+  `rollback-apply` (a joined `apply --auto-approve` of the regenerated
+  checkpoint generation), `rollback-verify` (a joined `verify --json`
+  validated against the checkpoint plan hash, release and Owner binding),
+  `rollback-succeeded`, status `recovered`. Every joined child phase is
+  entered with `BeginJoin` and its one-use nonce goes to that child, exactly
+  as in the upgrade rollback; the journal rejects a join phase without that
+  authority. The joined apply is required: the regenerated checkpoint
+  generation has a new generation receipt (its `generatedAt` is part of the
+  receipt hash), so the checkpoint's own Apply result no longer binds to it,
+  and verify, drift detection and backup configuration would fail with
+  `binding_mismatch` at `apply.result.generation`. The apply records a fresh
+  signed Apply result for the converged runtime. The running release
+  regenerates, applies and verifies; the checkpoint's captured executable
+  does only when its release differs.
 - Resume: every step's outcome is written to the journal. A second
   invocation with the same `--to` reopens the recorded lifecycle mutation,
   keeps the original plan and skips converged steps; a restored root whose
   forced apply did not converge keeps its written files and repeats the
-  apply. An interruption inside the joined `generate` or `verify` child needs
-  explicit upgrade recovery, because the child's one-use admission may be
-  consumed.
+  apply. An interruption inside the joined `generate`, `apply` or `verify`
+  child needs explicit upgrade recovery, because the child's one-use
+  admission may be consumed.
 - Result: `stackkit.rollback-result/v1`
   (`schemas/stackkit-rollback-result-v1.schema.json`) with the rollback ID,
   target checkpoint, change set, per-stack `{stackId, role, action,
@@ -1896,6 +1969,15 @@ of `stackkit advanced change-set apply` runs the same path.
   The completion runs before the convergence plan; a failure fails the
   stack and a resumed rollback repeats both halves. Health probes stay with
   the joined rollback verify.
+- Drifted runtime files: the rollback has no custody tolerance and needs
+  none. It takes no pre-mutation snapshot (the target checkpoint is loaded,
+  nothing is quiesced), every kept stack gets its checkpoint files written
+  before its forced apply and every stack the checkpoint lacks is destroyed
+  with its project directory, so the seal's strict custody check runs only
+  after every drifted file was rewritten or removed. Basement run 23494c81
+  rolled back from a drifted Files `compose.yaml` this way. An Advanced
+  reconcile follows the same order by restoring governed files before its
+  checkpoint.
 - Not yet covered: data volumes are not rolled back (the Kopia anchor stays
   available for an explicit restore), `other_host` stacks need Techstack
   dispatch, and there is no runtime evidence yet (P1.9).
@@ -1937,7 +2019,7 @@ Paths: `nh` is `internal/runtimeexecutor/nativehost`, `ot` is
 | Workload: owner account and app onboarding (`internal/appsetup`) | runs after the converged Apply (`cmd/setup_automatic.go`, `runAutomaticOwnerSetup` from `cmd/apply.go`) | runs (same) | runs (same) | runs after the change set (`cmd/advanced_change_set_apply.go`) | runs after reconcile (`cmd/drift.go`) | the account lives in the restored application data; `stackkit setup` re-verifies | `stackkit setup` re-verifies |
 | Workload: per-application OIDC client | not implemented on any path | not implemented | not implemented | not implemented | not implemented | not implemented | not implemented |
 | Workload: household users | PocketID household group only (`internal/localowner/household.go`), not provisioned inside applications | same | same | same | same | same | same |
-| Workload: Kopia source registration (`stackkit backup configure`) | target-neutral, resolves the Core unit of any target (`cmd/backup_native_v2.go:478`) | same | same | same | same | same | not applicable |
+| Workload: Kopia source registration (`stackkit backup configure`) | target-neutral, resolves the Core unit of any target (`cmd/backup_native_v2.go:478`) | same | same | an existing configuration is rebound after the change set (`runAutomaticBackupRebind`, `cmd/backup_rebind.go`) | rebound after reconcile (same) | same | not applicable |
 | Application lifecycle record | `stackkit.apply`, stage `install` (`cmd/architecture_v2_execution.go:977`) | same | same | `stackkit.upgrade`, stage `upgrade` (`cmd/advanced_change_set_apply.go:267`) | same as change set (`cmd/drift.go:224`) | lifecycle mutation journal, no application record | `stackkit.restore` |
 
 - Owner setup runs automatically after the runtime converged, on every

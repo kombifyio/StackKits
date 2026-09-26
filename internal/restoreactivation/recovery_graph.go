@@ -159,7 +159,7 @@ func bindOpenTofuRuntimes(
 	}
 	core := ComposeRuntime{
 		Project: derived.composeProject,
-		Path:    path.Join(basementCoreRuntimeDir, "compose.yaml"),
+		Path:    path.Join(derived.coreRuntimeDir, "compose.yaml"),
 		Digest:  runtimeFileDigest(payload),
 	}
 	if err := bindState(&core); err != nil {
@@ -218,7 +218,11 @@ func (graph RuntimeRecoveryGraph) validate() error {
 	if openTofu && graph.RenderTarget != renderTargetOpenTofu && graph.RenderTarget != renderTargetTerramate {
 		return errors.New("restoreactivation: runtime recovery graph render target is unsupported")
 	}
-	if openTofu && graph.ComposePath != path.Join(basementCoreRuntimeDir, "compose.yaml") {
+	coreSource, knownCore := coreBackupSourceForProject(graph.ComposeProject)
+	if !knownCore {
+		return errors.New("restoreactivation: runtime recovery graph core Compose project owns no local backup source")
+	}
+	if openTofu && graph.ComposePath != path.Join(coreSource.runtimeDir, "compose.yaml") {
 		return errors.New("restoreactivation: runtime recovery graph OpenTofu Core Compose is not the runtime Compose file")
 	}
 	if err := validateGraphPlanBinding(graph.PlanBinding); err != nil {
@@ -228,8 +232,7 @@ func (graph RuntimeRecoveryGraph) validate() error {
 		!digestPattern.MatchString(graph.ManifestHash) || !digestPattern.MatchString(graph.ManagedVolumeSetHash) {
 		return errors.New("restoreactivation: runtime recovery graph provenance hashes are invalid")
 	}
-	if !portableNamePattern.MatchString(graph.StackID) || graph.ComposeProject != basementComposeProject ||
-		!portableNamePattern.MatchString(graph.ComposeProject) {
+	if !portableNamePattern.MatchString(graph.StackID) || !portableNamePattern.MatchString(graph.ComposeProject) {
 		return errors.New("restoreactivation: runtime recovery graph identity is invalid")
 	}
 	if err := validateGraphPath(graph.ComposePath, "Compose artifact"); err != nil {

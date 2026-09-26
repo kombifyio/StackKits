@@ -14,7 +14,7 @@ func rollbackEntry() Operation {
 		Operation:    advancedcapability.OperationRollbackCoordinated,
 		Status:       StatusAvailable,
 		SinceRelease: SincePending,
-		Summary:      "Roll every local Terramate stack back to one verified executor-state checkpoint in reverse run order: destroy stacks added after it, restore and force-converge changed stacks, recreate removed stacks, then restore, regenerate and verify the checkpoint plan. A rerun with the same target resumes an interrupted rollback.",
+		Summary:      "Roll every local Terramate stack back to one verified executor-state checkpoint in reverse run order: restore the checkpoint StackSpec and Inventory and regenerate its plan, destroy stacks added after it, restore and force-converge changed stacks, recreate removed stacks, then apply and verify the checkpoint plan through joined children. A rerun with the same target resumes an interrupted rollback.",
 		Command:      "stackkit advanced rollback run",
 		Argv:         []string{"advanced", "rollback", "run", "--capability", "{capabilityFile}", "--to", "{targetRef}", "--owner-approve", "--json"},
 		OptionalArgs: []OptionalArgs{},

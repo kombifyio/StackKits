@@ -1,0 +1,252 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "mailcow",
+  "displayName": "mailcow",
+  "description": "mailcow: dockerized complete mail suite (Postfix, Dovecot, Rspamd, SOGo webmail/groupware) for your own domain. Core mail path services only; mailcow's own installer owns the full stack.",
+  "rationale": "Owner request 2026-09-17: mailcow as the own-mail-server alternative to Stalwart.",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "6g"
+    }
+  },
+  "services": [
+    {
+      "type": "application",
+      "required": false,
+      "name": "nginx-mailcow",
+      "image": "ghcr.io/mailcow/nginx",
+      "tag": "1.30.4-1",
+      "networks": [
+        "mailcow-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`mail.{{.domain}}`)",
+        "port": 8080
+      },
+      "accessPolicy": {
+        "outerAuth": "self",
+        "appAuth": "oidc-sso",
+        "ownerBootstrap": "mailcow signs in mailboxes through its Generic-OIDC identity provider: register mailcow as an OIDC client in Pocket ID (issuer https://id.{{.domain}}) under System > Configuration > Access > Identity Provider."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/",
+        "port": 8080
+      },
+      "resources": {
+        "memory": "64m",
+        "memoryMax": "256m"
+      },
+      "upstream": {
+        "github": "mailcow/mailcow-dockerized",
+        "registryImage": "ghcr.io/mailcow/nginx"
+      }
+    },
+    {
+      "type": "application",
+      "required": false,
+      "name": "postfix-mailcow",
+      "image": "ghcr.io/mailcow/postfix",
+      "tag": "3.10.12-1",
+      "networks": [
+        "mailcow-internal"
+      ],
+      "healthCheck": {
+        "type": "command",
+        "command": "postfix status"
+      },
+      "resources": {
+        "memory": "128m",
+        "memoryMax": "512m"
+      },
+      "volumes": [
+        {
+          "source": "mailcow-postfix",
+          "target": "/var/spool/postfix",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "upstream": {
+        "github": "mailcow/mailcow-dockerized",
+        "registryImage": "ghcr.io/mailcow/postfix"
+      }
+    },
+    {
+      "type": "application",
+      "required": false,
+      "name": "dovecot-mailcow",
+      "image": "ghcr.io/mailcow/dovecot",
+      "tag": "2.3.21.1-2",
+      "networks": [
+        "mailcow-internal"
+      ],
+      "healthCheck": {
+        "type": "command",
+        "command": "doveadm service status"
+      },
+      "resources": {
+        "memory": "256m",
+        "memoryMax": "1g"
+      },
+      "volumes": [
+        {
+          "source": "mailcow-vmail",
+          "target": "/var/vmail",
+          "type": "volume",
+          "backup": true
+        },
+        {
+          "source": "mailcow-vmail-index",
+          "target": "/var/vmail_index",
+          "type": "volume",
+          "backup": false
+        }
+      ],
+      "upstream": {
+        "github": "mailcow/mailcow-dockerized",
+        "registryImage": "ghcr.io/mailcow/dovecot"
+      }
+    },
+    {
+      "type": "application",
+      "required": false,
+      "name": "rspamd-mailcow",
+      "image": "ghcr.io/mailcow/rspamd",
+      "tag": "4.1.4-1",
+      "networks": [
+        "mailcow-internal"
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/ping",
+        "port": 11334
+      },
+      "resources": {
+        "memory": "256m",
+        "memoryMax": "1g"
+      },
+      "volumes": [
+        {
+          "source": "mailcow-rspamd",
+          "target": "/var/lib/rspamd",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "upstream": {
+        "github": "mailcow/mailcow-dockerized",
+        "registryImage": "ghcr.io/mailcow/rspamd"
+      }
+    },
+    {
+      "type": "application",
+      "required": false,
+      "name": "sogo-mailcow",
+      "image": "ghcr.io/mailcow/sogo",
+      "tag": "5.12.11-1",
+      "networks": [
+        "mailcow-internal"
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/SOGo",
+        "port": 20000
+      },
+      "resources": {
+        "memory": "256m",
+        "memoryMax": "1g"
+      },
+      "upstream": {
+        "github": "mailcow/mailcow-dockerized",
+        "registryImage": "ghcr.io/mailcow/sogo"
+      }
+    },
+    {
+      "type": "application",
+      "required": false,
+      "name": "php-fpm-mailcow",
+      "image": "ghcr.io/mailcow/phpfpm",
+      "tag": "8.2.29-3",
+      "networks": [
+        "mailcow-internal"
+      ],
+      "healthCheck": {
+        "type": "command",
+        "command": "php-fpm -t"
+      },
+      "resources": {
+        "memory": "128m",
+        "memoryMax": "512m"
+      },
+      "upstream": {
+        "github": "mailcow/mailcow-dockerized",
+        "registryImage": "ghcr.io/mailcow/phpfpm"
+      }
+    },
+    {
+      "type": "database",
+      "required": false,
+      "name": "mysql-mailcow",
+      "image": "docker.io/library/mariadb",
+      "tag": "10.11",
+      "networks": [
+        "mailcow-internal"
+      ],
+      "healthCheck": {
+        "type": "command",
+        "command": "healthcheck.sh --connect --innodb_initialized"
+      },
+      "resources": {
+        "memory": "256m",
+        "memoryMax": "1g"
+      },
+      "volumes": [
+        {
+          "source": "mailcow-mysql",
+          "target": "/var/lib/mysql",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "upstream": {
+        "github": "MariaDB/server",
+        "registryImage": "mariadb"
+      }
+    },
+    {
+      "type": "database",
+      "required": false,
+      "name": "redis-mailcow",
+      "image": "docker.io/library/redis",
+      "tag": "7.4.11-alpine",
+      "networks": [
+        "mailcow-internal"
+      ],
+      "healthCheck": {
+        "type": "command",
+        "command": "redis-cli ping"
+      },
+      "resources": {
+        "memory": "64m",
+        "memoryMax": "256m"
+      },
+      "volumes": [
+        {
+          "source": "mailcow-redis",
+          "target": "/data",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "upstream": {
+        "github": "redis/redis",
+        "registryImage": "redis"
+      }
+    }
+  ]
+}

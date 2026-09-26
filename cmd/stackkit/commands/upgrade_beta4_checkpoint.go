@@ -541,6 +541,7 @@ func withPreparedHistoricalUpgradeCapture(
 	}
 	if err := verifyPublicUpgradeManagedVolumeAuthority(
 		generatedCompose, authority.Policy.SourceProjection(),
+		publicUpgradeApplicationComposeReader(workspace),
 	); err != nil {
 		return err
 	}

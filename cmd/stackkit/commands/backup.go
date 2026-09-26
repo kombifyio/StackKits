@@ -83,7 +83,7 @@ var backupCmd = &cobra.Command{
 	Long: `Manage backups for this StackKit deployment.
 
 Backups are powered by Kopia (see ADR-0016) and run in the local
-kopia-agent service rendered by the Basement core. Native configure, status,
+kopia-agent service rendered by the kit core (Basement or Cloud standalone). Native configure, status,
 and run revalidate the exact local Plan, generated artifacts, owner custody,
 and Apply evidence before touching Kopia. Repository, source, exclusions,
 service identity, and credentials are CUE- or owner-custody-owned.`,
@@ -190,7 +190,7 @@ var backupRestoreAbandonCmd = &cobra.Command{
 
 var backupRestoreActivateCmd = &cobra.Command{
 	Use:         "activate <restore-result-id>",
-	Short:       "Activate one verified staged restore into the live Basement volumes",
+	Short:       "Activate one verified staged restore into the live kit core volumes",
 	Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	Args:        cobra.ExactArgs(1),
 	Example: `  # Replace the live volumes with a verified staged restore

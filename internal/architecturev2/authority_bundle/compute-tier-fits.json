@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:d58c16620934666faafe5468655215fde4bb2cf71c75f136f13696598f83248f",
+  "contentDigest": "sha256:08be6ccbf03f9d18426612523d02eafe39201bf311fa450af1f7f042627f651b",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -156,6 +156,13 @@
         }
       ],
       "components": [
+        {
+          "id": "forgejo",
+          "kind": "application",
+          "name": "Forgejo",
+          "realization": "recorded",
+          "role": "alternative"
+        },
         {
           "id": "gitea",
           "kind": "application",
@@ -324,6 +331,32 @@
           "kind": "application",
           "name": "Cloudreve",
           "role": "primary"
+        },
+        {
+          "id": "euro-office",
+          "kind": "application",
+          "name": "Euro-Office",
+          "role": "supporting"
+        },
+        {
+          "id": "nextcloud",
+          "kind": "application",
+          "name": "Nextcloud",
+          "realization": "recorded",
+          "role": "alternative"
+        },
+        {
+          "id": "paperless-ngx",
+          "kind": "application",
+          "name": "Paperless-ngx",
+          "role": "supporting"
+        },
+        {
+          "id": "paperwork",
+          "kind": "connector",
+          "name": "kombify Paperwork",
+          "realization": "recorded",
+          "role": "alternative"
         }
       ],
       "computeTiers": {
@@ -358,7 +391,7 @@
           },
           "moduleSlug": "cloudreve",
           "notes": [
-            "Lightweight sharing. Nextcloud is not a native workload on any profile."
+            "Lightweight sharing. Nextcloud is a recorded alternative until its native workload lands."
           ]
         },
         "standard": {
@@ -375,12 +408,12 @@
           },
           "moduleSlug": "cloudreve",
           "notes": [
-            "Nextcloud remains planned product intent, not a selectable native alternative."
+            "Nextcloud, kombify Paperwork, Euro-Office and Paperless-ngx are selectable catalog choices; the release installs Cloudreve."
           ]
         }
       },
       "defaultAlternative": "cloudreve",
-      "description": "Private file storage and sharing through the native Cloudreve workload.",
+      "description": "Private file storage and sharing: Cloudreve by default, Nextcloud or kombify Paperwork as alternatives, with optional office editing and a document archive.",
       "docs": "/guides/stackkits/use-cases/documents-and-files",
       "id": "files",
       "mainUseCase": {
@@ -388,6 +421,26 @@
         "title": "Documents \u0026 Files"
       },
       "settings": [
+        {
+          "default": false,
+          "depth": "summary",
+          "group": "features",
+          "help": "Add Paperless-ngx to scan, read (OCR) and search your paper documents next to your files.",
+          "id": "paperless",
+          "kind": "toggle",
+          "name": "Document archive",
+          "realization": "recorded"
+        },
+        {
+          "default": false,
+          "depth": "summary",
+          "group": "features",
+          "help": "Add Euro-Office to edit documents, spreadsheets and presentations in the browser. It connects to Nextcloud through the Euro-Office app.",
+          "id": "office-editing",
+          "kind": "toggle",
+          "name": "Office editing",
+          "realization": "recorded"
+        },
         {
           "default": "kit-storage",
           "depth": "advanced",
@@ -430,6 +483,13 @@
         }
       ],
       "components": [
+        {
+          "id": "pelican",
+          "kind": "application",
+          "name": "Pelican Panel",
+          "realization": "recorded",
+          "role": "alternative"
+        },
         {
           "id": "pterodactyl",
           "kind": "application",
@@ -483,6 +543,30 @@
         "id": "game",
         "title": "Game"
       },
+      "settings": [
+        {
+          "default": "java",
+          "depth": "summary",
+          "group": "profile",
+          "help": "Java and Bedrock players cannot join each other's worlds; choose the edition your players use.",
+          "id": "edition",
+          "kind": "choice",
+          "name": "Minecraft edition",
+          "options": [
+            {
+              "id": "java",
+              "name": "Minecraft Java",
+              "note": "PC and Mac players"
+            },
+            {
+              "id": "bedrock",
+              "name": "Minecraft Bedrock",
+              "note": "Console, phone, tablet and Windows players"
+            }
+          ],
+          "realization": "recorded"
+        }
+      ],
       "title": "Game Server"
     },
     {
@@ -503,6 +587,13 @@
         }
       ],
       "components": [
+        {
+          "id": "paperwork",
+          "kind": "connector",
+          "name": "kombify Paperwork",
+          "realization": "recorded",
+          "role": "alternative"
+        },
         {
           "id": "roundcube",
           "kind": "application",
@@ -573,6 +664,33 @@
       },
       "settings": [
         {
+          "default": "existing",
+          "depth": "summary",
+          "group": "backend",
+          "help": "Keep your mailbox at your current provider, or run your own mail server on a dedicated Cloud node.",
+          "id": "hosting",
+          "kind": "choice",
+          "name": "Mail hosting",
+          "options": [
+            {
+              "id": "existing",
+              "name": "Existing provider",
+              "note": "No mail server, DNS or MX change"
+            },
+            {
+              "id": "stalwart",
+              "name": "Stalwart",
+              "note": "Own mail server: SMTP, IMAP and JMAP in one service"
+            },
+            {
+              "id": "mailcow",
+              "name": "mailcow",
+              "note": "Own mail suite with SOGo webmail, calendar and contacts"
+            }
+          ],
+          "realization": "recorded"
+        },
+        {
           "default": "",
           "depth": "summary",
           "group": "access",
@@ -604,6 +722,13 @@
         }
       ],
       "components": [
+        {
+          "id": "mailcow",
+          "kind": "application",
+          "name": "mailcow",
+          "realization": "recorded",
+          "role": "alternative"
+        },
         {
           "id": "stalwart",
           "kind": "application",
@@ -695,10 +820,29 @@
       ],
       "components": [
         {
+          "id": "audiobookshelf",
+          "kind": "application",
+          "name": "Audiobookshelf",
+          "role": "supporting"
+        },
+        {
+          "id": "emby",
+          "kind": "application",
+          "name": "Emby",
+          "realization": "recorded",
+          "role": "alternative"
+        },
+        {
           "id": "jellyfin",
           "kind": "application",
           "name": "Jellyfin",
           "role": "primary"
+        },
+        {
+          "id": "navidrome",
+          "kind": "application",
+          "name": "Navidrome",
+          "role": "supporting"
         }
       ],
       "computeTiers": {
@@ -796,6 +940,26 @@
             }
           ],
           "realization": "recorded"
+        },
+        {
+          "default": false,
+          "depth": "summary",
+          "group": "features",
+          "help": "Add Navidrome to stream your music library to Subsonic-compatible apps.",
+          "id": "music-server",
+          "kind": "toggle",
+          "name": "Music streaming",
+          "realization": "recorded"
+        },
+        {
+          "default": false,
+          "depth": "advanced",
+          "group": "features",
+          "help": "Add Audiobookshelf for audiobooks and podcasts with progress sync on your phone.",
+          "id": "audiobooks",
+          "kind": "toggle",
+          "name": "Audiobooks and podcasts",
+          "realization": "recorded"
         }
       ],
       "title": "Media Library"
@@ -830,10 +994,42 @@
       ],
       "components": [
         {
+          "id": "ente-photos",
+          "kind": "application",
+          "name": "Ente Photos",
+          "realization": "recorded",
+          "role": "alternative"
+        },
+        {
           "id": "immich",
           "kind": "application",
           "name": "Immich",
           "role": "primary"
+        },
+        {
+          "id": "immich-kiosk",
+          "kind": "application",
+          "name": "Immich Kiosk",
+          "role": "supporting"
+        },
+        {
+          "id": "immich-lite",
+          "kind": "application",
+          "name": "Immich Lite (no smart search)",
+          "realization": "install",
+          "role": "alternative"
+        },
+        {
+          "id": "immich-power-tools",
+          "kind": "application",
+          "name": "Immich Power Tools",
+          "role": "supporting"
+        },
+        {
+          "id": "immich-public-proxy",
+          "kind": "application",
+          "name": "Immich Public Proxy",
+          "role": "supporting"
         }
       ],
       "computeTiers": {
@@ -931,6 +1127,36 @@
             }
           ],
           "realization": "recorded"
+        },
+        {
+          "default": false,
+          "depth": "summary",
+          "group": "access",
+          "help": "Add Immich Public Proxy so people without an account can open the albums you share, while Immich itself stays private.",
+          "id": "public-sharing",
+          "kind": "toggle",
+          "name": "Public share links",
+          "realization": "recorded"
+        },
+        {
+          "default": false,
+          "depth": "advanced",
+          "group": "features",
+          "help": "Add Immich Kiosk to show albums or people as a slideshow on a photo frame, TV or tablet.",
+          "id": "kiosk",
+          "kind": "toggle",
+          "name": "Photo frame and TV slideshow",
+          "realization": "recorded"
+        },
+        {
+          "default": false,
+          "depth": "advanced",
+          "group": "features",
+          "help": "Add Immich Power Tools for bulk work: merge people, fix missing locations and tidy albums.",
+          "id": "power-tools",
+          "kind": "toggle",
+          "name": "Library power tools",
+          "realization": "recorded"
         }
       ],
       "title": "Photos and Memories"
@@ -1022,10 +1248,28 @@
       ],
       "components": [
         {
+          "id": "esphome",
+          "kind": "application",
+          "name": "ESPHome",
+          "role": "supporting"
+        },
+        {
           "id": "home-assistant",
           "kind": "application",
           "name": "Home Assistant",
           "role": "primary"
+        },
+        {
+          "id": "mosquitto",
+          "kind": "service",
+          "name": "Eclipse Mosquitto",
+          "role": "supporting"
+        },
+        {
+          "id": "zigbee2mqtt",
+          "kind": "application",
+          "name": "Zigbee2MQTT",
+          "role": "supporting"
         }
       ],
       "computeTiers": {
@@ -1150,6 +1394,36 @@
           "kind": "toggle",
           "name": "Find devices on your network",
           "realization": "recorded"
+        },
+        {
+          "default": false,
+          "depth": "advanced",
+          "group": "features",
+          "help": "Add Eclipse Mosquitto so MQTT devices, Zigbee2MQTT and ESPHome can talk to Home Assistant.",
+          "id": "mqtt-broker",
+          "kind": "toggle",
+          "name": "MQTT broker",
+          "realization": "recorded"
+        },
+        {
+          "default": false,
+          "depth": "summary",
+          "group": "features",
+          "help": "Add Zigbee2MQTT to use Zigbee lights and sensors without vendor hubs. Needs a Zigbee USB stick and the MQTT broker.",
+          "id": "zigbee-bridge",
+          "kind": "toggle",
+          "name": "Zigbee devices",
+          "realization": "recorded"
+        },
+        {
+          "default": false,
+          "depth": "advanced",
+          "group": "features",
+          "help": "Add ESPHome to build and update firmware for your own ESP32 sensors and switches.",
+          "id": "esphome",
+          "kind": "toggle",
+          "name": "ESPHome devices",
+          "realization": "recorded"
         }
       ],
       "title": "Smart Home"
@@ -1172,6 +1446,13 @@
         }
       ],
       "components": [
+        {
+          "id": "passbolt",
+          "kind": "application",
+          "name": "Passbolt CE",
+          "realization": "recorded",
+          "role": "alternative"
+        },
         {
           "id": "vaultwarden",
           "kind": "application",

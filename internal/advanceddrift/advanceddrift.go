@@ -223,3 +223,26 @@ func EventAttributes(stack Stack) map[string]string {
 	}
 	return attributes
 }
+
+// ReconcileTargets returns the stack IDs an Advanced drift reconcile forces
+// to re-converge, in report (run) order: every drifted stack. Native drift
+// that no stack plan attributes (a stopped container is not in OpenTofu
+// state, so every stack plans clean) forces every core and workload stack
+// whose root exists; `docker compose up` leaves running services unchanged.
+func ReconcileTargets(nativeDrift bool, stacks []Stack) []string {
+	targets := make([]string, 0, len(stacks))
+	for _, stack := range stacks {
+		if stack.Status == StackDrifted {
+			targets = append(targets, stack.StackID)
+		}
+	}
+	if len(targets) > 0 || !nativeDrift {
+		return targets
+	}
+	for _, stack := range stacks {
+		if Required(stack.Role) && stack.Status != StackPendingRoot {
+			targets = append(targets, stack.StackID)
+		}
+	}
+	return targets
+}

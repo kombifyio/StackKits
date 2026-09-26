@@ -304,7 +304,7 @@ func inspectNativeV2BackupAuthority(ctx context.Context, workspace, requestedSpe
 		return nativeV2BackupAuthority{}, errors.New("local Kopia policy source differs from the applied Core profile")
 	}
 	if coreModuleRef != localbackuppolicy.CoreModuleRef && policy.Source.CoreModuleRef != coreModuleRef {
-		return nativeV2BackupAuthority{}, errors.New("CoreLite local Kopia policy must carry its explicit Core profile")
+		return nativeV2BackupAuthority{}, errors.New("CoreLite and Cloud local Kopia policies must carry their explicit Core profile")
 	}
 	return nativeV2BackupAuthority{
 		OwnerRef: applied.OwnerRef, AuthorityRef: applied.AuthorityRef, WorkspaceRoot: applied.WorkspaceRoot,
@@ -416,7 +416,7 @@ var loadNativeV2RestoreAppliedRequest = loadArchitectureV2AppliedRuntimeRequest
 // nativeV2RestoreAppliedRequests supplies the live Cloud core post-verifier
 // with the sealed request of the verified Apply, exactly as `stackkit verify`
 // does; a zero-value request fails its own validation (kombify-StackKits-v6jg).
-// Basement's live verifier reads its runtime custody instead.
+// The Basement live verifier reads its runtime custody instead.
 func nativeV2RestoreAppliedRequests(
 	ctx context.Context,
 	workspace string,
@@ -472,7 +472,7 @@ func nativeV2BackupPolicyRequirement(
 	}
 	if matches != 1 || selected.ID == "" || selected.InstanceRef == "" || selected.OutputRef == "" {
 		return "", generationartifact.ApplyArtifactRequirement{}, errors.New(
-			"native v2 backup requires exactly one applied Full-Core or CoreLite source-policy artifact",
+			"native v2 backup requires exactly one applied Basement Full-Core, CoreLite or Cloud standalone core source-policy artifact",
 		)
 	}
 	// The Core runtime is the compose unit, or the unit named after the

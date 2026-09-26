@@ -86,9 +86,12 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		accessPolicy: {
-			outerAuth:      "tinyauth-pocketid"
-			appAuth:        "self-auth"
-			ownerBootstrap: "Nextcloud image auto-configures the first admin from StackKit admin credentials."
+			// Owner direction 2026-09-25: sign-in maps to Pocket ID. Nextcloud
+			// supports OIDC natively (user_oidc), so its desktop and mobile
+			// clients log in through Pocket ID instead of a forward-auth wall.
+			outerAuth:      "self"
+			appAuth:        "oidc-sso"
+			ownerBootstrap: "Nextcloud image auto-configures the first admin from StackKit admin credentials; the user_oidc app registers Pocket ID (https://id.{{.domain}}) as the OIDC provider."
 		}
 
 		volumes: [

@@ -1,0 +1,50 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "immich-kiosk",
+  "displayName": "Immich Kiosk",
+  "description": "Slideshow of Immich albums and people for picture frames, TVs and browsers.",
+  "rationale": "Immich add-on: kiosk and photo-frame display.",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "64m"
+    }
+  },
+  "services": [
+    {
+      "type": "application",
+      "required": false,
+      "name": "immich-kiosk",
+      "image": "ghcr.io/damongolding/immich-kiosk",
+      "tag": "0.44.1",
+      "networks": [
+        "immich-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`kiosk.{{.domain}}`)",
+        "port": 3000
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "none",
+        "reason": "Read-only slideshow; Kiosk has no user store, so the gateway login protects it."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/health",
+        "port": 3000
+      },
+      "resources": {
+        "memory": "64m",
+        "memoryMax": "256m"
+      },
+      "upstream": {
+        "github": "damongolding/immich-kiosk",
+        "registryImage": "ghcr.io/damongolding/immich-kiosk"
+      }
+    }
+  ]
+}

@@ -134,6 +134,10 @@ func (o *osStandaloneComposeWorkloadOperations) PrepareWorkloadCompose(
 	if err := o.persist(project); err != nil {
 		return NativeWorkloadCompose{}, err
 	}
+	return preparedWorkloadCompose(project), nil
+}
+
+func preparedWorkloadCompose(project standaloneComposeProject) NativeWorkloadCompose {
 	wait := true
 	for _, component := range project.bundle.Components {
 		if component.HealthFailure == "degraded" {
@@ -144,7 +148,7 @@ func (o *osStandaloneComposeWorkloadOperations) PrepareWorkloadCompose(
 		ProjectName: project.name, Directory: project.directory,
 		Compose: append([]byte(nil), project.compose...), EnvFile: standaloneComposeEnvFile, Wait: wait,
 		project: project,
-	}, nil
+	}
 }
 
 // CompleteWorkloadCompose is the native Apply after `docker compose up`: the
@@ -939,6 +943,22 @@ func standaloneComposeSecretVariable(componentID, environmentName string) string
 }
 
 func (o *osStandaloneComposeWorkloadOperations) persist(project standaloneComposeProject) error {
+	return o.persistFiles(project, standaloneComposeProjectFiles(project))
+}
+
+// standaloneComposeProjectFiles are the governed Compose project files of one
+// prepared project by project-relative name: compose.yaml, the private .env
+// and every configuration file.
+func standaloneComposeProjectFiles(project standaloneComposeProject) map[string][]byte {
+	files := map[string][]byte{"compose.yaml": project.compose, standaloneComposeEnvFile: project.environment}
+	for name, content := range project.configFiles {
+		files[name] = content
+	}
+	return files
+}
+
+// persistFiles installs the given project files atomically and owner-only.
+func (o *osStandaloneComposeWorkloadOperations) persistFiles(project standaloneComposeProject, files map[string][]byte) error {
 	if err := os.MkdirAll(project.directory, 0o700); err != nil {
 		return fmt.Errorf("create standalone Compose runtime directory: %w", err)
 	}
@@ -953,10 +973,6 @@ func (o *osStandaloneComposeWorkloadOperations) persist(project standaloneCompos
 	view, err := root.View(".")
 	if err != nil {
 		return err
-	}
-	files := map[string][]byte{"compose.yaml": project.compose, ".env": project.environment}
-	for name, content := range project.configFiles {
-		files[name] = content
 	}
 	if len(project.configFiles) > 0 {
 		if err := os.MkdirAll(filepath.Join(project.directory, "files"), 0o700); err != nil {
@@ -986,11 +1002,7 @@ func (o *osStandaloneComposeWorkloadOperations) verifyPersisted(project standalo
 		return err
 	}
 	defer func() { _ = transaction.Close() }()
-	files := map[string][]byte{"compose.yaml": project.compose, ".env": project.environment}
-	for name, content := range project.configFiles {
-		files[name] = content
-	}
-	for name, expected := range files {
+	for name, expected := range standaloneComposeProjectFiles(project) {
 		actual, info, err := transaction.ReadStable(name)
 		if err != nil || info == nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
 			return errors.New("standalone Compose runtime custody is unavailable")

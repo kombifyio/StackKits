@@ -104,6 +104,12 @@ type FactsTraefik struct {
 type FactsAccessPolicy struct {
 	OuterAuth string `json:"outerAuth"`
 	AppAuth   string `json:"appAuth,omitempty"`
+	// Reason is mandatory for an unprotected gateway route or an app without
+	// its own login, mirroring foundation.#ServiceAccessPolicy.
+	Reason string `json:"reason,omitempty"`
+	// OwnerBootstrap says how sign-in reaches Pocket ID (OIDC client
+	// registration) or which login stays app-local.
+	OwnerBootstrap string `json:"ownerBootstrap,omitempty"`
 }
 
 // FactsHealthCheck is either an HTTP probe (path+port) or a shell command.
@@ -226,6 +232,9 @@ func (f *Facts) validate() error {
 		}
 		if s.HealthCheck == nil {
 			return fmt.Errorf("service %q: healthCheck is required (it is the smoke assertion)", s.Name)
+		}
+		if p := s.AccessPolicy; p != nil && (p.OuterAuth == "none-explicit" || p.AppAuth == "none") && p.Reason == "" {
+			return fmt.Errorf("service %q: accessPolicy needs a reason for outerAuth none-explicit or appAuth none", s.Name)
 		}
 		if s.Routed && s.Traefik == nil {
 			return fmt.Errorf("service %q: routed service needs traefik {rule, port}", s.Name)

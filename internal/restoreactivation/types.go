@@ -1,5 +1,6 @@
 // Package restoreactivation derives and executes the fail-closed authority for
-// promoting an owner-verified staged restore into the live Basement runtime.
+// promoting an owner-verified staged restore into the live kit core runtime
+// (Basement Full-Core or CoreLite, or the Cloud standalone core).
 package restoreactivation
 
 import (
@@ -75,7 +76,7 @@ type RuntimeRecoveryGraph struct {
 }
 
 // ComposeRuntime binds one local Compose project to the exact owner-custody
-// bytes that were verified before restore mutation. The Basement runtime and
+// bytes that were verified before restore mutation. The kit core runtime and
 // every selected standalone-compose Application runtime are represented
 // independently; no PaaS or remote runtime is admitted here.
 type ComposeRuntime struct {
@@ -134,7 +135,7 @@ type StandaloneComposeRuntimeCustody struct {
 	ConfigFiles []StandaloneComposeRuntimeFile
 }
 
-// Volume is one exact persistent backup volume selected by the Basement core
+// Volume is one exact persistent backup volume selected by the kit core
 // runtime. LogicalName comes from the component graph; LiveName is the
 // Compose-qualified Docker volume name. RollbackName is deterministic for the
 // activation operation and never caller supplied.
@@ -147,7 +148,7 @@ type Volume struct {
 	RollbackName   string `json:"rollbackName"`
 }
 
-// DeriveAuthority binds a staged, owner-verified restore to the exact Basement
+// DeriveAuthority binds a staged, owner-verified restore to the exact kit
 // core plan and generation manifest without consulting mutable policy defaults.
 func DeriveAuthority(
 	workspaceRoot string,

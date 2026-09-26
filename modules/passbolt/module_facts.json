@@ -1,0 +1,94 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "passbolt",
+  "displayName": "Passbolt CE",
+  "description": "Passbolt Community Edition: team password manager with end-to-end encryption and browser extensions, backed by MariaDB.",
+  "rationale": "Vault alternative to Vaultwarden.",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "512m"
+    }
+  },
+  "services": [
+    {
+      "type": "application",
+      "required": false,
+      "name": "passbolt",
+      "image": "docker.io/passbolt/passbolt",
+      "tag": "5.16.0-1-ce",
+      "networks": [
+        "vault-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`vault.{{.domain}}`)",
+        "port": 80
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "self-auth",
+        "ownerBootstrap": "Passbolt CE has no SSO (SSO is a Passbolt Pro feature): TinyAuth forward-auth (Pocket ID) guards the web app; Passbolt accounts keep their own keys."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/healthcheck/status.json",
+        "port": 80
+      },
+      "resources": {
+        "memory": "256m",
+        "memoryMax": "1g"
+      },
+      "volumes": [
+        {
+          "source": "passbolt-gpg",
+          "target": "/etc/passbolt/gpg",
+          "type": "volume",
+          "backup": true
+        },
+        {
+          "source": "passbolt-jwt",
+          "target": "/etc/passbolt/jwt",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "upstream": {
+        "github": "passbolt/passbolt_api",
+        "registryImage": "passbolt/passbolt"
+      }
+    },
+    {
+      "type": "database",
+      "required": false,
+      "name": "mariadb",
+      "image": "docker.io/library/mariadb",
+      "tag": "11.8.3",
+      "networks": [
+        "vault-internal"
+      ],
+      "healthCheck": {
+        "type": "command",
+        "command": "healthcheck.sh --connect --innodb_initialized"
+      },
+      "resources": {
+        "memory": "256m",
+        "memoryMax": "1g"
+      },
+      "volumes": [
+        {
+          "source": "passbolt-db",
+          "target": "/var/lib/mysql",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "upstream": {
+        "github": "MariaDB/server",
+        "registryImage": "mariadb"
+      }
+    }
+  ]
+}

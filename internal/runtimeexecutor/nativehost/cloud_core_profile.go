@@ -128,3 +128,46 @@ func (p cloudCoreExecutionProfile) healthSpec(source string) (basementCoreHealth
 	}
 	return basementCoreHealthSpec{}, false
 }
+
+// LocalCoreRecoveryProfile is the finite identity of a local Core runtime that
+// owns a local Kopia source and can therefore carry an executor-state
+// recovery checkpoint: Basement Full-Core, CoreLite, or the Cloud standalone
+// core. It carries no endpoints, credentials, or caller-controlled paths.
+type LocalCoreRecoveryProfile struct {
+	ProviderRef string
+	ModuleRef   string
+	UnitRef     string
+	WorkloadRef string
+	// OutputRef is the governed Core Compose artifact output.
+	OutputRef string
+	// RuntimeComposePath is the workspace-relative Compose file Apply writes
+	// and runs under the compose target.
+	RuntimeComposePath string
+}
+
+// LocalCoreRecoveryProfileForModule returns the recovery profile of one known
+// local Core module. The Coolify Cloud core has no local Kopia source and is
+// rejected, as is every unknown module.
+func LocalCoreRecoveryProfileForModule(moduleRef string) (LocalCoreRecoveryProfile, bool) {
+	runtimeDir, _, ok := NativeComposeProject(moduleRef)
+	if !ok {
+		return LocalCoreRecoveryProfile{}, false
+	}
+	runtimeCompose := path.Join(".stackkit", "runtime", runtimeDir, "compose.yaml")
+	if basement, ok := BasementCoreRuntimeProfileForModule(moduleRef); ok {
+		return LocalCoreRecoveryProfile{
+			ProviderRef: basement.ProviderRef, ModuleRef: basement.ModuleRef,
+			UnitRef: basement.UnitRef, WorkloadRef: basement.WorkloadRef,
+			OutputRef: basement.OutputRef, RuntimeComposePath: runtimeCompose,
+		}, true
+	}
+	if moduleRef != cloudStandaloneCoreModuleRef {
+		return LocalCoreRecoveryProfile{}, false
+	}
+	cloud := cloudCoreExecutionProfile{standalone: true}
+	return LocalCoreRecoveryProfile{
+		ProviderRef: cloudCoreProviderRef, ModuleRef: cloud.moduleRef(),
+		UnitRef: cloud.unitRef(), WorkloadRef: cloudCoreWorkloadRef,
+		OutputRef: cloud.outputRef(), RuntimeComposePath: runtimeCompose,
+	}, true
+}

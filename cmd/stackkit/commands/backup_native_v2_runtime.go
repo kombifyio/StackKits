@@ -14,6 +14,7 @@ const nativeV2BackupMaximumOperationTimeout = 15 * time.Minute
 
 type nativeV2BackupService interface {
 	Configure(context.Context, backuplifecycle.ConfigureInput) (backuplifecycle.Configuration, error)
+	Rebind(context.Context, backuplifecycle.ConfigureInput) (backuplifecycle.Configuration, bool, error)
 	Status(context.Context, backuplifecycle.StatusInput) (backuplifecycle.RepositoryStatus, error)
 	Run(context.Context, backuplifecycle.RunInput) (backuplifecycle.SnapshotAnchor, error)
 	Restore(context.Context, backuplifecycle.RestoreInput) (backuplifecycle.RestoreResult, error)

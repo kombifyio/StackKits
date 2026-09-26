@@ -84,6 +84,9 @@ func createFromSnapshots(request CreateRequest, baseline, candidate renderSnapsh
 	if err != nil {
 		return Record{}, err
 	}
+	if len(changes) == 0 && !request.AllowEmpty {
+		return Record{}, fail(ErrInvalid, "changes", "advanced change set must not be empty; only a capability that allows drift.reconcile.advanced may create an empty change set")
+	}
 	scope, err := DeriveTerramateScope(baseline.artifacts, candidate.artifacts, changes, request.LocalSiteRef, request.LocalNodeRef)
 	if err != nil {
 		return Record{}, err
@@ -170,9 +173,6 @@ func diffArtifacts(baseline, candidate []architecturev2renderer.Artifact) ([]Art
 				MetadataChanged: metadataChanged,
 			})
 		}
-	}
-	if len(changes) == 0 {
-		return nil, fail(ErrInvalid, "changes", "advanced change set must not be empty")
 	}
 	if len(changes) > maxChanges {
 		return nil, fail(ErrInvalid, "changes", "exceeds 20000 artifact transitions")
@@ -280,8 +280,8 @@ func validateClaims(record Record) error {
 	}
 	if !hashPattern.MatchString(record.BaselineRenderSHA256) ||
 		!hashPattern.MatchString(record.CandidateRenderSHA256) ||
-		record.BaselineRenderSHA256 == record.CandidateRenderSHA256 {
-		return fail(ErrInvalid, "renderSha256", "requires distinct canonical baseline and candidate SHA-256 digests")
+		(len(record.Changes) > 0 && record.BaselineRenderSHA256 == record.CandidateRenderSHA256) {
+		return fail(ErrInvalid, "renderSha256", "requires canonical baseline and candidate SHA-256 digests that differ unless the change set is empty")
 	}
 	if !hashPattern.MatchString(record.BaselinePlanHash) ||
 		!hashPattern.MatchString(record.CandidatePlanHash) {
@@ -310,8 +310,8 @@ func validateLogicalRef(value string) error {
 }
 
 func validateChanges(changes []ArtifactChange) error {
-	if len(changes) == 0 || len(changes) > maxChanges {
-		return fail(ErrInvalid, "changes", "must contain 1 to 20000 transitions")
+	if changes == nil || len(changes) > maxChanges {
+		return fail(ErrInvalid, "changes", "must contain 0 to 20000 transitions")
 	}
 	for index, change := range changes {
 		field := fmt.Sprintf("changes[%d]", index)

@@ -37,11 +37,13 @@ modeMatrix: foundation.#KitModeSupport & {
 		// bootstrapped path end-to-end on externally supplied fresh Ubuntu,
 		// but that run left no citable receipt in this repository.
 		bootstrapped: "scaffolding"
-		// Advanced is the Terramate Plus lifecycle contract; the full
-		// Advanced E2E cell is still open (the go-live gate: a
-		// Techstack-dispatched Advanced run on a managed Cloud VPS with all
-		// gate phases passed).
-		advanced: "scaffolding"
+		// Advanced is the Terramate Plus lifecycle contract, proven by the
+		// go-live gate run mvps_4061f9f196: a Techstack-dispatched Advanced
+		// run on a managed IONOS Cloud VPS (local Core, StackKits snapshot
+		// 80d57455) with every gate phase passed. Backups there are
+		// kombify-managed custody, so the drill is the managed rollout's own
+		// verified restore drill.
+		advanced: "supported"
 	}
 
 	context: {
@@ -62,7 +64,7 @@ modeMatrix: foundation.#KitModeSupport & {
 		dokploy: "draft"
 	}
 
-	// No cell above is graded "supported"/"default", so no citation is owed
-	// yet.
-	evidence: {}
+	evidence: {
+		"install.advanced": ["mvps_4061f9f196"]
+	}
 }

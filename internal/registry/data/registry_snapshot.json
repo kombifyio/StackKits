@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-09-25T20:14:44Z",
+  "generated_at": "2026-09-26T06:44:55Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -763,6 +763,19 @@
       "core": true
     },
     {
+      "slug": "audiobookshelf",
+      "display_name": "Audiobookshelf",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Audiobook and podcast server with mobile apps and progress sync.",
+      "contract_hash": "b6c69a079343424190b3f24962bbe72c3acf8725b100048ec9a6383a5a820845",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
       "slug": "cloudreve",
       "display_name": "Cloudreve",
       "version": "1.0.0",
@@ -833,6 +846,71 @@
       "core": true
     },
     {
+      "slug": "emby",
+      "display_name": "Emby",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Emby media server with native TV and mobile apps. Closed source; some client features need an Emby Premiere licence.",
+      "contract_hash": "ced2e10dc89b4ab9adc93f94be631be95a41de4d7550d3a5bf7469e86dd11934",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
+      "slug": "ente-photos",
+      "display_name": "Ente Photos",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "End-to-end encrypted photo library: Ente museum API server, Ente web apps and PostgreSQL. Needs an S3-compatible bucket for photo objects.",
+      "contract_hash": "247f90ca8688c6a206a26ab7ad216b377aaf1edf79f20b207551fbd145298431",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
+      "slug": "esphome",
+      "display_name": "ESPHome",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Builds and updates firmware for ESP32/ESP8266 devices that report natively to Home Assistant.",
+      "contract_hash": "0d183df56058a8cb00101e4550245ce83ecbf1be674d4163f11d331442b3d78f",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
+      "slug": "euro-office",
+      "display_name": "Euro-Office",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Euro-Office Document Server (ONLYOFFICE fork) for editing documents, spreadsheets and presentations in the browser; connects to Nextcloud through the eurooffice-nextcloud app.",
+      "contract_hash": "88d1b62772932985800db06e17bc5a006c238ce59829ceaaf4522a88017e89b4",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
+      "slug": "forgejo",
+      "display_name": "Forgejo",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Forgejo community Git forge (Gitea fork) with pull requests, issues, packages and Actions.",
+      "contract_hash": "94829daf25b28b6d041221719b7215c752effa0582d9f8570f1de7fd7cbfad32",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
       "slug": "gitea",
       "display_name": "Gitea",
       "version": "0.1.0",
@@ -885,6 +963,45 @@
         "pi"
       ],
       "core": true
+    },
+    {
+      "slug": "immich-kiosk",
+      "display_name": "Immich Kiosk",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Slideshow of Immich albums and people for picture frames, TVs and browsers.",
+      "contract_hash": "66ca09e745f25029f62158a65defd45f2bdaa1086fc7a5a210aaaf76ee28cbdf",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
+      "slug": "immich-power-tools",
+      "display_name": "Immich Power Tools",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Bulk tools for an Immich library: merge people, find missing locations, manage albums and potential duplicates.",
+      "contract_hash": "133debb5fa3e58edccf898a4de9ba8ab94c629b389d5ab02197799c642b8b7fa",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
+      "slug": "immich-public-proxy",
+      "display_name": "Immich Public Proxy",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Share Immich albums and photos publicly without exposing the Immich instance itself.",
+      "contract_hash": "54c15146518e572e7a655a6bde77a0b42560fcaff7ff5c4708fe3b98422f1f7c",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
     },
     {
       "slug": "jellyfin",
@@ -943,6 +1060,19 @@
       "core": true
     },
     {
+      "slug": "mailcow",
+      "display_name": "mailcow",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "mailcow: dockerized complete mail suite (Postfix, Dovecot, Rspamd, SOGo webmail/groupware) for your own domain. Core mail path services only; mailcow's own installer owns the full stack.",
+      "contract_hash": "944424f661a287fa32d7f88ee3a1027511a9adf464d7eb6d7f9d08a94ce02f2d",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
       "slug": "monitoring-agent",
       "display_name": "Monitoring Agent (OTel)",
       "version": "2.0.0",
@@ -969,6 +1099,32 @@
         "pi"
       ],
       "core": true
+    },
+    {
+      "slug": "mosquitto",
+      "display_name": "Eclipse Mosquitto",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "MQTT broker for Home Assistant, Zigbee2MQTT and ESPHome devices.",
+      "contract_hash": "ce77a3bd0f44518882c9c0c9badaf6fab6a7607089580bbdff240f70490a0b42",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
+      "slug": "navidrome",
+      "display_name": "Navidrome",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Music server and streamer compatible with Subsonic clients.",
+      "contract_hash": "489a3ceeaa84186f22557f5c59344f1d223863036f95989f70c98ae081a4642a",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
     },
     {
       "slug": "nextcloud",
@@ -1017,6 +1173,32 @@
       "layer": "L3-application",
       "description": "Paperless-ngx upstream application and dependency catalog. The native-v2 documents workload owns executable configuration and owner bootstrap.",
       "contract_hash": "2bf21f28c9a4f06c41b8c9d7a00170e0083362a9826241ba44f4256a78899d1f",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
+      "slug": "passbolt",
+      "display_name": "Passbolt CE",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Passbolt Community Edition: team password manager with end-to-end encryption and browser extensions, backed by MariaDB.",
+      "contract_hash": "afd30efd0fed2fe9631d5b72993bca855bbbd306f1b836e669cea545a4631d06",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
+      "slug": "pelican",
+      "display_name": "Pelican Panel",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Pelican game server panel, the actively developed successor fork of Pterodactyl; runs game servers through Wings. Upstream is still in beta.",
+      "contract_hash": "96427afc1f69ae4b334a2603674a0f86b32d8d490d1eed33bbb9dc34c12c8146",
       "supported_contexts": [
         "local",
         "cloud",
@@ -1201,6 +1383,19 @@
         "pi"
       ],
       "core": true
+    },
+    {
+      "slug": "zigbee2mqtt",
+      "display_name": "Zigbee2MQTT",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Zigbee bridge that exposes Zigbee devices over MQTT to Home Assistant; needs a Zigbee USB adapter and an MQTT broker.",
+      "contract_hash": "68cb75e0e3be456068531d9ba860c104c8af9db0efb92f9a7e800bfde9768abc",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
     }
   ],
   "stackkits": [

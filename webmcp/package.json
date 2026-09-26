@@ -50,12 +50,12 @@
     "check": "npm run build"
   },
   "dependencies": {
-    "webmcp-types": "0.1.5"
+    "webmcp-types": "0.1.9"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "json-schema-to-typescript": "15.0.4",
-    "typescript": "^6.0.0"
+    "typescript": "^6.0.3"
   },
   "peerDependencies": {
     "svelte": ">=5.0.0"

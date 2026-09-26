@@ -95,6 +95,25 @@ func detectCurrentDriftReport(ctx context.Context, workspace string) (driftRepor
 	return report, nil
 }
 
+// observeAdvancedReconcileDrift is the pre-reconcile drift report of an
+// Advanced reconcile. Its per-stack plans read OpenTofu state, so they run
+// under the exclusive lifecycle lock, as in `stackkit drift detect`.
+func observeAdvancedReconcileDrift(ctx context.Context) (driftReport, error) {
+	workspace := getWorkDir()
+	observation, err := observeArchitectureV2Drift(ctx, workspace, specFile)
+	if err != nil {
+		return driftReport{}, fmt.Errorf("detect Architecture v2 drift: %w", err)
+	}
+	report, err := newDriftReport(observation)
+	if err != nil {
+		return driftReport{}, err
+	}
+	err = withLifecycleMutation(workspace, "drift-reconcile", func() error {
+		return attachAdvancedStackDrift(ctx, workspace, observation, &report)
+	})
+	return report, err
+}
+
 // advancedDriftReconcileResult is the Advanced reconcile result: the
 // unchanged stackkit.advanced-mutation/v1 fields plus the post-reconcile
 // drift report.

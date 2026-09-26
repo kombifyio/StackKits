@@ -1,0 +1,58 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "navidrome",
+  "displayName": "Navidrome",
+  "description": "Music server and streamer compatible with Subsonic clients.",
+  "rationale": "Media add-on: music library.",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "128m"
+    }
+  },
+  "services": [
+    {
+      "type": "application",
+      "required": false,
+      "name": "navidrome",
+      "image": "docker.io/deluan/navidrome",
+      "tag": "0.64.2",
+      "networks": [
+        "media-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`music.{{.domain}}`)",
+        "port": 4533
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "self-auth",
+        "ownerBootstrap": "TinyAuth forward-auth (Pocket ID); Navidrome can map the forwarded user through ND_REVERSEPROXYUSERHEADER."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/ping",
+        "port": 4533
+      },
+      "resources": {
+        "memory": "128m",
+        "memoryMax": "512m"
+      },
+      "volumes": [
+        {
+          "source": "navidrome-data",
+          "target": "/data",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "upstream": {
+        "github": "navidrome/navidrome",
+        "registryImage": "deluan/navidrome"
+      }
+    }
+  ]
+}

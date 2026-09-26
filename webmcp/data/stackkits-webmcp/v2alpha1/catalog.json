@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "944aa179368e93d1b68630e221748250ec9ceffd",
-  "authority_bundle_sha256": "7f00da47332f2bbaa1ec325802bc291f44f3562cf8c409813bafc0d8595224c3",
+  "source_sha": "b020306cf0c72ac30f227125b7e22ab22d2e3864",
+  "authority_bundle_sha256": "9e903817f67df5523b68770a0647e801a691c53c8b4c6d69abad34f9377967ed",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -1316,7 +1316,7 @@
         {
           "use_case_id": "files",
           "title": "File Storage and Documents",
-          "description": "Private file storage and sharing through the native Cloudreve workload.",
+          "description": "Private file storage and sharing: Cloudreve by default, Nextcloud or kombify Paperwork as alternatives, with optional office editing and a document archive.",
           "required": false,
           "selected_by_default": false,
           "default_alternative_id": "cloudreve",
@@ -2913,7 +2913,7 @@
         {
           "use_case_id": "files",
           "title": "File Storage and Documents",
-          "description": "Private file storage and sharing through the native Cloudreve workload.",
+          "description": "Private file storage and sharing: Cloudreve by default, Nextcloud or kombify Paperwork as alternatives, with optional office editing and a document archive.",
           "required": false,
           "selected_by_default": false,
           "default_alternative_id": "cloudreve",
@@ -4480,7 +4480,7 @@
         {
           "use_case_id": "files",
           "title": "File Storage and Documents",
-          "description": "Private file storage and sharing through the native Cloudreve workload.",
+          "description": "Private file storage and sharing: Cloudreve by default, Nextcloud or kombify Paperwork as alternatives, with optional office editing and a document archive.",
           "required": false,
           "selected_by_default": false,
           "default_alternative_id": "cloudreve",
@@ -6010,5 +6010,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "4330d596a45605ec1d5acf82b84ef9785864b5cb73bd21b65c3ef99b27aef87b"
+  "catalog_sha256": "22033bc2c12dea82c38beef7c9b70fe5b4db942640e6678d5801dc3c0403b037"
 }

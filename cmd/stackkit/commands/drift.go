@@ -164,9 +164,12 @@ current local authority, creates a mandatory Kopia and executor-state rollback
 checkpoint, then runs generate, apply, and verify through the exclusive
 lifecycle journal. A failed target phase automatically restores, reapplies, and
 verifies the captured prior executor state. Advanced mode remains fail-closed
-until an offline-verified capability is supplied; after the Advanced mutation
-it observes the drift report again, including every Terramate stack plan, and
-fails unless the post-reconcile report is clean.`,
+until an offline-verified capability is supplied. It runs through an exact
+Owner-signed change set, which is empty for runtime drift: it observes the
+per-stack drift, forces every drifted Terramate stack to re-converge by
+replacing its wrapper up trigger, applies through the governed transaction,
+then observes the drift report again, including every Terramate stack plan,
+and fails unless the post-reconcile report is clean.`,
 	Example: `  # Reconcile drift in standard mode: checkpoint, then generate, apply, and verify
   stackkit drift reconcile --owner-approve
 
@@ -475,11 +478,14 @@ func runDriftReconcile(cmd *cobra.Command, _ []string) error {
 			ChangeSetID:    strings.TrimSpace(driftAdvancedChangeSet),
 			ChangeSetSHA:   strings.TrimSpace(driftAdvancedChangeSetSHA),
 			Operation:      advancedcapability.OperationDriftReconcileAdvanced,
+			ObserveDrift:   observeAdvancedReconcileDrift,
 		})
 		result := advancedDriftReconcileResult{advancedMutationResult: mutation}
 		if err == nil {
 			// Reconcile re-applies every workload; one without its owner
-			// gets it, as after a Standard install.
+			// gets it, as after a Standard install, and the local backup
+			// follows the re-signed Apply.
+			runAutomaticBackupRebind(cmd.Context(), getWorkDir())
 			runAutomaticOwnerSetup(cmd.Context(), getWorkDir())
 			// Post-reconcile proof: the same drift report, including the
 			// per-stack detailed-exitcode plans, observed after the mutation.

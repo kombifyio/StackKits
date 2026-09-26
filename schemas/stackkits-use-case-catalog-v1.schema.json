@@ -48,7 +48,8 @@
         "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
         "name": { "type": "string", "minLength": 1 },
         "role": { "enum": ["primary", "alternative", "supporting", "connector", "bridge"] },
-        "kind": { "enum": ["application", "module", "service", "connector", "bridge"] }
+        "kind": { "enum": ["application", "module", "service", "connector", "bridge"] },
+        "realization": { "enum": ["install", "recorded"] }
       }
     },
     "useCaseLoad": {

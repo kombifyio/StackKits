@@ -364,6 +364,57 @@ func verifyArchitectureV2CloudCoreOpenTofuRoot(workspaceRoot string, appliedRequ
 	return nil
 }
 
+// architectureV2AppliedRequestError carries a failure to load the applied
+// runtime request custody, which Verify reports before any observation.
+type architectureV2AppliedRequestError struct{ err error }
+
+func (e *architectureV2AppliedRequestError) Error() string { return e.err.Error() }
+
+// verifyArchitectureV2HostState observes the owner and runtime Verify
+// reports. A host whose Inventory declares execution channels proves only its
+// Apply evidence, except a managed Cloud Kit host: it is hybrid, its channel
+// dispatches the remote owners while the Cloud core and its PocketID owner
+// run under local owner custody, so Verify observes them like Basement and
+// carries the signed owner binding. localCloudCore reports that hybrid case.
+func verifyArchitectureV2HostState(
+	ctx context.Context,
+	workspaceRoot string,
+	plan generationartifact.VerifiedPlan,
+	manifest generationartifact.ArtifactManifest,
+	offline, processRuntime bool,
+	applied architecturev2.ApplyResultSummary,
+	loadAppliedRequest func() (runtimeexecutor.ExecutionRequest, error),
+) (owner architectureV2OwnerVerifySummary, runtime *architectureV2RuntimeVerifySummary, localCloudCore bool, err error) {
+	localCloudCore = processRuntime && architectureV2LocalCloudCoreOwner(workspaceRoot, plan)
+	if processRuntime && !localCloudCore {
+		owner, _, err = verifyArchitectureV2OwnerCustody(workspaceRoot)
+		return owner, &architectureV2RuntimeVerifySummary{
+			ExecutionMode: "standard-process", Live: false, Status: "verified-apply-evidence",
+			ServiceCount: applied.RuntimeCount, ProbeCount: applied.HealthCount,
+		}, false, err
+	}
+	var appliedRequest runtimeexecutor.ExecutionRequest
+	if !offline {
+		if appliedRequest, err = loadAppliedRequest(); err != nil {
+			return architectureV2OwnerVerifySummary{}, nil, localCloudCore, &architectureV2AppliedRequestError{err: err}
+		}
+	}
+	owner, runtime, err = verifyArchitectureV2LocalState(ctx, workspaceRoot, plan, manifest, offline, appliedRequest)
+	return owner, runtime, localCloudCore, err
+}
+
+// architectureV2LocalCloudCoreOwner reports whether a Cloud Kit plan runs its
+// Cloud core under this host's own local owner custody. A Fleet member, or a
+// workspace without owner custody, never qualifies.
+func architectureV2LocalCloudCoreOwner(workspaceRoot string, plan generationartifact.VerifiedPlan) bool {
+	kitSlug, _, err := architectureV2LocalVerifyIdentity(plan)
+	if err != nil || kitSlug != "cloud-kit" {
+		return false
+	}
+	_, err = localevidence.LoadOwnerCustody(workspaceRoot)
+	return err == nil
+}
+
 func verifyArchitectureV2OwnerCustody(workspaceRoot string) (architectureV2OwnerVerifySummary, localevidence.LocalBinding, error) {
 	owner, err := localevidence.LoadOwnerCustody(workspaceRoot)
 	var memberDenial *localevidence.MemberSigningDenial
@@ -789,6 +840,13 @@ func readCurrentArchitectureV2ApplyResult(
 			continue
 		}
 		verified, err := verify(raw)
+		if architecturev2.IsOtherGenerationApplyResult(err) {
+			// Recorded for an earlier generation of this plan: regenerating
+			// it (a coordinated rollback to a checkpoint regenerates the
+			// checkpoint plan) wrote a new receipt, and the Apply that
+			// followed recorded the result that binds to it.
+			continue
+		}
 		if err != nil {
 			return architecturev2.VerifiedApplyResult{}, fmt.Errorf("verify current Apply result %q: %w", entry.Path, err)
 		}
@@ -819,7 +877,7 @@ func readCurrentArchitectureV2ApplyResult(
 		}
 	}
 	if found == 0 {
-		return architecturev2.VerifiedApplyResult{}, errors.New("no persisted Apply result matches the current ResolvedPlan; run `stackkit apply` first")
+		return architecturev2.VerifiedApplyResult{}, errors.New("no persisted Apply result matches the current ResolvedPlan and generation; run `stackkit apply` first")
 	}
 	return selected, nil
 }

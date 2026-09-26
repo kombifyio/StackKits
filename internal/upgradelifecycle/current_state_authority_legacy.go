@@ -212,7 +212,7 @@ func NewVerifiedLegacyExecutorStateCapture(
 		)
 	}
 	if err := verifyExecutorStateSnapshotAnchorWithAuthority(
-		input.WorkspaceRoot, owner.OwnerRef, lineage,
+		input.WorkspaceRoot, owner.OwnerRef, "", lineage,
 		input.Capture.KopiaSnapshotAnchor, owner, runtimeBinding,
 	); err != nil {
 		return VerifiedExecutorStateCapture{}, err

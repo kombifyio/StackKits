@@ -343,7 +343,7 @@
       "group": "reference",
       "usage": "stackkit advanced rollback run [flags]",
       "short": "Roll every local Terramate stack back to one verified checkpoint",
-      "description": "Roll the local host back to one verified executor-state checkpoint as the\nAdvanced operation rollback.coordinated.\n\nThe rollback is admitted only with an offline-verified capability that allows\nrollback.coordinated, the local Owner-approved issuer trust, and explicit\n--owner-approve. --to names the checkpoint directly or the change set whose\npre-apply checkpoint is the target. Stacks run in reverse run order: stacks\nadded after the checkpoint are destroyed through OpenTofu (docker compose down\nwithout volumes) and removed, changed stacks get the checkpoint's state,\nconfiguration and payload back and are forced to converge, and stacks removed\nafter the checkpoint are recreated. The checkpoint's StackSpec and Inventory\nare restored, regenerated and verified. An interrupted rollback resumes on the\nnext run with the same --to and skips stacks that already converged.",
+      "description": "Roll the local host back to one verified executor-state checkpoint as the\nAdvanced operation rollback.coordinated.\n\nThe rollback is admitted only with an offline-verified capability that allows\nrollback.coordinated, the local Owner-approved issuer trust, and explicit\n--owner-approve. --to names the checkpoint directly or the change set whose\npre-apply checkpoint is the target. Stacks run in reverse run order: stacks\nadded after the checkpoint are destroyed through OpenTofu (docker compose down\nwithout volumes) and removed, changed stacks get the checkpoint's state,\nconfiguration and payload back and are forced to converge, and stacks removed\nafter the checkpoint are recreated. The checkpoint's StackSpec and Inventory\nare restored and regenerated before the stacks run; afterwards joined apply\nand verify children record and verify the checkpoint's Apply evidence. An\ninterrupted rollback resumes on the next run with the same --to and skips\nstacks that already converged.",
       "runnable": true,
       "examples": [
         {
@@ -888,7 +888,7 @@
       "group": "care",
       "usage": "stackkit backup [flags]",
       "short": "Manage backups (Kopia engine)",
-      "description": "Manage backups for this StackKit deployment.\n\nBackups are powered by Kopia (see ADR-0016) and run in the local\nkopia-agent service rendered by the Basement core. Native configure, status,\nand run revalidate the exact local Plan, generated artifacts, owner custody,\nand Apply evidence before touching Kopia. Repository, source, exclusions,\nservice identity, and credentials are CUE- or owner-custody-owned.",
+      "description": "Manage backups for this StackKit deployment.\n\nBackups are powered by Kopia (see ADR-0016) and run in the local\nkopia-agent service rendered by the kit core (Basement or Cloud standalone). Native configure, status,\nand run revalidate the exact local Plan, generated artifacts, owner custody,\nand Apply evidence before touching Kopia. Repository, source, exclusions,\nservice identity, and credentials are CUE- or owner-custody-owned.",
       "runnable": true,
       "examples": [
         {
@@ -1210,7 +1210,7 @@
       "aliases": [],
       "group": "care",
       "usage": "stackkit backup restore activate <restore-result-id> [flags]",
-      "short": "Activate one verified staged restore into the live Basement volumes",
+      "short": "Activate one verified staged restore into the live kit core volumes",
       "description": "",
       "runnable": true,
       "examples": [
@@ -2031,7 +2031,7 @@
       "group": "care",
       "usage": "stackkit drift reconcile [flags]",
       "short": "Reconcile drift through the governed local lifecycle",
-      "description": "Standard mode requires explicit local Owner approval, verifies the\ncurrent local authority, creates a mandatory Kopia and executor-state rollback\ncheckpoint, then runs generate, apply, and verify through the exclusive\nlifecycle journal. A failed target phase automatically restores, reapplies, and\nverifies the captured prior executor state. Advanced mode remains fail-closed\nuntil an offline-verified capability is supplied; after the Advanced mutation\nit observes the drift report again, including every Terramate stack plan, and\nfails unless the post-reconcile report is clean.",
+      "description": "Standard mode requires explicit local Owner approval, verifies the\ncurrent local authority, creates a mandatory Kopia and executor-state rollback\ncheckpoint, then runs generate, apply, and verify through the exclusive\nlifecycle journal. A failed target phase automatically restores, reapplies, and\nverifies the captured prior executor state. Advanced mode remains fail-closed\nuntil an offline-verified capability is supplied. It runs through an exact\nOwner-signed change set, which is empty for runtime drift: it observes the\nper-stack drift, forces every drifted Terramate stack to re-converge by\nreplacing its wrapper up trigger, applies through the governed transaction,\nthen observes the drift report again, including every Terramate stack plan,\nand fails unless the post-reconcile report is clean.",
       "runnable": true,
       "examples": [
         {

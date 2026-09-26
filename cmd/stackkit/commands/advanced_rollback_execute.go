@@ -36,9 +36,12 @@ import (
 //
 // Journal phases: rollback-started (plan persisted), rollback-generate
 // (checkpoint StackSpec and Inventory restored, then a joined `generate`),
-// rollback-apply (per-stack destroy, restore and forced convergence in
-// reverse run order, resumable per stack), rollback-verify (joined native
-// `verify` of the checkpoint plan), rollback-succeeded.
+// after rollback-generate-done the per-stack destroy, restore and forced
+// convergence in reverse run order (resumable per stack), rollback-apply (a
+// joined `apply` of the regenerated checkpoint generation, which records its
+// signed Apply result), rollback-verify (joined native `verify` of the
+// checkpoint plan), rollback-succeeded. Every child phase is entered with its
+// one-use join authority, exactly as the upgrade rollback does.
 type coordinatedRollback struct {
 	workspace   string
 	session     publicUpgradeLifecycleSession
@@ -71,7 +74,8 @@ func (rollback *coordinatedRollback) run(ctx context.Context) error {
 	switch record.Phase {
 	case lifecyclemutation.PhaseCommitSucceeded:
 		return fmt.Errorf("operation %s already committed; roll it back with a new advanced rollback run", record.OperationID)
-	case lifecyclemutation.PhaseRollbackGenerateStarted, lifecyclemutation.PhaseRollbackVerifyStarted:
+	case lifecyclemutation.PhaseRollbackGenerateStarted, lifecyclemutation.PhaseRollbackApplyStarted,
+		lifecyclemutation.PhaseRollbackVerifyStarted:
 		// A joined child's one-use admission may already be consumed.
 		return fmt.Errorf("operation %s stopped inside the joined %s child; finish it with explicit upgrade recovery", record.OperationID, record.Phase)
 	}
@@ -211,11 +215,9 @@ func (rollback *coordinatedRollback) phases(
 		advancedRollbackEvent("generate", "succeeded", nil)
 	}
 	if session.Record().Phase == lifecyclemutation.PhaseRollbackGenerateDone {
-		if err := session.Transition(lifecyclemutation.PhaseRollbackGenerateDone, lifecyclemutation.PhaseRollbackApplyStarted); err != nil {
-			return err
-		}
-	}
-	if session.Record().Phase == lifecyclemutation.PhaseRollbackApplyStarted {
+		// The per-stack convergence runs in process after the checkpoint
+		// generation exists and before the joined apply, so an interrupted
+		// run resumes it here and skips the stacks that already converged.
 		// The release being restored stages its own stackkit-server.
 		request.Native = advancedRollbackNativeSteps{
 			workspace: rollback.workspace, executable: binary, artifacts: rollback.custody.Artifacts,
@@ -226,9 +228,29 @@ func (rollback *coordinatedRollback) phases(
 			rolloutFailure(advancedRollbackRolloutPrefix+"stacks", err)
 			return err
 		}
+		// The regenerated checkpoint generation has a new generation
+		// receipt, so the checkpoint's own Apply result no longer binds to
+		// it. A joined `apply` of the converged stacks records the signed
+		// Apply result the rollback verify, drift detection and backup
+		// configuration read, as the upgrade rollback's joined apply does.
+		advancedRollbackEvent("apply", "started", nil)
+		nonce, err := session.BeginJoin(
+			lifecyclemutation.PhaseRollbackGenerateDone, lifecyclemutation.PhaseRollbackApplyStarted,
+			"apply", componentVersion, digest,
+		)
+		if err != nil {
+			return fmt.Errorf("authorize rollback apply: %w", err)
+		}
+		if _, err := runner.Run(ctx, binary, append(append(common,
+			lifecycleChildFlags(operationID, lifecyclemutation.PhaseRollbackApplyStarted, nonce)...), "apply", "--auto-approve"),
+			rollback.workspace); err != nil {
+			rolloutFailure(advancedRollbackRolloutPrefix+"apply", err)
+			return fmt.Errorf("rollback apply: %w", err)
+		}
 		if err := session.Transition(lifecyclemutation.PhaseRollbackApplyStarted, lifecyclemutation.PhaseRollbackApplyDone); err != nil {
 			return err
 		}
+		advancedRollbackEvent("apply", "succeeded", nil)
 	} else if loaded, found, err := advancedrollback.LoadJournal(rollback.workspace, snapshot.ID); err == nil && found {
 		// A rollback resumed after its stacks converged still reports them.
 		report, _ := advancedrollback.Execute(ctx, request, loaded, true)
@@ -417,6 +439,18 @@ func executeAdvancedRollback(
 // sealAdvancedRollback seals a new executor-state checkpoint of the rolled
 // back runtime through the upgrade checkpoint path. The rollback itself has
 // already converged, so a seal failure is reported, not raised.
+//
+// A rollback from a workspace with drifted runtime files needs no custody
+// tolerance, and has none: it takes no pre-mutation snapshot (its anchor is
+// the checkpoint sealed before the change set, loaded from the executor-state
+// store without quiescing anything), every stack it keeps gets the
+// checkpoint's captured Compose file, .env, main.tf and state written before
+// its forced apply, and every stack the checkpoint lacks is destroyed with
+// its project directory. The seal below therefore runs its strict custody
+// check only after every drifted file was rewritten or removed. An Advanced
+// drift reconcile follows the same order: it restores the governed runtime
+// files of its forced stacks before its checkpoint
+// (restoreAdvancedReconcileRuntimeFiles).
 func sealAdvancedRollback(
 	ctx context.Context,
 	workspace, kit string,

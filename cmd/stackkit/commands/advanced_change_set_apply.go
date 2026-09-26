@@ -9,11 +9,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/advancedcapability"
 	"github.com/kombifyio/stackkits/internal/advancedchangeset"
+	"github.com/kombifyio/stackkits/internal/advanceddrift"
 	"github.com/kombifyio/stackkits/internal/advancedrollback"
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
@@ -25,8 +27,11 @@ import (
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/standaloneoperations"
 	"github.com/kombifyio/stackkits/internal/terramatehost"
+	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
 	"github.com/spf13/cobra"
 )
@@ -39,6 +44,10 @@ type advancedMutationRequest struct {
 	ChangeSetID    string
 	ChangeSetSHA   string
 	Operation      string
+	// ObserveDrift observes the pre-reconcile drift report of an Advanced
+	// drift reconcile after admission and before any side effect; its
+	// drifted stacks are forced to re-converge. Nil forces none.
+	ObserveDrift func(context.Context) (driftReport, error)
 }
 
 type advancedMutationResult struct {
@@ -61,6 +70,20 @@ type advancedMutationResult struct {
 	// ReleaseAuthority names the release authority that executed the
 	// target: the running executable or the workspace release cache.
 	ReleaseAuthority *releaseAuthorityRecord `json:"releaseAuthority,omitempty"`
+	// ReconciledStacks are the drifted local stacks an Advanced drift
+	// reconcile forced to re-converge before its target generate.
+	ReconciledStacks []terramatehost.StackResult `json:"reconciledStacks,omitempty"`
+	// RestoredRuntimeFiles are the governed runtime files an Advanced drift
+	// reconcile rewrote to their authorized bytes before its rollback
+	// checkpoint, with the digest of the drifted bytes as evidence.
+	RestoredRuntimeFiles []restoredRuntimeFile `json:"restoredRuntimeFiles,omitempty"`
+}
+
+// restoredRuntimeFile is one governed runtime file of one stack an Advanced
+// drift reconcile restored.
+type restoredRuntimeFile struct {
+	StackID string `json:"stackId"`
+	nativehost.RuntimeFileRestore
 }
 
 // verifiedAdvancedMutation is an admission whose fresh renders matched the
@@ -72,6 +95,14 @@ type verifiedAdvancedMutation struct {
 	digest        string
 	candidate     architecturev2renderer.RenderResult
 	candidatePlan generationartifact.VerifiedPlan
+	// baselineLayout is the local host layout of the applied generation; an
+	// Advanced drift reconcile forces its drifted stacks through it before
+	// the target generate replaces that generation.
+	baselineLayout *terramatehost.Layout
+	// baselineArtifacts are the Owner-approved baseline render's artifact
+	// bytes by ID, kept for an Advanced drift reconcile only: the governed
+	// runtime files it restores before its checkpoint are rendered from them.
+	baselineArtifacts map[string][]byte
 }
 
 // advancedMutationFingerprint is the comparable identity of a pre-side-effect
@@ -110,6 +141,126 @@ type advancedTerramateOrchestration struct {
 	tools    terramatehost.Tools
 	report   *terramatehost.Report
 	rollback *advancedrollback.Report
+	// reconcile are the stacks an Advanced drift reconcile forces to
+	// re-converge; reconciled records the outcome per forced stack.
+	reconcile  []string
+	reconciled []terramatehost.StackResult
+}
+
+// forceConverge re-converges the drifted stacks of an Advanced drift
+// reconcile before the target generate (docs/ARCHITECTURE.md "Advanced drift
+// per stack (Stage 1)"). Runtime drift leaves the desired state unchanged,
+// so the target apply alone plans a no-op for the containers, and its health
+// observation would fail on a stopped container: each drifted stack's wrapper
+// `_up` trigger is replaced first, which runs `docker compose up` against the
+// applied payload and rewrites an edited payload file.
+func (orchestration *advancedTerramateOrchestration) forceConverge(
+	ctx context.Context, workspace string, verified verifiedAdvancedMutation,
+) error {
+	if orchestration == nil || len(orchestration.reconcile) == 0 {
+		return nil
+	}
+	if verified.baselineLayout == nil {
+		return errors.New("advanced drift reconcile requires the applied Terramate host layout")
+	}
+	environment := advancedRollbackStackEnvironment(workspace)
+	results, err := terramatehost.ForceConverge(ctx, terramatehost.ReconcileRequest{
+		WorkspaceRoot: workspace, Layout: *verified.baselineLayout,
+		Stacks: orchestration.reconcile, Tools: orchestration.tools,
+		Environment: func(stack terramatestackgraph.Stack) ([]string, error) {
+			return environment(advancedrollback.Stack{ID: stack.ID, Role: string(stack.Role), RuntimeRoot: stack.RuntimeRoot})
+		},
+		Timeout: backupLongOperationTimeout,
+		Event: func(phase, status string, attributes map[string]string) {
+			attributes["changeSetId"] = verified.record.ChangeSetID
+			rolloutEvent(advancedChangeSetRolloutPrefix+phase, status, "advanced change-set "+phase+" "+status, attributes)
+		},
+	})
+	orchestration.reconciled = results
+	return err
+}
+
+// restoreAdvancedReconcileRuntimeFiles rewrites the governed runtime files of
+// every local stack an Advanced drift reconcile forces (docs/ARCHITECTURE.md
+// "Advanced drift per stack (Stage 1)") with the bytes Apply writes, before
+// the reconcile's mandatory rollback checkpoint: the checkpoint's Kopia
+// snapshot quiesces every selected workload through a custody check that
+// refuses a runtime Compose file or .env differing from the authorized
+// workload, and its executor-state capture binds every root to its governed
+// bytes. A Core root gets its governed main.tf and the Compose payload it
+// embeds, a workload root its Compose project files and the main.tf rendered
+// around them. Contract roots of edge and federation owners run no Compose
+// project and are left to the forced convergence. Nothing but files is
+// written; a stack whose drift is not in its files (a stopped container) has
+// nothing to restore and is forced as before.
+func restoreAdvancedReconcileRuntimeFiles(
+	ctx context.Context, workspace string, verified verifiedAdvancedMutation, stacks []string,
+) ([]restoredRuntimeFile, error) {
+	if len(stacks) == 0 {
+		return nil, nil
+	}
+	layout := verified.baselineLayout
+	if layout == nil {
+		return nil, errors.New("advanced drift reconcile requires the applied Terramate host layout")
+	}
+	restored := make([]restoredRuntimeFile, 0)
+	for _, id := range layout.Host.RunOrder {
+		stack, found := layout.Stack(id)
+		if !slices.Contains(stacks, id) || !found ||
+			stack.SiteRef != layout.Host.SiteRef || stack.NodeRef != layout.Host.NodeRef {
+			continue
+		}
+		marker, err := opentofu.ReadRootMarker(filepath.Join(workspace, filepath.FromSlash(stack.RuntimeRoot)))
+		if err != nil {
+			// No executor root: the forced convergence skips the stack too.
+			continue
+		}
+		var files []nativehost.RuntimeFileRestore
+		switch marker.Kind {
+		case "":
+			config, governed := verified.baselineArtifacts[stack.Artifacts.OpenTofu]
+			if !governed {
+				return restored, fmt.Errorf("the applied generation has no governed OpenTofu root for stack %s", id)
+			}
+			files, err = opentofu.RestoreCoreRoot(workspace, stack.RuntimeRoot, config)
+		case opentofu.RootKindWorkload:
+			var bundle []byte
+			if bundle, err = advancedRollbackWorkloadBundle(verified.baselineArtifacts, marker.ModuleRef, marker.InstanceRef); err == nil {
+				files, err = opentofu.RestoreWorkloadRoot(ctx, workspace, stack.RuntimeRoot, bundle)
+			}
+		default:
+			continue
+		}
+		if err != nil {
+			return restored, fmt.Errorf("restore the governed runtime files of stack %s: %w", id, err)
+		}
+		for _, file := range files {
+			restored = append(restored, restoredRuntimeFile{StackID: id, RuntimeFileRestore: file})
+		}
+	}
+	return restored, nil
+}
+
+// convergeStacks are the stacks whose convergence plan proves the mutation:
+// the change set's affected stacks plus the stacks a reconcile forced, in
+// graph run order.
+func (orchestration *advancedTerramateOrchestration) convergeStacks(
+	layout terramatehost.Layout, affected []string,
+) ([]string, error) {
+	if len(orchestration.reconcile) == 0 {
+		return affected, nil
+	}
+	order, err := terramatestackgraph.RunOrder(layout.Graph)
+	if err != nil {
+		return nil, err
+	}
+	stacks := make([]string, 0, len(affected)+len(orchestration.reconcile))
+	for _, id := range order {
+		if slices.Contains(affected, id) || slices.Contains(orchestration.reconcile, id) {
+			stacks = append(stacks, id)
+		}
+	}
+	return stacks, nil
 }
 
 // coordinatedRollback wraps the coordinated rollback of a failed change set
@@ -142,10 +293,14 @@ func (orchestration *advancedTerramateOrchestration) step(
 		if err != nil {
 			return err
 		}
+		stacks, err := orchestration.convergeStacks(layout, verified.record.AffectedStacks)
+		if err != nil {
+			return err
+		}
 		report, err := terramatehost.Converge(ctx, terramatehost.ConvergeRequest{
 			WorkspaceRoot: workspace, ChangeSetID: verified.record.ChangeSetID, Layout: layout,
 			ExpectedManifestSHA256: verified.record.TerramateHostManifestSHA256,
-			AffectedStacks:         verified.record.AffectedStacks, Tools: orchestration.tools,
+			AffectedStacks:         stacks, Tools: orchestration.tools,
 			Event: func(phase, status string, attributes map[string]string) {
 				if attributes == nil {
 					attributes = map[string]string{}
@@ -191,8 +346,9 @@ func runAdvancedChangeSetApply(cmd *cobra.Command, _ []string) error {
 		Operation:      advancedcapability.OperationTerramateChangeSetApply,
 	})
 	if err == nil {
-		// A workload the change set added ends with its owner set up, as a
-		// Standard install of it does.
+		// A workload the change set added ends with its owner set up and
+		// its data volume in the local backup, as a Standard install does.
+		runAutomaticBackupRebind(cmd.Context(), getWorkDir())
 		runAutomaticOwnerSetup(cmd.Context(), getWorkDir())
 	}
 	if advancedChangeSetApplyJSON {
@@ -254,7 +410,8 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 		return result, err
 	}
 	var orchestration *advancedTerramateOrchestration
-	if request.Operation == advancedcapability.OperationTerramateChangeSetApply {
+	if request.Operation == advancedcapability.OperationTerramateChangeSetApply ||
+		request.Operation == advancedcapability.OperationDriftReconcileAdvanced {
 		// Missing packaged Terramate or OpenTofu fails closed before any
 		// checkpoint or lifecycle side effect.
 		tools, toolsErr := terramatehost.PackagedTools()
@@ -262,6 +419,26 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 			return result, toolsErr
 		}
 		orchestration = &advancedTerramateOrchestration{tools: tools}
+	}
+	if request.Operation == advancedcapability.OperationDriftReconcileAdvanced && request.ObserveDrift != nil {
+		// The drift the reconcile must repair is observed after admission and
+		// before the checkpoint: the target apply rewrites an edited payload,
+		// so after it the plans no longer show which stack drifted.
+		before, observeErr := request.ObserveDrift(ctx)
+		if observeErr != nil {
+			return result, fmt.Errorf("observe drift before the Advanced reconcile: %w", observeErr)
+		}
+		orchestration.reconcile = advanceddrift.ReconcileTargets(before.HasDrift, before.Stacks)
+		// Drifted governed runtime files are what the reconcile repairs, and
+		// the checkpoint below refuses them; they are restored first.
+		restoreErr := withLifecycleMutation(workspace, "drift-reconcile", func() error {
+			restored, err := restoreAdvancedReconcileRuntimeFiles(ctx, workspace, verified, orchestration.reconcile)
+			result.RestoredRuntimeFiles = restored
+			return err
+		})
+		if restoreErr != nil {
+			return result, fmt.Errorf("restore governed runtime files before the Advanced reconcile checkpoint: %w", restoreErr)
+		}
 	}
 	result.PlanHash = verified.admission.candidate.PlanHash
 	candidatePlan := verified.candidatePlan
@@ -349,6 +526,7 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 	if orchestration != nil {
 		result.ChangeSetResult = orchestration.report
 		result.RollbackResult = orchestration.rollback
+		result.ReconciledStacks = orchestration.reconciled
 	}
 	transactionErr = completeAdvancedApplicationLifecycles(
 		workspace, applicationRuns, result, transactionErr,
@@ -532,6 +710,12 @@ func verifyAdvancedMutation(
 	if err != nil {
 		return verifiedAdvancedMutation{}, err
 	}
+	if record.Empty() && operation != advancedcapability.OperationDriftReconcileAdvanced {
+		return verifiedAdvancedMutation{}, &advancedchangeset.Error{
+			Code: advancedchangeset.ErrInvalid, Field: "changes",
+			Detail: "an empty change set only drives drift.reconcile.advanced",
+		}
+	}
 	baseline, candidate, err := renderAdvancedAdmission(ctx, admission)
 	if err != nil {
 		return verifiedAdvancedMutation{}, err
@@ -573,6 +757,21 @@ func verifyAdvancedMutation(
 			Detail: "affected stacks or the local Terramate host project differ from the Owner-approved change set",
 		}
 	}
+	// A baseline of another generation target has no stack graph and no
+	// stack to force; forceConverge fails closed if a reconcile needs one.
+	var baselineLayout *terramatehost.Layout
+	var baselineArtifacts map[string][]byte
+	if operation == advancedcapability.OperationDriftReconcileAdvanced {
+		if layout, layoutErr := terramatehost.PlanFromArtifacts(
+			baseline.Artifacts(), admission.owner.Binding.SiteRef, admission.owner.Binding.NodeRef,
+		); layoutErr == nil {
+			baselineLayout = &layout
+		}
+		baselineArtifacts = make(map[string][]byte)
+		for _, artifact := range baseline.Artifacts() {
+			baselineArtifacts[artifact.ID] = artifact.Bytes
+		}
+	}
 	digest := sha256.Sum256(raw)
 	// The target regenerates through the installed release; the embedded
 	// authority and both resolutions are no longer needed.
@@ -583,6 +782,7 @@ func verifyAdvancedMutation(
 		admission: admission, record: record,
 		digest:    "sha256:" + hex.EncodeToString(digest[:]),
 		candidate: candidate, candidatePlan: candidatePlan,
+		baselineLayout: baselineLayout, baselineArtifacts: baselineArtifacts,
 	}, nil
 }
 
@@ -751,8 +951,13 @@ func executeAdvancedMutation(
 
 		targetErr := release.withExecutable(
 			operationCtx, func(binary string) error {
-				// Promoting intent is the first target side effect. The exact
-				// prior StackSpec is already sealed in the rollback checkpoint.
+				// A reconcile first forces its drifted stacks back to the
+				// applied payload; promoting intent is then the first target
+				// side effect. The exact prior StackSpec and every stack root
+				// are already sealed in the rollback checkpoint.
+				if forceErr := orchestration.forceConverge(operationCtx, workspace, revalidated); forceErr != nil {
+					return forceErr
+				}
 				if writeErr := writeAdvancedCandidateIntent(
 					workspace, specFile, revalidated.admission.candidateRaw,
 				); writeErr != nil {

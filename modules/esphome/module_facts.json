@@ -1,0 +1,58 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "esphome",
+  "displayName": "ESPHome",
+  "description": "Builds and updates firmware for ESP32/ESP8266 devices that report natively to Home Assistant.",
+  "rationale": "Smart Home add-on: DIY sensors and devices.",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "256m"
+    }
+  },
+  "services": [
+    {
+      "type": "application",
+      "required": false,
+      "name": "esphome",
+      "image": "ghcr.io/esphome/esphome",
+      "tag": "2026.9.0",
+      "networks": [
+        "smart-home-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`esphome.{{.domain}}`)",
+        "port": 6052
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "none",
+        "reason": "The ESPHome dashboard has no user store, so the gateway login protects it."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/",
+        "port": 6052
+      },
+      "resources": {
+        "memory": "256m",
+        "memoryMax": "2g"
+      },
+      "volumes": [
+        {
+          "source": "esphome-config",
+          "target": "/config",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "upstream": {
+        "github": "esphome/esphome",
+        "registryImage": "ghcr.io/esphome/esphome"
+      }
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 // Package photos defines the Photos / Family Photo Vault use case package.
 //
 // Photos is a default kit use case (Basement and Cloud). The release path stays
-// self-hosted and OSS-realized through Immich. ente-photos is post-1.0 and is
-// not a catalog component until modules/ente-photos exists. There is intentionally no
+// self-hosted and OSS-realized through Immich. Ente Photos is a Photos alternative
+// and Immich add-ons are optional (owner direction 2026-09-25). There is intentionally no
 // control-plane runtime profile: per PLACEMENT-MODE-STANDARD heavy stateful
 // media apps such as Immich are local-only/standard and never
 // managed-serverless. Managed value for this use case is realized as lease,
@@ -17,7 +17,7 @@ Package: foundation.#UseCasePackage & {
 		name:        "photos"
 		useCaseRef:  "photos"
 		displayName: "Photos and Memories"
-		version:     "0.14.0"
+		version:     "0.15.0"
 		layer:       "application"
 		category:    "photos"
 		lifecycle:   "beta"
@@ -33,6 +33,12 @@ Package: foundation.#UseCasePackage & {
 			rationale:  "Immich is the Google-Photos-class default with mobile backup, ML search, and multi-user family sharing."
 			capabilities: ["photos", "photo-management", "media-backup", "ai-search"]
 		}
+		alternatives: [{
+			moduleSlug: "ente-photos"
+			role:       "primary"
+			rationale:  "End-to-end encrypted photo library with its own mobile and desktop apps."
+			capabilities: ["photos", "photo-management", "media-backup"]
+		}]
 	}
 
 	defaultRuntimeProfile: "self-hosted-photos"
@@ -60,21 +66,21 @@ Package: foundation.#UseCasePackage & {
 
 	computeTiers: {
 		low: {
-			included: true
+			included:   true
 			moduleSlug: "immich-lite"
 			functions: ["photos", "photo-management", "media-backup"]
 			load: {residency: "always-on", baseline: "idle-resident", burst: "ingest"}
 			notes: ["No ML search. Catalog alternative immich-lite on standalone-compose. Kit graph also substitutes stackkits-immich-lite-runtime. Mobile backup is the spike; the library otherwise waits."]
 		}
 		standard: {
-			included: true
+			included:   true
 			moduleSlug: "immich"
 			functions: ["photos", "photo-management", "media-backup", "ai-search"]
 			load: {residency: "always-on", baseline: "active-resident", burst: "ingest"}
 			notes: ["ML worker is resident base load. Ingest and interactive search are bursts on top."]
 		}
 		high: {
-			included: true
+			included:   true
 			moduleSlug: "immich"
 			functions: ["photos", "photo-management", "media-backup", "ai-search"]
 			load: {residency: "always-on", baseline: "active-resident", burst: "ingest"}
@@ -96,6 +102,31 @@ Package: foundation.#UseCasePackage & {
 			required:   false
 			rationale:  "Low-graph Immich without ML, delivered through standalone Compose."
 			capabilities: ["photos", "photo-management", "media-backup"]
+		}
+		"ente-photos": {
+			moduleSlug: "ente-photos"
+			role:       "primary"
+			required:   false
+			rationale:  "Encrypted alternative: Ente museum server, web apps and PostgreSQL with S3-compatible object storage."
+			capabilities: ["photos", "photo-management", "media-backup", "end-to-end-encryption"]
+		}
+		"immich-public-proxy": {
+			moduleSlug: "immich-public-proxy"
+			role:       "supporting"
+			rationale:  "Public share links without exposing Immich."
+			capabilities: ["public-sharing"]
+		}
+		"immich-kiosk": {
+			moduleSlug: "immich-kiosk"
+			role:       "supporting"
+			rationale:  "Slideshow for photo frames and TVs."
+			capabilities: ["slideshow"]
+		}
+		"immich-power-tools": {
+			moduleSlug: "immich-power-tools"
+			role:       "supporting"
+			rationale:  "Bulk library maintenance through the Immich API."
+			capabilities: ["library-maintenance"]
 		}
 	}
 
@@ -187,19 +218,19 @@ Package: foundation.#UseCasePackage & {
 	lifecycle: foundation.#StandardUseCaseLifecycle & {
 		referenceVertical: true
 		stages: setup: {
-			name:        "setup"
-			operations:  ["stackkit.setup"]
-			phases:      ["authorize", "configure", "verify"]
-			surfaces:    ["cli", "mcp", "state-console"]
-			evidence:    ["setup-result"]
-			mutation:    true
-			destructive: false
+			name: "setup"
+			operations: ["stackkit.setup"]
+			phases: ["authorize", "configure", "verify"]
+			surfaces: ["cli", "mcp", "state-console"]
+			evidence: ["setup-result"]
+			mutation:      true
+			destructive:   false
 			ownerApproval: true
 		}
 	}
 
 	agentSurface: {
-		equipPolicy:  "on-generate"
+		equipPolicy: "on-generate"
 		lifecycleMcp: {}
 		productMcps: []
 		apis: [{

@@ -26,9 +26,12 @@ modeMatrix: foundation.#KitModeSupport & {
 		bare: "scaffolding"
 		// Implemented; the current released-archive lifecycle is not yet proven.
 		bootstrapped: "scaffolding"
-		// Advanced now means the Terramate Plus lifecycle contract, but the
-		// full Advanced E2E cell is still open.
-		advanced: "scaffolding"
+		// Techstack-dispatched Advanced lifecycle on a real Proxmox VE host
+		// (managed lab run tsl_69112eecc9): apply, verify, per-stack drift
+		// detect, a change set adding the Files workload (owner set up by the
+		// change set), induced drift detected and reconciled, coordinated
+		// rollback to the change set's checkpoint, restore drill.
+		advanced: "supported"
 	}
 
 	context: {
@@ -51,7 +54,5 @@ modeMatrix: foundation.#KitModeSupport & {
 		dockge:  "experimental"
 	}
 
-	// No cell above is graded "supported"/"default", so no citation is owed
-	// yet.
-	evidence: {}
+	evidence: {"install.advanced": ["tsl_69112eecc9"]}
 }

@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -216,6 +217,10 @@ func createAdvancedChangeSet(ctx context.Context, admitted advancedChangeSetAdmi
 		LocalSiteRef: admitted.owner.Binding.SiteRef, LocalNodeRef: admitted.owner.Binding.NodeRef,
 		CreatedAt: now, ExpiresAt: expiresAt, CapabilityExpiresAt: admitted.grant.ExpiresAt,
 		Sign: sign, VerifyOwnerSignature: verify,
+		// Runtime drift leaves the candidate equal to the baseline; the
+		// reconcile of such drift runs through an empty change set, which only
+		// a capability that also allows drift.reconcile.advanced may create.
+		AllowEmpty: slices.Contains(admitted.grant.AllowedOperations, advancedcapability.OperationDriftReconcileAdvanced),
 	})
 	if err != nil {
 		return advancedChangeSetResult{}, err

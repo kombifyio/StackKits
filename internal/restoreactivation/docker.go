@@ -653,13 +653,13 @@ func (runtime *dockerRuntime) composeRuntimeArgs(composeRuntime ComposeRuntime, 
 		}
 		args = append(args, "--env-file", environmentPath)
 	}
-	if composeRuntime.Project == basementComposeProject {
+	if core, ok := coreBackupSourceForProject(composeRuntime.Project); ok {
 		// Apply runs the core project from its private runtime directory,
 		// where it also stages files the Compose file binds by relative path
 		// (the stackkit-server binary). Starting the verified generated copy
 		// from its own directory would resolve those binds to missing paths,
 		// which Docker turns into empty directories.
-		args = append(args, "--project-directory", filepath.Join(runtime.workspace, ".stackkit", "runtime", "basement-core"))
+		args = append(args, "--project-directory", filepath.Join(runtime.workspace, filepath.FromSlash(core.runtimeDir)))
 	}
 	return append(args, "-f", composePath), nil
 }

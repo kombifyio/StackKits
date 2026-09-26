@@ -102,7 +102,18 @@ type CreateRequest struct {
 	CapabilityExpiresAt  time.Time
 	Sign                 OwnerSigner
 	VerifyOwnerSignature OwnerVerifier
+	// AllowEmpty admits a change set without artifact transitions. Only an
+	// Advanced drift reconcile uses one: runtime drift (a stopped container,
+	// an edited payload) leaves the desired state unchanged, and the
+	// reconcile re-converges the drifted stacks under the same governed
+	// transaction. The caller sets it only for a capability that allows
+	// drift.reconcile.advanced; change-set apply refuses an empty record.
+	AllowEmpty bool
 }
+
+// Empty reports an identity change set: no artifact transition, so it can
+// only drive an Advanced drift reconcile.
+func (record Record) Empty() bool { return len(record.Changes) == 0 }
 
 type VerificationRequest struct {
 	Now                  time.Time

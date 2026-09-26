@@ -42,6 +42,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
 
+## [0.46.8](https://github.com/kombifyio/StackKits/compare/v0.46.7...v0.46.8) (2026-09-26)
+
+
+### Added
+
+* **basement-kit:** Standard default target opentofu after real-host end-to-end and adoption runs (P1.10)
+* **catalog:** complete use-case alternatives, add-ons and wizard settings
+* **compat:** collect source-built candidate Depot runs bound to their StackKits source
+* **executor:** bootstrap and configuration parity across compose, OpenTofu, Terramate and change sets
+* **fleet:** Modern member-local apply and verify with a Home-certified member evidence key (M2)
+* **mail-server:** dedicated mail node, fixed IPv4 check and outbound relay
+* **matrix:** per-cell evidence citations and a citable Advanced gate cell
+
+
+### Fixed
+
+* **advanced:** admission resolves the baseline from the stable inventory projection (change sets, reconcile, rollback, drill)
+* **advanced:** change-set apply, reconcile and rollback generate from the approved stable inventory
+* **advanced:** change-set apply, reconcile and rollback open an admitted application lifecycle stage
+* **advanced:** checkpoints include workload volumes; rollback leaves consistent Apply evidence
+* **advanced:** reconcile re-converges drifted stacks; rollback joins with one-use authority; drill authority after rollback
+* **advanced:** reconcile restores drifted governed runtime files before the checkpoint
+* **advanced:** reconcile restores the custody-derived runtime bytes and never regenerates secrets
+* **advanced:** same-release Advanced mutations use the running executable as release authority on managed hosts
+* **catalog:** Cloud standalone OpenTofu renderer contract matches the registry
+* **checkpoint:** the rollback checkpoint accepts long-form Compose bind mounts
+* **checkpoint:** the rollback checkpoint seals from the stable inventory projection
+* **cloud-kit:** drift carries the owner binding; change-set checkpoint uses the Cloud backup authority
+* **deps:** update dependency dockerode to ^4.0.12
+* **deps:** update dependency webmcp-types to v0.1.9
+* **deps:** update internal products
+* **deps:** update module filippo.io/age to v1.3.2
+* **deps:** update tailwindcss monorepo to ^4.3.3
+* **federation:** accept compiler targetNodes in binding adoption; record first real Modern run
+* **restore:** Cloud Kit restore drill and activation use the kit's own backup source
+* **tests:** restore the deterministic gate (Basement Lite generate, delivery compatibility, hermetic site addresses)
+
+
+### Changed
+
+* **advanced:** change-set admission resolves and renders sequentially within a single-generate memory budget
+
 ## [0.46.7](https://github.com/kombifyio/StackKits/compare/v0.46.6...v0.46.7) (2026-09-25)
 
 

@@ -1,0 +1,64 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "euro-office",
+  "displayName": "Euro-Office",
+  "description": "Euro-Office Document Server (ONLYOFFICE fork) for editing documents, spreadsheets and presentations in the browser; connects to Nextcloud through the eurooffice-nextcloud app.",
+  "rationale": "Owner direction 2026-09-25: office editing for Documents & Files.",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "2g"
+    }
+  },
+  "services": [
+    {
+      "type": "application",
+      "required": false,
+      "name": "documentserver",
+      "image": "ghcr.io/euro-office/documentserver",
+      "tag": "v9.3.4-hotfix.1",
+      "networks": [
+        "files-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`office.{{.domain}}`)",
+        "port": 80
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "none",
+        "reason": "Document Server has no user login; editors open it from Nextcloud with JWT-signed requests, and TinyAuth (Pocket ID) guards the route."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/healthcheck",
+        "port": 80
+      },
+      "resources": {
+        "memory": "2g",
+        "memoryMax": "4g"
+      },
+      "volumes": [
+        {
+          "source": "euro-office-data",
+          "target": "/var/www/onlyoffice/Data",
+          "type": "volume",
+          "backup": true
+        },
+        {
+          "source": "euro-office-logs",
+          "target": "/var/log/onlyoffice",
+          "type": "volume",
+          "backup": false
+        }
+      ],
+      "upstream": {
+        "github": "Euro-Office/DocumentServer",
+        "registryImage": "ghcr.io/euro-office/documentserver"
+      }
+    }
+  ]
+}

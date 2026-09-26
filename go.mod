@@ -4,7 +4,7 @@ go 1.26.5
 
 require (
 	cuelang.org/go v0.15.4
-	filippo.io/age v1.3.1
+	filippo.io/age v1.3.2
 	github.com/coder/websocket v1.8.15
 	github.com/fatih/color v1.18.0
 	github.com/getsentry/sentry-go v0.46.2
@@ -89,7 +89,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/protocolbuffers/txtpbfmt v0.0.0-20251124094003-fcb97cc64c7b // indirect
-	github.com/rogpeppe/go-internal v1.14.1 // indirect
+	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.11.0 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect

@@ -30,6 +30,7 @@
         "advanced.change-set.materialize-host",
         "advanced.change-set.run-order",
         "advanced.change-set.converge",
+        "advanced.change-set.reconcile",
         "advanced.drift.stack",
         "advanced.restore-drill.verify-runtime",
         "advanced.restore-drill.backup",
@@ -45,7 +46,7 @@
       ]
     },
     "status": {
-      "description": "Lifecycle phases report started, running, succeeded, failed or skipped. The per-stack Advanced phases advanced.change-set.converge and advanced.drift.stack report the stack status instead: converged, drifted, failed, pending_root or (change sets only) other_host; advanced.rollback.stack reports converged, failed or skipped. docs/data/advanced-operations/latest.json lists the statuses per phase.",
+      "description": "Lifecycle phases report started, running, succeeded, failed or skipped. The per-stack Advanced phases advanced.change-set.converge and advanced.drift.stack report the stack status instead: converged, drifted, failed, pending_root or (change sets only) other_host; advanced.change-set.reconcile reports converged or failed; advanced.rollback.stack reports converged, failed or skipped. docs/data/advanced-operations/latest.json lists the statuses per phase.",
       "type": "string",
       "enum": [
         "started",

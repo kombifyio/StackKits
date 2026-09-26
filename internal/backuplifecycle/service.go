@@ -405,7 +405,49 @@ func (s *Service) Configure(ctx context.Context, input ConfigureInput) (Configur
 	if _, err := s.loadConfiguration(); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return Configuration{}, err
 	}
+	return s.configure(ctx, owner, input, binding, nil)
+}
 
+// Rebind moves an existing backup configuration to the current authority
+// lineage and policy artifact after a converged mutation (a change set that
+// adds a workload selects its data volume and re-signs Plan and Apply). It
+// stays with the same Owner, authority and repository: a configuration of a
+// different Owner or authority, or a runtime that would answer with another
+// repository, fails closed. It reports whether the configuration moved and
+// returns os.ErrNotExist when no configuration exists yet.
+func (s *Service) Rebind(ctx context.Context, input ConfigureInput) (Configuration, bool, error) {
+	if err := s.ready(ctx); err != nil {
+		return Configuration{}, false, err
+	}
+	owner, err := s.validateBinding(input.OwnerRef, input.AuthorityRef)
+	if err != nil {
+		return Configuration{}, false, err
+	}
+	binding, err := normalizeBinding(input.OwnerRef, input.AuthorityRef, input.Lineage, input.PolicyArtifact)
+	if err != nil {
+		return Configuration{}, false, err
+	}
+	previous, err := s.loadConfiguration()
+	if err != nil {
+		return Configuration{}, false, err
+	}
+	if previous.OwnerRef != owner.OwnerRef || previous.AuthorityRef != input.AuthorityRef {
+		return Configuration{}, false, errors.New("backuplifecycle: backup configuration belongs to a different Owner or authority")
+	}
+	if configurationMatchesBinding(previous, binding) {
+		return previous, false, nil
+	}
+	configuration, err := s.configure(ctx, owner, input, binding, &previous.Repository)
+	return configuration, err == nil, err
+}
+
+func (s *Service) configure(
+	ctx context.Context,
+	owner localevidence.OwnerCustody,
+	input ConfigureInput,
+	binding normalizedBinding,
+	expectedRepository *RepositoryReceipt,
+) (Configuration, error) {
 	repositoryConfiguration := RepositoryConfiguration{
 		OwnerRef: owner.OwnerRef, AuthorityRef: input.AuthorityRef,
 		Lineage: binding.Lineage, PolicyArtifactDigest: binding.PolicyArtifactDigest,
@@ -421,6 +463,10 @@ func (s *Service) Configure(ctx context.Context, input ConfigureInput) (Configur
 	}
 	if err := validateRepositoryReceipt(repository, repositoryConfiguration); err != nil {
 		return Configuration{}, err
+	}
+	if expectedRepository != nil && (repository.RepositoryID != expectedRepository.RepositoryID ||
+		repository.Backend != expectedRepository.Backend) {
+		return Configuration{}, errors.New("backuplifecycle: rebinding would move the backup to a different repository")
 	}
 	configuration := Configuration{
 		APIVersion: configurationAPIVersion,

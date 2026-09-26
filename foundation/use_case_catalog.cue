@@ -145,6 +145,9 @@ UseCaseCatalog: #UseCaseCatalog & {
 			docs: "/guides/stackkits/use-cases/smart-home"
 			components: {
 				"home-assistant": {id: "home-assistant", name: "Home Assistant", role: "primary", kind: "application"}
+				mosquitto: {id: "mosquitto", name: "Eclipse Mosquitto", role: "supporting", kind: "service"}
+				zigbee2mqtt: {id: "zigbee2mqtt", name: "Zigbee2MQTT", role: "supporting", kind: "application"}
+				esphome: {id: "esphome", name: "ESPHome", role: "supporting", kind: "application"}
 			}
 			settings: [
 				{
@@ -195,6 +198,36 @@ UseCaseCatalog: #UseCaseCatalog & {
 					default:     true
 					realization: "recorded"
 				},
+				{
+					id:          "mqtt-broker"
+					name:        "MQTT broker"
+					kind:        "toggle"
+					group:       "features"
+					depth:       "advanced"
+					help:        "Add Eclipse Mosquitto so MQTT devices, Zigbee2MQTT and ESPHome can talk to Home Assistant."
+					default:     false
+					realization: "recorded"
+				},
+				{
+					id:          "zigbee-bridge"
+					name:        "Zigbee devices"
+					kind:        "toggle"
+					group:       "features"
+					depth:       "summary"
+					help:        "Add Zigbee2MQTT to use Zigbee lights and sensors without vendor hubs. Needs a Zigbee USB stick and the MQTT broker."
+					default:     false
+					realization: "recorded"
+				},
+				{
+					id:          "esphome"
+					name:        "ESPHome devices"
+					kind:        "toggle"
+					group:       "features"
+					depth:       "advanced"
+					help:        "Add ESPHome to build and update firmware for your own ESP32 sensors and switches."
+					default:     false
+					realization: "recorded"
+				},
 			]
 		}
 		photos: {
@@ -206,6 +239,11 @@ UseCaseCatalog: #UseCaseCatalog & {
 			docs: "/guides/stackkits/use-cases/photos"
 			components: {
 				immich: {id: "immich", name: "Immich", role: "primary", kind: "application"}
+				"immich-lite": {id: "immich-lite", name: "Immich Lite (no smart search)", role: "alternative", kind: "application"}
+				"ente-photos": {id: "ente-photos", name: "Ente Photos", role: "alternative", kind: "application"}
+				"immich-public-proxy": {id: "immich-public-proxy", name: "Immich Public Proxy", role: "supporting", kind: "application"}
+				"immich-kiosk": {id: "immich-kiosk", name: "Immich Kiosk", role: "supporting", kind: "application"}
+				"immich-power-tools": {id: "immich-power-tools", name: "Immich Power Tools", role: "supporting", kind: "application"}
 			}
 			settings: [
 				{
@@ -232,6 +270,36 @@ UseCaseCatalog: #UseCaseCatalog & {
 					default:     "kit-storage"
 					realization: "recorded"
 				},
+				{
+					id:          "public-sharing"
+					name:        "Public share links"
+					kind:        "toggle"
+					group:       "access"
+					depth:       "summary"
+					help:        "Add Immich Public Proxy so people without an account can open the albums you share, while Immich itself stays private."
+					default:     false
+					realization: "recorded"
+				},
+				{
+					id:          "kiosk"
+					name:        "Photo frame and TV slideshow"
+					kind:        "toggle"
+					group:       "features"
+					depth:       "advanced"
+					help:        "Add Immich Kiosk to show albums or people as a slideshow on a photo frame, TV or tablet."
+					default:     false
+					realization: "recorded"
+				},
+				{
+					id:          "power-tools"
+					name:        "Library power tools"
+					kind:        "toggle"
+					group:       "features"
+					depth:       "advanced"
+					help:        "Add Immich Power Tools for bulk work: merge people, fix missing locations and tidy albums."
+					default:     false
+					realization: "recorded"
+				},
 			]
 		}
 		media: {
@@ -241,7 +309,12 @@ UseCaseCatalog: #UseCaseCatalog & {
 			owner:       "stackkits"
 			mainUseCase: id: "media"
 			docs: "/guides/stackkits/use-cases/media"
-			components: jellyfin: {id: "jellyfin", name: "Jellyfin", role: "primary", kind: "application"}
+			components: {
+				jellyfin: {id: "jellyfin", name: "Jellyfin", role: "primary", kind: "application"}
+				emby: {id: "emby", name: "Emby", role: "alternative", kind: "application"}
+				navidrome: {id: "navidrome", name: "Navidrome", role: "supporting", kind: "application"}
+				audiobookshelf: {id: "audiobookshelf", name: "Audiobookshelf", role: "supporting", kind: "application"}
+			}
 			settings: [
 				{
 					id:    "hardware-transcoding"
@@ -272,6 +345,26 @@ UseCaseCatalog: #UseCaseCatalog & {
 					default:     "kit-storage"
 					realization: "recorded"
 				},
+				{
+					id:          "music-server"
+					name:        "Music streaming"
+					kind:        "toggle"
+					group:       "features"
+					depth:       "summary"
+					help:        "Add Navidrome to stream your music library to Subsonic-compatible apps."
+					default:     false
+					realization: "recorded"
+				},
+				{
+					id:          "audiobooks"
+					name:        "Audiobooks and podcasts"
+					kind:        "toggle"
+					group:       "features"
+					depth:       "advanced"
+					help:        "Add Audiobookshelf for audiobooks and podcasts with progress sync on your phone."
+					default:     false
+					realization: "recorded"
+				},
 			]
 		}
 		vault: {
@@ -281,7 +374,10 @@ UseCaseCatalog: #UseCaseCatalog & {
 			owner:       "stackkits"
 			mainUseCase: id: "vault"
 			docs: "/guides/stackkits/use-cases/vault"
-			components: vaultwarden: {id: "vaultwarden", name: "Vaultwarden", role: "primary", kind: "application"}
+			components: {
+				vaultwarden: {id: "vaultwarden", name: "Vaultwarden", role: "primary", kind: "application"}
+				passbolt: {id: "passbolt", name: "Passbolt CE", role: "alternative", kind: "application"}
+			}
 			settings: [
 				{
 					id:          "open-signups"
@@ -298,12 +394,43 @@ UseCaseCatalog: #UseCaseCatalog & {
 		files: {
 			slug:        "files"
 			displayName: "File Storage and Documents"
-			description: "Private file storage and sharing through the native Cloudreve workload."
+			description: "Private file storage and sharing: Cloudreve by default, Nextcloud or kombify Paperwork as alternatives, with optional office editing and a document archive."
 			owner:       "stackkits"
 			mainUseCase: id: "documents-files"
 			docs: "/guides/stackkits/use-cases/documents-and-files"
-			components: cloudreve: {id: "cloudreve", name: "Cloudreve", role: "primary", kind: "application"}
+			// Owner direction 2026-09-25: Nextcloud and Paperwork are Documents &
+			// Files alternatives; Euro-Office adds browser office editing and
+			// Paperless-ngx the document archive.
+			components: {
+				cloudreve: {id: "cloudreve", name: "Cloudreve", role: "primary", kind: "application"}
+				nextcloud: {id: "nextcloud", name: "Nextcloud", role: "alternative", kind: "application"}
+				// kombify Paperwork has no distributable self-hosted edition; the
+				// alternative binds the owner's hosted Paperwork instance.
+				paperwork: {id: "paperwork", name: "kombify Paperwork", role: "alternative", kind: "connector"}
+				"euro-office": {id: "euro-office", name: "Euro-Office", role: "supporting", kind: "application"}
+				"paperless-ngx": {id: "paperless-ngx", name: "Paperless-ngx", role: "supporting", kind: "application"}
+			}
 			settings: [
+				{
+					id:          "paperless"
+					name:        "Document archive"
+					kind:        "toggle"
+					group:       "features"
+					depth:       "summary"
+					help:        "Add Paperless-ngx to scan, read (OCR) and search your paper documents next to your files."
+					default:     false
+					realization: "recorded"
+				},
+				{
+					id:          "office-editing"
+					name:        "Office editing"
+					kind:        "toggle"
+					group:       "features"
+					depth:       "summary"
+					help:        "Add Euro-Office to edit documents, spreadsheets and presentations in the browser. It connects to Nextcloud through the Euro-Office app."
+					default:     false
+					realization: "recorded"
+				},
 				{
 					id:    "library-volume"
 					name:  "Where files are stored"
@@ -371,7 +498,10 @@ UseCaseCatalog: #UseCaseCatalog & {
 			owner:       "stackkits"
 			mainUseCase: id: "dev"
 			docs: "/guides/stackkits/use-cases/development"
-			components: gitea: {id: "gitea", name: "Gitea", role: "primary", kind: "application"}
+			components: {
+				gitea: {id: "gitea", name: "Gitea", role: "primary", kind: "application"}
+				forgejo: {id: "forgejo", name: "Forgejo", role: "alternative", kind: "application"}
+			}
 			settings: [
 				{
 					id:          "ci-runners"
@@ -401,8 +531,28 @@ UseCaseCatalog: #UseCaseCatalog & {
 			owner:       "stackkits"
 			mainUseCase: id: "mail"
 			docs: "/guides/stackkits/use-cases/mail"
-			components: roundcube: {id: "roundcube", name: "Roundcube Webmail", role: "primary", kind: "application"}
+			components: {
+				roundcube: {id: "roundcube", name: "Roundcube Webmail", role: "primary", kind: "application"}
+				// Owner direction 2026-09-25: the hosted Paperwork mail client is a
+				// Mail alternative; it deploys nothing on the Node.
+				paperwork: {id: "paperwork", name: "kombify Paperwork", role: "alternative", kind: "connector"}
+			}
 			settings: [
+				{
+					id:    "hosting"
+					name:  "Mail hosting"
+					kind:  "choice"
+					group: "backend"
+					depth: "summary"
+					help:  "Keep your mailbox at your current provider, or run your own mail server on a dedicated Cloud node."
+					options: [
+						{id: "existing", name: "Existing provider", note: "No mail server, DNS or MX change"},
+						{id: "stalwart", name: "Stalwart", note: "Own mail server: SMTP, IMAP and JMAP in one service"},
+						{id: "mailcow", name: "mailcow", note: "Own mail suite with SOGo webmail, calendar and contacts"},
+					]
+					default:     "existing"
+					realization: "recorded"
+				},
 				{
 					id:          "mail-domain"
 					name:        "Mail domain"
@@ -425,7 +575,10 @@ UseCaseCatalog: #UseCaseCatalog & {
 			owner:       "stackkits"
 			mainUseCase: id: "mail"
 			docs: "/guides/stackkits/use-cases/mail"
-			components: stalwart: {id: "stalwart", name: "Stalwart Mail Server", role: "primary", kind: "application"}
+			components: {
+				stalwart: {id: "stalwart", name: "Stalwart Mail Server", role: "primary", kind: "application"}
+				mailcow: {id: "mailcow", name: "mailcow", role: "alternative", kind: "application"}
+			}
 		}
 		game: {
 			slug:        "game"
@@ -434,7 +587,26 @@ UseCaseCatalog: #UseCaseCatalog & {
 			owner:       "stackkits"
 			mainUseCase: id: "game"
 			docs: "/guides/stackkits/use-cases/game"
-			components: pterodactyl: {id: "pterodactyl", name: "Pterodactyl", role: "primary", kind: "application"}
+			components: {
+				pterodactyl: {id: "pterodactyl", name: "Pterodactyl", role: "primary", kind: "application"}
+				pelican: {id: "pelican", name: "Pelican Panel", role: "alternative", kind: "application"}
+			}
+			settings: [
+				{
+					id:    "edition"
+					name:  "Minecraft edition"
+					kind:  "choice"
+					group: "profile"
+					depth: "summary"
+					help:  "Java and Bedrock players cannot join each other's worlds; choose the edition your players use."
+					options: [
+						{id: "java", name: "Minecraft Java", note: "PC and Mac players"},
+						{id: "bedrock", name: "Minecraft Bedrock", note: "Console, phone, tablet and Windows players"},
+					]
+					default:     "java"
+					realization: "recorded"
+				},
+			]
 		}
 		remote: {
 			slug:        "remote"

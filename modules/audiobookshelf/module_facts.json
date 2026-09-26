@@ -1,0 +1,64 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "audiobookshelf",
+  "displayName": "Audiobookshelf",
+  "description": "Audiobook and podcast server with mobile apps and progress sync.",
+  "rationale": "Media add-on: audiobooks and podcasts.",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "128m"
+    }
+  },
+  "services": [
+    {
+      "type": "application",
+      "required": false,
+      "name": "audiobookshelf",
+      "image": "ghcr.io/advplyr/audiobookshelf",
+      "tag": "2.36.1",
+      "networks": [
+        "media-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`audiobooks.{{.domain}}`)",
+        "port": 80
+      },
+      "accessPolicy": {
+        "outerAuth": "self",
+        "appAuth": "oidc-sso",
+        "ownerBootstrap": "Register Audiobookshelf as an OIDC client in Pocket ID and set issuer https://id.{{.domain}} under Settings > Authentication > OpenID Connect."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/healthcheck",
+        "port": 80
+      },
+      "resources": {
+        "memory": "128m",
+        "memoryMax": "1g"
+      },
+      "volumes": [
+        {
+          "source": "audiobookshelf-config",
+          "target": "/config",
+          "type": "volume",
+          "backup": true
+        },
+        {
+          "source": "audiobookshelf-metadata",
+          "target": "/metadata",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "upstream": {
+        "github": "advplyr/audiobookshelf",
+        "registryImage": "ghcr.io/advplyr/audiobookshelf"
+      }
+    }
+  ]
+}

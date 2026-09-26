@@ -1,0 +1,58 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "immich-power-tools",
+  "displayName": "Immich Power Tools",
+  "description": "Bulk tools for an Immich library: merge people, find missing locations, manage albums and potential duplicates.",
+  "rationale": "Immich add-on: library power tools.",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "128m"
+    }
+  },
+  "services": [
+    {
+      "type": "application",
+      "required": false,
+      "name": "immich-power-tools",
+      "image": "ghcr.io/immich-power-tools/immich-power-tools",
+      "tag": "0.24.0",
+      "networks": [
+        "immich-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`photo-tools.{{.domain}}`)",
+        "port": 3000
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "self-auth",
+        "ownerBootstrap": "TinyAuth forward-auth (Pocket ID); Power Tools then signs in to Immich with an Immich API key."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/",
+        "port": 3000
+      },
+      "resources": {
+        "memory": "128m",
+        "memoryMax": "512m"
+      },
+      "volumes": [
+        {
+          "source": "immich-power-tools-data",
+          "target": "/app/data",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "upstream": {
+        "github": "varun-raj/immich-power-tools",
+        "registryImage": "ghcr.io/immich-power-tools/immich-power-tools"
+      }
+    }
+  ]
+}

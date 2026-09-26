@@ -134,6 +134,8 @@ type svcModel struct {
 	OuterAuth     string
 	AppAuth       string
 	HasAccess     bool
+	AccessReason  string
+	AccessOwner   string
 	HC            hcModel
 	Resources     *FactsResources
 	Security      secModel
@@ -375,6 +377,10 @@ func buildServiceModel(f *Facts, s *FactsService) svcModel {
 			app = firstNonEmpty(s.AccessPolicy.AppAuth, app)
 		}
 		sm.OuterAuth, sm.AppAuth, sm.HasAccess = outer, app, true
+		if s.AccessPolicy != nil {
+			sm.AccessReason = s.AccessPolicy.Reason
+			sm.AccessOwner = s.AccessPolicy.OwnerBootstrap
+		}
 	}
 	if s.Upstream != nil {
 		sm.Upstream = buildUpstream(s)

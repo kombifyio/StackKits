@@ -176,7 +176,7 @@ func (store ExecutorStateStore) Capture(
 		return ExecutorStateSnapshot{}, fmt.Errorf("executor state: verify local Owner custody: %w", err)
 	}
 	if err := verifyExecutorStateSnapshotAnchor(
-		workspaceRoot, owner.OwnerRef, input.Lineage, input.KopiaSnapshotAnchor,
+		workspaceRoot, owner.OwnerRef, input.CoreModuleRef, input.Lineage, input.KopiaSnapshotAnchor,
 	); err != nil {
 		return ExecutorStateSnapshot{}, err
 	}
@@ -508,8 +508,8 @@ func prepareExecutorStateSnapshot(
 		}, payloads, nil
 	}
 	runtimeCompose := payloads[len(payloads)-1].identity
-	if runtimeCompose.Path != basementCoreRuntimeComposePath {
-		return ExecutorStateSnapshot{}, nil, errors.New("executor state: runtime Compose path is not the governed Basement runtime path")
+	if runtimeCompose.Path != profile.RuntimeComposePath {
+		return ExecutorStateSnapshot{}, nil, errors.New("executor state: runtime Compose path is not the governed Core runtime path")
 	}
 	sourceMatches := 0
 	policyMatches := 0
@@ -641,7 +641,7 @@ func (store ExecutorStateStore) verifySnapshot(
 		return errors.New("executor state: signature Owner differs from snapshot")
 	}
 	if err := verifyExecutorStateSnapshotAnchor(
-		workspaceRoot, snapshot.OwnerRef, snapshot.Lineage, snapshot.KopiaSnapshotAnchor,
+		workspaceRoot, snapshot.OwnerRef, snapshot.CoreModuleRef, snapshot.Lineage, snapshot.KopiaSnapshotAnchor,
 	); err != nil {
 		return err
 	}
@@ -664,7 +664,7 @@ func (store ExecutorStateStore) verifySnapshot(
 		if err := requireExecutorStatePolicyArtifact(snapshot.Artifacts, profile); err != nil {
 			return err
 		}
-	} else if snapshot.RuntimeCompose.Path != basementCoreRuntimeComposePath || len(snapshot.RuntimeOpenTofu) != 0 {
+	} else if snapshot.RuntimeCompose.Path != profile.RuntimeComposePath || len(snapshot.RuntimeOpenTofu) != 0 {
 		return errors.New("executor state: runtime Compose path is invalid")
 	}
 	sourceMatches := 0
@@ -969,7 +969,7 @@ func executorStateExecutablePath(platform releaseindex.Platform) string {
 }
 
 func verifyExecutorStateSnapshotAnchor(
-	workspaceRoot, ownerRef string,
+	workspaceRoot, ownerRef, coreModuleRef string,
 	lineage backuplifecycle.AuthorityLineage,
 	anchor backuplifecycle.SnapshotAnchor,
 ) error {
@@ -982,12 +982,16 @@ func verifyExecutorStateSnapshotAnchor(
 		return fmt.Errorf("executor state: load current Owner runtime binding: %w", err)
 	}
 	return verifyExecutorStateSnapshotAnchorWithAuthority(
-		workspaceRoot, ownerRef, lineage, anchor, owner, runtimeBinding,
+		workspaceRoot, ownerRef, coreModuleRef, lineage, anchor, owner, runtimeBinding,
 	)
 }
 
+// verifyExecutorStateSnapshotAnchorWithAuthority binds the anchor to the
+// exact local Kopia repository of the sealed kit core (the Cloud standalone
+// core writes kopia:local:cloud, every Basement core kopia:local:basement);
+// an empty core module is a pre-profile Full-Core snapshot.
 func verifyExecutorStateSnapshotAnchorWithAuthority(
-	workspaceRoot, ownerRef string,
+	workspaceRoot, ownerRef, coreModuleRef string,
 	lineage backuplifecycle.AuthorityLineage,
 	anchor backuplifecycle.SnapshotAnchor,
 	owner localevidence.OwnerCustody,
@@ -1006,7 +1010,7 @@ func verifyExecutorStateSnapshotAnchorWithAuthority(
 	if anchor.OwnerRef != ownerRef ||
 		owner.OwnerRef != ownerRef ||
 		anchor.AuthorityRef != owner.Trust.HumanAuthorityRef ||
-		anchor.Repository.RepositoryID != localbackupruntime.RepositoryID ||
+		anchor.Repository.RepositoryID != localbackupruntime.RepositoryIDForCoreModule(strings.TrimSpace(coreModuleRef)) ||
 		runtimeBinding.OwnerRef != ownerRef ||
 		runtimeBinding.PocketIDSubject != lineage.PocketIDSubject ||
 		localevidence.OwnerRuntimeBindingDigest(runtimeBinding) != lineage.OwnerBindingDigest ||
@@ -1128,15 +1132,15 @@ func SnapshotInventoryBlobPath(snapshot ExecutorStateSnapshot) (string, error) {
 // definition. During an upgrade, target Generate may replace the active file
 // before Apply checks whether the old runtime owns its published ports.
 func SnapshotRuntimeComposeBlobPath(snapshot ExecutorStateSnapshot) (string, error) {
+	profile, err := currentStateCoreProfileForCapture(ExecutorStateCaptureInput{
+		CoreModuleRef:         snapshot.CoreModuleRef,
+		CoreComposeArtifactID: snapshot.CoreComposeArtifactID,
+		CorePolicyArtifactID:  snapshot.CorePolicyArtifactID,
+	})
+	if err != nil {
+		return "", err
+	}
 	if executorStateTargetExecutesOpenTofu(snapshot.GenerationTarget) {
-		profile, err := currentStateCoreProfileForCapture(ExecutorStateCaptureInput{
-			CoreModuleRef:         snapshot.CoreModuleRef,
-			CoreComposeArtifactID: snapshot.CoreComposeArtifactID,
-			CorePolicyArtifactID:  snapshot.CorePolicyArtifactID,
-		})
-		if err != nil {
-			return "", err
-		}
 		for _, root := range snapshot.RuntimeOpenTofu {
 			if root.ModuleRef == profile.ModuleRef {
 				return executorStateBlobPath(root.Compose.SHA256)
@@ -1144,7 +1148,7 @@ func SnapshotRuntimeComposeBlobPath(snapshot ExecutorStateSnapshot) (string, err
 		}
 		return "", errors.New("executor state: prior Core OpenTofu root is not governed")
 	}
-	if snapshot.RuntimeCompose.Path != basementCoreRuntimeComposePath {
+	if snapshot.RuntimeCompose.Path != profile.RuntimeComposePath {
 		return "", errors.New("executor state: prior runtime Compose path is not governed")
 	}
 	return executorStateBlobPath(snapshot.RuntimeCompose.SHA256)

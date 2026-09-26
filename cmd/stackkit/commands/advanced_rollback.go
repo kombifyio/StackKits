@@ -50,8 +50,10 @@ added after the checkpoint are destroyed through OpenTofu (docker compose down
 without volumes) and removed, changed stacks get the checkpoint's state,
 configuration and payload back and are forced to converge, and stacks removed
 after the checkpoint are recreated. The checkpoint's StackSpec and Inventory
-are restored, regenerated and verified. An interrupted rollback resumes on the
-next run with the same --to and skips stacks that already converged.`,
+are restored and regenerated before the stacks run; afterwards joined apply
+and verify children record and verify the checkpoint's Apply evidence. An
+interrupted rollback resumes on the next run with the same --to and skips
+stacks that already converged.`,
 	Example: `  stackkit advanced rollback run --capability capability.json --to sha256:<change-set-id> --owner-approve --json`,
 	Args:    cobra.NoArgs,
 	RunE:    runAdvancedRollback,

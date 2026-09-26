@@ -30,6 +30,11 @@ type Component struct {
 	Name string `json:"name"`
 	Role string `json:"role"`
 	Kind string `json:"kind"`
+	// Realization is derived for alternative components only: "install" when
+	// the use case's Architecture v2 workload admits the alternative, so the
+	// pinned release can install it; "recorded" when the choice is kept as the
+	// owner's target preference for a later release. Never authored.
+	Realization string `json:"realization,omitempty"`
 }
 
 type UseCaseLoad struct {
@@ -856,9 +861,21 @@ func hasOperationalShape(pkg, workload map[string]any) bool {
 	}
 	return false
 }
+
+// componentClosure reports whether every component resolves to a module
+// contract: a modules/<id> directory, or an admitted Architecture v2
+// alternative (whose moduleRef carries the runtime module). A connector binds
+// an externally operated service and has no local module by definition.
 func componentClosure(useCase UseCase, known map[string]bool) bool {
+	admitted := make(map[string]bool, len(useCase.Alternatives))
+	for _, alternative := range useCase.Alternatives {
+		admitted[alternative.ID] = true
+	}
 	for _, component := range useCase.Components {
-		if !known[component.ID] {
+		if component.Kind == "connector" {
+			continue
+		}
+		if !known[component.ID] && !admitted[component.ID] {
 			return false
 		}
 	}
@@ -930,18 +947,14 @@ func attachAuthoringVocabulary(source *sourceCatalog, workloads, modules []map[s
 	for index, useCase := range source.UseCases {
 		workload := source.Workloads[useCase.ID]
 		if workload == nil {
-			if err := validateAlternativeComponents(useCase, AuthoringWorkload{}); err != nil {
-				return err
-			}
+			annotateAlternativeRealization(&source.UseCases[index], AuthoringWorkload{})
 			continue
 		}
 		authoring, err := authoringWorkloadFromCatalog(workload, profiles)
 		if err != nil {
 			return err
 		}
-		if err := validateAlternativeComponents(useCase, authoring); err != nil {
-			return err
-		}
+		annotateAlternativeRealization(&source.UseCases[index], authoring)
 		source.UseCases[index].DefaultAlternative = authoring.DefaultAlternative
 		source.UseCases[index].Alternatives = authoring.Alternatives
 	}
@@ -961,17 +974,25 @@ func attachAuthoringVocabulary(source *sourceCatalog, workloads, modules []map[s
 	return nil
 }
 
-func validateAlternativeComponents(useCase UseCase, authoring AuthoringWorkload) error {
+// annotateAlternativeRealization marks each alternative component with what
+// the pinned release does with it. An alternative the Architecture v2 workload
+// admits installs; any other alternative is a recorded choice (owner direction
+// 2026-09-25: every real alternative is published, and consumers show what the
+// release installs today instead of hiding the choice).
+func annotateAlternativeRealization(useCase *UseCase, authoring AuthoringWorkload) {
 	admitted := make(map[string]bool, len(authoring.Alternatives))
 	for _, alternative := range authoring.Alternatives {
 		admitted[alternative.ID] = true
 	}
-	for _, component := range useCase.Components {
-		if component.Role == "alternative" && !admitted[component.ID] {
-			return fmt.Errorf("use case %s publishes alternative component %s without an Architecture v2 alternative", useCase.ID, component.ID)
+	for index, component := range useCase.Components {
+		if component.Role != "alternative" {
+			continue
+		}
+		useCase.Components[index].Realization = "recorded"
+		if admitted[component.ID] {
+			useCase.Components[index].Realization = "install"
 		}
 	}
-	return nil
 }
 
 func authoringWorkloadFromCatalog(workload map[string]any, profiles map[string][]string) (AuthoringWorkload, error) {

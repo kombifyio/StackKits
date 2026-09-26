@@ -1,0 +1,58 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "emby",
+  "displayName": "Emby",
+  "description": "Emby media server with native TV and mobile apps. Closed source; some client features need an Emby Premiere licence.",
+  "rationale": "Media alternative to Jellyfin.",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "1g"
+    }
+  },
+  "services": [
+    {
+      "type": "application",
+      "required": false,
+      "name": "emby",
+      "image": "docker.io/emby/embyserver",
+      "tag": "4.10.0.40",
+      "networks": [
+        "media-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`media.{{.domain}}`)",
+        "port": 8096
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "self-auth",
+        "ownerBootstrap": "Emby has no OIDC login: TinyAuth forward-auth (Pocket ID) guards the web app; Emby users stay app-local."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/emby/System/Ping",
+        "port": 8096
+      },
+      "resources": {
+        "memory": "512m",
+        "memoryMax": "4g"
+      },
+      "volumes": [
+        {
+          "source": "emby-config",
+          "target": "/config",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "upstream": {
+        "github": "MediaBrowser/Emby.Releases",
+        "registryImage": "emby/embyserver"
+      }
+    }
+  ]
+}

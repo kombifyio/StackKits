@@ -228,6 +228,12 @@ var (
 		{Phase: "advanced.change-set.run-order", Match: "exact", Statuses: []string{"started", "succeeded", "failed"}},
 		{Phase: "advanced.change-set.converge", Match: "exact", Statuses: []string{"converged", "drifted", "failed", "pending_root", "other_host"}},
 	}
+	// reconcileStackEvents mark each drifted stack an Advanced reconcile
+	// forces to re-converge before its target generate.
+	reconcileStackEvents = EventPhase{
+		Phase: "advanced.change-set.reconcile", Match: "exact",
+		Statuses: []string{"converged", "failed"},
+	}
 	driftStackEvents = EventPhase{
 		Phase: advanceddrift.EventPhase, Match: "exact",
 		Statuses: []string{"converged", "drifted", "failed", "pending_root"},
@@ -312,7 +318,7 @@ func New() Catalog {
 			},
 			{
 				Operation: advancedcapability.OperationDriftReconcileAdvanced, Status: StatusAvailable, SinceRelease: "v0.15.8",
-				Summary: "Reconcile drift by applying an exact Owner-signed change set through the governed transaction, then prove a clean post-reconcile drift report including every stack plan.",
+				Summary: "Reconcile drift through an exact Owner-signed change set (empty for runtime drift, which leaves the desired state unchanged): observe the per-stack drift, force every drifted local stack to re-converge (`tofu apply -replace` of its wrapper `_up` trigger, which runs `docker compose up`), apply through the governed transaction, prove the forced and changed stacks converged, then prove a clean post-reconcile drift report including every stack plan.",
 				Command: "stackkit drift reconcile",
 				Argv: []string{"drift", "reconcile", "--mode", "advanced", "--capability", "{capabilityFile}", "--candidate-spec", "{candidateSpecFile}",
 					"--change-set", "{changeSetId}", "--expect-sha256", "{changeSetSha256}", "--json"},
@@ -324,11 +330,11 @@ func New() Catalog {
 				},
 				Inputs: []Input{capabilityInput, candidateInput, changeSetInput},
 				Results: []Outcome{
-					{Status: "success", ContractRef: ref(AdvancedMutationSchemaVersion, AdvancedMutationSchema), Description: "Carries data.driftReport observed after the reconcile."},
+					{Status: "success", ContractRef: ref(AdvancedMutationSchemaVersion, AdvancedMutationSchema), Description: "Carries data.driftReport observed after the reconcile, data.reconciledStacks, the stacks forced to re-converge, and data.restoredRuntimeFiles, the drifted governed runtime files restored before the checkpoint."},
 					{Status: "failed", ContractRef: ref(AdvancedMutationSchemaVersion, AdvancedMutationSchema), Description: "The transaction rolled back or the post-reconcile report is not clean."},
 					denialOutcome,
 				},
-				Events: append(append([]EventPhase{}, changeSetEvents...), driftStackEvents),
+				Events: append(append([]EventPhase{}, changeSetEvents...), reconcileStackEvents, driftStackEvents),
 				Modes:  capabilityModes,
 			},
 			{
@@ -381,7 +387,7 @@ func New() Catalog {
 			},
 			{
 				Operation: advancedcapability.OperationTerramateChangeSetCreate, Status: StatusAvailable, SinceRelease: "v0.15.8",
-				Summary:      "Create an Owner-signed change set from the candidate StackSpec: changed artifacts, affected Terramate stacks in run order and the host manifest digest.",
+				Summary:      "Create an Owner-signed change set from the candidate StackSpec: changed artifacts, affected Terramate stacks in run order and the host manifest digest. A candidate equal to the applied StackSpec yields an empty change set only when the capability also allows drift.reconcile.advanced; change-set apply refuses an empty change set.",
 				Command:      "stackkit advanced change-set create",
 				Argv:         []string{"advanced", "change-set", "create", "--capability", "{capabilityFile}", "--candidate-spec", "{candidateSpecFile}", "--json"},
 				OptionalArgs: []OptionalArgs{},

@@ -1,8 +1,9 @@
 // Package files defines the File Storage / Document Management use case package.
 //
 // Files is a default BaseKit use case. The release path stays self-hosted and
-// OSS-realized through Cloudreve, while heavier collaboration and DMS profiles
-// remain product intent until their native workload and lifecycle contracts exist.
+// OSS-realized through Cloudreve. Nextcloud and the hosted kombify Paperwork are
+// alternatives, Euro-Office and Paperless-ngx optional add-ons (owner direction
+// 2026-09-25); the catalog marks which choices the pinned release installs.
 package files
 
 import "github.com/kombifyio/stackkits/foundation"
@@ -12,7 +13,7 @@ Package: foundation.#UseCasePackage & {
 		name:        "files"
 		useCaseRef:  "files"
 		displayName: "File Storage and Documents"
-		version:     "0.13.0"
+		version:     "0.14.0"
 		layer:       "application"
 		category:    "files"
 		lifecycle:   "beta"
@@ -28,7 +29,12 @@ Package: foundation.#UseCasePackage & {
 			rationale:  "Cloudreve is the lightweight BaseKit default for file storage and sharing."
 			capabilities: ["files", "document-storage", "file-sharing"]
 		}
-		alternatives: []
+		alternatives: [{
+			moduleSlug: "nextcloud"
+			role:       "primary"
+			rationale:  "Full collaboration suite with calendars, contacts and office integration."
+			capabilities: ["files", "document-storage", "file-sharing", "collaboration"]
+		}]
 	}
 
 	defaultRuntimeProfile: "self-hosted-lightweight"
@@ -78,14 +84,14 @@ Package: foundation.#UseCasePackage & {
 			moduleSlug: "cloudreve"
 			functions: ["files", "document-storage", "file-sharing"]
 			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
-			notes: ["Lightweight sharing. Nextcloud is not a native workload on any profile."]
+			notes: ["Lightweight sharing. Nextcloud is a recorded alternative until its native workload lands."]
 		}
 		standard: {
 			included:   true
 			moduleSlug: "cloudreve"
 			functions: ["files", "document-storage", "file-sharing"]
 			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
-			notes: ["Nextcloud remains planned product intent, not a selectable native alternative."]
+			notes: ["Nextcloud, kombify Paperwork, Euro-Office and Paperless-ngx are selectable catalog choices; the release installs Cloudreve."]
 		}
 		high: {
 			included:   true
@@ -103,6 +109,24 @@ Package: foundation.#UseCasePackage & {
 			required:   true
 			rationale:  "Lightweight default file storage and sharing implementation."
 			capabilities: ["files", "document-storage", "file-sharing", "rest-api"]
+		}
+		nextcloud: {
+			moduleSlug: "nextcloud"
+			role:       "primary"
+			rationale:  "Collaboration-suite alternative to Cloudreve for the same files route."
+			capabilities: ["files", "document-storage", "file-sharing", "collaboration"]
+		}
+		"euro-office": {
+			moduleSlug: "euro-office"
+			role:       "supporting"
+			rationale:  "Browser office editing; integrates with Nextcloud through the eurooffice-nextcloud app."
+			capabilities: ["office-editing"]
+		}
+		"paperless-ngx": {
+			moduleSlug: "paperless-ngx"
+			role:       "supporting"
+			rationale:  "Optional document archive with OCR and full-text search."
+			capabilities: ["document-ingestion", "ocr", "document-search"]
 		}
 	}
 

@@ -1,0 +1,64 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "pelican",
+  "displayName": "Pelican Panel",
+  "description": "Pelican game server panel, the actively developed successor fork of Pterodactyl; runs game servers through Wings. Upstream is still in beta.",
+  "rationale": "Game alternative to Pterodactyl.",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "512m"
+    }
+  },
+  "services": [
+    {
+      "type": "application",
+      "required": false,
+      "name": "panel",
+      "image": "ghcr.io/pelican/panel",
+      "tag": "v1.0.0-beta38",
+      "networks": [
+        "game-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`game.{{.domain}}`)",
+        "port": 80
+      },
+      "accessPolicy": {
+        "outerAuth": "self",
+        "appAuth": "oidc-sso",
+        "ownerBootstrap": "Pelican signs in through the first-party generic-oidc-providers plugin: register Pelican as an OIDC client in Pocket ID with issuer https://id.{{.domain}}."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/up",
+        "port": 80
+      },
+      "resources": {
+        "memory": "256m",
+        "memoryMax": "1g"
+      },
+      "volumes": [
+        {
+          "source": "pelican-data",
+          "target": "/pelican-data",
+          "type": "volume",
+          "backup": true
+        },
+        {
+          "source": "pelican-logs",
+          "target": "/var/www/html/storage/logs",
+          "type": "volume",
+          "backup": false
+        }
+      ],
+      "upstream": {
+        "github": "pelican-dev/panel",
+        "registryImage": "ghcr.io/pelican/panel"
+      }
+    }
+  ]
+}

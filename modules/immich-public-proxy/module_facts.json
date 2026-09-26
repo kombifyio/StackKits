@@ -1,0 +1,60 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "immich-public-proxy",
+  "displayName": "Immich Public Proxy",
+  "description": "Share Immich albums and photos publicly without exposing the Immich instance itself.",
+  "rationale": "Immich add-on: public sharing proxy.",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "128m"
+    }
+  },
+  "services": [
+    {
+      "type": "application",
+      "required": false,
+      "name": "immich-public-proxy",
+      "image": "ghcr.io/alangrainger/immich-public-proxy",
+      "tag": "3.4.0",
+      "networks": [
+        "immich-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`share.{{.domain}}`)",
+        "port": 3000
+      },
+      "accessPolicy": {
+        "outerAuth": "none-explicit",
+        "appAuth": "none",
+        "reason": "Public by design: serves only the share links the owner creates in Immich, holds no Immich credentials and exposes no Immich login or API."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/share/healthcheck",
+        "port": 3000
+      },
+      "resources": {
+        "memory": "64m",
+        "memoryMax": "256m"
+      },
+      "security": {
+        "noNewPrivileges": true,
+        "capDrop": [
+          "ALL"
+        ],
+        "readOnly": true,
+        "tmpfs": [
+          "/tmp"
+        ]
+      },
+      "upstream": {
+        "github": "alangrainger/immich-public-proxy",
+        "registryImage": "ghcr.io/alangrainger/immich-public-proxy"
+      }
+    }
+  ]
+}

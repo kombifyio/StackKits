@@ -3,6 +3,7 @@ package architecturev2
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -21,6 +22,22 @@ type ProductApplyResultVerificationInput struct {
 	Receipt  generationartifact.GenerationReceipt
 	Versions generationartifact.ComponentVersions
 	Result   []byte
+}
+
+const applyResultGenerationPath = "apply.result.generation"
+
+// IsOtherGenerationApplyResult reports whether err rejected a persisted Apply
+// result only because it records another generation (manifest, generation
+// receipt, or Apply requirements) of the same ResolvedPlan. Every generation
+// writes a new receipt, so regenerating an unchanged plan, as a coordinated
+// rollback to a checkpoint does, supersedes the Apply results recorded for the
+// earlier generation without making them invalid evidence. Callers selecting
+// the current Apply result skip such results; they never accept them.
+func IsOtherGenerationApplyResult(err error) bool {
+	var artifactErr *generationartifact.Error
+	return errors.As(err, &artifactErr) &&
+		artifactErr.Code == generationartifact.ErrBindingMismatch &&
+		artifactErr.Path == applyResultGenerationPath
 }
 
 // ApplyResultSummary is the secret-free public projection consumed by CLI
@@ -236,7 +253,7 @@ func (s *Service) verifyProductApplyResultForPlan(input ProductApplyResultVerifi
 	if envelope.ManifestHash != manifestHash ||
 		envelope.GenerationReceiptHash != receiptHash ||
 		envelope.RequirementsHash != request.RequirementsHash {
-		return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrBindingMismatch, "apply.result.generation", "does not match the current manifest, receipt, and Apply requirements", nil)
+		return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrBindingMismatch, applyResultGenerationPath, "does not match the current manifest, receipt, and Apply requirements", nil)
 	}
 	if envelope.Executor != executor {
 		return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrBindingMismatch, "apply.result.executor", "does not match the product-owned runtime executor", nil)

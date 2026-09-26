@@ -243,35 +243,35 @@ func createPublicUpgradeSnapshot(
 	if err != nil {
 		return backuplifecycle.SnapshotAnchor{}, err
 	}
-	statusContext, cancelStatus := nativeV2BackupOperationContext(
-		ctx, backupQuickOperationTimeout,
-	)
-	statusInput := backuplifecycle.StatusInput{
+	// The configuration follows the current authority: the first checkpoint
+	// creates it, and a later one rebinds it in place when a converged change
+	// set or reconcile moved the lineage or policy artifact (an added workload
+	// selects its data volume). Owner, authority and repository never move.
+	configureInput := backuplifecycle.ConfigureInput{
 		OwnerRef: authority.OwnerRef, AuthorityRef: authority.AuthorityRef,
 		Lineage: authority.Lineage, PolicyArtifact: append([]byte(nil), authority.PolicyArtifact...),
 	}
-	status, err := service.Status(statusContext, statusInput)
-	cancelStatus()
+	configureContext, cancelConfigure := nativeV2BackupOperationContext(
+		ctx, backupLongOperationTimeout,
+	)
+	_, _, err = service.Rebind(configureContext, configureInput)
 	if errors.Is(err, os.ErrNotExist) {
-		configureContext, cancelConfigure := nativeV2BackupOperationContext(
-			ctx, backupLongOperationTimeout,
-		)
-		_, err = service.Configure(configureContext, backuplifecycle.ConfigureInput{
-			OwnerRef: authority.OwnerRef, AuthorityRef: authority.AuthorityRef,
-			Lineage: authority.Lineage, PolicyArtifact: append([]byte(nil), authority.PolicyArtifact...),
-		})
-		cancelConfigure()
-		if err != nil {
-			return backuplifecycle.SnapshotAnchor{}, fmt.Errorf(
-				"configure missing pre-upgrade Kopia repository: %w", err,
-			)
-		}
-		statusContext, cancelStatus = nativeV2BackupOperationContext(
-			ctx, backupQuickOperationTimeout,
-		)
-		status, err = service.Status(statusContext, statusInput)
-		cancelStatus()
+		_, err = service.Configure(configureContext, configureInput)
 	}
+	cancelConfigure()
+	if err != nil {
+		return backuplifecycle.SnapshotAnchor{}, fmt.Errorf(
+			"bind the pre-upgrade Kopia repository to the current authority: %w", err,
+		)
+	}
+	statusContext, cancelStatus := nativeV2BackupOperationContext(
+		ctx, backupQuickOperationTimeout,
+	)
+	status, err := service.Status(statusContext, backuplifecycle.StatusInput{
+		OwnerRef: authority.OwnerRef, AuthorityRef: authority.AuthorityRef,
+		Lineage: authority.Lineage, PolicyArtifact: append([]byte(nil), authority.PolicyArtifact...),
+	})
+	cancelStatus()
 	if err != nil {
 		return backuplifecycle.SnapshotAnchor{}, fmt.Errorf(
 			"verify configured pre-upgrade Kopia repository (run stackkit backup configure first): %w",
@@ -484,6 +484,7 @@ func withPreparedPublicUpgradeCapture(
 	}
 	if err := verifyPublicUpgradeManagedVolumeAuthority(
 		generatedCompose, authority.Policy.SourceProjection(),
+		publicUpgradeApplicationComposeReader(workspace),
 	); err != nil {
 		return err
 	}
@@ -493,7 +494,7 @@ func withPreparedPublicUpgradeCapture(
 	var runtimeCompose []byte
 	var runtimeOpenTofu []upgradelifecycle.ExecutorStateOpenTofuRootInput
 	if generationTarget == "compose" {
-		runtimeCompose, err = os.ReadFile(filepath.Join(workspace, filepath.FromSlash(upgradeCheckpointRuntimeComposePath)))
+		runtimeCompose, err = os.ReadFile(filepath.Join(workspace, filepath.FromSlash(coreProfile.RuntimeComposePath)))
 		if err != nil {
 			return fmt.Errorf("read current runtime Compose: %w", err)
 		}
@@ -537,7 +538,7 @@ func withPreparedPublicUpgradeCapture(
 		}
 		if runtimeOpenTofu == nil {
 			capture.RuntimeCompose = upgradelifecycle.ExecutorStateBlobInput{
-				ID: "basement-core-runtime-compose", Path: upgradeCheckpointRuntimeComposePath,
+				ID: "basement-core-runtime-compose", Path: coreProfile.RuntimeComposePath,
 				Mode: "0600", Data: runtimeCompose,
 			}
 		}
@@ -629,24 +630,76 @@ func appliedPublicUpgradeReleasePath(
 	), nil
 }
 
+// publicUpgradeApplicationComposeReader returns the governed Compose file of
+// one selected Standalone-Compose workload project as Apply materialized it
+// under .stackkit/runtime/applications/<project>/compose.yaml. Its volume
+// names are literal; the private .env beside it supplies secrets only.
+func publicUpgradeApplicationComposeReader(workspace string) func(string) ([]byte, error) {
+	return func(project string) ([]byte, error) {
+		if !localbackuppolicy.ValidComposeVolumeName(project) || strings.Contains(project, "..") {
+			return nil, fmt.Errorf("workload Compose project %q is not a portable project name", project)
+		}
+		path := filepath.Join(workspace, ".stackkit", "runtime", "applications", project, "compose.yaml")
+		info, err := os.Lstat(path)
+		if err != nil {
+			return nil, fmt.Errorf("read applied workload Compose %s: %w", project, err)
+		}
+		if !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("applied workload Compose %s is not a regular file", project)
+		}
+		return os.ReadFile(path) //nolint:gosec // fixed workspace runtime path of a validated project name
+	}
+}
+
+type publicUpgradeComposeVolumes struct {
+	Name     string `yaml:"name"`
+	Services map[string]struct {
+		Volumes []composeServiceVolume `yaml:"volumes"`
+	} `yaml:"services"`
+	Volumes map[string]any `yaml:"volumes"`
+}
+
+// consumedNamedVolumes returns the top-level named volumes that the project's
+// services (except skip) mount.
+func (compose publicUpgradeComposeVolumes) consumedNamedVolumes(skip string) (map[string]string, error) {
+	consumed := map[string]string{}
+	for serviceName, service := range compose.Services {
+		if serviceName == skip {
+			continue
+		}
+		for _, mount := range service.Volumes {
+			sourceRef, found := mount.namedSource()
+			if !found {
+				return nil, fmt.Errorf("Compose service %s has a non-canonical volume mount", serviceName)
+			}
+			if _, named := compose.Volumes[sourceRef]; named {
+				consumed[sourceRef] = serviceName
+			}
+		}
+	}
+	return consumed, nil
+}
+
+// verifyPublicUpgradeManagedVolumeAuthority proves that the CUE-owned Kopia
+// allowlist is exactly the union of the managed named volumes the Core Compose
+// project and every selected workload Compose project declare and consume,
+// and that the Core Kopia service mounts exactly that allowlist read-only.
+// The workload projects are the ones the verified policy selects through the
+// localbackuppolicy application volume derivation; readApplicationCompose
+// returns each project's applied Compose file.
 func verifyPublicUpgradeManagedVolumeAuthority(
 	composeBytes []byte,
 	source localbackuppolicy.Source,
+	readApplicationCompose func(project string) ([]byte, error),
 ) error {
 	if len(composeBytes) == 0 {
 		return errors.New("verified Basement Compose artifact is required for backup selection")
 	}
-	var compose struct {
-		Name     string `yaml:"name"`
-		Services map[string]struct {
-			Volumes []composeServiceVolume `yaml:"volumes"`
-		} `yaml:"services"`
-		Volumes map[string]any `yaml:"volumes"`
-	}
+	var compose publicUpgradeComposeVolumes
 	if err := yaml.Unmarshal(composeBytes, &compose); err != nil {
 		return fmt.Errorf("decode verified Basement Compose backup authority: %w", err)
 	}
-	if compose.Name != "stackkit-basement-core" ||
+	if compose.Name != source.ComposeProject() ||
 		len(compose.Services) == 0 ||
 		len(compose.Volumes) == 0 {
 		return errors.New("verified Basement Compose has no exact project, services, or volumes")
@@ -659,41 +712,75 @@ func verifyPublicUpgradeManagedVolumeAuthority(
 	for _, fullName := range source.ManagedVolumeNames {
 		selectedManaged[fullName] = struct{}{}
 	}
-	managedShort := map[string]struct{}{}
-	for serviceName, service := range compose.Services {
-		if serviceName == localbackuppolicy.ServiceRef {
-			continue
+	coreConsumed, err := compose.consumedNamedVolumes(localbackuppolicy.ServiceRef)
+	if err != nil {
+		return err
+	}
+	managed := map[string]struct{}{}
+	coreManaged := 0
+	for sourceRef, serviceName := range coreConsumed {
+		if _, forbidden := internal[sourceRef]; forbidden {
+			return fmt.Errorf("Compose service %s consumes a Kopia-internal volume", serviceName)
 		}
-		for _, mount := range service.Volumes {
-			sourceRef, found := mount.namedSource()
-			if !found {
-				return fmt.Errorf("Compose service %s has a non-canonical volume mount", serviceName)
-			}
-			if _, named := compose.Volumes[sourceRef]; !named {
-				continue
-			}
-			if _, forbidden := internal[sourceRef]; forbidden {
-				return fmt.Errorf("Compose service %s consumes a Kopia-internal volume", serviceName)
-			}
-			if _, selected := selectedManaged[compose.Name+"_"+sourceRef]; selected {
-				managedShort[sourceRef] = struct{}{}
-			}
+		if _, selected := selectedManaged[compose.Name+"_"+sourceRef]; selected {
+			managed[compose.Name+"_"+sourceRef] = struct{}{}
+			coreManaged++
 		}
 	}
-	if len(managedShort) == 0 {
+	if coreManaged == 0 {
 		return errors.New("verified Basement Compose has no managed backup volumes")
 	}
 
+	// Every selected workload project contributes the allowlisted volumes it
+	// declares and mounts. A policy volume that no selected project declares
+	// stays outside the derived set and fails the exact comparison below.
+	projects := map[string]struct{}{}
+	for _, application := range source.ApplicationVolumes {
+		projects[application.ComposeProject] = struct{}{}
+	}
+	for project := range projects {
+		if project == compose.Name {
+			return fmt.Errorf("workload Compose project %s collides with the Core project", project)
+		}
+		if readApplicationCompose == nil {
+			return fmt.Errorf("applied workload Compose %s is required for backup selection", project)
+		}
+		raw, readErr := readApplicationCompose(project)
+		if readErr != nil {
+			return readErr
+		}
+		var workload publicUpgradeComposeVolumes
+		if err := yaml.Unmarshal(raw, &workload); err != nil {
+			return fmt.Errorf("decode applied workload Compose %s: %w", project, err)
+		}
+		if workload.Name != project || len(workload.Services) == 0 {
+			return fmt.Errorf("applied workload Compose %s has no exact project or services", project)
+		}
+		if _, kopia := workload.Services[localbackuppolicy.ServiceRef]; kopia {
+			return fmt.Errorf("applied workload Compose %s declares a Kopia service", project)
+		}
+		consumed, consumedErr := workload.consumedNamedVolumes("")
+		if consumedErr != nil {
+			return fmt.Errorf("applied workload Compose %s: %w", project, consumedErr)
+		}
+		for sourceRef := range consumed {
+			if _, selected := selectedManaged[project+"_"+sourceRef]; selected {
+				managed[project+"_"+sourceRef] = struct{}{}
+			}
+		}
+	}
+
 	wantManagedMounts := map[string]string{}
-	managedNames := make([]string, 0, len(managedShort))
-	for shortName := range managedShort {
-		fullName := compose.Name + "_" + shortName
+	managedNames := make([]string, 0, len(managed))
+	for fullName := range managed {
 		managedNames = append(managedNames, fullName)
 		wantManagedMounts[source.HostPath+"/"+fullName+"/_data"] =
 			source.ContainerPath + "/" + fullName + "/_data"
 	}
 	sort.Strings(managedNames)
-	if !equalExactStrings(managedNames, source.ManagedVolumeNames) {
+	allowlist := append([]string(nil), source.ManagedVolumeNames...)
+	sort.Strings(allowlist)
+	if !equalExactStrings(managedNames, allowlist) {
 		return errors.New(
 			"verified Compose managed volume set differs from the CUE-owned Kopia allowlist",
 		)

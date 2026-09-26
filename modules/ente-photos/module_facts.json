@@ -1,0 +1,121 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "ente-photos",
+  "displayName": "Ente Photos",
+  "description": "End-to-end encrypted photo library: Ente museum API server, Ente web apps and PostgreSQL. Needs an S3-compatible bucket for photo objects.",
+  "rationale": "Owner direction 2026-09-25: Ente Photos is a Photos alternative to Immich.",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "1g"
+    }
+  },
+  "services": [
+    {
+      "type": "application",
+      "required": false,
+      "name": "museum",
+      "image": "ghcr.io/ente/server",
+      "tag": "163f45c26f130090abed03649530f53d2d976565",
+      "networks": [
+        "ente-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`photos-api.{{.domain}}`)",
+        "port": 8080
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "self-auth",
+        "ownerBootstrap": "Ente has no OIDC or proxy-header login: TinyAuth forward-auth (Pocket ID) guards the web app and API; Ente accounts stay app-local because they hold the end-to-end encryption keys."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/ping",
+        "port": 8080
+      },
+      "resources": {
+        "memory": "256m",
+        "memoryMax": "1g"
+      },
+      "volumes": [
+        {
+          "source": "ente-museum-data",
+          "target": "/data",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "upstream": {
+        "github": "ente-io/ente",
+        "registryImage": "ghcr.io/ente/server"
+      }
+    },
+    {
+      "type": "application",
+      "required": false,
+      "name": "web",
+      "image": "ghcr.io/ente/web",
+      "tag": "1a623f325ad9b6ba68e23c1298eb6cf4486f27c8",
+      "networks": [
+        "ente-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`photos.{{.domain}}`)",
+        "port": 3000
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "self-auth",
+        "ownerBootstrap": "Ente web app behind TinyAuth forward-auth (Pocket ID); Ente accounts stay app-local."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/",
+        "port": 3000
+      },
+      "resources": {
+        "memory": "128m",
+        "memoryMax": "512m"
+      },
+      "upstream": {
+        "github": "ente-io/ente",
+        "registryImage": "ghcr.io/ente/web"
+      }
+    },
+    {
+      "type": "database",
+      "required": false,
+      "name": "postgres",
+      "image": "docker.io/library/postgres",
+      "tag": "17.6-alpine",
+      "networks": [
+        "ente-internal"
+      ],
+      "healthCheck": {
+        "type": "command",
+        "command": "pg_isready -U pguser -d ente_db"
+      },
+      "resources": {
+        "memory": "256m",
+        "memoryMax": "1g"
+      },
+      "volumes": [
+        {
+          "source": "ente-postgres",
+          "target": "/var/lib/postgresql/data",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "upstream": {
+        "github": "postgres/postgres",
+        "registryImage": "postgres"
+      }
+    }
+  ]
+}

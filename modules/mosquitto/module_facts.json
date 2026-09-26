@@ -1,0 +1,53 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "mosquitto",
+  "displayName": "Eclipse Mosquitto",
+  "description": "MQTT broker for Home Assistant, Zigbee2MQTT and ESPHome devices.",
+  "rationale": "Smart Home add-on: MQTT broker.",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "32m"
+    }
+  },
+  "services": [
+    {
+      "type": "application",
+      "required": false,
+      "name": "mosquitto",
+      "image": "docker.io/library/eclipse-mosquitto",
+      "tag": "2.0.22",
+      "networks": [
+        "smart-home-internal"
+      ],
+      "healthCheck": {
+        "type": "command",
+        "command": "mosquitto_sub -t $$SYS/broker/uptime -C 1 -W 3"
+      },
+      "resources": {
+        "memory": "32m",
+        "memoryMax": "128m"
+      },
+      "volumes": [
+        {
+          "source": "mosquitto-data",
+          "target": "/mosquitto/data",
+          "type": "volume",
+          "backup": true
+        },
+        {
+          "source": "mosquitto-config",
+          "target": "/mosquitto/config",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "upstream": {
+        "github": "eclipse-mosquitto/mosquitto",
+        "registryImage": "eclipse-mosquitto"
+      }
+    }
+  ]
+}

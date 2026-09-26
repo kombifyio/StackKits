@@ -844,34 +844,26 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		if err != nil {
 			return err
 		}
-		var owner architectureV2OwnerVerifySummary
-		var runtime *architectureV2RuntimeVerifySummary
-		if processRuntime {
-			owner, _, err = verifyArchitectureV2OwnerCustody(wd)
-			runtime = &architectureV2RuntimeVerifySummary{
-				ExecutionMode: "standard-process", Live: false, Status: "verified-apply-evidence",
-				ServiceCount: result.Summary().RuntimeCount, ProbeCount: result.Summary().HealthCount,
-			}
-		} else {
-			var appliedRequest runtimeexecutor.ExecutionRequest
-			if !options.verifyOffline {
+		owner, runtime, localCloudCore, err := verifyArchitectureV2HostState(
+			verifyContext, wd, persisted, manifest, options.verifyOffline, processRuntime, result.Summary(),
+			func() (runtimeexecutor.ExecutionRequest, error) {
 				custody, ok := rawVerifyAuthority.(architectureV2AppliedRuntimeCustody)
 				if !ok {
-					return errors.New("Architecture v2 local Verify requires applied runtime request custody")
+					return runtimeexecutor.ExecutionRequest{}, errors.New("Architecture v2 local Verify requires applied runtime request custody")
 				}
 				requestDigest, digestErr := architectureV2SharedRequestDigest(result)
 				if digestErr != nil {
-					return digestErr
+					return runtimeexecutor.ExecutionRequest{}, digestErr
 				}
 				if requestDigest == "" {
-					return errors.New("verified Product Apply result has no applied runtime request custody")
+					return runtimeexecutor.ExecutionRequest{}, errors.New("verified Product Apply result has no applied runtime request custody")
 				}
-				appliedRequest, err = custody.LoadAppliedRuntimeRequest(verifyContext, requestDigest)
-				if err != nil {
-					return err
-				}
-			}
-			owner, runtime, err = verifyArchitectureV2LocalState(verifyContext, wd, persisted, manifest, options.verifyOffline, appliedRequest)
+				return custody.LoadAppliedRuntimeRequest(verifyContext, requestDigest)
+			},
+		)
+		var appliedCustodyErr *architectureV2AppliedRequestError
+		if errors.As(err, &appliedCustodyErr) {
+			return appliedCustodyErr.err
 		}
 		verifyLocal, custodyErr := loadArchitectureV2LocalExecution(wd, time.Now())
 		if custodyErr != nil {
@@ -913,7 +905,7 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		if observationErr != nil {
 			return observationErr
 		}
-		if processRuntime && runtime != nil {
+		if processRuntime && !localCloudCore && runtime != nil {
 			runtime.ServiceCount, runtime.ProbeCount = runtimeObservationCounts(observations)
 			runtime.ExecutionMode = runtimeObservationExecutionMode(observations, runtimeObservationProcessChannelRefs(configuredRuntime))
 		}

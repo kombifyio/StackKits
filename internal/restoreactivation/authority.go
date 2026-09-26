@@ -22,27 +22,79 @@ import (
 )
 
 const (
-	basementKitSlug                  = "basement-kit"
-	basementCoreModuleID             = "stackkits-basement-core-runtime"
-	basementCoreLiteModuleID         = "stackkits-basement-core-lite-runtime"
-	basementCoreComposeOutputRef     = "platform/basement-core/compose.yaml"
-	basementCoreLiteComposeOutputRef = "platform/basement-core-lite/compose.yaml"
-	basementCorePolicyOutputRef      = "home/backup/kopia-source-policy.json"
-	basementCoreLitePolicyOutputRef  = "home/backup/kopia-source-policy-lite.json"
-	basementComposeProject           = "stackkit-basement-core"
-	basementCoreRuntimeDir           = ".stackkit/runtime/basement-core"
-	renderTargetCompose              = "compose"
-	renderTargetOpenTofu             = "opentofu"
-	renderTargetTerramate            = "terramate"
-	openTofuRootDirName              = "opentofu"
-	openTofuConfigFile               = "main.tf"
-	openTofuStateFile                = "terraform.tfstate"
-	terramateStackFile               = "stack.tm.hcl"
-	restoreResultAPIVersion          = "stackkit.local-backup-restore-result/v1"
-	restoreRecoveryAPI               = "stackkit.local-backup-restore-recovery-anchor/v1"
-	repositoryRestoreAPI             = "stackkit.local-backup-repository-restore/v1"
-	restoreVerificationAPI           = "stackkit.local-backup-restore-verification/v1"
+	renderTargetCompose     = "compose"
+	renderTargetOpenTofu    = "opentofu"
+	renderTargetTerramate   = "terramate"
+	openTofuRootDirName     = "opentofu"
+	openTofuConfigFile      = "main.tf"
+	openTofuStateFile       = "terraform.tfstate"
+	terramateStackFile      = "stack.tm.hcl"
+	restoreResultAPIVersion = "stackkit.local-backup-restore-result/v1"
+	restoreRecoveryAPI      = "stackkit.local-backup-restore-recovery-anchor/v1"
+	repositoryRestoreAPI    = "stackkit.local-backup-repository-restore/v1"
+	restoreVerificationAPI  = "stackkit.local-backup-restore-verification/v1"
 )
+
+// ErrCoreBackupSourceAbsent reports a verified plan whose kit core declares no
+// local Kopia backup source this package can restore. It fails closed: such a
+// kit (for example the Coolify Cloud core, whose recovery is the offsite
+// backup owner) has no staged restore, drill or activation here.
+var ErrCoreBackupSourceAbsent = errors.New("restoreactivation: the kit core declares no local Kopia backup source")
+
+// coreBackupSource is one kit core runtime that owns a local Kopia source
+// policy. The Compose project comes from the governed source profile, so the
+// restore authority and the backup runtime cannot disagree about it.
+type coreBackupSource struct {
+	kitSlug          string
+	moduleID         string
+	composeOutputRef string
+	policyOutputRef  string
+	runtimeDir       string
+	// explicitCoreRef requires the source policy to name its Core module; only
+	// the pre-profile Full-Core Basement policy may omit it.
+	explicitCoreRef bool
+}
+
+var coreBackupSources = []coreBackupSource{{
+	kitSlug: "basement-kit", moduleID: localbackuppolicy.CoreModuleRef,
+	composeOutputRef: "platform/basement-core/compose.yaml",
+	policyOutputRef:  "home/backup/kopia-source-policy.json",
+	runtimeDir:       ".stackkit/runtime/basement-core",
+}, {
+	kitSlug: "basement-kit", moduleID: localbackuppolicy.CoreLiteModuleRef,
+	composeOutputRef: "platform/basement-core-lite/compose.yaml",
+	policyOutputRef:  "home/backup/kopia-source-policy-lite.json",
+	runtimeDir:       ".stackkit/runtime/basement-core", explicitCoreRef: true,
+}, {
+	kitSlug: "cloud-kit", moduleID: localbackuppolicy.CloudCoreModuleRef,
+	composeOutputRef: "platform/cloud-core-standalone/compose.yaml",
+	policyOutputRef:  "cloud/backup/kopia-source-policy.json",
+	runtimeDir:       ".stackkit/runtime/cloud-core-standalone", explicitCoreRef: true,
+}}
+
+func coreBackupSourceForModule(moduleID string) (coreBackupSource, bool) {
+	for _, source := range coreBackupSources {
+		if source.moduleID == moduleID {
+			return source, true
+		}
+	}
+	return coreBackupSource{}, false
+}
+
+// coreBackupSourceForProject returns the source that owns a core Compose
+// project; Full-Core and CoreLite share one project and one runtime directory.
+func coreBackupSourceForProject(project string) (coreBackupSource, bool) {
+	for _, source := range coreBackupSources {
+		if source.composeProject() == project {
+			return source, true
+		}
+	}
+	return coreBackupSource{}, false
+}
+
+func (source coreBackupSource) composeProject() string {
+	return localbackuppolicy.Source{CoreModuleRef: source.moduleID}.ComposeProject()
+}
 
 var (
 	activationOperationPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
@@ -55,6 +107,7 @@ type planAuthority struct {
 	renderTarget    string
 	stackID         string
 	composeProject  string
+	coreRuntimeDir  string
 	composeArtifact generationartifact.RenderedArtifact
 	policyArtifact  generationartifact.RenderedArtifact
 	kopiaImage      string
@@ -136,9 +189,10 @@ func derivePlanAuthority(
 		return planAuthority{}, fmt.Errorf("restoreactivation: decode verified plan: %w", err)
 	}
 	kit, err := object(plan, "kit")
-	if err != nil || text(kit, "slug") != basementKitSlug {
-		return planAuthority{}, errors.New("restoreactivation: activation requires the exact Basement Kit plan")
+	if err != nil || text(kit, "slug") == "" {
+		return planAuthority{}, errors.New("restoreactivation: plan kit identity is absent")
 	}
+	kitSlug := text(kit, "slug")
 	stackID := text(plan, "stackId")
 	if !portableNamePattern.MatchString(stackID) {
 		return planAuthority{}, errors.New("restoreactivation: plan stack ID is not a portable runtime identity")
@@ -147,54 +201,36 @@ func derivePlanAuthority(
 	if err != nil {
 		return planAuthority{}, errors.New("restoreactivation: plan modules are absent")
 	}
-	var core map[string]any
-	var coreModuleID string
-	for _, candidate := range modules {
-		module, ok := candidate.(map[string]any)
-		if !ok {
-			return planAuthority{}, errors.New("restoreactivation: plan module is not an object")
-		}
-		moduleID := text(module, "id")
-		if moduleID == basementCoreModuleID || moduleID == basementCoreLiteModuleID {
-			if core != nil {
-				return planAuthority{}, errors.New("restoreactivation: Basement core runtime selection is ambiguous")
-			}
-			core = module
-			coreModuleID = moduleID
-		}
+	core, source, err := selectCoreBackupSource(kitSlug, modules)
+	if err != nil {
+		return planAuthority{}, err
 	}
-	if core == nil {
-		return planAuthority{}, errors.New("restoreactivation: exact Compose Basement core runtime is not selected")
-	}
+	coreModuleID := source.moduleID
 	// Under the opentofu and terramate targets the Core runtime is the same
 	// Compose project applied through an OpenTofu root whose main.tf embeds
 	// the Compose artifact byte for byte (ADR-0045 Stage 1).
 	renderTarget := text(core, "renderTarget")
 	if renderTarget != renderTargetCompose && renderTarget != renderTargetOpenTofu && renderTarget != renderTargetTerramate {
-		return planAuthority{}, errors.New("restoreactivation: exact Compose Basement core runtime is not selected")
-	}
-	composeOutputRef, policyOutputRef, ok := basementCoreRestoreContract(coreModuleID)
-	if !ok {
-		return planAuthority{}, errors.New("restoreactivation: selected Basement core profile is unsupported")
+		return planAuthority{}, errors.New("restoreactivation: the kit core runtime has no supported generation target")
 	}
 	runtime, err := object(core, "runtime")
 	if err != nil || text(runtime, "kind") != "container" || text(runtime, "engine") != "docker" ||
 		text(runtime, "delivery") != "stackkit" || text(runtime, "execution") != "executable" {
-		return planAuthority{}, errors.New("restoreactivation: Basement core runtime is not the exact executable StackKits Docker runtime")
+		return planAuthority{}, errors.New("restoreactivation: the kit core runtime is not the exact executable StackKits Docker runtime")
 	}
 	components, err := array(runtime, "components")
 	if err != nil || len(components) == 0 {
-		return planAuthority{}, errors.New("restoreactivation: Basement core runtime has no governed components")
+		return planAuthority{}, errors.New("restoreactivation: the kit core runtime has no governed components")
 	}
 	logicalVolumes, kopiaImage, stagingLogical, stagingRoot, err := deriveVolumes(components)
 	if err != nil {
 		return planAuthority{}, err
 	}
-	managedNames, policyArtifactID, err := deriveSourcePolicy(core, coreModuleID, policyOutputRef, stagingRoot)
+	managedNames, policyArtifactID, err := deriveSourcePolicy(core, source, stagingRoot)
 	if err != nil {
 		return planAuthority{}, err
 	}
-	composeProject, volumes, liveNames, err := bindManagedVolumes(logicalVolumes, managedNames, applicationVolumes, operationID)
+	composeProject, volumes, liveNames, err := bindManagedVolumes(logicalVolumes, managedNames, applicationVolumes, operationID, source.composeProject())
 	if err != nil {
 		return planAuthority{}, err
 	}
@@ -211,7 +247,7 @@ func derivePlanAuthority(
 			return planAuthority{}, errors.New("restoreactivation: deterministic rollback volume collides with governed runtime volumes")
 		}
 	}
-	composeArtifact, policyArtifact, err := bindManifest(plan, manifest, policyArtifactID, coreModuleID, composeOutputRef, renderTarget)
+	composeArtifact, policyArtifact, err := bindManifest(plan, manifest, policyArtifactID, coreModuleID, source.composeOutputRef, renderTarget)
 	if err != nil {
 		return planAuthority{}, err
 	}
@@ -219,6 +255,7 @@ func derivePlanAuthority(
 		renderTarget:    renderTarget,
 		stackID:         stackID,
 		composeProject:  composeProject,
+		coreRuntimeDir:  source.runtimeDir,
 		composeArtifact: composeArtifact,
 		policyArtifact:  policyArtifact,
 		kopiaImage:      kopiaImage,
@@ -229,15 +266,30 @@ func derivePlanAuthority(
 	}, nil
 }
 
-func basementCoreRestoreContract(moduleID string) (composeOutputRef, policyOutputRef string, ok bool) {
-	switch moduleID {
-	case basementCoreModuleID:
-		return basementCoreComposeOutputRef, basementCorePolicyOutputRef, true
-	case basementCoreLiteModuleID:
-		return basementCoreLiteComposeOutputRef, basementCoreLitePolicyOutputRef, true
-	default:
-		return "", "", false
+// selectCoreBackupSource selects the one core runtime of the plan's kit that
+// owns a local Kopia source. A kit without one fails closed with
+// ErrCoreBackupSourceAbsent.
+func selectCoreBackupSource(kitSlug string, modules []any) (map[string]any, coreBackupSource, error) {
+	var core map[string]any
+	var selected coreBackupSource
+	for _, candidate := range modules {
+		module, ok := candidate.(map[string]any)
+		if !ok {
+			return nil, coreBackupSource{}, errors.New("restoreactivation: plan module is not an object")
+		}
+		source, known := coreBackupSourceForModule(text(module, "id"))
+		if !known || source.kitSlug != kitSlug {
+			continue
+		}
+		if core != nil {
+			return nil, coreBackupSource{}, errors.New("restoreactivation: the kit core runtime selection is ambiguous")
+		}
+		core, selected = module, source
 	}
+	if core == nil {
+		return nil, coreBackupSource{}, fmt.Errorf("%w (kit %q)", ErrCoreBackupSourceAbsent, kitSlug)
+	}
+	return core, selected, nil
 }
 
 type logicalVolume struct {
@@ -253,14 +305,14 @@ func deriveVolumes(components []any) ([]logicalVolume, string, string, string, e
 	for _, raw := range components {
 		component, ok := raw.(map[string]any)
 		if !ok {
-			return nil, "", "", "", errors.New("restoreactivation: Basement component is not an object")
+			return nil, "", "", "", errors.New("restoreactivation: core component is not an object")
 		}
 		componentID := text(component, "id")
 		if !portableNamePattern.MatchString(componentID) {
-			return nil, "", "", "", errors.New("restoreactivation: Basement component has invalid identity")
+			return nil, "", "", "", errors.New("restoreactivation: core component has invalid identity")
 		}
 		if _, exists := seenComponents[componentID]; exists {
-			return nil, "", "", "", fmt.Errorf("restoreactivation: duplicate Basement component %q", componentID)
+			return nil, "", "", "", fmt.Errorf("restoreactivation: duplicate core component %q", componentID)
 		}
 		seenComponents[componentID] = struct{}{}
 		if componentID == "kopia-agent" {
@@ -277,14 +329,14 @@ func deriveVolumes(components []any) ([]logicalVolume, string, string, string, e
 		for _, rawVolume := range volumes {
 			volume, ok := rawVolume.(map[string]any)
 			if !ok {
-				return nil, "", "", "", errors.New("restoreactivation: Basement component volume is not an object")
+				return nil, "", "", "", errors.New("restoreactivation: core component volume is not an object")
 			}
 			logicalName := text(volume, "id")
 			if !portableNamePattern.MatchString(logicalName) {
-				return nil, "", "", "", errors.New("restoreactivation: Basement volume has invalid identity")
+				return nil, "", "", "", errors.New("restoreactivation: core volume has invalid identity")
 			}
 			if _, exists := seenVolumes[logicalName]; exists {
-				return nil, "", "", "", fmt.Errorf("restoreactivation: duplicate Basement volume %q", logicalName)
+				return nil, "", "", "", fmt.Errorf("restoreactivation: duplicate core volume %q", logicalName)
 			}
 			seenVolumes[logicalName] = struct{}{}
 			backup, _ := volume["backup"].(bool)
@@ -305,14 +357,14 @@ func deriveVolumes(components []any) ([]logicalVolume, string, string, string, e
 		}
 	}
 	if len(managed) == 0 || kopiaImage == "" || stagingLogical == "" {
-		return nil, "", "", "", errors.New("restoreactivation: Basement core lacks managed volumes, pinned Kopia helper, or isolated staging")
+		return nil, "", "", "", errors.New("restoreactivation: the kit core lacks managed volumes, pinned Kopia helper, or isolated staging")
 	}
 	sort.Slice(managed, func(i, j int) bool { return managed[i].logicalName < managed[j].logicalName })
 	return managed, kopiaImage, stagingLogical, stagingRoot, nil
 }
 
-func deriveSourcePolicy(core map[string]any, coreModuleID, expectedOutputRef, stagingRoot string) ([]string, string, error) {
-	source, artifactID, err := readSourcePolicy(core, expectedOutputRef)
+func deriveSourcePolicy(core map[string]any, profile coreBackupSource, stagingRoot string) ([]string, string, error) {
+	source, artifactID, err := readSourcePolicy(core, profile.policyOutputRef)
 	if err != nil {
 		return nil, "", err
 	}
@@ -321,8 +373,8 @@ func deriveSourcePolicy(core map[string]any, coreModuleID, expectedOutputRef, st
 		return nil, "", errors.New("restoreactivation: backup source authority is incomplete")
 	}
 	boundCoreModuleID := text(source, "coreModuleRef")
-	if (boundCoreModuleID != "" && boundCoreModuleID != coreModuleID) ||
-		(coreModuleID == basementCoreLiteModuleID && boundCoreModuleID != coreModuleID) {
+	if (boundCoreModuleID != "" && boundCoreModuleID != profile.moduleID) ||
+		(profile.explicitCoreRef && boundCoreModuleID != profile.moduleID) {
 		return nil, "", errors.New("restoreactivation: backup source authority is not bound to the selected core profile")
 	}
 	managed, err := stringArray(source, "managedVolumeNames")
@@ -334,7 +386,7 @@ func deriveSourcePolicy(core map[string]any, coreModuleID, expectedOutputRef, st
 		return nil, "", errors.New("restoreactivation: backup source exclusions are invalid")
 	}
 	expectedStagingExclusion := text(source, "containerPath") + "/" +
-		basementComposeProject + "_kopia-restore-staging/_data"
+		profile.composeProject() + "_kopia-restore-staging/_data"
 	stagingExcluded := false
 	for _, excluded := range excludes {
 		if excluded == expectedStagingExclusion {
@@ -356,14 +408,14 @@ func deriveSourcePolicy(core map[string]any, coreModuleID, expectedOutputRef, st
 func readSourcePolicy(core map[string]any, expectedOutputRef string) (map[string]any, string, error) {
 	units, err := array(core, "renderUnits")
 	if err != nil {
-		return nil, "", errors.New("restoreactivation: Basement core render units are absent")
+		return nil, "", errors.New("restoreactivation: the kit core render units are absent")
 	}
 	var source map[string]any
 	var artifactID string
 	for _, raw := range units {
 		unit, ok := raw.(map[string]any)
 		if !ok {
-			return nil, "", errors.New("restoreactivation: Basement render unit is not an object")
+			return nil, "", errors.New("restoreactivation: core render unit is not an object")
 		}
 		if text(unit, "id") != "source-policy" {
 			continue
@@ -401,7 +453,7 @@ func readSourcePolicy(core map[string]any, expectedOutputRef string) (map[string
 		artifactID = text(output, "artifactRef")
 	}
 	if source == nil || artifactID == "" {
-		return nil, "", errors.New("restoreactivation: exact Basement backup source authority is absent")
+		return nil, "", fmt.Errorf("%w: its source-policy unit is absent", ErrCoreBackupSourceAbsent)
 	}
 	return source, artifactID, nil
 }
@@ -411,6 +463,7 @@ func bindManagedVolumes(
 	managedNames []string,
 	applicationVolumes []Volume,
 	operationID string,
+	expectedProject string,
 ) (string, []Volume, []string, error) {
 	if len(logical)+len(applicationVolumes) != len(managedNames) {
 		return "", nil, nil, errors.New("restoreactivation: source-policy managedVolumeNames does not match the selected persistent backup volumes")
@@ -464,7 +517,7 @@ func bindManagedVolumes(
 		}
 		delete(nameSet, applicationName)
 	}
-	if len(nameSet) != 0 || project != basementComposeProject {
+	if len(nameSet) != 0 || project != expectedProject {
 		return "", nil, nil, errors.New("restoreactivation: source-policy contains a substituted managed volume")
 	}
 	operationHash := sha256.Sum256([]byte(operationID))
@@ -872,42 +925,28 @@ func deriveStandaloneComposeRuntimeContracts(
 	if err != nil {
 		return nil, errors.New("restoreactivation: plan modules are absent")
 	}
-	var source localbackuppolicy.Source
-	found := false
-	for _, raw := range modules {
-		module, ok := raw.(map[string]any)
-		if !ok {
-			return nil, errors.New("restoreactivation: plan module is not an object")
-		}
-		moduleID := text(module, "id")
-		if moduleID != basementCoreModuleID && moduleID != basementCoreLiteModuleID {
-			continue
-		}
-		_, policyOutputRef, ok := basementCoreRestoreContract(moduleID)
-		if !ok {
-			continue
-		}
-		rawSource, _, sourceErr := readSourcePolicy(module, policyOutputRef)
-		if sourceErr != nil {
-			return nil, sourceErr
-		}
-		if found {
-			return nil, errors.New("restoreactivation: backup source runtime authority is ambiguous")
-		}
-		encoded, marshalErr := json.Marshal(rawSource)
-		if marshalErr != nil {
-			return nil, fmt.Errorf("restoreactivation: encode backup source authority: %w", marshalErr)
-		}
-		if unmarshalErr := json.Unmarshal(encoded, &source); unmarshalErr != nil {
-			return nil, fmt.Errorf("restoreactivation: decode backup source authority: %w", unmarshalErr)
-		}
-		if validateErr := localbackuppolicy.ValidateSourceProjection(source); validateErr != nil {
-			return nil, fmt.Errorf("restoreactivation: backup source authority is not the governed projection: %w", validateErr)
-		}
-		found = true
+	kit, err := object(plan, "kit")
+	if err != nil {
+		return nil, errors.New("restoreactivation: plan kit identity is absent")
 	}
-	if !found {
-		return nil, errors.New("restoreactivation: exact Basement backup source authority is absent")
+	core, profile, err := selectCoreBackupSource(text(kit, "slug"), modules)
+	if err != nil {
+		return nil, err
+	}
+	rawSource, _, err := readSourcePolicy(core, profile.policyOutputRef)
+	if err != nil {
+		return nil, err
+	}
+	var source localbackuppolicy.Source
+	encoded, err := json.Marshal(rawSource)
+	if err != nil {
+		return nil, fmt.Errorf("restoreactivation: encode backup source authority: %w", err)
+	}
+	if err := json.Unmarshal(encoded, &source); err != nil {
+		return nil, fmt.Errorf("restoreactivation: decode backup source authority: %w", err)
+	}
+	if err := localbackuppolicy.ValidateSourceProjection(source); err != nil {
+		return nil, fmt.Errorf("restoreactivation: backup source authority is not the governed projection: %w", err)
 	}
 	runtimes := make(map[string]localbackuppolicy.ApplicationRuntime, len(source.ApplicationRuntimes))
 	for _, runtime := range source.ApplicationRuntimes {
@@ -1104,7 +1143,7 @@ func bindManifest(
 				continue
 			}
 			if compose.ID != "" || text(owner, "outputRef") != coreOutputRef || text(declaration, "kind") != coreKind || text(declaration, "format") != coreFormat {
-				return generationartifact.RenderedArtifact{}, generationartifact.RenderedArtifact{}, errors.New("restoreactivation: Basement Compose artifact selection is ambiguous")
+				return generationartifact.RenderedArtifact{}, generationartifact.RenderedArtifact{}, errors.New("restoreactivation: the kit core Compose artifact selection is ambiguous")
 			}
 			compose = manifestByID[id]
 		}
