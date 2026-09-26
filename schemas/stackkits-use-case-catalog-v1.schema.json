@@ -99,7 +99,8 @@
         "options": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/useCaseSettingOption" } },
         "default": { "type": ["string", "boolean"] },
         "placeholder": { "type": "string" },
-        "realization": { "type": "string", "enum": ["install", "recorded"] }
+        "realization": { "type": "string", "enum": ["install", "recorded"] },
+        "workloadRef": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" }
       }
     },
     "mainUseCase": {
@@ -134,7 +135,8 @@
         "settings": { "type": "array", "items": { "$ref": "#/$defs/useCaseSetting" } },
         "docs": { "type": "string", "pattern": "^/[a-z0-9/-]+$" },
         "defaultAlternative": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
-        "alternatives": { "type": "array", "items": { "$ref": "#/$defs/authoringAlternative" } }
+        "alternatives": { "type": "array", "items": { "$ref": "#/$defs/authoringAlternative" } },
+        "addOns": { "type": "array", "items": { "$ref": "#/$defs/authoringWorkload" } }
       }
     },
     "authoringModule": {

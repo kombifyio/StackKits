@@ -75,6 +75,15 @@ package foundation
 	// consumer shows a recorded setting as such; it never hides it, because
 	// the creation surface shows the target state (owner decision 2026-09-05).
 	realization: "install" | "recorded"
+
+	// The Architecture v2 application workload this toggle selects in the
+	// StackSpec when it is on (an add-on such as a music server, or another
+	// use case such as the document archive). Such a toggle installs.
+	workloadRef?: =~"^[a-z][a-z0-9-]+$"
+	if workloadRef != _|_ {
+		kind:        "toggle"
+		realization: "install"
+	}
 }
 
 // The owner-accepted main use cases (docs/use-case-expansion/portfolio.md,
@@ -226,7 +235,8 @@ UseCaseCatalog: #UseCaseCatalog & {
 					depth:       "advanced"
 					help:        "Add ESPHome to build and update firmware for your own ESP32 sensors and switches."
 					default:     false
-					realization: "recorded"
+					realization: "install"
+					workloadRef: "smart-home-esphome"
 				},
 			]
 		}
@@ -353,7 +363,8 @@ UseCaseCatalog: #UseCaseCatalog & {
 					depth:       "summary"
 					help:        "Add Navidrome to stream your music library to Subsonic-compatible apps."
 					default:     false
-					realization: "recorded"
+					realization: "install"
+					workloadRef: "media-music"
 				},
 				{
 					id:          "audiobooks"
@@ -363,7 +374,8 @@ UseCaseCatalog: #UseCaseCatalog & {
 					depth:       "advanced"
 					help:        "Add Audiobookshelf for audiobooks and podcasts with progress sync on your phone."
 					default:     false
-					realization: "recorded"
+					realization: "install"
+					workloadRef: "media-audiobooks"
 				},
 			]
 		}
@@ -419,7 +431,8 @@ UseCaseCatalog: #UseCaseCatalog & {
 					depth:       "summary"
 					help:        "Add Paperless-ngx to scan, read (OCR) and search your paper documents next to your files."
 					default:     false
-					realization: "recorded"
+					realization: "install"
+					workloadRef: "documents"
 				},
 				{
 					id:          "office-editing"
@@ -429,7 +442,8 @@ UseCaseCatalog: #UseCaseCatalog & {
 					depth:       "summary"
 					help:        "Add Euro-Office to edit documents, spreadsheets and presentations in the browser. It connects to Nextcloud through the Euro-Office app."
 					default:     false
-					realization: "recorded"
+					realization: "install"
+					workloadRef: "files-office"
 				},
 				{
 					id:    "library-volume"

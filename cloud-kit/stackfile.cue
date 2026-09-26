@@ -115,7 +115,7 @@ Definition: foundation.#ProductKitDefinition & {
 		optional: ["private-admin-mesh", "offsite-object-backup", "failure-domain-placement", "telemetry-collection", "availability-ha"]
 		forbidden: ["site-local", "lan-discovery", "local-ingress", "lan-access-policy", "device-enrollment-home"]
 	}
-	workloads: {required: ["cloud-core"], defaults: [], optional: ["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "game", "mail", "mail-server"], forbidden: []}
+	workloads: {required: ["cloud-core"], defaults: [], optional: ["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "game", "mail", "mail-server", "media-music", "media-audiobooks", "smart-home-esphome", "files-office"], forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false

@@ -222,6 +222,14 @@ func ValidateSelectedPaaSWorkloadObservation(
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationPassbolt, deployment, observation)
 	case "stackkits-nextcloud-runtime":
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationNextcloud, deployment, observation)
+	case "stackkits-navidrome-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationNavidrome, deployment, observation)
+	case "stackkits-audiobookshelf-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationAudiobookshelf, deployment, observation)
+	case "stackkits-esphome-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationEsphome, deployment, observation)
+	case "stackkits-euro-office-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationEurooffice, deployment, observation)
 	case homeAssistantWorkloadModuleRef:
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationHomeAssistant, deployment, observation)
 	default:

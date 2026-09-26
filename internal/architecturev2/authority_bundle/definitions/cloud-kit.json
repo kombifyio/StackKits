@@ -270,7 +270,11 @@
         "documents",
         "game",
         "mail",
-        "mail-server"
+        "mail-server",
+        "media-music",
+        "media-audiobooks",
+        "smart-home-esphome",
+        "files-office"
       ]
     },
     "standaloneOwner": {
@@ -878,7 +882,11 @@
       "documents",
       "game",
       "mail",
-      "mail-server"
+      "mail-server",
+      "media-music",
+      "media-audiobooks",
+      "smart-home-esphome",
+      "files-office"
     ],
     "required": [
       "cloud-core"

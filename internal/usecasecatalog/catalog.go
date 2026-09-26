@@ -75,6 +75,9 @@ type Setting struct {
 	Default     any             `json:"default"`
 	Placeholder string          `json:"placeholder,omitempty"`
 	Realization string          `json:"realization"`
+	// WorkloadRef names the Architecture v2 application workload a toggle
+	// selects in the StackSpec when it is on; such a setting installs.
+	WorkloadRef string `json:"workloadRef,omitempty"`
 }
 
 // MainUseCase is the owner-accepted main use case a catalog entry is grouped
@@ -112,6 +115,9 @@ type UseCase struct {
 	Docs               string                           `json:"docs,omitempty"`
 	DefaultAlternative string                           `json:"defaultAlternative,omitempty"`
 	Alternatives       []AuthoringAlternative           `json:"alternatives,omitempty"`
+	// AddOns are application workloads of this use case the owner selects in
+	// addition to the primary workload, each with its own module profiles.
+	AddOns []AuthoringWorkload `json:"addOns,omitempty"`
 }
 
 type ReleaseIdentity struct {
@@ -219,6 +225,7 @@ type sourceCatalog struct {
 	UseCases                      []UseCase
 	Packages                      map[string]map[string]any
 	Workloads                     map[string]map[string]any
+	AddOnWorkloads                map[string][]map[string]any
 	Lifecycles                    map[string]map[string]any
 	Modules                       map[string]bool
 	NotApplicable                 map[string]map[string]string
@@ -445,7 +452,7 @@ func loadSource(root string, release ReleaseIdentity) (sourceCatalog, error) {
 	if err := loadCUE(root, "foundation", "ArchitectureV2Catalog", &architecture); err != nil {
 		return sourceCatalog{}, err
 	}
-	result := sourceCatalog{Packages: map[string]map[string]any{}, Workloads: map[string]map[string]any{}, Lifecycles: map[string]map[string]any{}, Modules: map[string]bool{}, NotApplicable: map[string]map[string]string{}, RuntimeEvidence: map[string]string{}}
+	result := sourceCatalog{Packages: map[string]map[string]any{}, Workloads: map[string]map[string]any{}, AddOnWorkloads: map[string][]map[string]any{}, Lifecycles: map[string]map[string]any{}, Modules: map[string]bool{}, NotApplicable: map[string]map[string]string{}, RuntimeEvidence: map[string]string{}}
 	for key, entry := range registry.Entries {
 		if key != entry.Slug {
 			return sourceCatalog{}, fmt.Errorf("catalog key %q differs from slug %q", key, entry.Slug)
@@ -489,6 +496,13 @@ func loadSource(root string, release ReleaseIdentity) (sourceCatalog, error) {
 		if _, ok := registry.Entries[ref]; !ok {
 			return sourceCatalog{}, fmt.Errorf("workload %q references unknown use case %q", id, ref)
 		}
+		// The workload named after its use case is the primary; any other
+		// application workload of that use case is an add-on the owner
+		// selects in addition (for example a music server next to media).
+		if id != ref {
+			result.AddOnWorkloads[ref] = append(result.AddOnWorkloads[ref], workload)
+			continue
+		}
 		if _, duplicate := result.Workloads[ref]; duplicate {
 			return sourceCatalog{}, fmt.Errorf("multiple application workloads reference use case %q", ref)
 		}
@@ -500,6 +514,11 @@ func loadSource(root string, release ReleaseIdentity) (sourceCatalog, error) {
 			return sourceCatalog{}, fmt.Errorf("lifecycle references unknown use case %q", ref)
 		}
 		workloadRef := stringField(lifecycle, "workloadRef")
+		if workloadRef != ref {
+			// Add-on lifecycles are closed over their workload by the CUE
+			// catalog check; the use-case gate follows the primary workload.
+			continue
+		}
 		workload := result.Workloads[ref]
 		if workload == nil || metadataID(workload) != workloadRef {
 			return sourceCatalog{}, fmt.Errorf("lifecycle %q does not match use case workload", ref)
@@ -700,6 +719,11 @@ func deliveryRows(source sourceCatalog) ([]ApplicationDelivery, error) {
 		}
 		for _, rawAlternative := range alternatives {
 			alternative, _ := rawAlternative.(map[string]any)
+			// A row states what the default alternative delivers through an
+			// adapter; other alternatives keep their own catalog maturity.
+			if defaultAlternative != "" && stringField(alternative, "id") != defaultAlternative {
+				continue
+			}
 			runtime, _ := alternative["runtime"].(map[string]any)
 			compatibility, _ := runtime["compatibility"].([]any)
 			for _, rawRow := range compatibility {
@@ -958,6 +982,21 @@ func attachAuthoringVocabulary(source *sourceCatalog, workloads, modules []map[s
 		source.UseCases[index].DefaultAlternative = authoring.DefaultAlternative
 		source.UseCases[index].Alternatives = authoring.Alternatives
 	}
+	for index, useCase := range source.UseCases {
+		addOns := make([]AuthoringWorkload, 0, len(source.AddOnWorkloads[useCase.ID]))
+		for _, workload := range source.AddOnWorkloads[useCase.ID] {
+			authoring, err := authoringWorkloadFromCatalog(workload, profiles)
+			if err != nil {
+				return err
+			}
+			addOns = append(addOns, authoring)
+		}
+		sort.Slice(addOns, func(i, j int) bool { return addOns[i].ID < addOns[j].ID })
+		source.UseCases[index].AddOns = addOns
+		if err := validateSettingWorkloads(source.UseCases[index], workloads); err != nil {
+			return err
+		}
+	}
 	var kitCores []AuthoringWorkload
 	for _, workload := range workloads {
 		if stringField(workload, "kind") != "service" {
@@ -1114,4 +1153,28 @@ func title(value string) string {
 		return value
 	}
 	return strings.ToUpper(value[:1]) + value[1:]
+}
+
+// validateSettingWorkloads keeps the install promise of a setting honest: a
+// setting that names a workload must be an installing toggle, and the named
+// workload must be an application workload of the compiled catalog.
+func validateSettingWorkloads(useCase UseCase, workloads []map[string]any) error {
+	applications := map[string]bool{}
+	for _, workload := range workloads {
+		if stringField(workload, "kind") == "application" {
+			applications[metadataID(workload)] = true
+		}
+	}
+	for _, setting := range useCase.Settings {
+		if setting.WorkloadRef == "" {
+			continue
+		}
+		if setting.Kind != "toggle" || setting.Realization != "install" {
+			return fmt.Errorf("use case %s setting %s selects workload %s but is not an installing toggle", useCase.ID, setting.ID, setting.WorkloadRef)
+		}
+		if !applications[setting.WorkloadRef] {
+			return fmt.Errorf("use case %s setting %s selects unknown application workload %s", useCase.ID, setting.ID, setting.WorkloadRef)
+		}
+	}
+	return nil
 }

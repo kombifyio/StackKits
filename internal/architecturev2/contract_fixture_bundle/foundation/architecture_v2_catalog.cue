@@ -410,6 +410,53 @@ _architectureV2MediaEmbyInfrastructure: #WorkloadInfrastructureV1 & {
 	recovery: moduleRef: "stackkits-recovery"
 }
 
+_architectureV2NavidromeInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "media-music", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "navidrome", volumeRef: "data", target: "/data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "media-music"},
+		{componentRef: "navidrome", volumeRef: "library", target: "/music", class: "persistent", backup: false, dataClasses: ["personal"], dataBindingRef: "media-music"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2AudiobookshelfInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "media-audiobooks", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "audiobookshelf", volumeRef: "config", target: "/config", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "media-audiobooks"},
+		{componentRef: "audiobookshelf", volumeRef: "metadata", target: "/metadata", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "media-audiobooks"},
+		{componentRef: "audiobookshelf", volumeRef: "library", target: "/audiobooks", class: "persistent", backup: false, dataClasses: ["personal"], dataBindingRef: "media-audiobooks"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2ESPHomeInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "smart-home-esphome", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "esphome", volumeRef: "config", target: "/config", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "smart-home-esphome"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+_architectureV2EuroofficeInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "files-office", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "euro-office", volumeRef: "data", target: "/var/www/euro-office/Data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "files-office"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
 _architectureV2SmartHomeInfrastructure: #WorkloadInfrastructureV1 & {
 	storageAllocation: {
 		moduleRef: "stackkits-storage-allocation"
@@ -1262,6 +1309,146 @@ _architectureV2WorkloadContracts: [
 	},
 	#WorkloadContractV2 & {
 		metadata: {
+			id:          "media-music"
+			version:     "1.0.0"
+			description: "Music streaming through Navidrome from the owner-custodied media library, selected in addition to the media workload."
+		}
+		kind:       "application"
+		useCaseRef: "media"
+		functionalCapabilities: ["music-stream"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "navidrome"
+		alternatives: [{
+			id:          "navidrome"
+			providerRef: "stackkits-navidrome"
+			moduleRef:   "stackkits-navidrome-runtime"
+			route: {serviceRef: "media-music", healthRef: "navidrome-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+			infrastructure: _architectureV2NavidromeInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "media-audiobooks"
+			version:     "1.0.0"
+			description: "Audiobooks and podcasts through Audiobookshelf from the owner-custodied media library, selected in addition to the media workload."
+		}
+		kind:       "application"
+		useCaseRef: "media"
+		functionalCapabilities: ["audiobook-stream", "podcast-library"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "audiobookshelf"
+		alternatives: [{
+			id:          "audiobookshelf"
+			providerRef: "stackkits-audiobookshelf"
+			moduleRef:   "stackkits-audiobookshelf-runtime"
+			route: {serviceRef: "media-audiobooks", healthRef: "audiobookshelf-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+			infrastructure: _architectureV2AudiobookshelfInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "smart-home-esphome"
+			version:     "1.0.0"
+			description: "ESPHome dashboard that builds and updates firmware for ESP devices reporting to Home Assistant, selected in addition to the smart-home workload."
+		}
+		kind:       "application"
+		useCaseRef: "smart-home"
+		functionalCapabilities: ["device-firmware"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "esphome"
+		alternatives: [{
+			id:          "esphome"
+			providerRef: "stackkits-esphome"
+			moduleRef:   "stackkits-esphome-runtime"
+			route: {serviceRef: "smart-home-esphome", healthRef: "esphome-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+			infrastructure: _architectureV2ESPHomeInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "files-office"
+			version:     "1.0.0"
+			description: "Euro-Office Document Server for browser editing of documents, spreadsheets and presentations, selected in addition to the files workload and connected to Nextcloud through the eurooffice-nextcloud app."
+		}
+		kind:       "application"
+		useCaseRef: "files"
+		functionalCapabilities: ["office-editing"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "euro-office"
+		alternatives: [{
+			id:          "euro-office"
+			providerRef: "stackkits-euro-office"
+			moduleRef:   "stackkits-euro-office-runtime"
+			route: {serviceRef: "files-office", healthRef: "euro-office-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: ["jwt-secret"], requiredRefs: ["jwt-secret"]}
+			}
+			infrastructure: _architectureV2EuroofficeInfrastructure
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
 			id:          "smart-home"
 			version:     "1.0.0"
 			description: "Self-hosted Home Assistant container selected independently from kit architecture capabilities."
@@ -1305,6 +1492,10 @@ _architectureV2WorkloadContracts: [
 ]
 
 _architectureV2ApplicationLifecycleContracts: [
+	#ApplicationLifecycleContractV1 & {metadata: {id: "media-music", version: "1.0.0", description: "Music streaming add-on of the media use case."}, workloadRef: "media-music", useCaseRef: "media", packageRef: "media", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "media-audiobooks", version: "1.0.0", description: "Audiobook and podcast add-on of the media use case."}, workloadRef: "media-audiobooks", useCaseRef: "media", packageRef: "media", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "smart-home-esphome", version: "1.0.0", description: "ESPHome add-on of the smart-home use case."}, workloadRef: "smart-home-esphome", useCaseRef: "smart-home", packageRef: "smart-home", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "files-office", version: "1.0.0", description: "Office editing add-on of the files use case."}, workloadRef: "files-office", useCaseRef: "files", packageRef: "files", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "dev", version: "1.0.0", description: "Private Git lifecycle; CI runners are a separate selection."}, workloadRef: "dev", useCaseRef: "dev", packageRef: "dev", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {
 		metadata: {id: "game", version: "1.0.0", description: "Owner-controlled Pterodactyl game lifecycle; game servers are created by the owner-approved setup action (ADR-0043)."}
@@ -2270,6 +2461,86 @@ _architectureV2Providers: list.Concat([[
 		evidence: ["emby-selected-paas-runtime-contract"]
 	},
 	{
+		metadata: {id: "stackkits-navidrome", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["media-music"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-navidrome-runtime"]
+			}
+		}
+		evidence: ["navidrome-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-audiobookshelf", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["media-audiobooks"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-audiobookshelf-runtime"]
+			}
+		}
+		evidence: ["audiobookshelf-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-esphome", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["smart-home-esphome"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-esphome-runtime"]
+			}
+		}
+		evidence: ["esphome-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-euro-office", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["files-office"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-euro-office-runtime"]
+			}
+		}
+		evidence: ["euro-office-selected-paas-runtime-contract"]
+	},
+	{
 		metadata: {id: "stackkits-jellyfin", version: "1.0.0"}
 		provides: []
 		workloadRefs: ["media"]
@@ -3054,6 +3325,10 @@ _architectureV2GiteaTerramateStack: _architectureV2WorkloadTerramateStack & {_sl
 _architectureV2ForgejoTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "forgejo", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2PaperlessTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "paperless-ngx", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2JellyfinTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "jellyfin", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2EuroofficeTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "euro-office", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2ESPHomeTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "esphome", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2AudiobookshelfTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "audiobookshelf", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2NavidromeTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "navidrome", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2EmbyTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "emby", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2HomeAssistantTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "home-assistant", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 
@@ -3446,6 +3721,114 @@ _architectureV2JellyfinSupport: #ModuleRealizationSupportV2 & {
 		}, _architectureV2JellyfinTerramateStack.contract]
 	}
 	evidence: requiredRefs: ["jellyfin-selected-paas-runtime-contract"]
+}
+
+_architectureV2EuroofficeSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["jwt-secret"]}
+	artifacts: {
+		requiredRefs: ["euro-office-workload-bundle", _architectureV2EuroofficeTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "euro-office-workload-bundle"
+			unitRef:     "euro-office"
+			outputRef:   "workloads/euro-office/bundle.json"
+		}, _architectureV2EuroofficeTerramateStack.binding]
+		contracts: [{
+			id:       "euro-office-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "euro-office"
+			outputRef: "workloads/euro-office/bundle.json"
+		}, _architectureV2EuroofficeTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["euro-office-selected-paas-runtime-contract"]
+}
+
+_architectureV2ESPHomeSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["esphome-workload-bundle", _architectureV2ESPHomeTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "esphome-workload-bundle"
+			unitRef:     "esphome"
+			outputRef:   "workloads/esphome/bundle.json"
+		}, _architectureV2ESPHomeTerramateStack.binding]
+		contracts: [{
+			id:       "esphome-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "esphome"
+			outputRef: "workloads/esphome/bundle.json"
+		}, _architectureV2ESPHomeTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["esphome-selected-paas-runtime-contract"]
+}
+
+_architectureV2AudiobookshelfSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["storage-roots"]}
+	artifacts: {
+		requiredRefs: ["audiobookshelf-workload-bundle", _architectureV2AudiobookshelfTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "audiobookshelf-workload-bundle"
+			unitRef:     "audiobookshelf"
+			outputRef:   "workloads/audiobookshelf/bundle.json"
+		}, _architectureV2AudiobookshelfTerramateStack.binding]
+		contracts: [{
+			id:       "audiobookshelf-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "audiobookshelf"
+			outputRef: "workloads/audiobookshelf/bundle.json"
+		}, _architectureV2AudiobookshelfTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["audiobookshelf-selected-paas-runtime-contract"]
+}
+
+_architectureV2NavidromeSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["storage-roots"]}
+	artifacts: {
+		requiredRefs: ["navidrome-workload-bundle", _architectureV2NavidromeTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "navidrome-workload-bundle"
+			unitRef:     "navidrome"
+			outputRef:   "workloads/navidrome/bundle.json"
+		}, _architectureV2NavidromeTerramateStack.binding]
+		contracts: [{
+			id:       "navidrome-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "navidrome"
+			outputRef: "workloads/navidrome/bundle.json"
+		}, _architectureV2NavidromeTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["navidrome-selected-paas-runtime-contract"]
 }
 
 _architectureV2EmbySupport: #ModuleRealizationSupportV2 & {
@@ -7476,6 +7859,429 @@ _architectureV2Modules: list.Concat([[
 			expectedStatuses: [200]
 		}]
 		evidence: ["emby-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-navidrome-runtime"
+			version:     "1.0.0"
+			description: "Music streaming through Navidrome from the owner-custodied media library, selected in addition to the media workload."
+		}
+		role:        "workload"
+		providerRef: "stackkits-navidrome"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2NavidromeComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "navidrome"
+			components: [{
+				id: "navidrome", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "docker.io/deluan/navidrome:0.64.2"
+					digest: "sha256:38dc2727bfcfd5ede290f8ada114fc90368146f265ae4701ddddbcbe2a44ee52"
+				}
+				dependsOn: []
+				networkRefs: ["navidrome-internal"]
+				environment: {ND_DATAFOLDER: "/data", ND_MUSICFOLDER: "/music"}
+				volumes: [for allocation in _architectureV2NavidromeInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					if allocation.volumeRef == "library" {readOnly: true}
+				}]
+				health: {kind: "http", path: "/ping", port: 4533}
+				resources: {memoryLimit: "512m", memoryReservation: "128m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "navidrome"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/navidrome/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:1822b405ae7068bf29ba9d5c62bd7b75cc6eef4065610b11f95d911eafba7150"
+			publicInputRefs: ["delivery-route", "storage-roots"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}, {targetRef: "storage-roots", sourceRef: "storage.hostRoots", valueType: "host-storage-roots-v1", cardinality: "single", required: true}]
+			secretInputRefs: []
+			outputs: ["workloads/navidrome/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "media-music"
+				upstreamProtocol: "http"
+				targetPort:       4533
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "navidrome-http"
+				data: {
+					bindingRef:      _architectureV2NavidromeInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2NavidromeInfrastructure.dataBinding.classes
+					locality:        _architectureV2NavidromeInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2NavidromeTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:f4cc3429148975e7741e8a55171d5a9d0138d67ec7b4ef42732ede51d7b53af8"
+				unitRefs: ["navidrome"], artifactRefs: ["navidrome-workload-bundle"]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:47ffd0559451c9da935a2e115b3a7a139aef279e271c8389c8fc276674e6c9b9"
+				unitRefs: ["navidrome"], artifactRefs: ["navidrome-workload-bundle"]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["navidrome", "terramate-stack"], artifactRefs: ["navidrome-workload-bundle", _architectureV2NavidromeTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2NavidromeSupport
+		health: [{
+			id:             "navidrome-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/ping"
+			port:           4533
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["navidrome-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-audiobookshelf-runtime"
+			version:     "1.0.0"
+			description: "Audiobooks and podcasts through Audiobookshelf from the owner-custodied media library, selected in addition to the media workload."
+		}
+		role:        "workload"
+		providerRef: "stackkits-audiobookshelf"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2AudiobookshelfComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "audiobookshelf"
+			components: [{
+				id: "audiobookshelf", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "ghcr.io/advplyr/audiobookshelf:2.36.1"
+					digest: "sha256:3528a93b6442ffe54bd46771bbbab7c97084e1101071586d9dc2254f30bb4358"
+				}
+				dependsOn: []
+				networkRefs: ["audiobookshelf-internal"]
+				volumes: [for allocation in _architectureV2AudiobookshelfInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					if allocation.volumeRef == "library" {readOnly: true}
+				}]
+				health: {kind: "http", path: "/healthcheck", port: 80}
+				resources: {memoryLimit: "1g", memoryReservation: "128m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "audiobookshelf"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/audiobookshelf/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:c9dede4af9fcd261018e2df176e7f3e586e8a6e6acc7076144a46d23fa63e2a4"
+			publicInputRefs: ["delivery-route", "storage-roots"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}, {targetRef: "storage-roots", sourceRef: "storage.hostRoots", valueType: "host-storage-roots-v1", cardinality: "single", required: true}]
+			secretInputRefs: []
+			outputs: ["workloads/audiobookshelf/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "media-audiobooks"
+				upstreamProtocol: "http"
+				targetPort:       80
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "audiobookshelf-http"
+				data: {
+					bindingRef:      _architectureV2AudiobookshelfInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2AudiobookshelfInfrastructure.dataBinding.classes
+					locality:        _architectureV2AudiobookshelfInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2AudiobookshelfTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:f4cc3429148975e7741e8a55171d5a9d0138d67ec7b4ef42732ede51d7b53af8"
+				unitRefs: ["audiobookshelf"], artifactRefs: ["audiobookshelf-workload-bundle"]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:47ffd0559451c9da935a2e115b3a7a139aef279e271c8389c8fc276674e6c9b9"
+				unitRefs: ["audiobookshelf"], artifactRefs: ["audiobookshelf-workload-bundle"]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["audiobookshelf", "terramate-stack"], artifactRefs: ["audiobookshelf-workload-bundle", _architectureV2AudiobookshelfTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route", "storage-roots"], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2AudiobookshelfSupport
+		health: [{
+			id:             "audiobookshelf-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/healthcheck"
+			port:           80
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["audiobookshelf-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-esphome-runtime"
+			version:     "1.0.0"
+			description: "ESPHome dashboard that builds and updates firmware for ESP devices reporting to Home Assistant, selected in addition to the smart-home workload."
+		}
+		role:        "workload"
+		providerRef: "stackkits-esphome"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2ESPHomeComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "esphome"
+			components: [{
+				id: "esphome", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "ghcr.io/esphome/esphome:2026.9.0"
+					digest: "sha256:f6509fcf917a732fd80058567b237d5b9286b9dc6c8dde1b655fbb69ebd600ad"
+				}
+				dependsOn: []
+				networkRefs: ["esphome-internal"]
+				volumes: [for allocation in _architectureV2ESPHomeInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					if allocation.volumeRef == "library" {readOnly: true}
+				}]
+				health: {kind: "http", path: "/", port: 6052}
+				resources: {memoryLimit: "2g", memoryReservation: "256m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "esphome"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/esphome/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:084ad6fb66a661f15acb9dc92a90007984897de0b55666692f68f2c58f58d81b"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: []
+			outputs: ["workloads/esphome/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "smart-home-esphome"
+				upstreamProtocol: "http"
+				targetPort:       6052
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "esphome-http"
+				data: {
+					bindingRef:      _architectureV2ESPHomeInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2ESPHomeInfrastructure.dataBinding.classes
+					locality:        _architectureV2ESPHomeInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2ESPHomeTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["esphome"], artifactRefs: ["esphome-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["esphome"], artifactRefs: ["esphome-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["esphome", "terramate-stack"], artifactRefs: ["esphome-workload-bundle", _architectureV2ESPHomeTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2ESPHomeSupport
+		health: [{
+			id:             "esphome-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/"
+			port:           6052
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["esphome-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-euro-office-runtime"
+			version:     "1.0.0"
+			description: "Euro-Office Document Server for browser editing of documents, spreadsheets and presentations, selected in addition to the files workload and connected to Nextcloud through the eurooffice-nextcloud app."
+		}
+		role:        "workload"
+		providerRef: "stackkits-euro-office"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2EuroofficeComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "euro-office"
+			components: [{
+				id: "euro-office", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "ghcr.io/euro-office/documentserver:v9.3.4-hotfix.1"
+					digest: "sha256:889e681923d2dcc8bdfb92fe128d10e185fcff880d302b6a0c0c7bf339499290"
+				}
+				dependsOn: []
+				networkRefs: ["euro-office-internal"]
+				environment: {JWT_ENABLED: "true"}
+				secretEnvironment: {JWT_SECRET: "jwt-secret"}
+				volumes: [for allocation in _architectureV2EuroofficeInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					if allocation.volumeRef == "library" {readOnly: true}
+				}]
+				health: {kind: "http", path: "/healthcheck", port: 80}
+				resources: {memoryLimit: "4g", memoryReservation: "2g"}
+			}]
+		}
+		renderUnits: [{
+			id:          "euro-office"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/euro-office/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:bbf85f2b87212aa50c874c5cdf7d00025525c2dd992579d511b52e5f975ac11f"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["jwt-secret"]
+			outputs: ["workloads/euro-office/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:       "files-office"
+				upstreamProtocol: "http"
+				targetPort:       80
+				ingressAuth:       "native"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "euro-office-http"
+				data: {
+					bindingRef:      _architectureV2EuroofficeInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2EuroofficeInfrastructure.dataBinding.classes
+					locality:        _architectureV2EuroofficeInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2EuroofficeTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["euro-office"], artifactRefs: ["euro-office-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["jwt-secret"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["euro-office"], artifactRefs: ["euro-office-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["jwt-secret"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["euro-office", "terramate-stack"], artifactRefs: ["euro-office-workload-bundle", _architectureV2EuroofficeTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["jwt-secret"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2EuroofficeSupport
+		health: [{
+			id:             "euro-office-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/healthcheck"
+			port:           80
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["euro-office-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {

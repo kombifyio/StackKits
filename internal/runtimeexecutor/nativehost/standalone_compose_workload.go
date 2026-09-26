@@ -728,7 +728,7 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 		}
 		for _, volume := range component.Volumes {
 			if volume.HostPath != "" {
-				if bundle.ModuleRef != "stackkits-jellyfin-runtime" || component.ID != "jellyfin" || volume.ID != "library" || volume.Target != "/media" || !volume.ReadOnly || volume.Backup {
+				if !architecturev2renderer.GovernedMediaLibraryMount(bundle.ModuleRef, component.ID, volume.ID, volume.Target) || !volume.ReadOnly || volume.Backup {
 					return nil, nil, nil, errors.New("host source is only permitted for the read-only owner-custodied media library")
 				}
 				service.Volumes = append(service.Volumes, map[string]any{

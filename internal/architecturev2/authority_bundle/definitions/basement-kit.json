@@ -241,7 +241,11 @@
         "dev",
         "documents",
         "game",
-        "mail"
+        "mail",
+        "media-music",
+        "media-audiobooks",
+        "smart-home-esphome",
+        "files-office"
       ]
     },
     "standaloneOwner": {
@@ -869,7 +873,11 @@
       "dev",
       "documents",
       "game",
-      "mail"
+      "mail",
+      "media-music",
+      "media-audiobooks",
+      "smart-home-esphome",
+      "files-office"
     ],
     "required": [
       "basement-core"

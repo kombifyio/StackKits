@@ -18,17 +18,21 @@ import (
 type SelectedPaaSApplication string
 
 const (
-	SelectedPaaSApplicationGitea         SelectedPaaSApplication = "gitea"
-	SelectedPaaSApplicationForgejo       SelectedPaaSApplication = "forgejo"
-	SelectedPaaSApplicationEmby          SelectedPaaSApplication = "emby"
-	SelectedPaaSApplicationPassbolt      SelectedPaaSApplication = "passbolt"
-	SelectedPaaSApplicationNextcloud     SelectedPaaSApplication = "nextcloud"
-	SelectedPaaSApplicationPaperless     SelectedPaaSApplication = "paperless-ngx"
-	SelectedPaaSApplicationPterodactyl   SelectedPaaSApplication = "pterodactyl"
-	SelectedPaaSApplicationRoundcube     SelectedPaaSApplication = "roundcube"
-	SelectedPaaSApplicationStalwart      SelectedPaaSApplication = "stalwart"
-	SelectedPaaSApplicationJellyfin      SelectedPaaSApplication = "jellyfin"
-	SelectedPaaSApplicationHomeAssistant SelectedPaaSApplication = "home-assistant"
+	SelectedPaaSApplicationGitea          SelectedPaaSApplication = "gitea"
+	SelectedPaaSApplicationForgejo        SelectedPaaSApplication = "forgejo"
+	SelectedPaaSApplicationEmby           SelectedPaaSApplication = "emby"
+	SelectedPaaSApplicationPassbolt       SelectedPaaSApplication = "passbolt"
+	SelectedPaaSApplicationNextcloud      SelectedPaaSApplication = "nextcloud"
+	SelectedPaaSApplicationNavidrome      SelectedPaaSApplication = "navidrome"
+	SelectedPaaSApplicationAudiobookshelf SelectedPaaSApplication = "audiobookshelf"
+	SelectedPaaSApplicationEsphome        SelectedPaaSApplication = "esphome"
+	SelectedPaaSApplicationEurooffice     SelectedPaaSApplication = "euro-office"
+	SelectedPaaSApplicationPaperless      SelectedPaaSApplication = "paperless-ngx"
+	SelectedPaaSApplicationPterodactyl    SelectedPaaSApplication = "pterodactyl"
+	SelectedPaaSApplicationRoundcube      SelectedPaaSApplication = "roundcube"
+	SelectedPaaSApplicationStalwart       SelectedPaaSApplication = "stalwart"
+	SelectedPaaSApplicationJellyfin       SelectedPaaSApplication = "jellyfin"
+	SelectedPaaSApplicationHomeAssistant  SelectedPaaSApplication = "home-assistant"
 )
 
 const (
@@ -118,6 +122,50 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 			rendererContract: architecturev2renderer.NextcloudWorkloadBundleRendererContract,
 			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
 				descriptor, err := architecturev2renderer.ParseNextcloudWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationNavidrome:
+		return selectedPaaSApplicationSpec{
+			name: "Navidrome", providerRef: "stackkits-navidrome", moduleRef: "stackkits-navidrome-runtime",
+			unitRef: "navidrome", workloadRef: "media-music", artifactRef: "navidrome-workload-bundle",
+			outputRef: "workloads/navidrome/bundle.json", healthRef: "navidrome-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.NavidromeWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseNavidromeWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationAudiobookshelf:
+		return selectedPaaSApplicationSpec{
+			name: "Audiobookshelf", providerRef: "stackkits-audiobookshelf", moduleRef: "stackkits-audiobookshelf-runtime",
+			unitRef: "audiobookshelf", workloadRef: "media-audiobooks", artifactRef: "audiobookshelf-workload-bundle",
+			outputRef: "workloads/audiobookshelf/bundle.json", healthRef: "audiobookshelf-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.AudiobookshelfWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseAudiobookshelfWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationEsphome:
+		return selectedPaaSApplicationSpec{
+			name: "Esphome", providerRef: "stackkits-esphome", moduleRef: "stackkits-esphome-runtime",
+			unitRef: "esphome", workloadRef: "smart-home-esphome", artifactRef: "esphome-workload-bundle",
+			outputRef: "workloads/esphome/bundle.json", healthRef: "esphome-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.EsphomeWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseEsphomeWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationEurooffice:
+		return selectedPaaSApplicationSpec{
+			name: "Eurooffice", providerRef: "stackkits-euro-office", moduleRef: "stackkits-euro-office-runtime",
+			unitRef: "euro-office", workloadRef: "files-office", artifactRef: "euro-office-workload-bundle",
+			outputRef: "workloads/euro-office/bundle.json", healthRef: "euro-office-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.EuroofficeWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseEuroofficeWorkloadBundle(content)
 				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
 			},
 		}, true

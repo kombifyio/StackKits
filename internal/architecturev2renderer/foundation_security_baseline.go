@@ -156,6 +156,22 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(nextcloudWorkload.contract, nextcloudWorkload); err != nil {
 		return nil, err
 	}
+	navidromeWorkload := newNavidromeWorkloadBundleRenderer()
+	if err := registry.Register(navidromeWorkload.contract, navidromeWorkload); err != nil {
+		return nil, err
+	}
+	audiobookshelfWorkload := newAudiobookshelfWorkloadBundleRenderer()
+	if err := registry.Register(audiobookshelfWorkload.contract, audiobookshelfWorkload); err != nil {
+		return nil, err
+	}
+	esphomeWorkload := newEsphomeWorkloadBundleRenderer()
+	if err := registry.Register(esphomeWorkload.contract, esphomeWorkload); err != nil {
+		return nil, err
+	}
+	euroofficeWorkload := newEuroofficeWorkloadBundleRenderer()
+	if err := registry.Register(euroofficeWorkload.contract, euroofficeWorkload); err != nil {
+		return nil, err
+	}
 	giteaWorkload := newGiteaWorkloadBundleRenderer()
 	if err := registry.Register(giteaWorkload.contract, giteaWorkload); err != nil {
 		return nil, err

@@ -245,7 +245,7 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		}
 		volumes := make([]ApplicationDeliveryVolumeDescriptor, len(component.Volumes))
 		for volumeIndex, volume := range component.Volumes {
-			if volume.HostPath != "" && (bundle.Workload.ModuleRef != jellyfinWorkloadModuleID || component.ID != "jellyfin" || volume.ID != "library" || volume.Target != "/media" || volume.Class != "persistent" || !volume.ReadOnly || volume.Backup || !safeCoreHostBootstrapStoragePath(volume.HostPath)) {
+			if volume.HostPath != "" && (!GovernedMediaLibraryMount(bundle.Workload.ModuleRef, component.ID, volume.ID, volume.Target) || volume.Class != "persistent" || !volume.ReadOnly || volume.Backup || !safeCoreHostBootstrapStoragePath(volume.HostPath)) {
 				return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".volumes", "host source requires the governed read-only media library")
 			}
 			if !strings.HasPrefix(volume.Target, "/") {
@@ -494,4 +494,34 @@ func rejectForbiddenApplicationRouteAuthority(raw []byte, path string) error {
 		return nil
 	}
 	return visit(value)
+}
+
+// governedMediaLibraryMounts lists the only workload components that may bind
+// the owner-custodied media root, each read-only at one exact target.
+var governedMediaLibraryMounts = map[string]struct{ component, target string }{
+	jellyfinWorkloadModuleID:       {component: "jellyfin", target: "/media"},
+	embyWorkloadModuleID:           {component: "emby", target: "/media"},
+	navidromeWorkloadModuleID:      {component: "navidrome", target: "/music"},
+	audiobookshelfWorkloadModuleID: {component: "audiobookshelf", target: "/audiobooks"},
+}
+
+// GovernedMediaLibraryMount reports whether a host source is the declared
+// read-only media library of that workload module and component.
+func GovernedMediaLibraryMount(moduleRef, componentID, volumeID, target string) bool {
+	mount, ok := governedMediaLibraryMounts[moduleRef]
+	return ok && volumeID == "library" && mount.component == componentID && mount.target == target
+}
+
+// sameEnvironment compares declared component environments; an omitted and an
+// empty environment are the same closed contract.
+func sameEnvironment(actual, expected map[string]string) bool {
+	if len(actual) != len(expected) {
+		return false
+	}
+	for key, value := range expected {
+		if got, ok := actual[key]; !ok || got != value {
+			return false
+		}
+	}
+	return true
 }

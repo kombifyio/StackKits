@@ -42,6 +42,82 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
 
+## [0.47.0] (2026-09-26)
+
+### Highlights
+
+* **More apps to choose per use case:** Nextcloud for files, Forgejo for private Git, Emby for media and Passbolt for passwords now install as alternatives to the defaults. The use-case catalog shows which choices a release installs and which it only records.
+* **Add-ons that install next to a use case:** a document archive (Paperless-ngx), browser office editing (Euro-Office), music streaming (Navidrome), audiobooks and podcasts (Audiobookshelf) and ESPHome for your own devices can be selected alongside the matching use case.
+* **Advanced mode for managed homes:** change sets, per-stack drift detection and reconcile, coordinated rollback and restore drills now run through Terramate over OpenTofu, and Basement installs default to OpenTofu.
+* **Mail, your way:** Roundcube webmail works with a mailbox you already have, and an optional own Stalwart mail server runs on a dedicated node with an outbound relay.
+
+
+### Added
+
+* **advanced:** change sets materialize governed secret custody for added workloads (bootstrap parity)
+* **advanced:** change sets orchestrated through Terramate over OpenTofu roots with stackkit.change-set-result/v1 (P1.4)
+* **advanced:** coordinated rollback across Terramate stacks with stackkit.rollback-result/v1 (P1.6)
+* **advanced:** native v2 restore drill with stackkit.restore-drill-report/v1 (P1.7)
+* **basement-kit:** Standard default target opentofu after real-host end-to-end and adoption runs (P1.10)
+* **catalog:** add-on workloads and installing settings (Euro-Office, Navidrome, Audiobookshelf, ESPHome, Paperless)
+* **catalog:** complete use-case alternatives, add-ons and wizard settings
+* **catalog:** install Forgejo, Emby, Passbolt and Nextcloud alternatives
+* **compat:** collect source-built candidate Depot runs bound to their StackKits source
+* **drift:** Advanced per-stack drift detect/reconcile with stackkit.drift-report/v1 subjects (P1.5)
+* **executor:** bootstrap and configuration parity across compose, OpenTofu, Terramate and change sets
+* **executor:** OpenTofu roots for workload, edge and federation stacks (P1.1 follow-up W)
+* **fleet:** Modern Cloud edge joins as a member node (M1)
+* **fleet:** Modern member-local apply and verify with a Home-certified member evidence key (M2)
+* **host:** plan and apply OS updates and schedule reboots on a node
+* **lifecycle:** seal executor-state checkpoints for OpenTofu and Terramate installs (P1 follow-up C)
+* **mail-server:** dedicated mail node, fixed IPv4 check and outbound relay
+* **mail-server:** own Stalwart mail server as a separate Mail workload
+* **mail:** client-first Roundcube webmail with owner mailbox setup and device profiles
+* **matrix:** per-cell evidence citations and a citable Advanced gate cell
+* **release:** publish the Advanced operations catalog (stackkit.advanced-operations/v1) and command-result contracts for Techstack (P1.8)
+* **renderer:** Compose payload in OpenTofu for every Compose artifact with byte-identical payload test (P1.2)
+* **terramate:** stacks for every kit core, workload and Modern site with stackkit.terramate-stack-graph/v1 (P1.3)
+
+
+### Fixed
+
+* **advanced:** admission resolves the baseline from the stable inventory projection (change sets, reconcile, rollback, drill)
+* **advanced:** change-set apply, reconcile and rollback generate from the approved stable inventory
+* **advanced:** change-set apply, reconcile and rollback open an admitted application lifecycle stage
+* **advanced:** checkpoints include workload volumes; rollback leaves consistent Apply evidence
+* **advanced:** reconcile re-converges drifted stacks; rollback joins with one-use authority; drill authority after rollback
+* **advanced:** reconcile restores drifted governed runtime files before the checkpoint
+* **advanced:** reconcile restores the custody-derived runtime bytes and never regenerates secrets
+* **advanced:** same-release Advanced mutations use the running executable as release authority on managed hosts
+* **backup:** accept Compose-recreated Kopia runtime; check stop signals before quiescing
+* **catalog:** Cloud standalone OpenTofu renderer contract matches the registry
+* **catalog:** delivery rows state the default alternative's claim
+* **checkpoint:** the rollback checkpoint accepts long-form Compose bind mounts
+* **checkpoint:** the rollback checkpoint seals from the stable inventory projection
+* **cloud-kit:** drift carries the owner binding; change-set checkpoint uses the Cloud backup authority
+* **commands:** project the restore drill to MCP and update the core health test
+* **deps:** update dependency dockerode to ^4.0.12
+* **deps:** update dependency webmcp-types to v0.1.9
+* **deps:** update internal products
+* **deps:** update module filippo.io/age to v1.3.2
+* **deps:** update tailwindcss monorepo to ^4.3.3
+* **federation:** accept compiler targetNodes in binding adoption; record first real Modern run
+* **install:** install the packaged OpenTofu provider mirror; P1.10 basement-kit runs blocked on verify
+* **release:** export the OpenTofu provider hook the public publisher runs
+* **release:** keep a prepared release publishable after an unrelated merge
+* **release:** keep the private ADR-0044 link out of the public export
+* **renderer:** wrapper payload changes converge with up only; down only on destroy (P1.2 follow-up)
+* **restore:** Cloud Kit restore drill and activation use the kit's own backup source
+* **restore:** start the Basement core from Apply's runtime directory
+* **tests:** restore the deterministic gate (Basement Lite generate, delivery compatibility, hermetic site addresses)
+* **upgrade:** shadow inspection resolves the plan's Inventory; rollback tolerates re-attested free space
+* **verify:** public verify accepts Basement and Cloud cores on OpenTofu and Terramate targets
+
+
+### Changed
+
+* **advanced:** change-set admission resolves and renders sequentially within a single-generate memory budget
+
 ## [0.46.9](https://github.com/kombifyio/StackKits/compare/v0.46.8...v0.46.9) (2026-09-26)
 
 

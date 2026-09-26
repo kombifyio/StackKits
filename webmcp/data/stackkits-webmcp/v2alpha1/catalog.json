@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "0a19fbbf9ca092d9537f65eddd571397d21a7eaf",
-  "authority_bundle_sha256": "9c76be3e493ce982d7a4ff78729850b3aedbfa69e81a2a9fe0110e9dd46dbb1d",
+  "source_sha": "c154cc13906d109d9168b65370857269d5571369",
+  "authority_bundle_sha256": "6e4b2cd0bbb23bbc227f0f3808e9bd1ae2157d7f3280cdc899261c99bd9b798b",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -11,6 +11,68 @@
       "status": "supported",
       "planner_link": "/planner?stackkit_id=basement-kit",
       "modules": [
+        {
+          "module_id": "stackkits-audiobookshelf-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "media-audiobooks"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Audiobooks and podcasts through Audiobookshelf with progress sync. The owner supplies the library; the administrator is created on first visit behind the gateway login, and Pocket ID OIDC can be enabled in the app.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "audiobookshelf"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "b135ff2b3870506610ffc1ecfaf7d9b9e1a64898cfc15c803e9c3af5c6867332"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Audiobooks and podcasts through Audiobookshelf with progress sync. The owner supplies the library; the administrator is created on first visit behind the gateway login, and Pocket ID OIDC can be enabled in the app.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "audiobookshelf"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "373c2d914add68eeec4c03e34ebc186b9c1f80b03ab3d15be56f92ec5cb4b8ec"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
         {
           "module_id": "stackkits-basement-core-lite-runtime",
           "role": "workload",
@@ -382,6 +444,130 @@
               "capabilities": [],
               "degradations": [],
               "profile_sha256": "b27cb6aebd76ba454966fb25d43a8ac897adf239de8e41e12cc1c561c588a2db"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-esphome-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home-esphome"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "ESPHome dashboard for building and updating ESP32/ESP8266 firmware over the network. Firmware builds are CPU-bound bursts; the dashboard itself has no user store and stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "esphome"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "b1a3a7b3a3be8f5a94875049f7995135a61cd831eec483445bdc0b712f1690f7"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "ESPHome dashboard for building and updating ESP32/ESP8266 firmware over the network. Firmware builds are CPU-bound bursts; the dashboard itself has no user store and stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "esphome"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "4026f1279f6980ab0232b8ba8a97b788fd5c7bd53d54c6d056daf7025bf12fe9"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-euro-office-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "files-office"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Browser office editing through Euro-Office Document Server (ONLYOFFICE fork). Every request carries a JWT signed with the custodied secret that the Nextcloud connector app also uses; the server has no user login of its own.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "euro-office"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "a71fe6bfc31a3e37603904c6575796c9eb87f123f9c6b3f0cd33982d0fc1c5cd"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Browser office editing through Euro-Office Document Server (ONLYOFFICE fork). Every request carries a JWT signed with the custodied secret that the Nextcloud connector app also uses; the server has no user login of its own.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "euro-office"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "b10c7a72d9739587da2fe00deb82dd258813b29ec2392125df7d15057b40cdec"
             }
           ],
           "storage_profiles": [],
@@ -910,6 +1096,68 @@
               "capabilities": [],
               "degradations": [],
               "profile_sha256": "eef51aa6477a9ad116e6adf7d726b9ef658299e2d25992372740e8f45fe11c1c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-navidrome-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "media-music"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Music streaming through Navidrome for Subsonic-compatible apps. The owner supplies the music library; the administrator is created on first visit behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "navidrome"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "94bd15c7fabbf7d4e7b1ddd2095fd05bfb75db4ee1e3506a71577fe8decc9c8a"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Music streaming through Navidrome for Subsonic-compatible apps. The owner supplies the music library; the administrator is created on first visit behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "navidrome"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "a35d804f25c8a3842ede4c01d35454afcd7437cb92dbe09d7692c4a3098816cd"
             }
           ],
           "storage_profiles": [],
@@ -1621,6 +1869,29 @@
           ]
         },
         {
+          "use_case_id": "files-office",
+          "title": "files-office",
+          "description": "Euro-Office Document Server for browser editing of documents, spreadsheets and presentations, selected in addition to the files workload and connected to Nextcloud through the eurooffice-nextcloud app.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "euro-office",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "euro-office",
+              "module_id": "stackkits-euro-office-runtime",
+              "functions": [
+                "office-editing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
           "use_case_id": "game",
           "title": "Game Server",
           "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles.",
@@ -1697,6 +1968,53 @@
               "functions": [
                 "media-server",
                 "video-stream"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "media-audiobooks",
+          "title": "media-audiobooks",
+          "description": "Audiobooks and podcasts through Audiobookshelf from the owner-custodied media library, selected in addition to the media workload.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "audiobookshelf",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "audiobookshelf",
+              "module_id": "stackkits-audiobookshelf-runtime",
+              "functions": [
+                "audiobook-stream",
+                "podcast-library"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "media-music",
+          "title": "media-music",
+          "description": "Music streaming through Navidrome from the owner-custodied media library, selected in addition to the media workload.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "navidrome",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "navidrome",
+              "module_id": "stackkits-navidrome-runtime",
+              "functions": [
+                "music-stream"
               ],
               "load": {
                 "residency": "always-on",
@@ -1810,6 +2128,29 @@
           ]
         },
         {
+          "use_case_id": "smart-home-esphome",
+          "title": "smart-home-esphome",
+          "description": "ESPHome dashboard that builds and updates firmware for ESP devices reporting to Home Assistant, selected in addition to the smart-home workload.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "esphome",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "esphome",
+              "module_id": "stackkits-esphome-runtime",
+              "functions": [
+                "device-firmware"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
           "use_case_id": "vault",
           "title": "Password Vault",
           "description": "Private password and secure-note vault with owner-controlled lifecycle and recovery.",
@@ -1868,6 +2209,68 @@
             "security-baseline"
           ],
           "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-audiobookshelf-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "media-audiobooks"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Audiobooks and podcasts through Audiobookshelf with progress sync. The owner supplies the library; the administrator is created on first visit behind the gateway login, and Pocket ID OIDC can be enabled in the app.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "audiobookshelf"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "b135ff2b3870506610ffc1ecfaf7d9b9e1a64898cfc15c803e9c3af5c6867332"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Audiobooks and podcasts through Audiobookshelf with progress sync. The owner supplies the library; the administrator is created on first visit behind the gateway login, and Pocket ID OIDC can be enabled in the app.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "audiobookshelf"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "373c2d914add68eeec4c03e34ebc186b9c1f80b03ab3d15be56f92ec5cb4b8ec"
+            }
+          ],
           "storage_profiles": [],
           "accelerator_profiles": []
         },
@@ -2221,6 +2624,130 @@
               "capabilities": [],
               "degradations": [],
               "profile_sha256": "b27cb6aebd76ba454966fb25d43a8ac897adf239de8e41e12cc1c561c588a2db"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-esphome-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home-esphome"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "ESPHome dashboard for building and updating ESP32/ESP8266 firmware over the network. Firmware builds are CPU-bound bursts; the dashboard itself has no user store and stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "esphome"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "b1a3a7b3a3be8f5a94875049f7995135a61cd831eec483445bdc0b712f1690f7"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "ESPHome dashboard for building and updating ESP32/ESP8266 firmware over the network. Firmware builds are CPU-bound bursts; the dashboard itself has no user store and stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "esphome"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "4026f1279f6980ab0232b8ba8a97b788fd5c7bd53d54c6d056daf7025bf12fe9"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-euro-office-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "files-office"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Browser office editing through Euro-Office Document Server (ONLYOFFICE fork). Every request carries a JWT signed with the custodied secret that the Nextcloud connector app also uses; the server has no user login of its own.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "euro-office"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "a71fe6bfc31a3e37603904c6575796c9eb87f123f9c6b3f0cd33982d0fc1c5cd"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Browser office editing through Euro-Office Document Server (ONLYOFFICE fork). Every request carries a JWT signed with the custodied secret that the Nextcloud connector app also uses; the server has no user login of its own.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "euro-office"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "b10c7a72d9739587da2fe00deb82dd258813b29ec2392125df7d15057b40cdec"
             }
           ],
           "storage_profiles": [],
@@ -2737,6 +3264,68 @@
               "capabilities": [],
               "degradations": [],
               "profile_sha256": "eef51aa6477a9ad116e6adf7d726b9ef658299e2d25992372740e8f45fe11c1c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-navidrome-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "media-music"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Music streaming through Navidrome for Subsonic-compatible apps. The owner supplies the music library; the administrator is created on first visit behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "navidrome"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "94bd15c7fabbf7d4e7b1ddd2095fd05bfb75db4ee1e3506a71577fe8decc9c8a"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Music streaming through Navidrome for Subsonic-compatible apps. The owner supplies the music library; the administrator is created on first visit behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "navidrome"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "a35d804f25c8a3842ede4c01d35454afcd7437cb92dbe09d7692c4a3098816cd"
             }
           ],
           "storage_profiles": [],
@@ -3527,6 +4116,29 @@
           ]
         },
         {
+          "use_case_id": "files-office",
+          "title": "files-office",
+          "description": "Euro-Office Document Server for browser editing of documents, spreadsheets and presentations, selected in addition to the files workload and connected to Nextcloud through the eurooffice-nextcloud app.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "euro-office",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "euro-office",
+              "module_id": "stackkits-euro-office-runtime",
+              "functions": [
+                "office-editing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
           "use_case_id": "game",
           "title": "Game Server",
           "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles.",
@@ -3629,6 +4241,53 @@
               "functions": [
                 "media-server",
                 "video-stream"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "media-audiobooks",
+          "title": "media-audiobooks",
+          "description": "Audiobooks and podcasts through Audiobookshelf from the owner-custodied media library, selected in addition to the media workload.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "audiobookshelf",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "audiobookshelf",
+              "module_id": "stackkits-audiobookshelf-runtime",
+              "functions": [
+                "audiobook-stream",
+                "podcast-library"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "media-music",
+          "title": "media-music",
+          "description": "Music streaming through Navidrome from the owner-custodied media library, selected in addition to the media workload.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "navidrome",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "navidrome",
+              "module_id": "stackkits-navidrome-runtime",
+              "functions": [
+                "music-stream"
               ],
               "load": {
                 "residency": "always-on",
@@ -3742,6 +4401,29 @@
           ]
         },
         {
+          "use_case_id": "smart-home-esphome",
+          "title": "smart-home-esphome",
+          "description": "ESPHome dashboard that builds and updates firmware for ESP devices reporting to Home Assistant, selected in addition to the smart-home workload.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "esphome",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "esphome",
+              "module_id": "stackkits-esphome-runtime",
+              "functions": [
+                "device-firmware"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
           "use_case_id": "vault",
           "title": "Password Vault",
           "description": "Private password and secure-note vault with owner-controlled lifecycle and recovery.",
@@ -3793,6 +4475,68 @@
       "status": "preview",
       "planner_link": "/planner?stackkit_id=modern-homelab",
       "modules": [
+        {
+          "module_id": "stackkits-audiobookshelf-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "media-audiobooks"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Audiobooks and podcasts through Audiobookshelf with progress sync. The owner supplies the library; the administrator is created on first visit behind the gateway login, and Pocket ID OIDC can be enabled in the app.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "audiobookshelf"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "b135ff2b3870506610ffc1ecfaf7d9b9e1a64898cfc15c803e9c3af5c6867332"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Audiobooks and podcasts through Audiobookshelf with progress sync. The owner supplies the library; the administrator is created on first visit behind the gateway login, and Pocket ID OIDC can be enabled in the app.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "audiobookshelf"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "373c2d914add68eeec4c03e34ebc186b9c1f80b03ab3d15be56f92ec5cb4b8ec"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
         {
           "module_id": "stackkits-basement-core-lite-runtime",
           "role": "workload",
@@ -4164,6 +4908,130 @@
               "capabilities": [],
               "degradations": [],
               "profile_sha256": "b27cb6aebd76ba454966fb25d43a8ac897adf239de8e41e12cc1c561c588a2db"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-esphome-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "smart-home-esphome"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "ESPHome dashboard for building and updating ESP32/ESP8266 firmware over the network. Firmware builds are CPU-bound bursts; the dashboard itself has no user store and stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "esphome"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "b1a3a7b3a3be8f5a94875049f7995135a61cd831eec483445bdc0b712f1690f7"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "ESPHome dashboard for building and updating ESP32/ESP8266 firmware over the network. Firmware builds are CPU-bound bursts; the dashboard itself has no user store and stays behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "esphome"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "4026f1279f6980ab0232b8ba8a97b788fd5c7bd53d54c6d056daf7025bf12fe9"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-euro-office-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "files-office"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Browser office editing through Euro-Office Document Server (ONLYOFFICE fork). Every request carries a JWT signed with the custodied secret that the Nextcloud connector app also uses; the server has no user login of its own.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "euro-office"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "a71fe6bfc31a3e37603904c6575796c9eb87f123f9c6b3f0cd33982d0fc1c5cd"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Browser office editing through Euro-Office Document Server (ONLYOFFICE fork). Every request carries a JWT signed with the custodied secret that the Nextcloud connector app also uses; the server has no user login of its own.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "euro-office"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "b10c7a72d9739587da2fe00deb82dd258813b29ec2392125df7d15057b40cdec"
             }
           ],
           "storage_profiles": [],
@@ -4692,6 +5560,68 @@
               "capabilities": [],
               "degradations": [],
               "profile_sha256": "eef51aa6477a9ad116e6adf7d726b9ef658299e2d25992372740e8f45fe11c1c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-navidrome-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "media-music"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Music streaming through Navidrome for Subsonic-compatible apps. The owner supplies the music library; the administrator is created on first visit behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "navidrome"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "94bd15c7fabbf7d4e7b1ddd2095fd05bfb75db4ee1e3506a71577fe8decc9c8a"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Music streaming through Navidrome for Subsonic-compatible apps. The owner supplies the music library; the administrator is created on first visit behind the gateway login.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "navidrome"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "a35d804f25c8a3842ede4c01d35454afcd7437cb92dbe09d7692c4a3098816cd"
             }
           ],
           "storage_profiles": [],
@@ -5403,6 +6333,29 @@
           ]
         },
         {
+          "use_case_id": "files-office",
+          "title": "files-office",
+          "description": "Euro-Office Document Server for browser editing of documents, spreadsheets and presentations, selected in addition to the files workload and connected to Nextcloud through the eurooffice-nextcloud app.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "euro-office",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "euro-office",
+              "module_id": "stackkits-euro-office-runtime",
+              "functions": [
+                "office-editing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
           "use_case_id": "game",
           "title": "Game Server",
           "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles.",
@@ -5479,6 +6432,53 @@
               "functions": [
                 "media-server",
                 "video-stream"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "media-audiobooks",
+          "title": "media-audiobooks",
+          "description": "Audiobooks and podcasts through Audiobookshelf from the owner-custodied media library, selected in addition to the media workload.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "audiobookshelf",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "audiobookshelf",
+              "module_id": "stackkits-audiobookshelf-runtime",
+              "functions": [
+                "audiobook-stream",
+                "podcast-library"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "media-music",
+          "title": "media-music",
+          "description": "Music streaming through Navidrome from the owner-custodied media library, selected in addition to the media workload.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "navidrome",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "navidrome",
+              "module_id": "stackkits-navidrome-runtime",
+              "functions": [
+                "music-stream"
               ],
               "load": {
                 "residency": "always-on",
@@ -5586,6 +6586,29 @@
               "load": {
                 "residency": "always-on",
                 "baseline": "active-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "smart-home-esphome",
+          "title": "smart-home-esphome",
+          "description": "ESPHome dashboard that builds and updates firmware for ESP devices reporting to Home Assistant, selected in addition to the smart-home workload.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "esphome",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "esphome",
+              "module_id": "stackkits-esphome-runtime",
+              "functions": [
+                "device-firmware"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
                 "burst": "interactive"
               }
             }
@@ -6937,5 +7960,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "b97c0c5d653d402a23f77e785a98de7c7110d42e25fef28a9ffa8d18889a326e"
+  "catalog_sha256": "49c15c2702dd1e7c74dab4b46bbd5ed564fe8a675a0a060ce0734cfc7dacb19c"
 }

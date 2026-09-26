@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:faedc342a35c88e9e9a3212056b98669dfcd47a6c3d9bff07f753ce260341ee0",
+  "contentDigest": "sha256:945d6c91ed26c9549abcf746ad9531d2eb6b95b3cd2ad7e1d8d4ef7a21fd2367",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -322,6 +322,27 @@
       "title": "Documents"
     },
     {
+      "addOns": [
+        {
+          "alternatives": [
+            {
+              "id": "euro-office",
+              "modules": [
+                {
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-euro-office-runtime"
+                }
+              ],
+              "name": "euro-office"
+            }
+          ],
+          "defaultAlternative": "euro-office",
+          "id": "files-office"
+        }
+      ],
       "alternatives": [
         {
           "id": "cloudreve",
@@ -455,7 +476,8 @@
           "id": "paperless",
           "kind": "toggle",
           "name": "Document archive",
-          "realization": "recorded"
+          "realization": "install",
+          "workloadRef": "documents"
         },
         {
           "default": false,
@@ -465,7 +487,8 @@
           "id": "office-editing",
           "kind": "toggle",
           "name": "Office editing",
-          "realization": "recorded"
+          "realization": "install",
+          "workloadRef": "files-office"
         },
         {
           "default": "kit-storage",
@@ -829,6 +852,46 @@
       "title": "Own Mail Server"
     },
     {
+      "addOns": [
+        {
+          "alternatives": [
+            {
+              "id": "audiobookshelf",
+              "modules": [
+                {
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-audiobookshelf-runtime"
+                }
+              ],
+              "name": "audiobookshelf"
+            }
+          ],
+          "defaultAlternative": "audiobookshelf",
+          "id": "media-audiobooks"
+        },
+        {
+          "alternatives": [
+            {
+              "id": "navidrome",
+              "modules": [
+                {
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-navidrome-runtime"
+                }
+              ],
+              "name": "navidrome"
+            }
+          ],
+          "defaultAlternative": "navidrome",
+          "id": "media-music"
+        }
+      ],
       "alternatives": [
         {
           "id": "emby",
@@ -988,7 +1051,8 @@
           "id": "music-server",
           "kind": "toggle",
           "name": "Music streaming",
-          "realization": "recorded"
+          "realization": "install",
+          "workloadRef": "media-music"
         },
         {
           "default": false,
@@ -998,7 +1062,8 @@
           "id": "audiobooks",
           "kind": "toggle",
           "name": "Audiobooks and podcasts",
-          "realization": "recorded"
+          "realization": "install",
+          "workloadRef": "media-audiobooks"
         }
       ],
       "title": "Media Library"
@@ -1233,6 +1298,27 @@
       "title": "Remote Desktop"
     },
     {
+      "addOns": [
+        {
+          "alternatives": [
+            {
+              "id": "esphome",
+              "modules": [
+                {
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-esphome-runtime"
+                }
+              ],
+              "name": "esphome"
+            }
+          ],
+          "defaultAlternative": "esphome",
+          "id": "smart-home-esphome"
+        }
+      ],
       "alternatives": [
         {
           "id": "home-assistant",
@@ -1462,7 +1548,8 @@
           "id": "esphome",
           "kind": "toggle",
           "name": "ESPHome devices",
-          "realization": "recorded"
+          "realization": "install",
+          "workloadRef": "smart-home-esphome"
         }
       ],
       "title": "Smart Home"

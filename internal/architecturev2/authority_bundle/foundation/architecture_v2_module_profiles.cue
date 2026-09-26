@@ -164,6 +164,42 @@ _architectureV2JellyfinComputeProfiles: {
 	high:     _architectureV2JellyfinComputeProfile
 }
 
+_architectureV2EuroofficeComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Browser office editing through Euro-Office Document Server (ONLYOFFICE fork). Every request carries a JWT signed with the custodied secret that the Nextcloud connector app also uses; the server has no user login of its own."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 2
+	components: ["euro-office"]
+}
+_architectureV2EuroofficeComputeProfiles: {standard: _architectureV2EuroofficeComputeProfile, high: _architectureV2EuroofficeComputeProfile}
+
+_architectureV2ESPHomeComputeProfile: #ModuleComputeProfileV2 & {
+	description: "ESPHome dashboard for building and updating ESP32/ESP8266 firmware over the network. Firmware builds are CPU-bound bursts; the dashboard itself has no user store and stays behind the gateway login."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.25
+	components: ["esphome"]
+}
+_architectureV2ESPHomeComputeProfiles: {standard: _architectureV2ESPHomeComputeProfile, high: _architectureV2ESPHomeComputeProfile}
+
+_architectureV2AudiobookshelfComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Audiobooks and podcasts through Audiobookshelf with progress sync. The owner supplies the library; the administrator is created on first visit behind the gateway login, and Pocket ID OIDC can be enabled in the app."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.125
+	components: ["audiobookshelf"]
+}
+_architectureV2AudiobookshelfComputeProfiles: {standard: _architectureV2AudiobookshelfComputeProfile, high: _architectureV2AudiobookshelfComputeProfile}
+
+_architectureV2NavidromeComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Music streaming through Navidrome for Subsonic-compatible apps. The owner supplies the music library; the administrator is created on first visit behind the gateway login."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.125
+	components: ["navidrome"]
+}
+_architectureV2NavidromeComputeProfiles: {standard: _architectureV2NavidromeComputeProfile, high: _architectureV2NavidromeComputeProfile}
+
 _architectureV2EmbyComputeProfile: #ModuleComputeProfileV2 & {
 	description: "Media library and playback through Emby Server. Some client features need an Emby Premiere licence; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage."
 	maturity:    "beta", executable: true, realization: "apply-ready"

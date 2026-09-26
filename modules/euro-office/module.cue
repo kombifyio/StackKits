@@ -50,9 +50,9 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		accessPolicy: {
-			outerAuth: "tinyauth-pocketid"
+			outerAuth: "self"
 			appAuth:   "none"
-			reason:    "Document Server has no user login; editors open it from Nextcloud with JWT-signed requests, and TinyAuth (Pocket ID) guards the route."
+			reason:    "Document Server has no user login; every request must carry a JWT signed with the custodied secret shared with the Nextcloud connector, so Nextcloud can call it server-side."
 		}
 
 		upstream: {
