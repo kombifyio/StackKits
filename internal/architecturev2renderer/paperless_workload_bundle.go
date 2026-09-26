@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"reflect"
+	"strings"
 )
 
 const (
@@ -16,7 +17,7 @@ const (
 	paperlessWorkloadOutputRef   = "workloads/paperless-ngx/bundle.json"
 )
 
-const paperlessWorkloadRendererSchema = `stackkit.workload-bundle/v2|PaperlessWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:paperless,postgres,valkey|health:http-root-8000|release:` + paperlessRelease + `|secret-material:not-included`
+const paperlessWorkloadRendererSchema = `stackkit.workload-bundle/v2|PaperlessWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:paperless,postgres,valkey|health:http-root-8000|release:` + paperlessRelease + `|secret-material:not-included|identity:pocketid-oidc-native`
 
 // PaperlessWorkloadBundleDescriptor is the closed, credential-free runtime
 // artifact accepted by the selected application adapter.
@@ -85,7 +86,7 @@ func ParsePaperlessWorkloadBundle(data []byte) (PaperlessWorkloadBundleDescripto
 	if err := validateParsedApplicationDeliveryRoute(*bundle.DeliveryRoute, paperlessWorkloadModuleID, "documents", 8000, path+".deliveryRoute"); err != nil {
 		return PaperlessWorkloadBundleDescriptor{}, err
 	}
-	origin, err := applicationHTTPSRootURL(bundle.DeliveryRoute)
+	origin, err := paperlessOrigin(bundle.DeliveryRoute)
 	if err != nil {
 		return PaperlessWorkloadBundleDescriptor{}, err
 	}
@@ -182,7 +183,7 @@ func validatePaperlessWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	if err := validatePaperlessServiceEndpoint(endpoints[0], path+".serviceEndpoints"); err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
-	origin, err := applicationHTTPSRootURL(deliveryRoute)
+	origin, err := paperlessOrigin(deliveryRoute)
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
@@ -202,6 +203,14 @@ func validatePaperlessWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	return bundle, nil
 }
 
+// paperlessOrigin is PAPERLESS_URL: Paperless derives its CORS and CSRF
+// origins from it, and Django refuses to start when an origin carries a
+// path, even "/".
+func paperlessOrigin(route *applicationDeliveryRoute) (string, error) {
+	root, err := applicationHTTPSRootURL(route)
+	return strings.TrimSuffix(root, "/"), err
+}
+
 func validatePaperlessRuntimeComponents(components []selectedPaaSRuntimeComponent, path, routeOrigin string) ([]selectedPaaSRuntimeComponent, error) {
 	if len(components) != 3 {
 		return nil, fail(ErrInvalidPlan, path, "requires Paperless, PostgreSQL and Valkey")
@@ -212,6 +221,9 @@ func validatePaperlessRuntimeComponents(components []selectedPaaSRuntimeComponen
 			return nil, fail(ErrInvalidPlan, path, "component identity, lifecycle or network differs")
 		}
 		seen[c.ID] = true
+		if c.ID != "paperless" && (c.HomeIdentityAccess != nil || c.PocketIDClient != nil) {
+			return nil, fail(ErrInvalidPlan, path, "only the Paperless application signs in through Pocket ID")
+		}
 		switch c.ID {
 		case "paperless":
 			expected := map[string]string{"PAPERLESS_REDIS": "redis://paperless-valkey:6379", "PAPERLESS_DBHOST": "paperless-postgres", "PAPERLESS_DBENGINE": "postgresql", "PAPERLESS_DBNAME": "paperless", "PAPERLESS_DBUSER": "paperless", "PAPERLESS_ADMIN_USER": "owner"}
@@ -220,6 +232,9 @@ func validatePaperlessRuntimeComponents(components []selectedPaaSRuntimeComponen
 			}
 			if c.Role != "application" || c.Image.Ref != paperlessImageRef || c.Image.Digest != paperlessImageDigest || !exactStringList(c.DependsOn, []string{"paperless-postgres", "paperless-valkey"}) || len(c.Command) != 0 || !reflect.DeepEqual(c.Environment, expected) || !reflect.DeepEqual(c.OwnerEnvironment, map[string]string{"PAPERLESS_ADMIN_MAIL": "email"}) || !reflect.DeepEqual(c.SecretEnvironment, map[string]string{"PAPERLESS_DBPASS": "database-password", "PAPERLESS_ADMIN_PASSWORD": "owner-password", "PAPERLESS_SECRET_KEY": "session-key"}) || c.Health.Kind != "http" || c.Health.Path != "/" || c.Health.Port != 8000 || len(c.Health.Command) != 0 {
 				return nil, fail(ErrInvalidPlan, path, "Paperless image, owner bootstrap, database or route configuration differs")
+			}
+			if !reflect.DeepEqual(c.HomeIdentityAccess, paperlessHomeIdentityAccess) || !reflect.DeepEqual(c.PocketIDClient, paperlessPocketIDClient) {
+				return nil, fail(ErrInvalidPlan, path, "Paperless Pocket ID sign-in differs from the closed contract")
 			}
 			if !paperlessVolumesValid(c.Volumes) {
 				return nil, fail(ErrInvalidPlan, path, "Paperless data, media, consume and export persistence differs")
@@ -276,3 +291,22 @@ func validatePaperlessServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path
 func validPaperlessSecretRefs(refs map[string]string) bool {
 	return len(refs) == 3 && validSecretReference(refs["database-password"]) && validSecretReference(refs["owner-password"]) && validSecretReference(refs["session-key"])
 }
+
+// Paperless signs in through Pocket ID with django-allauth's OpenID Connect
+// provider; the owner group maps to the Paperless superuser.
+var (
+	paperlessHomeIdentityAccess = &selectedPaaSHomeIdentityAccess{
+		CABundleTarget: "/etc/stackkit/ca-bundle.pem", CABundleEnvironment: []string{"REQUESTS_CA_BUNDLE", "SSL_CERT_FILE"},
+	}
+	paperlessPocketIDClient = &selectedPaaSPocketIDClient{
+		CallbackPath: "/accounts/oidc/pocketid/login/callback/",
+		Environment: map[string]string{
+			"PAPERLESS_APPS":                                "allauth.socialaccount.providers.openid_connect",
+			"PAPERLESS_SOCIALACCOUNT_PROVIDERS":             `{"openid_connect":{"SCOPE":["openid","profile","email","groups"],"OAUTH_PKCE_ENABLED":true,"APPS":[{"provider_id":"pocketid","name":"Pocket ID","client_id":"{{clientId}}","secret":"{{clientSecret}}","settings":{"server_url":"{{issuer}}"}}]}}`,
+			"PAPERLESS_SOCIALACCOUNT_ALLOW_SIGNUPS":         "true",
+			"PAPERLESS_SOCIAL_AUTO_SIGNUP":                  "true",
+			"PAPERLESS_SOCIAL_ACCOUNT_SYNC_GROUPS":          "true",
+			"PAPERLESS_SOCIAL_ACCOUNT_SYNC_SUPERUSER_GROUP": "owners",
+		},
+	}
+)

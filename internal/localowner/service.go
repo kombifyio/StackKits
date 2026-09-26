@@ -5,7 +5,6 @@ package localowner
 import (
 	"context"
 	"errors"
-	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -132,7 +131,7 @@ func (s *Service) IssueOwnerActivation(ctx context.Context) (OwnerActivation, er
 		return OwnerActivation{}, errors.New("localowner: PocketID owner activation reissue failed")
 	}
 	status.ExpiresAt = s.now().UTC().Add(ownerEnrollmentTTL).Truncate(time.Second)
-	status.SetupURL = status.Origin + "/setup-account?token=" + url.QueryEscape(token)
+	status.SetupURL = pocketid.ActivationURL(status.Origin, token)
 	if _, err := localevidence.PersistPocketIDOwnerEnrollment(s.workspaceRoot, localevidence.PocketIDOwnerEnrollment{
 		OwnerRef: owner.OwnerRef, PocketIDSubject: binding.PocketIDSubject,
 		SetupURL: status.SetupURL, ExpiresAt: status.ExpiresAt,
@@ -267,7 +266,7 @@ func (s *Service) Realize(ctx context.Context) (Result, error) {
 		s.workspaceRoot,
 		localevidence.PocketIDOwnerEnrollment{
 			OwnerRef: owner.OwnerRef, PocketIDSubject: subject,
-			SetupURL:  address.PocketIDOrigin() + "/setup-account?token=" + url.QueryEscape(token),
+			SetupURL:  pocketid.ActivationURL(address.PocketIDOrigin(), token),
 			ExpiresAt: expiresAt,
 		},
 	)

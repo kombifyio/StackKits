@@ -23,6 +23,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/localowner"
 	"gopkg.in/yaml.v3"
 )
 
@@ -72,6 +73,9 @@ type osStandaloneComposeWorkloadOperations struct {
 	workspaceRoot string
 	runner        standaloneComposeProcessRunner
 	prober        standaloneComposeHTTPProber
+	// ensureOIDCClient registers an application's Pocket ID client; nil uses
+	// the local owner service.
+	ensureOIDCClient func(context.Context, string, localowner.ApplicationOIDCClientRequest) error
 }
 
 // NewOSStandaloneComposeWorkloadOperations constructs the local no-PaaS
@@ -418,6 +422,9 @@ func (o *osStandaloneComposeWorkloadOperations) prepare(
 		if !filepath.IsAbs(dockerRoot) || filepath.Clean(dockerRoot) != dockerRoot {
 			return standaloneComposeProject{}, errors.New("Docker root directory is not a clean absolute path")
 		}
+	}
+	if err := o.ensurePocketIDClients(ctx, bundle); err != nil {
+		return standaloneComposeProject{}, err
 	}
 	compose, environment, configFiles, err := o.renderWithDockerRoot(bundle, dockerRoot)
 	if err != nil {
@@ -839,6 +846,12 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 		}
 		// A governed add-on joins its primary workload's internal network on
 		// this node; Compose fails closed when that workload is not applied.
+		if err := applyHomeIdentityAccess(o.workspaceRoot, component.HomeIdentityAccess, &service, configFiles); err != nil {
+			return nil, nil, nil, err
+		}
+		if err := applyPocketIDClientEnvironment(o.workspaceRoot, bundle, component, &service, secretValues); err != nil {
+			return nil, nil, nil, err
+		}
 		for _, peer := range component.PeerNetworks {
 			key := "peer-" + peer.WorkloadRef + "-" + peer.NetworkRef
 			document.Networks[key] = standaloneComposeNetwork{Name: "stackkit-" + peer.WorkloadRef + "-" + bundle.NodeRef + "_" + peer.NetworkRef, External: true}

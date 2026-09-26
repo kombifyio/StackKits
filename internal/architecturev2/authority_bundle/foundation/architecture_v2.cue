@@ -3239,6 +3239,22 @@ _servicePublicationShape: {
 	// on the same node (an add-on reaching its primary, such as Immich). Renderers
 	// admit each only for its governed add-on component.
 	peerNetworks?: [...{workloadRef: #WorkloadID, networkRef: #ContractID}] & list.MinItems(1)
+	// homeIdentityAccess lets a governed application reach the home identity
+	// provider server-side: the provider host resolves to the node's router
+	// and the home CA (with the host's public roots) is trusted at
+	// caBundleTarget, named by each caBundleEnvironment variable.
+	homeIdentityAccess?: {
+		caBundleTarget: #AbsolutePath
+		caBundleEnvironment: [...(string & =~"^[A-Z][A-Z0-9_]*$")] & list.MinItems(1)
+	}
+	// pocketIDClient registers the application's confidential, PKCE-enabled
+	// Pocket ID client and renders its sign-in settings. Environment values
+	// are templates over {{issuer}}, {{clientId}}, {{clientSecret}} and
+	// {{origin}}; a value holding the secret is delivered as a secret.
+	pocketIDClient?: {
+		callbackPath: #AbsolutePath
+		environment: [string]: string
+	}
 	command?: [...string & =~"^[^[:cntrl:]]+$"] & list.MinItems(1)
 	entrypoint?: [...string & =~"^[^[:cntrl:]]+$"] & list.MinItems(1)
 	environment?: [string]:       string

@@ -3,7 +3,6 @@ package localowner
 import (
 	"context"
 	"errors"
-	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -110,7 +109,7 @@ func (s *Service) AddHouseholdUser(ctx context.Context, spec HouseholdUserSpec) 
 	return HouseholdUser{
 		Username: readback.Username, Email: readback.Email, DisplayName: effectiveDisplayName(*readback),
 		Status: "pending", ExpiresAt: expiresAt,
-		SetupURL: address.PocketIDOrigin() + "/setup-account?token=" + url.QueryEscape(token),
+		SetupURL: pocketid.ActivationURL(address.PocketIDOrigin(), token),
 	}, nil
 }
 

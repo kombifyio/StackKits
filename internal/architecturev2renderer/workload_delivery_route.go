@@ -139,6 +139,10 @@ type ApplicationDeliveryComponentDescriptor struct {
 	// PeerNetworks are internal networks of other workloads on the node this
 	// add-on component joins; governed per module.
 	PeerNetworks []ApplicationDeliveryPeerNetwork
+	// HomeIdentityAccess and PocketIDClient are the governed native OIDC
+	// rights of the component (nil when not declared).
+	HomeIdentityAccess *ApplicationDeliveryHomeIdentityAccess
+	PocketIDClient     *ApplicationDeliveryPocketIDClient
 }
 
 // ApplicationDeliveryPeerNetwork is one governed internal network of another
@@ -299,6 +303,13 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		if err != nil {
 			return ApplicationDeliveryBundleDescriptor{}, err
 		}
+		if err := validateHomeIdentityRights(bundle.Workload.ModuleRef, component, componentPath); err != nil {
+			return ApplicationDeliveryBundleDescriptor{}, err
+		}
+		if component.PocketIDClient != nil && bundle.DeliveryRoute == nil {
+			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".pocketIDClient", "a Pocket ID client needs the declared HTTPS route for its callback")
+		}
+		homeIdentityAccess, pocketIDClient := homeIdentityDescriptors(component)
 		mailNode, err := parseMailNodeComponentFields(component, bundle.Workload.ModuleRef, bundle.DeliveryRoute, componentPath)
 		if err != nil {
 			return ApplicationDeliveryBundleDescriptor{}, err
@@ -330,6 +341,8 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 			LANListeners:         lanListeners,
 			Devices:              devices,
 			PeerNetworks:         peerNetworks,
+			HomeIdentityAccess:   homeIdentityAccess,
+			PocketIDClient:       pocketIDClient,
 		}
 	}
 	if !entryFound || len(components) == 0 {

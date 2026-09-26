@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/kombifyio/stackkits/internal/pocketid"
 	"net/url"
 	"os"
 	"slices"
@@ -249,10 +250,8 @@ func PersistPocketIDOwnerEnrollment(workspaceRoot string, enrollment PocketIDOwn
 	if err != nil {
 		return "", errors.New("localevidence: PocketID owner enrollment URL is not the fixed local endpoint")
 	}
-	query := parsed.Query()
-	if parsed.Scheme != "https" || parsed.Host != address.ServiceHost("id") ||
-		parsed.User != nil || parsed.Fragment != "" || parsed.Path != "/setup-account" ||
-		len(query) != 1 || len(query["token"]) != 1 || query.Get("token") == "" {
+	if _, exact := pocketid.ActivationToken(parsed); !exact ||
+		parsed.Scheme != "https" || parsed.Host != address.ServiceHost("id") {
 		return "", errors.New("localevidence: PocketID owner enrollment URL is not the fixed local endpoint")
 	}
 	record := pocketIDOwnerEnrollmentRecord{

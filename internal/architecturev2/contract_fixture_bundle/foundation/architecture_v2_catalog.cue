@@ -7839,6 +7839,21 @@ _architectureV2Modules: list.Concat([[
 						PAPERLESS_ADMIN_USER: "owner"
 					}
 					ownerEnvironment: {PAPERLESS_ADMIN_MAIL: "email"}
+					// Sign-in through Pocket ID (owner direction 2026-09-26): the owner
+					// group maps to the Paperless superuser; the local owner account
+					// stays as the break-glass login.
+					homeIdentityAccess: {caBundleTarget: "/etc/stackkit/ca-bundle.pem", caBundleEnvironment: ["REQUESTS_CA_BUNDLE", "SSL_CERT_FILE"]}
+					pocketIDClient: {
+						callbackPath: "/accounts/oidc/pocketid/login/callback/"
+						environment: {
+							PAPERLESS_APPS:                                "allauth.socialaccount.providers.openid_connect"
+							PAPERLESS_SOCIALACCOUNT_PROVIDERS:             "{\"openid_connect\":{\"SCOPE\":[\"openid\",\"profile\",\"email\",\"groups\"],\"OAUTH_PKCE_ENABLED\":true,\"APPS\":[{\"provider_id\":\"pocketid\",\"name\":\"Pocket ID\",\"client_id\":\"{{clientId}}\",\"secret\":\"{{clientSecret}}\",\"settings\":{\"server_url\":\"{{issuer}}\"}}]}}"
+							PAPERLESS_SOCIALACCOUNT_ALLOW_SIGNUPS:         "true"
+							PAPERLESS_SOCIAL_AUTO_SIGNUP:                  "true"
+							PAPERLESS_SOCIAL_ACCOUNT_SYNC_GROUPS:          "true"
+							PAPERLESS_SOCIAL_ACCOUNT_SYNC_SUPERUSER_GROUP: "owners"
+						}
+					}
 					secretEnvironment: {
 						PAPERLESS_DBPASS:         "database-password"
 						PAPERLESS_ADMIN_PASSWORD: "owner-password"
@@ -7879,7 +7894,7 @@ _architectureV2Modules: list.Concat([[
 			id: "paperless", kind: "native-config", rendererRef: "stackkit"
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/paperless-ngx/bundle/v1.json", version: "1.0.0"
-			contractHash: "sha256:34f3ee240b967ba9939d5fe76e25b278992371cea9d16e5ae585ec3f2d5e62bb"
+			contractHash: "sha256:338390cbc43830148aedaf85ce6a01c8c113bc2fa8de39c2bb6dbbeec146dd33"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
 			secretInputRefs: ["database-password", "owner-password", "session-key"]

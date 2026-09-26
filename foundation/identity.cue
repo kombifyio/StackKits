@@ -494,7 +494,7 @@ package foundation
 
 	// PocketID v2 is passkey-only — there is no password concept.
 	// Local owners are activated via a one-time-access token rendered into a
-	// /setup-account?token=... URL the operator clicks once to enroll a
+	// /lc/<token> URL (PocketID one-time code) the operator clicks once to enroll a
 	// WebAuthn credential. Cloud owners federate from an external IdP.
 	recoveryPassphraseHash?: =~"^\\$argon2id\\$.*"
 	recoveryMaterialRef?:    =~"^(techstack|secret|doppler|vault)://.+|^(env|file):.+"

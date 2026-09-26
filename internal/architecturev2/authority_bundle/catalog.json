@@ -27030,7 +27030,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:34f3ee240b967ba9939d5fe76e25b278992371cea9d16e5ae585ec3f2d5e62bb",
+          "contractHash": "sha256:338390cbc43830148aedaf85ce6a01c8c113bc2fa8de39c2bb6dbbeec146dd33",
           "id": "paperless",
           "inputBindings": [
             {
@@ -27211,6 +27211,13 @@
               "path": "/",
               "port": 8000
             },
+            "homeIdentityAccess": {
+              "caBundleEnvironment": [
+                "REQUESTS_CA_BUNDLE",
+                "SSL_CERT_FILE"
+              ],
+              "caBundleTarget": "/etc/stackkit/ca-bundle.pem"
+            },
             "id": "paperless",
             "image": {
               "digest": "sha256:aa810a36942c63d4ee70d00eda7236cd3d6acfb7eb3f7987fb568ed14df8817a",
@@ -27222,6 +27229,17 @@
             ],
             "ownerEnvironment": {
               "PAPERLESS_ADMIN_MAIL": "email"
+            },
+            "pocketIDClient": {
+              "callbackPath": "/accounts/oidc/pocketid/login/callback/",
+              "environment": {
+                "PAPERLESS_APPS": "allauth.socialaccount.providers.openid_connect",
+                "PAPERLESS_SOCIALACCOUNT_ALLOW_SIGNUPS": "true",
+                "PAPERLESS_SOCIALACCOUNT_PROVIDERS": "{\"openid_connect\":{\"SCOPE\":[\"openid\",\"profile\",\"email\",\"groups\"],\"OAUTH_PKCE_ENABLED\":true,\"APPS\":[{\"provider_id\":\"pocketid\",\"name\":\"Pocket ID\",\"client_id\":\"{{clientId}}\",\"secret\":\"{{clientSecret}}\",\"settings\":{\"server_url\":\"{{issuer}}\"}}]}}",
+                "PAPERLESS_SOCIAL_ACCOUNT_SYNC_GROUPS": "true",
+                "PAPERLESS_SOCIAL_ACCOUNT_SYNC_SUPERUSER_GROUP": "owners",
+                "PAPERLESS_SOCIAL_AUTO_SIGNUP": "true"
+              }
             },
             "resources": {
               "memoryLimit": "2g",

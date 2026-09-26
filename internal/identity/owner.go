@@ -9,7 +9,7 @@
 //
 // The token is rendered into a setup URL of the form
 //
-//	https://id.<domain>/setup-account?token=<token>
+//	https://id.<domain>/lc/<token>?redirect=%2Fsettings%2Faccount
 //
 // which the owner clicks once to register a WebAuthn credential. The token
 // is single-use and consumed by PocketID on first redemption.
@@ -151,6 +151,6 @@ func (p *OwnerProvisioner) Provision(ctx context.Context, spec OwnerSpec) (*Prov
 		return nil, fmt.Errorf("create owner setup token: %w", err)
 	}
 
-	setupURL := fmt.Sprintf("%s/setup-account?token=%s", p.PocketIDURL, token)
+	setupURL := pocketid.ActivationURL(p.PocketIDURL, token)
 	return &ProvisionResult{UserID: user.ID, SetupURL: setupURL}, nil
 }

@@ -118,7 +118,7 @@ func (s *Service) stepUpTrust(ctx context.Context, origin string, create bool) (
 	if err != nil || registered == nil || !samePocketIDGroupIDs(registered.AllowedUserGroups, groups) {
 		return StepUpTrust{}, ErrStepUpRejected
 	}
-	runtime, err := localevidence.LoadBasementRuntimeCustody(s.workspaceRoot)
+	address, err := localevidence.LocalIdentityRuntimeAddress(s.workspaceRoot)
 	if err != nil {
 		return StepUpTrust{}, err
 	}
@@ -126,7 +126,7 @@ func (s *Service) stepUpTrust(ctx context.Context, origin string, create bool) (
 	if err = stepUpJSON(ctx, http.MethodGet, pocketIDLocalAPI+"/.well-known/jwks.json", nil, &keys); err != nil {
 		return StepUpTrust{}, err
 	}
-	return StepUpTrust{Issuer: "https://id." + runtime.Domain, Subject: binding.PocketIDSubject, OwnerRef: binding.OwnerRef, HomeSiteRef: owner.Binding.SiteRef, Keys: keys}, nil
+	return StepUpTrust{Issuer: address.PocketIDOrigin(), Subject: binding.PocketIDSubject, OwnerRef: binding.OwnerRef, HomeSiteRef: owner.Binding.SiteRef, Keys: keys}, nil
 }
 
 // ExchangeStepUpCode uses only the fixed local PocketID endpoint. Neither an

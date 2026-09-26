@@ -328,7 +328,7 @@ func (c *Client) GetGroupIDByName(ctx context.Context, name string) (string, err
 }
 
 // CreateOneTimeAccessToken issues a one-time-access token for the given user
-// that the holder can redeem at `/setup-account?token=...` to enroll a
+// that the holder redeems through ActivationURL (`/lc/<token>`) to enroll a
 // WebAuthn credential. PocketID v2 is passkey-only, so this is the only way
 // to bootstrap a freshly-provisioned owner account into a usable state.
 //
@@ -605,4 +605,19 @@ func (e *HTTPError) Unwrap() error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// UpdateOIDCClient replaces the mutable settings of an existing client (name,
+// callbacks, public/PKCE and group restriction). The secret is unchanged.
+func (c *Client) UpdateOIDCClient(ctx context.Context, clientID string, req RegisterClientRequest) (*OIDCClient, error) {
+	clientID = strings.TrimSpace(clientID)
+	if clientID == "" || strings.ContainsAny(clientID, "/?#") {
+		return nil, errors.New("update oidc client: id is invalid")
+	}
+	req.ID = ""
+	var client OIDCClient
+	if err := c.do(ctx, http.MethodPut, "/api/oidc/clients/"+clientID, req, &client); err != nil {
+		return nil, fmt.Errorf("update oidc client %s: %w", clientID, err)
+	}
+	return &client, nil
 }

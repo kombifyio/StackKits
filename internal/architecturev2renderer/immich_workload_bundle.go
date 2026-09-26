@@ -90,6 +90,19 @@ type selectedPaaSRuntimeComponent struct {
 	DevicePassthrough *selectedPaaSDevicePassthrough `json:"devicePassthrough,omitempty"`
 	Devices           []selectedPaaSDevice           `json:"devices,omitempty"`
 	PeerNetworks      []selectedPaaSPeerNetwork      `json:"peerNetworks,omitempty"`
+	// Home identity rights: server-side reach of Pocket ID and its client.
+	HomeIdentityAccess *selectedPaaSHomeIdentityAccess `json:"homeIdentityAccess,omitempty"`
+	PocketIDClient     *selectedPaaSPocketIDClient     `json:"pocketIDClient,omitempty"`
+}
+
+type selectedPaaSHomeIdentityAccess struct {
+	CABundleTarget      string   `json:"caBundleTarget"`
+	CABundleEnvironment []string `json:"caBundleEnvironment"`
+}
+
+type selectedPaaSPocketIDClient struct {
+	CallbackPath string            `json:"callbackPath"`
+	Environment  map[string]string `json:"environment"`
 }
 
 // selectedPaaSPeerNetwork names the internal network of another workload an

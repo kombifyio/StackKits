@@ -1,6 +1,6 @@
 {
   "documentHashes": {
-    "catalog.json": "sha256:d724f6c0ec5c0cdfb00729162315a5a903a37e94d297db5617d9563db928d947",
+    "catalog.json": "sha256:a42d959210cb1095f244118b0df11f2eb7db93513870a68dde38919e94344e90",
     "compute-tier-fits.json": "sha256:d6179de1c7274679d5c8a63f74f4a7245cdd4614b7290c363c6bea25cf8ffd5a",
     "definitions/basement-kit.json": "sha256:8083319e43e46560796921a09d8cca4059228c441a1f3bfb7eb607d5ece5f204",
     "definitions/cloud-kit.json": "sha256:455f12aab54ecc2a0e211a7396efa7973233c7a7e13a7e91a19bf7f7abbdedd9",
@@ -23,9 +23,9 @@
   "sourceHashes": {
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee",
     "foundation/application_lifecycle.cue": "sha256:7befc7549306375ef5434a852ad31940fe4924698900db1ccff0c766c0e70cdd",
-    "foundation/architecture_v2.cue": "sha256:a5da146e5503b4ec3ab9f92dfba7529bd5ce2af83f0d42b921653a881128de38",
+    "foundation/architecture_v2.cue": "sha256:9fce5740497ab8ab30c42668cb7b5beb63b3a189bfc2df28c3f49def806dfa9a",
     "foundation/architecture_v2_backup.cue": "sha256:750b23662d20956156394cf61ad1466e651372a18aa06075883a2a70199c93e0",
-    "foundation/architecture_v2_catalog.cue": "sha256:a76abf5ee5fa16282a6bd52ab1740fa33b5bca3f4d0184c1fadbfa1bdb09c1eb",
+    "foundation/architecture_v2_catalog.cue": "sha256:f4c0a9c64005917193a3dad334dfd486d7ad91a593db10bc10e00aa01a9acf7b",
     "foundation/architecture_v2_cloud_core.cue": "sha256:c213af7c93a44adf2062d6a6fff76cc8b7de26798cc5d29d238d79add74d1259",
     "foundation/architecture_v2_definition_binding.cue": "sha256:a3bd59ab840c4d2775dfa1ca9703a76b22a836a38ca363d089c1322453cf947b",
     "foundation/architecture_v2_federation.cue": "sha256:7c4c80cdd0aef6f5dc4369b4a95e09e3e01be91b4116bf4dd80dc3006b11ff81",

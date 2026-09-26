@@ -43,6 +43,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
 
+## [0.47.3](https://github.com/kombifyio/StackKits/compare/v0.47.2...v0.47.3) (2026-09-26)
+
+
+### Added
+
+* **identity:** apps reach Pocket ID server-side; Paperless-ngx signs in with OIDC
+
+
+### Fixed
+
+* **identity:** activation links use the PocketID one-time code route
+* **identity:** resolve Cloud custody for owner step-up
+
 ## [0.47.2](https://github.com/kombifyio/StackKits/compare/v0.47.1...v0.47.2) (2026-09-26)
 
 

@@ -40,7 +40,7 @@ type BreakGlassCredential struct {
 	SetupToken string
 
 	// SetupURL is the full URL the recoverer clicks to complete WebAuthn
-	// enrollment, of the form "https://id.<domain>/setup-account?token=<t>".
+	// enrollment, of the form "https://id.<domain>/lc/<t>?redirect=%2Fsettings%2Faccount".
 	SetupURL string
 
 	// Group is the PocketID group the account was added to (typically
@@ -138,7 +138,7 @@ func (g *BreakGlassGenerator) Generate(ctx context.Context) (*BreakGlassCredenti
 	return &BreakGlassCredential{
 		Username:   username,
 		SetupToken: token,
-		SetupURL:   fmt.Sprintf("%s/setup-account?token=%s", g.PocketIDURL, token),
+		SetupURL:   pocketid.ActivationURL(g.PocketIDURL, token),
 		Group:      groupName,
 		UserID:     user.ID,
 	}, nil
