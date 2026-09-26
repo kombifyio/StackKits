@@ -2,8 +2,10 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -518,10 +520,46 @@ func inspectVerifiedPublicUpgradeTarget(
 			return upgradelifecycle.Inspection{}, err
 		}
 	}
+	pinned, err := currentPlanInventoryDocument(workspace, current.OutputRoot)
+	if err != nil {
+		return upgradelifecycle.Inspection{}, err
+	}
 	return (upgradelifecycle.Inspector{
 		Source: source, Attestations: attestations, Runner: runner,
-		InventoryPath: filepath.ToSlash(inventoryRelative),
+		InventoryPath:   filepath.ToSlash(inventoryRelative),
+		PinnedInventory: pinned,
 	}).Inspect(ctx, resolution, workspace, requestedSpec, current)
+}
+
+// currentPlanInventoryDocument returns the Inventory document the persisted
+// current plan was generated from, or nil when the plan recorded none. The
+// upgrade's target execution resolves from the checkpoint's stable projection
+// of exactly this document, so the shadow inspection must too: the workspace
+// file carries the latest re-attested free-space sample instead.
+func currentPlanInventoryDocument(workspace, outputRoot string) ([]byte, error) {
+	root := strings.TrimSpace(outputRoot)
+	if root == "" {
+		root = "."
+	}
+	raw, err := os.ReadFile(filepath.Join(workspace, filepath.FromSlash(root), ".stackkit", "resolved-plan.json"))
+	if err != nil {
+		return nil, fmt.Errorf("read the current persisted plan for the pinned upgrade Inventory: %w", err)
+	}
+	var plan struct {
+		Source struct {
+			Inventory struct {
+				Document json.RawMessage `json:"document"`
+			} `json:"inventory"`
+		} `json:"source"`
+	}
+	if err := json.Unmarshal(raw, &plan); err != nil {
+		return nil, fmt.Errorf("decode the current persisted plan Inventory: %w", err)
+	}
+	var document map[string]json.RawMessage
+	if json.Unmarshal(plan.Source.Inventory.Document, &document) != nil || len(document) == 0 {
+		return nil, nil
+	}
+	return append([]byte(nil), plan.Source.Inventory.Document...), nil
 }
 
 func currentUpgradeInspection(ctx context.Context, workspace, requestedSpec string) (generationartifact.PlanInspection, error) {

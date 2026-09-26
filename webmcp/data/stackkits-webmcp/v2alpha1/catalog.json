@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "b020306cf0c72ac30f227125b7e22ab22d2e3864",
-  "authority_bundle_sha256": "9e903817f67df5523b68770a0647e801a691c53c8b4c6d69abad34f9377967ed",
+  "source_sha": "0a19fbbf9ca092d9537f65eddd571397d21a7eaf",
+  "authority_bundle_sha256": "9c76be3e493ce982d7a4ff78729850b3aedbfa69e81a2a9fe0110e9dd46dbb1d",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -322,6 +322,130 @@
             "host-bootstrap"
           ],
           "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-emby-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "media"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Media library and playback through Emby Server. Some client features need an Emby Premiere licence; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "emby"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "afbc4b5ff5011550ef048a42a04b4c7b8e2554dc7832d7b6d09b609ffee9b432"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Media library and playback through Emby Server. Some client features need an Emby Premiere licence; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "emby"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "b27cb6aebd76ba454966fb25d43a8ac897adf239de8e41e12cc1c561c588a2db"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-forgejo-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "dev"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private Git hosting through Forgejo with SQLite and persistent repositories, LFS objects and configuration. Actions runners and SSH are not included. Repository growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "forgejo"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "7dd3d77c5ba868a99fbee758ce9413c039da8c5e0608a19b6a295994bfdde637"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private Git hosting through Forgejo with SQLite and persistent repositories, LFS objects and configuration. Actions runners and SSH are not included. Repository growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "forgejo"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "efd62e1fb631add9e8162d3e1c45bd546b10880da6fe5857bb0d6a918e77ef56"
+            }
+          ],
           "storage_profiles": [],
           "accelerator_profiles": []
         },
@@ -792,6 +916,72 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-nextcloud-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "files"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Files, sharing and collaboration through Nextcloud Server with PostgreSQL and Valkey. Office editing is a separate add-on. Standard and high are equivalent; storage growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.75
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "nextcloud",
+                "nextcloud-postgres",
+                "nextcloud-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "c7d138c0230ff70255bcdefacab0685b9625b046c0ab36eec40ae7b0c44ecb87"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Files, sharing and collaboration through Nextcloud Server with PostgreSQL and Valkey. Office editing is a separate add-on. Standard and high are equivalent; storage growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.75
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "nextcloud",
+                "nextcloud-postgres",
+                "nextcloud-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d8ad5979387ea9268ad91c6be8753b366f6dc035bc0d1b1f0540e5c381793daf"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-paperless-runtime",
           "role": "workload",
           "required": false,
@@ -852,6 +1042,70 @@
               "capabilities": [],
               "degradations": [],
               "profile_sha256": "0d5fba68eb583397e2c29703590622467b8336238c059e529cb6915a52a24fc8"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-passbolt-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "vault"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Team password manager through Passbolt Community Edition with MariaDB. The owner registers with the Passbolt browser extension, which creates the owner's OpenPGP key on the device. Standard and high are equivalent.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "passbolt",
+                "passbolt-mariadb"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "c3edde8c5ed6741c0b52c56e62c658cadef606f50cbfb80e4c2c4e97dcd48107"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Team password manager through Passbolt Community Edition with MariaDB. The owner registers with the Passbolt browser extension, which creates the owner's OpenPGP key on the device. Standard and high are equivalent.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "passbolt",
+                "passbolt-mariadb"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "dc4a2435182c1713a53391e29000adb16134ec76fe56b0d87027458c4b042118"
             }
           ],
           "storage_profiles": [],
@@ -1272,6 +1526,20 @@
           "availability": "available",
           "alternatives": [
             {
+              "alternative_id": "forgejo",
+              "module_id": "stackkits-forgejo-runtime",
+              "functions": [
+                "developer-collaboration",
+                "git-hosting",
+                "source-control"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
               "alternative_id": "gitea",
               "module_id": "stackkits-gitea-runtime",
               "functions": [
@@ -1325,6 +1593,20 @@
             {
               "alternative_id": "cloudreve",
               "module_id": "stackkits-cloudreve-runtime",
+              "functions": [
+                "document-storage",
+                "file-sharing",
+                "files"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "nextcloud",
+              "module_id": "stackkits-nextcloud-runtime",
               "functions": [
                 "document-storage",
                 "file-sharing",
@@ -1396,6 +1678,19 @@
           "default_alternative_id": "jellyfin",
           "availability": "available",
           "alternatives": [
+            {
+              "alternative_id": "emby",
+              "module_id": "stackkits-emby-runtime",
+              "functions": [
+                "media-server",
+                "video-stream"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
             {
               "alternative_id": "jellyfin",
               "module_id": "stackkits-jellyfin-runtime",
@@ -1523,6 +1818,20 @@
           "default_alternative_id": "vaultwarden",
           "availability": "available",
           "alternatives": [
+            {
+              "alternative_id": "passbolt",
+              "module_id": "stackkits-passbolt-runtime",
+              "functions": [
+                "password-manager",
+                "secure-notes",
+                "totp"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
             {
               "alternative_id": "vaultwarden",
               "module_id": "stackkits-vaultwarden-runtime",
@@ -1852,6 +2161,130 @@
             "host-bootstrap"
           ],
           "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-emby-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "media"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Media library and playback through Emby Server. Some client features need an Emby Premiere licence; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "emby"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "afbc4b5ff5011550ef048a42a04b4c7b8e2554dc7832d7b6d09b609ffee9b432"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Media library and playback through Emby Server. Some client features need an Emby Premiere licence; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "emby"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "b27cb6aebd76ba454966fb25d43a8ac897adf239de8e41e12cc1c561c588a2db"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-forgejo-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "dev"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private Git hosting through Forgejo with SQLite and persistent repositories, LFS objects and configuration. Actions runners and SSH are not included. Repository growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "forgejo"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "7dd3d77c5ba868a99fbee758ce9413c039da8c5e0608a19b6a295994bfdde637"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private Git hosting through Forgejo with SQLite and persistent repositories, LFS objects and configuration. Actions runners and SSH are not included. Repository growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "forgejo"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "efd62e1fb631add9e8162d3e1c45bd546b10880da6fe5857bb0d6a918e77ef56"
+            }
+          ],
           "storage_profiles": [],
           "accelerator_profiles": []
         },
@@ -2310,6 +2743,72 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-nextcloud-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "files"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Files, sharing and collaboration through Nextcloud Server with PostgreSQL and Valkey. Office editing is a separate add-on. Standard and high are equivalent; storage growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.75
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "nextcloud",
+                "nextcloud-postgres",
+                "nextcloud-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "c7d138c0230ff70255bcdefacab0685b9625b046c0ab36eec40ae7b0c44ecb87"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Files, sharing and collaboration through Nextcloud Server with PostgreSQL and Valkey. Office editing is a separate add-on. Standard and high are equivalent; storage growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.75
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "nextcloud",
+                "nextcloud-postgres",
+                "nextcloud-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d8ad5979387ea9268ad91c6be8753b366f6dc035bc0d1b1f0540e5c381793daf"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-paperless-runtime",
           "role": "workload",
           "required": false,
@@ -2370,6 +2869,70 @@
               "capabilities": [],
               "degradations": [],
               "profile_sha256": "0d5fba68eb583397e2c29703590622467b8336238c059e529cb6915a52a24fc8"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-passbolt-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "vault"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Team password manager through Passbolt Community Edition with MariaDB. The owner registers with the Passbolt browser extension, which creates the owner's OpenPGP key on the device. Standard and high are equivalent.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "passbolt",
+                "passbolt-mariadb"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "c3edde8c5ed6741c0b52c56e62c658cadef606f50cbfb80e4c2c4e97dcd48107"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Team password manager through Passbolt Community Edition with MariaDB. The owner registers with the Passbolt browser extension, which creates the owner's OpenPGP key on the device. Standard and high are equivalent.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "passbolt",
+                "passbolt-mariadb"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "dc4a2435182c1713a53391e29000adb16134ec76fe56b0d87027458c4b042118"
             }
           ],
           "storage_profiles": [],
@@ -2869,6 +3432,20 @@
           "availability": "available",
           "alternatives": [
             {
+              "alternative_id": "forgejo",
+              "module_id": "stackkits-forgejo-runtime",
+              "functions": [
+                "developer-collaboration",
+                "git-hosting",
+                "source-control"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
               "alternative_id": "gitea",
               "module_id": "stackkits-gitea-runtime",
               "functions": [
@@ -2922,6 +3499,20 @@
             {
               "alternative_id": "cloudreve",
               "module_id": "stackkits-cloudreve-runtime",
+              "functions": [
+                "document-storage",
+                "file-sharing",
+                "files"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "nextcloud",
+              "module_id": "stackkits-nextcloud-runtime",
               "functions": [
                 "document-storage",
                 "file-sharing",
@@ -3019,6 +3610,19 @@
           "default_alternative_id": "jellyfin",
           "availability": "available",
           "alternatives": [
+            {
+              "alternative_id": "emby",
+              "module_id": "stackkits-emby-runtime",
+              "functions": [
+                "media-server",
+                "video-stream"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
             {
               "alternative_id": "jellyfin",
               "module_id": "stackkits-jellyfin-runtime",
@@ -3146,6 +3750,20 @@
           "default_alternative_id": "vaultwarden",
           "availability": "available",
           "alternatives": [
+            {
+              "alternative_id": "passbolt",
+              "module_id": "stackkits-passbolt-runtime",
+              "functions": [
+                "password-manager",
+                "secure-notes",
+                "totp"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
             {
               "alternative_id": "vaultwarden",
               "module_id": "stackkits-vaultwarden-runtime",
@@ -3486,6 +4104,130 @@
             "host-bootstrap"
           ],
           "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-emby-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "media"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Media library and playback through Emby Server. Some client features need an Emby Premiere licence; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "emby"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "afbc4b5ff5011550ef048a42a04b4c7b8e2554dc7832d7b6d09b609ffee9b432"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Media library and playback through Emby Server. Some client features need an Emby Premiere licence; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "emby"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "b27cb6aebd76ba454966fb25d43a8ac897adf239de8e41e12cc1c561c588a2db"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-forgejo-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "dev"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private Git hosting through Forgejo with SQLite and persistent repositories, LFS objects and configuration. Actions runners and SSH are not included. Repository growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "forgejo"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "7dd3d77c5ba868a99fbee758ce9413c039da8c5e0608a19b6a295994bfdde637"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private Git hosting through Forgejo with SQLite and persistent repositories, LFS objects and configuration. Actions runners and SSH are not included. Repository growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "forgejo"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "efd62e1fb631add9e8162d3e1c45bd546b10880da6fe5857bb0d6a918e77ef56"
+            }
+          ],
           "storage_profiles": [],
           "accelerator_profiles": []
         },
@@ -3956,6 +4698,72 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-nextcloud-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "files"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Files, sharing and collaboration through Nextcloud Server with PostgreSQL and Valkey. Office editing is a separate add-on. Standard and high are equivalent; storage growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.75
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "nextcloud",
+                "nextcloud-postgres",
+                "nextcloud-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "c7d138c0230ff70255bcdefacab0685b9625b046c0ab36eec40ae7b0c44ecb87"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Files, sharing and collaboration through Nextcloud Server with PostgreSQL and Valkey. Office editing is a separate add-on. Standard and high are equivalent; storage growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.75
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "nextcloud",
+                "nextcloud-postgres",
+                "nextcloud-valkey"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d8ad5979387ea9268ad91c6be8753b366f6dc035bc0d1b1f0540e5c381793daf"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-paperless-runtime",
           "role": "workload",
           "required": false,
@@ -4016,6 +4824,70 @@
               "capabilities": [],
               "degradations": [],
               "profile_sha256": "0d5fba68eb583397e2c29703590622467b8336238c059e529cb6915a52a24fc8"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-passbolt-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "vault"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Team password manager through Passbolt Community Edition with MariaDB. The owner registers with the Passbolt browser extension, which creates the owner's OpenPGP key on the device. Standard and high are equivalent.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "passbolt",
+                "passbolt-mariadb"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "c3edde8c5ed6741c0b52c56e62c658cadef606f50cbfb80e4c2c4e97dcd48107"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Team password manager through Passbolt Community Edition with MariaDB. The owner registers with the Passbolt browser extension, which creates the owner's OpenPGP key on the device. Standard and high are equivalent.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "passbolt",
+                "passbolt-mariadb"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "dc4a2435182c1713a53391e29000adb16134ec76fe56b0d87027458c4b042118"
             }
           ],
           "storage_profiles": [],
@@ -4436,6 +5308,20 @@
           "availability": "available",
           "alternatives": [
             {
+              "alternative_id": "forgejo",
+              "module_id": "stackkits-forgejo-runtime",
+              "functions": [
+                "developer-collaboration",
+                "git-hosting",
+                "source-control"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
               "alternative_id": "gitea",
               "module_id": "stackkits-gitea-runtime",
               "functions": [
@@ -4489,6 +5375,20 @@
             {
               "alternative_id": "cloudreve",
               "module_id": "stackkits-cloudreve-runtime",
+              "functions": [
+                "document-storage",
+                "file-sharing",
+                "files"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "nextcloud",
+              "module_id": "stackkits-nextcloud-runtime",
               "functions": [
                 "document-storage",
                 "file-sharing",
@@ -4560,6 +5460,19 @@
           "default_alternative_id": "jellyfin",
           "availability": "available",
           "alternatives": [
+            {
+              "alternative_id": "emby",
+              "module_id": "stackkits-emby-runtime",
+              "functions": [
+                "media-server",
+                "video-stream"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
             {
               "alternative_id": "jellyfin",
               "module_id": "stackkits-jellyfin-runtime",
@@ -4687,6 +5600,20 @@
           "default_alternative_id": "vaultwarden",
           "availability": "available",
           "alternatives": [
+            {
+              "alternative_id": "passbolt",
+              "module_id": "stackkits-passbolt-runtime",
+              "functions": [
+                "password-manager",
+                "secure-notes",
+                "totp"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
             {
               "alternative_id": "vaultwarden",
               "module_id": "stackkits-vaultwarden-runtime",
@@ -6010,5 +6937,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "22033bc2c12dea82c38beef7c9b70fe5b4db942640e6678d5801dc3c0403b037"
+  "catalog_sha256": "b97c0c5d653d402a23f77e785a98de7c7110d42e25fef28a9ffa8d18889a326e"
 }

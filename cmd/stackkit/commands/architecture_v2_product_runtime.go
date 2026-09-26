@@ -428,7 +428,19 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 	}
 	standaloneApplications := []func() (architecturev2.ProductRuntimeOwnerRegistration, error){
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductEmbySelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductPassboltSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductNextcloudSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductGiteaSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductForgejoSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductPaperlessSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)

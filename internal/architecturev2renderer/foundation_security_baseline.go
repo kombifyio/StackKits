@@ -140,6 +140,22 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(jellyfinWorkload.contract, jellyfinWorkload); err != nil {
 		return nil, err
 	}
+	forgejoWorkload := newForgejoWorkloadBundleRenderer()
+	if err := registry.Register(forgejoWorkload.contract, forgejoWorkload); err != nil {
+		return nil, err
+	}
+	embyWorkload := newEmbyWorkloadBundleRenderer()
+	if err := registry.Register(embyWorkload.contract, embyWorkload); err != nil {
+		return nil, err
+	}
+	passboltWorkload := newPassboltWorkloadBundleRenderer()
+	if err := registry.Register(passboltWorkload.contract, passboltWorkload); err != nil {
+		return nil, err
+	}
+	nextcloudWorkload := newNextcloudWorkloadBundleRenderer()
+	if err := registry.Register(nextcloudWorkload.contract, nextcloudWorkload); err != nil {
+		return nil, err
+	}
 	giteaWorkload := newGiteaWorkloadBundleRenderer()
 	if err := registry.Register(giteaWorkload.contract, giteaWorkload); err != nil {
 		return nil, err

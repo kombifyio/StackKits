@@ -20,6 +20,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/backupcustody"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
@@ -260,8 +261,8 @@ func nativeAppliedWorkloadDeployment(authority nativeV2AppliedAuthority, workloa
 		if target.WorkloadRef != workload {
 			continue
 		}
-		if target.RuntimeAdapter == nil || target.RuntimeAdapter.ID != "standalone-compose" {
-			return nativehost.SelectedPaaSWorkloadDeployment{}, errors.New("local application operation requires the explicitly selected standalone-compose adapter")
+		if !target.RuntimeAdapter.HasCapability(generationartifact.ApplicationSetupLocalAPICapability) {
+			return nativehost.SelectedPaaSWorkloadDeployment{}, fmt.Errorf("local application operation requires a runtime adapter with the %q capability, which the selected adapter does not declare", generationartifact.ApplicationSetupLocalAPICapability)
 		}
 		if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 || target.SiteRefs[0] != authority.Owner.Binding.SiteRef || target.NodeRefs[0] != authority.Owner.Binding.NodeRef {
 			return nativehost.SelectedPaaSWorkloadDeployment{}, errors.New("native application setup requires the exact local owner-bound placement")

@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:08be6ccbf03f9d18426612523d02eafe39201bf311fa450af1f7f042627f651b",
+  "contentDigest": "sha256:faedc342a35c88e9e9a3212056b98669dfcd47a6c3d9bff07f753ce260341ee0",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -142,6 +142,19 @@
     {
       "alternatives": [
         {
+          "id": "forgejo",
+          "modules": [
+            {
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-forgejo-runtime"
+            }
+          ],
+          "name": "forgejo"
+        },
+        {
           "id": "gitea",
           "modules": [
             {
@@ -160,7 +173,7 @@
           "id": "forgejo",
           "kind": "application",
           "name": "Forgejo",
-          "realization": "recorded",
+          "realization": "install",
           "role": "alternative"
         },
         {
@@ -323,6 +336,19 @@
             }
           ],
           "name": "cloudreve"
+        },
+        {
+          "id": "nextcloud",
+          "modules": [
+            {
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-nextcloud-runtime"
+            }
+          ],
+          "name": "nextcloud"
         }
       ],
       "components": [
@@ -342,7 +368,7 @@
           "id": "nextcloud",
           "kind": "application",
           "name": "Nextcloud",
-          "realization": "recorded",
+          "realization": "install",
           "role": "alternative"
         },
         {
@@ -805,6 +831,19 @@
     {
       "alternatives": [
         {
+          "id": "emby",
+          "modules": [
+            {
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-emby-runtime"
+            }
+          ],
+          "name": "emby"
+        },
+        {
           "id": "jellyfin",
           "modules": [
             {
@@ -829,7 +868,7 @@
           "id": "emby",
           "kind": "application",
           "name": "Emby",
-          "realization": "recorded",
+          "realization": "install",
           "role": "alternative"
         },
         {
@@ -1431,6 +1470,19 @@
     {
       "alternatives": [
         {
+          "id": "passbolt",
+          "modules": [
+            {
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-passbolt-runtime"
+            }
+          ],
+          "name": "passbolt"
+        },
+        {
           "id": "vaultwarden",
           "modules": [
             {
@@ -1450,7 +1502,7 @@
           "id": "passbolt",
           "kind": "application",
           "name": "Passbolt CE",
-          "realization": "recorded",
+          "realization": "install",
           "role": "alternative"
         },
         {

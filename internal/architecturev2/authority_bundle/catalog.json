@@ -4648,6 +4648,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-nextcloud-runtime"
+        ],
+        "matches": [
+          "stackkits-nextcloud"
+        ],
+        "module": "stackkits-nextcloud-runtime",
+        "provider": "stackkits-nextcloud"
+      },
+      {
+        "governanceMatches": [
           "stackkits-cloudreve-runtime"
         ],
         "matches": [
@@ -4655,6 +4665,16 @@
         ],
         "module": "stackkits-cloudreve-runtime",
         "provider": "stackkits-cloudreve"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-passbolt-runtime"
+        ],
+        "matches": [
+          "stackkits-passbolt"
+        ],
+        "module": "stackkits-passbolt-runtime",
+        "provider": "stackkits-passbolt"
       },
       {
         "governanceMatches": [
@@ -4685,6 +4705,16 @@
         ],
         "module": "stackkits-gitea-runtime",
         "provider": "stackkits-gitea"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-forgejo-runtime"
+        ],
+        "matches": [
+          "stackkits-forgejo"
+        ],
+        "module": "stackkits-forgejo-runtime",
+        "provider": "stackkits-forgejo"
       },
       {
         "governanceMatches": [
@@ -4725,6 +4755,16 @@
         ],
         "module": "stackkits-pterodactyl-runtime",
         "provider": "stackkits-pterodactyl"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-emby-runtime"
+        ],
+        "matches": [
+          "stackkits-emby"
+        ],
+        "module": "stackkits-emby-runtime",
+        "provider": "stackkits-emby"
       },
       {
         "governanceMatches": [
@@ -5513,7 +5553,19 @@
           "contracts": [
             "files"
           ],
+          "providerID": "stackkits-nextcloud"
+        },
+        {
+          "contracts": [
+            "files"
+          ],
           "providerID": "stackkits-cloudreve"
+        },
+        {
+          "contracts": [
+            "vault"
+          ],
+          "providerID": "stackkits-passbolt"
         },
         {
           "contracts": [
@@ -5532,6 +5584,12 @@
             "dev"
           ],
           "providerID": "stackkits-gitea"
+        },
+        {
+          "contracts": [
+            "dev"
+          ],
+          "providerID": "stackkits-forgejo"
         },
         {
           "contracts": [
@@ -5556,6 +5614,12 @@
             "mail-server"
           ],
           "providerID": "stackkits-stalwart"
+        },
+        {
+          "contracts": [
+            "media"
+          ],
+          "providerID": "stackkits-emby"
         },
         {
           "contracts": [
@@ -6398,10 +6462,24 @@
       },
       {
         "matches": [
+          "stackkits-nextcloud-runtime"
+        ],
+        "module": "stackkits-nextcloud-runtime",
+        "provider": "stackkits-nextcloud"
+      },
+      {
+        "matches": [
           "stackkits-cloudreve-runtime"
         ],
         "module": "stackkits-cloudreve-runtime",
         "provider": "stackkits-cloudreve"
+      },
+      {
+        "matches": [
+          "stackkits-passbolt-runtime"
+        ],
+        "module": "stackkits-passbolt-runtime",
+        "provider": "stackkits-passbolt"
       },
       {
         "matches": [
@@ -6423,6 +6501,13 @@
         ],
         "module": "stackkits-gitea-runtime",
         "provider": "stackkits-gitea"
+      },
+      {
+        "matches": [
+          "stackkits-forgejo-runtime"
+        ],
+        "module": "stackkits-forgejo-runtime",
+        "provider": "stackkits-forgejo"
       },
       {
         "matches": [
@@ -6451,6 +6536,13 @@
         ],
         "module": "stackkits-stalwart-runtime",
         "provider": "stackkits-stalwart"
+      },
+      {
+        "matches": [
+          "stackkits-emby-runtime"
+        ],
+        "module": "stackkits-emby-runtime",
+        "provider": "stackkits-emby"
       },
       {
         "matches": [
@@ -7159,6 +7251,34 @@
         "matches": [
           "runtime-paas"
         ],
+        "provider": "stackkits-nextcloud"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-nextcloud"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-nextcloud"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-nextcloud"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
         "provider": "stackkits-cloudreve"
       },
       {
@@ -7181,6 +7301,34 @@
           "backup-core"
         ],
         "provider": "stackkits-cloudreve"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-passbolt"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-passbolt"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-passbolt"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-passbolt"
       },
       {
         "capability": "runtime-paas",
@@ -7265,6 +7413,34 @@
           "backup-core"
         ],
         "provider": "stackkits-gitea"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-forgejo"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-forgejo"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-forgejo"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-forgejo"
       },
       {
         "capability": "runtime-paas",
@@ -7377,6 +7553,34 @@
           "backup-core"
         ],
         "provider": "stackkits-stalwart"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-emby"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-emby"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-emby"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-emby"
       },
       {
         "capability": "runtime-paas",
@@ -8075,7 +8279,19 @@
           "capabilityBindings": [],
           "issuerBindings": [],
           "issuerIDsUnique": true,
+          "provider": "stackkits-nextcloud"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
           "provider": "stackkits-cloudreve"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-passbolt"
         },
         {
           "capabilityBindings": [],
@@ -8094,6 +8310,12 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-gitea"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-forgejo"
         },
         {
           "capabilityBindings": [],
@@ -8118,6 +8340,12 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-stalwart"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-emby"
         },
         {
           "capabilityBindings": [],
@@ -8882,6 +9110,106 @@
           "workloadID": "files"
         },
         {
+          "alternativeID": "nextcloud",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-nextcloud-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "nextcloud"
+                  ],
+                  "ref": "database-password"
+                },
+                {
+                  "matches": [
+                    "nextcloud"
+                  ],
+                  "ref": "owner-password"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "files",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "nextcloud",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-nextcloud",
+              "workloadOwnership": [
+                "files"
+              ]
+            }
+          ],
+          "workloadID": "files"
+        },
+        {
           "alternativeID": "vaultwarden",
           "moduleMatches": [
             {
@@ -8968,6 +9296,106 @@
             {
               "capabilityAliasForbidden": [],
               "providerID": "stackkits-vaultwarden",
+              "workloadOwnership": [
+                "vault"
+              ]
+            }
+          ],
+          "workloadID": "vault"
+        },
+        {
+          "alternativeID": "passbolt",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-passbolt-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "passbolt"
+                  ],
+                  "ref": "database-password"
+                },
+                {
+                  "matches": [
+                    "passbolt"
+                  ],
+                  "ref": "database-root-password"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "vault",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "secret"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "secret",
+                      "matches": [
+                        "secret"
+                      ]
+                    }
+                  ],
+                  "unitID": "passbolt",
+                  "workloadDataClasses": [
+                    {
+                      "class": "secret",
+                      "matches": [
+                        "secret"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-passbolt",
               "workloadOwnership": [
                 "vault"
               ]
@@ -9162,6 +9590,100 @@
             {
               "capabilityAliasForbidden": [],
               "providerID": "stackkits-gitea",
+              "workloadOwnership": [
+                "dev"
+              ]
+            }
+          ],
+          "workloadID": "dev"
+        },
+        {
+          "alternativeID": "forgejo",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-forgejo-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "forgejo"
+                  ],
+                  "ref": "owner-password"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "dev",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "forgejo",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-forgejo",
               "workloadOwnership": [
                 "dev"
               ]
@@ -9661,6 +10183,93 @@
             {
               "capabilityAliasForbidden": [],
               "providerID": "stackkits-jellyfin",
+              "workloadOwnership": [
+                "media"
+              ]
+            }
+          ],
+          "workloadID": "media"
+        },
+        {
+          "alternativeID": "emby",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-emby-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "media",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "emby",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-emby",
               "workloadOwnership": [
                 "media"
               ]
@@ -20467,6 +21076,453 @@
       "computeProfiles": {
         "high": {
           "components": [
+            "nextcloud",
+            "nextcloud-postgres",
+            "nextcloud-valkey"
+          ],
+          "description": "Files, sharing and collaboration through Nextcloud Server with PostgreSQL and Valkey. Office editing is a separate add-on. Standard and high are equivalent; storage growth needs a separate data budget.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.75
+          }
+        },
+        "standard": {
+          "components": [
+            "nextcloud",
+            "nextcloud-postgres",
+            "nextcloud-valkey"
+          ],
+          "description": "Files, sharing and collaboration through Nextcloud Server with PostgreSQL and Valkey. Office editing is a separate add-on. Standard and high are equivalent; storage growth needs a separate data budget.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.75
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "nextcloud-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "nextcloud-http",
+          "kind": "http",
+          "path": "/status.php",
+          "phase": "continuous",
+          "port": 80,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Nextcloud Server with upstream PostgreSQL and Valkey on one owner-selected node.",
+        "id": "stackkits-nextcloud-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-nextcloud",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "nextcloud-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/nextcloud/bundle.json",
+              "required": true,
+              "unitRef": "nextcloud"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "nextcloud-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/nextcloud/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "nextcloud-workload-bundle",
+              "outputRef": "workloads/nextcloud/bundle.json",
+              "unitRef": "nextcloud"
+            },
+            {
+              "artifactRef": "nextcloud-terramate-stack",
+              "outputRef": "platform/applications/nextcloud/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "nextcloud-workload-bundle",
+            "nextcloud-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "nextcloud-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "database-password",
+            "owner-password"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:ef3b156d4f5cf1602a6be71753c70d14ef0e28bbe5b5d096d5985ca4f61c3b4d",
+          "id": "nextcloud",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/nextcloud/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "database-password",
+            "owner-password"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "files",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "nextcloud-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "files",
+              "targetPort": 80,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/nextcloud/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/nextcloud/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "nextcloud-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "owner-password"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "nextcloud"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "nextcloud-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "owner-password"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "nextcloud"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "nextcloud-workload-bundle",
+            "nextcloud-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "owner-password"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "nextcloud",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [
+              "nextcloud-postgres",
+              "nextcloud-valkey"
+            ],
+            "environment": {
+              "NEXTCLOUD_ADMIN_USER": "owner",
+              "OVERWRITEPROTOCOL": "https",
+              "POSTGRES_DB": "nextcloud",
+              "POSTGRES_HOST": "nextcloud-postgres",
+              "POSTGRES_USER": "nextcloud",
+              "REDIS_HOST": "nextcloud-valkey",
+              "TRUSTED_PROXIES": "10.0.0.0/8 172.16.0.0/12 192.168.0.0/16"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/status.php",
+              "port": 80
+            },
+            "id": "nextcloud",
+            "image": {
+              "digest": "sha256:276547e033df451770dbf9c0065929e5ea179a613b1884bd3fa807ba1c2703e7",
+              "ref": "docker.io/library/nextcloud:35.0.1-apache"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "nextcloud-internal"
+            ],
+            "resources": {
+              "memoryLimit": "3g",
+              "memoryReservation": "512m"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "NEXTCLOUD_ADMIN_PASSWORD": "owner-password",
+              "POSTGRES_PASSWORD": "database-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "html",
+                "target": "/var/www/html"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "environment": {
+              "POSTGRES_DB": "nextcloud",
+              "POSTGRES_USER": "nextcloud"
+            },
+            "health": {
+              "command": [
+                "pg_isready",
+                "-U",
+                "nextcloud",
+                "-d",
+                "nextcloud"
+              ],
+              "kind": "command"
+            },
+            "id": "nextcloud-postgres",
+            "image": {
+              "digest": "sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280",
+              "ref": "docker.io/library/postgres:18"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "nextcloud-internal"
+            ],
+            "resources": {
+              "memoryLimit": "1g",
+              "memoryReservation": "256m"
+            },
+            "role": "database",
+            "secretEnvironment": {
+              "POSTGRES_PASSWORD": "database-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "database",
+                "target": "/var/lib/postgresql"
+              }
+            ]
+          },
+          {
+            "command": [
+              "valkey-server"
+            ],
+            "dependsOn": [],
+            "health": {
+              "command": [
+                "valkey-cli",
+                "ping"
+              ],
+              "kind": "command"
+            },
+            "id": "nextcloud-valkey",
+            "image": {
+              "digest": "sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b",
+              "ref": "docker.io/valkey/valkey:9-alpine"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "nextcloud-internal"
+            ],
+            "resources": {
+              "memoryLimit": "256m",
+              "memoryReservation": "64m"
+            },
+            "role": "cache",
+            "volumes": [
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "cache",
+                "target": "/data"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "nextcloud",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:276547e033df451770dbf9c0065929e5ea179a613b1884bd3fa807ba1c2703e7",
+          "ref": "docker.io/library/nextcloud:35.0.1-apache"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
             "cloudreve"
           ],
           "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
@@ -20808,6 +21864,425 @@
         "image": {
           "digest": "sha256:f7a464100bf6325e9ba58cb2b0ee60f9a24c58fc2eb90647720bc4b8f3cddd9a",
           "ref": "docker.io/cloudreve/cloudreve:4.18.0"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "passbolt",
+            "passbolt-mariadb"
+          ],
+          "description": "Team password manager through Passbolt Community Edition with MariaDB. The owner registers with the Passbolt browser extension, which creates the owner's OpenPGP key on the device. Standard and high are equivalent.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        },
+        "standard": {
+          "components": [
+            "passbolt",
+            "passbolt-mariadb"
+          ],
+          "description": "Team password manager through Passbolt Community Edition with MariaDB. The owner registers with the Passbolt browser extension, which creates the owner's OpenPGP key on the device. Standard and high are equivalent.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "passbolt-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "passbolt-http",
+          "kind": "http",
+          "path": "/healthcheck/status.json",
+          "phase": "continuous",
+          "port": 8080,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Passbolt Community Edition with MariaDB on one owner-selected node; server keys and encrypted secrets stay on that node.",
+        "id": "stackkits-passbolt-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-passbolt",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "passbolt-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/passbolt/bundle.json",
+              "required": true,
+              "unitRef": "passbolt"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "passbolt-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/passbolt/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "passbolt-workload-bundle",
+              "outputRef": "workloads/passbolt/bundle.json",
+              "unitRef": "passbolt"
+            },
+            {
+              "artifactRef": "passbolt-terramate-stack",
+              "outputRef": "platform/applications/passbolt/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "passbolt-workload-bundle",
+            "passbolt-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "passbolt-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "database-password",
+            "database-root-password"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:74402979766ba491481d6916fde07f10df59c9e055b49ed731d6956597b99b4c",
+          "id": "passbolt",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/passbolt/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "database-password",
+            "database-root-password"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "vault",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "secret"
+                ]
+              },
+              "healthRef": "passbolt-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "vault",
+              "targetPort": 8080,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/passbolt/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/passbolt/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "passbolt-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "database-root-password"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "passbolt"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "passbolt-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "database-root-password"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "passbolt"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "passbolt-workload-bundle",
+            "passbolt-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "database-root-password"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "passbolt",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "command": [
+              "/usr/bin/wait-for.sh",
+              "-t",
+              "0",
+              "passbolt-mariadb:3306",
+              "--",
+              "/docker-entrypoint.sh"
+            ],
+            "dependsOn": [
+              "passbolt-mariadb"
+            ],
+            "environment": {
+              "DATASOURCES_DEFAULT_DATABASE": "passbolt",
+              "DATASOURCES_DEFAULT_HOST": "passbolt-mariadb",
+              "DATASOURCES_DEFAULT_USERNAME": "passbolt",
+              "PASSBOLT_REGISTRATION_PUBLIC": "false",
+              "PASSBOLT_SSL_FORCE": "false"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/healthcheck/status.json",
+              "port": 8080
+            },
+            "id": "passbolt",
+            "image": {
+              "digest": "sha256:1f6aba5b18199809de9aaec17ba1525b88ac75be9390c5fc343b88a9b18f525d",
+              "ref": "docker.io/passbolt/passbolt:5.16.0-1-ce-non-root"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "passbolt-internal"
+            ],
+            "resources": {
+              "memoryLimit": "1g",
+              "memoryReservation": "256m"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "DATASOURCES_DEFAULT_PASSWORD": "database-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "gpg",
+                "target": "/etc/passbolt/gpg"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "jwt",
+                "target": "/etc/passbolt/jwt"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "environment": {
+              "MARIADB_DATABASE": "passbolt",
+              "MARIADB_USER": "passbolt"
+            },
+            "health": {
+              "command": [
+                "healthcheck.sh",
+                "--connect",
+                "--innodb_initialized"
+              ],
+              "kind": "command"
+            },
+            "id": "passbolt-mariadb",
+            "image": {
+              "digest": "sha256:79d59758afc91b89b120b0a8904d637f5a3b3e1c4900f29b740d6d46c72fef68",
+              "ref": "docker.io/library/mariadb:11.8.9"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "passbolt-internal"
+            ],
+            "resources": {
+              "memoryLimit": "1g",
+              "memoryReservation": "256m"
+            },
+            "role": "database",
+            "secretEnvironment": {
+              "MARIADB_PASSWORD": "database-password",
+              "MARIADB_ROOT_PASSWORD": "database-root-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "database",
+                "target": "/var/lib/mysql"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "passbolt",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:1f6aba5b18199809de9aaec17ba1525b88ac75be9390c5fc343b88a9b18f525d",
+          "ref": "docker.io/passbolt/passbolt:5.16.0-1-ce-non-root"
         },
         "kind": "container"
       },
@@ -21969,6 +23444,374 @@
         "image": {
           "digest": "sha256:1c17ecaead42eb3b5391553d8708103a4beb0e86edf5b9ebc1eb269c318845f2",
           "ref": "docker.gitea.com/gitea:1.27.3-rootless"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "forgejo"
+          ],
+          "description": "Private Git hosting through Forgejo with SQLite and persistent repositories, LFS objects and configuration. Actions runners and SSH are not included. Repository growth needs a separate data budget.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.25
+          }
+        },
+        "standard": {
+          "components": [
+            "forgejo"
+          ],
+          "description": "Private Git hosting through Forgejo with SQLite and persistent repositories, LFS objects and configuration. Actions runners and SSH are not included. Repository growth needs a separate data budget.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.25
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "forgejo-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "forgejo-http",
+          "kind": "http",
+          "path": "/api/healthz",
+          "phase": "continuous",
+          "port": 3000,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Forgejo private repositories, SQLite metadata, LFS objects and configuration on one owner-selected node.",
+        "id": "stackkits-forgejo-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-forgejo",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "forgejo-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/forgejo/bundle.json",
+              "required": true,
+              "unitRef": "forgejo"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "forgejo-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/forgejo/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "forgejo-workload-bundle",
+              "outputRef": "workloads/forgejo/bundle.json",
+              "unitRef": "forgejo"
+            },
+            {
+              "artifactRef": "forgejo-terramate-stack",
+              "outputRef": "platform/applications/forgejo/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "forgejo-workload-bundle",
+            "forgejo-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "forgejo-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "owner-password"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:f11a62408becef9070eade164bc03b8322b28161053e9a8225f35ccebcb7d9c5",
+          "id": "forgejo",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/forgejo/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "dev",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "forgejo-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "dev",
+              "targetPort": 3000,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/forgejo/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/forgejo/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "forgejo-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "forgejo"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "forgejo-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "forgejo"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "forgejo-workload-bundle",
+            "forgejo-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "forgejo",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "command": [
+              "/bin/sh",
+              "-ec",
+              "forgejo migrate \u0026\u0026 users=$(forgejo admin user list) \u0026\u0026 owner=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ \u0026\u0026 $2 == \"owner\" {print $3 \" \" $4 \" \" $5}') \u0026\u0026 if [ -n \"$owner\" ]; then [ \"$owner\" = \"$STACKKITS_OWNER_EMAIL true true\" ] || { echo 'Existing Forgejo owner does not match local custody' \u003e\u00262; exit 1; }; else count=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ {n++} END {print n+0}'); [ \"$count\" = 0 ] || { echo 'Existing Forgejo users require explicit owner reconciliation' \u003e\u00262; exit 1; }; forgejo admin user create --username owner --email \"$STACKKITS_OWNER_EMAIL\" --password \"$STACKKITS_OWNER_PASSWORD\" --admin --must-change-password=false; fi \u0026\u0026 unset STACKKITS_OWNER_PASSWORD \u0026\u0026 exec forgejo web"
+            ],
+            "dependsOn": [],
+            "environment": {
+              "FORGEJO__actions__ENABLED": "false",
+              "FORGEJO__database__DB_TYPE": "sqlite3",
+              "FORGEJO__database__PATH": "/var/lib/gitea/data/forgejo.db",
+              "FORGEJO__repository__DEFAULT_PRIVATE": "private",
+              "FORGEJO__repository__FORCE_PRIVATE": "true",
+              "FORGEJO__security__INSTALL_LOCK": "true",
+              "FORGEJO__security__REVERSE_PROXY_LIMIT": "0",
+              "FORGEJO__server__DISABLE_SSH": "true",
+              "FORGEJO__service__DISABLE_REGISTRATION": "true",
+              "FORGEJO__service__REQUIRE_SIGNIN_VIEW": "true"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/api/healthz",
+              "port": 3000
+            },
+            "id": "forgejo",
+            "image": {
+              "digest": "sha256:5effb7305584aca479b29fde6f9631a6dbe86ae798ae02eeea33a3666f0c0bf8",
+              "ref": "codeberg.org/forgejo/forgejo:16.0.5-rootless"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "forgejo-internal"
+            ],
+            "ownerEnvironment": {
+              "STACKKITS_OWNER_EMAIL": "email"
+            },
+            "resources": {
+              "memoryLimit": "2g",
+              "memoryReservation": "256m"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "STACKKITS_OWNER_PASSWORD": "owner-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "target": "/var/lib/gitea"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "forgejo",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:5effb7305584aca479b29fde6f9631a6dbe86ae798ae02eeea33a3666f0c0bf8",
+          "ref": "codeberg.org/forgejo/forgejo:16.0.5-rootless"
         },
         "kind": "container"
       },
@@ -23773,6 +25616,362 @@
       "computeProfiles": {
         "high": {
           "components": [
+            "emby"
+          ],
+          "description": "Media library and playback through Emby Server. Some client features need an Emby Premiere licence; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        },
+        "standard": {
+          "components": [
+            "emby"
+          ],
+          "description": "Media library and playback through Emby Server. Some client features need an Emby Premiere licence; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "emby-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "emby-http",
+          "kind": "http",
+          "path": "/emby/System/Ping",
+          "phase": "continuous",
+          "port": 8096,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Emby media server bound to one selected site; the media library volume is owner-custodied and not a StackKits backup source.",
+        "id": "stackkits-emby-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-emby",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "emby-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/emby/bundle.json",
+              "required": true,
+              "unitRef": "emby"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "emby-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/emby/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "emby-workload-bundle",
+              "outputRef": "workloads/emby/bundle.json",
+              "unitRef": "emby"
+            },
+            {
+              "artifactRef": "emby-terramate-stack",
+              "outputRef": "platform/applications/emby/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "emby-workload-bundle",
+            "emby-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "emby-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "storage-roots"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:f73295025c0f1c638eedea36c02247f3663e506e0de3a73d120e7f8fe93e417c",
+          "id": "emby",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            },
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "storage.hostRoots",
+              "targetRef": "storage-roots",
+              "valueType": "host-storage-roots-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/emby/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "storage-roots"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "http",
+                "https"
+              ],
+              "data": {
+                "bindingRef": "media",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "emby-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "media",
+              "targetPort": 8096,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/emby/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/emby/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "emby-workload-bundle"
+          ],
+          "contractHash": "sha256:f4cc3429148975e7741e8a55171d5a9d0138d67ec7b4ef42732ede51d7b53af8",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "storage-roots"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "emby"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "emby-workload-bundle"
+          ],
+          "contractHash": "sha256:47ffd0559451c9da935a2e115b3a7a139aef279e271c8389c8fc276674e6c9b9",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "storage-roots"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "emby"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "emby-workload-bundle",
+            "emby-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "storage-roots"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "terramate",
+          "unitRefs": [
+            "emby",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "http",
+              "path": "/emby/System/Ping",
+              "port": 8096
+            },
+            "id": "emby",
+            "image": {
+              "digest": "sha256:3aafff933d3f28d23ed0bc201022abe71c0aa80deb17177566c726b9bbc686c6",
+              "ref": "docker.io/emby/embyserver:4.10.0.40"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "emby-internal"
+            ],
+            "resources": {
+              "memoryLimit": "2g",
+              "memoryReservation": "512m"
+            },
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "config",
+                "target": "/config"
+              },
+              {
+                "backup": false,
+                "class": "persistent",
+                "id": "library",
+                "readOnly": true,
+                "target": "/media"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "emby",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:3aafff933d3f28d23ed0bc201022abe71c0aa80deb17177566c726b9bbc686c6",
+          "ref": "docker.io/emby/embyserver:4.10.0.40"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
             "jellyfin"
           ],
           "description": "Media library and playback through Jellyfin. Standard and high have the same declared application and resources; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage.",
@@ -24633,6 +26832,7 @@
       },
       "runtimeAdapter": {
         "agentRefs": [],
+        "capabilities": [],
         "credentialCustody": "external-owner",
         "evidenceRequired": true,
         "id": "coolify",
@@ -24798,6 +26998,9 @@
       },
       "runtimeAdapter": {
         "agentRefs": [],
+        "capabilities": [
+          "application-setup-local-api"
+        ],
         "credentialCustody": "local-owner",
         "evidenceRequired": true,
         "id": "standalone-compose",
@@ -24967,6 +27170,7 @@
         "agentRefs": [
           "komodo-periphery"
         ],
+        "capabilities": [],
         "credentialCustody": "external-owner",
         "evidenceRequired": true,
         "id": "komodo",
@@ -29983,6 +32187,54 @@
     {
       "certificateIssuers": [],
       "evidence": [
+        "nextcloud-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-nextcloud",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-nextcloud-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "files"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
         "cloudreve-selected-paas-runtime-contract"
       ],
       "metadata": {
@@ -30026,6 +32278,54 @@
       ],
       "workloadRefs": [
         "files"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "passbolt-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-passbolt",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-passbolt-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "vault"
       ]
     },
     {
@@ -30140,6 +32440,54 @@
         "moduleRefs": {
           "optional": [
             "stackkits-gitea-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "dev"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "forgejo-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-forgejo",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-forgejo-runtime"
           ],
           "required": []
         }
@@ -30361,6 +32709,54 @@
       ],
       "workloadRefs": [
         "mail-server"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "emby-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-emby",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-emby-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "media"
       ]
     },
     {
@@ -32866,6 +35262,134 @@
             "mode": "on-demand",
             "owner": "module"
           }
+        },
+        {
+          "id": "nextcloud",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "nextcloud",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "html"
+                },
+                {
+                  "componentRef": "nextcloud-postgres",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "database"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "files",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "nextcloud",
+                  "dataBindingRef": "files",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/var/www/html",
+                  "volumeRef": "html"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "nextcloud-postgres",
+                  "dataBindingRef": "files",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/var/lib/postgresql",
+                  "volumeRef": "database"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "nextcloud-valkey",
+                  "dataClasses": [],
+                  "target": "/data",
+                  "volumeRef": "cache"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "database-password",
+                "owner-password"
+              ],
+              "requiredRefs": [
+                "database-password",
+                "owner-password"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-nextcloud-runtime",
+          "providerRef": "stackkits-nextcloud",
+          "route": {
+            "healthRef": "nextcloud-http",
+            "serviceRef": "files"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
         }
       ],
       "computeTiers": {
@@ -33026,6 +35550,144 @@
             ],
             "mode": "on-demand",
             "owner": "module"
+          }
+        },
+        {
+          "id": "passbolt",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "passbolt",
+                  "dataClasses": [
+                    "secret"
+                  ],
+                  "volumeRef": "gpg"
+                },
+                {
+                  "componentRef": "passbolt",
+                  "dataClasses": [
+                    "secret"
+                  ],
+                  "volumeRef": "jwt"
+                },
+                {
+                  "componentRef": "passbolt-mariadb",
+                  "dataClasses": [
+                    "secret"
+                  ],
+                  "volumeRef": "database"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "vault",
+              "classes": [
+                "secret"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "passbolt",
+                  "dataBindingRef": "vault",
+                  "dataClasses": [
+                    "secret"
+                  ],
+                  "target": "/etc/passbolt/gpg",
+                  "volumeRef": "gpg"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "passbolt",
+                  "dataBindingRef": "vault",
+                  "dataClasses": [
+                    "secret"
+                  ],
+                  "target": "/etc/passbolt/jwt",
+                  "volumeRef": "jwt"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "passbolt-mariadb",
+                  "dataBindingRef": "vault",
+                  "dataClasses": [
+                    "secret"
+                  ],
+                  "target": "/var/lib/mysql",
+                  "volumeRef": "database"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "database-password",
+                "database-root-password"
+              ],
+              "requiredRefs": [
+                "database-password",
+                "database-root-password"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-passbolt-runtime",
+          "providerRef": "stackkits-passbolt",
+          "route": {
+            "healthRef": "passbolt-http",
+            "serviceRef": "vault"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
           }
         }
       ],
@@ -33323,6 +35985,106 @@
                   "statusEvidence": true
                 },
                 "maturity": "supported"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        },
+        {
+          "id": "forgejo",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "forgejo",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "dev",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "forgejo",
+                  "dataBindingRef": "dev",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/var/lib/gitea",
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "owner-password"
+              ],
+              "requiredRefs": [
+                "owner-password"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-forgejo-runtime",
+          "providerRef": "stackkits-forgejo",
+          "route": {
+            "healthRef": "forgejo-http",
+            "serviceRef": "dev"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
               }
             ],
             "defaultAdapterRef": "standalone-compose",
@@ -34275,6 +37037,113 @@
             ],
             "mode": "on-demand",
             "owner": "module"
+          }
+        },
+        {
+          "id": "emby",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "emby",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "config"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "media",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "emby",
+                  "dataBindingRef": "media",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/config",
+                  "volumeRef": "config"
+                },
+                {
+                  "backup": false,
+                  "class": "persistent",
+                  "componentRef": "emby",
+                  "dataBindingRef": "media",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/media",
+                  "volumeRef": "library"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-emby-runtime",
+          "providerRef": "stackkits-emby",
+          "route": {
+            "healthRef": "emby-http",
+            "serviceRef": "media"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
           }
         }
       ],

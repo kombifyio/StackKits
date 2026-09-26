@@ -19,6 +19,10 @@ type SelectedPaaSApplication string
 
 const (
 	SelectedPaaSApplicationGitea         SelectedPaaSApplication = "gitea"
+	SelectedPaaSApplicationForgejo       SelectedPaaSApplication = "forgejo"
+	SelectedPaaSApplicationEmby          SelectedPaaSApplication = "emby"
+	SelectedPaaSApplicationPassbolt      SelectedPaaSApplication = "passbolt"
+	SelectedPaaSApplicationNextcloud     SelectedPaaSApplication = "nextcloud"
 	SelectedPaaSApplicationPaperless     SelectedPaaSApplication = "paperless-ngx"
 	SelectedPaaSApplicationPterodactyl   SelectedPaaSApplication = "pterodactyl"
 	SelectedPaaSApplicationRoundcube     SelectedPaaSApplication = "roundcube"
@@ -70,6 +74,50 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 			rendererContract: architecturev2renderer.GiteaWorkloadBundleRendererContract,
 			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
 				descriptor, err := architecturev2renderer.ParseGiteaWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationForgejo:
+		return selectedPaaSApplicationSpec{
+			name: "Forgejo", providerRef: "stackkits-forgejo", moduleRef: "stackkits-forgejo-runtime",
+			unitRef: "forgejo", workloadRef: "dev", artifactRef: "forgejo-workload-bundle",
+			outputRef: "workloads/forgejo/bundle.json", healthRef: "forgejo-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.ForgejoWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseForgejoWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationEmby:
+		return selectedPaaSApplicationSpec{
+			name: "Emby", providerRef: "stackkits-emby", moduleRef: "stackkits-emby-runtime",
+			unitRef: "emby", workloadRef: "media", artifactRef: "emby-workload-bundle",
+			outputRef: "workloads/emby/bundle.json", healthRef: "emby-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.EmbyWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseEmbyWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationPassbolt:
+		return selectedPaaSApplicationSpec{
+			name: "Passbolt", providerRef: "stackkits-passbolt", moduleRef: "stackkits-passbolt-runtime",
+			unitRef: "passbolt", workloadRef: "vault", artifactRef: "passbolt-workload-bundle",
+			outputRef: "workloads/passbolt/bundle.json", healthRef: "passbolt-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.PassboltWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParsePassboltWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationNextcloud:
+		return selectedPaaSApplicationSpec{
+			name: "Nextcloud", providerRef: "stackkits-nextcloud", moduleRef: "stackkits-nextcloud-runtime",
+			unitRef: "nextcloud", workloadRef: "files", artifactRef: "nextcloud-workload-bundle",
+			outputRef: "workloads/nextcloud/bundle.json", healthRef: "nextcloud-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.NextcloudWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseNextcloudWorkloadBundle(content)
 				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
 			},
 		}, true

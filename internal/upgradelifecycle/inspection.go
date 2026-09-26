@@ -45,10 +45,17 @@ func (ExecRunner) Run(ctx context.Context, binary string, args []string, dir str
 }
 
 type Inspector struct {
-	Source            releaseindex.Source
-	Attestations      releaseindex.AttestationVerifier
-	Runner            Runner
-	InventoryPath     string
+	Source        releaseindex.Source
+	Attestations  releaseindex.AttestationVerifier
+	Runner        Runner
+	InventoryPath string
+	// PinnedInventory, when set, is the exact Inventory document the shadow
+	// generate and plan resolve from instead of the workspace file. The
+	// target execution resolves from the checkpoint's stable projection (the
+	// document the current plan was generated from), while the workspace file
+	// carries the latest re-attested free-space sample; both sides must
+	// resolve from the same document or the executed plan cannot match.
+	PinnedInventory   []byte
 	MaxBlobBytes      int64
 	MaxExtractBytes   int64
 	MaxWorkspaceBytes int64
@@ -194,7 +201,14 @@ func (inspector Inspector) Inspect(ctx context.Context, resolution releaseindex.
 		common := []string{"--chdir", shadow, "--spec", specFile, "--no-log"}
 		generateArgs := append(common, "generate")
 		planArgs := append(common, "plan", "--json")
-		if inventoryPath != "" {
+		if len(inspector.PinnedInventory) > 0 {
+			pinned := filepath.Join(tempRoot, "pinned-inventory.json")
+			if err := os.WriteFile(pinned, inspector.PinnedInventory, 0o600); err != nil {
+				return fmt.Errorf("materialize pinned shadow Inventory: %w", err)
+			}
+			generateArgs = append(generateArgs, "--inventory", pinned)
+			planArgs = append(planArgs, "--inventory", pinned)
+		} else if inventoryPath != "" {
 			generateArgs = append(generateArgs, "--inventory", inventoryPath)
 			planArgs = append(planArgs, "--inventory", inventoryPath)
 		}

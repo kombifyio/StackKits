@@ -42,6 +42,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
 
+## [0.46.9](https://github.com/kombifyio/StackKits/compare/v0.46.8...v0.46.9) (2026-09-26)
+
+
+### Added
+
+* **advanced:** change sets materialize governed secret custody for added workloads (bootstrap parity)
+* **catalog:** install Forgejo, Emby, Passbolt and Nextcloud alternatives
+
+
+### Fixed
+
+* **upgrade:** shadow inspection resolves the plan's Inventory; rollback tolerates re-attested free space
+
 ## [0.46.8](https://github.com/kombifyio/StackKits/compare/v0.46.7...v0.46.8) (2026-09-26)
 
 

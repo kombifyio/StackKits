@@ -3,6 +3,7 @@ package upgradelifecycle
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"gopkg.in/yaml.v3"
 )
 
 // ExecutorStateRecoveryResult is the secret-free projection of one verified
@@ -200,13 +202,14 @@ func (store ExecutorStateStore) prepareExecutorStateRecovery(
 	}
 	if !options.ReplaceAuthority {
 		if err := requireExecutorStateRecoveryInputUnchanged(
-			transaction, snapshot.StackSpec, stackSpec,
+			transaction, snapshot.StackSpec, stackSpec, nil,
 		); err != nil {
 			return "", nil, err
 		}
 		if snapshot.Inventory != nil {
 			if err := requireExecutorStateRecoveryInputUnchanged(
 				transaction, *snapshot.Inventory, inventory,
+				inventoryEquivalentIgnoringFreeSpace,
 			); err != nil {
 				return "", nil, err
 			}
@@ -297,6 +300,7 @@ func requireExecutorStateRecoveryInputUnchanged(
 	transaction *confinedfs.Transaction,
 	blob ExecutorStateBlob,
 	captured []byte,
+	equivalent func(current, captured []byte) bool,
 ) error {
 	current, info, err := transaction.ReadStable(blob.Path)
 	if err != nil {
@@ -304,7 +308,9 @@ func requireExecutorStateRecoveryInputUnchanged(
 			"executor state: re-read current recovery input %s: %w", blob.ID, err,
 		)
 	}
-	if !info.Mode().IsRegular() || !bytes.Equal(current, captured) {
+	unchanged := bytes.Equal(current, captured) ||
+		(equivalent != nil && equivalent(current, captured))
+	if !info.Mode().IsRegular() || !unchanged {
 		return fmt.Errorf(
 			"executor state: current recovery input %s changed after checkpoint; refusing to overwrite operator authority",
 			blob.ID,
@@ -449,4 +455,43 @@ func (store ExecutorStateStore) LoadRollbackCustody(
 		custody.Roots = append(custody.Roots, payload)
 	}
 	return custody, nil
+}
+
+// inventoryEquivalentIgnoringFreeSpace reports whether two Inventory
+// documents carry the same operator authority. Every lifecycle command
+// re-attests each node's measured storageCapacity.freeGiB into the workspace
+// file (YAML), while the checkpoint seals the stable projection the current
+// plan was generated from (JSON). Neither the encoding nor that measured
+// sample is operator authority; every other field must be identical.
+func inventoryEquivalentIgnoringFreeSpace(current, captured []byte) bool {
+	normalize := func(raw []byte) (any, bool) {
+		var decoded any
+		if err := yaml.Unmarshal(raw, &decoded); err != nil {
+			return nil, false
+		}
+		encoded, err := json.Marshal(decoded)
+		if err != nil {
+			return nil, false
+		}
+		var document map[string]any
+		if err := json.Unmarshal(encoded, &document); err != nil || document == nil {
+			return nil, false
+		}
+		if nodes, ok := document["nodes"].(map[string]any); ok {
+			for _, node := range nodes {
+				if fields, ok := node.(map[string]any); ok {
+					if capacity, ok := fields["storageCapacity"].(map[string]any); ok {
+						delete(capacity, "freeGiB")
+					}
+				}
+			}
+		}
+		return document, true
+	}
+	left, ok := normalize(current)
+	if !ok {
+		return false
+	}
+	right, ok := normalize(captured)
+	return ok && reflect.DeepEqual(left, right)
 }

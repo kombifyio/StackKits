@@ -133,7 +133,30 @@ type ApplyRuntimeAdapterRequirement struct {
 	ModuleContractHash   string                                `json:"moduleContractHash"`
 	ArtifactRefs         []string                              `json:"artifactRefs"`
 	Agents               []ApplyRuntimeAdapterAgentRequirement `json:"agents,omitempty"`
+	// Capabilities carries the catalog-declared adapter capabilities
+	// (foundation/architecture_v2_catalog.cue runtimeAdapter.capabilities).
+	// Callers outside the realization graph, such as native application
+	// setup, admit a target by a declared capability here instead of by
+	// comparing ID against one hardcoded adapter string.
+	Capabilities []string `json:"capabilities,omitempty"`
 }
+
+// HasCapability reports whether the catalog declared the named capability for
+// this exact adapter. It is the only admission seam callers outside the
+// realization graph (native application setup) should use; it must never be
+// replaced by an adapter ID comparison.
+func (r *ApplyRuntimeAdapterRequirement) HasCapability(capability string) bool {
+	if r == nil {
+		return false
+	}
+	return slices.Contains(r.Capabilities, capability)
+}
+
+// ApplicationSetupLocalAPICapability is the catalog capability that admits
+// native `stackkit setup` (application owner bootstrap and household user
+// actions) for a runtime adapter. Declared today only for standalone-compose;
+// platform adapters (coolify, komodo, dokploy) do not carry it yet.
+const ApplicationSetupLocalAPICapability = "application-setup-local-api"
 
 // ApplyAccessBindingRequirement is the exact provider-free projection of one
 // externally realized Home access requirement. BindingHash is the upstream
@@ -360,6 +383,7 @@ type applyModule struct {
 	id, version, contractHash, providerRef, providerVersion, providerContractHash, executionClass, runtimeKind, runtimeDelivery, runtimeEngine, imageRef, imageDigest string
 	runtimeAdapterID, runtimeAdapterAgentID, runtimeAdapterAgentRef                                                                                                   string
 	runtimeAdapterAgentRefs                                                                                                                                           []string
+	runtimeAdapterCapabilities                                                                                                                                        []string
 	evidenceRefs, provides                                                                                                                                            []string
 	siteRefs, nodeRefs                                                                                                                                                []string
 	units                                                                                                                                                             []applyUnit
@@ -486,6 +510,9 @@ func parseApplyModules(plan resolvedplan.ResolvedPlan, providerContracts map[str
 				return nil, err
 			}
 			if parsed.runtimeAdapterAgentRefs, err = applyStringList(runtimeAdapter, "agentRefs", path+".runtimeAdapter.agentRefs"); err != nil {
+				return nil, err
+			}
+			if parsed.runtimeAdapterCapabilities, err = applyStringList(runtimeAdapter, "capabilities", path+".runtimeAdapter.capabilities"); err != nil {
 				return nil, err
 			}
 		}
@@ -831,6 +858,7 @@ func parseApplyRuntimeAdapter(runtime map[string]any, path string, modules map[s
 	if len(result.ArtifactRefs) == 0 {
 		return nil, fail(ErrInvalidPlan, path+".adapter.moduleRef", "adapter module has no contract-handoff artifact")
 	}
+	result.Capabilities = append([]string(nil), core.runtimeAdapterCapabilities...)
 	for _, agentID := range core.runtimeAdapterAgentRefs {
 		var matched *applyModule
 		for _, moduleID := range sortedApplyMapKeys(modules) {
@@ -2085,6 +2113,7 @@ func sortApplyRequirements(result *ApplyRequirements) {
 		sort.Strings(result.RuntimeInstances[index].ArtifactRefs)
 		if result.RuntimeInstances[index].RuntimeAdapter != nil {
 			sort.Strings(result.RuntimeInstances[index].RuntimeAdapter.ArtifactRefs)
+			sort.Strings(result.RuntimeInstances[index].RuntimeAdapter.Capabilities)
 			for agentIndex := range result.RuntimeInstances[index].RuntimeAdapter.Agents {
 				sort.Strings(result.RuntimeInstances[index].RuntimeAdapter.Agents[agentIndex].ArtifactRefs)
 			}
@@ -2217,6 +2246,7 @@ func cloneApplyRuntimeAdapterRequirement(source *ApplyRuntimeAdapterRequirement)
 	}
 	result := *source
 	result.ArtifactRefs = append([]string(nil), source.ArtifactRefs...)
+	result.Capabilities = append([]string(nil), source.Capabilities...)
 	result.Agents = append([]ApplyRuntimeAdapterAgentRequirement(nil), source.Agents...)
 	for index := range result.Agents {
 		result.Agents[index].ArtifactRefs = append([]string(nil), source.Agents[index].ArtifactRefs...)

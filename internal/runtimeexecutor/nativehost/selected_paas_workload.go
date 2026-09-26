@@ -212,6 +212,16 @@ func ValidateSelectedPaaSWorkloadObservation(
 			return err
 		}
 		return validateStandaloneApplicationObservation(observation, deployment, bundle, []int{200})
+	case "stackkits-emby-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationEmby, deployment, observation)
+	case "stackkits-forgejo-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationForgejo, deployment, observation)
+	case "stackkits-gitea-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationGitea, deployment, observation)
+	case "stackkits-passbolt-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationPassbolt, deployment, observation)
+	case "stackkits-nextcloud-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationNextcloud, deployment, observation)
 	case homeAssistantWorkloadModuleRef:
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationHomeAssistant, deployment, observation)
 	default:

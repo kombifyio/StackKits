@@ -5440,11 +5440,17 @@ _servicePublicationShape: {
 		credentialCustody: "external-owner" | "local-owner"
 		providerLifecycle: "not-owned"
 		evidenceRequired:  true
+		// capabilities declares the bounded, adapter-independent operations a
+		// caller outside the realization graph (native application setup
+		// today) may admit by contract instead of by adapter id string. It is
+		// not a Kit `provides` capability and grants no new authority.
+		capabilities: [...#ContractID] | *[]
 
 		_supportedKindsUnique:      list.UniqueItems(supportedKinds) & true
 		_supportedDeliveriesUnique: list.UniqueItems(supportedDeliveries) & true
 		_operationsUnique:          list.UniqueItems(operations) & true
 		_agentRefsUnique:           list.UniqueItems(agentRefs) & true
+		_capabilitiesUnique:        list.UniqueItems(capabilities) & true
 	}
 	runtimeAdapterAgent?:       #RuntimeAdapterAgentContractV1
 	storageAllocationContract?: #StorageAllocationModuleContractV1
@@ -7071,6 +7077,11 @@ _servicePublicationShape: {
 		credentialCustody: "external-owner" | "local-owner"
 		providerLifecycle: "not-owned"
 		evidenceRequired:  true
+		// capabilities declares the bounded, adapter-independent operations a
+		// caller outside the realization graph (native application setup
+		// today) may admit by contract instead of by adapter id string. It is
+		// not a Kit `provides` capability and grants no new authority.
+		capabilities: [...#ContractID] | *[]
 	}
 	runtimeAdapterAgent?:       #RuntimeAdapterAgentContractV1
 	storageAllocationContract?: #StorageAllocationModuleContractV1

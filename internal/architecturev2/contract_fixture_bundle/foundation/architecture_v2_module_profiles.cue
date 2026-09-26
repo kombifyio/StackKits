@@ -121,6 +121,15 @@ _architectureV2CloudreveComputeProfiles: {
 	high: _architectureV2CloudreveComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
 }
 
+_architectureV2NextcloudComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Files, sharing and collaboration through Nextcloud Server with PostgreSQL and Valkey. Office editing is a separate add-on. Standard and high are equivalent; storage growth needs a separate data budget."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.75
+	components: ["nextcloud", "nextcloud-postgres", "nextcloud-valkey"]
+}
+_architectureV2NextcloudComputeProfiles: {standard: _architectureV2NextcloudComputeProfile, high: _architectureV2NextcloudComputeProfile}
+
 _architectureV2VaultwardenComputeProfile: #ModuleComputeProfileV2 & {
 	description: "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password."
 	maturity:    "supported", executable: true, realization: "apply-ready"
@@ -133,6 +142,15 @@ _architectureV2VaultwardenComputeProfiles: {
 	high: _architectureV2VaultwardenComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
 }
 
+_architectureV2PassboltComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Team password manager through Passbolt Community Edition with MariaDB. The owner registers with the Passbolt browser extension, which creates the owner's OpenPGP key on the device. Standard and high are equivalent."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.5
+	components: ["passbolt", "passbolt-mariadb"]
+}
+_architectureV2PassboltComputeProfiles: {standard: _architectureV2PassboltComputeProfile, high: _architectureV2PassboltComputeProfile}
+
 _architectureV2JellyfinComputeProfile: #ModuleComputeProfileV2 & {
 	description: "Media library and playback through Jellyfin. Standard and high have the same declared application and resources; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage."
 	maturity:    "supported", executable: true, realization: "apply-ready"
@@ -144,6 +162,18 @@ _architectureV2JellyfinComputeProfile: #ModuleComputeProfileV2 & {
 _architectureV2JellyfinComputeProfiles: {
 	standard: _architectureV2JellyfinComputeProfile
 	high:     _architectureV2JellyfinComputeProfile
+}
+
+_architectureV2EmbyComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Media library and playback through Emby Server. Some client features need an Emby Premiere licence; no transcoding concurrency or GPU acceleration is promised. The owner supplies the media library and its storage."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.5
+	components: ["emby"]
+}
+_architectureV2EmbyComputeProfiles: {
+	standard: _architectureV2EmbyComputeProfile
+	high:     _architectureV2EmbyComputeProfile
 }
 
 _architectureV2HomeAssistantComputeProfile: #ModuleComputeProfileV2 & {
@@ -178,6 +208,15 @@ _architectureV2GiteaComputeProfile: #ModuleComputeProfileV2 & {
 	components: ["gitea"]
 }
 _architectureV2GiteaComputeProfiles: {standard: _architectureV2GiteaComputeProfile, high: _architectureV2GiteaComputeProfile}
+
+_architectureV2ForgejoComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Private Git hosting through Forgejo with SQLite and persistent repositories, LFS objects and configuration. Actions runners and SSH are not included. Repository growth needs a separate data budget."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.25
+	components: ["forgejo"]
+}
+_architectureV2ForgejoComputeProfiles: {standard: _architectureV2ForgejoComputeProfile, high: _architectureV2ForgejoComputeProfile}
 
 _architectureV2PaperlessComputeProfile: #ModuleComputeProfileV2 & {
 	description: "Document ingestion, OCR, indexing and search through Paperless-ngx with PostgreSQL and Valkey. StackKits configures and operates the upstream services; document features remain owned by Paperless-ngx. Document growth needs a separate data budget."

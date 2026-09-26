@@ -963,6 +963,14 @@ func executeAdvancedMutation(
 				); writeErr != nil {
 					return writeErr
 				}
+				// Workloads the candidate adds need their governed secret
+				// custody before the target generate and apply resolve them
+				// (bootstrap parity: a change set must come up configured).
+				if _, secretErr := materializeAdvancedCandidateSecrets(
+					workspace, revalidated.admission.candidateRaw,
+				); secretErr != nil {
+					return fmt.Errorf("materialize Advanced candidate secret custody: %w", secretErr)
+				}
 				return executeAdvancedTarget(
 					operationCtx, binary, workspace, release, snapshot,
 					revalidated.admission.candidate,
