@@ -112,8 +112,11 @@ export class PlannerService {
     if (!invalid.valid) return this.invalidInput(tool, invalid.issues[0]?.path);
     if (options.signal?.aborted) return abortedResult(tool, this.catalog);
     if (!this.catalog) return authorityFailure(tool, this.catalogValidation);
+    const cursor = input.cursor ?? 0;
+    if (cursor > 0 && cursor >= this.catalog.kits.length) return this.invalidInput(tool, "cursor");
+    const page = this.catalog.kits.slice(cursor, cursor + 1);
     const data: ListCatalogData = {
-      kits: this.catalog.kits.map((kit) => ({
+      kits: page.map((kit) => ({
         stackkit_id: kit.stackkit_id,
         display_name: kit.display_name,
         version: kit.version,
@@ -123,6 +126,7 @@ export class PlannerService {
         use_case_ids: kit.use_cases.map((useCase) => useCase.use_case_id),
       })),
       module_selection_required: true,
+      ...(cursor + page.length < this.catalog.kits.length ? { next_cursor: cursor + page.length } : {}),
     };
     return makeResult(tool, "success", data, this.catalog);
   }

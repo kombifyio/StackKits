@@ -79,6 +79,10 @@ The four public tools are `stackkits_list_catalog`,
 CUE/build/catalog provenance, and declares zero executed, target, or provider
 effects. `apply` is only described as a non-executable follow-up.
 
+Catalog discovery returns one complete kit per page, including all its use-case
+IDs. Start `stackkits_list_catalog` with `{}`, then repeat with
+`cursor: data.next_cursor` until `next_cursor` is absent.
+
 Profile discovery returns one module per page. Prefer an exact `module_id` when
 it is already known; otherwise repeat the same kit and filters with
 `cursor: data.next_cursor` until `next_cursor` is absent. `use_case_ids` filters
@@ -107,7 +111,7 @@ All five operations are returned together. The validated `init` argv carries the
 complete selection, so a successful handoff does not echo those IDs again in the
 envelope. Capacity results likewise do not repeat the supplied profile IDs.
 The shared session preserves the full validated selection in the visible planner.
-The current representative catalog, capacity checks, and handoffs are checked
+The current catalog pages, representative capacity checks, and handoffs are checked
 against the 1,500-character JSON output budget. Module profile pages use a
 4,096-character budget because they also carry the CUE description and the
 component, capability, and degradation details for every available profile.

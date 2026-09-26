@@ -360,6 +360,11 @@ export const WEBMCP_SCHEMA_DEFINITIONS = {
       },
       "module_selection_required": {
         "const": true
+      },
+      "next_cursor": {
+        "type": "integer",
+        "minimum": 1,
+        "description": "Next kit offset; absent when the catalog is complete."
       }
     }
   },
@@ -876,7 +881,13 @@ export const TOOL_INPUT_SCHEMAS = {
   "stackkits_list_catalog": {
     "type": "object",
     "additionalProperties": false,
-    "properties": {}
+    "properties": {
+      "cursor": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Kit offset from next_cursor; omit for the first page."
+      }
+    }
   },
   "stackkits_get_module_profiles": {
     "type": "object",

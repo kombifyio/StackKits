@@ -65,7 +65,7 @@ export function createToolDefinitions(session: PlannerSession): {
     {
       name: "stackkits_list_catalog",
       title: "List StackKits",
-      description: "List public StackKits and module-profile availability. This tool never recommends a configuration.",
+      description: "List one public StackKit and its module-profile availability per page. Follow next_cursor until absent. It never recommends a configuration.",
       inputSchema: TOOL_INPUT_SCHEMAS_PUBLIC.stackkits_list_catalog,
       annotations: readOnlyAnnotations(false),
       execute: (input, context) => stackkitsListCatalog(session, input, context?.signal),

@@ -101,10 +101,19 @@ export interface StackKitsWebMCPSchemaTypes {
   moduleProfileSelection: ModuleProfileSelection;
   useCaseSelection: UseCaseSelection;
 }
-export interface ListCatalogInput {}
+export interface ListCatalogInput {
+  /**
+   * Kit offset from next_cursor; omit for the first page.
+   */
+  cursor?: number;
+}
 export interface ListCatalogData {
   kits: ListCatalogItem[];
   module_selection_required: true;
+  /**
+   * Next kit offset; absent when the catalog is complete.
+   */
+  next_cursor?: number;
 }
 export interface ListCatalogItem {
   stackkit_id: StackkitId;

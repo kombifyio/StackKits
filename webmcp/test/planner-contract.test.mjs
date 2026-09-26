@@ -90,7 +90,39 @@ test('profile discovery is complete through bounded pages and supports a direct 
   assert.ok(direct.data.modules.some(({ module_id }) => module_id === 'stackkits-immich-runtime'))
 })
 
-test('representative catalog, capacity and complete handoffs stay within the public output budget', async () => {
+test('catalog paging preserves complete discovery within the public output budget', async () => {
+  const session = createPlannerSession(catalog)
+  const discovered = new Map()
+  let cursor
+  do {
+    const result = await session.invoke('stackkits_list_catalog', cursor === undefined ? {} : { cursor })
+    assert.equal(result.outcome, 'success')
+    assert.ok(JSON.stringify(result).length < 1500, 'each catalog page must fit the public output budget')
+    for (const kit of result.data.kits) {
+      assert.equal(discovered.has(kit.stackkit_id), false, 'pages must not repeat a kit')
+      discovered.set(kit.stackkit_id, kit)
+    }
+    if (result.data.next_cursor !== undefined) {
+      assert.ok(result.data.next_cursor > (cursor ?? 0), 'paging must advance toward completion')
+    }
+    cursor = result.data.next_cursor
+  } while (cursor !== undefined)
+  assert.deepEqual([...discovered.values()], catalog.kits.map((kit) => ({
+    stackkit_id: kit.stackkit_id,
+    display_name: kit.display_name,
+    version: kit.version,
+    status: kit.status,
+    planner_link: kit.planner_link,
+    module_count: kit.modules.length,
+    use_case_ids: kit.use_cases.map(({ use_case_id }) => use_case_id),
+  })))
+  for (const cursor of [-1, 0.5, '1', catalog.kits.length, catalog.kits.length + 1]) {
+    const result = await session.invoke('stackkits_list_catalog', { cursor })
+    assert.equal(result.outcome, 'invalid_input')
+  }
+})
+
+test('representative capacity and complete handoffs stay within the public output budget', async () => {
   const session = createPlannerSession(catalog)
   const core = {
     stackkit_id: 'basement-kit',
@@ -112,7 +144,6 @@ test('representative catalog, capacity and complete handoffs stay within the pub
     declared_capacity: { cpu_cores: 2, ram_gb: 2, storage_gb: 10 },
   }
   for (const [tool, input] of [
-    ['stackkits_list_catalog', {}],
     ['stackkits_assess_capacity', core],
     ['stackkits_prepare_handoff', core],
     ['stackkits_prepare_handoff', cloud],

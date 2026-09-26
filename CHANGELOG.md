@@ -43,6 +43,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
 
+## [0.47.4](https://github.com/kombifyio/StackKits/compare/v0.47.3...v0.47.4) (2026-09-26)
+
+
+### Fixed
+
+* **webmcp:** page complete catalog discovery within output budget
+
 ## [0.47.3](https://github.com/kombifyio/StackKits/compare/v0.47.2...v0.47.3) (2026-09-26)
 
 

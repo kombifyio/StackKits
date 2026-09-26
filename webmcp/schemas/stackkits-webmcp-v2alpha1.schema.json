@@ -185,7 +185,8 @@
       "required": ["kits", "module_selection_required"],
       "properties": {
         "kits": { "type": "array", "items": { "$ref": "#/$defs/listCatalogItem" } },
-        "module_selection_required": { "const": true }
+        "module_selection_required": { "const": true },
+        "next_cursor": { "type": "integer", "minimum": 1, "description": "Next kit offset; absent when the catalog is complete." }
       }
     },
     "optionalCapacityTuple": {
@@ -415,8 +416,14 @@
   "tools": {
     "stackkits_list_catalog": {
       "title": "List StackKits",
-      "description": "List public StackKits and module-profile availability. It never recommends a configuration.",
-      "input": { "type": "object", "additionalProperties": false, "properties": {} },
+      "description": "List one public StackKit and its module-profile availability per page. Follow next_cursor until absent. It never recommends a configuration.",
+      "input": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "cursor": { "type": "integer", "minimum": 0, "description": "Kit offset from next_cursor; omit for the first page." }
+        }
+      },
       "result": { "$ref": "#/$defs/result" },
       "data": { "$ref": "#/$defs/listCatalogData" }
     },
