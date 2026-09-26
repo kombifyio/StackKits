@@ -583,14 +583,19 @@ func dockerStopSignal(signal string) (int, bool) {
 	if strings.HasPrefix(signal, "SIG") {
 		signal = strings.TrimPrefix(signal, "SIG")
 	}
+	// WINCH is Apache httpd's graceful-stop, declared by every php:*-apache
+	// image (Nextcloud, Roundcube). Docker still escalates to SIGKILL after
+	// the grace period, so the container always reaches a stopped state.
 	if number, err := strconv.Atoi(signal); err == nil {
-		return number, number == 2 || number == 15
+		return number, number == 2 || number == 15 || number == 28
 	}
 	switch signal {
 	case "INT":
 		return 2, true
 	case "TERM":
 		return 15, true
+	case "WINCH":
+		return 28, true
 	default:
 		return 0, false
 	}

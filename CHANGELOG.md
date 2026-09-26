@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+* **backup:** backups of Apache-based workloads (Nextcloud, Roundcube) no longer fail before quiescence. Their images declare `SIGWINCH`, Apache's graceful stop, which snapshot quiescence refused as an unsupported stop signal. `SIGWINCH` is now accepted beside `SIGTERM` and `SIGINT`; Docker still escalates to `SIGKILL` after the grace period. Reload signals such as `SIGHUP` stay refused before the first container stops.
 * **mcp:** project `stackkit host updates plan|apply` and `stackkit host reboot` as MCP operations; align the immich-lite renderer version (3.1.0) in the catalog
 * **backup:** the Kopia runtime check accepts a container Compose recreated (its `com.docker.compose.replace` label); after a core re-apply every backup failed with "container Compose labels differ"
 * **backup:** snapshot quiescence refuses a component with an unusable stop signal before stopping anything; before, it stopped part of the graph and could not restart it
@@ -41,6 +42,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **photos:** keep Apply and restore available when optional machine learning is degraded, while reporting its health and retaining blocking checks for core services
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
+
+## [0.47.2](https://github.com/kombifyio/StackKits/compare/v0.47.1...v0.47.2) (2026-09-26)
+
+
+### Fixed
+
+* **backup:** accept Apache's graceful stop signal in snapshot quiescence
 
 ## [0.47.1](https://github.com/kombifyio/StackKits/compare/v0.47.0...v0.47.1) (2026-09-26)
 
