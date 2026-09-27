@@ -231,8 +231,10 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 			}
 		}
 		if !compatible {
+			// Keep source Plan proof on its sealed Inventory; the target separately
+			// receives the full current Inventory after checkpoint admission.
 			attested, attestedErr := inspectAttestedCurrentGeneration(
-				ctx, workspace, specFile, kit, resolution, !publicUpgradeDryRun, false,
+				ctx, workspace, specFile, kit, resolution, !publicUpgradeDryRun, true,
 			)
 			if attestedErr != nil {
 				return fmt.Errorf("inspect attested current generation: %w", attestedErr)

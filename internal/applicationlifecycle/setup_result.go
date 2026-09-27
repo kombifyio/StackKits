@@ -22,7 +22,16 @@ const (
 	// VaultOwnerInviteActionRef is the sole action allowed to persist the
 	// preparation facts below. They describe server-side invitation metadata;
 	// neither fact proves personal login or client-side decryption.
-	VaultOwnerInviteActionRef       = "vault-owner-invite"
+	VaultOwnerInviteActionRef = "vault-owner-invite"
+	// ImmichAddOnAPIKeyActionRef issues an add-on API key through the verified
+	// Immich administrator; its result records the issued key, not an account.
+	ImmichAddOnAPIKeyActionRef   = "immich-add-on-api-key"
+	ImmichAddOnAPIKeyPreparation = "immich-api-key-issued"
+	// ComfyUIModelDownloadActionRef installs a reviewed model preset. ComfyUI
+	// has no accounts, so no administrator login is verified; the result
+	// records the preset (Preparation "model-preset-<id>").
+	ComfyUIModelDownloadActionRef   = "comfyui-model-download"
+	ComfyUIModelPresetPreparation   = "model-preset-"
 	VaultOwnerPreparationInvited    = "owner-invited"
 	VaultOwnerPreparationRegistered = "owner-registered"
 	OwnerEmailVerificationPending   = "pending"
@@ -240,8 +249,23 @@ func (store Store) readSetupResult(contract Contract, operation Operation, evide
 func validateSetupResult(contract Contract, result SetupResult) error {
 	if result.APIVersion != SetupResultAPIVersion || result.Authority != authorityFromContract(contract) || result.WorkloadRef != contract.WorkloadRef ||
 		!operationIDPattern.MatchString(result.OperationID) || !contractIDPattern.MatchString(result.ActionRef) || !digestPattern.MatchString(result.ApplyResultHash) || !digestPattern.MatchString(result.ArtifactDigest) ||
-		result.InstanceRef == "" || result.ApplicationVersion == "" || result.AccountRef == "" || result.VerifiedAt.IsZero() || !result.AdminLoginVerified {
+		result.InstanceRef == "" || result.ApplicationVersion == "" || result.AccountRef == "" || result.VerifiedAt.IsZero() ||
+		(!result.AdminLoginVerified && result.ActionRef != ComfyUIModelDownloadActionRef) {
 		return errors.New("application setup result is incomplete or differs from the admitted authority")
+	}
+	switch result.ActionRef {
+	case ImmichAddOnAPIKeyActionRef:
+		if result.Preparation != ImmichAddOnAPIKeyPreparation || result.EmailVerification != "" || !result.Initialized {
+			return errors.New("Immich add-on setup result has an invalid preparation state")
+		}
+		return nil
+	case ComfyUIModelDownloadActionRef:
+		preset, ok := strings.CutPrefix(result.Preparation, ComfyUIModelPresetPreparation)
+		if !ok || !contractIDPattern.MatchString(preset) || result.AccountRef != "preset:"+preset ||
+			result.EmailVerification != "" || !result.Initialized || result.AdminLoginVerified {
+			return errors.New("ComfyUI model setup result has an invalid preparation state")
+		}
+		return nil
 	}
 	if result.ActionRef == VaultOwnerInviteActionRef {
 		if result.Initialized || result.OnboardingComplete || (result.Preparation != VaultOwnerPreparationInvited && result.Preparation != VaultOwnerPreparationRegistered) {

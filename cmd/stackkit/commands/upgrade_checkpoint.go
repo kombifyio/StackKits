@@ -72,8 +72,10 @@ func createPublicUpgradeCheckpoint(
 		if currentErr == nil {
 			return current, nil
 		}
+		// The attested compiler must rebind its persisted Plan to the Inventory
+		// sealed in that Plan, even after a restore changes measured host facts.
 		attested, attestedErr := inspectAttestedCurrentBackupAuthority(
-			checkpointContext, workspace, specFile, kit, target, false,
+			checkpointContext, workspace, specFile, kit, target, true,
 		)
 		if attestedErr == nil {
 			return attested, nil
