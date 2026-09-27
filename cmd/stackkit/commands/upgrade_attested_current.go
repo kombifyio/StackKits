@@ -110,17 +110,14 @@ func inspectAttestedSourceRelease(
 	freezeSourceInventory bool,
 ) (publicUpgradeBridge, error) {
 	bridge := publicUpgradeBridge{Receipt: receipt}
-	var inventoryPath string
-	if freezeSourceInventory {
-		var cleanup func()
-		var err error
-		inventoryPath, cleanup, err = materializeHistoricalPlanInventory(workspace, requestedSpec)
-		if err != nil {
-			return publicUpgradeBridge{}, err
-		}
-		defer cleanup()
+	inventoryPath, cleanup, err := materializeAttestedSourceInventory(
+		workspace, requestedSpec, receipt.Version, freezeSourceInventory,
+	)
+	if err != nil {
+		return publicUpgradeBridge{}, err
 	}
-	err := withPublicUpgradeInstalledExecutable(ctx, receipt, func(binary string) error {
+	defer cleanup()
+	err = withPublicUpgradeInstalledExecutable(ctx, receipt, func(binary string) error {
 		runner := newUpgradeInspectionRunner()
 		if runner == nil {
 			return errors.New("attested source inspection runner is unavailable")
@@ -177,6 +174,84 @@ func inspectAttestedSourceRelease(
 	}
 	bridge.Enabled = true
 	return bridge, nil
+}
+
+// v0.47.5 first admitted observed accelerators. An older installed compiler
+// cannot read that later fact, even when its own persisted Plan never used it.
+// Project only the input to the attested source CLI. The shadow inspection,
+// target execution, and sealed checkpoint keep their full verified Inventory.
+func materializeAttestedSourceInventory(
+	workspace, requestedSpec, sourceVersion string, freeze bool,
+) (string, func(), error) {
+	cleanup := func() {}
+	var inventory []byte
+	var historicalPath string
+	if freeze {
+		path, remove, err := materializeHistoricalPlanInventory(workspace, requestedSpec)
+		if err != nil {
+			return "", nil, err
+		}
+		historicalPath = path
+		cleanup = remove
+		if semver.Compare(sourceVersion, "v0.47.5") >= 0 {
+			return path, cleanup, nil
+		}
+		inventory, err = os.ReadFile(path)
+		if err != nil {
+			cleanup()
+			return "", nil, fmt.Errorf("read historical source Inventory: %w", err)
+		}
+	} else {
+		if semver.Compare(sourceVersion, "v0.47.5") >= 0 {
+			return "", cleanup, nil
+		}
+		var err error
+		inventory, _, err = locateArchitectureV2Inventory(workspace, "")
+		if err != nil {
+			return "", nil, err
+		}
+		if len(inventory) == 0 {
+			return "", cleanup, nil
+		}
+	}
+	projected, changed, err := projectLegacySourceInventory(inventory)
+	if err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	if !changed {
+		if freeze {
+			return historicalPath, cleanup, nil
+		}
+		return "", cleanup, nil
+	}
+	path, remove, err := writePrivateInventoryDocument(projected)
+	cleanup()
+	return path, remove, err
+}
+
+func projectLegacySourceInventory(inventory []byte) ([]byte, bool, error) {
+	document, err := decodeInventoryDocument(inventory)
+	if err != nil {
+		return nil, false, err
+	}
+	nodes, _ := document["nodes"].(map[string]any)
+	changed := false
+	for _, raw := range nodes {
+		node, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if _, present := node["accelerators"]; present {
+			delete(node, "accelerators")
+			changed = true
+		}
+	}
+	if !changed {
+		return inventory, false, nil
+	}
+	projected, err := json.Marshal(document)
+	return projected, err == nil, err
 }
 
 func inspectAttestedCurrentBackupAuthority(

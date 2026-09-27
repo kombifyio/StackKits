@@ -14,7 +14,7 @@ import (
 )
 
 // Private AI image and video (docs/use-case-expansion/ai-agents.md): ComfyUI
-// on the node's GPU. ComfyUI has no sign-in of its own and custom nodes run
+// on the node's GPU, or on the CPU when no accelerator profile is selected. ComfyUI has no sign-in of its own and custom nodes run
 // arbitrary Python, so the governed runtime never loads ComfyUI-Manager or
 // any custom node, has no paid API nodes and is reached only
 // behind the kit's login on a private route. Model weights are never part of
@@ -27,6 +27,7 @@ const (
 	comfyUIWorkloadVersion     = "2.0.0"
 	comfyUIWorkloadOutputRef   = "workloads/comfyui/bundle.json"
 	comfyUIPort                = 8188
+	comfyUICPUFlag             = "--cpu"
 
 	// ComfyUIModelFetchScriptPath is the governed script `stackkit setup
 	// ai-image-video` runs through the fixed Compose exec contract to
@@ -229,15 +230,18 @@ func validateComfyUIWorkloadUnit(unit RenderUnit, contract RendererContract) (se
 	if err := decodeStrict(unit.RuntimeComponentsJSON(), &components); err != nil {
 		return selectedPaaSWorkloadBundle{}, wrap(ErrInvalidPlan, path+".runtime.components", "decode closed component graph", err)
 	}
-	// ComfyUI has no CPU runtime: without a selected accelerator profile the
-	// plan is refused instead of rendering a runtime that cannot generate.
+	// Without a selected accelerator profile ComfyUI runs on the CPU (owner
+	// decision 2026-09-27: the core AI components run on every supported
+	// host). Image work is slow there; the model presets gate what fits.
 	accelerator, selected := unit.ModuleAccelerator()
-	if !selected {
-		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".acceleratorProfile", "ComfyUI needs a GPU; select --module-accelerator-profile %s=nvidia", comfyUIWorkloadModuleID)
+	if selected {
+		components, err = applyModuleAccelerator(comfyUIWorkloadModuleID, components, accelerator, path+".acceleratorProfile")
+		if err != nil {
+			return selectedPaaSWorkloadBundle{}, err
+		}
 	}
-	components, err = applyModuleAccelerator(comfyUIWorkloadModuleID, components, accelerator, path+".acceleratorProfile")
-	if err != nil {
-		return selectedPaaSWorkloadBundle{}, err
+	if !selected && len(components) == 1 {
+		components[0].Command = append(slices.Clone(components[0].Command), comfyUICPUFlag)
 	}
 	if err := validateComfyUIRuntimeComponents(components, path+".runtime.components"); err != nil {
 		return selectedPaaSWorkloadBundle{}, err
@@ -289,8 +293,9 @@ func comfyUIComponent() (selectedPaaSRuntimeComponent, error) {
 	}, nil
 }
 
-// validateComfyUIRuntimeComponents admits exactly the governed component with
-// an NVIDIA GPU grant; nothing else reaches the container.
+// validateComfyUIRuntimeComponents admits exactly the governed component,
+// either without a GPU grant (CPU runtime) or with its NVIDIA grant; nothing
+// else reaches the container.
 func validateComfyUIRuntimeComponents(components []selectedPaaSRuntimeComponent, path string) error {
 	expected, err := comfyUIComponent()
 	if err != nil {
@@ -301,11 +306,15 @@ func validateComfyUIRuntimeComponents(components []selectedPaaSRuntimeComponent,
 	}
 	actual := components[0]
 	grant := actual.Accelerator
-	if grant == nil || grant.Vendor != "nvidia" || grant.Access != "cdi" || grant.Profile == "" {
-		return fail(ErrInvalidPlan, path+".accelerator", "ComfyUI runs only with its NVIDIA accelerator grant")
+	if grant != nil && (grant.Vendor != "nvidia" || grant.Access != "cdi" || grant.Profile == "") {
+		return fail(ErrInvalidPlan, path+".accelerator", "ComfyUI admits only its NVIDIA accelerator grant or none (CPU)")
 	}
 	if err := validatePeerNetworks(comfyUIWorkloadModuleID, actual, path); err != nil {
 		return err
+	}
+	if grant == nil {
+		// The CPU runtime is the governed command plus exactly --cpu.
+		expected.Command = append(expected.Command, comfyUICPUFlag)
 	}
 	actual.Accelerator = nil
 	// The plan orders volumes by its own rule; the set is what is governed.

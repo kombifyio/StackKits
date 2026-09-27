@@ -440,7 +440,7 @@ func executeImmichAddOnAPIKey(ctx context.Context, client *http.Client, immichUR
 
 // executeComfyUIModelDownload downloads one reviewed model preset into the
 // ComfyUI models volume after the owner accepted its license, refuses a
-// preset the GPU cannot run, and verifies that ComfyUI lists every file.
+// preset the node cannot run (GPU VRAM, or host RAM on the CPU), and verifies that ComfyUI lists every file.
 func executeComfyUIModelDownload(ctx context.Context, client *http.Client, baseURL, workspace string, deployment nativehost.SelectedPaaSWorkloadDeployment, options nativeSetupOptions) (nativeOwnerSetupObservation, error) {
 	var request struct {
 		Preset        string `json:"preset"`
@@ -457,8 +457,16 @@ func executeComfyUIModelDownload(ctx context.Context, client *http.Client, baseU
 	if err != nil {
 		return nativeOwnerSetupObservation{}, err
 	}
-	if vram < preset.MinVRAMGiB {
-		return nativeOwnerSetupObservation{}, fmt.Errorf("preset %s needs a GPU with %d GiB of VRAM; ComfyUI reports %d GiB, so nothing was downloaded", preset.ID, preset.MinVRAMGiB, vram)
+	ram, err := appsetup.ComfyUIHostRAMGiB(ctx, client, baseURL)
+	if err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	onCPU, err := appsetup.CheckComfyUIPresetFits(preset, vram, ram)
+	if err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	if onCPU {
+		printInfo("ComfyUI runs on the CPU here: %s works, but each run takes much longer than on a GPU.", preset.Template)
 	}
 	for _, file := range preset.Files {
 		printInfo("Downloading %s/%s (%.1f GB, %s license)", file.Folder, file.Name, float64(file.Bytes)/1e9, preset.License)

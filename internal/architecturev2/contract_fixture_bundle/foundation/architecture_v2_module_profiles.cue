@@ -336,15 +336,15 @@ _architectureV2DoclingComputeProfile: #ModuleComputeProfileV2 & {
 }
 _architectureV2DoclingComputeProfiles: {standard: _architectureV2DoclingComputeProfile, high: _architectureV2DoclingComputeProfile}
 
-// Private AI image and video (ComfyUI). The module has no CPU runtime: it
-// installs only with one of its accelerator profiles. The compute profile is
-// the host floor next to the GPU: RAM holds the model parts the GPU
-// offloads (the FLUX.1 schnell checkpoint is 17 GB, the Wan 2.2 5B preset
-// 18 GB), and the presets need their own disk.
+// Private AI image and video (ComfyUI), a core AI component (owner decision
+// 2026-09-27). Without an accelerator profile it runs on the CPU: upscaling
+// works on the floor below, text-to-image needs about 32 GB of RAM because
+// the FLUX.1 schnell checkpoint (17 GB) is held in memory, and video stays
+// GPU-only. The model presets enforce these limits at download time.
 _architectureV2ComfyUIComputeProfile: #ModuleComputeProfileV2 & {
-	description: "ComfyUI image and video generation on a GPU with owner-downloaded models. RAM holds the models the GPU offloads; video needs more RAM than images. No model is downloaded at install."
+	description: "ComfyUI image and video generation with owner-downloaded models, on the CPU (slow) or on a selected GPU. Text-to-image on the CPU needs about 32 GB of RAM; video needs a GPU with 16 GB of VRAM. No model is downloaded at install."
 	maturity:    "experimental", executable: true, realization: "apply-ready"
-	hostFloor: {minCpuCores: 4, minRamGB: 24, minStorageGB: 80}
+	hostFloor: {minCpuCores: 4, minRamGB: 8, minStorageGB: 40}
 	recommended: {cpuCores: 8, ramGB: 32, storageGB: 150}
 	reservation: ramGB: 2
 	components: ["comfyui"]

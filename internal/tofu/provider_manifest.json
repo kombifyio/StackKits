@@ -47,6 +47,53 @@
           "zh": "zh:9fe2fe75977c8149e2515fb30c6cc6cfd57b225d4ce592c570d81a3831d7ffa3"
         }
       ]
+    },
+    {
+      "source": "registry.opentofu.org/sebastianfs82/komodo",
+      "version": "0.12.0",
+      "constraints": "0.12.0",
+      "platforms": [
+        {
+          "os": "darwin",
+          "arch": "amd64",
+          "archive": "terraform-provider-komodo_0.12.0_darwin_amd64.zip",
+          "filename": "terraform-provider-komodo_v0.12.0",
+          "h1": "h1:aCE5OOkB+t+PiEzhGAHfS+vwwysV0EBvSb+rBsAt4CI=",
+          "zh": "zh:22cd73b9ca1453a7f386f91fd5555cafcd433ea724ff5578114c7cddc8937bfd"
+        },
+        {
+          "os": "darwin",
+          "arch": "arm64",
+          "archive": "terraform-provider-komodo_0.12.0_darwin_arm64.zip",
+          "filename": "terraform-provider-komodo_v0.12.0",
+          "h1": "h1:dPlPH0gTO0CCRQOaR1OkAg5eKO5isgXV8IhCiLlaCbI=",
+          "zh": "zh:f6a3b70b725a25ded89eac678041dea3c8f790f297146c479b12c74c8c2569a9"
+        },
+        {
+          "os": "linux",
+          "arch": "amd64",
+          "archive": "terraform-provider-komodo_0.12.0_linux_amd64.zip",
+          "filename": "terraform-provider-komodo_v0.12.0",
+          "h1": "h1:VIt3JIpE9GWfDpqc/M7GWlAxRvqoxB4im0UZ3Sm3nIA=",
+          "zh": "zh:5ab23d93f190e033d812971baa8ef36faf7d5a13c7b82c9e4bc79f0e362d2185"
+        },
+        {
+          "os": "linux",
+          "arch": "arm64",
+          "archive": "terraform-provider-komodo_0.12.0_linux_arm64.zip",
+          "filename": "terraform-provider-komodo_v0.12.0",
+          "h1": "h1:aHYdeze8RArGxRgD0Tlu6KXGfUMeAMDodJLTqGf1AVk=",
+          "zh": "zh:92b0a01e6c67502325b70817167dd055332d6f26b71a81d4c00a562d31eedc54"
+        },
+        {
+          "os": "windows",
+          "arch": "amd64",
+          "archive": "terraform-provider-komodo_0.12.0_windows_amd64.zip",
+          "filename": "terraform-provider-komodo_v0.12.0.exe",
+          "h1": "h1:/rAgktUxuhQ2qaj3wpnLhaGHC7FxLY6aQYm1tNYAUIA=",
+          "zh": "zh:e2763bfd73d66bb605345abf8aed6c431a16a9e16071cb8cdecee9440ceafffb"
+        }
+      ]
     }
   ]
 }

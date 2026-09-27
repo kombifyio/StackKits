@@ -25,6 +25,7 @@ const (
 	ProvidersDirName              = "providers"
 	ProviderRegistryHost          = "registry.opentofu.org"
 	PinnedLocalProviderVersion    = "2.5.3"
+	PinnedKomodoProviderVersion   = "0.12.0"
 	ProviderManifestFile          = "stackkit-provider-manifest.json"
 	ProviderLockFile              = "stackkit-provider-lock.hcl"
 	providerManifestSchemaVersion = 1
@@ -151,9 +152,9 @@ func RequireLocalProviderMirror(dir string) error {
 }
 
 // PrepareProviderClosure is the release packaging boundary. It admits only
-// the committed manifest, verifies the upstream archive plus unpacked package,
+// the committed manifest, verifies every upstream archive and unpacked package,
 // and writes the deterministic lock shipped in the same provider directory.
-func PrepareProviderClosure(dir, targetOS, targetArch, archive string) error {
+func PrepareProviderClosure(dir, targetOS, targetArch string, archives map[string]string) error {
 	manifestBytes, err := readProviderMetadata(filepath.Join(dir, ProviderManifestFile))
 	if err != nil {
 		return err
@@ -162,20 +163,29 @@ func PrepareProviderClosure(dir, targetOS, targetArch, archive string) error {
 	if err != nil {
 		return err
 	}
-	platform, ok := providerPlatform(manifest, ProviderRegistryHost+"/hashicorp/local", targetOS, targetArch)
-	if !ok {
-		return fmt.Errorf("%w: no canonical hashicorp/local package for %s_%s", ErrProviderClosureInvalid, targetOS, targetArch)
+	if len(archives) != len(manifest.Providers) {
+		return fmt.Errorf("%w: provider archive set differs from the canonical manifest", ErrProviderClosureInvalid)
 	}
-	archiveHash, err := sha256File(archive)
-	if err != nil {
-		return fmt.Errorf("%w: read provider archive: %v", ErrProviderClosureInvalid, err)
-	}
-	if "zh:"+archiveHash != platform.ZH {
-		return fmt.Errorf("%w: %s archive hash differs from the canonical manifest", ErrProviderClosureInvalid, platform.Archive)
-	}
-	h1, err := dirhash.HashZip(archive, dirhash.Hash1)
-	if err != nil || h1 != platform.H1 {
-		return fmt.Errorf("%w: %s archive package hash differs from the canonical manifest", ErrProviderClosureInvalid, platform.Archive)
+	for _, provider := range manifest.Providers {
+		platform, ok := providerPlatform(manifest, provider.Source, targetOS, targetArch)
+		if !ok {
+			return fmt.Errorf("%w: no canonical %s package for %s_%s", ErrProviderClosureInvalid, provider.Source, targetOS, targetArch)
+		}
+		archive := archives[provider.Source]
+		if archive == "" || filepath.Base(archive) != platform.Archive {
+			return fmt.Errorf("%w: %s archive is absent or misnamed", ErrProviderClosureInvalid, provider.Source)
+		}
+		archiveHash, err := sha256File(archive)
+		if err != nil {
+			return fmt.Errorf("%w: read provider archive: %v", ErrProviderClosureInvalid, err)
+		}
+		if "zh:"+archiveHash != platform.ZH {
+			return fmt.Errorf("%w: %s archive hash differs from the canonical manifest", ErrProviderClosureInvalid, platform.Archive)
+		}
+		h1, err := dirhash.HashZip(archive, dirhash.Hash1)
+		if err != nil || h1 != platform.H1 {
+			return fmt.Errorf("%w: %s archive package hash differs from the canonical manifest", ErrProviderClosureInvalid, platform.Archive)
+		}
 	}
 	if err := validateProviderPackages(dir, manifest, targetOS, targetArch); err != nil {
 		return err
@@ -231,6 +241,9 @@ func decodeProviderManifest(data []byte) (providerManifest, error) {
 			strings.TrimSpace(provider.Version) == "" || strings.TrimSpace(provider.Constraints) == "" {
 			return providerManifest{}, fmt.Errorf("%w: provider identity or ordering is invalid", ErrProviderClosureInvalid)
 		}
+		if provider.Constraints != provider.Version {
+			return providerManifest{}, fmt.Errorf("%w: %s constraints differ from its exact pin", ErrProviderClosureInvalid, provider.Source)
+		}
 		if _, duplicate := seenProviders[provider.Source]; duplicate {
 			return providerManifest{}, fmt.Errorf("%w: duplicate provider %s", ErrProviderClosureInvalid, provider.Source)
 		}
@@ -248,12 +261,17 @@ func decodeProviderManifest(data []byte) (providerManifest, error) {
 			}
 		}
 	}
-	if _, ok := seenProviders[ProviderRegistryHost+"/hashicorp/local"]; !ok {
-		return providerManifest{}, fmt.Errorf("%w: hashicorp/local is absent", ErrProviderClosureInvalid)
+	for _, source := range []string{ProviderRegistryHost + "/hashicorp/local", ProviderRegistryHost + "/sebastianfs82/komodo"} {
+		if _, ok := seenProviders[source]; !ok {
+			return providerManifest{}, fmt.Errorf("%w: %s is absent", ErrProviderClosureInvalid, source)
+		}
 	}
 	for _, provider := range manifest.Providers {
 		if provider.Source == ProviderRegistryHost+"/hashicorp/local" && provider.Version != PinnedLocalProviderVersion {
 			return providerManifest{}, fmt.Errorf("%w: hashicorp/local pin differs from %s", ErrProviderClosureInvalid, PinnedLocalProviderVersion)
+		}
+		if provider.Source == ProviderRegistryHost+"/sebastianfs82/komodo" && provider.Version != PinnedKomodoProviderVersion {
+			return providerManifest{}, fmt.Errorf("%w: sebastianfs82/komodo pin differs from %s", ErrProviderClosureInvalid, PinnedKomodoProviderVersion)
 		}
 	}
 	return manifest, nil

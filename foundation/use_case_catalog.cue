@@ -640,8 +640,7 @@ UseCaseCatalog: #UseCaseCatalog & {
 					name:                "Image and video"
 					help:                "Create and edit images and short videos from reviewed workflow templates."
 					requires:            ["inference"]
-					requiresAccelerator: true
-					default: {id: "comfyui", name: "ComfyUI", note: "NVIDIA GPU with 8 GB for images, 16 GB or more for video", realization: "install", workloadRef: "ai-image-video", alternativeRef: "comfyui"}
+					default: {id: "comfyui", name: "ComfyUI", note: "Runs on the CPU (slow; upscaling, and text-to-image with 32 GB RAM); an NVIDIA GPU with 8 GB makes images fast, video needs 16 GB of VRAM", realization: "install", workloadRef: "ai-image-video", alternativeRef: "comfyui"}
 					alternative: {id: "invokeai", name: "InvokeAI", realization: "recorded"}
 				},
 				{

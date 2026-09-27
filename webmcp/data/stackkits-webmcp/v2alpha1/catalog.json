@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "f5df7872ecc01d89164ba0b4a9347a1b5f38a583",
-  "authority_bundle_sha256": "df2b9186c8ee1b3d27af469491ee9ec6da4e0c4ebc4ff20d497dd2a0bb2cbb82",
+  "source_sha": "85e20fcf7b866fdeb5ca4b5bc45538a23ce8c3bf",
+  "authority_bundle_sha256": "80b9ed6724e8275b0f2f4ec398899d781caef970f737a8bbe4a561a1dba82fb7",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -392,11 +392,11 @@
               "maturity": "experimental",
               "executable": true,
               "realization": "apply-ready",
-              "description": "ComfyUI image and video generation on a GPU with owner-downloaded models. RAM holds the models the GPU offloads; video needs more RAM than images. No model is downloaded at install.",
+              "description": "ComfyUI image and video generation with owner-downloaded models, on the CPU (slow) or on a selected GPU. Text-to-image on the CPU needs about 32 GB of RAM; video needs a GPU with 16 GB of VRAM. No model is downloaded at install.",
               "host_floor": {
                 "cpu_cores": 4,
-                "ram_gb": 24,
-                "storage_gb": 80
+                "ram_gb": 8,
+                "storage_gb": 40
               },
               "reservation": {
                 "ram_gb": 2
@@ -413,7 +413,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "cce9a864f223bd5df3be1a08a3e55684c57bbdf657926d29cce799f978498f61"
+              "profile_sha256": "05c5a9631e2885588d28ca52500bfb3d0f997aa7bf715e877942735020489f50"
             },
             {
               "id": "high",
@@ -421,11 +421,11 @@
               "maturity": "experimental",
               "executable": true,
               "realization": "apply-ready",
-              "description": "ComfyUI image and video generation on a GPU with owner-downloaded models. RAM holds the models the GPU offloads; video needs more RAM than images. No model is downloaded at install.",
+              "description": "ComfyUI image and video generation with owner-downloaded models, on the CPU (slow) or on a selected GPU. Text-to-image on the CPU needs about 32 GB of RAM; video needs a GPU with 16 GB of VRAM. No model is downloaded at install.",
               "host_floor": {
                 "cpu_cores": 4,
-                "ram_gb": 24,
-                "storage_gb": 80
+                "ram_gb": 8,
+                "storage_gb": 40
               },
               "reservation": {
                 "ram_gb": 2
@@ -442,7 +442,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "d8a9f78584b883ce9f991ac5376bf932329653ec40a74d6d02e2b7be3b0e1eaf"
+              "profile_sha256": "b877b2f5077ec962b57507f54d44b052c4978321bd6381522faf0fc5e5014a9f"
             }
           ],
           "storage_profiles": [],
@@ -2383,7 +2383,7 @@
         {
           "use_case_id": "ai-image-video",
           "title": "ai-image-video",
-          "description": "ComfyUI image and video generation on the node's GPU with reviewed workflow templates, selected with the Private AI image-video module. ComfyUI has no sign-in of its own, so it is reached only on a private route behind the kit's login.",
+          "description": "ComfyUI image and video generation on the node's CPU or selected GPU with reviewed workflow templates, selected with the Private AI image-video module. ComfyUI has no sign-in of its own, so it is reached only on a private route behind the kit's login.",
           "required": false,
           "selected_by_default": false,
           "default_alternative_id": "comfyui",
@@ -3412,11 +3412,11 @@
               "maturity": "experimental",
               "executable": true,
               "realization": "apply-ready",
-              "description": "ComfyUI image and video generation on a GPU with owner-downloaded models. RAM holds the models the GPU offloads; video needs more RAM than images. No model is downloaded at install.",
+              "description": "ComfyUI image and video generation with owner-downloaded models, on the CPU (slow) or on a selected GPU. Text-to-image on the CPU needs about 32 GB of RAM; video needs a GPU with 16 GB of VRAM. No model is downloaded at install.",
               "host_floor": {
                 "cpu_cores": 4,
-                "ram_gb": 24,
-                "storage_gb": 80
+                "ram_gb": 8,
+                "storage_gb": 40
               },
               "reservation": {
                 "ram_gb": 2
@@ -3433,7 +3433,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "cce9a864f223bd5df3be1a08a3e55684c57bbdf657926d29cce799f978498f61"
+              "profile_sha256": "05c5a9631e2885588d28ca52500bfb3d0f997aa7bf715e877942735020489f50"
             },
             {
               "id": "high",
@@ -3441,11 +3441,11 @@
               "maturity": "experimental",
               "executable": true,
               "realization": "apply-ready",
-              "description": "ComfyUI image and video generation on a GPU with owner-downloaded models. RAM holds the models the GPU offloads; video needs more RAM than images. No model is downloaded at install.",
+              "description": "ComfyUI image and video generation with owner-downloaded models, on the CPU (slow) or on a selected GPU. Text-to-image on the CPU needs about 32 GB of RAM; video needs a GPU with 16 GB of VRAM. No model is downloaded at install.",
               "host_floor": {
                 "cpu_cores": 4,
-                "ram_gb": 24,
-                "storage_gb": 80
+                "ram_gb": 8,
+                "storage_gb": 40
               },
               "reservation": {
                 "ram_gb": 2
@@ -3462,7 +3462,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "d8a9f78584b883ce9f991ac5376bf932329653ec40a74d6d02e2b7be3b0e1eaf"
+              "profile_sha256": "b877b2f5077ec962b57507f54d44b052c4978321bd6381522faf0fc5e5014a9f"
             }
           ],
           "storage_profiles": [],
@@ -5489,7 +5489,7 @@
         {
           "use_case_id": "ai-image-video",
           "title": "ai-image-video",
-          "description": "ComfyUI image and video generation on the node's GPU with reviewed workflow templates, selected with the Private AI image-video module. ComfyUI has no sign-in of its own, so it is reached only on a private route behind the kit's login.",
+          "description": "ComfyUI image and video generation on the node's CPU or selected GPU with reviewed workflow templates, selected with the Private AI image-video module. ComfyUI has no sign-in of its own, so it is reached only on a private route behind the kit's login.",
           "required": false,
           "selected_by_default": false,
           "default_alternative_id": "comfyui",
@@ -6536,11 +6536,11 @@
               "maturity": "experimental",
               "executable": true,
               "realization": "apply-ready",
-              "description": "ComfyUI image and video generation on a GPU with owner-downloaded models. RAM holds the models the GPU offloads; video needs more RAM than images. No model is downloaded at install.",
+              "description": "ComfyUI image and video generation with owner-downloaded models, on the CPU (slow) or on a selected GPU. Text-to-image on the CPU needs about 32 GB of RAM; video needs a GPU with 16 GB of VRAM. No model is downloaded at install.",
               "host_floor": {
                 "cpu_cores": 4,
-                "ram_gb": 24,
-                "storage_gb": 80
+                "ram_gb": 8,
+                "storage_gb": 40
               },
               "reservation": {
                 "ram_gb": 2
@@ -6557,7 +6557,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "cce9a864f223bd5df3be1a08a3e55684c57bbdf657926d29cce799f978498f61"
+              "profile_sha256": "05c5a9631e2885588d28ca52500bfb3d0f997aa7bf715e877942735020489f50"
             },
             {
               "id": "high",
@@ -6565,11 +6565,11 @@
               "maturity": "experimental",
               "executable": true,
               "realization": "apply-ready",
-              "description": "ComfyUI image and video generation on a GPU with owner-downloaded models. RAM holds the models the GPU offloads; video needs more RAM than images. No model is downloaded at install.",
+              "description": "ComfyUI image and video generation with owner-downloaded models, on the CPU (slow) or on a selected GPU. Text-to-image on the CPU needs about 32 GB of RAM; video needs a GPU with 16 GB of VRAM. No model is downloaded at install.",
               "host_floor": {
                 "cpu_cores": 4,
-                "ram_gb": 24,
-                "storage_gb": 80
+                "ram_gb": 8,
+                "storage_gb": 40
               },
               "reservation": {
                 "ram_gb": 2
@@ -6586,7 +6586,7 @@
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "d8a9f78584b883ce9f991ac5376bf932329653ec40a74d6d02e2b7be3b0e1eaf"
+              "profile_sha256": "b877b2f5077ec962b57507f54d44b052c4978321bd6381522faf0fc5e5014a9f"
             }
           ],
           "storage_profiles": [],
@@ -8527,7 +8527,7 @@
         {
           "use_case_id": "ai-image-video",
           "title": "ai-image-video",
-          "description": "ComfyUI image and video generation on the node's GPU with reviewed workflow templates, selected with the Private AI image-video module. ComfyUI has no sign-in of its own, so it is reached only on a private route behind the kit's login.",
+          "description": "ComfyUI image and video generation on the node's CPU or selected GPU with reviewed workflow templates, selected with the Private AI image-video module. ComfyUI has no sign-in of its own, so it is reached only on a private route behind the kit's login.",
           "required": false,
           "selected_by_default": false,
           "default_alternative_id": "comfyui",
@@ -10480,5 +10480,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "93de79c1519bea5ba480919cbebaf976ffaadc3621240abef8297c7f5c506657"
+  "catalog_sha256": "24f7ff22b189eda69d502973be89ca5133ea5bd89900f39ab94226428d8bc2b3"
 }

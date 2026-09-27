@@ -126,6 +126,7 @@ check_archive_contents() {
     providers/stackkit-provider-manifest.json \
     providers/stackkit-provider-lock.hcl \
     providers/registry.opentofu.org/hashicorp/local/2.5.3/linux_amd64/terraform-provider-local \
+    providers/registry.opentofu.org/sebastianfs82/komodo/0.12.0/linux_amd64/terraform-provider-komodo_v0.12.0 \
     README.md \
     LICENSING.md \
     LICENSE-APACHE \

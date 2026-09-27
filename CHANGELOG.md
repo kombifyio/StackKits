@@ -26,6 +26,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+* **opentofu:** bundle the exact `sebastianfs82/komodo` v0.12.0 provider for every release platform and Debian package. Its archive and unpacked mirror now pass the same compiled offline closure as `hashicorp/local`; Komodo roots receive their own exact dependency lock. This packages the provider, not a rendered Komodo runtime target or real-host parity claim.
+* **ai:** ComfyUI is a core Private AI component and now runs without a GPU. Without `--module-accelerator-profile` the image-video module installs ComfyUI with `--cpu` (host floor 4 cores, 8 GB RAM); `stackkit setup ai-image-video` then admits the Real-ESRGAN upscaler on any node, FLUX.1 schnell only with about 32 GB of RAM, and refuses the Wan 2.2 video preset on the CPU. CPU generation is slow; the setup says so.
+
 * **ai:** the Private AI image-video module installs ComfyUI on an NVIDIA GPU. `--use-case-capability ai.image-video=comfyui --module-accelerator-profile stackkits-comfyui-runtime=nvidia` adds the add-on workload `ai-image-video`; without a GPU profile it is refused, and Apply refuses a host without an NVIDIA GPU with 8 GiB of VRAM. ComfyUI never loads ComfyUI-Manager, custom nodes or paid API nodes and is reached only on a private route behind the kit's login. Four reviewed workflow templates ship (text-to-image, image-to-image, 4x upscale, Wan 2.2 video). No model is bundled: `stackkit setup ai-image-video` downloads one preset (FLUX.1 schnell, Real-ESRGAN or Wan 2.2 5B) after the owner accepts its license, and verifies each file's size and SHA-256. Workflows, uploads and outputs are backed up; models are not. When chat is selected, Open WebUI generates images through ComfyUI. No GPU host has run it yet.
 
 * **ai:** the Private AI web-search and document-parsing modules install. `--use-case-capability ai.web-search=searxng` adds SearXNG, and `ai.document-parsing=tika` (or `=docling`) adds Apache Tika or Docling, each as its own add-on workload on the node's private AI network. Open WebUI is configured to use them only while they are selected; without them its configuration is unchanged. The add-ons have no route of their own, are never public and hold no data to back up. Speech stays planned: the SpeechKit server image is not publicly pullable and offers no OpenAI-compatible audio API for Open WebUI.
@@ -85,6 +88,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **photos:** keep Apply and restore available when optional machine learning is degraded, while reporting its health and retaining blocking checks for core services
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
+
+## [0.47.8](https://github.com/kombifyio/StackKits/compare/v0.47.7...v0.47.8) (2026-09-27)
+
+
+### Added
+
+* **ai:** ComfyUI runs on the CPU without an accelerator profile
+* **tofu:** package pinned Komodo provider offline
+
+
+### Fixed
+
+* **upgrade:** preserve legacy source inventory compatibility
 
 ## [0.47.7](https://github.com/kombifyio/StackKits/compare/v0.47.6...v0.47.7) (2026-09-27)
 

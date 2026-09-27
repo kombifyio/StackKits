@@ -1065,7 +1065,7 @@ _architectureV2WorkloadContracts: [
 		metadata: {
 			id:          "ai-image-video"
 			version:     "1.0.0"
-			description: "ComfyUI image and video generation on the node's GPU with reviewed workflow templates, selected with the Private AI image-video module. ComfyUI has no sign-in of its own, so it is reached only on a private route behind the kit's login."
+			description: "ComfyUI image and video generation on the node's CPU or selected GPU with reviewed workflow templates, selected with the Private AI image-video module. ComfyUI has no sign-in of its own, so it is reached only on a private route behind the kit's login."
 		}
 		kind:       "application"
 		useCaseRef: "ai"
@@ -7940,7 +7940,7 @@ _architectureV2Modules: list.Concat([[
 		metadata: {
 			id:          "stackkits-comfyui-runtime"
 			version:     "1.0.0"
-			description: "ComfyUI image and video generation on the node's NVIDIA GPU with reviewed workflow templates. It never loads ComfyUI-Manager, custom nodes or paid API nodes, holds no model until the owner downloads a preset, and is reached only on a private route behind the kit's login and by Open WebUI."
+			description: "ComfyUI image and video generation on the node's CPU or on a selected NVIDIA GPU with reviewed workflow templates. It never loads ComfyUI-Manager, custom nodes or paid API nodes, holds no model until the owner downloads a preset, and is reached only on a private route behind the kit's login and by Open WebUI."
 		}
 		role:        "workload"
 		providerRef: "stackkits-comfyui"

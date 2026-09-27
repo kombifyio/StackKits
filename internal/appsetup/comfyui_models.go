@@ -38,7 +38,10 @@ type ComfyUIModelPreset struct {
 	License    string
 	LicenseURL string
 	MinVRAMGiB int
-	Files      []ComfyUIModelFile
+	// MinCPURAMGiB is the host RAM the preset needs without a GPU; zero
+	// means the preset is GPU-only.
+	MinCPURAMGiB int
+	Files        []ComfyUIModelFile
 }
 
 // ComfyUIModelPresets returns the reviewed presets. Only permissively
@@ -66,6 +69,40 @@ func ResolveComfyUIModelPreset(id, acceptedLicense string) (ComfyUIModelPreset, 
 		ids = append(ids, preset.ID)
 	}
 	return ComfyUIModelPreset{}, fmt.Errorf("unknown model preset %q; choose one of %s", id, strings.Join(ids, ", "))
+}
+
+// ComfyUIHostRAMGiB reads the host RAM ComfyUI reports.
+func ComfyUIHostRAMGiB(ctx context.Context, client *http.Client, baseURL string) (int, error) {
+	var stats struct {
+		System struct {
+			RAMTotal int64 `json:"ram_total"`
+		} `json:"system"`
+	}
+	if err := comfyUIGetJSON(ctx, client, baseURL, "/system_stats", &stats); err != nil {
+		return 0, err
+	}
+	return int(stats.System.RAMTotal >> 30), nil
+}
+
+// CheckComfyUIPresetFits refuses a preset the node cannot run: on a GPU it
+// needs MinVRAMGiB, on the CPU (no GPU reported) MinCPURAMGiB of host RAM,
+// and GPU-only presets are refused on the CPU. It returns whether the preset
+// runs on the CPU, so the caller can warn that generation is slow.
+func CheckComfyUIPresetFits(preset ComfyUIModelPreset, vramGiB, ramGiB int) (cpu bool, err error) {
+	if vramGiB > 0 {
+		if vramGiB < preset.MinVRAMGiB {
+			return false, fmt.Errorf("preset %s needs a GPU with %d GiB of VRAM; ComfyUI reports %d GiB, so nothing was downloaded", preset.ID, preset.MinVRAMGiB, vramGiB)
+		}
+		return false, nil
+	}
+	if preset.MinCPURAMGiB == 0 {
+		return true, fmt.Errorf("preset %s needs a GPU with %d GiB of VRAM; ComfyUI runs on the CPU here, so nothing was downloaded", preset.ID, preset.MinVRAMGiB)
+	}
+	// Reported RAM is slightly below the nominal size; allow 1 GiB.
+	if ramGiB+1 < preset.MinCPURAMGiB {
+		return true, fmt.Errorf("preset %s needs %d GB of RAM on the CPU; the node has %d GiB, so nothing was downloaded", preset.ID, preset.MinCPURAMGiB, ramGiB)
+	}
+	return true, nil
 }
 
 // ComfyUIDeviceVRAMGiB reads the largest GPU memory ComfyUI reports.
@@ -143,7 +180,7 @@ var comfyUIModelPresets = []ComfyUIModelPreset{
 		ID: "flux-schnell", Title: "FLUX.1 [schnell] (FP8, all-in-one checkpoint)",
 		Template: "kombify-text-to-image and kombify-image-to-image",
 		License:  "apache-2.0", LicenseURL: "https://huggingface.co/black-forest-labs/FLUX.1-schnell",
-		MinVRAMGiB: 8,
+		MinVRAMGiB: 8, MinCPURAMGiB: 32,
 		Files: []ComfyUIModelFile{{
 			Folder: "checkpoints", Name: "flux1-schnell-fp8.safetensors",
 			URL:    "https://huggingface.co/Comfy-Org/flux1-schnell/resolve/c2b683ea00713d6feadcd54b39e3725bbc78638b/flux1-schnell-fp8.safetensors",
@@ -154,7 +191,7 @@ var comfyUIModelPresets = []ComfyUIModelPreset{
 		ID: "real-esrgan", Title: "Real-ESRGAN x4plus upscaler",
 		Template: "kombify-upscale-4x",
 		License:  "bsd-3-clause", LicenseURL: "https://github.com/xinntao/Real-ESRGAN/blob/master/LICENSE",
-		MinVRAMGiB: 2,
+		MinVRAMGiB: 2, MinCPURAMGiB: 4,
 		Files: []ComfyUIModelFile{{
 			Folder: "upscale_models", Name: "RealESRGAN_x4plus.pth",
 			URL:    "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",

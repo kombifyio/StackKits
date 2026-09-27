@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:50018e3dc41c7e45d77a284d244e9caccb5895e6afe88c322845b80a0983dfc7",
+  "contentDigest": "sha256:5e395ccb2bd04960768aab0728f5d87f6a43014cb3c1a18cb6f29bcd28428689",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -211,7 +211,7 @@
             "alternativeRef": "comfyui",
             "id": "comfyui",
             "name": "ComfyUI",
-            "note": "NVIDIA GPU with 8 GB for images, 16 GB or more for video",
+            "note": "Runs on the CPU (slow; upscaling, and text-to-image with 32 GB RAM); an NVIDIA GPU with 8 GB makes images fast, video needs 16 GB of VRAM",
             "realization": "install",
             "workloadRef": "ai-image-video"
           },
@@ -223,7 +223,7 @@
           "requires": [
             "inference"
           ],
-          "requiresAccelerator": true
+          "requiresAccelerator": false
         },
         {
           "alternative": {
