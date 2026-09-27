@@ -15,7 +15,7 @@ const (
 	privateAIWorkloadOutputRef   = "workloads/private-ai/bundle.json"
 )
 
-const privateAIWorkloadRendererSchema = `stackkit.workload-bundle/v2|PrivateAIWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:privateAI|release:` + privateAIRelease + `|secret-material:not-included`
+const privateAIWorkloadRendererSchema = `stackkit.workload-bundle/v2|PrivateAIWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:privateAI|release:` + privateAIRelease + `|secret-material:not-included|companions:ai-search,ai-documents,ai-image-video`
 
 // PrivateAIWorkloadBundleDescriptor is the closed, credential-free runtime
 // artifact accepted by the selected-PaaS executor. OwnerPasswordRef is opaque.
@@ -147,7 +147,7 @@ func validatePrivateAIWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	if hasDaemonRef || hasDaemonInstance || hasDaemonEngine || hasDaemonSocket {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".instances", "selected-PaaS workload receives no daemon or socket authority")
 	}
-	deliveryRoute, err := validateApplicationDeliveryRouteInput(unit, privateAIWorkloadModuleID, "ai", 8080, path+".inputs")
+	deliveryRoute, companions, err := validateApplicationDeliveryInputsWithCompanions(unit, privateAIWorkloadModuleID, "ai", 8080, path+".inputs")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
@@ -178,9 +178,25 @@ func validatePrivateAIWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	if err := decodeStrict(unit.RuntimeComponentsJSON(), &components); err != nil {
 		return selectedPaaSWorkloadBundle{}, wrap(ErrInvalidPlan, path+".runtime.components", "decode closed component graph", err)
 	}
+	// Open WebUI is wired to the selected search and document add-ons only
+	// while they are selected on this node.
+	for index := range components {
+		if err := materializeCompanionEnvironment(privateAIWorkloadModuleID, &components[index], companions, path+".runtime.components"); err != nil {
+			return selectedPaaSWorkloadBundle{}, err
+		}
+	}
 	components, err = validatePrivateAIRuntimeComponents(components, path+".runtime.components")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
+	}
+	if accelerator, selected := unit.ModuleAccelerator(); selected {
+		components, err = applyModuleAccelerator(privateAIWorkloadModuleID, components, accelerator, path+".acceleratorProfile")
+		if err != nil {
+			return selectedPaaSWorkloadBundle{}, err
+		}
+		if _, err := validatePrivateAIRuntimeComponents(components, path+".runtime.components"); err != nil {
+			return selectedPaaSWorkloadBundle{}, err
+		}
 	}
 	var endpoints []selectedPaaSServiceEndpoint
 	if err := decodeStrict(unit.ServiceEndpointsJSON(), &endpoints); err != nil || len(endpoints) != 1 {
@@ -215,26 +231,33 @@ func validatePrivateAIRuntimeComponents(components []selectedPaaSRuntimeComponen
 		seen[c.ID] = true
 		switch c.ID {
 		case "open-webui":
-			if c.Egress {
+			if c.Accelerator != nil {
+				return nil, fail(ErrInvalidPlan, path, "Open WebUI runs on the CPU")
+			}
+			if c.Egress || len(c.CompanionEnvironment) != 0 {
 				return nil, fail(ErrInvalidPlan, path, "only the model-serving component requests egress")
 			}
-			if !exactStringList(c.DependsOn, []string{"ollama"}) || len(c.SecretEnvironment) != 2 || c.Health.Kind != "http" || c.Health.Path != "/health" || c.Health.Port != 8080 || c.Environment["ENABLE_PERSISTENT_CONFIG"] != "false" || c.Environment["ENABLE_OPENAI_API"] != "false" || c.Environment["RAG_EMBEDDING_MODEL_AUTO_UPDATE"] != "false" || c.Environment["WHISPER_MODEL_AUTO_UPDATE"] != "false" || c.Environment["OFFLINE_MODE"] != "true" || c.Environment["HF_HUB_OFFLINE"] != "1" || len(c.Environment) != 8 {
+			environment, err := splitCompanionEnvironment(privateAIWorkloadModuleID, c.ID, c.Environment)
+			if err != nil {
+				return nil, fail(ErrInvalidPlan, path, "Open WebUI companion wiring differs from the governed search and document add-ons")
+			}
+			if !exactStringList(c.DependsOn, []string{"ollama"}) || len(c.SecretEnvironment) != 2 || c.Health.Kind != "http" || c.Health.Path != "/health" || c.Health.Port != 8080 || environment["ENABLE_PERSISTENT_CONFIG"] != "false" || environment["ENABLE_OPENAI_API"] != "false" || environment["RAG_EMBEDDING_MODEL_AUTO_UPDATE"] != "false" || environment["WHISPER_MODEL_AUTO_UPDATE"] != "false" || environment["OFFLINE_MODE"] != "true" || environment["HF_HUB_OFFLINE"] != "1" || len(environment) != 8 {
 				return nil, fail(ErrInvalidPlan, path, "Open WebUI must retain its private configuration")
 			}
-			if c.Image.Ref != privateAIImageRef || c.Image.Digest != privateAIImageDigest || c.Environment["OLLAMA_BASE_URL"] != "http://ollama:11434" || c.Environment["ENABLE_SIGNUP"] != "false" || c.SecretEnvironment["WEBUI_ADMIN_PASSWORD"] != "owner-password" || c.OwnerEnvironment["WEBUI_ADMIN_EMAIL"] != "email" || len(c.OwnerEnvironment) != 1 || c.SecretEnvironment["WEBUI_SECRET_KEY"] != "session-key" {
+			if c.Image.Ref != privateAIImageRef || c.Image.Digest != privateAIImageDigest || environment["OLLAMA_BASE_URL"] != "http://ollama:11434" || environment["ENABLE_SIGNUP"] != "false" || c.SecretEnvironment["WEBUI_ADMIN_PASSWORD"] != "owner-password" || c.OwnerEnvironment["WEBUI_ADMIN_EMAIL"] != "email" || len(c.OwnerEnvironment) != 1 || c.SecretEnvironment["WEBUI_SECRET_KEY"] != "session-key" {
 				return nil, fail(ErrInvalidPlan, path, "Open WebUI owner and inference boundary differs")
 			}
 			if len(c.Volumes) != 1 || c.Volumes[0].ID != "data" || c.Volumes[0].Target != "/app/backend/data" || c.Volumes[0].Class != "persistent" || !c.Volumes[0].Backup || c.Volumes[0].ReadOnly || c.Volumes[0].HostPath != "" {
 				return nil, fail(ErrInvalidPlan, path, "chat and owner data must persist")
 			}
 		case "ollama":
-			if !c.Egress {
+			if !c.Egress || len(c.CompanionEnvironment) != 0 {
 				return nil, fail(ErrInvalidPlan, path, "explicit model downloads require Ollama egress")
 			}
 			if len(c.DependsOn) != 0 || len(c.SecretEnvironment) != 0 || len(c.OwnerEnvironment) != 0 || c.Health.Kind != "command" || !exactStringList(c.Health.Command, []string{"ollama", "list"}) || len(c.Environment) != 1 || c.Environment["OLLAMA_KEEP_ALIVE"] != "5m" {
 				return nil, fail(ErrInvalidPlan, path, "Ollama must retain its private serving configuration")
 			}
-			if c.Image.Ref != ollamaImageRef || c.Image.Digest != ollamaImageDigest || len(c.Command) != 0 || len(c.Entrypoint) != 0 {
+			if !validPrivateAIOllamaImage(c) || len(c.Command) != 0 || len(c.Entrypoint) != 0 {
 				return nil, fail(ErrInvalidPlan, path, "Ollama runtime must not implicitly download models")
 			}
 			if len(c.Volumes) != 1 || c.Volumes[0].ID != "models" || c.Volumes[0].Target != "/root/.ollama" || c.Volumes[0].Class != "persistent" || c.Volumes[0].ReadOnly || c.Volumes[0].HostPath != "" {
@@ -261,4 +284,16 @@ func validatePrivateAIServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path
 
 func validPrivateAISecretRefs(refs map[string]string) bool {
 	return len(refs) == 2 && validSecretReference(refs["owner-password"]) && validSecretReference(refs["session-key"])
+}
+
+// privateAIOllamaROCmImageRef is the only image variant Private AI admits: the
+// ROCm build of the pinned Ollama release, selected by the amd accelerator
+// profile, whose digest the hash-bound plan carries.
+const privateAIOllamaROCmImageRef = ollamaImageRef + "-rocm"
+
+func validPrivateAIOllamaImage(c selectedPaaSRuntimeComponent) bool {
+	if c.Accelerator != nil && c.Accelerator.Vendor == "amd" {
+		return c.Image.Ref == privateAIOllamaROCmImageRef && acceleratorImageDigestPattern.MatchString(c.Image.Digest)
+	}
+	return c.Image.Ref == ollamaImageRef && c.Image.Digest == ollamaImageDigest
 }

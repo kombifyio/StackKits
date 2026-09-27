@@ -23,9 +23,9 @@ variable "pocketid_enabled" {
 }
 
 variable "pocketid_version" {
-  description = "PocketID Docker image version (PocketID v2 — ghcr.io/pocket-id/pocket-id:v2 — has a non-overlapping schema with v1; v1 is end-of-life)"
+  description = "PocketID Docker image version (v2.16.0 is the StackKits compatibility pin; v1 is end-of-life)"
   type        = string
-  default     = "v2"
+  default     = "v2.16.0@sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea"
 }
 
 variable "pocketid_port" {

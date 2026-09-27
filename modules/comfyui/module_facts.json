@@ -1,0 +1,52 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "comfyui",
+  "displayName": "ComfyUI",
+  "description": "ComfyUI image and video generation on an NVIDIA GPU with reviewed workflow templates; no ComfyUI-Manager, custom nodes or API nodes; private route behind the kit login.",
+  "rationale": "Private AI image-video capability module (default).",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "2g"
+    }
+  },
+  "services": [
+    {
+      "name": "comfyui",
+      "type": "application",
+      "required": false,
+      "networks": [
+        "private-ai-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`ai-image-video.{{.domain}}`)",
+        "port": 8188
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "none",
+        "reason": "ComfyUI has no user store or sign-in, so only the gateway login protects the private route."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/system_stats",
+        "port": 8188
+      },
+      "resources": {
+        "memory": "2g",
+        "memoryMax": "28g"
+      },
+      "upstream": {
+        "github": "Comfy-Org/ComfyUI",
+        "registryImage": "ghcr.io/saladtechnologies/comfyui-api"
+      },
+      "imageSource": {
+        "moduleRef": "stackkits-comfyui-runtime",
+        "componentRef": "comfyui"
+      }
+    }
+  ]
+}

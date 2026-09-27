@@ -42,6 +42,7 @@ var allowedOperationSet = map[string]struct{}{
 }
 
 type envelope struct {
+	BackupRenewal     *BackupRenewal
 	AllowedOperations []string
 	Audience          string
 	CapabilityID      string
@@ -58,6 +59,19 @@ type envelope struct {
 }
 
 var exactFields = map[string]func(*envelope, json.RawMessage) error{
+	"backupRenewal": func(document *envelope, raw json.RawMessage) error {
+		var renewal BackupRenewal
+		decoder := json.NewDecoder(bytes.NewReader(raw))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&renewal); err != nil {
+			return err
+		}
+		if !bytes.Equal(raw, renewal.canonical()) {
+			return fmt.Errorf("backup renewal must be canonical")
+		}
+		document.BackupRenewal = &renewal
+		return nil
+	},
 	"allowedOperations": func(document *envelope, raw json.RawMessage) error {
 		return decodeStringArray(raw, &document.AllowedOperations)
 	},
@@ -154,7 +168,16 @@ func Verify(raw []byte, request Request) (Grant, error) {
 		return Grant{}, deny(ReasonCapabilityScopeMismatch, "rilRef", "does not match the approved RIL reference")
 	}
 
+	if document.BackupRenewal != nil {
+		if request.Operation != OperationRestoreDrill || len(document.AllowedOperations) != 1 || expiresAt.Sub(issuedAt) > 15*time.Minute {
+			return Grant{}, deny(ReasonCapabilityScopeMismatch, "backupRenewal", "requires one short-lived restore.drill operation")
+		}
+		if err := document.BackupRenewal.Validate(issuedAt); err != nil {
+			return Grant{}, deny(ReasonCapabilityMalformed, "backupRenewal", err.Error())
+		}
+	}
 	return Grant{
+		BackupRenewal:     document.BackupRenewal,
 		CapabilityID:      document.CapabilityID,
 		IssuerID:          document.IssuerID,
 		StackID:           document.StackID,
@@ -238,7 +261,7 @@ func decodeStrict(raw []byte) (envelope, error) {
 	}
 	if len(seen) != len(exactFields) {
 		for field := range exactFields {
-			if _, ok := seen[field]; !ok {
+			if _, ok := seen[field]; !ok && field != "backupRenewal" {
 				return envelope{}, deny(ReasonCapabilityMalformed, field, "required field is missing")
 			}
 		}

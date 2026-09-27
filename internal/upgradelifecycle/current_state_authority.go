@@ -721,7 +721,7 @@ func cloneExecutorStateCaptureInput(input ExecutorStateCaptureInput) (ExecutorSt
 	for index, root := range input.RuntimeOpenTofu {
 		cloned.RuntimeOpenTofu[index] = ExecutorStateOpenTofuRootInput{
 			ModuleRef: root.ModuleRef, Root: root.Root,
-			State: cloneBlob(root.State), Config: cloneBlob(root.Config), Compose: cloneBlob(root.Compose),
+			State: cloneBlob(root.State), Config: cloneBlob(root.Config), Lock: cloneBlob(root.Lock), Compose: cloneBlob(root.Compose),
 			Environment: cloneBlob(root.Environment),
 		}
 	}

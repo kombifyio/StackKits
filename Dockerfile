@@ -48,7 +48,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /build/stackkit-server
 # -----------------------------------------------------------------------------
 FROM alpine:3.24 AS tofu-installer
 
-ARG TOFU_VERSION=1.11.5
+ARG TOFU_VERSION=1.12.6
 
 RUN apk add --no-cache curl && \
     curl -fsSL "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_amd64.apk" \

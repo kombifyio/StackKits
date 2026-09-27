@@ -60,7 +60,7 @@ func RunStackTofu(ctx context.Context, request StackTofuRequest, args ...string)
 	}
 	convergence := ConvergeRequest{Tools: request.Tools, Timeout: request.Timeout}
 	started := time.Now()
-	run, err := convergence.executor(workspace, root, extra...).RunStackTofu(ctx, StackTags, args...)
+	run, err := runOwnerEncryptedStack(ctx, workspace, root, convergence, extra, args...)
 	result := StackTofuResult{DurationMS: time.Since(started).Milliseconds()}
 	if run != nil {
 		result.ExitCode = run.ExitCode

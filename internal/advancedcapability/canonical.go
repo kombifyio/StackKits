@@ -11,6 +11,10 @@ func canonicalUnsigned(envelope envelope) []byte {
 	document = appendStringArrayProperty(document, "allowedOperations", envelope.AllowedOperations)
 	document = append(document, ',')
 	document = appendStringProperty(document, "audience", envelope.Audience)
+	if envelope.BackupRenewal != nil {
+		document = append(document, `,"backupRenewal":`...)
+		document = append(document, envelope.BackupRenewal.canonical()...)
+	}
 	document = append(document, ',')
 	document = appendStringProperty(document, "capabilityId", envelope.CapabilityID)
 	document = append(document, ',')

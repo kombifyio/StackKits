@@ -23,8 +23,8 @@ func nativeModuleProfileAuthoring(overrides AuthoringOverrides) (bool, error) {
 		if overrides.CatalogDefaults {
 			return false, resolveError(ErrInvalidStackSpec, "catalog default authoring requires apiVersion stackkit/v2alpha2", nil)
 		}
-		if len(overrides.ModuleProfiles) != 0 || len(overrides.UseCaseAlternatives) != 0 {
-			return false, resolveError(ErrInvalidStackSpec, "module profiles and explicit alternatives require apiVersion stackkit/v2alpha2", nil)
+		if len(overrides.ModuleProfiles) != 0 || len(overrides.UseCaseAlternatives) != 0 || len(overrides.UseCaseCapabilities) != 0 {
+			return false, resolveError(ErrInvalidStackSpec, "module profiles, explicit alternatives and capability modules require apiVersion stackkit/v2alpha2", nil)
 		}
 		return false, nil
 	case stackspecmigration.APIVersionV2Alpha2:
@@ -188,8 +188,13 @@ func resolveNativeModuleProfileOverride(moduleID string, module map[string]any, 
 	if err != nil {
 		return nil, err
 	}
-	for _, axis := range []struct{ field, value string }{{"storageProfiles", override.StorageProfile}, {"acceleratorProfiles", override.AcceleratorProfile}} {
-		if _, err := nativeAuthoringProfile(module, moduleID, axis.field, axis.value, false); err != nil {
+	if _, err := nativeAuthoringProfile(module, moduleID, "storageProfiles", override.StorageProfile, false); err != nil {
+		return nil, err
+	}
+	// An accelerator profile is optional even when declared: none is the CPU
+	// runtime. A named profile must still be declared by the module.
+	if strings.TrimSpace(override.AcceleratorProfile) != "" {
+		if _, err := nativeAuthoringProfile(module, moduleID, "acceleratorProfiles", override.AcceleratorProfile, false); err != nil {
 			return nil, err
 		}
 	}

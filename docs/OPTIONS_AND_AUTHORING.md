@@ -1,6 +1,6 @@
 # StackKit Options and Authoring Matrix
 
-> Last verified: 2026-09-02
+> Last verified: 2026-09-27
 
 This page is the compact contract for adding or promoting StackKit options. CUE
 is the technical source of truth. The canonical ResolvedPlan, local Owner
@@ -28,7 +28,7 @@ depend on them.
 | Dockge status | Experimental/constrained Compose manager service only; not a normal Basement Kit PaaS. |
 | Native module profiles | `stackkit/v2alpha2` selects each module's `computeProfile` explicitly. The default standalone core supports its declared profiles without becoming a reduced edition. Historical `lite` module IDs remain stable; they do not force Photos or Media to the same profile. Immich Lite is a separate workload alternative. See ADR-0039 and ADR-0042. |
 | Legacy low compute tier | Explicit `stackkit/v2alpha1` retains `install.computeTier: low` and CUE `computeTierGraphs.low` for compatibility. Cloud and Modern do not publish that legacy graph. It is not a native module-profile default. |
-| Media | Optional Architecture v2 Jellyfin with declared module-local `standard` and `high` profiles (`docker.io/jellyfin/jellyfin:10.10.7`, digest-pinned). Native Core Lite does not globally exclude Media. The old v2alpha1 `low` graph still excludes it. Library volume is owner-custodied and not a StackKits backup source. No `*arr` services. |
+| Media | Optional Architecture v2 Jellyfin with declared module-local `standard` and `high` profiles (`docker.io/jellyfin/jellyfin:12.1`, digest-pinned). Native Core Lite does not globally exclude Media. The old v2alpha1 `low` graph still excludes it. Library volume is owner-custodied and not a StackKits backup source. No `*arr` services. |
 | Smart Home | Optional Architecture v2 Home Assistant container (`ghcr.io/home-assistant/home-assistant:2026.7.2`, digest-pinned) on Basement/Cloud/Modern. Native product MCP is `/api/mcp` on `https://smart-home.<domain>`. Generate writes the reverse-proxy baseline and Homelab owner intent (`homelab`). No HA OS/Supervisor parity, no Zigbee/MQTT runtime in this slice. |
 
 The executable selection authority is the CUE workload catalog in
@@ -50,6 +50,7 @@ their native rollout support.
 | Game | `pterodactyl` | Minecraft Java, Paper and Bedrock, Terraria and Valheim are curated profiles created by `stackkit setup game`. Wings holds a governed Docker lifecycle-owner approval (ADR-0043); running game servers are stopped with their own stop command around every snapshot and restore. |
 | Mail | `roundcube` | Client-first webmail for an existing external mailbox; no mail server, SMTP listener or DNS. `stackkit setup mail` stores the owner's IMAP and SMTP servers (explicit `ssl`/`starttls`) and verifies a real login; before that Roundcube refuses logins and never offers a free-form server. The route serves autoconfig, autodiscover and an unsigned Apple profile. Own mail server: Stalwart default, mailcow alternative, as a separate workload. |
 | Mail server | `stalwart` | Own mail server on a dedicated Cloud Kit node with a fixed public IPv4 (ADR-0046, amended 2026-09-25): it shares its node with no other application workload, and home nodes are refused. Publishes TCP 25, 465, 587, 993 and 4190; the route host is the mail host name. `stackkit setup mail-server` creates the domain and first mailbox, optionally configures an outbound relay, prints the DNS records and verifies IMAPS and submission. mailcow is a planned alternative, not declared. |
+| Private AI | `private-ai` (Ollama and Open WebUI) | Built from capability modules: inference (required) and chat install. Web search (SearXNG, `ai-search`) and document parsing (Tika or Docling, `ai-documents`) install as routeless add-on workloads wired into Open WebUI. Image and video (ComfyUI, `ai-image-video`) installs on an NVIDIA GPU behind the kit login and is wired into Open WebUI image generation. Speech, assistant, agent harness, agent control plane and observability are recorded and refused until their workloads land. Select them with `--use-case-capability ai.<capability>=<option\|off>`. CPU by default; `--module-accelerator-profile stackkits-private-ai-runtime=nvidia\|amd` runs Ollama on the GPU (see [GPU acceleration](#gpu-acceleration)). |
 | Vault | `vaultwarden` | The owner creates the encrypted account through the official client; StackKits does not handle the master password. |
 
 These defaults identify the implementation to select for an enabled application;
@@ -73,8 +74,20 @@ do not use it to introduce a second native selection authority.
 Native profile changes start in the CUE module catalog and its
 `computeProfiles`, `storageProfiles`, or `acceleratorProfiles`. The compiler
 validates the explicit choices and aggregates declared per-node resource facts;
-inventory never chooses a profile. Regenerate the authority bundle and public
+inventory never chooses a profile. An accelerator profile is optional even
+when declared: no selection is the CPU runtime, and a selected profile carries
+a device requirement (`accelerator`: vendor, container access, optional
+`minVramGiB`, driver floor, image variants) that host admission checks. Regenerate the authority bundle and public
 module-profile catalog. Missing resource facts stay unverified, not invented.
+
+## GPU acceleration
+
+Private AI runs on the CPU unless the owner explicitly selects the `nvidia` or
+`amd` accelerator profile for `stackkits-private-ai-runtime`. NVIDIA requires
+container CDI access and a driver at least as new as the selected profile's
+declared floor. AMD requires ROCm device nodes and uses the digest-pinned ROCm
+Ollama image. Host admission checks these device requirements before Apply;
+StackKits does not install GPU drivers. Only Ollama receives device access.
 
 Changes to the retained v2alpha1 graph instead start in
 `basement-kit/stackfile.cue` `computeTierGraphs` and
@@ -153,3 +166,8 @@ live-installer harness is retired and must not be recreated as a v0.x gate.
 Stable v1.0 publication additionally requires the signed exact-SHA Candidate
 receipt. The option-promotion evidence above describes product confidence,
 not extra v0.x publication dependencies.
+
+Media browser SSO, device limitations and the pending existing-install release hold
+are documented in [Jellyfin SSO and upgrade qualification](JELLYFIN_SSO_AND_UPGRADE.md).
+Smart Home's packaged OIDC setup, account-preservation policy and pending runtime
+qualification are described in [Home Assistant SSO](HOME_ASSISTANT_SSO.md).

@@ -201,14 +201,14 @@ owner:
 
 ```yaml
 context: local
-domain: home
+domain: lab.home
 # or omit domain entirely (defaults to home)
 ```
 
-- **Service URLs:** `https://service.home` (for example `https://auth.home`, `https://whoami.home`)
+- **Service URLs:** `https://service.lab.home` (for example `https://auth.lab.home`, `https://whoami.lab.home`)
 - **Default PAAS:** `coolify` for v1 local-only/no-domain local and pi StackKits. Native v2 Basement `install.computeTier: low` is standalone Compose and does not keep Coolify.
 - **TLS:** HTTPS from the existing Owner CA; enrollment installs only its public root after OS approval.
-- **DNS:** StackKits-owned resolver; enrollment sends only the `home` zone to it.
+- **DNS:** StackKits-owned resolver; enrollment sends only the `lab.home` domain to it. A domain must have at least two labels below its public suffix (`lab.home`, not `home` or `home.arpa`): the login session cookie is scoped to it.
 
 > Note: "local-only" here means the informal deployment context (no domain, no pi). The CUE axis `placementMode: "local-only"` carries its own semantics (exposure=private, coupling=cloudless) and is a different thing — see `docs/placement/`.
 - **Requires:** one Home-authority device enrollment. No router/DHCP/hosts-file edits, parallel alias, TLS bypass, or port suffix.
@@ -221,7 +221,7 @@ domain: family.example.com
 ```
 
 - **Service URLs:** `https://service.family.example.com`
-- **TLS/DNS:** The selected Coolify/Traefik or Komodo/Traefik path owns the declared public/custom certificate and DNS integration. No `*.home` alias is added.
+- **TLS/DNS:** The selected Coolify/Traefik or Komodo/Traefik path owns the declared public/custom certificate and DNS integration. No `*.lab.home` alias is added.
 
 ## TLS Challenge Types
 
@@ -391,7 +391,7 @@ name: homelab
 stackkit: basement-kit
 mode: bootstrapped
 context: local
-domain: home
+domain: lab.home
 compute:
   tier: low
 ssh:

@@ -298,6 +298,7 @@ func (request ConvergeRequest) executor(workspace, directory string, extraEnv ..
 		terramate.WithWorkDir(directory), terramate.WithBinary(request.Tools.Terramate),
 		terramate.WithTofuBinary(request.Tools.Tofu), terramate.WithChangeDetection(false),
 		terramate.WithoutInheritedEnv(append([]string{"GIT_CEILING_DIRECTORIES"}, tofu.OfflineInheritedEnv...)...),
+		terramate.WithoutEnvPrefix("TF_LOG", "TF_CLI_ARGS"),
 		terramate.WithEnv(append(environment, extraEnv...)...),
 	}
 	if request.Timeout > 0 {
@@ -367,7 +368,7 @@ func runStackPlan(ctx context.Context, workspace string, request ConvergeRequest
 		extra = append(extra, "TF_CLI_CONFIG_FILE="+filepath.Join(root, openTofuCLIConfigFile))
 	}
 	started := time.Now()
-	run, err := request.executor(workspace, root, extra...).RunStackTofu(ctx, StackTags, "plan", "-detailed-exitcode", "-input=false", "-no-color")
+	run, err := runOwnerEncryptedStack(ctx, workspace, root, request, extra, "plan", "-detailed-exitcode", "-input=false", "-no-color")
 	result.DurationMS = time.Since(started).Milliseconds()
 	if err != nil || run == nil {
 		result.Status = StackFailed

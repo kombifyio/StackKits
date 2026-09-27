@@ -6,6 +6,8 @@
 // source-SHA-bound evidence by `stackkit docs`.
 package foundation
 
+import "list"
+
 #UseCaseCompletenessGate:
 	"product-intent" |
 	"use-case-package" |
@@ -84,12 +86,73 @@ package foundation
 		kind:        "toggle"
 		realization: "install"
 	}
+
+	// The Architecture v2 module whose accelerator profile this choice
+	// selects: every option except the default is the ID of one of the
+	// module's acceleratorProfiles, applied with `stackkit init
+	// --module-accelerator-profile <module>=<option>`. The default option
+	// selects no profile (CPU). The catalog generator checks the options.
+	acceleratorProfileOf?: =~"^[a-z][a-z0-9-]+$"
+	if acceleratorProfileOf != _|_ {
+		kind:        "choice"
+		realization: "install"
+	}
+}
+
+// One tool that can realize a capability module.
+#UseCaseCapabilityOption: {
+	id:    =~"^[a-z][a-z0-9-]+$" & !="off"
+	name:  string & =~"^.+$"
+	note?: string & =~"^.+$"
+
+	// install: the pinned release installs the option through the named
+	// Architecture v2 application workload alternative. recorded: the option is
+	// planned; authoring refuses it until its workload lands, never a silent
+	// no-op. Several options may share one workload alternative (a bundle).
+	realization: "install" | "recorded"
+	workloadRef?:    =~"^[a-z][a-z0-9-]+$"
+	alternativeRef?: =~"^[a-z][a-z0-9-]+$"
+	if realization == "install" {
+		workloadRef:    =~"^[a-z][a-z0-9-]+$"
+		alternativeRef: =~"^[a-z][a-z0-9-]+$"
+	}
+	if workloadRef != _|_ || alternativeRef != _|_ {
+		realization: "install"
+	}
+}
+
+// A capability module is an independently selectable part of one use case
+// (for example speech or image generation inside Private AI). Its ID is a
+// stable authoring identity: `stackkit init --use-case-capability
+// <use-case>.<capability>=<option|off>`. Each has one default tool and at
+// most one alternative. Selections are closed: unknown IDs, unmet
+// dependencies, recorded options and contradictory workload choices are
+// refused. Selecting the use case without a capability choice resolves the
+// enabledByDefault composition, which must equal the use case's previous
+// selection so existing authoring keeps its exact StackSpec.
+#UseCaseCapabilityModule: {
+	id:    =~"^[a-z][a-z0-9-]+$"
+	name:  string & =~"^.+$"
+	help?: string & =~"^.+$"
+	// A required capability is part of every selection; it cannot be off.
+	required:         bool | *false
+	enabledByDefault: bool | *false
+	if required {
+		enabledByDefault: true
+	}
+	// Capabilities that must be enabled together with this one.
+	requires: [...=~"^[a-z][a-z0-9-]+$"] | *[]
+	// The realizing module must run with an explicit accelerator profile.
+	requiresAccelerator: bool | *false
+	default:             #UseCaseCapabilityOption
+	alternative?:        #UseCaseCapabilityOption & {id: !=default.id}
+	_notSelfRequired: [for ref in requires if ref == id {ref}] & []
 }
 
 // The owner-accepted main use cases (docs/use-case-expansion/portfolio.md,
 // 2026-09-24), keyed by id. Several catalog slugs share one main use case
 // until their compatibility migrations merge them (files + documents, dev +
-// remote); network and automation have no catalog entry yet.
+// remote); network has no catalog entry yet.
 #MainUseCaseTitles: {
 	photos:            "Photos"
 	"documents-files": "Documents & Files"
@@ -129,6 +192,17 @@ package foundation
 	// consumers derive those from `components` (role alternative) and the
 	// package's computeTiers, so they never drift from the workload graph.
 	settings?: [...#UseCaseSetting]
+
+	// Independently selectable capability modules; see
+	// #UseCaseCapabilityModule. Only a use case composed of such modules
+	// declares them.
+	capabilities?: [...#UseCaseCapabilityModule]
+	if capabilities != _|_ {
+		_capabilityIDsUnique: list.UniqueItems([for capability in capabilities {capability.id}]) & true
+		_capabilityRequiresKnown: [for capability in capabilities for ref in capability.requires {
+			matches: [for candidate in capabilities if candidate.id == ref {ref}] & list.MinItems(1)
+		}]
+	}
 
 	// Path of this use case's guide on docs.kombify.io. Entries sharing a main
 	// use case share its guide.
@@ -476,6 +550,10 @@ UseCaseCatalog: #UseCaseCatalog & {
 			components: {
 				ollama: {id: "ollama", name: "Ollama", role: "primary", kind: "application"}
 				"open-webui": {id: "open-webui", name: "Open WebUI", role: "supporting", kind: "application"}
+				searxng: {id: "searxng", name: "SearXNG", role: "supporting", kind: "application"}
+				tika: {id: "tika", name: "Apache Tika", role: "supporting", kind: "application"}
+				docling: {id: "docling", name: "Docling", role: "supporting", kind: "application"}
+				comfyui: {id: "comfyui", name: "ComfyUI", role: "supporting", kind: "application"}
 			}
 			settings: [
 				{
@@ -487,11 +565,12 @@ UseCaseCatalog: #UseCaseCatalog & {
 					help:  "Local models run far faster on a GPU."
 					options: [
 						{id: "cpu", name: "CPU only", note: "Works everywhere; small models only"},
-						{id: "nvidia", name: "NVIDIA GPU", note: "Needs the NVIDIA container runtime on the Node"},
-						{id: "amd", name: "AMD GPU", note: "ROCm-capable card required"},
+						{id: "nvidia", name: "NVIDIA GPU", note: "Needs the NVIDIA driver 550 or newer; StackKits sets up the NVIDIA Container Toolkit"},
+						{id: "amd", name: "AMD GPU", note: "ROCm-capable card with the amdgpu driver; amd64 only"},
 					]
-					default:     "cpu"
-					realization: "recorded"
+					default:              "cpu"
+					realization:          "install"
+					acceleratorProfileOf: "stackkits-private-ai-runtime"
 				},
 				{
 					id:    "model-size"
@@ -507,6 +586,95 @@ UseCaseCatalog: #UseCaseCatalog & {
 					]
 					default:     "small"
 					realization: "recorded"
+				},
+			]
+			// docs/use-case-expansion/ai-agents.md "Plan (owner request
+			// 2026-09-27)". Inference and chat keep the existing private-ai
+			// composition. Web search and document parsing install as separate
+			// add-on workloads wired into Open WebUI; every other module is
+			// recorded until its workload lands. Speech stays recorded: the
+			// kombify SpeechKit server image is not publicly pullable and has
+			// no OpenAI-compatible audio API that Open WebUI can use.
+			capabilities: [
+				{
+					id:       "inference"
+					name:     "Inference"
+					help:     "Serves the models you download; every other AI module uses this local endpoint."
+					required: true
+					default: {id: "ollama", name: "Ollama", realization: "install", workloadRef: "ai", alternativeRef: "private-ai"}
+					alternative: {id: "llama-cpp", name: "llama.cpp server", note: "For small or non-NVIDIA nodes", realization: "recorded"}
+				},
+				{
+					id:               "chat"
+					name:             "Chat and knowledge"
+					help:             "Chat with your local models and your own documents."
+					enabledByDefault: true
+					requires: ["inference"]
+					default: {id: "open-webui", name: "Open WebUI", realization: "install", workloadRef: "ai", alternativeRef: "private-ai"}
+					alternative: {id: "anythingllm", name: "AnythingLLM", note: "Workspaces with built-in RAG and agents, multi-user mode", realization: "recorded"}
+				},
+				{
+					id:   "speech"
+					name: "Speech"
+					help: "Speak to your assistant and hear answers; recognition runs on your device where it can."
+					requires: ["inference"]
+					default: {id: "speechkit", name: "kombify SpeechKit", note: "Local speech providers only", realization: "recorded"}
+				},
+				{
+					id:   "web-search"
+					name: "Web search"
+					help: "Private meta search for chat and the assistant."
+					requires: ["inference"]
+					default: {id: "searxng", name: "SearXNG", realization: "install", workloadRef: "ai-search", alternativeRef: "searxng"}
+				},
+				{
+					id:   "document-parsing"
+					name: "Document parsing"
+					help: "Reads PDFs and office files so chat can answer from them."
+					requires: ["inference", "chat"]
+					default: {id: "tika", name: "Apache Tika", note: "Text documents; no OCR", realization: "install", workloadRef: "ai-documents", alternativeRef: "tika"}
+					alternative: {id: "docling", name: "Docling", note: "For scanned and complex layouts; needs more memory", realization: "install", workloadRef: "ai-documents", alternativeRef: "docling"}
+				},
+				{
+					id:                  "image-video"
+					name:                "Image and video"
+					help:                "Create and edit images and short videos from reviewed workflow templates."
+					requires:            ["inference"]
+					requiresAccelerator: true
+					default: {id: "comfyui", name: "ComfyUI", note: "NVIDIA GPU with 8 GB for images, 16 GB or more for video", realization: "install", workloadRef: "ai-image-video", alternativeRef: "comfyui"}
+					alternative: {id: "invokeai", name: "InvokeAI", realization: "recorded"}
+				},
+				{
+					id:   "assistant"
+					name: "Personal assistant"
+					help: "An assistant with memory that drafts and inspects first; every further permission is a separate grant."
+					requires: ["inference"]
+					default: {id: "hermes", name: "Hermes Agent", realization: "recorded"}
+					alternative: {id: "openbot", name: "OpenBot", note: "Supervised AI coworker with its own workspace", realization: "recorded"}
+				},
+				{
+					id:   "agent-harness"
+					name: "Agent harness"
+					help: "Task and coding agents that run only inside isolated workspaces."
+					requires: ["inference"]
+					default: {id: "openhands", name: "OpenHands", realization: "recorded"}
+					alternative: {id: "goose", name: "Goose", realization: "recorded"}
+				},
+				{
+					id:   "agent-control-plane"
+					name: "Agent control plane"
+					help: "Organizes agents, their budgets and approvals."
+					requires: ["inference", "agent-harness"]
+					default: {id: "paperclip", name: "Paperclip", realization: "recorded"}
+					alternative: {id: "langflow", name: "Langflow", note: "Visual agent and flow builder", realization: "recorded"}
+				},
+				{
+					id:   "observability"
+					name: "Observability and gateway"
+					help: "Traces and budgets when you mix local and external models."
+					requires: ["inference"]
+					default: {id: "langfuse", name: "Langfuse", realization: "recorded"}
+					alternative: {id: "litellm", name: "LiteLLM", realization: "recorded"}
 				},
 			]
 		}

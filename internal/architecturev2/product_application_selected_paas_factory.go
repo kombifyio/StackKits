@@ -163,3 +163,23 @@ func (f *productApplicationSelectedPaaSFactory) selector() ProductRuntimeOwnerSe
 }
 
 var _ ProductRuntimeOwnerFactory = (*productApplicationSelectedPaaSFactory)(nil)
+
+// internalSelectedPaaSApplications lists the internal-only applications
+// (authority manifest internalSources). The private build appends them from
+// files the public export removes with their authority source.
+var internalSelectedPaaSApplications []nativehost.SelectedPaaSApplication
+
+// NewProductInternalSelectedPaaSRegistrations binds every internal-only
+// application to the shared selected application executor; the public build
+// has none.
+func NewProductInternalSelectedPaaSRegistrations(runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef string, operations nativehost.SelectedPaaSWorkloadOperations) ([]ProductRuntimeOwnerRegistration, error) {
+	registrations := make([]ProductRuntimeOwnerRegistration, 0, len(internalSelectedPaaSApplications))
+	for _, application := range internalSelectedPaaSApplications {
+		registration, err := newProductApplicationSelectedPaaSRegistration(application, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations)
+		if err != nil {
+			return nil, err
+		}
+		registrations = append(registrations, registration)
+	}
+	return registrations, nil
+}

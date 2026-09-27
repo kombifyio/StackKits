@@ -1,9 +1,81 @@
 {
-  "contentDigest": "sha256:8138aef7be7b02a832959997289eee910494ccc476c7c4f12952b3280210645a",
+  "contentDigest": "sha256:50018e3dc41c7e45d77a284d244e9caccb5895e6afe88c322845b80a0983dfc7",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
     {
+      "addOns": [
+        {
+          "alternatives": [
+            {
+              "id": "docling",
+              "modules": [
+                {
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-docling-runtime"
+                }
+              ],
+              "name": "docling"
+            },
+            {
+              "id": "tika",
+              "modules": [
+                {
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-tika-runtime"
+                }
+              ],
+              "name": "tika"
+            }
+          ],
+          "defaultAlternative": "tika",
+          "id": "ai-documents"
+        },
+        {
+          "alternatives": [
+            {
+              "id": "comfyui",
+              "modules": [
+                {
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-comfyui-runtime"
+                }
+              ],
+              "name": "comfyui"
+            }
+          ],
+          "defaultAlternative": "comfyui",
+          "id": "ai-image-video"
+        },
+        {
+          "alternatives": [
+            {
+              "id": "searxng",
+              "modules": [
+                {
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-searxng-runtime"
+                }
+              ],
+              "name": "searxng"
+            }
+          ],
+          "defaultAlternative": "searxng",
+          "id": "ai-search"
+        }
+      ],
       "alternatives": [
         {
           "id": "private-ai",
@@ -19,7 +91,241 @@
           "name": "private-ai"
         }
       ],
+      "capabilities": [
+        {
+          "alternative": {
+            "id": "llama-cpp",
+            "name": "llama.cpp server",
+            "note": "For small or non-NVIDIA nodes",
+            "realization": "recorded"
+          },
+          "default": {
+            "alternativeRef": "private-ai",
+            "id": "ollama",
+            "name": "Ollama",
+            "realization": "install",
+            "workloadRef": "ai"
+          },
+          "enabledByDefault": true,
+          "help": "Serves the models you download; every other AI module uses this local endpoint.",
+          "id": "inference",
+          "name": "Inference",
+          "required": true,
+          "requires": [],
+          "requiresAccelerator": false
+        },
+        {
+          "alternative": {
+            "id": "anythingllm",
+            "name": "AnythingLLM",
+            "note": "Workspaces with built-in RAG and agents, multi-user mode",
+            "realization": "recorded"
+          },
+          "default": {
+            "alternativeRef": "private-ai",
+            "id": "open-webui",
+            "name": "Open WebUI",
+            "realization": "install",
+            "workloadRef": "ai"
+          },
+          "enabledByDefault": true,
+          "help": "Chat with your local models and your own documents.",
+          "id": "chat",
+          "name": "Chat and knowledge",
+          "required": false,
+          "requires": [
+            "inference"
+          ],
+          "requiresAccelerator": false
+        },
+        {
+          "default": {
+            "id": "speechkit",
+            "name": "kombify SpeechKit",
+            "note": "Local speech providers only",
+            "realization": "recorded"
+          },
+          "enabledByDefault": false,
+          "help": "Speak to your assistant and hear answers; recognition runs on your device where it can.",
+          "id": "speech",
+          "name": "Speech",
+          "required": false,
+          "requires": [
+            "inference"
+          ],
+          "requiresAccelerator": false
+        },
+        {
+          "default": {
+            "alternativeRef": "searxng",
+            "id": "searxng",
+            "name": "SearXNG",
+            "realization": "install",
+            "workloadRef": "ai-search"
+          },
+          "enabledByDefault": false,
+          "help": "Private meta search for chat and the assistant.",
+          "id": "web-search",
+          "name": "Web search",
+          "required": false,
+          "requires": [
+            "inference"
+          ],
+          "requiresAccelerator": false
+        },
+        {
+          "alternative": {
+            "alternativeRef": "docling",
+            "id": "docling",
+            "name": "Docling",
+            "note": "For scanned and complex layouts; needs more memory",
+            "realization": "install",
+            "workloadRef": "ai-documents"
+          },
+          "default": {
+            "alternativeRef": "tika",
+            "id": "tika",
+            "name": "Apache Tika",
+            "note": "Text documents; no OCR",
+            "realization": "install",
+            "workloadRef": "ai-documents"
+          },
+          "enabledByDefault": false,
+          "help": "Reads PDFs and office files so chat can answer from them.",
+          "id": "document-parsing",
+          "name": "Document parsing",
+          "required": false,
+          "requires": [
+            "inference",
+            "chat"
+          ],
+          "requiresAccelerator": false
+        },
+        {
+          "alternative": {
+            "id": "invokeai",
+            "name": "InvokeAI",
+            "realization": "recorded"
+          },
+          "default": {
+            "alternativeRef": "comfyui",
+            "id": "comfyui",
+            "name": "ComfyUI",
+            "note": "NVIDIA GPU with 8 GB for images, 16 GB or more for video",
+            "realization": "install",
+            "workloadRef": "ai-image-video"
+          },
+          "enabledByDefault": false,
+          "help": "Create and edit images and short videos from reviewed workflow templates.",
+          "id": "image-video",
+          "name": "Image and video",
+          "required": false,
+          "requires": [
+            "inference"
+          ],
+          "requiresAccelerator": true
+        },
+        {
+          "alternative": {
+            "id": "openbot",
+            "name": "OpenBot",
+            "note": "Supervised AI coworker with its own workspace",
+            "realization": "recorded"
+          },
+          "default": {
+            "id": "hermes",
+            "name": "Hermes Agent",
+            "realization": "recorded"
+          },
+          "enabledByDefault": false,
+          "help": "An assistant with memory that drafts and inspects first; every further permission is a separate grant.",
+          "id": "assistant",
+          "name": "Personal assistant",
+          "required": false,
+          "requires": [
+            "inference"
+          ],
+          "requiresAccelerator": false
+        },
+        {
+          "alternative": {
+            "id": "goose",
+            "name": "Goose",
+            "realization": "recorded"
+          },
+          "default": {
+            "id": "openhands",
+            "name": "OpenHands",
+            "realization": "recorded"
+          },
+          "enabledByDefault": false,
+          "help": "Task and coding agents that run only inside isolated workspaces.",
+          "id": "agent-harness",
+          "name": "Agent harness",
+          "required": false,
+          "requires": [
+            "inference"
+          ],
+          "requiresAccelerator": false
+        },
+        {
+          "alternative": {
+            "id": "langflow",
+            "name": "Langflow",
+            "note": "Visual agent and flow builder",
+            "realization": "recorded"
+          },
+          "default": {
+            "id": "paperclip",
+            "name": "Paperclip",
+            "realization": "recorded"
+          },
+          "enabledByDefault": false,
+          "help": "Organizes agents, their budgets and approvals.",
+          "id": "agent-control-plane",
+          "name": "Agent control plane",
+          "required": false,
+          "requires": [
+            "inference",
+            "agent-harness"
+          ],
+          "requiresAccelerator": false
+        },
+        {
+          "alternative": {
+            "id": "litellm",
+            "name": "LiteLLM",
+            "realization": "recorded"
+          },
+          "default": {
+            "id": "langfuse",
+            "name": "Langfuse",
+            "realization": "recorded"
+          },
+          "enabledByDefault": false,
+          "help": "Traces and budgets when you mix local and external models.",
+          "id": "observability",
+          "name": "Observability and gateway",
+          "required": false,
+          "requires": [
+            "inference"
+          ],
+          "requiresAccelerator": false
+        }
+      ],
       "components": [
+        {
+          "id": "comfyui",
+          "kind": "application",
+          "name": "ComfyUI",
+          "role": "supporting"
+        },
+        {
+          "id": "docling",
+          "kind": "application",
+          "name": "Docling",
+          "role": "supporting"
+        },
         {
           "id": "ollama",
           "kind": "application",
@@ -30,6 +336,18 @@
           "id": "open-webui",
           "kind": "application",
           "name": "Open WebUI",
+          "role": "supporting"
+        },
+        {
+          "id": "searxng",
+          "kind": "application",
+          "name": "SearXNG",
+          "role": "supporting"
+        },
+        {
+          "id": "tika",
+          "kind": "application",
+          "name": "Apache Tika",
           "role": "supporting"
         }
       ],
@@ -48,7 +366,7 @@
           },
           "moduleSlug": "ollama",
           "notes": [
-            "Same CPU runtime as standard. GPU passthrough is not configured."
+            "Same CPU runtime as standard. A GPU is a separate accelerator profile, not a compute tier."
           ]
         },
         "low": {
@@ -83,6 +401,7 @@
       },
       "settings": [
         {
+          "acceleratorProfileOf": "stackkits-private-ai-runtime",
           "default": "cpu",
           "depth": "summary",
           "group": "hardware",
@@ -99,15 +418,15 @@
             {
               "id": "nvidia",
               "name": "NVIDIA GPU",
-              "note": "Needs the NVIDIA container runtime on the Node"
+              "note": "Needs the NVIDIA driver 550 or newer; StackKits sets up the NVIDIA Container Toolkit"
             },
             {
               "id": "amd",
               "name": "AMD GPU",
-              "note": "ROCm-capable card required"
+              "note": "ROCm-capable card with the amdgpu driver; amd64 only"
             }
           ],
-          "realization": "recorded"
+          "realization": "install"
         },
         {
           "default": "small",

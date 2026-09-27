@@ -62,7 +62,11 @@ type SelectedPaaSWorkloadDeployment struct {
 	Bundle              []byte
 	Route               architecturev2renderer.ApplicationDeliveryRouteDescriptor
 	RuntimeAdapter      runtimeexecutor.RuntimeAdapterBinding
-	AdapterArtifacts    []runtimeexecutor.Artifact
+	// RuntimeAdapterCapabilities is copied only from the verified Plan's exact
+	// workload-scoped adapter requirement. It is admission authority, not a
+	// caller-selected feature flag.
+	RuntimeAdapterCapabilities []string
+	AdapterArtifacts           []runtimeexecutor.Artifact
 	// GenerationTarget is the generation target of the resolved plan the
 	// request carries. Operations owners that wrap the native Compose
 	// project in an OpenTofu root (ADR-0045 Stage 1) switch on it; the
@@ -236,13 +240,24 @@ func ValidateSelectedPaaSWorkloadObservation(
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationZigbee2mqtt, deployment, observation)
 	case "stackkits-immich-public-proxy-runtime":
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationImmichPublicProxy, deployment, observation)
+	case "stackkits-comfyui-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationComfyUI, deployment, observation)
 	case "stackkits-immich-kiosk-runtime":
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationImmichKiosk, deployment, observation)
+	case "stackkits-searxng-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationSearxng, deployment, observation)
+	case "stackkits-tika-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationTika, deployment, observation)
+	case "stackkits-docling-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationDocling, deployment, observation)
 	case "stackkits-immich-power-tools-runtime":
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationImmichPowerTools, deployment, observation)
 	case homeAssistantWorkloadModuleRef:
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationHomeAssistant, deployment, observation)
 	default:
+		if application, internal := internalSelectedPaaSModules[deployment.ModuleRef]; internal {
+			return validateSelectedPaaSApplicationObservation(application, deployment, observation)
+		}
 		return errors.New("selected-PaaS workload has no product-owned observation validator")
 	}
 }

@@ -196,11 +196,11 @@ func compactKey(key string) string {
 	return compactKeyReplacer.Replace(strings.ToLower(key))
 }
 
-// Secret input declarations and component secretEnvironment maps contain
-// governed slot/source identifiers, not secret material.
+// Secret input declarations and component secretEnvironment and secretFiles
+// declarations contain governed slot/source identifiers, not secret material.
 func isSecretDeclarationKey(key string) bool {
 	switch compactKey(key) {
-	case "secretinputs", "secretinputrefs", "secretinputbindings", "secretenvironment":
+	case "secretinputs", "secretinputrefs", "secretinputbindings", "secretenvironment", "secretfiles":
 		return true
 	default:
 		return false
@@ -233,7 +233,7 @@ func isSecretReferenceContainerKey(key string) bool {
 func normalizeSecretValue(value any) (any, error) {
 	switch typed := value.(type) {
 	case string:
-		if secretRefPattern.MatchString(typed) {
+		if secretRefPattern.MatchString(typed) || typed == "{{clientSecret}}" {
 			return typed, nil
 		}
 		return redactedValue, nil
@@ -295,6 +295,12 @@ func validateSecretReferences(value any, path, key string) error {
 		return validateSecretReferenceContainer(value, path)
 	}
 	if isSecretKey(key) {
+		// This exact deferred token is declaration metadata only inside the
+		// governed Pocket ID environment. Material is substituted after custody
+		// resolution at runtime; arbitrary literals and other paths stay closed.
+		if value == "{{clientSecret}}" && strings.HasSuffix(path, ".pocketIDClient.environment."+key) {
+			return nil
+		}
 		return validateSecretReferenceValue(value, path)
 	}
 	switch typed := value.(type) {

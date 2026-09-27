@@ -14,7 +14,7 @@ const (
 	basementCoreTerramateStackOutputRef    = "platform/basement-core/stack.tm.hcl"
 )
 
-const basementCoreTerramateSchema = `stackkit.basement-core-terramate/v1|artifact-revision:9|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-basement-core,local-provider-2.5.3|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl|stack:terramatestackgraph-core,project-root-per-host|execution-instance:node-local|credentials:none|cloud:none|step-ca:lan-dns-resolved-acme-challenges|ingress:forward-auth-bound,websecure-step-ca|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
+const basementCoreTerramateSchema = `stackkit.basement-core-terramate/v1|artifact-revision:11|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-basement-core,local-provider-2.5.3,opentofu-1.12|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl|stack:terramatestackgraph-core,project-root-per-host|execution-instance:node-local|credentials:none|cloud:none|step-ca:lan-dns-resolved-acme-challenges|ingress:forward-auth-bound,websecure-step-ca|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
 
 type basementCoreTerramateRenderer struct {
 	contract RendererContract
@@ -39,9 +39,13 @@ func (r basementCoreTerramateRenderer) RenderUnit(ctx context.Context, unit Rend
 		return nil, err
 	}
 	domain, _ := unit.NetworkDomainBase()
+	compose, err := renderTinyAuthRouteACLs(unit, renderKopiaSourceVolumeBinds(unit, renderSiteListenerBindings(unit, RenderBasementCoreComposeForDomain(domain))))
+	if err != nil {
+		return nil, err
+	}
 	root, err := RenderComposePayloadOpenTofu(ComposePayloadSpec{
 		ResourcePrefix: basementCoreOpenTofuResourcePrefix, ProjectName: basementCoreComposeProjectName,
-		Compose: renderKopiaSourceVolumeBinds(unit, renderSiteListenerBindings(unit, RenderBasementCoreComposeForDomain(domain))),
+		Compose: compose,
 	})
 	if err != nil {
 		return nil, err

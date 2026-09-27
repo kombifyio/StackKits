@@ -12,6 +12,16 @@ DOWNLOAD_DIR="${OUT_DIR}/downloads"
 TARGETS="${STACKKIT_RELEASE_TOOL_TARGETS:-linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64}"
 REGISTRY_HOST="registry.opentofu.org"
 RELEASE_URL="https://github.com/opentofu/terraform-provider-local/releases/download/v${LOCAL_PROVIDER_VERSION}"
+MANIFEST_SOURCE="internal/tofu/provider_manifest.json"
+
+if command -v go >/dev/null 2>&1; then
+  GO_COMMAND="go"
+elif command -v mise >/dev/null 2>&1; then
+  GO_COMMAND="mise exec -- go"
+else
+  echo "Go is required to verify the provider package closure" >&2
+  exit 1
+fi
 
 mkdir -p "$DOWNLOAD_DIR"
 
@@ -41,7 +51,8 @@ fetch_one() {
   arch="$2"
   name="terraform-provider-local_${LOCAL_PROVIDER_VERSION}_${os}_${arch}.zip"
   archive="${DOWNLOAD_DIR}/${name}"
-  target_dir="${OUT_DIR}/${os}_${arch}/providers/${REGISTRY_HOST}/hashicorp/local/${LOCAL_PROVIDER_VERSION}/${os}_${arch}"
+  providers_dir="${OUT_DIR}/${os}_${arch}/providers"
+  target_dir="${providers_dir}/${REGISTRY_HOST}/hashicorp/local/${LOCAL_PROVIDER_VERSION}/${os}_${arch}"
 
   echo "Fetching hashicorp/local ${LOCAL_PROVIDER_VERSION} for ${os}/${arch}"
   curl -fsSL "${RELEASE_URL}/${name}" -o "$archive"
@@ -65,11 +76,14 @@ fetch_one() {
       *) chmod 755 "$binary" ;;
     esac
   done
+  cp "$MANIFEST_SOURCE" "${providers_dir}/stackkit-provider-manifest.json"
+  $GO_COMMAND run ./internal/tofu/cmd/providerclosure \
+    -providers-dir "$providers_dir" -os "$os" -arch "$arch" -archive "$archive"
   # Provenance at the mirror root; it also anchors the archive layout, since
   # GoReleaser keeps paths relative to the common prefix of the files.
   printf 'hashicorp/local %s %s_%s sha256:%s from %s/%s\n' \
     "$LOCAL_PROVIDER_VERSION" "$os" "$arch" "$expected" "$RELEASE_URL" "$name" \
-    > "${OUT_DIR}/${os}_${arch}/providers/MIRROR.txt"
+    > "${providers_dir}/MIRROR.txt"
 }
 
 for target in $TARGETS; do

@@ -53,11 +53,15 @@ var modernPrivateOpenAPISchemas = []string{
 }
 
 type sourceManifest struct {
-	SchemaVersion string          `json:"schemaVersion"`
-	ProfileSource string          `json:"profileSource"`
-	BaseSources   []string        `json:"baseSources"`
-	OpenAPI       string          `json:"openAPI"`
-	Profiles      []sourceProfile `json:"profiles"`
+	SchemaVersion string   `json:"schemaVersion"`
+	ProfileSource string   `json:"profileSource"`
+	BaseSources   []string `json:"baseSources"`
+	// InternalSources are authority sources that only the private build
+	// compiles; projecting a public export removes them from the tree and
+	// the projected manifest.
+	InternalSources []string        `json:"internalSources,omitempty"`
+	OpenAPI         string          `json:"openAPI"`
+	Profiles        []sourceProfile `json:"profiles"`
 }
 
 type sourceProfile struct {
@@ -175,11 +179,18 @@ func writeProductKitsGo(repoFlag, bundleOut, relativeOutput string) error {
 // rendererWorkloadImages names the selected-PaaS workload modules whose exact
 // image identity the Architecture v2 renderer closes over. Refs, digests and
 // releases come only from the compiled catalog.
-var rendererWorkloadImages = []struct {
+type rendererWorkloadImage struct {
 	moduleID, goPrefix, componentRef string
 	// entrypoint also projects the entry component's governed entrypoint.
 	entrypoint bool
-}{
+}
+
+// internalRendererWorkloadImages names the images of internal-only workloads
+// (authority manifest internalSources). They are written to a separate
+// generated file that the public export removes with their renderers.
+var internalRendererWorkloadImages []rendererWorkloadImage
+
+var rendererWorkloadImages = []rendererWorkloadImage{
 	{moduleID: "stackkits-home-assistant-runtime", goPrefix: "homeAssistant"},
 	{moduleID: "stackkits-jellyfin-runtime", goPrefix: "jellyfin"},
 	{moduleID: "stackkits-vaultwarden-runtime", goPrefix: "vaultwarden"},
@@ -198,7 +209,11 @@ var rendererWorkloadImages = []struct {
 	{moduleID: "stackkits-zigbee2mqtt-runtime", goPrefix: "zigbee2mqtt"},
 	{moduleID: "stackkits-immich-public-proxy-runtime", goPrefix: "immichPublicProxy"},
 	{moduleID: "stackkits-immich-kiosk-runtime", goPrefix: "immichKiosk"},
+	{moduleID: "stackkits-comfyui-runtime", goPrefix: "comfyui"},
 	{moduleID: "stackkits-immich-power-tools-runtime", goPrefix: "immichPowerTools"},
+	{moduleID: "stackkits-searxng-runtime", goPrefix: "searxng"},
+	{moduleID: "stackkits-tika-runtime", goPrefix: "tika"},
+	{moduleID: "stackkits-docling-runtime", goPrefix: "docling"},
 	{moduleID: "stackkits-gitea-runtime", goPrefix: "gitea"},
 	{moduleID: "stackkits-forgejo-runtime", goPrefix: "forgejo"},
 	{moduleID: "stackkits-paperless-runtime", goPrefix: "paperless"},
@@ -218,6 +233,22 @@ type catalogImage struct {
 	Digest string `json:"digest"`
 }
 
+type catalogRendererModule struct {
+	Metadata struct {
+		ID string `json:"id"`
+	} `json:"metadata"`
+	Runtime struct {
+		Image             *catalogImage `json:"image"`
+		EntryComponentRef string        `json:"entryComponentRef"`
+		Components        []struct {
+			ID         string       `json:"id"`
+			Image      catalogImage `json:"image"`
+			Command    []string     `json:"command"`
+			Entrypoint []string     `json:"entrypoint"`
+		} `json:"components"`
+	} `json:"runtime"`
+}
+
 func writeRendererWorkloadImagesGo(repoFlag, bundleOut, relativeOutput string) error {
 	repoRoot, err := filepath.Abs(repoFlag)
 	if err != nil {
@@ -232,21 +263,7 @@ func writeRendererWorkloadImagesGo(repoFlag, bundleOut, relativeOutput string) e
 		return fmt.Errorf("read generated product authority catalog: %w", err)
 	}
 	var catalog struct {
-		Modules []struct {
-			Metadata struct {
-				ID string `json:"id"`
-			} `json:"metadata"`
-			Runtime struct {
-				Image             *catalogImage `json:"image"`
-				EntryComponentRef string        `json:"entryComponentRef"`
-				Components        []struct {
-					ID         string       `json:"id"`
-					Image      catalogImage `json:"image"`
-					Command    []string     `json:"command"`
-					Entrypoint []string     `json:"entrypoint"`
-				} `json:"components"`
-			} `json:"runtime"`
-		} `json:"modules"`
+		Modules []catalogRendererModule `json:"modules"`
 	}
 	if err := json.Unmarshal(catalogBytes, &catalog); err != nil {
 		return fmt.Errorf("decode generated product authority catalog: %w", err)
@@ -259,11 +276,24 @@ func writeRendererWorkloadImagesGo(repoFlag, bundleOut, relativeOutput string) e
 		moduleIndex[module.Metadata.ID] = index
 	}
 
+	output := filepath.Clean(relativeOutput)
+	if err := writeRendererWorkloadImageConstants(repoRoot, output, rendererWorkloadImages, catalog.Modules, moduleIndex); err != nil {
+		return err
+	}
+	internalOutput := strings.TrimSuffix(output, "_gen.go") + "_internal_gen.go"
+	if len(internalRendererWorkloadImages) == 0 {
+		return removeProjectedSource(repoRoot, internalOutput)
+	}
+	return writeRendererWorkloadImageConstants(repoRoot, internalOutput, internalRendererWorkloadImages, catalog.Modules, moduleIndex)
+}
+
+func writeRendererWorkloadImageConstants(repoRoot, relativeOutput string, images []rendererWorkloadImage, modules []catalogRendererModule, moduleIndex map[string]int) error {
+	catalog := struct{ Modules []catalogRendererModule }{Modules: modules}
 	var source bytes.Buffer
 	source.WriteString("// Code generated by architecture-v2 bundlegen from the compiled CUE authority; DO NOT EDIT.\n")
 	source.WriteString("// Exact selected-PaaS workload images from foundation.ArchitectureV2Catalog.\n\n")
 	source.WriteString("package architecturev2renderer\n\nconst (\n")
-	for _, selected := range rendererWorkloadImages {
+	for _, selected := range images {
 		index, ok := moduleIndex[selected.moduleID]
 		if !ok {
 			return fmt.Errorf("generated product authority catalog omits renderer workload module %q", selected.moduleID)
@@ -323,7 +353,7 @@ func writeRendererWorkloadImagesGo(repoFlag, bundleOut, relativeOutput string) e
 	if err != nil {
 		return fmt.Errorf("format generated renderer workload images: %w", err)
 	}
-	return writeProjectedSource(repoRoot, filepath.Clean(relativeOutput), formatted)
+	return writeProjectedSource(repoRoot, relativeOutput, formatted)
 }
 
 // pinnedImageRelease returns the upstream release named by an exact tag and
@@ -428,6 +458,7 @@ func resolveBundleInputs(repoFlag, sourceFlag, profilesFlag string, project bool
 		if err := projectRepository(repoRoot, source, profiles); err != nil {
 			return "", sourceManifest{}, nil, err
 		}
+		source.InternalSources = nil
 	}
 	return repoRoot, source, profiles, nil
 }
@@ -798,6 +829,11 @@ func readSourceManifest(path string) (sourceManifest, error) {
 			return sourceManifest{}, fmt.Errorf("base source: %w", err)
 		}
 	}
+	for _, relativePath := range source.InternalSources {
+		if err := validateRelativeSourcePath(relativePath); err != nil {
+			return sourceManifest{}, fmt.Errorf("internal source: %w", err)
+		}
+	}
 	return source, nil
 }
 
@@ -868,6 +904,9 @@ func selectedSourceFiles(source sourceManifest, profiles []sourceProfile) []stri
 	for _, relativePath := range source.BaseSources {
 		appendFile(relativePath)
 	}
+	for _, relativePath := range source.InternalSources {
+		appendFile(relativePath)
+	}
 	for _, profile := range profiles {
 		for _, relativePath := range profile.ContractSources {
 			appendFile(relativePath)
@@ -908,6 +947,11 @@ func projectRepository(repoRoot string, source sourceManifest, profiles []source
 			}
 		}
 		if err := removeProjectedProfilePackage(repoRoot, packagePath); err != nil {
+			return err
+		}
+	}
+	for _, relativePath := range source.InternalSources {
+		if err := removeProjectedSource(repoRoot, relativePath); err != nil {
 			return err
 		}
 	}

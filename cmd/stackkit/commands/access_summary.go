@@ -343,7 +343,7 @@ func attachObservedSetupActions(summary *accessSummary, state *models.Deployment
 // canonical private zone, or without complete local custody, the section stays
 // absent. That is the honest pending state, never a pass.
 func attachAccessClientTrust(wd string, summary *accessSummary) {
-	if summary == nil || strings.TrimSpace(strings.ToLower(summary.Domain)) != models.DomainHomeLab {
+	if summary == nil || !canonicalPrivateZone(summary.Domain) {
 		return
 	}
 	raw, relPath, err := localevidence.BasementStepCARootCAPEM(wd)
@@ -466,4 +466,12 @@ func boolInput(values map[string]any, key string, fallback bool) bool {
 		return value
 	}
 	return fallback
+}
+
+// canonicalPrivateZone reports whether domain is a private LAN domain the
+// Basement runtime serves through its own resolver and Owner CA: a local,
+// multi-label domain (the default is models.DomainHomeLab).
+func canonicalPrivateZone(domain string) bool {
+	domain = strings.Trim(strings.TrimSpace(strings.ToLower(domain)), ".")
+	return strings.Contains(domain, ".") && models.IsLocalDomain(domain) && !models.IsKombifyMeDomain(domain)
 }

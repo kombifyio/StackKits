@@ -297,7 +297,10 @@ func (o *osStandaloneComposeWorkloadOperations) ObserveWorkload(
 	ctx context.Context,
 	deployment SelectedPaaSWorkloadDeployment,
 ) (SelectedPaaSWorkloadObservation, error) {
-	project, err := o.prepare(ctx, deployment)
+	// Inspection uses existing signed custody. In particular, backup repeats
+	// this while identity services may be stopped; it must not register clients,
+	// rotate secrets, or reconcile IdP policy as a side effect of readback.
+	project, err := o.prepareWithIdentityMutation(ctx, deployment, false)
 	if err != nil {
 		return SelectedPaaSWorkloadObservation{}, err
 	}
@@ -384,6 +387,18 @@ func (o *osStandaloneComposeWorkloadOperations) prepare(
 	ctx context.Context,
 	deployment SelectedPaaSWorkloadDeployment,
 ) (standaloneComposeProject, error) {
+	return o.prepareWithIdentityMutation(ctx, deployment, true)
+}
+
+// prepareWithIdentityMutation renders from existing owner custody when
+// ensureIdentity is false. Inspection and recovery must keep existing users,
+// passkeys and issued client secrets; missing or invalid custody fails closed
+// instead of contacting the IdP or rotating a credential.
+func (o *osStandaloneComposeWorkloadOperations) prepareWithIdentityMutation(
+	ctx context.Context,
+	deployment SelectedPaaSWorkloadDeployment,
+	ensureIdentity bool,
+) (standaloneComposeProject, error) {
 	if ctx == nil {
 		return standaloneComposeProject{}, errors.New("standalone Compose operations require a context")
 	}
@@ -412,6 +427,14 @@ func (o *osStandaloneComposeWorkloadOperations) prepare(
 		(bundle.Route.ID != "" && entry.HealthPort != bundle.Route.TargetPort) {
 		return standaloneComposeProject{}, errors.New("standalone workload entry component has no exact HTTP health contract")
 	}
+	if ensureIdentity {
+		// This guard precedes every mutating step. In particular, a refused
+		// Jellyfin major transition must not register a new Pocket ID client,
+		// replace runtime files, or reach Compose up.
+		if err := o.requireJellyfinApplySafety(ctx, bundle); err != nil {
+			return standaloneComposeProject{}, err
+		}
+	}
 	dockerRoot := ""
 	if standaloneComposeNeedsDockerRoot(bundle) {
 		raw, err := o.runner.Run(ctx, standaloneComposeDockerRootArgs, o.workspaceRoot)
@@ -423,8 +446,10 @@ func (o *osStandaloneComposeWorkloadOperations) prepare(
 			return standaloneComposeProject{}, errors.New("Docker root directory is not a clean absolute path")
 		}
 	}
-	if err := o.ensurePocketIDClients(ctx, bundle); err != nil {
-		return standaloneComposeProject{}, err
+	if ensureIdentity {
+		if err := o.ensurePocketIDClients(ctx, bundle); err != nil {
+			return standaloneComposeProject{}, err
+		}
 	}
 	compose, environment, configFiles, err := o.renderWithDockerRoot(bundle, dockerRoot)
 	if err != nil {
@@ -444,6 +469,23 @@ type standaloneComposeDocument struct {
 	Services map[string]standaloneComposeService `yaml:"services"`
 	Networks map[string]standaloneComposeNetwork `yaml:"networks"`
 	Volumes  map[string]map[string]any           `yaml:"volumes,omitempty"`
+	// Secrets are custody secrets Compose copies into a container as files;
+	// each reads its value from the private .env interpolation file.
+	Secrets map[string]standaloneComposeSecret `yaml:"secrets,omitempty"`
+}
+
+type standaloneComposeSecret struct {
+	Environment string `yaml:"environment"`
+}
+
+// standaloneComposeServiceSecret places one secret file. Compose writes an
+// environment-sourced secret into the container with this owner and mode.
+type standaloneComposeServiceSecret struct {
+	Source string `yaml:"source"`
+	Target string `yaml:"target"`
+	UID    string `yaml:"uid"`
+	GID    string `yaml:"gid"`
+	Mode   int    `yaml:"mode"`
 }
 
 type standaloneComposeService struct {
@@ -464,6 +506,7 @@ type standaloneComposeService struct {
 	StopSignal  string                                 `yaml:"stop_signal,omitempty"`
 	Labels      map[string]string                      `yaml:"labels,omitempty"`
 	Healthcheck *standaloneComposeHealthcheck          `yaml:"healthcheck,omitempty"`
+	Secrets     []standaloneComposeServiceSecret       `yaml:"secrets,omitempty"`
 }
 
 type standaloneComposeDependency struct {
@@ -485,6 +528,49 @@ type standaloneComposeResources struct {
 type standaloneComposeResourceBounds struct {
 	Memory string `yaml:"memory,omitempty"`
 	CPUs   string `yaml:"cpus,omitempty"`
+	// Devices are reservation-only device requests (a GPU through CDI).
+	Devices []standaloneComposeDeviceRequest `yaml:"devices,omitempty"`
+}
+
+// standaloneComposeDeviceRequest is one Compose device reservation. Docker
+// hands a request with driver "cdi" to its CDI device driver, which injects
+// the devices of the named CDI spec entry.
+type standaloneComposeDeviceRequest struct {
+	Driver       string   `yaml:"driver"`
+	DeviceIDs    []string `yaml:"device_ids"`
+	Capabilities []string `yaml:"capabilities"`
+}
+
+// NVIDIACDIAllGPUs is the CDI device the NVIDIA Container Toolkit spec
+// (nvidia-ctk cdi generate) declares for every GPU of the node.
+const NVIDIACDIAllGPUs = "nvidia.com/gpu=all"
+
+// applyComponentAccelerator renders the GPU grant of a selected accelerator
+// profile. NVIDIA: a CDI device reservation for nvidia.com/gpu=all, which
+// needs Docker Engine 25+ with CDI enabled and the CDI spec on the host.
+// AMD ROCm: the /dev/kfd compute node and the /dev/dri render nodes. Nothing
+// else reaches a container as a GPU.
+func applyComponentAccelerator(accelerator *architecturev2renderer.ApplicationDeliveryAccelerator, service *standaloneComposeService) error {
+	if accelerator == nil {
+		return nil
+	}
+	switch accelerator.Access {
+	case "cdi":
+		if service.Deploy == nil {
+			service.Deploy = &standaloneComposeDeploy{}
+		}
+		if service.Deploy.Resources.Reservations == nil {
+			service.Deploy.Resources.Reservations = &standaloneComposeResourceBounds{}
+		}
+		service.Deploy.Resources.Reservations.Devices = append(service.Deploy.Resources.Reservations.Devices, standaloneComposeDeviceRequest{
+			Driver: "cdi", DeviceIDs: []string{NVIDIACDIAllGPUs}, Capabilities: []string{"gpu"},
+		})
+	case "rocm-device-nodes":
+		service.Devices = append(service.Devices, "/dev/kfd:/dev/kfd", "/dev/dri:/dev/dri")
+	default:
+		return fmt.Errorf("accelerator access %q is not governed", accelerator.Access)
+	}
+	return nil
 }
 
 // componentDeploy renders only what the component actually declared. A
@@ -734,6 +820,38 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 			secretValues[variable] = string(material)
 			service.Environment[environmentName] = "${" + variable + ":?required}"
 		}
+		for _, file := range component.SecretFiles {
+			secretRef, exists := bundle.SecretRefs[file.Slot]
+			if !exists {
+				return nil, nil, nil, errors.New("standalone component references an absent secret file slot")
+			}
+			material, err := localevidence.ResolveLocalSecretMaterial(o.workspaceRoot, secretRef)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("resolve owner-only material for secret file slot %q: %w", file.Slot, err)
+			}
+			// The value reaches the container only as a 0400 file; it never
+			// enters the container environment.
+			variable := standaloneComposeSecretVariable(component.ID, "FILE_"+file.Slot)
+			secretValues[variable] = string(material)
+			if document.Secrets == nil {
+				document.Secrets = map[string]standaloneComposeSecret{}
+			}
+			name := component.ID + "-" + file.Slot
+			document.Secrets[name] = standaloneComposeSecret{Environment: variable}
+			service.Secrets = append(service.Secrets, standaloneComposeServiceSecret{
+				Source: name, Target: file.Target, UID: strconv.Itoa(file.UID), GID: strconv.Itoa(file.GID), Mode: 0o400,
+			})
+			if _, conflict := service.Environment[file.PathEnvironment]; conflict || file.PathEnvironment == "" {
+				return nil, nil, nil, errors.New("secret file path binding is missing or conflicts with a declared variable")
+			}
+			service.Environment[file.PathEnvironment] = file.Target
+		}
+		for _, name := range component.RestoreActivationEnvironment {
+			if _, conflict := service.Environment[name]; conflict {
+				return nil, nil, nil, errors.New("restore activation binding conflicts with a declared variable")
+			}
+			service.Environment[name] = "${" + architecturev2renderer.RestoreActivationComposeVariable + ":-false}"
+		}
 		for _, volume := range component.Volumes {
 			if volume.HostPath != "" {
 				if !architecturev2renderer.GovernedMediaLibraryMount(bundle.ModuleRef, component.ID, volume.ID, volume.Target) || !volume.ReadOnly || volume.Backup {
@@ -844,12 +962,21 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 		for _, device := range component.Devices {
 			service.Devices = append(service.Devices, device.HostPath+":"+device.Target)
 		}
-		// A governed add-on joins its primary workload's internal network on
-		// this node; Compose fails closed when that workload is not applied.
-		if err := applyHomeIdentityAccess(o.workspaceRoot, component.HomeIdentityAccess, &service, configFiles); err != nil {
+		if err := applyComponentAccelerator(component.Accelerator, &service); err != nil {
 			return nil, nil, nil, err
 		}
-		if err := applyPocketIDClientEnvironment(o.workspaceRoot, bundle, component, &service, secretValues); err != nil {
+		// A governed add-on joins its primary workload's internal network on
+		// this node; Compose fails closed when that workload is not applied.
+		if err := applyJellyfinSSOPlugin(component.JellyfinSSOPlugin, &service, configFiles); err != nil {
+			return nil, nil, nil, err
+		}
+		if err := applyHomeAssistantOIDC(o.workspaceRoot, component.HomeAssistantOIDC, &service, configFiles); err != nil {
+			return nil, nil, nil, err
+		}
+		if err := applyHomeIdentityAccess(o.workspaceRoot, bundle.Route.CoreModuleRef, document.Networks["stackkit-routing"], component.HomeIdentityAccess, &service, configFiles); err != nil {
+			return nil, nil, nil, err
+		}
+		if err := applyPocketIDClientEnvironment(o.workspaceRoot, bundle, component, &service, secretValues, configFiles); err != nil {
 			return nil, nil, nil, err
 		}
 		for _, peer := range component.PeerNetworks {
@@ -1080,7 +1207,8 @@ func (osStandaloneComposeProcessRunner) Run(
 	directory string,
 ) ([]byte, error) {
 	dockerRootQuery := slices.Equal(args, standaloneComposeDockerRootArgs)
-	if !dockerRootQuery && (len(args) < 9 || args[0] != "compose" || args[1] != "--project-name" ||
+	jellyfinDiscoveryQuery := validJellyfinDiscoveryQuery(args)
+	if !dockerRootQuery && !jellyfinDiscoveryQuery && (len(args) < 9 || args[0] != "compose" || args[1] != "--project-name" ||
 		args[3] != "--env-file" || filepath.Dir(args[4]) != directory ||
 		filepath.Base(args[4]) != ".env" || args[5] != "-f" ||
 		filepath.Dir(args[6]) != directory || filepath.Base(args[6]) != "compose.yaml") {

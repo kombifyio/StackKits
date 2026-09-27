@@ -11,12 +11,25 @@ type NativeActionDescription struct {
 	SupportsOnboardingCompletion bool
 }
 
-// DescribeNativeAction returns the bounded native setup contract for an
-// action and adapter pair.
-func DescribeNativeAction(action, adapter string) (NativeActionDescription, bool) {
-	if adapter != "standalone-compose" {
+// NativeActionSupport is implemented by an executable runtime adapter setup
+// transport. Catalog metadata alone never makes an action executable.
+type NativeActionSupport interface {
+	SupportsNativeAction(action string) bool
+}
+
+// DescribeNativeAction returns the bounded native setup contract only when
+// the admitted runtime adapter owns an executable transport for the action.
+func DescribeNativeAction(action string, support NativeActionSupport) (NativeActionDescription, bool) {
+	if !SupportsNativeAction(action, support) {
 		return NativeActionDescription{}, false
 	}
+	return NativeActionMetadata(action)
+}
+
+// NativeActionMetadata returns the provider-neutral description of a known
+// setup action. Callers must use DescribeNativeAction before presenting or
+// executing it for a selected runtime target.
+func NativeActionMetadata(action string) (NativeActionDescription, bool) {
 	switch action {
 	case "jellyfin-owner-bootstrap":
 		return NativeActionDescription{
@@ -56,7 +69,7 @@ func DescribeNativeAction(action, adapter string) (NativeActionDescription, bool
 			CredentialFields:             []string{"username", "password", "displayName"},
 			CredentialsFile:              ".stackkit/setup/home-assistant-owner.json",
 			GuideURL:                     "https://github.com/kombifyio/stackKits/blob/main/use-cases/smart-home/agent/homelab-mcp/SKILL.md#owner-setup",
-			SupportsOnboardingCompletion: false,
+			SupportsOnboardingCompletion: true,
 		}, true
 	case "pterodactyl-game-server-setup":
 		return NativeActionDescription{
@@ -64,6 +77,15 @@ func DescribeNativeAction(action, adapter string) (NativeActionDescription, bool
 			CredentialFields:             []string{"profile", "name", "acceptEula", "allowList"},
 			CredentialsFile:              ".stackkit/setup/game.json",
 			GuideURL:                     "https://github.com/kombifyio/stackKits/blob/main/use-cases/game/agent/game-server/SKILL.md#create-a-server",
+			SupportsOnboardingCompletion: false,
+		}, true
+	case ComfyUIModelDownloadAction:
+		// The owner chooses a preset and accepts its model license.
+		return NativeActionDescription{
+			Title:                        "Image and video model download",
+			CredentialFields:             []string{"preset", "acceptLicense"},
+			CredentialsFile:              ".stackkit/setup/ai-image-video.json",
+			GuideURL:                     "https://github.com/kombifyio/stackKits/blob/main/use-cases/ai/agent/image-video/SKILL.md#download-a-model",
 			SupportsOnboardingCompletion: false,
 		}, true
 	case "roundcube-mailbox-login":
@@ -85,7 +107,7 @@ func DescribeNativeAction(action, adapter string) (NativeActionDescription, bool
 	case "vault-owner-invite":
 		return NativeActionDescription{
 			Title:                        "Vault owner invitation",
-			CredentialFields:             []string{"email"},
+			CredentialFields:             []string{"email", "smtpHost", "smtpPort", "smtpFrom", "smtpUser", "smtpPassword", "smtpTls"},
 			CredentialsFile:              ".stackkit/setup/vault-owner.json",
 			GuideURL:                     "https://github.com/kombifyio/stackKits/blob/main/use-cases/vault/agent/owner-setup/SKILL.md#owner-setup",
 			SupportsOnboardingCompletion: false,
@@ -97,7 +119,10 @@ func DescribeNativeAction(action, adapter string) (NativeActionDescription, bool
 
 // SupportsNativeAction reports executable adapter support, separately from
 // CUE's declared application intent. Unsupported adapters never fall back.
-func SupportsNativeAction(action, adapter string) bool {
-	_, supported := DescribeNativeAction(action, adapter)
-	return supported
+func SupportsNativeAction(action string, support NativeActionSupport) bool {
+	if support == nil || !support.SupportsNativeAction(action) {
+		return false
+	}
+	_, known := NativeActionMetadata(action)
+	return known
 }

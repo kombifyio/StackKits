@@ -24,10 +24,11 @@ const (
 	// RootDirName is the per-module root directory below the module's native
 	// runtime directory: .stackkit/runtime/<runtimeDir>/opentofu.
 	RootDirName = "opentofu"
-	// ConfigFile, StateFile, and ComposeFile are the root files the
+	// ConfigFile, StateFile, LockFile, and ComposeFile are the root files the
 	// executor-state checkpoint captures.
 	ConfigFile  = "main.tf"
 	StateFile   = "terraform.tfstate"
+	LockFile    = ".terraform.lock.hcl"
 	ComposeFile = "compose.yaml"
 	// StackFile is the Terramate stack file placed beside main.tf.
 	StackFile = "stack.tm.hcl"

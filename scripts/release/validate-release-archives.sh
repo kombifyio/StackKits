@@ -2,6 +2,7 @@
 set -euo pipefail
 
 dist_dir="${1:-dist}"
+source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fail() {
   printf 'release archive validation failed: %s\n' "$*" >&2
   exit 1
@@ -60,6 +61,54 @@ modern_archive="$(find_archive 'stackkits-modern-homelab_*_linux_amd64.tar.gz' '
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
+# Every published bundle contains the exact license and notice files from its
+# source tree, including Windows ZIPs. Checking all targets prevents a new
+# archive stanza from silently omitting the notices.
+check_legal_files() {
+  local archive="$1"
+  local entry output_dir
+  output_dir="$tmp/legal-$(basename "$archive")"
+  mkdir -p "$output_dir"
+  case "$archive" in
+    *.zip)
+      python3 -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2], sys.argv[3:])' \
+        "$archive" "$output_dir" LICENSE-MPL-2.0 THIRD-PARTY-NOTICES.md ||
+        fail "missing legal files in ${archive}"
+      ;;
+    *.tar.gz)
+      tar -xzf "$archive" -C "$output_dir" LICENSE-MPL-2.0 THIRD-PARTY-NOTICES.md ||
+        fail "missing legal files in ${archive}"
+      ;;
+    *) fail "unsupported archive ${archive}" ;;
+  esac
+  for entry in LICENSE-MPL-2.0 THIRD-PARTY-NOTICES.md; do
+    cmp -s "$source_dir/$entry" "$output_dir/$entry" || fail "${entry} differs from source in ${archive}"
+  done
+}
+
+for target in linux_amd64 linux_arm64 darwin_amd64 darwin_arm64 windows_amd64; do
+  for kind in stackkits stackkits-basement-kit stackkits-cloud-kit stackkits-modern-homelab; do
+    extension=tar.gz
+    [ "$target" = windows_amd64 ] && extension=zip
+    check_legal_files "$(find_archive "${kind}_*_${target}.${extension}")"
+  done
+done
+
+mapfile -t deb_packages < <(find "$dist_dir" -maxdepth 1 -type f -name '*.deb' | sort)
+if [ "${STACKKIT_REQUIRE_DEB_PACKAGES:-0}" = 1 ] && [ "${#deb_packages[@]}" -eq 0 ]; then
+  fail "no Debian package in ${dist_dir}"
+fi
+# The post-publication archive consumer downloads only archives; the producer
+# sets STACKKIT_REQUIRE_DEB_PACKAGES=1 and validates its local package output.
+for package in "${deb_packages[@]}"; do
+  package_root="$tmp/$(basename "$package").root"
+  dpkg-deb -x "$package" "$package_root" || fail "cannot unpack ${package}"
+  for entry in LICENSING.md LICENSE-APACHE LICENSE-GPL-3.0-or-later LICENSE-MPL-2.0 THIRD-PARTY-NOTICES.md; do
+    cmp -s "$source_dir/$entry" "${package_root}/usr/share/doc/kombify-stackkits/${entry}" ||
+      fail "missing or changed ${entry} in ${package}"
+  done
+done
+
 # Required entries inside an archive: the common toolchain/contract files plus
 # any kit-specific stackkit.yaml passed as extra args.
 check_archive_contents() {
@@ -74,11 +123,15 @@ check_archive_contents() {
     stackkit-mcp \
     tofu \
     terramate \
+    providers/stackkit-provider-manifest.json \
+    providers/stackkit-provider-lock.hcl \
     providers/registry.opentofu.org/hashicorp/local/2.5.3/linux_amd64/terraform-provider-local \
     README.md \
     LICENSING.md \
     LICENSE-APACHE \
     LICENSE-GPL-3.0-or-later \
+    LICENSE-MPL-2.0 \
+    THIRD-PARTY-NOTICES.md \
     cue.mod/module.cue \
     docs/ENTERPRISE_READINESS.md \
     use-cases/photos/agent/family-vault/SKILL.md \

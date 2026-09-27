@@ -1169,6 +1169,197 @@
         }
       },
       "metadata": {
+        "description": "Image and video add-on of the Private AI use case.",
+        "id": "ai-image-video",
+        "version": "1.0.0"
+      },
+      "packageRef": "ai",
+      "useCaseRef": "ai",
+      "workloadRef": "ai-image-video"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
         "description": "Zigbee bridge add-on of the smart-home use case.",
         "id": "smart-home-zigbee",
         "version": "1.0.0"
@@ -1176,6 +1367,388 @@
       "packageRef": "smart-home",
       "useCaseRef": "smart-home",
       "workloadRef": "smart-home-zigbee"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Web search add-on of the Private AI use case.",
+        "id": "ai-search",
+        "version": "1.0.0"
+      },
+      "packageRef": "ai",
+      "useCaseRef": "ai",
+      "workloadRef": "ai-search"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Document parsing add-on of the Private AI use case.",
+        "id": "ai-documents",
+        "version": "1.0.0"
+      },
+      "packageRef": "ai",
+      "useCaseRef": "ai",
+      "workloadRef": "ai-documents"
     },
     {
       "lifecycle": {
@@ -6417,6 +6990,46 @@
       },
       {
         "governanceMatches": [
+          "stackkits-comfyui-runtime"
+        ],
+        "matches": [
+          "stackkits-comfyui"
+        ],
+        "module": "stackkits-comfyui-runtime",
+        "provider": "stackkits-comfyui"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-searxng-runtime"
+        ],
+        "matches": [
+          "stackkits-searxng"
+        ],
+        "module": "stackkits-searxng-runtime",
+        "provider": "stackkits-searxng"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-tika-runtime"
+        ],
+        "matches": [
+          "stackkits-tika"
+        ],
+        "module": "stackkits-tika-runtime",
+        "provider": "stackkits-tika"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-docling-runtime"
+        ],
+        "matches": [
+          "stackkits-docling"
+        ],
+        "module": "stackkits-docling-runtime",
+        "provider": "stackkits-docling"
+      },
+      {
+        "governanceMatches": [
           "stackkits-gitea-runtime"
         ],
         "matches": [
@@ -7390,6 +8003,30 @@
         },
         {
           "contracts": [
+            "ai-image-video"
+          ],
+          "providerID": "stackkits-comfyui"
+        },
+        {
+          "contracts": [
+            "ai-search"
+          ],
+          "providerID": "stackkits-searxng"
+        },
+        {
+          "contracts": [
+            "ai-documents"
+          ],
+          "providerID": "stackkits-tika"
+        },
+        {
+          "contracts": [
+            "ai-documents"
+          ],
+          "providerID": "stackkits-docling"
+        },
+        {
+          "contracts": [
             "dev"
           ],
           "providerID": "stackkits-gitea"
@@ -8360,6 +8997,34 @@
       },
       {
         "matches": [
+          "stackkits-comfyui-runtime"
+        ],
+        "module": "stackkits-comfyui-runtime",
+        "provider": "stackkits-comfyui"
+      },
+      {
+        "matches": [
+          "stackkits-searxng-runtime"
+        ],
+        "module": "stackkits-searxng-runtime",
+        "provider": "stackkits-searxng"
+      },
+      {
+        "matches": [
+          "stackkits-tika-runtime"
+        ],
+        "module": "stackkits-tika-runtime",
+        "provider": "stackkits-tika"
+      },
+      {
+        "matches": [
+          "stackkits-docling-runtime"
+        ],
+        "module": "stackkits-docling-runtime",
+        "provider": "stackkits-docling"
+      },
+      {
+        "matches": [
           "stackkits-gitea-runtime"
         ],
         "module": "stackkits-gitea-runtime",
@@ -9311,6 +9976,76 @@
           "backup-core"
         ],
         "provider": "stackkits-private-ai"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-comfyui"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-comfyui"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-comfyui"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-comfyui"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-searxng"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-searxng"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-tika"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-tika"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-docling"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-docling"
       },
       {
         "capability": "runtime-paas",
@@ -10482,6 +11217,30 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-private-ai"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-comfyui"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-searxng"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-tika"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-docling"
         },
         {
           "capabilityBindings": [],
@@ -11734,6 +12493,292 @@
             }
           ],
           "workloadID": "ai"
+        },
+        {
+          "alternativeID": "comfyui",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-comfyui-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "ai-image-video",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "comfyui",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-comfyui",
+              "workloadOwnership": [
+                "ai-image-video"
+              ]
+            }
+          ],
+          "workloadID": "ai-image-video"
+        },
+        {
+          "alternativeID": "searxng",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-searxng-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "searxng"
+                  ],
+                  "ref": "searxng-secret"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "unitID": "searxng"
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-searxng",
+              "workloadOwnership": [
+                "ai-search"
+              ]
+            }
+          ],
+          "workloadID": "ai-search"
+        },
+        {
+          "alternativeID": "tika",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-tika-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [],
+              "serviceMatches": [
+                {
+                  "unitID": "tika"
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-tika",
+              "workloadOwnership": [
+                "ai-documents"
+              ]
+            }
+          ],
+          "workloadID": "ai-documents"
+        },
+        {
+          "alternativeID": "docling",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-docling-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [],
+              "serviceMatches": [
+                {
+                  "unitID": "docling"
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-docling",
+              "workloadOwnership": [
+                "ai-documents"
+              ]
+            }
+          ],
+          "workloadID": "ai-documents"
         },
         {
           "alternativeID": "gitea",
@@ -17815,7 +18860,9 @@
         },
         "inputs": {
           "contractComplete": true,
-          "requiredRefs": []
+          "requiredRefs": [
+            "tinyauth-route-acls"
+          ]
         },
         "level": "apply-ready",
         "planInputs": {
@@ -17830,9 +18877,17 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:6a165719c9945b0c7e15c8a24aa5003a8fbbb909bcd7439381ed4ee10686c7c4",
+          "contractHash": "sha256:2489edf0ac17ca7c7439affc1010881dcb8e596b89d07878e49ff51c0c88f92b",
           "id": "compose",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "list",
+              "required": true,
+              "sourceRef": "network.routes",
+              "targetRef": "tinyauth-route-acls",
+              "valueType": "authority-bound-service-route-list-v4"
+            }
+          ],
           "kind": "compose",
           "outputs": [
             "platform/cloud-core/compose.yaml"
@@ -17843,7 +18898,9 @@
           },
           "planInputRefs": [],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "tinyauth-route-acls"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "runtimeListeners": [
@@ -18018,9 +19075,17 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:17c124c1205256710d1161ad728885fe34af3fe07aee4111441172143d3bd0ce",
+          "contractHash": "sha256:6b245aa7ba15ba268baa422b84b2c549e83fd960ebaa2b351e65fe399847e614",
           "id": "opentofu",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "list",
+              "required": true,
+              "sourceRef": "network.routes",
+              "targetRef": "tinyauth-route-acls",
+              "valueType": "authority-bound-service-route-list-v4"
+            }
+          ],
           "kind": "opentofu",
           "outputs": [
             "platform/cloud-core/main.tf"
@@ -18031,7 +19096,9 @@
           },
           "planInputRefs": [],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "tinyauth-route-acls"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "runtimeListeners": [
@@ -18206,9 +19273,17 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:8254232c208f363dea7ff27a07ed8b2af616eb8324141e78797707ff5e296a48",
+          "contractHash": "sha256:a8c77f4ae0e44044f38f3ecc97fa881d1dec3e185d1ffa1d0aa71100af128beb",
           "id": "terramate",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "list",
+              "required": true,
+              "sourceRef": "network.routes",
+              "targetRef": "tinyauth-route-acls",
+              "valueType": "authority-bound-service-route-list-v4"
+            }
+          ],
           "kind": "terramate",
           "outputs": [
             "platform/cloud-core/main.tf",
@@ -18220,7 +19295,9 @@
           },
           "planInputRefs": [],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "tinyauth-route-acls"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "runtimeListeners": [
@@ -18396,10 +19473,12 @@
           "artifactRefs": [
             "cloud-core-compose"
           ],
-          "contractHash": "sha256:6a165719c9945b0c7e15c8a24aa5003a8fbbb909bcd7439381ed4ee10686c7c4",
+          "contractHash": "sha256:2489edf0ac17ca7c7439affc1010881dcb8e596b89d07878e49ff51c0c88f92b",
           "id": "compose",
           "planInputRefs": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "tinyauth-route-acls"
+          ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
           "target": "compose",
@@ -18411,10 +19490,12 @@
           "artifactRefs": [
             "cloud-core-opentofu"
           ],
-          "contractHash": "sha256:17c124c1205256710d1161ad728885fe34af3fe07aee4111441172143d3bd0ce",
+          "contractHash": "sha256:6b245aa7ba15ba268baa422b84b2c549e83fd960ebaa2b351e65fe399847e614",
           "id": "opentofu",
           "planInputRefs": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "tinyauth-route-acls"
+          ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
           "target": "opentofu",
@@ -18427,10 +19508,12 @@
             "cloud-core-terramate-opentofu",
             "cloud-core-terramate-stack"
           ],
-          "contractHash": "sha256:5dc111fb152e893248c944eead9e58911abed6665aeaabb46b5bd813a8f69f13",
+          "contractHash": "sha256:5961224d210651af0a3079de0cd8f898fb3ce019620fb9de0c81fc9e1454b54e",
           "id": "terramate",
           "planInputRefs": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "tinyauth-route-acls"
+          ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
           "target": "terramate",
@@ -18498,8 +19581,8 @@
             },
             "id": "pocketid",
             "image": {
-              "digest": "sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e",
-              "ref": "ghcr.io/pocket-id/pocket-id:v2.7.0"
+              "digest": "sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea",
+              "ref": "ghcr.io/pocket-id/pocket-id:v2.16.0"
             },
             "lifecycle": "daemon",
             "networkRefs": [
@@ -18531,8 +19614,8 @@
             },
             "id": "tinyauth",
             "image": {
-              "digest": "sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6",
-              "ref": "ghcr.io/steveiliop56/tinyauth:v5.0.7"
+              "digest": "sha256:910f84801dc9597398458d45f8d305eb232dc583d6927c87cc29626527947d35",
+              "ref": "ghcr.io/tinyauthapp/tinyauth:v5.1.2"
             },
             "lifecycle": "daemon",
             "networkRefs": [
@@ -19096,7 +20179,8 @@
         "inputs": {
           "contractComplete": true,
           "requiredRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ]
         },
         "level": "apply-ready",
@@ -19119,7 +20203,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:10b557a8c1d690d0db2673a50a0dc96f2e08247047a99a2639fc75308ceb30ef",
+          "contractHash": "sha256:c4525c75cb5b99ea7b42fed15321ba910a32b13a9f6944e454d5a48c675aa1f5",
           "id": "compose",
           "inputBindings": [
             {
@@ -19128,6 +20212,13 @@
               "sourceRef": "backup.localKopiaSource",
               "targetRef": "backup-source",
               "valueType": "local-kopia-backup-source-v1"
+            },
+            {
+              "cardinality": "list",
+              "required": true,
+              "sourceRef": "network.routes",
+              "targetRef": "tinyauth-route-acls",
+              "valueType": "authority-bound-service-route-list-v4"
             }
           ],
           "kind": "compose",
@@ -19141,7 +20232,8 @@
           "planInputRefs": [],
           "providesInterfaces": [],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -19289,7 +20381,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:686105c4ab42b787a3a884041751eb577e0821a5aae4ad1f8bedbcaf096723de",
+          "contractHash": "sha256:e20d181b90c576ff25b1ba88c8bdabf391d0c7ce9241a0094c256b2e204a6514",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -19298,6 +20390,13 @@
               "sourceRef": "backup.localKopiaSource",
               "targetRef": "backup-source",
               "valueType": "local-kopia-backup-source-v1"
+            },
+            {
+              "cardinality": "list",
+              "required": true,
+              "sourceRef": "network.routes",
+              "targetRef": "tinyauth-route-acls",
+              "valueType": "authority-bound-service-route-list-v4"
             }
           ],
           "kind": "opentofu",
@@ -19311,7 +20410,8 @@
           "planInputRefs": [],
           "providesInterfaces": [],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -19459,7 +20559,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:d5fb144e69281318cc5041cc6fcee478a10df2cb8206295ee4f1e52590483b4a",
+          "contractHash": "sha256:066219def11947ce759f5528517efa7aa0a96a3445e579966d683bbb132b7522",
           "id": "terramate",
           "inputBindings": [
             {
@@ -19468,6 +20568,13 @@
               "sourceRef": "backup.localKopiaSource",
               "targetRef": "backup-source",
               "valueType": "local-kopia-backup-source-v1"
+            },
+            {
+              "cardinality": "list",
+              "required": true,
+              "sourceRef": "network.routes",
+              "targetRef": "tinyauth-route-acls",
+              "valueType": "authority-bound-service-route-list-v4"
             }
           ],
           "kind": "terramate",
@@ -19482,7 +20589,8 @@
           "planInputRefs": [],
           "providesInterfaces": [],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -19679,7 +20787,7 @@
             "cloud-core-standalone-compose",
             "cloud-kopia-backup-source-policy"
           ],
-          "contractHash": "sha256:10b557a8c1d690d0db2673a50a0dc96f2e08247047a99a2639fc75308ceb30ef",
+          "contractHash": "sha256:677db04f139d7bd6190aef53092da7ff677b1d7b93df314cb77039c65057b67f",
           "id": "compose",
           "planInputRefs": [
             "stackId",
@@ -19690,7 +20798,8 @@
             "backupPolicy"
           ],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
@@ -19705,7 +20814,7 @@
             "cloud-core-standalone-opentofu",
             "cloud-kopia-backup-source-policy"
           ],
-          "contractHash": "sha256:686105c4ab42b787a3a884041751eb577e0821a5aae4ad1f8bedbcaf096723de",
+          "contractHash": "sha256:9c001fea8fed2fa388a88561f2dc86da6bad3b04385c5f536febe6fc0e619704",
           "id": "opentofu",
           "planInputRefs": [
             "stackId",
@@ -19716,7 +20825,8 @@
             "backupPolicy"
           ],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
@@ -19732,7 +20842,7 @@
             "cloud-core-standalone-terramate-stack",
             "cloud-kopia-backup-source-policy"
           ],
-          "contractHash": "sha256:3f2c14c5ddeb144811f8ba25a28fbf5311692b301c37423d9f197b1bdf76c665",
+          "contractHash": "sha256:44e664dbb41ac13feab3520917703667e604ded715b3d4817082628c3ffed921",
           "id": "terramate",
           "planInputRefs": [
             "stackId",
@@ -19743,7 +20853,8 @@
             "backupPolicy"
           ],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
@@ -19813,8 +20924,8 @@
             },
             "id": "pocketid",
             "image": {
-              "digest": "sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e",
-              "ref": "ghcr.io/pocket-id/pocket-id:v2.7.0"
+              "digest": "sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea",
+              "ref": "ghcr.io/pocket-id/pocket-id:v2.16.0"
             },
             "lifecycle": "daemon",
             "networkRefs": [
@@ -19846,8 +20957,8 @@
             },
             "id": "tinyauth",
             "image": {
-              "digest": "sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6",
-              "ref": "ghcr.io/steveiliop56/tinyauth:v5.0.7"
+              "digest": "sha256:910f84801dc9597398458d45f8d305eb232dc583d6927c87cc29626527947d35",
+              "ref": "ghcr.io/tinyauthapp/tinyauth:v5.1.2"
             },
             "lifecycle": "daemon",
             "networkRefs": [
@@ -20327,7 +21438,8 @@
         "inputs": {
           "contractComplete": true,
           "requiredRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ]
         },
         "level": "apply-ready",
@@ -20350,7 +21462,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:5f9513fc2a4482d42ef0e0eb8b28f848fa1f13cdc561ff124dc36effa82c6f76",
+          "contractHash": "sha256:25196644774dc64f1eb1d8bef146b469b6282395820fb0feed596bfa67df6de4",
           "id": "compose",
           "inputBindings": [
             {
@@ -20359,6 +21471,13 @@
               "sourceRef": "backup.localKopiaSource",
               "targetRef": "backup-source",
               "valueType": "local-kopia-backup-source-v1"
+            },
+            {
+              "cardinality": "list",
+              "required": true,
+              "sourceRef": "network.routes",
+              "targetRef": "tinyauth-route-acls",
+              "valueType": "authority-bound-service-route-list-v4"
             }
           ],
           "kind": "compose",
@@ -20372,7 +21491,8 @@
           "planInputRefs": [],
           "providesInterfaces": [],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -20572,7 +21692,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:4b5d98e6f322f5d922cb924369be44544c747d78fc8cabe0d06beb1a24c50cbf",
+          "contractHash": "sha256:37cdaefa58c3db20f0cfe15f89b01103b8de74a049c4f197cfe4fbd5b235fd42",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -20581,6 +21701,13 @@
               "sourceRef": "backup.localKopiaSource",
               "targetRef": "backup-source",
               "valueType": "local-kopia-backup-source-v1"
+            },
+            {
+              "cardinality": "list",
+              "required": true,
+              "sourceRef": "network.routes",
+              "targetRef": "tinyauth-route-acls",
+              "valueType": "authority-bound-service-route-list-v4"
             }
           ],
           "kind": "opentofu",
@@ -20594,7 +21721,8 @@
           "planInputRefs": [],
           "providesInterfaces": [],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -20794,7 +21922,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:7ec10f279cb5483f6d0260ffe4f715f33f3db852838a894ba0c78e4d24baf4da",
+          "contractHash": "sha256:24f02599c66b117b48c52470907300b28aca30f83c60e1336974be4dee21632f",
           "id": "terramate",
           "inputBindings": [
             {
@@ -20803,6 +21931,13 @@
               "sourceRef": "backup.localKopiaSource",
               "targetRef": "backup-source",
               "valueType": "local-kopia-backup-source-v1"
+            },
+            {
+              "cardinality": "list",
+              "required": true,
+              "sourceRef": "network.routes",
+              "targetRef": "tinyauth-route-acls",
+              "valueType": "authority-bound-service-route-list-v4"
             }
           ],
           "kind": "terramate",
@@ -20817,7 +21952,8 @@
           "planInputRefs": [],
           "providesInterfaces": [],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -21066,7 +22202,7 @@
             "basement-core-compose",
             "local-kopia-backup-source-policy"
           ],
-          "contractHash": "sha256:4db83db58296db815c26fdd95b16e1f1099c6c18648be77cf60efa74da9a2e53",
+          "contractHash": "sha256:e3a6bc1d4d6535820c078be09a73e6b6570ecfade6308b308b3107b43bab572d",
           "id": "compose",
           "planInputRefs": [
             "stackId",
@@ -21077,7 +22213,8 @@
             "backupPolicy"
           ],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
@@ -21092,7 +22229,7 @@
             "basement-core-opentofu",
             "local-kopia-backup-source-policy"
           ],
-          "contractHash": "sha256:c7628f0520224fa57f4934e20711c55f15a50f2ed00721f67e662941a616037c",
+          "contractHash": "sha256:467b1890a9f818d1a0d0f18b31f180493bb0b7cb4be53b0db07f72c64fcc9324",
           "id": "opentofu",
           "planInputRefs": [
             "stackId",
@@ -21103,7 +22240,8 @@
             "backupPolicy"
           ],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
@@ -21119,7 +22257,7 @@
             "basement-core-terramate-stack",
             "local-kopia-backup-source-policy"
           ],
-          "contractHash": "sha256:7ec10f279cb5483f6d0260ffe4f715f33f3db852838a894ba0c78e4d24baf4da",
+          "contractHash": "sha256:24f02599c66b117b48c52470907300b28aca30f83c60e1336974be4dee21632f",
           "id": "terramate",
           "planInputRefs": [
             "stackId",
@@ -21130,7 +22268,8 @@
             "backupPolicy"
           ],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
@@ -21200,8 +22339,8 @@
             },
             "id": "pocketid",
             "image": {
-              "digest": "sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e",
-              "ref": "ghcr.io/pocket-id/pocket-id:v2.7.0"
+              "digest": "sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea",
+              "ref": "ghcr.io/pocket-id/pocket-id:v2.16.0"
             },
             "lifecycle": "daemon",
             "networkRefs": [
@@ -21233,8 +22372,8 @@
             },
             "id": "tinyauth",
             "image": {
-              "digest": "sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6",
-              "ref": "ghcr.io/steveiliop56/tinyauth:v5.0.7"
+              "digest": "sha256:910f84801dc9597398458d45f8d305eb232dc583d6927c87cc29626527947d35",
+              "ref": "ghcr.io/tinyauthapp/tinyauth:v5.1.2"
             },
             "lifecycle": "daemon",
             "networkRefs": [
@@ -21969,7 +23108,8 @@
         "inputs": {
           "contractComplete": true,
           "requiredRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ]
         },
         "level": "apply-ready",
@@ -21992,7 +23132,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:9347b8814c03c8e33f0120768078f82bc4d02ab5e490983a7931abfe0ea65b4c",
+          "contractHash": "sha256:faabf13c3aa81a4e9168ef5969474cce35e2969c91dbe6625899221bd82cb545",
           "id": "compose",
           "inputBindings": [
             {
@@ -22001,6 +23141,13 @@
               "sourceRef": "backup.localKopiaSource",
               "targetRef": "backup-source",
               "valueType": "local-kopia-backup-source-v1"
+            },
+            {
+              "cardinality": "list",
+              "required": true,
+              "sourceRef": "network.routes",
+              "targetRef": "tinyauth-route-acls",
+              "valueType": "authority-bound-service-route-list-v4"
             }
           ],
           "kind": "compose",
@@ -22014,7 +23161,8 @@
           "planInputRefs": [],
           "providesInterfaces": [],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -22186,7 +23334,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:c2a2fc6d92a29440e3fb39232815f4df8007731e52798eaae8511f2fc8a9caf0",
+          "contractHash": "sha256:b164d52ad3001d5f3903417d9c621114546f4722d86f1037eed25e8da050b4ec",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -22195,6 +23343,13 @@
               "sourceRef": "backup.localKopiaSource",
               "targetRef": "backup-source",
               "valueType": "local-kopia-backup-source-v1"
+            },
+            {
+              "cardinality": "list",
+              "required": true,
+              "sourceRef": "network.routes",
+              "targetRef": "tinyauth-route-acls",
+              "valueType": "authority-bound-service-route-list-v4"
             }
           ],
           "kind": "opentofu",
@@ -22208,7 +23363,8 @@
           "planInputRefs": [],
           "providesInterfaces": [],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -22380,7 +23536,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:23d947aef35b7fbfe3b7667765361fdf0033ce3a2e44f8223c1b7ac090949036",
+          "contractHash": "sha256:66c2fee8f1d3b99323c588f4fdcb806e9a809ad29bdcdc8bb5a330ac21809480",
           "id": "terramate",
           "inputBindings": [
             {
@@ -22389,6 +23545,13 @@
               "sourceRef": "backup.localKopiaSource",
               "targetRef": "backup-source",
               "valueType": "local-kopia-backup-source-v1"
+            },
+            {
+              "cardinality": "list",
+              "required": true,
+              "sourceRef": "network.routes",
+              "targetRef": "tinyauth-route-acls",
+              "valueType": "authority-bound-service-route-list-v4"
             }
           ],
           "kind": "terramate",
@@ -22403,7 +23566,8 @@
           "planInputRefs": [],
           "providesInterfaces": [],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -22624,7 +23788,7 @@
             "basement-core-lite-compose",
             "local-kopia-backup-source-policy-lite"
           ],
-          "contractHash": "sha256:01285f8be5db5c502de2ee4b53337ff4a46d8466e11ee14bfa43e8bb49702848",
+          "contractHash": "sha256:8771b573e5c7c27010c4cc42325516160fac107bb222a78be69282c9ace5de55",
           "id": "compose",
           "planInputRefs": [
             "stackId",
@@ -22635,7 +23799,8 @@
             "backupPolicy"
           ],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
@@ -22650,7 +23815,7 @@
             "basement-core-lite-opentofu",
             "local-kopia-backup-source-policy-lite"
           ],
-          "contractHash": "sha256:bf2e7666c7d2b3b994e82cf64a5469323521a4a4070d9bafc6a73b179029c6a7",
+          "contractHash": "sha256:c2046573b59e6d5aec214e58d44ecff6b0e98c0aad81bd32f7508702e90863ab",
           "id": "opentofu",
           "planInputRefs": [
             "stackId",
@@ -22661,7 +23826,8 @@
             "backupPolicy"
           ],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
@@ -22677,7 +23843,7 @@
             "basement-core-lite-terramate-stack",
             "local-kopia-backup-source-policy-lite"
           ],
-          "contractHash": "sha256:23d947aef35b7fbfe3b7667765361fdf0033ce3a2e44f8223c1b7ac090949036",
+          "contractHash": "sha256:66c2fee8f1d3b99323c588f4fdcb806e9a809ad29bdcdc8bb5a330ac21809480",
           "id": "terramate",
           "planInputRefs": [
             "stackId",
@@ -22688,7 +23854,8 @@
             "backupPolicy"
           ],
           "publicInputRefs": [
-            "backup-source"
+            "backup-source",
+            "tinyauth-route-acls"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
@@ -22758,8 +23925,8 @@
             },
             "id": "pocketid",
             "image": {
-              "digest": "sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e",
-              "ref": "ghcr.io/pocket-id/pocket-id:v2.7.0"
+              "digest": "sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea",
+              "ref": "ghcr.io/pocket-id/pocket-id:v2.16.0"
             },
             "lifecycle": "daemon",
             "networkRefs": [
@@ -22791,8 +23958,8 @@
             },
             "id": "tinyauth",
             "image": {
-              "digest": "sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6",
-              "ref": "ghcr.io/steveiliop56/tinyauth:v5.0.7"
+              "digest": "sha256:910f84801dc9597398458d45f8d305eb232dc583d6927c87cc29626527947d35",
+              "ref": "ghcr.io/tinyauthapp/tinyauth:v5.1.2"
             },
             "lifecycle": "daemon",
             "networkRefs": [
@@ -23221,7 +24388,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:bee5bc6660563dd30c44483b33d6247c501cc2ac5c493ba18c362ed1ea403a12",
+          "contractHash": "sha256:ed17e67b131e5525b1e4436cf2794ab121a82b2164b3532d0a99ec1970f344a5",
           "id": "immich-server",
           "inputBindings": [
             {
@@ -23281,7 +24448,7 @@
             }
           ],
           "templateRef": "builtin://workloads/immich/bundle/v2.json",
-          "version": "3.1.0"
+          "version": "3.2.0"
         },
         {
           "applyMode": "artifact-only",
@@ -23484,6 +24651,12 @@
               "path": "/api/server/ping",
               "port": 2283
             },
+            "homeIdentityAccess": {
+              "caBundleEnvironment": [
+                "NODE_EXTRA_CA_CERTS"
+              ],
+              "caBundleTarget": "/etc/stackkit/ca-bundle.pem"
+            },
             "id": "immich-server",
             "image": {
               "digest": "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1",
@@ -23493,6 +24666,20 @@
             "networkRefs": [
               "immich-internal"
             ],
+            "pocketIDClient": {
+              "callbackURLs": [
+                "{{origin}}/auth/login",
+                "{{origin}}/user-settings",
+                "app.immich:///oauth-callback"
+              ],
+              "configuration": {
+                "body": "{\"oauth\":{\"autoLaunch\":true,\"autoRegister\":true,\"buttonText\":\"Continue with Pocket ID\",\"clientId\":\"{{clientId}}\",\"clientSecret\":\"{{clientSecret}}\",\"enabled\":true,\"issuerUrl\":\"{{issuer}}\",\"mobileOverrideEnabled\":false,\"mobileRedirectUri\":\"\",\"profileSigningAlgorithm\":\"none\",\"roleClaim\":\"immich_role\",\"scope\":\"openid email profile\",\"signingAlgorithm\":\"RS256\",\"tokenEndpointAuthMethod\":\"client_secret_post\"}}",
+                "target": "/etc/stackkit/immich.json"
+              },
+              "environment": {
+                "IMMICH_CONFIG_FILE": "/etc/stackkit/immich.json"
+              }
+            },
             "resources": {
               "memoryLimit": "3g",
               "memoryReservation": "512m"
@@ -23811,7 +24998,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:5eb57d279f18736169bef048d15a7328162848d3ab2750452f2d057637d0fe17",
+          "contractHash": "sha256:a95e4ce488d83f6dca0e914f49a8e9f318b0da3d08002b47affe55580825ede5",
           "id": "immich-server",
           "inputBindings": [
             {
@@ -23871,7 +25058,7 @@
             }
           ],
           "templateRef": "builtin://workloads/immich-lite/bundle/v2.json",
-          "version": "3.1.0"
+          "version": "3.2.0"
         },
         {
           "applyMode": "artifact-only",
@@ -23907,7 +25094,7 @@
           "artifactRefs": [
             "immich-lite-workload-bundle"
           ],
-          "contractHash": "sha256:5eb57d279f18736169bef048d15a7328162848d3ab2750452f2d057637d0fe17",
+          "contractHash": "sha256:a95e4ce488d83f6dca0e914f49a8e9f318b0da3d08002b47affe55580825ede5",
           "id": "compose",
           "planInputRefs": [],
           "publicInputRefs": [
@@ -23926,7 +25113,7 @@
           "artifactRefs": [
             "immich-lite-workload-bundle"
           ],
-          "contractHash": "sha256:5eb57d279f18736169bef048d15a7328162848d3ab2750452f2d057637d0fe17",
+          "contractHash": "sha256:a95e4ce488d83f6dca0e914f49a8e9f318b0da3d08002b47affe55580825ede5",
           "id": "opentofu",
           "planInputRefs": [],
           "publicInputRefs": [
@@ -23986,6 +25173,12 @@
               "path": "/api/server/ping",
               "port": 2283
             },
+            "homeIdentityAccess": {
+              "caBundleEnvironment": [
+                "NODE_EXTRA_CA_CERTS"
+              ],
+              "caBundleTarget": "/etc/stackkit/ca-bundle.pem"
+            },
             "id": "immich-server",
             "image": {
               "digest": "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1",
@@ -23995,6 +25188,20 @@
             "networkRefs": [
               "immich-internal"
             ],
+            "pocketIDClient": {
+              "callbackURLs": [
+                "{{origin}}/auth/login",
+                "{{origin}}/user-settings",
+                "app.immich:///oauth-callback"
+              ],
+              "configuration": {
+                "body": "{\"oauth\":{\"autoLaunch\":true,\"autoRegister\":true,\"buttonText\":\"Continue with Pocket ID\",\"clientId\":\"{{clientId}}\",\"clientSecret\":\"{{clientSecret}}\",\"enabled\":true,\"issuerUrl\":\"{{issuer}}\",\"mobileOverrideEnabled\":false,\"mobileRedirectUri\":\"\",\"profileSigningAlgorithm\":\"none\",\"roleClaim\":\"immich_role\",\"scope\":\"openid email profile\",\"signingAlgorithm\":\"RS256\",\"tokenEndpointAuthMethod\":\"client_secret_post\"}}",
+                "target": "/etc/stackkit/immich.json"
+              },
+              "environment": {
+                "IMMICH_CONFIG_FILE": "/etc/stackkit/immich.json"
+              }
+            },
             "resources": {
               "memoryLimit": "3g",
               "memoryReservation": "512m"
@@ -25511,7 +26718,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:9355fcb2ec38ca6805efa7eaec56029d40fc63338ff4dc3a530c650b43b52e7e",
+          "contractHash": "sha256:44226a82f065830cdc96c5d73667432429b8ba8f65ff0d71e692e32cc8b40cee",
           "id": "vaultwarden",
           "inputBindings": [
             {
@@ -25677,6 +26884,12 @@
               "path": "/alive",
               "port": 80
             },
+            "homeIdentityAccess": {
+              "caBundleEnvironment": [
+                "SSL_CERT_FILE"
+              ],
+              "caBundleTarget": "/etc/stackkit/ca-bundle.pem"
+            },
             "id": "vaultwarden",
             "image": {
               "digest": "sha256:094b5689ed81549bd293418395c7cf495ae9d960fc2d4928cef2083ef913d912",
@@ -25686,6 +26899,24 @@
             "networkRefs": [
               "vaultwarden-internal"
             ],
+            "pocketIDClient": {
+              "callbackURLs": [
+                "{{origin}}/identity/connect/oidc-signin"
+              ],
+              "environment": {
+                "DOMAIN": "{{origin}}",
+                "SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION": "false",
+                "SSO_AUTHORITY": "{{issuer}}",
+                "SSO_AUTH_ONLY_NOT_SESSION": "true",
+                "SSO_CLIENT_ID": "{{clientId}}",
+                "SSO_CLIENT_SECRET": "{{clientSecret}}",
+                "SSO_ENABLED": "true",
+                "SSO_ONLY": "false",
+                "SSO_PKCE": "true",
+                "SSO_SCOPES": "email profile",
+                "SSO_SIGNUPS_MATCH_EMAIL": "true"
+              }
+            },
             "resources": {
               "memoryLimit": "512m",
               "memoryReservation": "64m"
@@ -25721,6 +26952,49 @@
       ]
     },
     {
+      "acceleratorProfiles": {
+        "amd": {
+          "accelerator": {
+            "access": "rocm-device-nodes",
+            "images": {
+              "ollama": {
+                "digest": "sha256:36a99c0aaa4d28d0fc84969124bcf2f3d1ba8ab89181e2bd33bbc12f6ac2c4ce",
+                "ref": "docker.io/ollama/ollama:0.34.0-rocm"
+              }
+            },
+            "vendor": "amd"
+          },
+          "components": [
+            "ollama"
+          ],
+          "description": "Ollama inference on AMD GPUs with ROCm through /dev/kfd and /dev/dri, using the Ollama ROCm image (amd64 only). Needs a ROCm-capable card with the amdgpu kernel driver. Open WebUI stays on the CPU.",
+          "maturity": "experimental",
+          "realization": "apply-ready",
+          "reservation": {
+            "cpuCores": 1,
+            "ramGB": 1,
+            "storageGB": 6
+          }
+        },
+        "nvidia": {
+          "accelerator": {
+            "access": "cdi",
+            "minDriverMajor": 550,
+            "vendor": "nvidia"
+          },
+          "components": [
+            "ollama"
+          ],
+          "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. Open WebUI stays on the CPU.",
+          "maturity": "experimental",
+          "realization": "apply-ready",
+          "reservation": {
+            "cpuCores": 1,
+            "ramGB": 1,
+            "storageGB": 1
+          }
+        }
+      },
       "computeProfiles": {
         "high": {
           "components": [
@@ -25876,7 +27150,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:a8e2e18dfbc0f0d17e11d6ac959c9313a501370c37f1d9f8ff2ea63f3e4c64bf",
+          "contractHash": "sha256:3480951e70e98341a0f03a30d1c30da35b5768417c2b055a8fcff5cebe6e5159",
           "id": "private-ai",
           "inputBindings": [
             {
@@ -25886,6 +27160,14 @@
               "sourceRef": "network.moduleRoute",
               "targetRef": "delivery-route",
               "valueType": "authority-bound-module-route-v1"
+            },
+            {
+              "cardinality": "list",
+              "defaultValue": [],
+              "required": false,
+              "sourceRef": "workloads.companions",
+              "targetRef": "companions",
+              "valueType": "workload-companion-list-v1"
             }
           ],
           "kind": "native-config",
@@ -25899,7 +27181,8 @@
           "planInputRefs": [],
           "providesInterfaces": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "companions"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -25977,7 +27260,8 @@
           "id": "compose",
           "planInputRefs": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "companions"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -25997,7 +27281,8 @@
           "id": "opentofu",
           "planInputRefs": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "companions"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -26018,7 +27303,8 @@
           "id": "terramate",
           "planInputRefs": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "companions"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -26037,6 +27323,48 @@
       "runtime": {
         "components": [
           {
+            "companionEnvironment": [
+              {
+                "alternativeRef": "docling",
+                "environment": {
+                  "CONTENT_EXTRACTION_ENGINE": "docling",
+                  "DOCLING_SERVER_URL": "http://docling:5001"
+                },
+                "workloadRef": "ai-documents"
+              },
+              {
+                "alternativeRef": "tika",
+                "environment": {
+                  "CONTENT_EXTRACTION_ENGINE": "tika",
+                  "TIKA_SERVER_URL": "http://tika:9998",
+                  "TIKA_SERVER_VERSION": "4"
+                },
+                "workloadRef": "ai-documents"
+              },
+              {
+                "alternativeRef": "searxng",
+                "environment": {
+                  "ENABLE_WEB_SEARCH": "true",
+                  "SEARXNG_QUERY_URL": "http://searxng:8080/search",
+                  "WEB_SEARCH_ENGINE": "searxng"
+                },
+                "workloadRef": "ai-search"
+              },
+              {
+                "alternativeRef": "comfyui",
+                "environment": {
+                  "COMFYUI_BASE_URL": "http://comfyui:8188",
+                  "COMFYUI_WORKFLOW": "{\"3\":{\"class_type\":\"KSampler\",\"inputs\":{\"cfg\":1,\"denoise\":1,\"latent_image\":[\"5\",0],\"model\":[\"4\",0],\"negative\":[\"7\",0],\"positive\":[\"6\",0],\"sampler_name\":\"euler\",\"scheduler\":\"simple\",\"seed\":0,\"steps\":4}},\"4\":{\"class_type\":\"CheckpointLoaderSimple\",\"inputs\":{\"ckpt_name\":\"flux1-schnell-fp8.safetensors\"}},\"5\":{\"class_type\":\"EmptySD3LatentImage\",\"inputs\":{\"batch_size\":1,\"height\":1024,\"width\":1024}},\"6\":{\"class_type\":\"CLIPTextEncode\",\"inputs\":{\"clip\":[\"4\",1],\"text\":\"\"}},\"7\":{\"class_type\":\"CLIPTextEncode\",\"inputs\":{\"clip\":[\"4\",1],\"text\":\"\"}},\"8\":{\"class_type\":\"VAEDecode\",\"inputs\":{\"samples\":[\"3\",0],\"vae\":[\"4\",2]}},\"9\":{\"class_type\":\"SaveImage\",\"inputs\":{\"filename_prefix\":\"open-webui/image\",\"images\":[\"8\",0]}}}",
+                  "COMFYUI_WORKFLOW_NODES": "[{\"type\":\"model\",\"key\":\"ckpt_name\",\"node_ids\":[\"4\"]},{\"type\":\"prompt\",\"key\":\"text\",\"node_ids\":[\"6\"]},{\"type\":\"width\",\"key\":\"width\",\"node_ids\":[\"5\"]},{\"type\":\"height\",\"key\":\"height\",\"node_ids\":[\"5\"]},{\"type\":\"n\",\"key\":\"batch_size\",\"node_ids\":[\"5\"]},{\"type\":\"steps\",\"key\":\"steps\",\"node_ids\":[\"3\"]},{\"type\":\"seed\",\"key\":\"seed\",\"node_ids\":[\"3\"]}]",
+                  "ENABLE_IMAGE_GENERATION": "true",
+                  "IMAGE_GENERATION_ENGINE": "comfyui",
+                  "IMAGE_GENERATION_MODEL": "flux1-schnell-fp8.safetensors",
+                  "IMAGE_SIZE": "1024x1024",
+                  "IMAGE_STEPS": "4"
+                },
+                "workloadRef": "ai-image-video"
+              }
+            ],
             "dependsOn": [
               "ollama"
             ],
@@ -26129,6 +27457,1409 @@
         "image": {
           "digest": "sha256:41daa0cf2561a5d4c8d1ff31ee2a98d93ab4d3ac2605cac69366ff6a3374a933",
           "ref": "ghcr.io/open-webui/open-webui:v0.11.3"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "acceleratorProfiles": {
+        "nvidia": {
+          "accelerator": {
+            "access": "cdi",
+            "minDriverMajor": 580,
+            "minVramGiB": 8,
+            "vendor": "nvidia"
+          },
+          "components": [
+            "comfyui"
+          ],
+          "description": "ComfyUI on NVIDIA GPUs through the Container Device Interface (all GPUs of the node), with at least 8 GiB of VRAM (Turing or newer). Needs the NVIDIA driver 580 or newer for the CUDA 13.0 image, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers.",
+          "maturity": "experimental",
+          "realization": "apply-ready",
+          "reservation": {
+            "cpuCores": 1,
+            "ramGB": 2,
+            "storageGB": 1
+          }
+        }
+      },
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "comfyui"
+          ],
+          "description": "ComfyUI image and video generation on a GPU with owner-downloaded models. RAM holds the models the GPU offloads; video needs more RAM than images. No model is downloaded at install.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 4,
+            "minRamGB": 24,
+            "minStorageGB": 80
+          },
+          "maturity": "experimental",
+          "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 8,
+            "ramGB": 32,
+            "storageGB": 150
+          },
+          "reservation": {
+            "ramGB": 2
+          }
+        },
+        "standard": {
+          "components": [
+            "comfyui"
+          ],
+          "description": "ComfyUI image and video generation on a GPU with owner-downloaded models. RAM holds the models the GPU offloads; video needs more RAM than images. No model is downloaded at install.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 4,
+            "minRamGB": 24,
+            "minStorageGB": 80
+          },
+          "maturity": "experimental",
+          "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 8,
+            "ramGB": 32,
+            "storageGB": 150
+          },
+          "reservation": {
+            "ramGB": 2
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "comfyui-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "comfyui-http",
+          "kind": "http",
+          "path": "/system_stats",
+          "phase": "continuous",
+          "port": 8188,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "ComfyUI image and video generation on the node's NVIDIA GPU with reviewed workflow templates. It never loads ComfyUI-Manager, custom nodes or paid API nodes, holds no model until the owner downloads a preset, and is reached only on a private route behind the kit's login and by Open WebUI.",
+        "id": "stackkits-comfyui-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-comfyui",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "comfyui-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/comfyui/bundle.json",
+              "required": true,
+              "unitRef": "comfyui"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "comfyui-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/comfyui/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "comfyui-workload-bundle",
+              "outputRef": "workloads/comfyui/bundle.json",
+              "unitRef": "comfyui"
+            },
+            {
+              "artifactRef": "comfyui-terramate-stack",
+              "outputRef": "platform/applications/comfyui/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "comfyui-workload-bundle",
+            "comfyui-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "comfyui-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:ee2b5f0f8ecc6c2f2cda5947667987b44455e132bafaf2c9da8e3e681a8ed129",
+          "id": "comfyui",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/comfyui/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "ai-image-video",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "comfyui-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "ai-image-video",
+              "targetPort": 8188,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/comfyui/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/comfyui/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "comfyui-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "comfyui"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "comfyui-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "comfyui"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "comfyui-workload-bundle",
+            "comfyui-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "terramate",
+          "unitRefs": [
+            "comfyui",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "command": [
+              "python",
+              "main.py",
+              "--listen",
+              "0.0.0.0",
+              "--port",
+              "8188",
+              "--disable-all-custom-nodes",
+              "--disable-api-nodes"
+            ],
+            "dependsOn": [],
+            "egress": true,
+            "health": {
+              "kind": "http",
+              "path": "/system_stats",
+              "port": 8188
+            },
+            "id": "comfyui",
+            "image": {
+              "digest": "sha256:5cc4f79f21e61b9da46e94286c29ef8185520117452027a6f5574cf6125c0ff8",
+              "ref": "ghcr.io/saladtechnologies/comfyui-api:comfy0.35.0-torch2.13.0-cuda13.0-runtime"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "comfyui-internal"
+            ],
+            "peerNetworks": [
+              {
+                "networkRef": "private-ai-internal",
+                "workloadRef": "ai"
+              }
+            ],
+            "resources": {
+              "memoryLimit": "28g",
+              "memoryReservation": "2g"
+            },
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "user",
+                "target": "/opt/ComfyUI/user"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "input",
+                "target": "/opt/ComfyUI/input"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "output",
+                "target": "/opt/ComfyUI/output"
+              },
+              {
+                "backup": false,
+                "class": "persistent",
+                "id": "models",
+                "target": "/opt/ComfyUI/models"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "comfyui",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:5cc4f79f21e61b9da46e94286c29ef8185520117452027a6f5574cf6125c0ff8",
+          "ref": "ghcr.io/saladtechnologies/comfyui-api:comfy0.35.0-torch2.13.0-cuda13.0-runtime"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "searxng"
+          ],
+          "description": "Private SearXNG meta search for Open WebUI web search. It queries public search engines on the owner's behalf and keeps no search history; there is no route of its own.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.125
+          }
+        },
+        "standard": {
+          "components": [
+            "searxng"
+          ],
+          "description": "Private SearXNG meta search for Open WebUI web search. It queries public search engines on the owner's behalf and keeps no search history; there is no route of its own.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.125
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "searxng-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "searxng-http",
+          "kind": "http",
+          "path": "/healthz",
+          "phase": "continuous",
+          "port": 8080,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Private SearXNG meta search for Open WebUI web search on the node's private AI network. JSON results are enabled for Open WebUI; the limiter stays off because only Open WebUI reaches it and it has no route.",
+        "id": "stackkits-searxng-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-searxng",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "searxng-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/searxng/bundle.json",
+              "required": true,
+              "unitRef": "searxng"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "searxng-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/searxng/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "searxng-workload-bundle",
+              "outputRef": "workloads/searxng/bundle.json",
+              "unitRef": "searxng"
+            },
+            {
+              "artifactRef": "searxng-terramate-stack",
+              "outputRef": "platform/applications/searxng/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "searxng-workload-bundle",
+            "searxng-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "searxng-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "searxng-secret"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:01fa446a7349ea63d30c58a765c9a94e913a55d0e04a13d52ee8f5fb6e01b89d",
+          "id": "searxng",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/searxng/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "searxng-secret"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "healthRef": "searxng-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "ai-search",
+              "targetPort": 8080,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/searxng/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/searxng/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "searxng-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "searxng-secret"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "searxng"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "searxng-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "searxng-secret"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "searxng"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "searxng-workload-bundle",
+            "searxng-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "searxng-secret"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "searxng",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "egress": true,
+            "entrypoint": [
+              "/bin/sh",
+              "-ec",
+              "printf 'use_default_settings: true\\nsearch:\\n  formats:\\n    - html\\n    - json\\n' \u003e /etc/searxng/settings.yml \u0026\u0026 exec /usr/local/searxng/entrypoint.sh"
+            ],
+            "environment": {
+              "SEARXNG_LIMITER": "false",
+              "SEARXNG_PUBLIC_INSTANCE": "false"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/healthz",
+              "port": 8080
+            },
+            "id": "searxng",
+            "image": {
+              "digest": "sha256:5286edb35782454ab8a102c5eff6b54bff745853191b46aeead95f225aa6dfb6",
+              "ref": "docker.io/searxng/searxng:2026.9.25-12f8b6515"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "searxng-internal"
+            ],
+            "peerNetworks": [
+              {
+                "networkRef": "private-ai-internal",
+                "workloadRef": "ai"
+              }
+            ],
+            "resources": {
+              "memoryLimit": "512m",
+              "memoryReservation": "128m"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "SEARXNG_SECRET": "searxng-secret"
+            }
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "searxng",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:5286edb35782454ab8a102c5eff6b54bff745853191b46aeead95f225aa6dfb6",
+          "ref": "docker.io/searxng/searxng:2026.9.25-12f8b6515"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "tika"
+          ],
+          "description": "Apache Tika text extraction for Open WebUI documents. The minimal image has no OCR, so scanned pages yield no text; Docling is the alternative for them.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        },
+        "standard": {
+          "components": [
+            "tika"
+          ],
+          "description": "Apache Tika text extraction for Open WebUI documents. The minimal image has no OCR, so scanned pages yield no text; Docling is the alternative for them.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "tika-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "tika-http",
+          "kind": "http",
+          "path": "/tika",
+          "phase": "continuous",
+          "port": 9998,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Apache Tika server (minimal image, no OCR) that extracts text from PDFs and office files for Open WebUI on the node's private AI network.",
+        "id": "stackkits-tika-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-tika",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "tika-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/tika/bundle.json",
+              "required": true,
+              "unitRef": "tika"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "tika-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/tika/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "tika-workload-bundle",
+              "outputRef": "workloads/tika/bundle.json",
+              "unitRef": "tika"
+            },
+            {
+              "artifactRef": "tika-terramate-stack",
+              "outputRef": "platform/applications/tika/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "tika-workload-bundle",
+            "tika-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "tika-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:f38ee59d1693016608198af8534946b241887ec1c8cef19ca6faed7ecf291260",
+          "id": "tika",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/tika/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "healthRef": "tika-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "ai-documents",
+              "targetPort": 9998,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/tika/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/tika/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "tika-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "tika"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "tika-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "tika"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "tika-workload-bundle",
+            "tika-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "terramate",
+          "unitRefs": [
+            "tika",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "http",
+              "path": "/tika",
+              "port": 9998
+            },
+            "id": "tika",
+            "image": {
+              "digest": "sha256:a8b442501f601fb15015de974f9afe13dd242b0f14e49a2b144fadcb214a555b",
+              "ref": "docker.io/apache/tika:4.0.0-1"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "tika-internal"
+            ],
+            "peerNetworks": [
+              {
+                "networkRef": "private-ai-internal",
+                "workloadRef": "ai"
+              }
+            ],
+            "resources": {
+              "memoryLimit": "2g",
+              "memoryReservation": "512m"
+            },
+            "role": "application"
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "tika",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:a8b442501f601fb15015de974f9afe13dd242b0f14e49a2b144fadcb214a555b",
+          "ref": "docker.io/apache/tika:4.0.0-1"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "docling"
+          ],
+          "description": "Docling document conversion with layout, table and OCR models on the CPU for Open WebUI documents. Large scanned documents take minutes on a CPU; GPU acceleration is not enabled by this profile.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 4,
+            "minRamGB": 8,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 1
+          }
+        },
+        "standard": {
+          "components": [
+            "docling"
+          ],
+          "description": "Docling document conversion with layout, table and OCR models on the CPU for Open WebUI documents. Large scanned documents take minutes on a CPU; GPU acceleration is not enabled by this profile.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 4,
+            "minRamGB": 8,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 1
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "docling-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "docling-http",
+          "kind": "http",
+          "path": "/health",
+          "phase": "continuous",
+          "port": 5001,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Docling Serve (CPU image with its layout, table and OCR models built in) that converts scanned and complex-layout documents for Open WebUI on the node's private AI network.",
+        "id": "stackkits-docling-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-docling",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "docling-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/docling/bundle.json",
+              "required": true,
+              "unitRef": "docling"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "docling-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/docling/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "docling-workload-bundle",
+              "outputRef": "workloads/docling/bundle.json",
+              "unitRef": "docling"
+            },
+            {
+              "artifactRef": "docling-terramate-stack",
+              "outputRef": "platform/applications/docling/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "docling-workload-bundle",
+            "docling-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "docling-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:e1a5d72a2922ab1273d33bef31195721a2bd2c5e1311f376496ee4dd6d1c9d7f",
+          "id": "docling",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/docling/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "healthRef": "docling-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "ai-documents",
+              "targetPort": 5001,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/docling/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/docling/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "docling-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "docling"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "docling-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "docling"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "docling-workload-bundle",
+            "docling-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "terramate",
+          "unitRefs": [
+            "docling",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "environment": {
+              "DOCLING_SERVE_ENABLE_UI": "false",
+              "DOCLING_SERVE_MAX_SYNC_WAIT": "600",
+              "HF_HUB_OFFLINE": "1"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/health",
+              "port": 5001
+            },
+            "id": "docling",
+            "image": {
+              "digest": "sha256:79e5fcd19ab227ed36323fa5fa31820d14d53efc4f073417ba37be7931c7af0a",
+              "ref": "quay.io/docling-project/docling-serve-cpu:v1.35.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "docling-internal"
+            ],
+            "peerNetworks": [
+              {
+                "networkRef": "private-ai-internal",
+                "workloadRef": "ai"
+              }
+            ],
+            "resources": {
+              "memoryLimit": "6g",
+              "memoryReservation": "1g"
+            },
+            "role": "application"
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "docling",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:79e5fcd19ab227ed36323fa5fa31820d14d53efc4f073417ba37be7931c7af0a",
+          "ref": "quay.io/docling-project/docling-serve-cpu:v1.35.0"
         },
         "kind": "container"
       },
@@ -32386,7 +35117,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:6d8bd298e33bffb6249a589cb7a845c513e0e0578bd186bb4c01bee0f00fc393",
+          "contractHash": "sha256:9ae6436e4d6f64059b0686caa405d9379f776c0fe744c3793e24417a5334ccbb",
           "id": "jellyfin",
           "inputBindings": [
             {
@@ -32552,15 +35283,35 @@
               "path": "/health",
               "port": 8096
             },
+            "homeIdentityAccess": {
+              "caBundleEnvironment": [
+                "SSL_CERT_FILE"
+              ],
+              "caBundleTarget": "/etc/stackkit/ca-bundle.pem"
+            },
             "id": "jellyfin",
             "image": {
-              "digest": "sha256:7ae36aab93ef9b6aaff02b37f8bb23df84bb2d7a3f6054ec8fc466072a648ce2",
-              "ref": "docker.io/jellyfin/jellyfin:10.10.7"
+              "digest": "sha256:78d3ea1207d1322471fcac39a614f004f2ccf7e878f95ab2977d752f07e4dd7e",
+              "ref": "docker.io/jellyfin/jellyfin:12.1"
+            },
+            "jellyfinSSOPlugin": {
+              "sha256": "sha256:db126b4763bda3a3754fa2103232fc03ef1bf929cfeda35f2e9af39c875233b1",
+              "sourceURL": "https://github.com/K0lin/jellyfin-plugin-sso/releases/download/v5.1.1/sso-authentication_5.1.1.zip",
+              "version": "5.1.1"
             },
             "lifecycle": "daemon",
             "networkRefs": [
               "jellyfin-internal"
             ],
+            "pocketIDClient": {
+              "callbackURLs": [
+                "{{origin}}/sso/OID/redirect/pocketid",
+                "{{origin}}/sso/OID/r/pocketid"
+              ],
+              "environment": {
+                "JELLYFIN_PublishedServerUrl": "{{origin}}"
+              }
+            },
             "resources": {
               "memoryLimit": "2g",
               "memoryReservation": "512m"
@@ -32594,8 +35345,8 @@
         "entryComponentRef": "jellyfin",
         "execution": "executable",
         "image": {
-          "digest": "sha256:7ae36aab93ef9b6aaff02b37f8bb23df84bb2d7a3f6054ec8fc466072a648ce2",
-          "ref": "docker.io/jellyfin/jellyfin:10.10.7"
+          "digest": "sha256:78d3ea1207d1322471fcac39a614f004f2ccf7e878f95ab2977d752f07e4dd7e",
+          "ref": "docker.io/jellyfin/jellyfin:12.1"
         },
         "kind": "container"
       },
@@ -32764,7 +35515,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:0c8716ed5f3b19245b14bc5304282edcbaef30f47c4bef6c65100b0070d37f77",
+          "contractHash": "sha256:efe2146a150b11a0d77514036e60022c2830d63975ed0edd27029a52d8447710",
           "id": "home-assistant",
           "inputBindings": [
             {
@@ -32923,6 +35674,20 @@
               "path": "/",
               "port": 8123
             },
+            "homeAssistantOIDC": {
+              "aiofilesSHA256": "sha256:abe311e527c862958650f9438e859c1fa7568a141b22abcd015e120e86a85695",
+              "joserfcSHA256": "sha256:17e5d7a5a35e65442b05efc435a3d5d46696ffa2c8a2ed0eea6f63fc268e3224",
+              "patch": "stackkit-owner-binding-v1",
+              "patchSHA256": "sha256:052c4e0b85b962a5fad74e395f250f4d5cf9eff63fa5be68fc1c4494535d1a8a",
+              "sha256": "sha256:e5badaaacaa63cfd6fe733924a05e76d75058836190398598fb24de57cd47ccd",
+              "version": "1.2.1"
+            },
+            "homeIdentityAccess": {
+              "caBundleEnvironment": [
+                "SSL_CERT_FILE"
+              ],
+              "caBundleTarget": "/etc/stackkit/ca-bundle.pem"
+            },
             "id": "home-assistant",
             "image": {
               "digest": "sha256:1476924357b46e80735c13e94232ba5c853cac052e9df4bb28d50fa56348097b",
@@ -32932,6 +35697,15 @@
             "networkRefs": [
               "home-assistant-internal"
             ],
+            "pocketIDClient": {
+              "callbackPath": "/auth/oidc/callback",
+              "configuration": {
+                "body": "client_id: \"{{clientId}}\"\ndiscovery_url: \"{{issuer}}/.well-known/openid-configuration\"\nroles:\n  admin: admins\n  user: household\nclaims:\n  username: sub\n  groups: groups\nfeatures:\n  automatic_user_linking: false\n  force_https: true\n  default_redirect: false\nnetwork:\n  tls_verify: true\n  tls_ca_path: /etc/stackkit/ca-bundle.pem",
+                "target": "/config/stackkit-oidc.yaml"
+              },
+              "environment": {},
+              "publicClient": true
+            },
             "resources": {
               "memoryLimit": "2g",
               "memoryReservation": "512m"
@@ -38702,6 +41476,174 @@
     {
       "certificateIssuers": [],
       "evidence": [
+        "comfyui-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-comfyui",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-comfyui-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "ai-image-video"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "searxng-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-searxng",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-searxng-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "ai-search"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "tika-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-tika",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-tika-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "ai-documents"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "docling-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-docling",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-docling-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "ai-documents"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
         "gitea-selected-paas-runtime-contract"
       ],
       "metadata": {
@@ -42470,6 +45412,9 @@
               "allocations": [
                 {
                   "backup": true,
+                  "cacheSubpaths": [
+                    "cache"
+                  ],
                   "class": "persistent",
                   "componentRef": "open-webui",
                   "dataBindingRef": "ai",
@@ -42576,6 +45521,365 @@
         "description": "Private AI chat and local model serving selected independently from kit architecture capabilities.",
         "id": "ai",
         "version": "1.1.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "ai"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "comfyui",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "comfyui",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "user"
+                },
+                {
+                  "componentRef": "comfyui",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "input"
+                },
+                {
+                  "componentRef": "comfyui",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "output"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "ai-image-video",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "comfyui",
+                  "dataBindingRef": "ai-image-video",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/opt/ComfyUI/user",
+                  "volumeRef": "user"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "comfyui",
+                  "dataBindingRef": "ai-image-video",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/opt/ComfyUI/input",
+                  "volumeRef": "input"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "comfyui",
+                  "dataBindingRef": "ai-image-video",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/opt/ComfyUI/output",
+                  "volumeRef": "output"
+                },
+                {
+                  "backup": false,
+                  "class": "persistent",
+                  "componentRef": "comfyui",
+                  "dataBindingRef": "ai-image-video",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/opt/ComfyUI/models",
+                  "volumeRef": "models"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-comfyui-runtime",
+          "providerRef": "stackkits-comfyui",
+          "route": {
+            "healthRef": "comfyui-http",
+            "serviceRef": "ai-image-video"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [
+              "comfyui-model-download"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
+          }
+        }
+      ],
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "comfyui",
+      "functionalCapabilities": [
+        "image-generation",
+        "video-generation"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "ComfyUI image and video generation on the node's GPU with reviewed workflow templates, selected with the Private AI image-video module. ComfyUI has no sign-in of its own, so it is reached only on a private route behind the kit's login.",
+        "id": "ai-image-video",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "ai"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "searxng",
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "searxng-secret"
+              ],
+              "requiredRefs": [
+                "searxng-secret"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-searxng-runtime",
+          "providerRef": "stackkits-searxng",
+          "route": {
+            "healthRef": "searxng-http",
+            "serviceRef": "ai-search"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "dataClasses": [],
+      "defaultAlternative": "searxng",
+      "functionalCapabilities": [
+        "web-search"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Private SearXNG meta search that Open WebUI uses for web search, selected with the Private AI web-search module. It joins the node's private AI network and has no route of its own.",
+        "id": "ai-search",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "ai"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "tika",
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-tika-runtime",
+          "providerRef": "stackkits-tika",
+          "route": {
+            "healthRef": "tika-http",
+            "serviceRef": "ai-documents"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        },
+        {
+          "id": "docling",
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-docling-runtime",
+          "providerRef": "stackkits-docling",
+          "route": {
+            "healthRef": "docling-http",
+            "serviceRef": "ai-documents"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "dataClasses": [],
+      "defaultAlternative": "tika",
+      "functionalCapabilities": [
+        "document-parsing"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Document text extraction for Open WebUI through Apache Tika, or Docling for scanned and complex layouts, selected with the Private AI document-parsing module. It joins the node's private AI network and has no route of its own.",
+        "id": "ai-documents",
+        "version": "1.0.0"
       },
       "supportedSiteKinds": [
         "home",

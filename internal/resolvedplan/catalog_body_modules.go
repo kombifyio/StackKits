@@ -545,7 +545,8 @@ func validateResolvedModuleProfileBindings(module, contract map[string]any, path
 			return err
 		}
 		if !selected {
-			if _, declared := contract[axis.contractField]; declared && expectedSource == "catalog" {
+			// No accelerator profile is the CPU runtime; storage stays required.
+			if _, declared := contract[axis.contractField]; declared && expectedSource == "catalog" && axis.contractField != "acceleratorProfiles" {
 				return fmt.Errorf("%s omits the module's required %s binding", path, axis.idField)
 			}
 			if hasAxisHash || hasAxisBinding {

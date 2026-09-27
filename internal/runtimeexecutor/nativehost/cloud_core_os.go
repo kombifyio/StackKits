@@ -116,6 +116,24 @@ func (o *osCloudCoreOperations) prepareApply(definition []byte) (bool, error) {
 // recreation, readiness, PocketID owner realization, and the reconciling `up`
 // that binds TinyAuth to the owner.
 func (o *osCloudCoreOperations) completeApply(ctx context.Context, composePath string, project CloudCoreProject, recreateServer bool) (localevidence.OwnerRuntimeBinding, error) {
+	return o.completeApplyWithIdentity(ctx, composePath, project, recreateServer, "realization", o.ownerIdentity.Realize)
+}
+
+// completeRestoredApply retains the restored PocketID user, passkeys and
+// TinyAuth credential by verifying existing custody instead of realizing or
+// repairing identity resources during restore activation.
+func (o *osCloudCoreOperations) completeRestoredApply(ctx context.Context, composePath string, project CloudCoreProject, recreateServer bool) (localevidence.OwnerRuntimeBinding, error) {
+	return o.completeApplyWithIdentity(ctx, composePath, project, recreateServer, "verification", o.ownerIdentity.Verify)
+}
+
+func (o *osCloudCoreOperations) completeApplyWithIdentity(
+	ctx context.Context,
+	composePath string,
+	project CloudCoreProject,
+	recreateServer bool,
+	identityAction string,
+	completeIdentity func(context.Context) (localevidence.OwnerRuntimeBinding, error),
+) (localevidence.OwnerRuntimeBinding, error) {
 	if recreateServer {
 		if _, err := o.runner.Run(ctx, o.composeArgs(composePath, "recreate-server"), filepath.Dir(composePath), o.environment()); err != nil {
 			return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("recreate the Cloud core stackkit-server with its new release or token: %w", err)
@@ -127,13 +145,13 @@ func (o *osCloudCoreOperations) completeApply(ctx context.Context, composePath s
 	if err := o.waitUntilReady(ctx, composePath, project); err != nil {
 		return localevidence.OwnerRuntimeBinding{}, err
 	}
-	binding, err := o.ownerIdentity.Realize(ctx)
+	binding, err := completeIdentity(ctx)
 	if err != nil {
-		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("Cloud PocketID owner realization did not complete: %w", err)
+		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("Cloud PocketID owner %s did not complete: %w", identityAction, err)
 	}
-	// Owner realization registers TinyAuth's PocketID client and installs its
-	// secret as a private optional env override. Reconcile Compose once more so
-	// TinyAuth runs with that bound credential before Apply can succeed.
+	// Identity completion either realizes or verifies TinyAuth's PocketID client
+	// and its private env override. Reconcile Compose once more so TinyAuth runs
+	// with that bound credential before completion can succeed.
 	if _, err := o.runner.Run(ctx, o.composeArgs(composePath, "up"), filepath.Dir(composePath), o.environment()); err != nil {
 		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("Cloud TinyAuth PocketID binding did not complete: %w", err)
 	}

@@ -12,7 +12,9 @@ import (
 )
 
 const (
-	JellyfinPinnedVersion              = architecturev2renderer.JellyfinRelease
+	JellyfinPinnedVersion = architecturev2renderer.JellyfinRelease
+	// The image tag omits the patch component; Jellyfin reports three components.
+	JellyfinServerVersion              = JellyfinPinnedVersion + ".0"
 	jellyfinOwnerSessionCleanupTimeout = 5 * time.Second
 )
 
@@ -148,7 +150,7 @@ func BootstrapJellyfinOwner(
 			err,
 		)
 	}
-	if strings.TrimSpace(initialInfo.Version) != expectedVersion {
+	if strings.TrimSpace(initialInfo.Version) != JellyfinServerVersion {
 		return JellyfinOwnerResult{}, skerrors.NewDependencyError(
 			"jellyfin_server_version_mismatch",
 			"Jellyfin server version does not match the pinned Media workload",
@@ -164,7 +166,7 @@ func BootstrapJellyfinOwner(
 	}
 	if !*initialInfo.StartupWizardCompleted {
 		// Jellyfin initializes its first user in GET /Startup/User. The POST
-		// endpoint assumes that user already exists and returns 500 otherwise.
+		// endpoint assumes that user already exists.
 		// Never decode or use the credential-bearing initialization response.
 		if err := jellyfinJSONRequest(ctx, client, normalizedBaseURL, http.MethodGet, "/Startup/User", "", nil, nil); err != nil {
 			return JellyfinOwnerResult{}, jellyfinDependencyError(
@@ -174,7 +176,7 @@ func BootstrapJellyfinOwner(
 				err,
 			)
 		}
-		if err := jellyfinJSONRequest(ctx, client, normalizedBaseURL, http.MethodPost, "/Startup/User", "", jellyfinStartupUser{Name: username, Password: password}, nil); err != nil {
+		if err := jellyfinJSONRequest(ctx, client, normalizedBaseURL, http.MethodPost, "/Startup/User", "", jellyfinStartupUser{Name: username, Password: password}, nil); err != nil && jellyfinHTTPStatus(err) != http.StatusForbidden {
 			return JellyfinOwnerResult{}, jellyfinDependencyError(
 				"jellyfin_owner_prepare_failed",
 				"failed to prepare the explicit Jellyfin owner credentials",
@@ -182,16 +184,9 @@ func BootstrapJellyfinOwner(
 				err,
 			)
 		}
-		if request.CompleteOnboarding {
-			if err := jellyfinJSONRequest(ctx, client, normalizedBaseURL, http.MethodPost, "/Startup/Complete", "", nil, nil); err != nil {
-				return JellyfinOwnerResult{}, jellyfinDependencyError(
-					"jellyfin_startup_completion_failed",
-					"failed to complete the Jellyfin startup wizard",
-					"POST /Startup/Complete",
-					err,
-				)
-			}
-		}
+		// Jellyfin 12 refuses to replace an existing startup password (403).
+		// An interrupted setup can continue only after authenticating that
+		// password and reading back the administrator below.
 	}
 
 	var login jellyfinAuthenticationResult
@@ -250,6 +245,17 @@ func BootstrapJellyfinOwner(
 		)
 	}
 
+	if request.CompleteOnboarding && !*initialInfo.StartupWizardCompleted {
+		if err := jellyfinJSONRequest(ctx, client, normalizedBaseURL, http.MethodPost, "/Startup/Complete", token, nil, nil); err != nil {
+			return JellyfinOwnerResult{}, jellyfinDependencyError(
+				"jellyfin_startup_completion_failed",
+				"failed to complete the Jellyfin startup wizard",
+				"POST /Startup/Complete",
+				err,
+			)
+		}
+	}
+
 	var finalInfo jellyfinSystemInfo
 	if err := jellyfinJSONRequest(ctx, client, normalizedBaseURL, http.MethodGet, "/System/Info/Public", token, nil, &finalInfo); err != nil {
 		return JellyfinOwnerResult{}, jellyfinDependencyError(
@@ -259,7 +265,7 @@ func BootstrapJellyfinOwner(
 			err,
 		)
 	}
-	if strings.TrimSpace(finalInfo.Version) != expectedVersion {
+	if strings.TrimSpace(finalInfo.Version) != JellyfinServerVersion {
 		return JellyfinOwnerResult{}, skerrors.NewDependencyError(
 			"jellyfin_server_version_mismatch",
 			"Jellyfin server version changed during owner setup",

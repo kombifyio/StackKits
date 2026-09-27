@@ -70,6 +70,9 @@ type Requirements struct {
 	RecommendedRAMGB     int     `json:"recommendedRamGB"`
 	RecommendedStorageGB int     `json:"recommendedStorageGB"`
 	HeadroomFactor       float64 `json:"headroomFactor"`
+	// Accelerators are the selected accelerator profiles; empty for a CPU
+	// selection, which adds no GPU check.
+	Accelerators []AcceleratorRequirement `json:"accelerators,omitempty"`
 }
 
 // Declared reports whether the kit supplied a usable floor.
@@ -93,6 +96,9 @@ type DockerFacts struct {
 	Rootless             bool   `json:"rootless"`
 	RootDir              string `json:"rootDir,omitempty"`
 	Diagnostic           string `json:"diagnostic,omitempty"`
+	// CDIEnabled is true when the daemon reports CDI spec directories
+	// (Docker Engine 25+ with CDI on; the default from 28.2).
+	CDIEnabled bool `json:"cdiEnabled,omitempty"`
 }
 
 // MemoryFacts reports host memory in gibibytes. Available and Swap are read
@@ -146,6 +152,8 @@ type Facts struct {
 	Disks          []DiskFact                      `json:"disks,omitempty"`
 	Ports          []PortFact                      `json:"ports,omitempty"`
 	Baseline       *Baseline                       `json:"baseline,omitempty"`
+	// Accelerators are observed only when a selected profile needs a GPU.
+	Accelerators []hostconformance.AcceleratorFacts `json:"accelerators,omitempty"`
 }
 
 // Check is one performed admission check.

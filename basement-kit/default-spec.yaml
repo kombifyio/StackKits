@@ -15,7 +15,7 @@
 #   L3 Application - Vaultwarden, Immich, Files/Cloudreve
 #
 # Domain Access Modes:
-#   1. Local server (default): omit domain or use home -> enrolled-device HTTPS names
+#   1. Local server (default): omit domain or use lab.home -> enrolled-device HTTPS names
 #      - network.mode: local
 #      - enrollment installs scoped DNS and Owner-CA trust with OS approval
 #      - no router, DHCP, hosts-file, mDNS alias, or port suffix is required
@@ -38,7 +38,7 @@ name: my-homelab
 stackkit: basement-kit
 mode: bootstrapped
 context: local
-domain: home
+domain: lab.home
 email: admin
 
 bootstrap:
@@ -93,16 +93,16 @@ services:
 #
 #   Optional:
 #     context          - local | cloud | pi. Default shown here: local
-#     domain           - Access mode (see above). Default: home
+#     domain           - Access mode (see above). Default: lab.home
 #     email            - Admin email / ACME email for Let's Encrypt
 #
 # Local access rule:
-#   Default *.home names use the StackKit LAN resolver and Owner CA. Device
+#   Default *.lab.home names use the StackKit LAN resolver and Owner CA. Device
 #   enrollment installs their scoped resolver and trust configuration; the
 #   router and DHCP settings are never a user prerequisite.
 #
 # First login / access:
-#   1. Enroll this device, then open https://base.home -> Node Hub.
+#   1. Enroll this device, then open https://base.lab.home -> Node Hub.
 #      The local Node Hub is intentionally not behind PocketID/TinyAuth.
 #   2. Set up the PocketID Owner identity and passkey from the Node Hub.
 #   3. Click "Protect Base Hub" in the Node Hub so Base and the node-local API

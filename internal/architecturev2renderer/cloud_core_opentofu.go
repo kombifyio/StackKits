@@ -11,8 +11,8 @@ const (
 	cloudCoreOpenTofuOutputRef                = "platform/cloud-core/main.tf"
 	cloudStandaloneCoreOpenTofuTemplateRef    = "builtin://cloud/core-standalone/opentofu/v1.tf"
 	cloudStandaloneCoreOpenTofuOutputRef      = "platform/cloud-core-standalone/main.tf"
-	cloudCoreOpenTofuSchema                   = `stackkit.cloud-core-opentofu/v1|artifact-revision:2|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-cloud-core,local-provider-2.5.3|payload:` + cloudCoreComposeSchema
-	cloudStandaloneCoreOpenTofuSchema         = `stackkit.cloud-core-standalone-opentofu/v1|artifact-revision:2|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-cloud-core-standalone,local-provider-2.5.3|payload:` + cloudStandaloneCoreComposeSchema
+	cloudCoreOpenTofuSchema                   = `stackkit.cloud-core-opentofu/v1|artifact-revision:4|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-cloud-core,local-provider-2.5.3,opentofu-1.12|payload:` + cloudCoreComposeSchema
+	cloudStandaloneCoreOpenTofuSchema         = `stackkit.cloud-core-standalone-opentofu/v1|artifact-revision:4|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-cloud-core-standalone,local-provider-2.5.3,opentofu-1.12|payload:` + cloudStandaloneCoreComposeSchema
 	cloudCoreComposeProjectName               = "stackkit-cloud-core"
 	cloudStandaloneCoreComposeProjectName     = "stackkit-cloud-core-standalone"
 	cloudCoreOpenTofuResourcePrefix           = "cloud_core"
@@ -22,14 +22,14 @@ const (
 func CloudCoreOpenTofuRendererContract() RendererContract {
 	return RendererContract{
 		Kind: "opentofu", RendererRef: cloudCoreRendererRef, TemplateRef: cloudCoreOpenTofuTemplateRef,
-		Version: cloudCoreVersion, ContractHash: "sha256:" + sha256Bytes([]byte(cloudCoreOpenTofuSchema)),
+		Version: cloudCoreVersion, ContractHash: "sha256:" + sha256Bytes([]byte(cloudCoreOpenTofuSchema+tinyAuthRouteACLContractSalt)),
 	}
 }
 
 func CloudStandaloneCoreOpenTofuRendererContract() RendererContract {
 	return RendererContract{
 		Kind: "opentofu", RendererRef: cloudCoreRendererRef, TemplateRef: cloudStandaloneCoreOpenTofuTemplateRef,
-		Version: cloudStandaloneCoreVersion, ContractHash: "sha256:" + sha256Bytes([]byte(cloudStandaloneCoreOpenTofuSchema)),
+		Version: cloudStandaloneCoreVersion, ContractHash: "sha256:" + sha256Bytes([]byte(cloudStandaloneCoreOpenTofuSchema+tinyAuthRouteACLContractSalt)),
 	}
 }
 

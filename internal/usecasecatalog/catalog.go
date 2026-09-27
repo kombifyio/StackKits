@@ -78,6 +78,44 @@ type Setting struct {
 	// WorkloadRef names the Architecture v2 application workload a toggle
 	// selects in the StackSpec when it is on; such a setting installs.
 	WorkloadRef string `json:"workloadRef,omitempty"`
+	// AcceleratorProfileOf names the Architecture v2 module whose accelerator
+	// profile a non-default option selects; the default option selects none.
+	AcceleratorProfileOf string `json:"acceleratorProfileOf,omitempty"`
+}
+
+// CapabilityOption is one tool that can realize a capability module; the
+// projection of foundation.#UseCaseCapabilityOption. An installing option
+// names the Architecture v2 workload alternative that realizes it; a recorded
+// option is planned and refused by authoring.
+type CapabilityOption struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Note           string `json:"note,omitempty"`
+	Realization    string `json:"realization"`
+	WorkloadRef    string `json:"workloadRef,omitempty"`
+	AlternativeRef string `json:"alternativeRef,omitempty"`
+}
+
+// Capability is an independently selectable capability module of a use case;
+// the projection of foundation.#UseCaseCapabilityModule.
+type Capability struct {
+	ID                  string            `json:"id"`
+	Name                string            `json:"name"`
+	Help                string            `json:"help,omitempty"`
+	Required            bool              `json:"required"`
+	EnabledByDefault    bool              `json:"enabledByDefault"`
+	Requires            []string          `json:"requires"`
+	RequiresAccelerator bool              `json:"requiresAccelerator"`
+	Default             CapabilityOption  `json:"default"`
+	Alternative         *CapabilityOption `json:"alternative,omitempty"`
+}
+
+// Options returns the default and, when declared, the alternative.
+func (c Capability) Options() []CapabilityOption {
+	if c.Alternative == nil {
+		return []CapabilityOption{c.Default}
+	}
+	return []CapabilityOption{c.Default, *c.Alternative}
 }
 
 // MainUseCase is the owner-accepted main use case a catalog entry is grouped
@@ -105,16 +143,19 @@ type AuthoringWorkload struct {
 }
 
 type UseCase struct {
-	ID                 string                           `json:"id"`
-	Title              string                           `json:"title"`
-	Description        string                           `json:"description"`
-	Components         []Component                      `json:"components"`
-	MainUseCase        MainUseCase                      `json:"mainUseCase"`
-	ComputeTiers       map[string]UseCaseComputeTierFit `json:"computeTiers,omitempty"`
-	Settings           []Setting                        `json:"settings,omitempty"`
-	Docs               string                           `json:"docs,omitempty"`
-	DefaultAlternative string                           `json:"defaultAlternative,omitempty"`
-	Alternatives       []AuthoringAlternative           `json:"alternatives,omitempty"`
+	ID           string                           `json:"id"`
+	Title        string                           `json:"title"`
+	Description  string                           `json:"description"`
+	Components   []Component                      `json:"components"`
+	MainUseCase  MainUseCase                      `json:"mainUseCase"`
+	ComputeTiers map[string]UseCaseComputeTierFit `json:"computeTiers,omitempty"`
+	Settings     []Setting                        `json:"settings,omitempty"`
+	// Capabilities are the independently selectable capability modules of
+	// this use case (`stackkit init --use-case-capability`).
+	Capabilities       []Capability           `json:"capabilities,omitempty"`
+	Docs               string                 `json:"docs,omitempty"`
+	DefaultAlternative string                 `json:"defaultAlternative,omitempty"`
+	Alternatives       []AuthoringAlternative `json:"alternatives,omitempty"`
 	// AddOns are application workloads of this use case the owner selects in
 	// addition to the primary workload, each with its own module profiles.
 	AddOns []AuthoringWorkload `json:"addOns,omitempty"`
@@ -436,9 +477,10 @@ func loadSource(root string, release ReleaseIdentity) (sourceCatalog, error) {
 			NotApplicable map[string]struct {
 				Reason string `json:"reason"`
 			} `json:"notApplicable"`
-			Settings    []Setting   `json:"settings"`
-			Docs        string      `json:"docs"`
-			MainUseCase MainUseCase `json:"mainUseCase"`
+			Settings     []Setting    `json:"settings"`
+			Capabilities []Capability `json:"capabilities"`
+			Docs         string       `json:"docs"`
+			MainUseCase  MainUseCase  `json:"mainUseCase"`
 		} `json:"entries"`
 	}
 	if err := loadCUE(root, "foundation", "UseCaseCatalog", &registry); err != nil {
@@ -473,7 +515,7 @@ func loadSource(root string, release ReleaseIdentity) (sourceCatalog, error) {
 			}
 			seenSettings[setting.ID] = true
 		}
-		result.UseCases = append(result.UseCases, UseCase{ID: key, Title: entry.DisplayName, Description: entry.Description, Components: components, MainUseCase: entry.MainUseCase, Settings: settings, Docs: entry.Docs})
+		result.UseCases = append(result.UseCases, UseCase{ID: key, Title: entry.DisplayName, Description: entry.Description, Components: components, MainUseCase: entry.MainUseCase, Settings: settings, Capabilities: entry.Capabilities, Docs: entry.Docs})
 		if len(entry.NotApplicable) > 0 {
 			result.NotApplicable[key] = map[string]string{}
 			for gateID, exception := range entry.NotApplicable {
@@ -996,6 +1038,12 @@ func attachAuthoringVocabulary(source *sourceCatalog, workloads, modules []map[s
 		if err := validateSettingWorkloads(source.UseCases[index], workloads); err != nil {
 			return err
 		}
+		if err := validateSettingAcceleratorProfiles(source.UseCases[index], modules); err != nil {
+			return err
+		}
+		if err := validateCapabilityWorkloads(source.UseCases[index], workloads); err != nil {
+			return err
+		}
 	}
 	var kitCores []AuthoringWorkload
 	for _, workload := range workloads {
@@ -1174,6 +1222,78 @@ func validateSettingWorkloads(useCase UseCase, workloads []map[string]any) error
 		}
 		if !applications[setting.WorkloadRef] {
 			return fmt.Errorf("use case %s setting %s selects unknown application workload %s", useCase.ID, setting.ID, setting.WorkloadRef)
+		}
+	}
+	return nil
+}
+
+// validateSettingAcceleratorProfiles keeps an accelerator choice installable:
+// every non-default option must be an accelerator profile of the named module,
+// and the default option must not be one, because it selects no profile.
+func validateSettingAcceleratorProfiles(useCase UseCase, modules []map[string]any) error {
+	for _, setting := range useCase.Settings {
+		if setting.AcceleratorProfileOf == "" {
+			continue
+		}
+		var profiles map[string]any
+		for _, module := range modules {
+			if metadataID(module) == setting.AcceleratorProfileOf {
+				profiles, _ = module["acceleratorProfiles"].(map[string]any)
+			}
+		}
+		if len(profiles) == 0 {
+			return fmt.Errorf("use case %s setting %s selects accelerator profiles of %s, which declares none", useCase.ID, setting.ID, setting.AcceleratorProfileOf)
+		}
+		for _, option := range setting.Options {
+			_, declared := profiles[option.ID]
+			if isDefault := option.ID == setting.Default; isDefault == declared {
+				return fmt.Errorf("use case %s setting %s option %s must name an accelerator profile of %s unless it is the default", useCase.ID, setting.ID, option.ID, setting.AcceleratorProfileOf)
+			}
+		}
+	}
+	return nil
+}
+
+// validateCapabilityWorkloads closes installing capability options over the
+// Architecture v2 catalog: each names an application workload of the same use
+// case and one of its alternatives. The enabledByDefault composition must
+// resolve to the use case's own workload with its default alternative, so a
+// selection that names no capability keeps its exact StackSpec.
+func validateCapabilityWorkloads(useCase UseCase, workloads []map[string]any) error {
+	if len(useCase.Capabilities) == 0 {
+		return nil
+	}
+	byID := map[string]map[string]any{}
+	for _, workload := range workloads {
+		if stringField(workload, "kind") == "application" {
+			byID[metadataID(workload)] = workload
+		}
+	}
+	for _, capability := range useCase.Capabilities {
+		for _, option := range capability.Options() {
+			if option.Realization != "install" {
+				continue
+			}
+			workload := byID[option.WorkloadRef]
+			if workload == nil || stringField(workload, "useCaseRef") != useCase.ID {
+				return fmt.Errorf("use case %s capability %s option %s names %s, which is not an application workload of this use case", useCase.ID, capability.ID, option.ID, option.WorkloadRef)
+			}
+			admitted := false
+			alternatives, _ := workload["alternatives"].([]any)
+			for _, raw := range alternatives {
+				alternative, _ := raw.(map[string]any)
+				admitted = admitted || stringField(alternative, "id") == option.AlternativeRef
+			}
+			if !admitted {
+				return fmt.Errorf("use case %s capability %s option %s names alternative %s, which workload %s does not declare", useCase.ID, capability.ID, option.ID, option.AlternativeRef, option.WorkloadRef)
+			}
+		}
+		if !capability.EnabledByDefault {
+			continue
+		}
+		primary := byID[useCase.ID]
+		if capability.Default.Realization != "install" || primary == nil || capability.Default.WorkloadRef != useCase.ID || capability.Default.AlternativeRef != stringField(primary, "defaultAlternative") {
+			return fmt.Errorf("use case %s capability %s is enabled by default but its default does not install the use case's default workload alternative", useCase.ID, capability.ID)
 		}
 	}
 	return nil

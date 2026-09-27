@@ -10,6 +10,15 @@ This project is available under a **dual license**. You may choose to use this p
 The webmcp/ package remains Apache-2.0-only; its complete text is in
 [webmcp/LICENSE](webmcp/LICENSE).
 
+## Bundled third-party software
+
+Release archives and Debian packages also contain unmodified Terramate 0.17.1,
+OpenTofu 1.12.6, and the OpenTofu `hashicorp/local` provider 2.5.3. Each is
+licensed under MPL-2.0. Their source links, upstream notices and exact versions
+are recorded in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md); the complete
+license text is in [LICENSE-MPL-2.0](LICENSE-MPL-2.0). These components retain
+their own license and do not change the license choice for StackKits code.
+
 ## Summary
 
 | License | Commercial Use | Modification | Distribution | Patent Grant | Copyleft |

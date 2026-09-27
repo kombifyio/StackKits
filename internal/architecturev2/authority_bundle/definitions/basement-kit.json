@@ -112,7 +112,7 @@
       "generation": {
         "outputRoot": "deploy",
         "strategy": "kit-template",
-        "target": "compose"
+        "target": "opentofu"
       },
       "install": {
         "computeTier": "standard",
@@ -146,7 +146,7 @@
           ]
         },
         "domain": {
-          "base": "home"
+          "base": "lab.home"
         },
         "mode": "private",
         "tls": {
@@ -250,7 +250,8 @@
         "smart-home-zigbee",
         "photos-share",
         "photos-kiosk",
-        "photos-tools"
+        "photos-tools",
+        "ai-image-video"
       ]
     },
     "standaloneOwner": {
@@ -772,7 +773,7 @@
     "version": "5.1.0"
   },
   "network": {
-    "defaultDomain": "home",
+    "defaultDomain": "lab.home",
     "defaultTLSMode": "internal",
     "domainRequired": false,
     "mode": "private"
@@ -887,7 +888,10 @@
       "smart-home-zigbee",
       "photos-share",
       "photos-kiosk",
-      "photos-tools"
+      "photos-tools",
+      "ai-search",
+      "ai-documents",
+      "ai-image-video"
     ],
     "required": [
       "basement-core"

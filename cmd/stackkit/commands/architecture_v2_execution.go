@@ -430,6 +430,11 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 	}
 	options.inventoryData = append([]byte(nil), inventory...)
 	options.stackSpecData = append([]byte(nil), rawSpec...)
+	if mode == architectureV2Apply {
+		if err := refuseUnqualifiedAcceleratorHost(ctx, wd, rawSpec, options); err != nil {
+			return err
+		}
+	}
 	switch mode {
 	case architectureV2Generate:
 		printInfo("Resolving the current plan before generation.")
@@ -927,6 +932,13 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 			}
 			return err
 		}
+		openTofuState, stateErr := verifyArchitectureV2OpenTofuState(
+			verifyContext, wd, persisted, runtime, options.verifyOffline,
+		)
+		if stateErr != nil {
+			return stateErr
+		}
+		report.OpenTofuState = openTofuState
 		if options.verifySink != nil {
 			return options.verifySink(report)
 		}

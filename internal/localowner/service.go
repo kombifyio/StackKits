@@ -5,6 +5,7 @@ package localowner
 import (
 	"context"
 	"errors"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -35,7 +36,9 @@ type pocketIDOwnerClient interface {
 	GetUser(context.Context, string) (*pocketid.User, error)
 	DeleteUser(context.Context, string) error
 	UpdateUserGroups(context.Context, string, []string) (*pocketid.User, error)
+	ConfigureEmailVerificationSMTP(context.Context, pocketid.SMTPConfiguration) error
 	CreateOneTimeAccessToken(context.Context, string, time.Duration) (string, error)
+	RetireOneTimeAccessToken(context.Context, string) error
 	ListUserWebAuthnCredentials(context.Context, string) ([]pocketid.WebAuthnCredential, error)
 	GetOIDCClient(context.Context, string) (*pocketid.OIDCClient, error)
 	RegisterOIDCClient(context.Context, pocketid.RegisterClientRequest) (*pocketid.OIDCClient, error)
@@ -43,9 +46,48 @@ type pocketIDOwnerClient interface {
 	UpdateOIDCClientAllowedUserGroups(context.Context, string, []string) (*pocketid.OIDCClient, error)
 }
 
+// OwnerEmailVerification records only the current PocketID readback. Pending
+// means the owner must request and consume the mailed token in their own
+// authenticated PocketID session; administrator custody cannot perform that
+// confirmation on the owner's behalf.
+type OwnerEmailVerification struct {
+	Status string
+}
+
+// ConfigureOwnerEmailVerification configures authenticated SMTP delivery for
+// the exact bound owner and reports whether PocketID has observed a real email
+// confirmation. It deliberately works before passkey activation so automatic
+// application setup cannot prevent the owner from reaching activation.
+func (s *Service) ConfigureOwnerEmailVerification(ctx context.Context, email string, smtp pocketid.SMTPConfiguration) (OwnerEmailVerification, error) {
+	owner, client, err := s.ready(ctx)
+	if err != nil {
+		return OwnerEmailVerification{}, err
+	}
+	if strings.TrimSpace(email) != owner.PocketID.Email {
+		return OwnerEmailVerification{}, errors.New("localowner: email verification setup must target the bound owner email")
+	}
+	binding, err := s.Verify(ctx)
+	if err != nil || binding.OwnerRef != owner.OwnerRef {
+		return OwnerEmailVerification{}, errors.New("localowner: owner email verification requires the signed PocketID binding")
+	}
+	if err := client.ConfigureEmailVerificationSMTP(ctx, smtp); err != nil {
+		return OwnerEmailVerification{}, errors.New("localowner: PocketID SMTP configuration failed")
+	}
+	user, err := client.GetUser(ctx, binding.PocketIDSubject)
+	if err != nil || user == nil || user.ID != binding.PocketIDSubject || user.Email != owner.PocketID.Email {
+		return OwnerEmailVerification{}, errors.New("localowner: PocketID owner email verification readback failed")
+	}
+	status := "pending"
+	if user.EmailVerified {
+		status = "verified"
+	}
+	return OwnerEmailVerification{Status: status}, nil
+}
+
 type Service struct {
 	workspaceRoot string
 	client        pocketIDOwnerClient
+	domainRuntime domainRuntimeHandoffRuntime
 	now           func() time.Time
 }
 
@@ -86,13 +128,26 @@ func (s *Service) OwnerActivationStatus(ctx context.Context) (OwnerActivation, e
 		return OwnerActivation{}, errors.New("localowner: PocketID owner passkey readback failed")
 	}
 	activation := OwnerActivation{Origin: address.PocketIDOrigin()}
-	if len(credentials) > 0 {
+	active, migrated, err := s.passkeyActive(binding.PocketIDSubject, credentials)
+	if err != nil {
+		return OwnerActivation{}, err
+	}
+	if active {
 		activation.Status = "active"
 		return activation, nil
 	}
 	enrollment, err := localevidence.LoadPocketIDOwnerEnrollment(s.workspaceRoot)
+	if errors.Is(err, os.ErrNotExist) && migrated {
+		activation.Status = "reenrollment-required"
+		return activation, nil
+	}
 	if err != nil || enrollment.OwnerRef != owner.OwnerRef || enrollment.PocketIDSubject != binding.PocketIDSubject {
 		return OwnerActivation{}, errors.New("localowner: owner enrollment custody is unavailable")
+	}
+	parsed, parseErr := url.Parse(enrollment.SetupURL)
+	if migrated && (parseErr != nil || parsed.Scheme+"://"+parsed.Host != activation.Origin) {
+		activation.Status = "reenrollment-required"
+		return activation, nil
 	}
 	activation.ExpiresAt = enrollment.ExpiresAt
 	if enrollment.ExpiresAt.After(s.now().UTC()) {
@@ -103,8 +158,11 @@ func (s *Service) OwnerActivationStatus(ctx context.Context) (OwnerActivation, e
 	return activation, nil
 }
 
-// IssueOwnerActivation returns the current pending one-time URL, or replaces
-// an expired enrollment. It never mints another link for an active owner.
+// IssueOwnerActivation mints a fresh one-time URL for an owner who has not
+// registered a passkey and retires the previously issued link first, so an
+// owner who opened a link without finishing enrollment is never handed the
+// consumed code again and at most one activation link stays redeemable. It
+// never mints a link for an active owner.
 func (s *Service) IssueOwnerActivation(ctx context.Context) (OwnerActivation, error) {
 	status, err := s.OwnerActivationStatus(ctx)
 	if err != nil || status.Status == "active" {
@@ -118,13 +176,11 @@ func (s *Service) IssueOwnerActivation(ctx context.Context) (OwnerActivation, er
 	if err != nil || binding.OwnerRef != owner.OwnerRef {
 		return OwnerActivation{}, errors.New("localowner: owner activation binding is unavailable")
 	}
-	if status.Status == "pending" {
-		enrollment, loadErr := localevidence.LoadPocketIDOwnerEnrollment(s.workspaceRoot)
-		if loadErr != nil {
-			return OwnerActivation{}, loadErr
-		}
-		status.SetupURL = enrollment.SetupURL
-		return status, nil
+	if err := s.beginDomainReenrollment(ctx, client, binding.PocketIDSubject); err != nil {
+		return OwnerActivation{}, err
+	}
+	if err := retirePreviousOwnerActivation(ctx, s.workspaceRoot, client, binding.PocketIDSubject); err != nil {
+		return OwnerActivation{}, err
 	}
 	token, err := client.CreateOneTimeAccessToken(ctx, binding.PocketIDSubject, ownerEnrollmentTTL)
 	if err != nil || strings.TrimSpace(token) == "" {
@@ -132,7 +188,7 @@ func (s *Service) IssueOwnerActivation(ctx context.Context) (OwnerActivation, er
 	}
 	status.ExpiresAt = s.now().UTC().Add(ownerEnrollmentTTL).Truncate(time.Second)
 	status.SetupURL = pocketid.ActivationURL(status.Origin, token)
-	if _, err := localevidence.PersistPocketIDOwnerEnrollment(s.workspaceRoot, localevidence.PocketIDOwnerEnrollment{
+	if _, err := localevidence.ReplacePocketIDOwnerEnrollment(s.workspaceRoot, localevidence.PocketIDOwnerEnrollment{
 		OwnerRef: owner.OwnerRef, PocketIDSubject: binding.PocketIDSubject,
 		SetupURL: status.SetupURL, ExpiresAt: status.ExpiresAt,
 	}); err != nil {
@@ -140,6 +196,28 @@ func (s *Service) IssueOwnerActivation(ctx context.Context) (OwnerActivation, er
 	}
 	status.Status = "pending"
 	return status, nil
+}
+
+// retirePreviousOwnerActivation makes the recorded owner link unusable before
+// a replacement is minted. A missing record or a record for another subject
+// has no link of this owner to retire.
+func retirePreviousOwnerActivation(ctx context.Context, workspaceRoot string, client pocketIDOwnerClient, subject string) error {
+	previous, err := localevidence.LoadPocketIDOwnerEnrollment(workspaceRoot)
+	if err != nil || previous.PocketIDSubject != subject {
+		return nil
+	}
+	link, err := url.Parse(previous.SetupURL)
+	if err != nil {
+		return nil
+	}
+	token, ok := pocketid.ActivationToken(link)
+	if !ok {
+		return nil
+	}
+	if err := client.RetireOneTimeAccessToken(ctx, token); err != nil {
+		return errors.New("localowner: the previous owner activation link could not be retired; retry the activation")
+	}
+	return nil
 }
 
 func NewService(workspaceRoot string) (*Service, error) {
@@ -151,7 +229,7 @@ func NewService(workspaceRoot string) (*Service, error) {
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return nil, errors.New("localowner: workspace root must be an existing plain directory")
 	}
-	return &Service{workspaceRoot: filepath.Clean(absolute), now: time.Now}, nil
+	return &Service{workspaceRoot: filepath.Clean(absolute), domainRuntime: newDomainRuntimeHost(), now: time.Now}, nil
 }
 
 func newServiceForTest(workspaceRoot string, client pocketIDOwnerClient, now time.Time) *Service {
@@ -284,6 +362,9 @@ func (s *Service) Realize(ctx context.Context) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	if err := s.ensureConfiguredImmichUserClaims(ctx, client); err != nil {
+		return Result{}, err
+	}
 	return Result{Binding: binding, EnrollmentPath: enrollmentPath}, nil
 }
 
@@ -307,6 +388,9 @@ func (s *Service) realizeBoundOwner(
 	if err := s.ensureTinyAuthPocketIDBinding(ctx, client, owner, groupIDs); err != nil {
 		return Result{}, err
 	}
+	if err := s.ensureConfiguredImmichUserClaims(ctx, client); err != nil {
+		return Result{}, err
+	}
 	return Result{
 		Binding:        binding,
 		EnrollmentPath: filepath.Join(s.workspaceRoot, filepath.FromSlash(ownerEnrollmentRelPath)),
@@ -317,6 +401,12 @@ func (s *Service) realizeBoundOwner(
 // signed binding before any network request and never creates or updates a
 // PocketID resource.
 func (s *Service) Verify(ctx context.Context) (localevidence.OwnerRuntimeBinding, error) {
+	return s.verifyOwnerRuntime(ctx, true)
+}
+
+// The retired-domain bridge may read the prior confidential client before
+// enabling PKCE in place. Ordinary verification always requires current policy.
+func (s *Service) verifyOwnerRuntime(ctx context.Context, requirePKCE bool) (localevidence.OwnerRuntimeBinding, error) {
 	owner, client, err := s.ready(ctx)
 	if err != nil {
 		return localevidence.OwnerRuntimeBinding{}, err
@@ -335,7 +425,7 @@ func (s *Service) Verify(ctx context.Context) (localevidence.OwnerRuntimeBinding
 	if err != nil {
 		return localevidence.OwnerRuntimeBinding{}, err
 	}
-	if err := s.verifyTinyAuthPocketIDBinding(ctx, client, owner, groupIDs); err != nil {
+	if err := s.verifyTinyAuthPocketIDBindingPolicy(ctx, client, owner, groupIDs, requirePKCE); err != nil {
 		return localevidence.OwnerRuntimeBinding{}, err
 	}
 	return binding, nil
@@ -350,6 +440,9 @@ func (s *Service) ensureTinyAuthPocketIDBinding(
 	_, loadErr := localevidence.LoadBasementTinyAuthPocketIDBinding(s.workspaceRoot)
 	switch {
 	case loadErr == nil:
+		if err := s.convergeTinyAuthPKCE(ctx, client, groupIDs); err != nil {
+			return err
+		}
 		verifyErr := s.verifyTinyAuthPocketIDBinding(ctx, client, owner, groupIDs)
 		if verifyErr == nil {
 			return nil
@@ -376,12 +469,29 @@ func (s *Service) ensureTinyAuthPocketIDBinding(
 		oidcClient, err = client.RegisterOIDCClient(ctx, pocketid.RegisterClientRequest{
 			ID: localevidence.TinyAuthPocketIDClientID, Name: tinyAuthClientName,
 			CallbackURLs: []string{callbackURL},
-			IsPublic:     false, IsGroupRestricted: true,
+			IsPublic:     false, PkceEnabled: true, IsGroupRestricted: true,
 		})
 		if err == nil && oidcClient != nil {
 			secret = oidcClient.Secret
 		}
 	} else if err == nil {
+		if oidcClient == nil || oidcClient.ID != localevidence.TinyAuthPocketIDClientID {
+			return errors.New("localowner: PocketID TinyAuth client identity differs")
+		}
+		if oidcClient.Name != tinyAuthClientName || !slices.Equal(oidcClient.CallbackURLs, []string{callbackURL}) ||
+			oidcClient.IsPublic || !oidcClient.PkceEnabled || !oidcClient.IsGroupRestricted {
+			updater, ok := client.(oidcClientUpdater)
+			if !ok {
+				return errors.New("localowner: PocketID TinyAuth client differs and cannot be converged")
+			}
+			oidcClient, err = updater.UpdateOIDCClient(ctx, localevidence.TinyAuthPocketIDClientID, pocketid.RegisterClientRequest{
+				Name: tinyAuthClientName, CallbackURLs: []string{callbackURL},
+				IsPublic: false, PkceEnabled: true, IsGroupRestricted: true,
+			})
+		}
+		if err != nil {
+			return errors.New("localowner: PocketID TinyAuth client update failed")
+		}
 		secret, err = client.CreateOIDCClientSecret(ctx, localevidence.TinyAuthPocketIDClientID)
 	}
 	if err != nil || oidcClient == nil || strings.TrimSpace(secret) == "" {
@@ -404,11 +514,52 @@ func (s *Service) ensureTinyAuthPocketIDBinding(
 	return s.verifyTinyAuthPocketIDBinding(ctx, client, owner, groupIDs)
 }
 
+func (s *Service) convergeTinyAuthPKCE(ctx context.Context, client pocketIDOwnerClient, groupIDs []string) error {
+	binding, err := localevidence.LoadBasementTinyAuthPocketIDBinding(s.workspaceRoot)
+	if err != nil {
+		return err
+	}
+	address, err := localevidence.LocalIdentityRuntimeAddress(s.workspaceRoot)
+	if err != nil {
+		return err
+	}
+	current, err := client.GetOIDCClient(ctx, binding.ClientID)
+	if err != nil || current == nil || current.PkceEnabled {
+		return nil
+	}
+	if current.ID != localevidence.TinyAuthPocketIDClientID || current.Name != tinyAuthClientName ||
+		!slices.Equal(current.CallbackURLs, []string{localevidence.TinyAuthPocketIDCallbackURL(address)}) ||
+		current.IsPublic || !current.IsGroupRestricted ||
+		!samePocketIDGroupIDs(current.AllowedUserGroups, groupIDs) {
+		return nil
+	}
+	updater, ok := client.(oidcClientUpdater)
+	if !ok {
+		return errors.New("localowner: PocketID TinyAuth client cannot enable PKCE")
+	}
+	_, err = updater.UpdateOIDCClient(ctx, current.ID, pocketid.RegisterClientRequest{
+		ID: current.ID, Name: current.Name, CallbackURLs: append([]string(nil), current.CallbackURLs...),
+		IsPublic: false, PkceEnabled: true, IsGroupRestricted: true,
+		RequiresReauthentication: current.RequiresReauthentication,
+	})
+	if err != nil {
+		return errors.New("localowner: PocketID TinyAuth PKCE update failed")
+	}
+	return nil
+}
+
 func (s *Service) verifyTinyAuthPocketIDBinding(
 	ctx context.Context,
 	client pocketIDOwnerClient,
 	owner localevidence.OwnerCustody,
 	groupIDs []string,
+) error {
+	return s.verifyTinyAuthPocketIDBindingPolicy(ctx, client, owner, groupIDs, true)
+}
+
+func (s *Service) verifyTinyAuthPocketIDBindingPolicy(
+	ctx context.Context, client pocketIDOwnerClient, owner localevidence.OwnerCustody,
+	groupIDs []string, requirePKCE bool,
 ) error {
 	binding, err := localevidence.LoadBasementTinyAuthPocketIDBinding(s.workspaceRoot)
 	if err != nil {
@@ -426,7 +577,7 @@ func (s *Service) verifyTinyAuthPocketIDBinding(
 		oidcClient.ID != localevidence.TinyAuthPocketIDClientID ||
 		oidcClient.Name != tinyAuthClientName ||
 		!slices.Equal(oidcClient.CallbackURLs, []string{localevidence.TinyAuthPocketIDCallbackURL(address)}) ||
-		oidcClient.IsPublic || !oidcClient.IsGroupRestricted ||
+		oidcClient.IsPublic || (requirePKCE && !oidcClient.PkceEnabled) || !oidcClient.IsGroupRestricted ||
 		!samePocketIDGroupIDs(oidcClient.AllowedUserGroups, groupIDs) ||
 		binding.OwnerRef != owner.OwnerRef ||
 		!slices.Equal(binding.GroupIDs, sortedCopy(groupIDs)) {

@@ -25,6 +25,7 @@ var (
 	initModuleStorageProfiles     []string
 	initModuleAcceleratorProfiles []string
 	initUseCaseAlternatives       []string
+	initUseCaseCapabilities       []string
 	initHardwareProfile           string
 	initName                      string
 	initDomain                    string
@@ -86,6 +87,9 @@ Use --non-interactive in scripts to fail instead of prompting.
 
 For precise control, use --use-case-alternative and --module-compute-profile
 instead of --catalog-defaults. These selections come from the chosen Kit.
+A use case built from capability modules (Private AI) takes
+--use-case-capability <use-case>.<capability>=<option|off>; omitted modules
+keep their defaults, and planned modules are refused until they install.
 Native authoring uses stackkit/v2alpha2; --api-version stackkit/v2alpha1
 selects the explicit legacy graph adapter. Flags marked v0.6 compatibility
 are accepted only by an explicitly versioned v0.6 binary.`,
@@ -103,6 +107,9 @@ are accepted only by an explicitly versioned v0.6 binary.`,
   # Cloud Kit on your own domain, without prompts (for scripts)
   stackkit init cloud-kit --catalog-defaults --owner-source=local --owner-email you@example.com --domain example.com --non-interactive
 
+  # Private AI with its default modules (inference with Ollama, chat with Open WebUI) named explicitly
+  stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com --use-case ai --use-case-capability ai.inference=ollama --use-case-capability ai.chat=open-webui
+
   # Pick the core alternative and module profile explicitly instead of catalog defaults
   stackkit init basement-kit --owner-source=local --owner-email you@example.com --use-case-alternative basement-core=standalone --module-compute-profile stackkits-basement-core-runtime=standard`,
 	Args: cobra.MaximumNArgs(1),
@@ -117,6 +124,7 @@ func init() {
 	initCmd.Flags().StringArrayVar(&initModuleStorageProfiles, "module-storage-profile", nil, "Native v2alpha2: module-id=storage-profile for a declared storage dimension")
 	initCmd.Flags().StringArrayVar(&initModuleAcceleratorProfiles, "module-accelerator-profile", nil, "Native v2alpha2: module-id=accelerator-profile for a declared accelerator dimension")
 	initCmd.Flags().StringArrayVar(&initUseCaseAlternatives, "use-case-alternative", nil, "Native v2alpha2: use-case-id=alternative; include required core workloads")
+	initCmd.Flags().StringArrayVar(&initUseCaseCapabilities, "use-case-capability", nil, "Native v2alpha2: use-case.capability=option or off (e.g. ai.chat=open-webui); requires --use-case")
 	initCmd.Flags().BoolVar(&initCatalogDefaults, "catalog-defaults", false, "Accept CUE catalog defaults for omitted native alternatives and compute profiles; persist explicit intent")
 	initCmd.Flags().StringVar(&initHardwareProfile, "hardware-profile", "", "Device class for nodes[0].hardware.profile (standard, pi, gpu, storage). pi is a constrained homelab device, not Raspberry-only. Not auto-detected from inventory")
 	initCmd.Flags().StringVar(&initDomain, "domain", "", "Domain override for the generated stack spec")
@@ -535,7 +543,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if strings.TrimSpace(initCandidateSpec) != "" {
 		return fmt.Errorf("--candidate-spec requires native Architecture v2")
 	}
-	if initCatalogDefaults || commandFlagChanged(cmd, "api-version") || len(initModuleComputeProfiles)+len(initModuleStorageProfiles)+len(initModuleAcceleratorProfiles)+len(initUseCaseAlternatives) > 0 {
+	if initCatalogDefaults || commandFlagChanged(cmd, "api-version") || len(initModuleComputeProfiles)+len(initModuleStorageProfiles)+len(initModuleAcceleratorProfiles)+len(initUseCaseAlternatives)+len(initUseCaseCapabilities) > 0 {
 		return fmt.Errorf("module profile authoring is unavailable on the exact-v0.6 compatibility line")
 	}
 	if err := validateInitLocalDNSFlags(); err != nil {

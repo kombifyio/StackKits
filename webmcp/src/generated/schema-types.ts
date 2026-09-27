@@ -443,9 +443,23 @@ export interface AxisProfile {
   realization: string;
   description?: string;
   reservation?: ResourceVector;
+  accelerator?: AcceleratorRequirement;
   components: ContractId[];
   capabilities: ContractId[];
   degradations?: ContractId[];
+}
+export interface AcceleratorRequirement {
+  vendor: "nvidia" | "amd";
+  access: "cdi" | "rocm-device-nodes";
+  min_vram_gib?: number;
+  min_driver_major?: number;
+  images?: {
+    [k: string]: AcceleratorImage;
+  };
+}
+export interface AcceleratorImage {
+  ref: string;
+  digest: Sha64;
 }
 export interface UseCase {
   use_case_id: ContractId;

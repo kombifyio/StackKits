@@ -232,19 +232,20 @@ func partitionOwnerRequest(request runtimeexecutor.ExecutionRequest, channelRef,
 	return groups, selected, nil
 }
 
-// internalPKIContractModuleRef is the compiler-derived internal PKI leaf
-// contract. Its leaf identities are the workload routes of the same node, so
-// the leaf verification can only succeed after every workload owner has
-// published its route to the router; the ACME resolver issues on demand.
-const internalPKIContractModuleRef = "stackkits-internal-pki-contract"
+// Certificate contracts observe the workload routes of the same node. Their
+// leaf verification runs after workload owners publish those routes, allowing
+// either the internal or public ACME resolver to issue on demand.
+const (
+	internalPKIContractModuleRef = "stackkits-internal-pki-contract"
+	publicTLSContractModuleRef   = "stackkits-public-tls-contract"
+)
 
 // ownerExecutionRank keeps owner execution deterministic while ordering the
-// internal PKI leaf verification after the workload owners it observes. A
-// plain requirement-ID sort ran it between "stackkits-immich-runtime" and
-// "stackkits-vaultwarden-runtime", so Photos passed and Vault failed with a
-// router default certificate for vault.home.
+// certificate verification after the workload owners it observes. Both leaf
+// contracts sort before Vault's workload requirement, so lexical order alone
+// probes a route that its owner has not yet published.
 func ownerExecutionRank(target runtimeexecutor.RuntimeTarget) int {
-	if target.ModuleRef == internalPKIContractModuleRef {
+	if target.ModuleRef == internalPKIContractModuleRef || target.ModuleRef == publicTLSContractModuleRef {
 		return 1
 	}
 	return 0

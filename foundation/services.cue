@@ -254,7 +254,7 @@ package foundation
 	required:    false
 	enabled:     true // Mandatory passkey identity default; the engine refuses to disable PocketID (internal/cue/bridge.go)
 	image:       "ghcr.io/pocket-id/pocket-id"
-	tag:         "v2.7.0"
+	tag:         "v2.16.0@sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea"
 	description: "OIDC identity provider with passkey authentication. Manage users and SSO clients."
 	needs: ["traefik"]
 

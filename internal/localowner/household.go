@@ -69,13 +69,22 @@ func (s *Service) AddHouseholdUser(ctx context.Context, spec HouseholdUserSpec) 
 			existing[0].Email != email || effectiveDisplayName(existing[0]) != displayName {
 			return HouseholdUser{}, errors.New("localowner: household username already exists")
 		}
+		if err := s.ensureConfiguredImmichUserClaims(ctx, client); err != nil {
+			return HouseholdUser{}, err
+		}
 		credentials, credentialErr := client.ListUserWebAuthnCredentials(ctx, existing[0].ID)
 		if credentialErr != nil {
 			return HouseholdUser{}, errors.New("localowner: household passkey readback failed")
 		}
 		status := "pending"
-		if len(credentials) > 0 {
+		active, migrated, err := s.passkeyActive(existing[0].ID, credentials)
+		if err != nil {
+			return HouseholdUser{}, err
+		}
+		if active {
 			status = "active"
+		} else if migrated {
+			return s.ActivateHouseholdUser(ctx, username)
 		}
 		return HouseholdUser{Username: username, Email: email, DisplayName: displayName, Status: status}, nil
 	}
@@ -95,6 +104,12 @@ func (s *Service) AddHouseholdUser(ctx context.Context, spec HouseholdUserSpec) 
 		return HouseholdUser{}, err
 	}
 	if err := s.ensureTinyAuthPocketIDBinding(ctx, client, owner, tinyAuthIDs); err != nil {
+		return HouseholdUser{}, err
+	}
+	if err := s.ensureConfiguredImmichUserClaims(ctx, client); err != nil {
+		return HouseholdUser{}, err
+	}
+	if err := s.beginDomainReenrollment(ctx, client, created.ID); err != nil {
 		return HouseholdUser{}, err
 	}
 	token, err := client.CreateOneTimeAccessToken(ctx, created.ID, ownerEnrollmentTTL)
@@ -136,8 +151,14 @@ func (s *Service) ListHouseholdUsers(ctx context.Context) ([]HouseholdUser, erro
 			return nil, errors.New("localowner: household passkey readback failed")
 		}
 		status := "pending"
-		if len(credentials) > 0 {
+		active, migrated, err := s.passkeyActive(user.ID, credentials)
+		if err != nil {
+			return nil, err
+		}
+		if active {
 			status = "active"
+		} else if migrated {
+			status = "reenrollment-required"
 		}
 		result = append(result, HouseholdUser{
 			Username: user.Username, Email: user.Email, DisplayName: effectiveDisplayName(user), Status: status,
@@ -189,4 +210,54 @@ func slicesContainsName(groups []pocketid.UserGroup, name string) bool {
 		}
 	}
 	return false
+}
+
+// ActivateHouseholdUser reissues enrollment for the same non-owner subject.
+// It preserves memberships and data and refuses owner/admin identity changes.
+func (s *Service) ActivateHouseholdUser(ctx context.Context, username string) (HouseholdUser, error) {
+	owner, client, err := s.ready(ctx)
+	if err != nil {
+		return HouseholdUser{}, err
+	}
+	if _, err := s.Verify(ctx); err != nil {
+		return HouseholdUser{}, err
+	}
+	matches, err := client.FindUsersByUsername(ctx, strings.TrimSpace(username))
+	if err != nil {
+		return HouseholdUser{}, err
+	}
+	if len(matches) != 1 {
+		return HouseholdUser{}, errors.New("localowner: household subject is absent or ambiguous")
+	}
+	user := matches[0]
+	if user.Username == owner.PocketID.Username || user.IsAdmin || user.Disabled || !householdMember(user) || hasRequiredGroups(user.UserGroups) {
+		return HouseholdUser{}, errors.New("localowner: household activation requires an enabled non-owner household subject")
+	}
+	credentials, err := client.ListUserWebAuthnCredentials(ctx, user.ID)
+	if err != nil {
+		return HouseholdUser{}, err
+	}
+	active, _, err := s.passkeyActive(user.ID, credentials)
+	if err != nil {
+		return HouseholdUser{}, err
+	}
+	result := HouseholdUser{Username: user.Username, Email: user.Email, DisplayName: effectiveDisplayName(user), Status: "active"}
+	if active {
+		return result, nil
+	}
+	if err := s.beginDomainReenrollment(ctx, client, user.ID); err != nil {
+		return HouseholdUser{}, err
+	}
+	token, err := client.CreateOneTimeAccessToken(ctx, user.ID, ownerEnrollmentTTL)
+	if err != nil || strings.TrimSpace(token) == "" {
+		return HouseholdUser{}, errors.New("localowner: household activation reissue failed")
+	}
+	address, err := localevidence.LocalIdentityRuntimeAddress(s.workspaceRoot)
+	if err != nil {
+		return HouseholdUser{}, err
+	}
+	result.Status = "pending"
+	result.SetupURL = pocketid.ActivationURL(address.PocketIDOrigin(), token)
+	result.ExpiresAt = s.now().UTC().Add(ownerEnrollmentTTL).Truncate(time.Second)
+	return result, nil
 }

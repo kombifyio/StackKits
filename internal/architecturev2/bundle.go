@@ -17,6 +17,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2/authoritysources"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
+	"github.com/kombifyio/stackkits/internal/usecasecatalog"
 )
 
 const (
@@ -124,6 +125,12 @@ func loadEmbeddedAuthorityForRole(role embeddedAuthorityRole) (*cueAuthority, er
 		definitions:     make(map[stackspecmigration.KitProfile]resolvedplan.KitDefinition, len(manifest.Profiles)),
 		catalog:         catalog,
 		planAuthority:   role.planAuthority,
+	}
+	if path := manifest.Documents["computeTierFits"]; path != "" {
+		authority.useCaseCapabilities, err = readEmbeddedUseCaseCapabilities(role.root, path)
+		if err != nil {
+			return nil, fmt.Errorf("read embedded %s use-case capabilities: %w", role.name, err)
+		}
 	}
 	profileSlugs := make([]string, 0, len(manifest.Profiles))
 	for slug := range manifest.Profiles {
@@ -431,6 +438,32 @@ func cleanBundleRelativePath(relativePath string) (string, error) {
 	return clean, nil
 }
 
+// readEmbeddedUseCaseCapabilities reads the capability modules from the
+// hash-verified use-case projection that ships in the product bundle.
+func readEmbeddedUseCaseCapabilities(root, relativePath string) (map[string][]usecasecatalog.Capability, error) {
+	clean, err := cleanBundleRelativePath(relativePath)
+	if err != nil {
+		return nil, err
+	}
+	data, err := embeddedBundleFS.ReadFile(root + "/" + clean)
+	if err != nil {
+		return nil, err
+	}
+	var document struct {
+		UseCases []usecasecatalog.UseCase `json:"useCases"`
+	}
+	if err := json.Unmarshal(data, &document); err != nil {
+		return nil, err
+	}
+	result := map[string][]usecasecatalog.Capability{}
+	for _, useCase := range document.UseCases {
+		if len(useCase.Capabilities) > 0 {
+			result[useCase.ID] = useCase.Capabilities
+		}
+	}
+	return result, nil
+}
+
 func readEmbeddedDocumentForRoot(root, relativePath string) (map[string]any, error) {
 	clean, err := cleanBundleRelativePath(relativePath)
 	if err != nil {
@@ -547,4 +580,19 @@ func EmbeddedKitDefinition(slug string) (resolvedplan.KitDefinition, error) {
 		return nil, fmt.Errorf("embedded product authority has no kit definition for %q", slug)
 	}
 	return definition, nil
+}
+
+// EmbeddedCatalogModule returns one decoded Architecture v2 module contract of
+// the embedded product authority. Host admission reads a selected module's
+// accelerator requirement from it, never from a copy maintained in Go.
+func EmbeddedCatalogModule(moduleID string) (map[string]any, error) {
+	authority, err := loadEmbeddedAuthority()
+	if err != nil {
+		return nil, err
+	}
+	module, found := nativeCatalogModule(authority.catalog, moduleID)
+	if !found {
+		return nil, fmt.Errorf("embedded product authority has no module %q", moduleID)
+	}
+	return module, nil
 }

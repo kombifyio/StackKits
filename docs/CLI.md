@@ -555,7 +555,7 @@ tool support Files, Media, Vault and Smart Home through their Plan-declared nati
 | `photos` | `.stackkit/setup/owner.json` | [Photos owner setup](../use-cases/photos/agent/family-vault/SKILL.md#owner-setup) |
 | `files` | `.stackkit/setup/files-owner.json` | [Files administrator](../use-cases/files/agent/owner-setup/SKILL.md#owner-setup) |
 | `media` | `.stackkit/setup/media-owner.json` | [Media administrator](../use-cases/media/agent/owner-setup/SKILL.md#owner-setup) |
-| `vault` | `.stackkit/setup/vault-owner.json` (email only) | [Vault invitation and personal account](../use-cases/vault/agent/owner-setup/SKILL.md#invitation-and-personal-account) |
+| `vault` | `.stackkit/setup/vault-owner.json` (owner email plus private SMTP host, port, sender, optional user/password and TLS mode) | [Vault invitation, email confirmation and personal account](../use-cases/vault/agent/owner-setup/SKILL.md#invitation-and-personal-account) |
 | `smart-home` | `.stackkit/setup/home-assistant-owner.json` | [Smart Home owner setup](../use-cases/smart-home/agent/homelab-mcp/SKILL.md#owner-setup) |
 
 Files uses an existing administrator login unless the private credential JSON

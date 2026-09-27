@@ -124,7 +124,7 @@ Definition: foundation.#ProductKitDefinition & {
 		]
 		forbidden: ["site-cloud", "cloud-control-authority", "inter-site-link"]
 	}
-	workloads: {required: ["basement-core"], defaults: [], optional: ["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "game", "mail", "media-music", "media-audiobooks", "smart-home-esphome", "files-office", "smart-home-mqtt", "smart-home-zigbee", "photos-share", "photos-kiosk", "photos-tools"], forbidden: []}
+	workloads: {required: ["basement-core"], defaults: [], optional: list.Concat([["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "game", "mail", "media-music", "media-audiobooks", "smart-home-esphome", "files-office", "smart-home-mqtt", "smart-home-zigbee", "photos-share", "photos-kiosk", "photos-tools", "ai-search", "ai-documents", "ai-image-video"], foundation.ArchitectureV2InternalHomeWorkloadRefs]), forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false
@@ -258,10 +258,12 @@ Definition: foundation.#ProductKitDefinition & {
 	network: {
 		mode:           "private"
 		domainRequired: false
-		// One canonical local zone. The kit owns its resolver runtime; enrolled
-		// devices install scoped resolution and Owner-CA trust without router
-		// configuration or a parallel compatibility URL.
-		defaultDomain:  "home"
+		// One canonical local domain. The kit owns its resolver runtime;
+		// enrolled devices install scoped resolution and Owner-CA trust without
+		// router configuration or a parallel compatibility URL. Two labels: the
+		// login session cookie is scoped to the domain, and a single label such
+		// as "home" is a public suffix browsers never share a cookie for.
+		defaultDomain:  "lab.home"
 		defaultTLSMode: "internal"
 	}
 	authoring: {
@@ -270,7 +272,9 @@ Definition: foundation.#ProductKitDefinition & {
 		requiredOverrides: []
 		selectedWorkloadAccess: {
 			// Every selectable application gets its initial HTTPS route and data binding.
-			workloadRefs: workloads.optional
+			// Private AI add-ons are reached only by Open WebUI over the private
+			// AI network; they get no initial route.
+			workloadRefs: [for ref in workloads.optional if !list.Contains(foundation.ArchitectureV2RoutelessAddOnWorkloadRefs, ref) {ref}]
 			enableCapabilities: ["internal-pki"]
 			route: {exposure: "local", protocol: "https", port: 443, path: "/"}
 			accessPolicies: {
@@ -309,7 +313,7 @@ Definition: foundation.#ProductKitDefinition & {
 			}
 			generation: {
 				strategy: "kit-template"
-				target:   "compose"
+				target:   Definition.generation.defaultTarget
 			}
 			system: {}
 			storage: {
@@ -321,7 +325,7 @@ Definition: foundation.#ProductKitDefinition & {
 			container: {}
 			network: {
 				mode: "private"
-				domain: base: "home"
+				domain: base: "lab.home"
 				transport: {}
 				dns: {}
 				tls: defaultMode: "internal"

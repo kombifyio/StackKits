@@ -27,27 +27,47 @@ derived encryption keys and encrypted vault contents.
 ## Invitation and personal account
 
 The closed-signup default means that an administrator must invite the owner's
-email before the first personal account can be created. Prepare that invitation
-from the applied Plan with the private email-only file:
+email before the first personal account can be created. Native Vault sign-in
+also requires PocketID to have verified that address. Prepare PocketID's SMTP
+delivery and the Vault invitation from the applied Plan with one private file.
+Place it before `stackkit apply` for automatic setup, or run the setup command
+afterwards:
 
 ```sh
 stackkit setup vault --owner-approve --credentials-file .stackkit/setup/vault-owner.json --json
 ```
 
 ```json
-{"email":"owner@example.com"}
+{
+  "email": "owner@example.com",
+  "smtpHost": "smtp.example.com",
+  "smtpPort": 587,
+  "smtpFrom": "noreply@example.com",
+  "smtpUser": "owner@example.com",
+  "smtpPassword": "owner-custodied-smtp-password",
+  "smtpTls": "starttls"
+}
 ```
+
+Use `smtpTls: "starttls"` for authenticated submission on port 587 or `"tls"`
+for implicit TLS, commonly on port 465. StackKits refuses plaintext SMTP and
+certificate-verification bypasses. `smtpUser` and `smtpPassword` must either
+both be present or both be empty. `email` must be the exact signed local owner
+email. `smtpFrom` is the sender your SMTP account is authorized to use; it may
+differ from the owner email. Keep this file mode `0600`; the password is sent only to
+PocketID's private configuration API and never enters the Plan, lifecycle
+receipt, command output or repository.
 
 The action authenticates the admin session from the exact signed Apply-bound
 `secret://` custody, checks the pinned Vaultwarden release and closed signup
 policy from the authenticated masked diagnostics, and reads back only the
-bounded user id/status/enabled fields. The public registration link can remain
-visible for invited users without SMTP; its visibility does not mean public
-signups are enabled. Open signups or domain signup exceptions block setup. It
-invites a missing user, recognizes an existing invited or registered user, and
-fails for a disabled user. It never reinvites an existing user. An invitation
-only creates or confirms a server-side user record. It does not establish the
-owner's master password, client key, or ability to decrypt a vault.
+bounded user id/status/enabled fields. It preserves PocketID's unrelated
+identity settings while enabling email verification with verified SMTP TLS.
+Open signups or domain signup exceptions block setup. It invites a missing
+user, recognizes an existing invited or registered user, and fails for a
+disabled user. It never reinvites an existing user. An invitation only creates
+or confirms a server-side user record. It does not establish the owner's
+master password, client key, or ability to decrypt a vault.
 
 The native path has no supported command that prints or exports the Vaultwarden
 admin token. `stackkit secrets materialize` only creates or reuses owner-bound
@@ -55,10 +75,16 @@ custody for declared local `secret://` references; it never emits the token.
 If no signed Apply-bound custody is available, leave setup pending and report
 the missing administrator handoff rather than copying or revealing the token.
 
-After StackKits confirms the invitation, complete registration with that email
-in the official web or Bitwarden client. Without SMTP, no invitation email is
-sent; open the declared Vault route directly. Create the master password and
-client-side encryption keys there. Never put a master password, recovery code, encrypted private key,
+When the setup result says `emailVerification: "pending"`, sign in to PocketID
+as the exact owner, request the verification message from the account settings,
+and follow the link delivered to that mailbox. PocketID binds the one-time
+token to that authenticated subject and email. StackKits administrator custody
+cannot confirm it for the owner. Re-run `stackkit setup vault`; continue only
+when its signed result says `emailVerification: "verified"`.
+
+Then complete registration with that email in the official web or Bitwarden
+client. Create the master password and client-side encryption keys there.
+Never put a master password, recovery code, encrypted private key,
 session token, or client key in a StackKits credential file, CLI/MCP argument,
 generated artifact, issue, or repository. The break-glass admin token and the
 personal Vault account are separate credentials and must never be treated as
@@ -103,8 +129,10 @@ client recovery as separate owner-approved operations.
 ## Honest handoff state
 
 Until an independent client-side acceptance result exists, report the stages
-separately: runtime healthy, invitation pending or prepared, personal account
-setup pending or registered by server metadata, client decrypt/read check
-pending or verified, and backup/isolated-restore evidence pending or verified.
-The native receipt records only invitation preparation; it cannot claim
-personal vault registration, client decryption, or usability is complete.
+separately: runtime healthy, invitation pending or prepared, PocketID owner
+email confirmation pending or verified, personal account setup pending or
+registered by server metadata, client decrypt/read check pending or verified,
+and backup/isolated-restore evidence pending or verified. The native receipt
+records only invitation preparation and PocketID's confirmation readback; it
+cannot claim personal vault registration, client decryption, or usability is
+complete.

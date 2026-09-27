@@ -34,7 +34,7 @@ const (
 
 var (
 	ErrBasementRuntimeCustodyMissing = errors.New("localevidence: no Basement runtime custody")
-	basementRuntimeDomainPattern     = regexp.MustCompile(`^(?:home|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$`)
+	basementRuntimeDomainPattern     = regexp.MustCompile(`^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$`)
 	basementRuntimeFilePaths         = []string{
 		"coolify.env",
 		"lan-dns/a-records.conf",
@@ -208,9 +208,11 @@ func LoadBasementRuntimeCustody(workspaceRoot string) (BasementRuntimeCustody, e
 	if err := json.Unmarshal(raw, &record); err != nil {
 		return BasementRuntimeCustody{}, fmt.Errorf("localevidence: decode Basement runtime custody manifest: %w", err)
 	}
+	// Read the exact retired home domain so authenticated existing installations
+	// can migrate. Creation still requires the current multi-label policy.
 	if record.APIVersion != BasementRuntimeCustodyAPIVersion ||
 		record.Kind != "BasementRuntimeCustody" ||
-		record.OwnerRef == "" || record.KeyID == "" || !validBasementRuntimeDomain(record.Domain) || record.EstablishedAt.IsZero() {
+		record.OwnerRef == "" || record.KeyID == "" || (!validBasementRuntimeDomain(record.Domain) && record.Domain != LegacyBasementDomain) || record.EstablishedAt.IsZero() {
 		return BasementRuntimeCustody{}, errors.New("localevidence: Basement runtime custody is not a recognised record")
 	}
 	owner, err := LoadOwnerCustody(workspaceRoot)
@@ -441,12 +443,15 @@ func basementRuntimeEnvironments(owner OwnerCustody, address IdentityRuntimeAddr
 		),
 		"tinyauth.env": encode(
 			"TINYAUTH_APPURL="+address.TinyAuthOrigin(),
+			"TINYAUTH_AUTH_ACLS_POLICY=deny",
+			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_WHITELIST=/.*/",
 			"TINYAUTH_AUTH_SESSIONEXPIRY="+fmt.Sprintf("%d", sessionTTLSeconds),
 			// The router serves application routes websecure-only and redirects
 			// web to websecure, so the browser session cookie must carry the
 			// Secure flag; container-internal service traffic is unaffected.
 			"TINYAUTH_AUTH_SECURECOOKIE=true",
 			"TINYAUTH_DATABASE_PATH=/data/tinyauth.db",
+			"TINYAUTH_LABELPROVIDER=none",
 			"TINYAUTH_ANALYTICS_ENABLED=false",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTID=stackkit-tinyauth",
 			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_CLIENTSECRET="+tinyAuthBootstrapSecret,

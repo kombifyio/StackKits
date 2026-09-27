@@ -53,15 +53,18 @@ type automaticOwnerSetupOutcome struct {
 // otherwise from the owner custody identity (email, username, display name)
 // and a new random password, written owner-only to that same file, so
 // `stackkit setup <workload>` repairs with the same account. A workload with
-// a succeeded setup is not set up again. Actions that need owner decisions
+// a succeeded setup for the current authority is not set up again. Actions that
+// need owner decisions
 // the Plan does not hold (the game server EULA and profile, mailbox and mail
-// domain) are reported as owner-input-required and stay with `stackkit
-// setup`.
+// domain, and the Vault SMTP account) are reported as owner-input-required and
+// stay with `stackkit setup`. A pre-staged Vault SMTP document is consumed by
+// this same automatic path.
 type automaticOwnerSetup struct {
 	workspace string
 	owner     localevidence.OwnerProjection
 	contracts []applicationlifecycle.Contract
 	plan      resolvedplan.ResolvedPlan
+	supports  map[string]appsetup.NativeActionSupport
 	execute   func(ctx context.Context, workload string, options nativeSetupOptions) error
 }
 
@@ -122,8 +125,15 @@ func newAutomaticOwnerSetup(ctx context.Context, workspace string) (*automaticOw
 	if err != nil {
 		return nil, err
 	}
+	supports := make(map[string]appsetup.NativeActionSupport, len(contracts))
+	for _, contract := range contracts {
+		if adapter, ok := nativeApplicationSetupAdapterForWorkload(authority.Plan.ApplyRequirements(), contract.WorkloadRef); ok {
+			supports[contract.WorkloadRef] = adapter
+		}
+	}
 	return &automaticOwnerSetup{
 		workspace: authority.WorkspaceRoot, owner: authority.Owner.PocketID, contracts: contracts, plan: plan,
+		supports: supports,
 		execute: func(ctx context.Context, workload string, options nativeSetupOptions) error {
 			ctx, cancel := context.WithTimeout(ctx, automaticOwnerSetupTimeout)
 			defer cancel()
@@ -148,7 +158,7 @@ func (s *automaticOwnerSetup) action(contract applicationlifecycle.Contract) (st
 	if _, staged := contract.Stages["setup"]; !staged || setup.Policy != "on-demand" || len(setup.ActionRefs) != 1 {
 		return "", appsetup.NativeActionDescription{}, false
 	}
-	description, supported := appsetup.DescribeNativeAction(setup.ActionRefs[0], contract.Delivery.AdapterRef)
+	description, supported := appsetup.DescribeNativeAction(setup.ActionRefs[0], s.supports[contract.WorkloadRef])
 	return setup.ActionRefs[0], description, supported
 }
 
@@ -163,7 +173,8 @@ func (s *automaticOwnerSetup) run(ctx context.Context) []automaticOwnerSetupOutc
 			continue
 		}
 		outcome := automaticOwnerSetupOutcome{WorkloadRef: contract.WorkloadRef, ActionRef: action}
-		if done, err := hasSucceededSetup(store, contract); err != nil {
+		done, previouslySetUp, err := automaticSetupCompletion(store, contract)
+		if err != nil {
 			outcome.Status, outcome.Detail = automaticSetupFailed, err.Error()
 			outcomes = append(outcomes, outcome)
 			continue
@@ -178,17 +189,41 @@ func (s *automaticOwnerSetup) run(ctx context.Context) []automaticOwnerSetupOutc
 			outcomes = append(outcomes, outcome)
 			continue
 		}
+		if action == applicationlifecycle.VaultOwnerInviteActionRef {
+			if _, err := os.Lstat(filepath.Join(s.workspace, description.CredentialsFile)); errors.Is(err, os.ErrNotExist) {
+				outcome.Status = automaticSetupOwnerRequired
+				outcome.Detail = fmt.Sprintf("stage the owner SMTP settings in %s before Apply, or run setup after configuring that private file", description.CredentialsFile)
+				outcomes = append(outcomes, outcome)
+				continue
+			} else if err != nil {
+				outcome.Status, outcome.Detail = automaticSetupFailed, err.Error()
+				outcomes = append(outcomes, outcome)
+				continue
+			}
+		}
+		if previouslySetUp {
+			// A changed contract needs fresh SSO readback, not a replacement owner.
+			if _, err := os.Lstat(filepath.Join(s.workspace, description.CredentialsFile)); err != nil {
+				outcome.Status = automaticSetupFailed
+				outcome.Detail = fmt.Sprintf("restore the existing application owner credentials to %s and retry setup; an established owner password is never regenerated", description.CredentialsFile)
+				outcomes = append(outcomes, outcome)
+				continue
+			}
+		}
 		if err := ensureAutomaticSetupCredentials(s.workspace, description.CredentialsFile, credentials); err != nil {
 			outcome.Status, outcome.Detail = automaticSetupFailed, err.Error()
 			outcomes = append(outcomes, outcome)
 			continue
 		}
-		err := s.execute(ctx, contract.WorkloadRef, nativeSetupOptions{
+		err = s.execute(ctx, contract.WorkloadRef, nativeSetupOptions{
 			credentialsFile: description.CredentialsFile, ownerApproved: true,
 			completeOnboarding: description.SupportsOnboardingCompletion,
 		})
 		if err != nil {
 			outcome.Status, outcome.Detail = automaticSetupFailed, err.Error()
+			if action == "jellyfin-owner-bootstrap" || action == "home-assistant-owner-bootstrap" {
+				outcome.Detail += fmt.Sprintf("; if this application already has an owner, restore that owner’s credentials to %s and retry; setup does not reset existing passwords", description.CredentialsFile)
+			}
 		} else {
 			outcome.Status = automaticSetupSucceeded
 		}
@@ -197,17 +232,23 @@ func (s *automaticOwnerSetup) run(ctx context.Context) []automaticOwnerSetupOutc
 	return outcomes
 }
 
-func hasSucceededSetup(store applicationlifecycle.Store, contract applicationlifecycle.Contract) (bool, error) {
+// Historical setup cannot prove a new Plan's identity/plugin configuration.
+func automaticSetupCompletion(store applicationlifecycle.Store, contract applicationlifecycle.Contract) (current, previous bool, err error) {
 	state, err := store.Load(contract)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
+	authority := applicationlifecycle.Authority{PlanHash: contract.PlanHash, LifecycleContractHash: contract.ContractHash, LifecycleVersion: contract.Version, PackageRef: contract.PackageRef}
 	for _, operation := range state.Operations {
-		if operation.Stage == "setup" && operation.Status == applicationlifecycle.StatusSucceeded {
-			return true, nil
+		if operation.Stage != "setup" {
+			continue
 		}
+		// A later failed/pending setup invalidates an earlier successful
+		// observation; its next retry must not be skipped.
+		current = operation.Status == applicationlifecycle.StatusSucceeded && operation.Authority == authority
+		previous = previous || operation.Status == applicationlifecycle.StatusSucceeded
 	}
-	return false, nil
+	return current, previous, nil
 }
 
 // automaticOwnerCredentials derives the closed credential document of one
@@ -240,6 +281,9 @@ func automaticOwnerCredentials(action string, owner localevidence.OwnerProjectio
 	case "home-assistant-owner-bootstrap":
 		return withPassword(map[string]any{"username": username, "displayName": displayName, "language": "en"}), username != "" && displayName != ""
 	case applicationlifecycle.VaultOwnerInviteActionRef:
+		// SMTP delivery is an owner-provided external credential. Automatic
+		// setup can consume an already staged private document but cannot derive
+		// or invent it from the local owner projection.
 		return func() (map[string]any, error) { return map[string]any{"email": email}, nil }, email != ""
 	case immichAddOnAPIKeyAction:
 		// Reuses the Immich owner credentials of the photos owner setup, which

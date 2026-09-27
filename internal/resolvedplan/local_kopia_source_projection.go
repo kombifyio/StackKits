@@ -197,6 +197,7 @@ func localKopiaApplicationProjection(nodeSites map[string]string, workloads, mod
 					VolumeName:  localbackuppolicy.StandaloneComposeVolumeName(workloadRef, nodeRef, allocation.componentRef, allocation.volumeRef),
 					Target:      allocation.target, Class: allocation.class, Backup: true,
 					DataClasses: append([]string(nil), allocation.dataClasses...), DataBindingRef: allocation.dataBindingRef,
+					CacheSubpaths: append([]string(nil), allocation.cacheSubpaths...),
 				})
 			}
 		}
@@ -283,7 +284,7 @@ func localKopiaRuntimeComponents(module map[string]any, path string) ([]localbac
 
 type localKopiaBackupAllocation struct {
 	componentRef, volumeRef, target, class, dataBindingRef string
-	dataClasses                                            []string
+	dataClasses, cacheSubpaths                             []string
 }
 
 func localKopiaWorkloadBackupAllocations(infrastructure map[string]any, path string) ([]localKopiaBackupAllocation, error) {
@@ -383,9 +384,13 @@ func localKopiaWorkloadBackupAllocations(infrastructure map[string]any, path str
 		if allocationBindingRef != bindingRef {
 			return nil, fmt.Errorf("%s dataBindingRef does not match the workload data binding", allocationPath)
 		}
+		cacheSubpaths, err := stringListField(allocation, allocationPath, "cacheSubpaths", false)
+		if err != nil {
+			return nil, err
+		}
 		selected = append(selected, localKopiaBackupAllocation{
 			componentRef: componentRef, volumeRef: volumeRef, target: target, class: class,
-			dataBindingRef: allocationBindingRef, dataClasses: classes,
+			dataBindingRef: allocationBindingRef, dataClasses: classes, cacheSubpaths: cacheSubpaths,
 		})
 	}
 	if len(sourceClasses) != 0 {

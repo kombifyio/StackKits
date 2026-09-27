@@ -458,10 +458,22 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return architecturev2.NewProductImmichPublicProxySelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductComfyUISelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductImmichKioskSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductImmichPowerToolsSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductSearxngSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductTikaSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductDoclingSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductGiteaSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
@@ -517,6 +529,11 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 		}
 		registrations = append(registrations, registration)
 	}
+	internalApplications, err := architecturev2.NewProductInternalSelectedPaaSRegistrations(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+	if err != nil {
+		return nil, fmt.Errorf("register local standalone Compose application owner: %w", err)
+	}
+	registrations = append(registrations, internalApplications...)
 	_, active, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
 	if err != nil {
 		return nil, err

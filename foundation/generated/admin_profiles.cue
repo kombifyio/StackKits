@@ -99,7 +99,7 @@ package foundation
 		description:                  "Local device-enrolled home-zone beta profile with synthetic technical admin identity and first-run Owner activation."
 		stackkit:                     "basement-kit"
 		context:                      "local"
-		domain:                       "home"
+		domain:                       "lab.home"
 		networkMode:                  "local"
 		mailMode:                     "none"
 		ownerMode:                    "none"

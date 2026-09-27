@@ -17,21 +17,21 @@ const (
 	cloudStandaloneCoreTerramateTemplateRef       = "builtin://cloud/core-standalone/terramate/v1"
 	cloudStandaloneCoreTerramateOpenTofuOutputRef = "platform/cloud-core-standalone/main.tf"
 	cloudStandaloneCoreTerramateStackOutputRef    = "platform/cloud-core-standalone/stack.tm.hcl"
-	cloudCoreTerramateSchema                      = `stackkit.cloud-core-terramate/v1|artifact-revision:1|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl|stack:terramatestackgraph-core,project-root-per-host|root:` + cloudCoreOpenTofuSchema
-	cloudStandaloneCoreTerramateSchema            = `stackkit.cloud-core-standalone-terramate/v1|artifact-revision:1|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl|stack:terramatestackgraph-core,project-root-per-host|root:` + cloudStandaloneCoreOpenTofuSchema
+	cloudCoreTerramateSchema                      = `stackkit.cloud-core-terramate/v1|artifact-revision:2|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl|stack:terramatestackgraph-core,project-root-per-host|root:` + cloudCoreOpenTofuSchema
+	cloudStandaloneCoreTerramateSchema            = `stackkit.cloud-core-standalone-terramate/v1|artifact-revision:2|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl|stack:terramatestackgraph-core,project-root-per-host|root:` + cloudStandaloneCoreOpenTofuSchema
 )
 
 func CloudCoreTerramateRendererContract() RendererContract {
 	return RendererContract{
 		Kind: "terramate", RendererRef: cloudCoreRendererRef, TemplateRef: cloudCoreTerramateTemplateRef,
-		Version: cloudCoreVersion, ContractHash: "sha256:" + sha256Bytes([]byte(cloudCoreTerramateSchema)),
+		Version: cloudCoreVersion, ContractHash: "sha256:" + sha256Bytes([]byte(cloudCoreTerramateSchema+tinyAuthRouteACLContractSalt)),
 	}
 }
 
 func CloudStandaloneCoreTerramateRendererContract() RendererContract {
 	return RendererContract{
 		Kind: "terramate", RendererRef: cloudCoreRendererRef, TemplateRef: cloudStandaloneCoreTerramateTemplateRef,
-		Version: cloudStandaloneCoreVersion, ContractHash: "sha256:" + sha256Bytes([]byte(cloudStandaloneCoreTerramateSchema)),
+		Version: cloudStandaloneCoreVersion, ContractHash: "sha256:" + sha256Bytes([]byte(cloudStandaloneCoreTerramateSchema+tinyAuthRouteACLContractSalt)),
 	}
 }
 

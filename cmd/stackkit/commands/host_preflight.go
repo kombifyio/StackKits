@@ -14,6 +14,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/config"
+	"github.com/kombifyio/stackkits/internal/hostconformance"
 	"github.com/kombifyio/stackkits/internal/hostpreflight"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/spf13/cobra"
@@ -86,8 +87,74 @@ func evaluateHostPreflightForRequest(ctx context.Context, workspace, kitSlug str
 			requirements = hostpreflight.RequirementsFromDefinitionForTier(definition, hostPreflightComputeTier(workspace))
 		}
 	}
+	requirements.Accelerators = hostPreflightAcceleratorRequirements(workspace)
+	request.ObserveAccelerators = len(requirements.Accelerators) > 0
 	facts := hostpreflight.Observe(ctx, request)
 	return hostpreflight.Evaluate(facts, requirements, kitSlug, policy)
+}
+
+// refuseUnqualifiedAcceleratorHost refuses a local Apply before the plan is
+// resolved when a selected accelerator profile has no qualifying GPU, driver
+// or VRAM on this host. The compiler would block the same plan with a bare
+// runtime-capacity-unsatisfied readiness code; this says what to do instead.
+func refuseUnqualifiedAcceleratorHost(ctx context.Context, workspace string, rawSpec []byte, options architectureV2ExecutionCLIOptions) error {
+	if strings.TrimSpace(options.inventoryPath) != "" || architectureV2WorkspaceIsMember(workspace) {
+		return nil
+	}
+	policy, err := resolveHostPreflightPolicy(options.preflightPolicy)
+	if err != nil || policy == hostpreflight.PolicySkip {
+		return nil
+	}
+	requirements := acceleratorRequirementsFromSpec(rawSpec)
+	if len(requirements) == 0 {
+		return nil
+	}
+	check := hostpreflight.CheckAcceleratorDevices(hostconformance.ObserveAccelerators(ctx, nil), requirements)
+	if check.Status != hostpreflight.StatusBlocked {
+		return nil
+	}
+	return &exitCodeError{code: ExitCodeHostBlocked, err: fmt.Errorf(
+		"%s: %s; nothing was applied. %s", check.ID, check.Summary, strings.Join(check.Remediation, " "),
+	)}
+}
+
+// hostPreflightAcceleratorRequirements projects the accelerator profiles the
+// workspace StackSpec selects (modules.<id>.acceleratorProfile) through the
+// embedded module catalog. A CPU selection yields none, so its report is
+// unchanged. An undeclared profile is left to the compiler, which refuses it.
+func hostPreflightAcceleratorRequirements(workspace string) []hostpreflight.AcceleratorRequirement {
+	loaded, err := config.NewLoader(workspace).ReadStackSpecDocument(specFile)
+	if err != nil {
+		return nil
+	}
+	return acceleratorRequirementsFromSpec(loaded.Document.Raw)
+}
+
+func acceleratorRequirementsFromSpec(rawSpec []byte) []hostpreflight.AcceleratorRequirement {
+	var view struct {
+		Modules map[string]struct {
+			AcceleratorProfile string `yaml:"acceleratorProfile"`
+		} `yaml:"modules"`
+	}
+	if err := yaml.Unmarshal(rawSpec, &view); err != nil {
+		return nil
+	}
+	var result []hostpreflight.AcceleratorRequirement
+	for moduleID, intent := range view.Modules {
+		profile := strings.TrimSpace(intent.AcceleratorProfile)
+		if profile == "" {
+			continue
+		}
+		module, err := architecturev2.EmbeddedCatalogModule(moduleID)
+		if err != nil {
+			continue
+		}
+		if requirement, ok := hostpreflight.AcceleratorRequirementsFromModule(moduleID, module, profile); ok {
+			result = append(result, requirement)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].ModuleRef < result[j].ModuleRef })
+	return result
 }
 
 // evaluateNativeV2HostPreflight adds the bounded native-v2 limitation to the

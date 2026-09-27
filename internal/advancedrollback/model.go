@@ -116,6 +116,8 @@ type Stack struct {
 type RootFiles struct {
 	State          []byte
 	Config         []byte
+	Lock           []byte
+	HasLock        bool
 	Compose        []byte
 	HasCompose     bool
 	Environment    []byte

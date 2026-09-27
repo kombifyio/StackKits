@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "providers": [
+    {
+      "source": "registry.opentofu.org/hashicorp/local",
+      "version": "2.5.3",
+      "constraints": "2.5.3",
+      "platforms": [
+        {
+          "os": "darwin",
+          "arch": "amd64",
+          "archive": "terraform-provider-local_2.5.3_darwin_amd64.zip",
+          "filename": "terraform-provider-local",
+          "h1": "h1:nT9t49C8FgU+lAP6rjjb4mDOzQZ2r8FIEvfWME9i3+k=",
+          "zh": "zh:48c390af0c87df994ec9796f04ec2582bcac581fb81ed6bb58e0671da1c17991"
+        },
+        {
+          "os": "darwin",
+          "arch": "arm64",
+          "archive": "terraform-provider-local_2.5.3_darwin_arm64.zip",
+          "filename": "terraform-provider-local",
+          "h1": "h1:31Clmfoe7hzkcdgwuhUuGuPGfeG2Ksk+YWcJgzBTN7M=",
+          "zh": "zh:91003bee5981e99ec3925ce2f452a5f743827f9d0e131a86613549c1464796f0"
+        },
+        {
+          "os": "linux",
+          "arch": "amd64",
+          "archive": "terraform-provider-local_2.5.3_linux_amd64.zip",
+          "filename": "terraform-provider-local",
+          "h1": "h1:mC9+u1eaUILTjxey6Ivyf/3djm//RNNze9kBVX/trng=",
+          "zh": "zh:7d60de08fac427fb045e4590d1b921b6778498eee9eb16f78c64d4c577bde096"
+        },
+        {
+          "os": "linux",
+          "arch": "arm64",
+          "archive": "terraform-provider-local_2.5.3_linux_arm64.zip",
+          "filename": "terraform-provider-local",
+          "h1": "h1:zoaGKlt5GVKKNnOLfPOE14wdqH0Zf+sbDA7H8IshzWs=",
+          "zh": "zh:4cf958e631e99ed6c8b522c9b22e1f1b568c0bdadb01dd002ca7dffb1c927764"
+        },
+        {
+          "os": "windows",
+          "arch": "amd64",
+          "archive": "terraform-provider-local_2.5.3_windows_amd64.zip",
+          "filename": "terraform-provider-local.exe",
+          "h1": "h1:H+P9Wz6vrAddCJpH0g0H2puqDGtxNkSOLNYhhU8+AyA=",
+          "zh": "zh:9fe2fe75977c8149e2515fb30c6cc6cfd57b225d4ce592c570d81a3831d7ffa3"
+        }
+      ]
+    }
+  ]
+}

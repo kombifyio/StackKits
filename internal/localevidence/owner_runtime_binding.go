@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/pocketid"
 	"net/url"
 	"os"
@@ -233,7 +234,20 @@ func LoadOwnerRuntimeBinding(workspaceRoot string) (OwnerRuntimeBinding, error) 
 	return record, nil
 }
 
+// PersistPocketIDOwnerEnrollment records the owner's enrollment link. An
+// unexpired record for the same origin is kept, so a repeated rollout does not
+// churn the link the owner was already given.
 func PersistPocketIDOwnerEnrollment(workspaceRoot string, enrollment PocketIDOwnerEnrollment) (string, error) {
+	return persistPocketIDOwnerEnrollment(workspaceRoot, enrollment, false)
+}
+
+// ReplacePocketIDOwnerEnrollment records a reissued enrollment link in place
+// of the current one, which the caller has already retired in PocketID.
+func ReplacePocketIDOwnerEnrollment(workspaceRoot string, enrollment PocketIDOwnerEnrollment) (string, error) {
+	return persistPocketIDOwnerEnrollment(workspaceRoot, enrollment, true)
+}
+
+func persistPocketIDOwnerEnrollment(workspaceRoot string, enrollment PocketIDOwnerEnrollment, replace bool) (string, error) {
 	owner, err := LoadOwnerCustody(workspaceRoot)
 	if err != nil {
 		return "", err
@@ -268,7 +282,8 @@ func PersistPocketIDOwnerEnrollment(workspaceRoot string, enrollment PocketIDOwn
 		if existing.OwnerRef != record.OwnerRef || existing.PocketIDSubject != record.PocketIDSubject {
 			return "", errors.New("localevidence: PocketID owner enrollment differs from established custody")
 		}
-		if existing.ExpiresAt.After(time.Now().UTC()) {
+		previousURL, parseErr := url.Parse(existing.SetupURL)
+		if !replace && parseErr == nil && previousURL.Scheme == parsed.Scheme && previousURL.Host == parsed.Host && existing.ExpiresAt.After(time.Now().UTC()) {
 			return path, nil
 		}
 	} else if !errors.Is(readErr, os.ErrNotExist) {
@@ -277,7 +292,20 @@ func PersistPocketIDOwnerEnrollment(workspaceRoot string, enrollment PocketIDOwn
 	if err := signPocketIDOwnerEnrollment(workspaceRoot, &record); err != nil {
 		return "", err
 	}
-	if err := writePrivateJSON(path, record); err != nil {
+	held, err := confinedfs.Open(workspaceRoot)
+	if err != nil {
+		return "", err
+	}
+	defer held.Close()
+	view, err := held.View(".")
+	if err != nil {
+		return "", err
+	}
+	raw, err := json.MarshalIndent(record, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	if _, err := view.WriteAtomic0600(ownerEnrollmentRelPath, raw); err != nil {
 		return "", fmt.Errorf("localevidence: persist PocketID owner enrollment: %w", err)
 	}
 	if _, err := loadPocketIDOwnerEnrollment(workspaceRoot); err != nil {

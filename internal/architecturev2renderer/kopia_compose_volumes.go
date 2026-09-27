@@ -23,7 +23,7 @@ func kopiaSourceForComposeUnit(unit RenderUnit) (localbackuppolicy.Source, error
 		}
 		return source, nil
 	}
-	var values localKopiaRuntimeValues
+	var values coreRuntimeValues
 	if err := decodeStrict(unit.ValuesJSON(), &values); err != nil {
 		return localbackuppolicy.Source{}, err
 	}
@@ -146,32 +146,38 @@ func leadingSpaces(text string) string {
 	return text[:len(text)-len(strings.TrimLeft(text, " \t"))]
 }
 
-func validateClosedLocalCoreBackupSourceInputs(unit RenderUnit, path, displayName, moduleID string) error {
+func validateClosedLocalCoreInputs(unit RenderUnit, path, displayName, moduleID string, includeBackup bool) error {
 	if len(unit.SecretInputRefs()) != 0 || !emptyJSONObject(unit.SecretRefsJSON()) {
 		return fail(ErrInvalidPlan, path+".inputs", "%s consumes no secret material; Apply supplies local custody out of band", displayName)
 	}
 	if len(unit.PlanInputRefs()) != 0 || !emptyJSONObject(unit.PlanInputsJSON()) {
 		return fail(ErrInvalidPlan, path+".inputs", "%s consumes no caller plan material; backup source is compiler-owned", displayName)
 	}
-	if len(unit.PublicInputRefs()) == 0 && emptyJSONObject(unit.ValuesJSON()) && emptyJSONArray(unit.InputBindingsJSON()) {
-		return nil
+	wantRefs := []string{tinyAuthRouteACLInputRef}
+	if includeBackup {
+		wantRefs = []string{"backup-source", tinyAuthRouteACLInputRef}
 	}
-	if !exactStringList(unit.PublicInputRefs(), localKopiaRuntimePublicInputRefs) {
-		return fail(ErrInvalidPlan, path+".inputs", "%s may bind only the compiler-owned backup source", displayName)
+	if !exactStringList(unit.PublicInputRefs(), wantRefs) {
+		return fail(ErrInvalidPlan, path+".inputs", "%s requires exact compiler-owned backup and route ACL inputs", displayName)
 	}
-	if err := validateLocalKopiaRuntimeBinding(unit.InputBindingsJSON(), path+".inputBindings"); err != nil {
+	if err := validateTinyAuthRouteACLBinding(unit.InputBindingsJSON(), includeBackup, path+".inputBindings"); err != nil {
 		return err
 	}
-	var values localKopiaRuntimeValues
+	var values coreRuntimeValues
 	if err := decodeStrict(unit.ValuesJSON(), &values); err != nil {
 		return wrap(ErrInvalidPlan, path+".values", "decode compiler-owned backup source", err)
 	}
-	source := values.BackupSource.Source
-	if err := localbackuppolicy.ValidateSourceProjection(source); err != nil {
-		return wrap(ErrInvalidPlan, path+".values.backup-source", "validate compiler-owned backup source", err)
+	if includeBackup {
+		source := values.BackupSource.Source
+		if err := localbackuppolicy.ValidateSourceProjection(source); err != nil {
+			return wrap(ErrInvalidPlan, path+".values.backup-source", "validate compiler-owned backup source", err)
+		}
+		if source.CoreModuleRef != "" && source.CoreModuleRef != moduleID {
+			return fail(ErrInvalidPlan, path+".values.backup-source.coreModuleRef", "must bind the selected %s runtime", displayName)
+		}
 	}
-	if source.CoreModuleRef != "" && source.CoreModuleRef != moduleID {
-		return fail(ErrInvalidPlan, path+".values.backup-source.coreModuleRef", "must bind the selected %s runtime", displayName)
+	if _, err := tinyAuthRouteACLs(unit); err != nil {
+		return err
 	}
 	return nil
 }

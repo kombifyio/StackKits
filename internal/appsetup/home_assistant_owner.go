@@ -35,11 +35,14 @@ const (
 // HomeAssistantOwnerRequest contains the credentials used for the local
 // Home Assistant owner setup. Passwords and tokens are used only in memory.
 type HomeAssistantOwnerRequest struct {
-	Username        string
-	Password        string
-	DisplayName     string
-	Language        string
-	ExpectedVersion string
+	// OIDC is supplied only from verified StackKits owner custody.
+	CompleteOnboarding bool
+	OIDC               *HomeAssistantOIDCBinding
+	Username           string
+	Password           string
+	DisplayName        string
+	Language           string
+	ExpectedVersion    string
 }
 
 // HomeAssistantOwnerResult is the typed, post-login readback of the owner
@@ -80,6 +83,9 @@ func BootstrapHomeAssistantOwner(
 	}
 	if expectedVersion == "" {
 		return result, errors.New("Home Assistant owner setup requires an expected application version")
+	}
+	if request.CompleteOnboarding && expectedVersion != HomeAssistantPinnedVersion {
+		return result, errors.New("Home Assistant onboarding completion requires the governed application version")
 	}
 	baseURL, err := normalizeHomeAssistantBaseURL(baseURL)
 	if err != nil {
@@ -219,6 +225,16 @@ func BootstrapHomeAssistantOwner(
 		return result, fmt.Errorf("Home Assistant server is not running after owner login")
 	}
 
+	if request.OIDC != nil {
+		if err := bindHomeAssistantOIDCOwner(ctx, client, baseURL, accessToken, user.ID, *request.OIDC); err != nil {
+			return result, err
+		}
+	}
+	if request.CompleteOnboarding {
+		if err := completeHomeAssistantOnboarding(ctx, client, baseURL, accessToken); err != nil {
+			return result, err
+		}
+	}
 	finalOnboarding, err := readHomeAssistantOnboarding(ctx, client, baseURL, accessToken)
 	if err != nil {
 		return result, err
@@ -230,6 +246,9 @@ func BootstrapHomeAssistantOwner(
 		finalOnboarding.complete = true
 	}
 
+	if request.CompleteOnboarding && !finalOnboarding.complete {
+		return result, errors.New("Home Assistant onboarding did not converge")
+	}
 	return HomeAssistantOwnerResult{
 		UserID:             strings.TrimSpace(user.ID),
 		UserIsOwner:        *user.IsOwner,
@@ -260,6 +279,7 @@ func (e *homeAssistantHTTPError) Error() string {
 }
 
 type homeAssistantOnboarding struct {
+	steps     []homeAssistantOnboardingStep
 	available bool
 	userDone  bool
 	complete  bool
@@ -290,7 +310,7 @@ func readHomeAssistantOnboarding(ctx context.Context, client *http.Client, baseU
 	if len(steps) == 0 {
 		return homeAssistantOnboarding{}, errors.New("Home Assistant onboarding status was empty")
 	}
-	status := homeAssistantOnboarding{available: true}
+	status := homeAssistantOnboarding{available: true, steps: steps}
 	sawUser := false
 	status.complete = true
 	for _, step := range steps {

@@ -896,7 +896,10 @@
       "smart-home-zigbee",
       "photos-share",
       "photos-kiosk",
-      "photos-tools"
+      "photos-tools",
+      "ai-search",
+      "ai-documents",
+      "ai-image-video"
     ],
     "required": [
       "cloud-core"

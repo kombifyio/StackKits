@@ -25,6 +25,8 @@ const (
 	VaultOwnerInviteActionRef       = "vault-owner-invite"
 	VaultOwnerPreparationInvited    = "owner-invited"
 	VaultOwnerPreparationRegistered = "owner-registered"
+	OwnerEmailVerificationPending   = "pending"
+	OwnerEmailVerificationVerified  = "verified"
 )
 
 // SetupResult is a secret-free observation of the application API. It is
@@ -44,6 +46,7 @@ type SetupResult struct {
 	AdminLoginVerified bool      `json:"adminLoginVerified"`
 	OnboardingComplete bool      `json:"onboardingComplete"`
 	Preparation        string    `json:"preparation,omitempty"`
+	EmailVerification  string    `json:"emailVerification,omitempty"`
 	VerifiedAt         time.Time `json:"verifiedAt"`
 }
 
@@ -58,6 +61,9 @@ type signedSetupResult struct {
 func (store Store) SaveSetupResult(contract Contract, result SetupResult) (Evidence, error) {
 	if err := validateSetupResult(contract, result); err != nil {
 		return Evidence{}, err
+	}
+	if result.ActionRef == VaultOwnerInviteActionRef && result.EmailVerification == "" {
+		return Evidence{}, errors.New("Vaultwarden invitation setup result omitted owner email verification")
 	}
 	state, err := store.Load(contract)
 	if err != nil {
@@ -160,7 +166,13 @@ func (store Store) SetupRuns(contract Contract, applyResultHash, actionRef strin
 				if run.authenticated && !result.OnboardingComplete {
 					run.Status, run.Phase = "waiting", "configured"
 					if result.ActionRef == VaultOwnerInviteActionRef {
-						run.Message = "Vaultwarden owner invitation is prepared; complete encrypted account setup in the official client"
+						if result.EmailVerification == OwnerEmailVerificationPending {
+							run.Message = "Vaultwarden owner invitation and PocketID SMTP are prepared; confirm the owner email before native sign-in"
+						} else if result.EmailVerification == OwnerEmailVerificationVerified {
+							run.Message = "Vaultwarden owner invitation and owner email confirmation are verified; complete encrypted account setup in the official client"
+						} else {
+							run.Message = "Vaultwarden owner invitation is prepared; owner email confirmation is not recorded"
+						}
 					} else {
 						run.Message = "owner login is verified; app onboarding remains open"
 					}
@@ -235,7 +247,12 @@ func validateSetupResult(contract Contract, result SetupResult) error {
 		if result.Initialized || result.OnboardingComplete || (result.Preparation != VaultOwnerPreparationInvited && result.Preparation != VaultOwnerPreparationRegistered) {
 			return errors.New("Vaultwarden invitation setup result has invalid personal-account state")
 		}
-	} else if result.Preparation != "" || !result.Initialized {
+		// Empty is accepted only when reading signed historical v1 receipts;
+		// SaveSetupResult requires the field on every new Vault observation.
+		if result.EmailVerification != "" && result.EmailVerification != OwnerEmailVerificationPending && result.EmailVerification != OwnerEmailVerificationVerified {
+			return errors.New("Vaultwarden invitation setup result has invalid owner email verification state")
+		}
+	} else if result.Preparation != "" || result.EmailVerification != "" || !result.Initialized {
 		return errors.New("application setup result has an invalid preparation state")
 	}
 	return nil

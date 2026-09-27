@@ -30,6 +30,8 @@ type ObserveRequest struct {
 	RequiredListeners       []ListenerRequirement
 	PlanHash                string
 	NodeRef                 string
+	// ObserveAccelerators probes GPUs; set when a selected profile needs one.
+	ObserveAccelerators bool
 }
 
 // Observe measures the host. It never returns an error for an unobservable
@@ -61,6 +63,9 @@ func Observe(ctx context.Context, request ObserveRequest) Facts {
 	facts.Docker = observeDocker(ctx)
 	facts.Disks = observeDisks(request.WorkspacePath, facts.Docker.RootDir)
 	facts.Baseline = observeBaseline(ctx, request)
+	if request.ObserveAccelerators {
+		facts.Accelerators = hostconformance.ObserveAccelerators(ctx, nil)
+	}
 	if request.RequiredListeners != nil {
 		facts.Ports = observeListenersWithPriorCompose(ctx, request.WorkspacePath, request.RequiredListeners, request.PriorRuntimeComposePath)
 	}
@@ -250,6 +255,7 @@ type dockerInfo struct {
 	SwapLimit       bool     `json:"SwapLimit"`
 	DockerRootDir   string   `json:"DockerRootDir"`
 	SecurityOptions []string `json:"SecurityOptions"`
+	CDISpecDirs     []string `json:"CDISpecDirs"`
 }
 
 func observeDocker(ctx context.Context) DockerFacts {
@@ -282,6 +288,7 @@ func observeDocker(ctx context.Context) DockerFacts {
 	facts.MemoryLimitSupported = info.MemoryLimit
 	facts.SwapLimitSupported = info.SwapLimit
 	facts.RootDir = info.DockerRootDir
+	facts.CDIEnabled = len(info.CDISpecDirs) > 0
 	for _, option := range info.SecurityOptions {
 		if strings.Contains(option, "rootless") {
 			facts.Rootless = true

@@ -10,6 +10,8 @@ import (
 	"github.com/kombifyio/stackkits/internal/appsetup"
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/localowner"
+	"github.com/kombifyio/stackkits/internal/pocketid"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 )
 
@@ -19,6 +21,7 @@ type nativeOwnerSetupObservation struct {
 	AdminLoginVerified bool
 	OnboardingComplete bool
 	Preparation        string
+	EmailVerification  string
 }
 
 func validateNativeOwnerSetupAction(deployment nativehost.SelectedPaaSWorkloadDeployment, action string, options nativeSetupOptions) error {
@@ -42,9 +45,6 @@ func validateNativeOwnerSetupAction(deployment nativehost.SelectedPaaSWorkloadDe
 		_, err := immichAddOnAPIKeyRef(deployment)
 		return err
 	case "home-assistant-owner-bootstrap":
-		if options.completeOnboarding {
-			return errors.New("Home Assistant personal onboarding settings must be completed in the application; omit --complete-onboarding to verify the owner account")
-		}
 		_, err := architecturev2renderer.ParseHomeAssistantWorkloadBundle(deployment.Bundle)
 		return err
 	case "pterodactyl-game-server-setup":
@@ -52,6 +52,12 @@ func validateNativeOwnerSetupAction(deployment nativehost.SelectedPaaSWorkloadDe
 			return errors.New("game server setup has no separate onboarding; omit --complete-onboarding")
 		}
 		_, err := architecturev2renderer.ParsePterodactylWorkloadBundle(deployment.Bundle)
+		return err
+	case appsetup.ComfyUIModelDownloadAction:
+		if options.completeOnboarding {
+			return errors.New("the model download has no separate onboarding; omit --complete-onboarding")
+		}
+		_, err := architecturev2renderer.ParseComfyUIWorkloadBundle(deployment.Bundle)
 		return err
 	case "roundcube-mailbox-login":
 		if options.completeOnboarding {
@@ -100,27 +106,25 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 				returnErr = errors.Join(returnErr, cleanupErr)
 			}
 		}()
-		if !observed.UserIsAdmin || observed.Version != release {
+		if !observed.UserIsAdmin || observed.Version != appsetup.JellyfinServerVersion {
 			return nativeOwnerSetupObservation{}, errors.New("Jellyfin did not verify the administrator of the admitted application version")
+		}
+		if err := configureJellyfinSSO(ctx, client, baseURL, workspace, &observed); err != nil {
+			return nativeOwnerSetupObservation{}, err
 		}
 		return nativeOwnerSetupObservation{AccountRef: observed.UserID, Initialized: true, AdminLoginVerified: observed.UserIsAdmin, OnboardingComplete: observed.StartupWizardCompleted}, nil
 	case "cloudreve-owner-bootstrap":
-		var credentials struct {
-			Email                       string `json:"email"`
-			Password                    string `json:"password"`
-			Language                    string `json:"language"`
-			AllowFirstOwnerRegistration bool   `json:"allowFirstOwnerRegistration"`
-		}
-		if err := readNativeSetupCredentialJSON(workspace, options.credentialsFile, &credentials); err != nil {
+		credentials, err := readFilesOwnerCredentials(workspace, options.credentialsFile)
+		if err != nil {
 			return nativeOwnerSetupObservation{}, err
 		}
 		defer func() { credentials.Password = "" }()
-		observed, err := appsetup.BootstrapCloudreveOwner(ctx, client, baseURL, appsetup.CloudreveOwnerRequest{
+		observed, setupErr := appsetup.BootstrapCloudreveOwner(ctx, client, baseURL, appsetup.CloudreveOwnerRequest{
 			Email: credentials.Email, Password: credentials.Password, Language: credentials.Language, ExpectedVersion: release,
 			AllowFirstOwnerRegistration: credentials.AllowFirstOwnerRegistration,
 		})
-		if err != nil {
-			return nativeOwnerSetupObservation{}, err
+		if setupErr != nil {
+			return nativeOwnerSetupObservation{}, setupErr
 		}
 		defer func() {
 			if cleanupErr := observed.Cleanup(context.Background(), client, baseURL); cleanupErr != nil {
@@ -182,8 +186,14 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 			return nativeOwnerSetupObservation{}, err
 		}
 		defer func() { credentials.Password = "" }()
+		oidcBinding, err := homeAssistantOIDCOwnerCustody(workspace)
+		if err != nil {
+			return nativeOwnerSetupObservation{}, err
+		}
 		observed, err := appsetup.BootstrapHomeAssistantOwner(ctx, client, baseURL, appsetup.HomeAssistantOwnerRequest{
-			Username: credentials.Username, Password: credentials.Password, DisplayName: credentials.DisplayName,
+			CompleteOnboarding: options.completeOnboarding,
+			OIDC:               &oidcBinding,
+			Username:           credentials.Username, Password: credentials.Password, DisplayName: credentials.DisplayName,
 			Language: credentials.Language, ExpectedVersion: release,
 		})
 		if err != nil {
@@ -197,15 +207,35 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 		return executeImmichAddOnAPIKey(ctx, client, baseURL, workspace, deployment, options)
 	case "pterodactyl-game-server-setup":
 		return executePterodactylGameServerSetup(ctx, client, baseURL, workspace, deployment, release, options)
+	case appsetup.ComfyUIModelDownloadAction:
+		return executeComfyUIModelDownload(ctx, client, baseURL, workspace, deployment, options)
 	case "roundcube-mailbox-login":
 		return executeRoundcubeMailboxSetup(ctx, client, baseURL, workspace, deployment, release, options)
 	case "stalwart-mail-domain-setup":
 		return executeStalwartMailDomainSetup(ctx, client, baseURL, workspace, deployment, options)
 	case applicationlifecycle.VaultOwnerInviteActionRef:
 		var credentials struct {
-			Email string `json:"email"`
+			Email        string `json:"email"`
+			SMTPHost     string `json:"smtpHost"`
+			SMTPPort     int    `json:"smtpPort"`
+			SMTPFrom     string `json:"smtpFrom"`
+			SMTPUser     string `json:"smtpUser"`
+			SMTPPassword string `json:"smtpPassword"`
+			SMTPTLS      string `json:"smtpTls"`
 		}
 		if err := readNativeSetupCredentialJSON(workspace, options.credentialsFile, &credentials); err != nil {
+			return nativeOwnerSetupObservation{}, err
+		}
+		defer func() { credentials.SMTPPassword = "" }()
+		ownerIdentity, err := localowner.NewService(workspace)
+		if err != nil {
+			return nativeOwnerSetupObservation{}, err
+		}
+		emailVerification, err := ownerIdentity.ConfigureOwnerEmailVerification(ctx, credentials.Email, pocketid.SMTPConfiguration{
+			Host: credentials.SMTPHost, Port: credentials.SMTPPort, From: credentials.SMTPFrom,
+			User: credentials.SMTPUser, Password: credentials.SMTPPassword, TLS: credentials.SMTPTLS,
+		})
+		if err != nil {
 			return nativeOwnerSetupObservation{}, err
 		}
 		descriptor, err := architecturev2renderer.ParseVaultwardenWorkloadBundle(deployment.Bundle)
@@ -234,6 +264,7 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 		}
 		return nativeOwnerSetupObservation{
 			AccountRef: observed.UserID, AdminLoginVerified: true, Preparation: observed.Preparation,
+			EmailVerification: emailVerification.Status,
 		}, nil
 	default:
 		return nativeOwnerSetupObservation{}, errors.New("the declared application setup action is not implemented")
@@ -405,4 +436,41 @@ func executeImmichAddOnAPIKey(ctx context.Context, client *http.Client, immichUR
 		AccountRef: issued.KeyID, Initialized: true, AdminLoginVerified: true,
 		Preparation: "immich-api-key-issued",
 	}, nil
+}
+
+// executeComfyUIModelDownload downloads one reviewed model preset into the
+// ComfyUI models volume after the owner accepted its license, refuses a
+// preset the GPU cannot run, and verifies that ComfyUI lists every file.
+func executeComfyUIModelDownload(ctx context.Context, client *http.Client, baseURL, workspace string, deployment nativehost.SelectedPaaSWorkloadDeployment, options nativeSetupOptions) (nativeOwnerSetupObservation, error) {
+	var request struct {
+		Preset        string `json:"preset"`
+		AcceptLicense string `json:"acceptLicense"`
+	}
+	if err := readNativeSetupCredentialJSON(workspace, options.credentialsFile, &request); err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	preset, err := appsetup.ResolveComfyUIModelPreset(request.Preset, request.AcceptLicense)
+	if err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	vram, err := appsetup.ComfyUIDeviceVRAMGiB(ctx, client, baseURL)
+	if err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	if vram < preset.MinVRAMGiB {
+		return nativeOwnerSetupObservation{}, fmt.Errorf("preset %s needs a GPU with %d GiB of VRAM; ComfyUI reports %d GiB, so nothing was downloaded", preset.ID, preset.MinVRAMGiB, vram)
+	}
+	for _, file := range preset.Files {
+		printInfo("Downloading %s/%s (%.1f GB, %s license)", file.Folder, file.Name, float64(file.Bytes)/1e9, preset.License)
+		if err := nativehost.DownloadStandaloneComposeComfyUIModel(ctx, workspace, deployment, nativehost.ComfyUIModelFile{
+			Folder: file.Folder, Name: file.Name, URL: file.URL, SHA256: file.SHA256, Bytes: file.Bytes,
+		}); err != nil {
+			return nativeOwnerSetupObservation{}, err
+		}
+	}
+	if err := appsetup.VerifyComfyUIModels(ctx, client, baseURL, preset); err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	printInfo("Model preset %s is installed; open the %s workflow in ComfyUI.", preset.ID, preset.Template)
+	return nativeOwnerSetupObservation{AccountRef: "preset:" + preset.ID, Initialized: true, Preparation: "model-preset-" + preset.ID}, nil
 }

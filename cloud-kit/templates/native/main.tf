@@ -134,7 +134,7 @@ variable "tinyauth_oidc_client_id" {
 
 variable "tinyauth_oidc_client_secret" {
   type        = string
-  description = "PocketID OIDC client secret for TinyAuth. Empty for the default public PKCE client."
+  description = "Custody-held PocketID OIDC client secret for TinyAuth"
   default     = ""
   sensitive   = true
 }
@@ -483,8 +483,8 @@ resource "local_file" "tinyauth_service" {
     }
 
     precondition {
-      condition     = !var.tinyauth_oidc_enabled || (trimspace(var.tinyauth_oidc_issuer) != "" && trimspace(var.tinyauth_oidc_client_id) != "")
-      error_message = "TinyAuth PocketID OAuth requires tinyauth_oidc_issuer and tinyauth_oidc_client_id."
+      condition     = !var.tinyauth_oidc_enabled || (trimspace(var.tinyauth_oidc_issuer) != "" && trimspace(var.tinyauth_oidc_client_id) != "" && length(var.tinyauth_oidc_client_secret) >= 16)
+      error_message = "TinyAuth PocketID OAuth requires an issuer, client ID, and custody-held client secret."
     }
   }
 }
@@ -518,12 +518,22 @@ resource "null_resource" "pocketid_install" {
       echo "=== Installing Pocket ID ==="
 
       ARCH_DL=$(cat ${local.install_dir}/.arch)
-      POCKETID_VERSION="2.7.0"
+      POCKETID_VERSION="2.16.0"
+      case "$ARCH_DL" in
+        amd64) POCKETID_SHA256="4ba26810e8d2c2d46aea42d8e960cb457cf8bc36cc009446a18d7d856abd3aa7" ;;
+        arm64) POCKETID_SHA256="b27adab8f84262b6903d7ff21247c22b11fa318dd16e81b8aafdc84bac823003" ;;
+        *) echo "Unsupported Pocket ID architecture: $ARCH_DL" >&2; exit 1 ;;
+      esac
+      POCKETID_ASSET="pocket-id_linux_$ARCH_DL"
+      POCKETID_TMP=$(mktemp)
+      trap 'rm -f "$POCKETID_TMP"' EXIT
 
-      # Download Pocket ID binary
-      curl -sSL "https://github.com/pocket-id/pocket-id/releases/download/v$${POCKETID_VERSION}/pocket-id-linux-$${ARCH_DL}" \
-        -o ${local.bin_dir}/pocket-id
-      chmod +x ${local.bin_dir}/pocket-id
+      curl -fsSL "https://github.com/pocket-id/pocket-id/releases/download/v$${POCKETID_VERSION}/$${POCKETID_ASSET}" \
+        -o "$POCKETID_TMP"
+      echo "$POCKETID_SHA256  $POCKETID_TMP" | sha256sum -c -
+      install -m 0755 "$POCKETID_TMP" ${local.bin_dir}/pocket-id
+      rm -f "$POCKETID_TMP"
+      trap - EXIT
 
       echo "=== Pocket ID $${POCKETID_VERSION} installed ==="
     EOT
@@ -541,7 +551,7 @@ resource "local_file" "pocketid_service" {
 
     [Service]
     Type=simple
-    ExecStart=${local.bin_dir}/pocket-id serve
+    ExecStart=${local.bin_dir}/pocket-id
     Restart=always
     RestartSec=5
     WorkingDirectory=${local.data_dir}/pocketid
@@ -552,9 +562,10 @@ resource "local_file" "pocketid_service" {
     Environment=PORT=3082
     Environment=APP_URL=${local.pocketid_app_url_effective}
     Environment=DB_PROVIDER=sqlite
+    Environment=DB_CONNECTION_STRING=data/pocket-id.db
     Environment=ENCRYPTION_KEY=${local.pocketid_encryption_key_effective}
     Environment=STATIC_API_KEY=${var.pocketid_static_api_key}
-    Environment=DATA_DIR=${local.data_dir}/pocketid
+    Environment=UPLOAD_PATH=data/uploads
 
     # Security hardening
     NoNewPrivileges=true
@@ -607,16 +618,19 @@ resource "null_resource" "pocketid_tinyauth_oidc_client" {
     command = <<-EOT
       set -eu
       payload_file="$(mktemp)"
+      secret_file="$(mktemp)"
+      trap 'rm -f "$payload_file" "$secret_file"' EXIT
       printf '%s\n' '${jsonencode({
         id                       = var.tinyauth_oidc_client_id
-        name                     = "TinyAuth"
+        name                     = "StackKits TinyAuth"
         callbackURLs             = ["${var.tinyauth_app_url}/api/oauth/callback/pocketid"]
         logoutCallbackURLs       = []
-        isPublic                 = true
+        isPublic                 = false
         pkceEnabled              = true
         requiresReauthentication = false
-        isGroupRestricted        = false
+        isGroupRestricted        = true
       })}' > "$payload_file"
+      printf '%s\n' '${jsonencode({secret = var.tinyauth_oidc_client_secret})}' > "$secret_file"
 
       for i in $(seq 1 60); do
         if curl -fsS "${local.pocketid_internal_oidc_origin}/healthz" >/dev/null 2>&1; then
@@ -630,13 +644,21 @@ resource "null_resource" "pocketid_tinyauth_oidc_client" {
       fi
 
       if curl -fsS -H "X-API-Key: ${var.pocketid_static_api_key}" "${local.pocketid_internal_oidc_origin}/api/oidc/clients/${var.tinyauth_oidc_client_id}" >/dev/null; then
-        echo "PocketID TinyAuth OIDC client already exists"
+        curl -fsS -X PUT -H "Content-Type: application/json" -H "X-API-Key: ${var.pocketid_static_api_key}" --data @"$payload_file" "${local.pocketid_internal_oidc_origin}/api/oidc/clients/${var.tinyauth_oidc_client_id}" >/dev/null
+        echo "PocketID TinyAuth OIDC client policy converged"
       else
         curl -fsS -X POST -H "Content-Type: application/json" -H "X-API-Key: ${var.pocketid_static_api_key}" --data @"$payload_file" "${local.pocketid_internal_oidc_origin}/api/oidc/clients" >/dev/null
         echo "PocketID TinyAuth OIDC client registered"
       fi
 
-      rm -f "$payload_file"
+      secrets="$(curl -fsS -H "X-API-Key: ${var.pocketid_static_api_key}" "${local.pocketid_internal_oidc_origin}/api/oidc/clients/${var.tinyauth_oidc_client_id}/secrets")"
+      if [ "$secrets" = "[]" ]; then
+        curl -fsS -X POST -H "Content-Type: application/json" -H "X-API-Key: ${var.pocketid_static_api_key}" --data @"$secret_file" "${local.pocketid_internal_oidc_origin}/api/oidc/clients/${var.tinyauth_oidc_client_id}/secrets" >/dev/null
+        echo "PocketID TinyAuth OIDC client secret custodied"
+      fi
+
+      rm -f "$payload_file" "$secret_file"
+      trap - EXIT
     EOT
   }
 

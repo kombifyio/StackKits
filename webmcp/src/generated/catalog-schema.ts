@@ -233,6 +233,65 @@ export const WEBMCP_CATALOG_SCHEMA = {
         }
       }
     },
+    "acceleratorImage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "digest"
+      ],
+      "properties": {
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "digest": {
+          "$ref": "#/$defs/sha64"
+        }
+      }
+    },
+    "acceleratorRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "vendor",
+        "access"
+      ],
+      "properties": {
+        "vendor": {
+          "type": "string",
+          "enum": [
+            "nvidia",
+            "amd"
+          ]
+        },
+        "access": {
+          "type": "string",
+          "enum": [
+            "cdi",
+            "rocm-device-nodes"
+          ]
+        },
+        "min_vram_gib": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "min_driver_major": {
+          "type": "integer",
+          "minimum": 550
+        },
+        "images": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/contractId"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/acceleratorImage"
+          }
+        }
+      }
+    },
     "axisProfile": {
       "type": "object",
       "additionalProperties": false,
@@ -280,6 +339,9 @@ export const WEBMCP_CATALOG_SCHEMA = {
         },
         "reservation": {
           "$ref": "#/$defs/resourceVector"
+        },
+        "accelerator": {
+          "$ref": "#/$defs/acceleratorRequirement"
         },
         "components": {
           "type": "array",

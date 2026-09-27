@@ -36,6 +36,9 @@ type EmergencySource struct {
 	Class       string `json:"class"`
 	ArchivePath string `json:"archivePath"`
 	Coverage    string `json:"coverage"`
+	// Excludes lists regenerable cache subtrees ("/"-separated, relative to
+	// Path) that the contract leaves out; the manifest keeps them visible.
+	Excludes []string `json:"excludes,omitempty"`
 }
 
 type EmergencyEntry struct {
@@ -107,6 +110,11 @@ func ExportEmergency(ctx context.Context, input EmergencyExportInput) (Emergency
 		for j := 0; j < i; j++ {
 			if pathWithin(source.Path, manifest.Sources[j].Path) || pathWithin(manifest.Sources[j].Path, source.Path) {
 				return EmergencyExportResult{}, errors.New("emergency export sources overlap")
+			}
+		}
+		for _, exclude := range source.Excludes {
+			if !validEmergencyExclude(exclude) {
+				return EmergencyExportResult{}, errors.New("emergency source exclusion must be a relative subpath")
 			}
 		}
 		source.ArchivePath = fmt.Sprintf("sources/%04d", i)
@@ -185,6 +193,13 @@ func emergencyDataClass(class string) bool {
 	return false
 }
 
+// validEmergencyExclude accepts a clean relative "/"-separated subpath that
+// cannot name the source itself or leave it.
+func validEmergencyExclude(value string) bool {
+	return value != "" && value != "." && !path.IsAbs(value) && path.Clean(value) == value &&
+		value != ".." && !strings.HasPrefix(value, "../") && !strings.Contains(value, "\\")
+}
+
 func pathWithin(parent, child string) bool {
 	relative, err := filepath.Rel(parent, child)
 	return err == nil && (relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))))
@@ -245,7 +260,14 @@ func archiveEmergencySource(ctx context.Context, archive *tar.Writer, source Eme
 	}
 	defer tx.Close()
 	name := filepath.Base(source.Path)
-	entries, err := tx.Walk(name)
+	excluded := make(map[string]struct{}, len(source.Excludes))
+	for _, exclude := range source.Excludes {
+		excluded[path.Join(name, exclude)] = struct{}{}
+	}
+	entries, err := tx.WalkExcluding(name, func(entry string) bool {
+		_, skip := excluded[entry]
+		return skip
+	})
 	if err != nil {
 		return err
 	}

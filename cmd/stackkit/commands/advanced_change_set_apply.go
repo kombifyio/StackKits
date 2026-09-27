@@ -129,6 +129,14 @@ const advancedTerramateFailedPhase = "advanced-terramate"
 // orchestration: advanced.change-set.materialize-host, .run-order, .converge.
 const advancedChangeSetRolloutPrefix = "advanced.change-set."
 
+// Apply can outlive its caller's command budget. Persist the current stage in
+// the progress stream so an interrupted managed run still identifies the
+// operation that was active, without exposing candidate or custody bytes.
+func advancedMutationStage(stage, status string) {
+	rolloutEvent("advanced.mutation."+stage, status,
+		"advanced mutation "+stage+" "+status, nil)
+}
+
 // advancedTerramateOrchestration runs the Terramate step of a change-set
 // apply (docs/ARCHITECTURE.md "Advanced change sets through Terramate
 // (Stage 1)"). The skeleton stays generate, plan, apply, verify through the
@@ -402,6 +410,7 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 
 	// This entire admission, including a fresh render and the exact stored byte
 	// digest, happens before checkpoint creation or any other side effect.
+	advancedMutationStage("admission", "started")
 	verified, err := verifyAdvancedMutation(
 		ctx, workspace, absoluteCapability, absoluteCandidate,
 		request.ChangeSetID, request.ChangeSetSHA, request.Operation, now,
@@ -409,6 +418,7 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 	if err != nil {
 		return result, err
 	}
+	advancedMutationStage("admission", "completed")
 	var orchestration *advancedTerramateOrchestration
 	if request.Operation == advancedcapability.OperationTerramateChangeSetApply ||
 		request.Operation == advancedcapability.OperationDriftReconcileAdvanced {
@@ -475,6 +485,7 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 	}
 	result.ReleaseAuthority = &release.record
 	var checkpoint publicUpgradeCheckpoint
+	advancedMutationStage("checkpoint", "started")
 	mutation, err := beginPublicUpgradeMutation(
 		workspace,
 		func() (lifecyclemutation.BeginRequest, error) {
@@ -515,14 +526,21 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 			"mandatory Advanced rollback checkpoint could not be created before mutation", err,
 		)
 	}
+	advancedMutationStage("checkpoint", "completed")
 	defer mutation.Close()
 	result.Checkpoint = checkpoint
 
+	advancedMutationStage("transaction", "started")
 	transaction, transactionErr := executeAdvancedMutation(
 		ctx, workspace, &release, checkpoint, mutation, request, verified.fingerprint(),
 		absoluteCapability, absoluteCandidate, now, orchestration,
 	)
 	result.Transaction = transaction
+	if transactionErr == nil {
+		advancedMutationStage("transaction", "completed")
+	} else {
+		advancedMutationStage("transaction", "failed")
+	}
 	if orchestration != nil {
 		result.ChangeSetResult = orchestration.report
 		result.RollbackResult = orchestration.rollback
@@ -920,12 +938,14 @@ func executeAdvancedMutation(
 			return loadErr
 		}
 		result.Rollback.PriorReleaseVersion = snapshot.Release.Version
+		advancedMutationStage("stage-rollback", "started")
 		staged, stageErr := stagePublicUpgradeRollbackData(
 			operationCtx, workspace, specFile, checkpoint, snapshot,
 		)
 		if stageErr != nil {
 			return stageErr
 		}
+		advancedMutationStage("stage-rollback", "completed")
 		result.Rollback.DataStaged = true
 		result.Rollback.StagedRestoreResultID = staged.ID
 		result.Rollback.Status = publicUpgradeRollbackNotRequired
@@ -938,6 +958,7 @@ func executeAdvancedMutation(
 		// Offline capability, current Owner custody, candidate, signed record,
 		// exact record bytes, and fresh renderer output are all revalidated
 		// while the lifecycle lock is held and before target mutation.
+		advancedMutationStage("revalidation", "started")
 		revalidated, verifyErr := verifyAdvancedMutation(
 			operationCtx, workspace, capabilityPath, candidatePath,
 			request.ChangeSetID, request.ChangeSetSHA, request.Operation, now,
@@ -945,10 +966,12 @@ func executeAdvancedMutation(
 		if verifyErr != nil {
 			return verifyErr
 		}
+		advancedMutationStage("revalidation", "completed")
 		if revalidated.fingerprint() != initial {
 			return errors.New("Advanced authority changed after pre-side-effect admission")
 		}
 
+		advancedMutationStage("target", "started")
 		targetErr := release.withExecutable(
 			operationCtx, func(binary string) error {
 				// A reconcile first forces its drifted stacks back to the
@@ -993,9 +1016,13 @@ func executeAdvancedMutation(
 				revalidated, orchestration.tools, &result,
 			)
 		}))
+		if targetErr != nil {
+			advancedMutationStage("rollback", "started")
+		}
 		if settled := settleAdvancedTarget(&result, targetErr, rollback); settled != nil {
 			return settled
 		}
+		advancedMutationStage("target", "completed")
 		if transitionErr := mutation.Transition(
 			lifecyclemutation.PhaseTargetVerifySucceeded,
 			lifecyclemutation.PhaseCommitStarted,
@@ -1082,18 +1109,21 @@ func executeAdvancedTarget(
 		return err
 	}
 	result.GenerateInvoked = true
+	advancedMutationStage("target-generate", "started")
 	if _, err := runner.Run(ctx, binary, append(
 		append(common, lifecycleChildFlags(operationID, lifecyclemutation.PhaseTargetGenerateStarted, generateNonce)...),
 		generateCommand...,
 	), workspace); err != nil {
 		return err
 	}
+	advancedMutationStage("target-generate", "completed")
 	if err := mutation.Transition(
 		lifecyclemutation.PhaseTargetGenerateStarted,
 		lifecyclemutation.PhaseTargetGenerateSucceeded,
 	); err != nil {
 		return err
 	}
+	advancedMutationStage("target-plan", "started")
 	rawPlan, err := runner.Run(ctx, binary, append(common, "plan", "--json"), workspace)
 	if err != nil {
 		return err
@@ -1108,6 +1138,7 @@ func executeAdvancedTarget(
 	result.PlanHash = plan.Binding.PlanHash
 	result.ManifestHash = plan.Manifest.Hash
 	result.PlanVerified = true
+	advancedMutationStage("target-plan", "completed")
 
 	applyNonce, err := mutation.BeginJoin(
 		lifecyclemutation.PhaseTargetGenerateSucceeded,
@@ -1118,12 +1149,14 @@ func executeAdvancedTarget(
 		return err
 	}
 	result.ApplyInvoked = true
+	advancedMutationStage("target-apply", "started")
 	if _, err := runner.Run(ctx, binary, append(
 		append(common, lifecycleChildFlags(operationID, lifecyclemutation.PhaseTargetApplyStarted, applyNonce)...),
 		"apply", "--auto-approve",
 	), workspace); err != nil {
 		return err
 	}
+	advancedMutationStage("target-apply", "completed")
 	if err := mutation.Transition(
 		lifecyclemutation.PhaseTargetApplyStarted,
 		lifecyclemutation.PhaseTargetApplySucceeded,
@@ -1134,9 +1167,11 @@ func executeAdvancedTarget(
 	// its verify, inside target-apply-succeeded, so a failure takes the same
 	// rollback path as a failed verify.
 	if orchestrate != nil {
+		advancedMutationStage("terramate", "started")
 		if err := orchestrate(ctx); err != nil {
 			return err
 		}
+		advancedMutationStage("terramate", "completed")
 	}
 	verifyNonce, err := mutation.BeginJoin(
 		lifecyclemutation.PhaseTargetApplySucceeded,
@@ -1147,6 +1182,7 @@ func executeAdvancedTarget(
 		return err
 	}
 	result.VerifyInvoked = true
+	advancedMutationStage("target-verify", "started")
 	rawVerify, err := runner.Run(ctx, binary, append(
 		append(common, lifecycleChildFlags(operationID, lifecyclemutation.PhaseTargetVerifyStarted, verifyNonce)...),
 		"verify", "--json",
@@ -1166,6 +1202,7 @@ func executeAdvancedTarget(
 	result.OwnerRef = report.Owner.OwnerRef
 	result.OwnerBindingHash = report.Owner.OwnerBindingDigest
 	result.Verified = true
+	advancedMutationStage("target-verify", "completed")
 	return mutation.Transition(
 		lifecyclemutation.PhaseTargetVerifyStarted,
 		lifecyclemutation.PhaseTargetVerifySucceeded,

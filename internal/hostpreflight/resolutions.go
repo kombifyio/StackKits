@@ -73,6 +73,13 @@ type Resolution struct {
 	AutoInstallerEligible bool `json:"autoInstallerEligible"`
 }
 
+// The NVIDIA apt source signs with an ASCII-armored key, which apt accepts
+// from a .asc keyring file without gpg.
+const (
+	nvidiaContainerToolkitKeyring    = "/usr/share/keyrings/nvidia-container-toolkit-keyring.asc"
+	nvidiaContainerToolkitSourceList = "/etc/apt/sources.list.d/nvidia-container-toolkit.list"
+)
+
 // Resolutions is the closed catalog, ordered by the check they answer.
 func Resolutions() []Resolution {
 	return []Resolution{
@@ -152,6 +159,28 @@ func Resolutions() []Resolution {
 				"Run docker login yourself, then retry with stackkit apply.",
 				"StackKits never handles registry credentials.",
 			},
+		},
+		{
+			ID: "nvidia-container-toolkit", Title: "Let containers use the NVIDIA GPU",
+			AppliesTo: CheckGPUContainerAccess, Mode: ModeApply,
+			Summary: "A selected NVIDIA accelerator profile needs the NVIDIA Container Toolkit and a CDI spec for nvidia.com/gpu.",
+			Files: []FileChange{{
+				Path: nvidiaContainerToolkitSourceList, Mode: 0o644,
+				Content: "deb [signed-by=" + nvidiaContainerToolkitKeyring + "] https://nvidia.github.io/libnvidia-container/stable/deb/$(ARCH) /\n",
+			}},
+			Commands: [][]string{
+				{"curl", "-fsSL", "-o", nvidiaContainerToolkitKeyring, "https://nvidia.github.io/libnvidia-container/gpgkey"},
+				{"apt-get", "update"},
+				{"apt-get", "install", "-y", "nvidia-container-toolkit"},
+				{"nvidia-ctk", "cdi", "generate", "--output=/etc/cdi/nvidia.yaml"},
+			},
+			Guidance: []string{
+				"Debian and Ubuntu hosts only; on other distributions follow NVIDIA's Container Toolkit install guide, then run nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml.",
+				"The NVIDIA driver 550 or newer must already be installed: StackKits never installs GPU drivers.",
+				"Regenerate the CDI spec after every driver upgrade with the same nvidia-ctk command, or containers lose the GPU.",
+				"Undo with apt-get remove nvidia-container-toolkit and by deleting /etc/cdi/nvidia.yaml, the key and the source list.",
+			},
+			RequiresRoot: true, Reversible: true, AutoInstallerEligible: true,
 		},
 		{
 			ID: "proxmox-cpu-host", Title: "Pass the host CPU through to the VM",

@@ -70,6 +70,7 @@ type renderUnitContract struct {
 	requiredInterfaces           []implementationInterface
 	outputs                      []string
 	instances                    []renderUnitInstance
+	accelerator                  *ModuleAccelerator
 }
 
 type serviceEndpointContract struct {
@@ -1247,8 +1248,13 @@ func parseModule(raw json.RawMessage, modulePath string, artifacts map[string]ar
 	if err != nil {
 		return renderModule{}, nil, err
 	}
+	accelerator, err := parseModuleAccelerator(object, modulePath)
+	if err != nil {
+		return renderModule{}, nil, err
+	}
 	for index := range module.units {
 		module.units[index].runtime = runtime
+		module.units[index].accelerator = accelerator
 	}
 	logicalBindings, err := parseModuleBindings(object, module, unitIDs, outputs, modulePath)
 	if err != nil {
@@ -1785,6 +1791,17 @@ func validateRenderUnitInputBindings(unit rawRenderUnit, unitPath string) ([]byt
 			}
 			if _, exists := unit.Values[binding.TargetRef]; !exists {
 				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound backup.localKopiaSource value is missing")
+			}
+		case workloadCompanionsSourceRef:
+			if binding.ValueType != workloadCompanionsValueType || binding.Cardinality != "list" {
+				return nil, fail(ErrInvalidPlan, path, "workloads.companions has an invalid type or cardinality")
+			}
+			value, exists := unit.Values[binding.TargetRef]
+			if !exists {
+				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound workloads.companions value is missing")
+			}
+			if _, err := decodeWorkloadCompanions(value, unitPath+".values."+binding.TargetRef); err != nil {
+				return nil, err
 			}
 		default:
 			return nil, fail(ErrInvalidPlan, path+".sourceRef", "unsupported resolved-plan input source")

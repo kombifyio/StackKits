@@ -1,5 +1,23 @@
 # Changelog
 
+- Fix: `stackkit user owner activate --owner-approve` now mints a fresh one-time passkey activation link on every approved call and retires the previously issued link first. An owner who opened the earlier link without registering a passkey is no longer handed the consumed code until the 24-hour enrollment expires, and at most one owner activation link stays redeemable.
+
+- Fix: re-running the Cloud installer (`cloud.stackkit.cc`, and the Cloud path of `base.stackkit.cc`) on an interrupted workspace works from any directory: host preparation runs inside the workspace and its failure stops the install. The installer resolves the plan again for the prepared host instead of reusing one resolved before Docker was installed, which Apply rejected as `binding_mismatch`. SSH hints name the workspace owner account, and the retry hint re-runs the installer that was used.
+
+- Fix: Cloud application sign-in resolves the unchanged PocketID issuer directly to the router on its plan-selected Docker network. This avoids host-gateway TCP timeouts while retaining certificate verification, public issuer identity and route access policies; Basement keeps its existing host-gateway path.
+
+- Fix: Vault owner setup configures PocketID's verified-TLS SMTP delivery from private owner custody, allows an authorized SMTP sender different from the owner recipient, and records the exact owner's real email-confirmation state. Native Vault sign-in remains pending until the owner consumes PocketID's mailed token in their own session; StackKits never presets the verified claim.
+
+- Fix: Media owner setup accepts Jellyfin's alternate UUID text form for existing SSO account links while keeping subjects and identities exact.
+
+- Fix: Cloud public TLS verification runs after workload owners publish their HTTPS routes. Fresh Apply no longer waits for Vault's router before the Vault workload has executed; certificate validation and recovery-authority expiry remain enforced.
+
+- Fix: Smart Home's Home Assistant OIDC configuration now uses the exact pinned 1.2.1 schema and retains its secure PKCE default, so the packaged authentication provider starts successfully.
+
+- Fix: Media owner setup accepts Jellyfin SSO's omitted nullable redirect-port override as the same unset policy it submitted. A concrete override is still cleared and every other governed OIDC field remains exact.
+
+- Fix: successful Files household account provisioning now remains successful when Cloudreve's structured setup result crosses the HTTP adapter's `error` boundary. Real Cloudreve failures and privileged-group refusals still propagate unchanged.
+
 All notable changes to kombify-StackKits are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
@@ -8,6 +26,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+* **ai:** the Private AI image-video module installs ComfyUI on an NVIDIA GPU. `--use-case-capability ai.image-video=comfyui --module-accelerator-profile stackkits-comfyui-runtime=nvidia` adds the add-on workload `ai-image-video`; without a GPU profile it is refused, and Apply refuses a host without an NVIDIA GPU with 8 GiB of VRAM. ComfyUI never loads ComfyUI-Manager, custom nodes or paid API nodes and is reached only on a private route behind the kit's login. Four reviewed workflow templates ship (text-to-image, image-to-image, 4x upscale, Wan 2.2 video). No model is bundled: `stackkit setup ai-image-video` downloads one preset (FLUX.1 schnell, Real-ESRGAN or Wan 2.2 5B) after the owner accepts its license, and verifies each file's size and SHA-256. Workflows, uploads and outputs are backed up; models are not. When chat is selected, Open WebUI generates images through ComfyUI. No GPU host has run it yet.
+
+* **ai:** the Private AI web-search and document-parsing modules install. `--use-case-capability ai.web-search=searxng` adds SearXNG, and `ai.document-parsing=tika` (or `=docling`) adds Apache Tika or Docling, each as its own add-on workload on the node's private AI network. Open WebUI is configured to use them only while they are selected; without them its configuration is unchanged. The add-ons have no route of their own, are never public and hold no data to back up. Speech stays planned: the SpeechKit server image is not publicly pullable and offers no OpenAI-compatible audio API for Open WebUI.
+
+* **ai:** Private AI can run Ollama on a GPU. `stackkit init --use-case ai --module-accelerator-profile stackkits-private-ai-runtime=nvidia` (or `=amd`) selects an accelerator profile; without one, the StackSpec and rendered artifacts stay exactly as before (CPU). NVIDIA uses the Container Device Interface (Compose device reservation `nvidia.com/gpu=all`) and needs driver 550 or newer. The new host resolution `nvidia-container-toolkit` installs the NVIDIA Container Toolkit and generates the CDI spec; StackKits never installs GPU drivers. AMD uses the Ollama ROCm image with `/dev/kfd` and `/dev/dri`. The local inventory now records GPU facts (vendor, count, VRAM, driver version, container access). Apply refuses a selected profile before installing anything when the host has no qualifying GPU, driver or VRAM, and says what to do. The Private AI Accelerator setting now installs. Only governed components receive a GPU. No GPU host has run these profiles yet.
+
+* **ai:** Private AI is built from capability modules: inference (required), chat, speech, web search, document parsing, image and video, personal assistant, agent harness, agent control plane and observability. Each module has one default tool and at most one alternative. `stackkit init --use-case ai --use-case-capability ai.<capability>=<option|off>` selects them. Only inference (Ollama) and chat (Open WebUI) install today; every other module is planned, and selecting it is refused with guidance. Unknown modules, unmet module dependencies and contradictory choices are refused too. `--use-case ai` without a module choice produces the identical StackSpec. The release use-case catalog publishes the modules under `capabilities`.
+
+* **access:** generated TinyAuth policies now include selected application routes by binding the route list to the same Core owner as each application route. Photos admits owners/admins/household; Vault and Base retain owner/admin-only access, and unselected hosts remain denied. Cloud standalone ACL insertion preserves the marshaled YAML indentation so its Compose artifact remains parseable.
+
+* **managed restore:** an optional signed, job-bound backup renewal permits a local staged Cloud drill against the unchanged applied plan and repository for at most 15 minutes after fresh managed entitlement, quota and remote target attestation. Expired target bindings require this renewal; fresh rollout bindings remain valid. The drill does not activate restored data or claim remote snapshot recovery.
+
+* **workloads:** workload components gain governed `secretFiles` (a custody secret delivered as a read-only file) and `restoreActivationEnvironment` rights
+* **photos:** Immich and Immich Lite use a restricted Pocket ID client with PKCE for web and mobile login. Owner custody supplies the client secret at runtime; the owner receives the admin claim and newly created household accounts receive the user claim.
 * **mail-server:** the own mail server runs on a dedicated node (ADR-0046 amendment 2026-09-25). Workload contracts gain `exclusiveNode`; plan resolution refuses a mail server on more than one node or next to another application workload, and `stackkit init` refuses `mail-server` with another application use case. `stackkit setup mail-server` accepts an optional outbound relay (`relay: {host, port, security, username, password}`) that it configures in Stalwart with TLS required and the certificate verified, never storing the password, and it refuses a mail host without a public IPv4 address record. Home nodes stay refused
 * **host:** `stackkit host updates plan|apply` and `stackkit host reboot` maintain the operating system of a Debian or Ubuntu node. Plan reports pending and security updates, a `plan_digest` and whether a reboot is likely. Apply installs exactly the reviewed set inside a transient systemd unit, so a timeout never interrupts dpkg. The container runtime is held (for this CLI; unattended-upgrades follows the StackKit base), and apply never removes packages or reboots. Reboot schedules a guarded systemd timer and returns the current boot ID; at fire time the guard re-checks and reboots while holding the dpkg locks. It refuses the Techstack control plane host (failing closed when it cannot tell), a busy package manager and volumes that need a boot passphrase. Results use `stackkit.host-maintenance/v1`
 * **mail-server:** own mail server as a second, separately selectable part of Mail (ADR-0046): optional Stalwart Mail Server workload (v0.16.23, digest-pinned) on the Cloud Kit with SMTP, submission, IMAPS and ManageSieve published on the node, the web administration behind the router and a custody-held fallback administrator. `stackkit setup mail-server` creates the owner's domain and first mailbox, requests a Let's Encrypt certificate through a TLS-ALPN-01 router passthrough, prints MX, SPF, DKIM, DMARC and SRV records and verifies an IMAPS login and a submission handshake; DNS is never changed automatically. Home placement is refused until an outbound relay input exists
@@ -22,6 +54,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
 ### Fixed
+
+* **opentofu:** live `stackkit verify --json` opens every encrypted runtime state through its owner-custodied key and reports only the current ciphertext digest and resource addresses. Missing or wrong custody, malformed ciphertext, an empty state, or a state that changes during inspection now fails verification.
+* **setup:** a successful automatic Files owner bootstrap remains a successful Apply outcome instead of becoming a typed-nil error and panicking while the result is reported.
+* **opentofu:** every packaged provider and lock is checked against the CLI's compiled five-platform manifest before execution; initialization uses only the bundled filesystem mirror and a read-only lock. New checkpoints seal dependency locks and legacy roots receive a compiled recovery lock.
+* **day-2:** Terramate drift, reconciliation and coordinated rollback use the same owner-held encryption key as the initial OpenTofu apply. Sensitive plan output and provider debug dumps are suppressed; drift receipts retain only numeric change summaries.
+
+* **media:** refuse unqualified Jellyfin major upgrades and downgrades before identity, runtime-file or container mutation; fresh 12.1 installs and same-major reapply remain available, while uncustodied existing data fails closed.
+* **identity:** Pocket ID is pinned to v2.16.0 by verified container and native-binary digests. OIDC clients use the plural secrets API with chosen client IDs and custody-held secrets, while reapply preserves existing client credentials and user subjects.
+* **bootstrap:** application setup now resolves an executable transport from the verified runtime adapter capability and exact binding. Compose, OpenTofu and Terramate retain the existing local setup path; unimplemented provider adapters remain refused.
+
+* **auth:** TinyAuth enforces catalog route privileges using exact-host rules with a default deny policy. Household members can reach user applications while administration and vault routes remain restricted to owners and admins; Docker label discovery is disabled and TinyAuth is pinned to v5.1.2.
 
 * **backup:** backups of Apache-based workloads (Nextcloud, Roundcube) no longer fail before quiescence. Their images declare `SIGWINCH`, Apache's graceful stop, which snapshot quiescence refused as an unsupported stop signal. `SIGWINCH` is now accepted beside `SIGTERM` and `SIGINT`; Docker still escalates to `SIGKILL` after the grace period. Reload signals such as `SIGHUP` stay refused before the first container stops.
 * **mcp:** project `stackkit host updates plan|apply` and `stackkit host reboot` as MCP operations; align the immich-lite renderer version (3.1.0) in the catalog
@@ -42,6 +85,73 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **photos:** keep Apply and restore available when optional machine learning is degraded, while reporting its health and retaining blocking checks for core services
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
+
+## [0.47.7](https://github.com/kombifyio/StackKits/compare/v0.47.6...v0.47.7) (2026-09-27)
+
+
+### Added
+
+* **ai:** AnythingLLM as chat alternative; Ollama, Open WebUI, ComfyUI are the core
+
+
+### Fixed
+
+* **release:** compare archive legal files with public source root
+
+## [0.47.6](https://github.com/kombifyio/StackKits/compare/v0.47.5...v0.47.6) (2026-09-27)
+
+
+### Fixed
+
+
+## [0.47.5](https://github.com/kombifyio/StackKits/compare/v0.47.4...v0.47.5) (2026-09-27)
+
+
+### Added
+
+* **ai:** capability-module contract for Private AI
+* **ai:** GPU enablement for Private AI (NVIDIA CDI, AMD ROCm)
+* **ai:** image-video module installs ComfyUI on an NVIDIA GPU
+* **ai:** web-search and document-parsing modules install and wire into Open WebUI
+* **backup:** verify signed managed restore-drill renewals
+* **identity:** automate Media and Smart Home OIDC bootstrap
+* **identity:** migrate existing Basement domains with signed recovery
+* **identity:** provision Files household accounts through admitted adapters
+* **network:** Basement default domain lab.home; refuse a domain that is its own public suffix
+* **opentofu:** encrypt state and plans with owner custody
+
+
+### Fixed
+
+* **access:** bind generated app ACLs to their Core owner
+* **backup:** make Private AI backup, export and service control work
+* **bootstrap:** enforce application identity and preserve checkpoint custody
+* **compat:** import activated restore qualification
+* **files:** accept automatic owner custody for household provisioning
+* **files:** preserve successful household setup
+* **identity:** hold one lock across domain migration
+* **identity:** route Cloud issuer discovery over the core network
+* **identity:** upgrade PocketID while preserving existing custody
+* **init:** honor the declared Basement OpenTofu default
+* **installer:** resume an interrupted Cloud install from any directory
+* **lifecycle:** a retried Apply recovers a recovery-required Apply
+* **media:** accept omitted nullable SSO port
+* **media:** compare Jellyfin account links as UUIDs
+* **migration:** quiesce authenticated source runtime before domain bridge
+* **opentofu:** bind offline providers and Day 2 state custody
+* **opentofu:** verify encrypted runtime state
+* **owner:** reissue a fresh owner activation link and retire the previous one
+* **release:** ship MPL notices with bundled tools
+* **restore:** complete bootstrap while preserving restored identity
+* **runtime:** verify public TLS after workload routes exist
+* **service:** a new plan supersedes running-only service desired state
+* **setup:** preserve successful Files bootstrap
+* **smart-home:** retain PKCE with pinned OIDC schema
+* **tofu:** select provider locks per root declaration
+* **upgrade:** target and rollback generate resolve the verified Inventory
+* **vault:** restore mandatory SMTP email verification
+* **verify:** probe a route's declared HTTP health-gate path
+* **webmcp:** project GPU accelerator profiles; remove committed generator staging dir
 
 ## [0.47.4](https://github.com/kombifyio/StackKits/compare/v0.47.3...v0.47.4) (2026-09-26)
 

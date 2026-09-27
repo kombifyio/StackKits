@@ -125,10 +125,13 @@ const (
 	DomainKombifyMe = "kombify.me"
 	DomainHomelab   = "homelab"
 	// DomainHomeLab keeps the historical constant name for compatibility. The
-	// canonical local deployment zone is resolved by the scoped device profile
+	// canonical local deployment domain is resolved by the scoped device profile
 	// installed during Home device enrollment. It never relies on .localhost,
-	// mDNS, a hosts file, or router DHCP configuration.
-	DomainHomeLab             = "home"
+	// mDNS, a hosts file, or router DHCP configuration. It has two labels: the
+	// login broker scopes its session cookie to the parent of auth.<domain>, and
+	// a single-label parent such as "home" is a public suffix no browser shares
+	// a cookie for (owner decision 2026-09-26).
+	DomainHomeLab             = "lab.home"
 	DomainHomeLocalhost       = "home.localhost"
 	DomainStackHome           = "stack.home"
 	DomainHomeKombifyLegacy   = "home.kombify"

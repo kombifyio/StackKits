@@ -18,14 +18,14 @@ const (
 	cloudCoreComposeOutputRef = "platform/cloud-core/compose.yaml"
 	cloudCoreRendererRef      = "stackkit"
 	cloudCoreVersion          = "1.0.0"
-	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:12|resolved-network-domain:required|resolved-subdomain-prefix:optional|runtime-listeners:catalog-bound,direct-loopback-only|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub,stackkit-server|networks:cloud-core-host-reachable,cloud-control-internal|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-http-01,tls-alpn-bypass-websecure|ingress:forward-auth-bound|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
+	cloudCoreComposeSchema    = `stackkit.cloud-core-compose/v1|artifact-revision:14|resolved-network-domain:required|resolved-subdomain-prefix:optional|runtime-listeners:catalog-bound,direct-loopback-only|services:router,socket-proxy,pocketid,tinyauth,coolify,coolify-postgres,coolify-redis,coolify-realtime,hub,stackkit-server|networks:cloud-core-host-reachable,cloud-control-internal,issuer-router-alias|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-http-01,tls-alpn-bypass-websecure|ingress:forward-auth-bound|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
 )
 
 const cloudCoreComponentsJSON = `[
 {"id":"router","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/traefik/traefik:v3","digest":"sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8"},"dependsOn":["socket-proxy"],"networkRefs":["cloud-core","cloud-control"],"health":{"kind":"http","path":"/ping","port":8080},"resources":{"memoryLimit":"256m"}},
 {"id":"socket-proxy","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/tecnativa/docker-socket-proxy:v0.4.2","digest":"sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476"},"dependsOn":[],"networkRefs":["cloud-control"],"health":{"kind":"image"},"resources":{"memoryLimit":"128m"}},
-{"id":"pocketid","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/pocket-id/pocket-id:v2.7.0","digest":"sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e"},"dependsOn":[],"networkRefs":["cloud-core"],"volumes":[{"id":"pocketid-data","target":"/app/data","class":"persistent","backup":true}],"health":{"kind":"http","path":"/health","port":1411},"resources":{"memoryLimit":"512m"}},
-{"id":"tinyauth","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/steveiliop56/tinyauth:v5.0.7","digest":"sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6"},"dependsOn":["pocketid"],"networkRefs":["cloud-core"],"volumes":[{"id":"tinyauth-data","target":"/data","class":"persistent","backup":true}],"health":{"kind":"command","command":["tinyauth","healthcheck"]},"resources":{"memoryLimit":"256m"}},
+{"id":"pocketid","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/pocket-id/pocket-id:v2.16.0","digest":"sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea"},"dependsOn":[],"networkRefs":["cloud-core"],"volumes":[{"id":"pocketid-data","target":"/app/data","class":"persistent","backup":true}],"health":{"kind":"http","path":"/health","port":1411},"resources":{"memoryLimit":"512m"}},
+{"id":"tinyauth","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/tinyauthapp/tinyauth:v5.1.2","digest":"sha256:910f84801dc9597398458d45f8d305eb232dc583d6927c87cc29626527947d35"},"dependsOn":["pocketid"],"networkRefs":["cloud-core"],"volumes":[{"id":"tinyauth-data","target":"/data","class":"persistent","backup":true}],"health":{"kind":"command","command":["tinyauth","healthcheck"]},"resources":{"memoryLimit":"256m"}},
 {"id":"coolify","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/coollabsio/coolify:4.1.2","digest":"sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f"},"dependsOn":["coolify-postgres","coolify-redis","coolify-realtime"],"networkRefs":["cloud-core","cloud-control"],"volumes":[{"id":"coolify-data","target":"/var/www/html/storage","class":"persistent","backup":true},{"id":"coolify-ssh","target":"/var/www/html/storage/app/ssh","class":"persistent","backup":true},{"id":"coolify-applications","target":"/var/www/html/storage/app/applications","class":"persistent","backup":true},{"id":"coolify-databases","target":"/var/www/html/storage/app/databases","class":"persistent","backup":true},{"id":"coolify-services","target":"/var/www/html/storage/app/services","class":"persistent","backup":true},{"id":"coolify-backups","target":"/var/www/html/storage/app/backups","class":"persistent","backup":true}],"health":{"kind":"http","path":"/api/health","port":8080},"resources":{"memoryLimit":"1g"}},
 {"id":"coolify-postgres","role":"database","lifecycle":"daemon","image":{"ref":"docker.io/library/postgres:15-alpine","digest":"sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f"},"dependsOn":[],"networkRefs":["cloud-control"],"volumes":[{"id":"coolify-postgres-data","target":"/var/lib/postgresql/data","class":"persistent","backup":true}],"health":{"kind":"command","command":["pg_isready","-U","coolify"]},"resources":{"memoryLimit":"512m"}},
 {"id":"coolify-redis","role":"cache","lifecycle":"daemon","image":{"ref":"docker.io/library/redis:7-alpine","digest":"sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99"},"dependsOn":[],"networkRefs":["cloud-control"],"volumes":[{"id":"coolify-redis-data","target":"/data","class":"persistent","backup":true}],"health":{"kind":"command","command":["redis-cli","ping"]},"resources":{"memoryLimit":"256m"}},
@@ -74,9 +74,12 @@ services:
     volumes: [public-tls-acme:/letsencrypt]
     ports: ["0.0.0.0:80:80", "0.0.0.0:443:443", "127.0.0.1:8080:8080"]
     healthcheck: {test: ["CMD", "traefik", "healthcheck", "--ping"], interval: 5s, timeout: 3s, retries: 12, start_period: 5s}
-    networks: [cloud-core, cloud-control]
+    networks:
+      cloud-core:
+        aliases: ["id.{{STACKKIT_DOMAIN}}"]
+      cloud-control: {}
   pocketid:
-    image: ghcr.io/pocket-id/pocket-id:v2.7.0@sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e
+    image: ghcr.io/pocket-id/pocket-id:v2.16.0@sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea
     restart: unless-stopped
     logging:
       driver: json-file
@@ -98,7 +101,7 @@ services:
       - traefik.http.services.pocketid.loadbalancer.server.port=1411
     networks: [cloud-core]
   tinyauth:
-    image: ghcr.io/steveiliop56/tinyauth:v5.0.7@sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6
+    image: ghcr.io/tinyauthapp/tinyauth:v5.1.2@sha256:910f84801dc9597398458d45f8d305eb232dc583d6927c87cc29626527947d35
     restart: unless-stopped
     logging:
       driver: json-file
@@ -112,6 +115,12 @@ services:
       - path: "${STACKKIT_CUSTODY_DIR:?}/cloud-runtime/tinyauth.env"
       - path: "${STACKKIT_CUSTODY_DIR:?}/tinyauth-pocketid/tinyauth.env"
         required: false
+    environment:
+      TINYAUTH_AUTH_ACLS_POLICY: deny
+      # Login admission is separate from exact-host application group ACLs.
+      TINYAUTH_OAUTH_PROVIDERS_POCKETID_WHITELIST: "/.*/"
+      TINYAUTH_LABELPROVIDER: none
+      # stackkit-tinyauth-route-acls
     volumes: [tinyauth-data:/data]
     ports: ["127.0.0.1:4000:3000"]
     healthcheck: {test: ["CMD", "tinyauth", "healthcheck"], interval: 10s, timeout: 5s, retries: 12, start_period: 10s}
@@ -254,7 +263,7 @@ type cloudCoreRenderer struct {
 }
 
 func CloudCoreComposeRendererContract() RendererContract {
-	sum := sha256.Sum256([]byte(cloudCoreComposeSchema))
+	sum := sha256.Sum256([]byte(cloudCoreComposeSchema + tinyAuthRouteACLContractSalt))
 	return RendererContract{Kind: "compose", RendererRef: cloudCoreRendererRef, TemplateRef: cloudCoreComposeTemplate, Version: cloudCoreVersion, ContractHash: "sha256:" + hex.EncodeToString(sum[:])}
 }
 
@@ -305,7 +314,8 @@ func CloudComposeIdentityAddress(content []byte) (domain, prefix string, ok bool
 
 func ValidateCloudCoreComposeArtifact(content []byte) bool {
 	domain, prefix, ok := CloudComposeIdentityAddress(content)
-	return ok && bytes.Equal(content, RenderCloudCoreComposeForAddress(domain, prefix))
+	stripped, aclOK := stripTinyAuthRouteACLs(content)
+	return ok && aclOK && bytes.Equal(stripped, RenderCloudCoreComposeForAddress(domain, prefix))
 }
 
 func CloudCoreServiceContracts() []BasementCoreServiceContract {

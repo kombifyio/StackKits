@@ -54,6 +54,11 @@ type AuthoringOverrides struct {
 	// validated against the selected modules and alternatives in the CUE catalog.
 	ModuleProfiles      map[string]ModuleProfileOverride
 	UseCaseAlternatives map[string]string
+	// UseCaseCapabilities selects capability modules (use case ID ->
+	// capability ID -> option ID or CapabilityOff) against the embedded
+	// UseCaseCatalog projection. It is v2alpha2 only and resolves into
+	// UseCases and UseCaseAlternatives before materialization.
+	UseCaseCapabilities map[string]map[string]string
 	// HardwareProfile writes nodes[0].hardware.profile (standard|pi|gpu|storage).
 	// pi is a constrained homelab device class, not Raspberry-only. Empty leaves
 	// the CUE default. This is never auto-detected from inventory.
@@ -101,6 +106,10 @@ func (s *Service) MaterializeInitialStackSpec(profile stackspecmigration.KitProf
 		return StackSpecValidation{}, resolveError(ErrAuthorityLoad, fmt.Sprintf("no governed Definition exists for %q", profile), nil)
 	}
 	nativeProfiles, err := nativeModuleProfileAuthoring(overrides)
+	if err != nil {
+		return StackSpecValidation{}, err
+	}
+	overrides, err = resolveUseCaseCapabilities(s.authority.useCaseCapabilities, s.authority.catalog, overrides)
 	if err != nil {
 		return StackSpecValidation{}, err
 	}

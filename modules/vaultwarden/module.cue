@@ -95,7 +95,7 @@ Contract: foundation.#ModuleContract & {
 		accessPolicy: {
 			outerAuth:      "tinyauth-pocketid"
 			appAuth:        "self-auth"
-			ownerBootstrap: "Generated admin token (Argon2id PHC) verified via the admin endpoint; the Owner login boundary is TinyAuth/PocketID in front of the app. Native app-local Owner provisioning is a documented beta limitation."
+			ownerBootstrap: "Native PocketID SSO admits owners/admins; the Owner invitation and verified admin token remain recovery paths. Each user chooses and unlocks a personal master password; StackKit never provisions vault decryption keys."
 		}
 
 		volumes: [{

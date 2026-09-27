@@ -15,6 +15,7 @@ import (
 	cueerrors "cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/load"
 	"cuelang.org/go/cue/parser"
+	"golang.org/x/net/publicsuffix"
 )
 
 // CUEContractValidator is the non-substitutable schema authority used by
@@ -177,7 +178,30 @@ func (v *CUEContractValidator) normalizeBinding(definition KitDefinition, spec S
 	if err != nil {
 		return nil, nil, err
 	}
+	if err := requireSessionScopableDomain(normalizedSpec); err != nil {
+		return nil, nil, err
+	}
 	return normalizedDefinition, normalizedSpec, nil
+}
+
+// requireSessionScopableDomain refuses a network.domain.base that is its own
+// public suffix: a single label such as "home" (the list's default rule) or a
+// listed suffix such as "home.arpa". The login broker scopes its session
+// cookie to the domain, and browsers never share a cookie scoped to a public
+// suffix, so every protected service would loop back to login.
+func requireSessionScopableDomain(spec StackSpecV2) error {
+	network, _ := spec["network"].(map[string]any)
+	domain, _ := network["domain"].(map[string]any)
+	base, _ := domain["base"].(string)
+	base = strings.Trim(strings.ToLower(strings.TrimSpace(base)), ".")
+	if base == "" {
+		return nil
+	}
+	if suffix, _ := publicsuffix.PublicSuffix(base); suffix == base {
+		return fmt.Errorf("network.domain.base %q is a public suffix, so no browser shares a login session across its services;"+
+			" use a domain with at least two labels below the suffix, such as lab.home", base)
+	}
+	return nil
 }
 
 // NormalizeStackSpecBinding validates desired intent against the canonical

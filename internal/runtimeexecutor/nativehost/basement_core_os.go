@@ -193,6 +193,25 @@ func (o *osBasementCoreOperations) prepareApply() (basementApplyPreparation, err
 // recreation, the step-ca reload after an origin upgrade, PocketID owner
 // realization, and the reconciling `up` that binds TinyAuth to the owner.
 func (o *osBasementCoreOperations) completeApply(ctx context.Context, composePath string, environment []string, preparation basementApplyPreparation) (localevidence.OwnerRuntimeBinding, error) {
+	return o.completeApplyWithIdentity(ctx, composePath, environment, preparation, "realization", o.ownerIdentity.Realize)
+}
+
+// completeRestoredApply performs the same runtime side effects as Apply while
+// requiring the restored PocketID owner and TinyAuth client to match existing
+// custody. Verify is read-only, so restore activation cannot create a user,
+// issue an enrollment, or rotate the TinyAuth credential.
+func (o *osBasementCoreOperations) completeRestoredApply(ctx context.Context, composePath string, environment []string, preparation basementApplyPreparation) (localevidence.OwnerRuntimeBinding, error) {
+	return o.completeApplyWithIdentity(ctx, composePath, environment, preparation, "verification", o.ownerIdentity.Verify)
+}
+
+func (o *osBasementCoreOperations) completeApplyWithIdentity(
+	ctx context.Context,
+	composePath string,
+	environment []string,
+	preparation basementApplyPreparation,
+	identityAction string,
+	completeIdentity func(context.Context) (localevidence.OwnerRuntimeBinding, error),
+) (localevidence.OwnerRuntimeBinding, error) {
 	if preparation.recreateServer {
 		if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "recreate-server"), filepath.Dir(composePath), environment); err != nil {
 			return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("recreate the local stackkit-server with its new release or token: %w", err)
@@ -213,13 +232,13 @@ func (o *osBasementCoreOperations) completeApply(ctx context.Context, composePat
 			return localevidence.OwnerRuntimeBinding{}, err
 		}
 	}
-	binding, err := o.ownerIdentity.Realize(ctx)
+	binding, err := completeIdentity(ctx)
 	if err != nil {
-		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("local PocketID owner realization did not complete: %w", err)
+		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("local PocketID owner %s did not complete: %w", identityAction, err)
 	}
-	// Owner realization creates the exact PocketID OIDC client and installs its
-	// one-time secret as a private optional env override. Reconcile Compose once
-	// more so TinyAuth runs with that bound credential before Apply can succeed.
+	// Identity completion either realizes or verifies the exact PocketID OIDC
+	// client and its private env override. Reconcile Compose once more so
+	// TinyAuth runs with that bound credential before completion can succeed.
 	if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), environment); err != nil {
 		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("local TinyAuth PocketID binding did not complete: %w", err)
 	}

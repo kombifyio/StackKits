@@ -31,6 +31,27 @@ func parseInitSelections(flag string, values []string) (map[string]string, error
 	return result, nil
 }
 
+// parseInitCapabilitySelections reads use-case.capability=option pairs. A
+// repeated capability is refused like any repeated selection.
+func parseInitCapabilitySelections(values []string) (map[string]map[string]string, error) {
+	selections, err := parseInitSelections("use-case-capability", values)
+	if err != nil {
+		return nil, err
+	}
+	result := map[string]map[string]string{}
+	for key, option := range selections {
+		useCase, capability, found := strings.Cut(key, ".")
+		if !found || useCase == "" || capability == "" || strings.Contains(capability, ".") {
+			return nil, fmt.Errorf("--use-case-capability requires use-case.capability=option, got %q", key)
+		}
+		if result[useCase] == nil {
+			result[useCase] = map[string]string{}
+		}
+		result[useCase][capability] = option
+	}
+	return result, nil
+}
+
 func parseInitModuleProfiles() (map[string]architecturev2.ModuleProfileOverride, error) {
 	result := map[string]architecturev2.ModuleProfileOverride{}
 	for _, axis := range []struct {

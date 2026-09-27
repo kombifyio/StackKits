@@ -62,8 +62,17 @@ func SourcesFromContract(plan backupplan.EmergencyExportPlan, policy localbackup
 		}
 		dumpClasses[dump.Class] = struct{}{}
 	}
+	// The policy lists application volumes in ManagedVolumeNames as well;
+	// they are exported once, below, with their CUE data classes and caches.
+	applicationVolumes := make(map[string]struct{}, len(policy.Source.ApplicationVolumes))
+	for _, volume := range policy.Source.ApplicationVolumes {
+		applicationVolumes[volume.VolumeName] = struct{}{}
+	}
 	var sources []EmergencySource
 	for _, name := range policy.Source.ManagedVolumeNames {
+		if _, application := applicationVolumes[name]; application {
+			continue
+		}
 		if excludedEmergencyVolume(name, policy.Source.ExcludePaths) {
 			continue
 		}
@@ -91,8 +100,9 @@ func SourcesFromContract(plan backupplan.EmergencyExportPlan, policy localbackup
 			continue
 		}
 		sources = append(sources, EmergencySource{
-			Class: class,
-			Path:  filepath.Join(volumeRoot, volume.VolumeName, "_data"),
+			Class:    class,
+			Path:     filepath.Join(volumeRoot, volume.VolumeName, "_data"),
+			Excludes: append([]string(nil), volume.CacheSubpaths...),
 		})
 	}
 	for _, dump := range dumps {

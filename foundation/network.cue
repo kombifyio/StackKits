@@ -5,7 +5,7 @@ package foundation
 #NetworkDefaults: {
 	// Primary domain for the homelab. The local default is the single
 	// device-enrolled, resolver-backed zone; it has no .localhost or mDNS alias.
-	domain: string | *"home"
+	domain: string | *"lab.home"
 
 	// Subnet for internal services
 	subnet: string | *"172.20.0.0/16"

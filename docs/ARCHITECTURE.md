@@ -1371,7 +1371,7 @@ for the same unit and wrap its bytes.
   (`<runtime>/../../custody`); every other Compose interpolation variable
   (owner email, stackkit-server user) must come from the environment the
   executor gives the `tofu` process, the same set the native executor uses.
-- Provider pin: `hashicorp/local` `= 2.5.3`, OpenTofu `>= 1.10.0`.
+- Provider pin: `hashicorp/local` `= 2.5.3`, OpenTofu `~> 1.12.0` (the release package pins `1.12.6`).
 - Workload bundles (Immich, Jellyfin and the other selected-PaaS bundles),
   the Kopia source policy and the runtime adapters are target-neutral
   `native-config` units; their Compose projects are materialized by the
@@ -1418,9 +1418,22 @@ Compose fallback behind the `compose` unit (S-F structure rule, see
   The `tofu` process gets the native Compose interpolation environment, so
   `local-exec` resolves the same variables the native executor supplies.
 - **Run.** Through `internal/tofu` with the packaged binary: `tofu init
-  -input=false`, `tofu plan -input=false -detailed-exitcode -out=tfplan`, and
+  -input=false -lockfile=readonly`, `tofu plan -input=false
+  -detailed-exitcode -out=tfplan`, and
   `tofu apply -input=false tfplan` when the plan has changes. State stays in the
-  root as the local-backend `terraform.tfstate` (0600). The executor never runs
+  root as the local-backend `terraform.tfstate` (0600). A distinct key derived
+  from stable Owner custody and the portable root identity encrypts state and
+  saved plans with AES-GCM; host `TF_ENCRYPTION` is removed. Existing plaintext
+  state and its local backup are encrypted through an isolated temporary local
+  backend and atomically replaced before the enforced plan, including when the
+  resource graph has no diff. A cancelled migration leaves the old bytes for a
+  retry, while missing or different custody fails before native mutation. The
+  executor never writes the key to HCL, state, observations, receipts or error
+  diagnostics. Executor-state checkpoints therefore capture and restore the
+  encrypted bytes without needing to decrypt them. Checkpoints made by the
+  earlier 1.11.5 runtime can still restore plaintext state; the supported
+  1.12.6 executor performs the same migration before its next plan. Binary
+  downgrade is outside the supported recovery path. The executor never runs
   a refresh-only plan, `-replace`, or destroy. The apply observation (exit
   codes, plan summary, state digest, verify result) is written to
   `stackkit-apply-observation.json`; its digest is the runtime observation
@@ -1445,14 +1458,21 @@ Compose fallback behind the `compose` unit (S-F structure rule, see
   equal that artifact, the runtime `compose.yaml` to equal the payload, and
   the root to hold state.
 - **Offline providers.** Release archives ship a filesystem mirror in
-  `providers/` beside `tofu` (`scripts/release/fetch-opentofu-providers.sh`,
-  checksum-verified against the upstream SHA256SUMS; the Debian package installs
-  it at `/usr/local/lib/stackkit/providers`). The executor generates a CLI
-  configuration that installs every `registry.opentofu.org` provider from that
-  mirror and forbids direct installation, and it removes host
+  `providers/` beside `tofu` (`scripts/release/fetch-opentofu-providers.sh`;
+  the Debian package installs it at `/usr/local/lib/stackkit/providers`). Its
+  canonical manifest pins `hashicorp/local` 2.5.3 for the five release
+  platforms, verifies each upstream archive `zh:` against the published
+  SHA256SUMS, and verifies the unpacked package's whole-directory `h1:`. The
+  bundle carries a deterministic lock with all five `h1:` and `zh:` hashes.
+  Before any root write or process, the executor validates the installed
+  manifest, lock, and current-platform package, then imports that lock into
+  provider roots. Provider-free `terraform_data` contract roots receive a
+  stable comment-only lock. The generated CLI configuration declares only
+  the filesystem mirror, so no direct installation method exists, and it removes host
   `TF_PLUGIN_CACHE_DIR`, `TF_CLI_ARGS*`, and CLI-config overrides. The mirror
   resolves from `STACKKIT_TOFU_PROVIDERS_DIR`, else `providers/` beside the
-  executable. A missing mirror or binary fails closed before any write.
+  executable. A missing or altered manifest, lock, package, mirror, or binary
+  fails closed before any root write.
 - **Workload roots.** Under `opentofu` and `terramate` the ten selected-PaaS
   workload bundles run through `opentofu.WorkloadOperations`,
   which wraps the native standalone Compose owner. The native preparation
@@ -1481,12 +1501,16 @@ Compose fallback behind the `compose` unit (S-F structure rule, see
   owners, registered only through a bound execution channel; their roots are
   not materialized by this executor.
 - **State custody.** Executor-state snapshots for the `opentofu` and
-  `terramate` targets capture every root's `terraform.tfstate` and `main.tf`
-  as signed blobs (`runtimeOpenTofu`): Core roots with the runtime
+  `terramate` targets capture every root's `terraform.tfstate`, `main.tf`, and
+  `.terraform.lock.hcl` as signed blobs (`runtimeOpenTofu`): Core roots with the runtime
   `compose.yaml`, verified against the governed artifacts; workload roots
   (`applications/<project>/opentofu`) with the runtime `compose.yaml` and the
   private `.env`; contract roots (`modules/<moduleRef>/opentofu`) with state
-  and configuration only. `CollectOpenTofuRootStates` finds every root through
+  configuration and provider-free lock only. Older Owner-signed checkpoints
+  without a lock remain admissible; coordinated rollback derives the compiled
+  provider or provider-free lock from their captured configuration before its
+  readonly init. A missing lock in every new capture is rejected.
+  `CollectOpenTofuRootStates` finds every root through
   the root marker (`kind` is `workload` or `module` for executor-materialized
   roots, absent for Core roots) and `Recover` restores them before the
   StackSpec commit point. Compose snapshots are byte-identical to before. The
@@ -2005,17 +2029,17 @@ Paths: `nh` is `internal/runtimeexecutor/nativehost`, `ot` is
 | Step | `compose` | `opentofu` | `terramate` initial | change set adds workload | Advanced reconcile | coordinated rollback | restore activation |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Owner custody (email, username, PocketID trust) | `stackkit init`, before any Apply | same | same | same | same | restored with the checkpoint authority | restored with the backup |
-| Basement: origin provisioner check, stackkit-server staging | runs (`nh/basement_core_os.go:174`) | runs (`ot/executor.go:100` via `PrepareCompose`) | runs (same executor) | runs (joined apply) | runs (joined apply) | runs (`nh/restored_root_side_steps.go`, `PrepareNativeComposeRoot`) | not run (below) |
-| Basement: stackkit-server recreate, step-ca reload | runs (`nh/basement_core_os.go:195`) | runs (`ot/executor.go:143` via `CompleteCompose`) | runs | runs | runs | runs (`NativeComposeRootSteps.Complete`) | not run |
-| Basement: PocketID owner realization and TinyAuth OIDC client | runs (`nh/basement_core_os.go:216`) | runs (same completion) | runs | runs | runs | runs | not run |
-| Basement: TinyAuth reconciling `up` | runs (`nh/basement_core_os.go:223`) | runs | runs | runs | runs | runs | not run |
-| Cloud: identity address check, stackkit-server staging | runs (`nh/cloud_core_os.go:94`) | runs (`PrepareCompose`) | runs | runs | runs | runs (`PrepareNativeComposeRoot`) | not run |
-| Cloud: stackkit-server recreate, readiness, PocketID owner and TinyAuth client, reconciling `up` | runs (`nh/cloud_core_os.go:118`) | runs (`CompleteCompose`) | runs | runs | runs | runs (readiness by container state; probes in rollback verify) | not run |
+| Basement: origin provisioner check, stackkit-server staging | runs (`nh/basement_core_os.go:174`) | runs (`ot/executor.go:100` via `PrepareCompose`) | runs (same executor) | runs (joined apply) | runs (joined apply) | runs (`nh/restored_root_side_steps.go`, `PrepareNativeComposeRoot`) | runs (same helper, before restore runtime start) |
+| Basement: stackkit-server recreate, step-ca reload | runs (`nh/basement_core_os.go:195`) | runs (`ot/executor.go:143` via `CompleteCompose`) | runs | runs | runs | runs (`NativeComposeRootSteps.Complete`) | runs (same completion) |
+| Basement: PocketID owner realization and TinyAuth OIDC client | runs (`nh/basement_core_os.go:216`) | runs (same completion) | runs | runs | runs | runs | verifies the restored owner and client against existing custody; never creates or rotates |
+| Basement: TinyAuth reconciling `up` | runs (`nh/basement_core_os.go:223`) | runs | runs | runs | runs | runs | runs (same completion) |
+| Cloud: identity address check, stackkit-server staging | runs (`nh/cloud_core_os.go:94`) | runs (`PrepareCompose`) | runs | runs | runs | runs (`PrepareNativeComposeRoot`) | runs (same helper, before restore runtime start) |
+| Cloud: stackkit-server recreate, readiness, PocketID owner and TinyAuth client, reconciling `up` | runs (`nh/cloud_core_os.go:118`) | runs (`CompleteCompose`) | runs | runs | runs | runs (readiness by container state; probes in rollback verify) | runs with read-only owner/client custody verification |
 | Cloud: public TLS, identity trust policy, host security, offsite backup | runs (shared, `cmd/architecture_v2_product_runtime.go:296-373`) | runs (shared) | runs (shared) | runs (shared) | runs (shared) | not applicable (not stacks) | not applicable |
 | Cloud: public edge | runs (native owner) | runs (native owner, then contract root, `:359`) | runs | runs | runs | contract root restored, owner not re-run | not applicable |
 | Basement: internal PKI, identity trust, home access, LAN DNS policy | runs (shared, `:313-382`) | runs (shared) | runs (shared) | runs (shared) | runs (shared) | LAN DNS served by the restored Core payload | Core payload started |
 | Workload: `.env` secrets, config files, data directory render and persist | runs (`nh/standalone_compose_workload.go:126`) | runs (`ot/workload.go:64` via `PrepareWorkloadCompose`) | runs | runs | runs | checkpoint files restored and proven against the bundle | data restored |
-| Workload: Wings recreate, readiness, origin backend record | runs (`nh/standalone_compose_workload.go:165`) | runs (`ot/workload.go:106` via `CompleteWorkloadCompose`) | runs | runs | runs | runs (`CompleteRestoredWorkloadCompose`) | readiness only (own loop, `internal/restoreactivation/docker.go:239`) |
+| Workload: Wings recreate, readiness, origin backend record | runs (`nh/standalone_compose_workload.go:165`) | runs (`ot/workload.go:106` via `CompleteWorkloadCompose`) | runs | runs | runs | runs (`CompleteRestoredWorkloadCompose`) | runs (same restored-workload completion after the restore runtime start) |
 | Workload: owner account and app onboarding (`internal/appsetup`) | runs after the converged Apply (`cmd/setup_automatic.go`, `runAutomaticOwnerSetup` from `cmd/apply.go`) | runs (same) | runs (same) | runs after the change set (`cmd/advanced_change_set_apply.go`) | runs after reconcile (`cmd/drift.go`) | the account lives in the restored application data; `stackkit setup` re-verifies | `stackkit setup` re-verifies |
 | Workload: per-application OIDC client | not implemented on any path | not implemented | not implemented | not implemented | not implemented | not implemented | not implemented |
 | Workload: household users | PocketID household group only (`internal/localowner/household.go`), not provisioned inside applications | same | same | same | same | same | same |
@@ -2044,9 +2068,13 @@ Paths: `nh` is `internal/runtimeexecutor/nativehost`, `ot` is
   operation, and a warning naming `stackkit setup <workload>`; the next
   Apply retries it. Applying the Plan that selects Files is the owner's
   authorization of its first owner registration.
-- The setup admits the project through `WithStandaloneComposeHTTP`, which
+- Setup resolves an `ApplicationSetupAdapter` from the exact verified runtime
+  adapter binding and its `application-setup-local-api` capability. A catalog
+  label cannot create execution access: the adapter must also register an
+  executable setup transport. The current standalone Compose implementation
   re-renders the bundle and requires the persisted `compose.yaml`, `.env`
-  and configuration files to match. The OpenTofu root writes the identical
+  and configuration files to match. Unknown platform adapters fail closed
+  until they supply that transport. The OpenTofu root writes the identical
   Compose bytes (`local_file`, mode 0600), so the same admission holds after
   every path. `TestOwnerSetupAdmitsTheWorkloadOnEveryExecutionPath` creates
   the Files owner through a stubbed Cloudreve API after the native Apply,
@@ -2056,13 +2084,18 @@ Paths: `nh` is `internal/runtimeexecutor/nativehost`, `ot` is
 - A workload added by a change set starts its lifecycle history with
   `stackkit.upgrade`, not `stackkit.apply`; its `setup` operation follows
   it as after a Standard install.
-- Remaining gaps, common to every target and therefore not parity gaps:
-  restore activation starts Compose runtimes with its own `up` and readiness
-  loop and runs neither the Core completion (owner realization, TinyAuth
-  rebind) nor the workload completion (Wings recreation, origin backend
-  record); no application has its own PocketID OIDC client (only TinyAuth
-  and the step-up client register one, `internal/localowner/service.go`).
-  Each needs its own slice.
+- Restore activation wraps its target-neutral Compose start with
+  `restoreActivationBootstrapRuntime`: Core preparation runs before `up`, then
+  Core and workload completion run from the same native helpers as Apply and
+  coordinated rollback. Its restore-specific Core completion uses authenticated
+  custody verification instead of identity realization, so it cannot create a
+  user, issue an enrollment or rotate TinyAuth credentials. The wrapper also
+  serves automatic and explicit recovery, so a restored prior data set receives
+  the same idempotent side effects. A completion failure remains inside the
+  restore journal and starts recovery; it cannot produce an `activated` result. Runtime files and secret
+  custody are admitted from the verified Plan and generation manifest, and
+  application owner setup is not rerun against restored application data.
+- Other bootstrap rows in the table remain separately scoped.
 
 ### Runtime network instances
 

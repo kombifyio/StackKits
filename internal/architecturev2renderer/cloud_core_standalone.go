@@ -19,7 +19,7 @@ const (
 	cloudStandaloneCoreComposeTemplate  = "builtin://cloud/core-standalone/compose/v1.yaml"
 	cloudStandaloneCoreComposeOutputRef = "platform/cloud-core-standalone/compose.yaml"
 	cloudStandaloneCoreVersion          = "1.0.0"
-	cloudStandaloneCoreComposeSchema    = `stackkit.cloud-core-standalone-compose/v1|artifact-revision:6|resolved-network-domain:required|resolved-subdomain-prefix:optional|runtime-listeners:catalog-bound,direct-loopback-only|services:router,socket-proxy,pocketid,tinyauth,hub,stackkit-server,kopia-agent|networks:cloud-core-host-reachable,cloud-control-internal,cloud-backup-outbound-no-peer|kopia:owner-local-source-policy|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-http-01,tls-alpn-bypass-websecure|ingress:forward-auth-bound|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
+	cloudStandaloneCoreComposeSchema    = `stackkit.cloud-core-standalone-compose/v1|artifact-revision:9|resolved-network-domain:required|resolved-subdomain-prefix:optional|runtime-listeners:catalog-bound,direct-loopback-only|services:router,socket-proxy,pocketid,tinyauth,hub,stackkit-server,kopia-agent|networks:cloud-core-host-reachable,cloud-control-internal,cloud-backup-outbound-no-peer,issuer-router-alias|kopia:owner-local-source-policy|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-http-01,tls-alpn-bypass-websecure|ingress:forward-auth-bound|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
 )
 
 type cloudCoreEndpointProfile struct {
@@ -129,7 +129,8 @@ func renderCloudCoreUnit(ctx context.Context, unit RenderUnit, contract Renderer
 		!containsExact(unit.LogicalSiteRefs(), siteRef) || !containsExact(unit.LogicalNodeRefs(), nodeRef) {
 		return nil, fail(ErrInvalidPlan, path+".instances", "%s requires one exact node-local target", profile.displayName)
 	}
-	if err := validateClosedLocalCoreBackupSourceInputs(unit, path, profile.displayName, profile.moduleID); err != nil {
+	includeBackup := profile.moduleID == cloudStandaloneCoreModuleID
+	if err := validateClosedLocalCoreInputs(unit, path, profile.displayName, profile.moduleID, includeBackup); err != nil {
 		return nil, err
 	}
 	if !emptyJSONArray(unit.ProvidedInterfacesJSON()) || !emptyJSONArray(unit.RequiredInterfacesJSON()) ||
@@ -171,6 +172,10 @@ func renderCloudCoreUnit(ctx context.Context, unit RenderUnit, contract Renderer
 		return nil, err
 	}
 	output = renderKopiaSourceVolumeBinds(unit, output)
+	output, err := renderTinyAuthRouteACLs(unit, output)
+	if err != nil {
+		return nil, err
+	}
 	return []UnitOutput{{Ref: profile.outputRef, Bytes: output}}, nil
 }
 
@@ -178,7 +183,7 @@ func renderCloudCoreUnit(ctx context.Context, unit RenderUnit, contract Renderer
 // identity for the no-PaaS Cloud core. The existing Cloud contract remains
 // unchanged for explicit PaaS-bearing selections.
 func CloudStandaloneCoreComposeRendererContract() RendererContract {
-	sum := sha256Bytes([]byte(cloudStandaloneCoreComposeSchema))
+	sum := sha256Bytes([]byte(cloudStandaloneCoreComposeSchema + tinyAuthRouteACLContractSalt))
 	return RendererContract{
 		Kind: "compose", RendererRef: cloudCoreRendererRef, TemplateRef: cloudStandaloneCoreComposeTemplate,
 		Version: cloudStandaloneCoreVersion, ContractHash: "sha256:" + sum,
@@ -241,7 +246,8 @@ func ValidateCloudStandaloneCoreComposeArtifact(content []byte) bool {
 		return false
 	}
 	expected = alignKopiaSourceVolumeBinds(content, expected, core)
-	return expected != nil && bytes.Equal(content, expected)
+	stripped, aclOK := stripTinyAuthRouteACLs(content)
+	return expected != nil && aclOK && bytes.Equal(stripped, expected)
 }
 
 func newCloudStandaloneCoreComposeRenderer() cloudCoreRenderer {

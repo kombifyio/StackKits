@@ -12,6 +12,7 @@ import (
 	"cuelang.org/go/cue/load"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
+	"github.com/kombifyio/stackkits/internal/usecasecatalog"
 )
 
 type authorityProfile struct {
@@ -25,6 +26,10 @@ type cueAuthority struct {
 	definitions     map[stackspecmigration.KitProfile]resolvedplan.KitDefinition
 	catalog         resolvedplan.Catalog
 	planAuthority   resolvedplan.PlanAuthority
+	// useCaseCapabilities is the embedded product projection of
+	// UseCaseCatalog capability modules, keyed by use case. Filesystem and
+	// contract-fixture authorities do not carry it.
+	useCaseCapabilities map[string][]usecasecatalog.Capability
 }
 
 func loadCUEAuthority(moduleRoot string) (*cueAuthority, error) {

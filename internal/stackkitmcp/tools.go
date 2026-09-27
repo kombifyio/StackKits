@@ -444,11 +444,11 @@ func (a *App) stateConsole(ctx context.Context, req *mcp.CallToolRequest, _ stru
 			"mode":            "bootstrapped",
 			"context":         "local",
 			"domain_strategy": "local",
-			"domain":          "home",
+			"domain":          models.DomainHomeLab,
 			"compute_tier":    "standard",
 		},
 		"domain_options": []map[string]string{
-			{"id": "local", "domain": "home"},
+			{"id": "local", "domain": models.DomainHomeLab},
 			{"id": "managed", "domain": "kombify.me"},
 			{"id": "custom", "domain": "<custom-domain>"},
 		},

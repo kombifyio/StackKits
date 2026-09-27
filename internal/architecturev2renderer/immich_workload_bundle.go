@@ -15,14 +15,21 @@ const (
 	immichWorkloadUnitID      = "immich-server"
 	immichWorkloadRendererRef = "stackkit"
 	immichWorkloadTemplateRef = "builtin://workloads/immich/bundle/v2.json"
-	immichWorkloadVersion     = "3.1.0"
+	immichWorkloadVersion     = "3.2.0"
 	immichWorkloadOutputRef   = "workloads/immich/bundle.json"
 )
 
 // This fixed schema identity binds the renderer semantics. The rendered
 // document itself also carries the exact plan-owned target and opaque secret
 // references, so its artifact hash remains instance-specific.
-const immichWorkloadRendererSchema = `stackkit.workload-bundle/v2|ImmichWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:server,ml,postgres,postgres-init,valkey|component-health-failure:blocking-or-degraded|secret-material:not-included`
+const immichWorkloadRendererSchema = `stackkit.workload-bundle/v2|ImmichWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:server,ml,postgres,postgres-init,valkey|component-health-failure:blocking-or-degraded|native-oidc:pocketid-confidential-pkce|immich-config:runtime-owner-only|secret-material:not-included`
+
+const (
+	immichOIDCConfigTarget = "/etc/stackkit/immich.json"
+	immichOIDCConfigBody   = `{"oauth":{"autoLaunch":true,"autoRegister":true,"buttonText":"Continue with Pocket ID","clientId":"{{clientId}}","clientSecret":"{{clientSecret}}","enabled":true,"issuerUrl":"{{issuer}}","mobileOverrideEnabled":false,"mobileRedirectUri":"","profileSigningAlgorithm":"none","roleClaim":"immich_role","scope":"openid email profile","signingAlgorithm":"RS256","tokenEndpointAuthMethod":"client_secret_post"}}`
+)
+
+var immichOIDCCallbackURLs = []string{"{{origin}}/auth/login", "{{origin}}/user-settings", "app.immich:///oauth-callback"}
 
 type selectedPaaSRuntimeImage struct {
 	Ref    string `json:"ref"`
@@ -89,10 +96,31 @@ type selectedPaaSRuntimeComponent struct {
 	LANListeners      []selectedPaaSLANListener      `json:"lanListeners,omitempty"`
 	DevicePassthrough *selectedPaaSDevicePassthrough `json:"devicePassthrough,omitempty"`
 	Devices           []selectedPaaSDevice           `json:"devices,omitempty"`
-	PeerNetworks      []selectedPaaSPeerNetwork      `json:"peerNetworks,omitempty"`
+	// Accelerator is the GPU grant of the module's selected accelerator
+	// profile (workload_accelerators.go); absent on every CPU component.
+	Accelerator  *selectedPaaSAccelerator  `json:"accelerator,omitempty"`
+	PeerNetworks []selectedPaaSPeerNetwork `json:"peerNetworks,omitempty"`
+	// CompanionEnvironment is the catalog-declared wiring to selected add-ons;
+	// rendered bundles carry only the materialized environment.
+	CompanionEnvironment []selectedPaaSCompanionEnvironment `json:"companionEnvironment,omitempty"`
 	// Home identity rights: server-side reach of Pocket ID and its client.
 	HomeIdentityAccess *selectedPaaSHomeIdentityAccess `json:"homeIdentityAccess,omitempty"`
 	PocketIDClient     *selectedPaaSPocketIDClient     `json:"pocketIDClient,omitempty"`
+	JellyfinSSOPlugin  *JellyfinSSOPluginDescriptor    `json:"jellyfinSSOPlugin,omitempty"`
+	HomeAssistantOIDC  *HomeAssistantOIDCDescriptor    `json:"homeAssistantOIDC,omitempty"`
+	// Custody-file rights: a credential delivered as a custody file and the
+	// variable that starts the application paused after a restore.
+	SecretFiles                  []selectedPaaSSecretFile `json:"secretFiles,omitempty"`
+	RestoreActivationEnvironment map[string]string        `json:"restoreActivationEnvironment,omitempty"`
+}
+
+// selectedPaaSSecretFile is one custody secret delivered as a read-only file.
+type selectedPaaSSecretFile struct {
+	Slot            string `json:"slot"`
+	Target          string `json:"target"`
+	PathEnvironment string `json:"pathEnvironment"`
+	UID             int    `json:"uid"`
+	GID             int    `json:"gid"`
 }
 
 type selectedPaaSHomeIdentityAccess struct {
@@ -101,8 +129,16 @@ type selectedPaaSHomeIdentityAccess struct {
 }
 
 type selectedPaaSPocketIDClient struct {
-	CallbackPath string            `json:"callbackPath"`
-	Environment  map[string]string `json:"environment"`
+	Public        bool                                     `json:"publicClient,omitempty"`
+	CallbackPath  string                                   `json:"callbackPath,omitempty"`
+	CallbackURLs  []string                                 `json:"callbackURLs,omitempty"`
+	Environment   map[string]string                        `json:"environment"`
+	Configuration *selectedPaaSPocketIDClientConfiguration `json:"configuration,omitempty"`
+}
+
+type selectedPaaSPocketIDClientConfiguration struct {
+	Target string `json:"target"`
+	Body   string `json:"body"`
 }
 
 // selectedPaaSPeerNetwork names the internal network of another workload an
@@ -250,6 +286,12 @@ func ParseImmichWorkloadBundle(data []byte) (ImmichWorkloadBundleDescriptor, err
 			return ImmichWorkloadBundleDescriptor{}, err
 		}
 	}
+	if err := validateImmichNativeOIDC(components, path+".components"); err != nil {
+		return ImmichWorkloadBundleDescriptor{}, err
+	}
+	if len(bundle.ConfigFiles) != 0 {
+		return ImmichWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".configFiles", "Immich runtime configuration belongs to owner-only Pocket ID client custody")
+	}
 	if err := validateImmichServiceEndpoint(bundle.Route, path+".route"); err != nil {
 		return ImmichWorkloadBundleDescriptor{}, err
 	}
@@ -374,6 +416,9 @@ func validateImmichWorkloadUnit(unit RenderUnit, contract RendererContract, modu
 			return selectedPaaSWorkloadBundle{}, err
 		}
 	}
+	if err := validateImmichNativeOIDC(components, path+".runtime.components"); err != nil {
+		return selectedPaaSWorkloadBundle{}, err
+	}
 	var endpoints []selectedPaaSServiceEndpoint
 	if err := decodeStrict(unit.ServiceEndpointsJSON(), &endpoints); err != nil || len(endpoints) != 1 {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".serviceEndpoints", "requires one exact photos endpoint")
@@ -394,6 +439,26 @@ func validateImmichWorkloadUnit(unit RenderUnit, contract RendererContract, modu
 	bundle.Ownership.ProviderLifecycle = "not-owned"
 	bundle.Ownership.Credentials = "opaque-references-only"
 	return bundle, nil
+}
+
+func validateImmichNativeOIDC(components []selectedPaaSRuntimeComponent, path string) error {
+	for _, component := range components {
+		if component.ID != "immich-server" {
+			continue
+		}
+		access, client := component.HomeIdentityAccess, component.PocketIDClient
+		if access == nil || access.CABundleTarget != "/etc/stackkit/ca-bundle.pem" ||
+			!exactStringList(access.CABundleEnvironment, []string{"NODE_EXTRA_CA_CERTS"}) {
+			return fail(ErrInvalidPlan, path, "Immich must trust Pocket ID through its own Node.js CA root")
+		}
+		if client == nil || client.CallbackPath != "" || !exactStringList(client.CallbackURLs, immichOIDCCallbackURLs) ||
+			!reflect.DeepEqual(client.Environment, map[string]string{"IMMICH_CONFIG_FILE": immichOIDCConfigTarget}) ||
+			client.Configuration == nil || client.Configuration.Target != immichOIDCConfigTarget || client.Configuration.Body != immichOIDCConfigBody {
+			return fail(ErrInvalidPlan, path, "Immich requires its exact Pocket ID callbacks and owner-only native OAuth configuration")
+		}
+		return nil
+	}
+	return fail(ErrInvalidPlan, path, "Immich server component is absent")
 }
 
 func validateImmichLiteComponents(components []selectedPaaSRuntimeComponent, path string) error {

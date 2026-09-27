@@ -157,6 +157,7 @@ type architectureV2VerifyReport struct {
 	Apply         architecturev2.ApplyResultSummary   `json:"apply"`
 	Owner         architectureV2OwnerVerifySummary    `json:"owner"`
 	Runtime       *architectureV2RuntimeVerifySummary `json:"runtime,omitempty"`
+	OpenTofuState []opentofu.StateInspection          `json:"openTofuState,omitempty"`
 	Observations  []runtimeobservation.Observation    `json:"observations"`
 	Releases      []releaseindex.Receipt              `json:"releases"`
 }
@@ -185,6 +186,99 @@ type architectureV2RuntimeVerifySummary struct {
 	ServiceCount  int    `json:"serviceCount"`
 	ProbeCount    int    `json:"probeCount"`
 	cloud         *nativehost.CloudCoreVerifyObservation
+}
+
+func verifyArchitectureV2OpenTofuState(
+	ctx context.Context,
+	workspaceRoot string,
+	plan generationartifact.VerifiedPlan,
+	runtime *architectureV2RuntimeVerifySummary,
+	offline bool,
+) ([]opentofu.StateInspection, error) {
+	if offline || runtime == nil || !runtime.Live {
+		return nil, nil
+	}
+	target, err := upgradelifecycle.GenerationTargetForPlan(plan)
+	if err != nil {
+		return nil, fmt.Errorf("select OpenTofu state verification target: %w", err)
+	}
+	if target != opentofu.UnitRef && target != opentofu.TerramateUnitRef {
+		return nil, nil
+	}
+	expected, err := expectedArchitectureV2OpenTofuStateRoots(plan, target)
+	if err != nil {
+		return nil, fmt.Errorf("bind live OpenTofu state roots: %w", err)
+	}
+	states, err := (opentofu.Runtime{WorkspaceRoot: workspaceRoot}).InspectStates(ctx, expected)
+	if err != nil {
+		return nil, fmt.Errorf("verify live OpenTofu state: %w", err)
+	}
+	return states, nil
+}
+
+func expectedArchitectureV2OpenTofuStateRoots(plan generationartifact.VerifiedPlan, target string) ([]opentofu.ExpectedStateRoot, error) {
+	coreRuntimeDirs := make(map[string]string)
+	for _, binding := range opentofu.DefaultModuleBindings() {
+		coreRuntimeDirs[binding.ModuleRef] = binding.RuntimeDir
+	}
+	contractRoots := map[string]struct{}{
+		string(architecturev2.ProductRuntimeOwnerBridgeOriginMTLS): {},
+		string(architecturev2.ProductRuntimeOwnerFederationLink):   {},
+	}
+	byRoot := make(map[string]opentofu.ExpectedStateRoot)
+	add := func(root, moduleRef, instanceRef string) error {
+		item := opentofu.ExpectedStateRoot{Root: root, ModuleRef: moduleRef, InstanceRef: instanceRef}
+		if prior, exists := byRoot[root]; exists {
+			if prior != item {
+				return fmt.Errorf("OpenTofu root %s has multiple planned owners", root)
+			}
+			return nil
+		}
+		byRoot[root] = item
+		return nil
+	}
+	for _, requirement := range plan.ApplyRequirements().RuntimeInstances {
+		if runtimeDir, core := coreRuntimeDirs[requirement.ModuleRef]; core && requirement.UnitRef == target {
+			root, err := opentofu.RootRelativePath(runtimeDir)
+			if err != nil {
+				return nil, err
+			}
+			if err := add(root, requirement.ModuleRef, requirement.InstanceRef); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if _, wrapped := contractRoots[requirement.ModuleRef]; wrapped {
+			root, err := opentofu.ModuleRootRelativePath(requirement.ModuleRef)
+			if err != nil {
+				return nil, err
+			}
+			if err := add(root, requirement.ModuleRef, requirement.InstanceRef); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if requirement.WorkloadRef != "" {
+			if len(requirement.NodeRefs) == 0 {
+				return nil, fmt.Errorf("workload %s has no planned node root", requirement.WorkloadRef)
+			}
+			for _, nodeRef := range requirement.NodeRefs {
+				root, err := opentofu.WorkloadRootRelativePath("stackkit-" + requirement.WorkloadRef + "-" + nodeRef)
+				if err != nil {
+					return nil, err
+				}
+				if err := add(root, requirement.ModuleRef, requirement.InstanceRef); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	result := make([]opentofu.ExpectedStateRoot, 0, len(byRoot))
+	for _, item := range byRoot {
+		result = append(result, item)
+	}
+	slices.SortFunc(result, func(a, b opentofu.ExpectedStateRoot) int { return strings.Compare(a.Root, b.Root) })
+	return result, nil
 }
 
 func verifyArchitectureV2LocalState(

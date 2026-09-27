@@ -13,6 +13,12 @@ var governedPeerNetworks = map[string]struct {
 	immichPublicProxyWorkloadModuleID: {component: "immich-public-proxy", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "photos", NetworkRef: "immich-internal"}}},
 	immichKioskWorkloadModuleID:       {component: "immich-kiosk", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "photos", NetworkRef: "immich-internal"}}},
 	immichPowerToolsWorkloadModuleID:  {component: "immich-power-tools", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "photos", NetworkRef: "immich-internal"}}},
+	// Private AI add-ons join the private AI network so Open WebUI reaches them.
+	searxngWorkloadModuleID: {component: "searxng", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}}},
+	tikaWorkloadModuleID:    {component: "tika", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}}},
+	doclingWorkloadModuleID: {component: "docling", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}}},
+	// ComfyUI joins the private AI network so Open WebUI reaches it.
+	comfyUIWorkloadModuleID: {component: "comfyui", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}}},
 }
 
 // validatePeerNetworks accepts a component's peer networks only when they are

@@ -224,13 +224,27 @@ func runPublicUpgradeTransaction(
 						)
 					}
 
-					inventoryRelative, inventoryErr := upgradelifecycle.SnapshotInventoryBlobPath(snapshot)
-					if inventoryErr != nil {
-						return inventoryErr
-					}
+					// The target resolves exactly the Inventory the verified
+					// shadow resolved: the document the current plan was
+					// generated from. The checkpoint blob is the current
+					// release's projection of the re-attested workspace file
+					// and may carry facts only a newer release reads.
 					var targetInventoryPath string
-					if inventoryRelative != "" {
-						targetInventoryPath = filepath.Join(workspace, filepath.FromSlash(inventoryRelative))
+					if len(inspection.PinnedInventory) > 0 {
+						pinnedPath, cleanupPinned, pinErr := writePrivateInventoryDocument(inspection.PinnedInventory)
+						if pinErr != nil {
+							return fmt.Errorf("materialize the shadow-verified Inventory: %w", pinErr)
+						}
+						defer cleanupPinned()
+						targetInventoryPath = pinnedPath
+					} else {
+						inventoryRelative, inventoryErr := upgradelifecycle.SnapshotInventoryBlobPath(snapshot)
+						if inventoryErr != nil {
+							return inventoryErr
+						}
+						if inventoryRelative != "" {
+							targetInventoryPath = filepath.Join(workspace, filepath.FromSlash(inventoryRelative))
+						}
 					}
 					targetErr := executePublicUpgradeRelease(
 						operationCtx,
@@ -577,6 +591,16 @@ func rollbackPublicUpgrade(
 				)...),
 				"generate",
 			)
+			// The prior release regenerates from the checkpoint's sealed
+			// Inventory, which the checkpoint verified resolves to the
+			// captured plan. A plain generate would re-measure free disk
+			// (staged restore data changes it) and never match.
+			if recoveredInventory, inventoryErr := upgradelifecycle.SnapshotInventoryBlobPath(snapshot); inventoryErr != nil {
+				return inventoryErr
+			} else if recoveredInventory != "" {
+				generateArgs = append(generateArgs, "--inventory",
+					filepath.Join(workspace, filepath.FromSlash(recoveredInventory)))
+			}
 			if _, runErr := runner.Run(
 				recoveryContext, priorBinary, generateArgs, workspace,
 			); runErr != nil {
@@ -1255,4 +1279,20 @@ func (err *publicUpgradeRolledBackError) Error() string {
 
 func (err *publicUpgradeRolledBackError) Unwrap() error {
 	return err.cause
+}
+
+// writePrivateInventoryDocument writes an Inventory document to a private
+// temporary file for a child command's --inventory.
+func writePrivateInventoryDocument(document []byte) (path string, cleanup func(), err error) {
+	directory, err := os.MkdirTemp("", "stackkit-upgrade-inventory-*")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup = func() { _ = os.RemoveAll(directory) }
+	path = filepath.Join(directory, "inventory.json")
+	if err := os.WriteFile(path, document, 0o600); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	return path, cleanup, nil
 }

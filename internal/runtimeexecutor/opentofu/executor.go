@@ -35,6 +35,10 @@ type Runtime struct {
 	Native        nativehost.NativeComposeRuntime
 	Binary        string
 	ProvidersDir  string
+	// providerLoader is an internal dependency seam. Product callers always
+	// use the compiled, authenticated provider closure; only test builds supply
+	// a substitute for tests whose tofu process is itself a stub.
+	providerLoader func(string) (providerClosure, error)
 	// Timeout bounds each tofu command; zero keeps the wrapper default.
 	Timeout time.Duration
 }
@@ -83,10 +87,21 @@ func (e *Executor) Execute(ctx context.Context, request runtimeexecutor.Executio
 	if err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, err
 	}
+	lock, err := providers.LockForConfiguration(artifact.Content)
+	if err != nil {
+		return runtimeexecutor.ExecutionOutcome{}, err
+	}
 	health := append([]runtimeexecutor.HealthTarget(nil), request.HealthTargets...)
 	workspace, err := filepath.Abs(e.runtime.WorkspaceRoot)
 	if err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("resolve workspace: %w", err)
+	}
+	relative, err := RootRelativePath(e.module.RuntimeDir)
+	if err != nil {
+		return runtimeexecutor.ExecutionOutcome{}, err
+	}
+	if err := e.runtime.requireStateCustody(ctx, relative, binary, providers.Directory()); err != nil {
+		return runtimeexecutor.ExecutionOutcome{}, err
 	}
 	native := nativehost.NativeComposeRequest{
 		Target: target, Health: health, HealthContractHashes: e.authority.HealthContractHashes,
@@ -101,10 +116,6 @@ func (e *Executor) Execute(ctx context.Context, request runtimeexecutor.Executio
 	if err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("prepare the native side steps of %s: %w", target.ModuleRef, err)
 	}
-	relative, err := RootRelativePath(e.module.RuntimeDir)
-	if err != nil {
-		return runtimeexecutor.ExecutionOutcome{}, err
-	}
 	root, err := ensureRootDir(workspace, relative)
 	if err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, err
@@ -118,7 +129,7 @@ func (e *Executor) Execute(ctx context.Context, request runtimeexecutor.Executio
 	if err := writeRoot(root, RootMarker{
 		SchemaVersion: RootMarkerSchemaVersion, ModuleRef: target.ModuleRef, InstanceRef: target.InstanceRef,
 		RuntimeDir: e.module.RuntimeDir, ComposeProject: e.module.ComposeProject,
-	}, providers, files...); err != nil {
+	}, providers.Directory(), lock, files...); err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, err
 	}
 	environment, err := e.runtime.Native.ComposeEnvironment(e.module.ModuleRef)
@@ -133,7 +144,7 @@ func (e *Executor) Execute(ctx context.Context, request runtimeexecutor.Executio
 		RequirementID: target.RequirementID, ArtifactID: artifact.ID, ArtifactDigest: artifact.Digest,
 		ComposeProject: e.module.ComposeProject, Root: relative,
 	}
-	if record.tofuRun, err = e.runtime.runRoot(ctx, root, binary, environment); err != nil {
+	if record.tofuRun, err = e.runtime.runRoot(ctx, relative, root, binary, environment); err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, err
 	}
 
@@ -299,12 +310,13 @@ func requireTofuStep(step string, result *tofu.Result, err error) error {
 	}
 	if result == nil || !result.Success {
 		exitCode := -1
-		diagnostic := ""
 		if result != nil {
 			exitCode = result.ExitCode
-			diagnostic = boundedDiagnostic(result.Stderr)
 		}
-		return fmt.Errorf("tofu %s failed with exit code %d: %s", step, exitCode, diagnostic)
+		// OpenTofu diagnostics may quote encryption configuration or provider
+		// values. Keep the lifecycle error secret-free; operators can rerun the
+		// exact local command interactively when they own the workspace.
+		return fmt.Errorf("tofu %s failed with exit code %d", step, exitCode)
 	}
 	return nil
 }
@@ -360,14 +372,6 @@ func writeObservation(root string, record any) (string, error) {
 		return "", err
 	}
 	return digestBytes(encoded), nil
-}
-
-func boundedDiagnostic(stderr string) string {
-	trimmed := strings.TrimSpace(stderr)
-	if len(trimmed) > 512 {
-		trimmed = "..." + trimmed[len(trimmed)-512:]
-	}
-	return trimmed
 }
 
 func digestBytes(data []byte) string {

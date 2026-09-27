@@ -25,10 +25,21 @@ const budgetedPackageScope = "changed-packages-budgeted"
 // out): TestAdvancedChangeSetAdmissionIgnoresRemeasuredFreeDiskOnly (37 s),
 // TestAgentInstallPlanInitStepInitializesAWorkspace (5 s) and
 // TestAdvancedChangeSetCreateAddsFilesWorkload (58 s, two local CPUs).
+// Refreshed 2026-09-26 with the identity/route integration on two local CPUs:
+// child inventory generation took 48 s, empty reconciliation 82 s, checkpoint
+// reconciliation 108 s, and the Cloud restore drill was still evaluating CUE
+// after 15 s when the cumulative profiling budget expired. These remain
+// mandatory when selected by changed tests, bindings, or public boundaries.
+// The remaining suite passed in 247 s; the measured Fleet join (120 s),
+// coordinated rollback (47 s), generation-target checks (26 s), core target
+// verification (23 s), and smaller CUE-backed checks are registered below too.
 var sliceBudgetSlowTests = map[string][]string{
 	"cmd/stackkit/commands": {
 		"TestAdvancedChangeSetAdmissionIgnoresRemeasuredFreeDiskOnly",
 		"TestAdvancedChangeSetCreateAddsFilesWorkload",
+		"TestAdvancedGenerateChildrenUseApprovedStableInventory",
+		"TestAdvancedReconcileRestoresDriftedWorkloadFilesBeforeTheCheckpoint",
+		"TestAdvancedRestoreDrillStagesCloudKitRestoreWithoutActivation",
 		"TestAgentInstallPlanInitStepInitializesAWorkspace",
 		"TestArchitectureV2AccessManifestProjectsRuntimeServiceMeaning",
 		"TestArchitectureV2AccessSummaryPrintsSecureContextURLsForInternalTLS",
@@ -36,13 +47,25 @@ var sliceBudgetSlowTests = map[string][]string{
 		"TestArchitectureV2AddonListUsesEmbeddedCatalogWithoutSpec",
 		"TestArchitectureV2AddonListValidatesAndFiltersCurrentSpec",
 		"TestArchitectureV2HTTPProbeAccessIncludesPlatformCoreRoutes",
+		"TestArchitectureV2OfflineVerifyBindsCloudPocketIDOwner",
+		"TestAttachAccessClientTrustExposesEnrollmentHandoff",
 		"TestBuildArchitectureV2RuntimeObservationsProjectsLiveCloudServices",
+		"TestCloudKitCheckpointSelectsTheCloudCoreRecoveryProfile",
+		"TestCloudRestorePostVerificationUsesTheAppliedRuntimeRequest",
+		"TestCoordinatedRollbackSelectsTheApplyResultOfTheRegeneratedCheckpoint",
+		"TestCrossVersionTargetRequiresWorkspaceReleaseCache",
+		"TestDriftDetectReportsPerStackTerramateDrift",
+		"TestEmptyChangeSetOnlyDrivesAnAdvancedReconcile",
 		"TestExecuteNativeWorkloadRemovalDispatchesSealedComposeRequest",
 		"TestFederationControlCLISignsExactHomeAction",
+		"TestFleetMemberJoin",
 		"TestGenerateEmitsBasementStandardHomeAssistant",
+		"TestGenerateKeepsExplicitComposeGenerationTarget",
+		"TestGenerateRejectsStackSpecMissingGenerationTarget",
 		"TestGenerateRejectsV1OnExactV06BeforeWritingOutputOrState",
 		"TestInitNativeMixedModuleProfilesResolveWithoutGlobalTier",
 		"TestLocalRuntimeOwnersExecuteGeneratedApplicationWorkloads",
+		"TestManagedCloudKitDriftObservationCarriesTheVerifiedOwnerBinding",
 		"TestMigrateCompletionFailsClosedOnUnknownFieldsAndPlaintextSecretRefs",
 		"TestMigrateDoesNotPublishSpecWhenAuditPublicationFails",
 		"TestNativeV2BackupCommandFailsBeforeSideEffectsOnTamperedAuthority",
@@ -75,6 +98,7 @@ var sliceBudgetSlowTests = map[string][]string{
 		"TestSecretsRevealRequiresDeclaredOwnerCustody",
 		"TestSupportExportCommandRetainsDiagnosticsAndRedactsSecrets",
 		"TestValidateNativeFilesSpecWithoutTargetInventory",
+		"TestVerifyBasementCoreAcceptsEveryGenerationTarget",
 	},
 	// internal/architecturev2, measured 2026-09-25 locally with two CPUs
 	// (GOMAXPROCS=2) in groups of six: the whole package exceeded the

@@ -36,8 +36,8 @@ const (
 	basementCoreOpenTofuResourcePrefix = "basement_core"
 )
 
-const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:25|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|services:router,socket-proxy,pocketid,tinyauth,step-ca,lan-dns,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub,stackkit-server|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
-const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:27|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-basement-core,local-provider-2.5.3|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
+const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:26|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|services:router,socket-proxy,pocketid,tinyauth,step-ca,lan-dns,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub,stackkit-server|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
+const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:29|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-basement-core,local-provider-2.5.3,opentofu-1.12|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
 
 // basementCoreComponentsJSON is the closed component graph accepted by both
 // target-specific renderers. It mirrors the CUE catalog and intentionally
@@ -45,8 +45,8 @@ const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-
 const basementCoreComponentsJSON = `[
 {"id":"router","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/traefik/traefik:v3","digest":"sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8"},"dependsOn":["socket-proxy"],"networkRefs":["basement-core","basement-control"],"health":{"kind":"http","path":"/ping","port":8080},"resources":{"memoryLimit":"256m"}},
 {"id":"socket-proxy","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/tecnativa/docker-socket-proxy:v0.4.2","digest":"sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476"},"dependsOn":[],"networkRefs":["basement-control"],"health":{"kind":"image"},"resources":{"memoryLimit":"128m"}},
-{"id":"pocketid","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/pocket-id/pocket-id:v2.7.0","digest":"sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e"},"dependsOn":[],"networkRefs":["basement-core"],"volumes":[{"id":"pocketid-data","target":"/app/data","class":"persistent","backup":true}],"health":{"kind":"http","path":"/health","port":1411},"resources":{"memoryLimit":"512m"}},
-{"id":"tinyauth","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/steveiliop56/tinyauth:v5.0.7","digest":"sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6"},"dependsOn":["pocketid"],"networkRefs":["basement-core"],"volumes":[{"id":"tinyauth-data","target":"/data","class":"persistent","backup":true}],"health":{"kind":"command","command":["tinyauth","healthcheck"]},"resources":{"memoryLimit":"256m"}},
+{"id":"pocketid","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/pocket-id/pocket-id:v2.16.0","digest":"sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea"},"dependsOn":[],"networkRefs":["basement-core"],"volumes":[{"id":"pocketid-data","target":"/app/data","class":"persistent","backup":true}],"health":{"kind":"http","path":"/health","port":1411},"resources":{"memoryLimit":"512m"}},
+{"id":"tinyauth","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/tinyauthapp/tinyauth:v5.1.2","digest":"sha256:910f84801dc9597398458d45f8d305eb232dc583d6927c87cc29626527947d35"},"dependsOn":["pocketid"],"networkRefs":["basement-core"],"volumes":[{"id":"tinyauth-data","target":"/data","class":"persistent","backup":true}],"health":{"kind":"command","command":["tinyauth","healthcheck"]},"resources":{"memoryLimit":"256m"}},
 {"id":"step-ca","role":"application","lifecycle":"daemon","image":{"ref":"smallstep/step-ca:0.30.2","digest":"sha256:a2b17872915c193259b75a5474c398326f41bd199f0842093e52cf4182bc8270"},"dependsOn":[],"networkRefs":["basement-core"],"volumes":[{"id":"step-ca-db","target":"/home/step/db","class":"persistent","backup":true}],"health":{"kind":"http","path":"/health","port":9000},"resources":{"memoryLimit":"256m"}},
 {"id":"lan-dns","role":"application","lifecycle":"daemon","image":{"ref":"docker.io/mvance/unbound:1.22.0","digest":"sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90"},"dependsOn":[],"networkRefs":["basement-core"],"volumes":[{"id":"lan-dns-data","target":"/opt/unbound/etc/unbound","class":"persistent","backup":false}],"health":{"kind":"command","command":["drill","@127.0.0.1","localhost","A"]},"resources":{"memoryLimit":"256m"}},
 {"id":"coolify","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/coollabsio/coolify:4.1.2","digest":"sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f"},"dependsOn":["coolify-postgres","coolify-redis","coolify-realtime"],"networkRefs":["basement-core","basement-control"],"environment":{"AUTOUPDATE":"false","CDN_URL":"http://hub/.stackkit/offline/coolify/cdn","VERSIONS_URL":"http://hub/.stackkit/offline/coolify/versions.json","UPGRADE_SCRIPT_URL":"http://hub/.stackkit/offline/coolify/upgrade.sh","RELEASES_URL":"http://hub/.stackkit/offline/coolify/releases.json"},"volumes":[{"id":"coolify-data","target":"/var/www/html/storage","class":"persistent","backup":true},{"id":"coolify-ssh","target":"/var/www/html/storage/app/ssh","class":"persistent","backup":true},{"id":"coolify-applications","target":"/var/www/html/storage/app/applications","class":"persistent","backup":true},{"id":"coolify-databases","target":"/var/www/html/storage/app/databases","class":"persistent","backup":true},{"id":"coolify-services","target":"/var/www/html/storage/app/services","class":"persistent","backup":true},{"id":"coolify-backups","target":"/var/www/html/storage/app/backups","class":"persistent","backup":true}],"health":{"kind":"http","path":"/api/health","port":8080},"resources":{"memoryLimit":"1g"}},
@@ -120,7 +120,7 @@ services:
       start_period: 5s
     networks: [basement-core, basement-control]
   pocketid:
-    image: ghcr.io/pocket-id/pocket-id:v2.7.0@sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e
+    image: ghcr.io/pocket-id/pocket-id:v2.16.0@sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea
     restart: unless-stopped
     logging:
       driver: json-file
@@ -147,7 +147,7 @@ services:
       - traefik.http.services.pocketid.loadbalancer.server.port=1411
     networks: [basement-core]
   tinyauth:
-    image: ghcr.io/steveiliop56/tinyauth:v5.0.7@sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6
+    image: ghcr.io/tinyauthapp/tinyauth:v5.1.2@sha256:910f84801dc9597398458d45f8d305eb232dc583d6927c87cc29626527947d35
     restart: unless-stopped
     logging:
       driver: json-file
@@ -164,7 +164,12 @@ services:
     environment:
       # Go honors SSL_CERT_FILE, so provider TLS verifies against the kit
       # step-ca root alongside the system pool.
-      - SSL_CERT_FILE=/step-ca/root.crt
+      SSL_CERT_FILE: /step-ca/root.crt
+      TINYAUTH_AUTH_ACLS_POLICY: deny
+      # Login admission is separate from exact-host application group ACLs.
+      TINYAUTH_OAUTH_PROVIDERS_POCKETID_WHITELIST: "/.*/"
+      TINYAUTH_LABELPROVIDER: none
+      # stackkit-tinyauth-route-acls
     volumes:
       - tinyauth-data:/data
       - ${STACKKIT_CUSTODY_DIR:?}/basement-runtime/step-ca/certs/root_ca.crt:/step-ca/root.crt:ro
@@ -494,10 +499,12 @@ func ExpectedBasementCoreComposeArtifact() []byte {
 }
 
 // basementDefaultDomain mirrors basement-kit/stackfile.cue. Enrolled devices
-// resolve this private single-label zone through the scoped LAN-DNS profile.
-const basementDefaultDomain = "home"
+// resolve this private domain through the scoped LAN-DNS profile.
+const basementDefaultDomain = "lab.home"
 
-var basementDomainPattern = regexp.MustCompile(`^(?:home|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$`)
+// Two or more labels: the login session cookie is scoped to the domain, so a
+// single label (a public suffix under the default rule) cannot carry a login.
+var basementDomainPattern = regexp.MustCompile(`^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$`)
 
 func RenderBasementCoreComposeForDomain(domain string) []byte {
 	if !basementDomainPattern.MatchString(domain) {
@@ -554,7 +561,8 @@ func validateBasementCoreComposeArtifact(content []byte, render func(string) []b
 		return false
 	}
 	expected = alignKopiaSourceVolumeBinds(content, expected, core)
-	return expected != nil && bytes.Equal(content, expected)
+	stripped, ok := stripTinyAuthRouteACLs(content)
+	return expected != nil && ok && bytes.Equal(stripped, expected)
 }
 
 // BasementCoreServiceContract is the secret-free, pinned service identity
@@ -597,7 +605,7 @@ func BasementCoreServiceContracts() []BasementCoreServiceContract {
 }
 
 func basementCoreContract(kind, templateRef, schema string) RendererContract {
-	sum := sha256.Sum256([]byte(schema))
+	sum := sha256.Sum256([]byte(schema + tinyAuthRouteACLContractSalt))
 	return RendererContract{
 		Kind: kind, RendererRef: basementCoreRendererRef, TemplateRef: templateRef,
 		Version: basementCoreVersion, ContractHash: "sha256:" + hex.EncodeToString(sum[:]),
@@ -653,6 +661,10 @@ func (r basementCoreRenderer) RenderUnit(ctx context.Context, unit RenderUnit) (
 		return nil, err
 	}
 	compose := renderKopiaSourceVolumeBinds(unit, renderSiteListenerBindings(unit, r.render(unit)))
+	compose, err := renderTinyAuthRouteACLs(unit, compose)
+	if err != nil {
+		return nil, err
+	}
 	return []UnitOutput{{Ref: r.outputRef, Bytes: compose}}, nil
 }
 
@@ -697,7 +709,7 @@ func validateClosedLocalCoreUnitOutputs(unit RenderUnit, contract RendererContra
 		!containsExact(unit.LogicalNodeRefs(), nodeRef) {
 		return fail(ErrInvalidPlan, path+".instances", "%s requires one exact node-local target", profile.displayName)
 	}
-	if err := validateClosedLocalCoreBackupSourceInputs(unit, path, profile.displayName, profile.moduleID); err != nil {
+	if err := validateClosedLocalCoreInputs(unit, path, profile.displayName, profile.moduleID, true); err != nil {
 		return err
 	}
 	if !emptyJSONArray(unit.ProvidedInterfacesJSON()) || !emptyJSONArray(unit.RequiredInterfacesJSON()) ||

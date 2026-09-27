@@ -95,23 +95,24 @@ func init() {
 
 // restoreDrillReport is the stackkit.restore-drill-report/v1 subject.
 type restoreDrillReport struct {
-	SchemaVersion    string              `json:"schemaVersion"`
-	Mode             string              `json:"mode"`
-	Operation        string              `json:"operation"`
-	DrillID          string              `json:"drillId"`
-	Status           string              `json:"status"`
-	CapabilityID     string              `json:"capabilityId"`
-	AnchorID         string              `json:"anchorId"`
-	AnchorSource     string              `json:"anchorSource"`
-	KopiaSnapshotIDs []string            `json:"kopiaSnapshotIds"`
-	RestoreResultID  string              `json:"restoreResultId"`
-	StagingPath      string              `json:"stagingPath"`
-	StagingRemoved   bool                `json:"stagingRemoved"`
-	Activated        bool                `json:"activated"`
-	Phases           []restoreDrillPhase `json:"phases"`
-	Verification     []restoreDrillCheck `json:"verification"`
-	StartedAt        time.Time           `json:"startedAt"`
-	CompletedAt      time.Time           `json:"completedAt"`
+	BackupRenewal    *advancedcapability.BackupRenewal `json:"backupRenewal,omitempty"`
+	SchemaVersion    string                            `json:"schemaVersion"`
+	Mode             string                            `json:"mode"`
+	Operation        string                            `json:"operation"`
+	DrillID          string                            `json:"drillId"`
+	Status           string                            `json:"status"`
+	CapabilityID     string                            `json:"capabilityId"`
+	AnchorID         string                            `json:"anchorId"`
+	AnchorSource     string                            `json:"anchorSource"`
+	KopiaSnapshotIDs []string                          `json:"kopiaSnapshotIds"`
+	RestoreResultID  string                            `json:"restoreResultId"`
+	StagingPath      string                            `json:"stagingPath"`
+	StagingRemoved   bool                              `json:"stagingRemoved"`
+	Activated        bool                              `json:"activated"`
+	Phases           []restoreDrillPhase               `json:"phases"`
+	Verification     []restoreDrillCheck               `json:"verification"`
+	StartedAt        time.Time                         `json:"startedAt"`
+	CompletedAt      time.Time                         `json:"completedAt"`
 }
 
 type restoreDrillPhase struct {
@@ -244,6 +245,14 @@ func executeAdvancedRestoreDrill(
 	if initial.LegacyBeta4 != nil || initial.HistoricalStable != nil {
 		return errors.New("restore drill requires a native v2 applied authority")
 	}
+	if err := verifyRestoreDrillBackupRenewal(initial, admission.grant, report.DrillID, advancedRestoreDrillDeps.now().UTC()); err != nil {
+		return err
+	}
+	if admission.grant.BackupRenewal != nil {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, admission.grant.ExpiresAt)
+		defer cancel()
+	}
 	return withLifecycleMutation(workspace, restoreDrillCommandName, func() error {
 		return withArchitectureV2OutputLock(workspace, initial.OutputRoot, func(*confinedfs.Transaction, *confinedfs.OutputLock) error {
 			current, inspectErr := inspectNativeV2BackupAuthorityForRequest(ctx, workspace, specFile)
@@ -253,12 +262,21 @@ func executeAdvancedRestoreDrill(
 			if !sameNativeV2BackupAuthority(initial, current) {
 				return errors.New("restore drill authority changed while acquiring the output lock")
 			}
-			revalidated, admitErr := admitAdvancedRestoreDrill(workspace, capabilityFile, now)
+			revalidated, admitErr := admitAdvancedRestoreDrill(workspace, capabilityFile, advancedRestoreDrillDeps.now().UTC())
 			if admitErr != nil {
 				return admitErr
 			}
 			if !equalAdvancedRestoreDrillAdmission(admission, revalidated) {
 				return errors.New("advanced restore drill authority changed after admission")
+			}
+			if err := verifyRestoreDrillBackupRenewal(current, revalidated.grant, report.DrillID, advancedRestoreDrillDeps.now().UTC()); err != nil {
+				return err
+			}
+			if revalidated.grant.BackupRenewal != nil {
+				if _, err := continueNativeV2Backup(ctx, nativeV2BackupConfigure, current, nativeV2BackupRequest{OperationID: report.DrillID + "-configure", OwnerApproved: true}); err != nil {
+					return err
+				}
+				report.BackupRenewal = revalidated.grant.BackupRenewal
 			}
 			return runRestoreDrillPhases(ctx, workspace, current, anchorID, report)
 		})

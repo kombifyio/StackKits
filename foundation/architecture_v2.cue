@@ -3239,6 +3239,15 @@ _servicePublicationShape: {
 	// on the same node (an add-on reaching its primary, such as Immich). Renderers
 	// admit each only for its governed add-on component.
 	peerNetworks?: [...{workloadRef: #WorkloadID, networkRef: #ContractID}] & list.MinItems(1)
+	// companionEnvironment wires a primary component to its selected add-on
+	// workloads: each entry's variables are rendered only while that add-on
+	// alternative is selected on the node (the workloads.companions input).
+	// Renderers admit each only for their governed component.
+	companionEnvironment?: [...{
+		workloadRef:    #WorkloadID
+		alternativeRef: #ContractID
+		environment: [string & =~"^[A-Z][A-Z0-9_]*$"]: string
+	}] & list.MinItems(1)
 	// homeIdentityAccess lets a governed application reach the home identity
 	// provider server-side: the provider host resolves to the node's router
 	// and the home CA (with the host's public roots) is trusted at
@@ -3248,17 +3257,47 @@ _servicePublicationShape: {
 		caBundleEnvironment: [...(string & =~"^[A-Z][A-Z0-9_]*$")] & list.MinItems(1)
 	}
 	// pocketIDClient registers the application's confidential, PKCE-enabled
-	// Pocket ID client and renders its sign-in settings. Environment values
-	// are templates over {{issuer}}, {{clientId}}, {{clientSecret}} and
-	// {{origin}}; a value holding the secret is delivered as a secret.
+	// Pocket ID client and renders its sign-in settings. Environment values,
+	// callback URLs, and the optional owner-only configuration file are
+	// templates over {{issuer}}, {{clientId}}, {{clientSecret}} and {{origin}}.
+	// Material substituted for {{clientSecret}} exists only at runtime.
+	// Exact maintained plugin artifact, admitted only for Jellyfin.
+	jellyfinSSOPlugin?: {version: string, sha256: string, sourceURL: string}
+	homeAssistantOIDC?: {version: string, sha256: string, patch: string, patchSHA256: string, aiofilesSHA256: string, joserfcSHA256: string}
 	pocketIDClient?: {
-		callbackPath: #AbsolutePath
+		publicClient?: bool
+		// callbackPath is the single same-origin callback used by existing
+		// integrations. callbackURLs admits applications with several exact
+		// callbacks, including an application-owned mobile URI scheme.
+		callbackPath?: #AbsolutePath
+		callbackURLs?: [...string] & list.MinItems(1)
 		environment: [string]: string
+		configuration?: {
+			target: #AbsolutePath
+			body:   string & !=""
+		}
 	}
 	command?: [...string & =~"^[^[:cntrl:]]+$"] & list.MinItems(1)
 	entrypoint?: [...string & =~"^[^[:cntrl:]]+$"] & list.MinItems(1)
 	environment?: [string]:       string
 	secretEnvironment?: [string]: #ContractID
+	// secretFiles delivers a custody secret as a read-only file owned by uid
+	// and gid, for an application that reads its credential only from a file
+	// (such as an owner token); pathEnvironment names the variable that
+	// receives the file path. The value never enters the environment.
+	// Renderers admit each only for their governed component.
+	secretFiles?: [...{
+		slot:            #ContractID
+		target:          #AbsolutePath & =~"^/run/secrets/[a-z0-9][a-z0-9-]*$"
+		pathEnvironment: string & =~"^[A-Z][A-Z0-9_]*$"
+		uid:             int & >=0 & <=65535
+		gid:             int & >=0 & <=65535
+	}] & list.MinItems(1)
+	// restoreActivationEnvironment binds each variable to "true" when restore
+	// activation last created the container and "false" otherwise, so an
+	// application can hold side effects after a restore until the owner
+	// resumes it. Renderers admit each only for their governed component.
+	restoreActivationEnvironment?: [string & =~"^[A-Z][A-Z0-9_]*$"]: "restore-activation"
 	volumes?: [...{
 		id:        #ContractID
 		target:    #AbsolutePath
@@ -3453,6 +3492,9 @@ _servicePublicationShape: {
 	maturity:     "experimental" | "beta" | "supported" | "deprecated"
 	realization?: "contract-only" | "generation-ready" | "apply-ready"
 	reservation?: #ModuleResourceBudgetV2
+	// Only accelerator profiles carry a device requirement; see
+	// #ModuleContractV2.acceleratorProfiles.
+	accelerator?: #AcceleratorRequirementV1
 	components?: [...#ContractID] | *[]
 	capabilities?: [...#CapabilityID] | *[]
 	degradations?: [...#ContractID] | *[]
@@ -3460,6 +3502,45 @@ _servicePublicationShape: {
 	_componentsUnique:   list.UniqueItems(components) & true
 	_capabilitiesUnique: list.UniqueItems(capabilities) & true
 	_degradationsUnique: list.UniqueItems(degradations) & true
+}
+
+// #AcceleratorRequirementV1 is the device demand of one accelerator profile.
+// It is the only path through which a workload container receives a GPU: the
+// renderer grants the vendor's container access to exactly the profile's
+// components, and host admission refuses Apply without a qualifying device.
+// NVIDIA uses the Container Device Interface (NVIDIA Container Toolkit, CDI
+// spec for nvidia.com/gpu) and needs driver >= minDriverMajor; AMD uses the
+// ROCm device nodes /dev/kfd and /dev/dri. StackKits never installs GPU
+// drivers. images replaces a component image with a vendor build (for
+// example a ROCm variant); absent components keep their catalog image.
+#AcceleratorRequirementV1: {
+	vendor:      "nvidia" | "amd"
+	access:      "cdi" | "rocm-device-nodes"
+	minVramGiB?: int & >=1
+	if vendor == "nvidia" {
+		access:         "cdi"
+		minDriverMajor: int & >=550
+	}
+	if vendor == "amd" {
+		access: "rocm-device-nodes"
+	}
+	images?: [#ContractID]: {
+		ref:    string & =~"^[^[:space:]]+$"
+		digest: #ContentHash
+	}
+}
+
+// #InventoryAcceleratorV1 is one observed GPU vendor on a node. containerAccess
+// says whether containers can use it today: cdi when an NVIDIA CDI spec for
+// nvidia.com/gpu exists, rocm-device-nodes when /dev/kfd and a render node
+// exist, none otherwise. minVramGiB is the smallest device; driverVersion is
+// absent when no driver answered.
+#InventoryAcceleratorV1: {
+	vendor:          "nvidia" | "amd"
+	devices:         int & >=0
+	minVramGiB?:     int & >=1
+	driverVersion?:  string & =~"^[0-9][0-9A-Za-z.+-]*$"
+	containerAccess: "cdi" | "rocm-device-nodes" | "none"
 }
 
 #ModuleComputeProfilesV2: {
@@ -3808,8 +3889,8 @@ _servicePublicationShape: {
 // architecture authority into public renderer inputs. Sources are finite and
 // typed; arbitrary paths, raw StackSpec access, module outputs, and secrets are
 // intentionally unrepresentable.
-#ModuleRenderInputSourceRefV2:   "identity.deviceEnrollment" | "identityTrust.homeDeviceAuthority" | "identityTrust.basementVerification" | "identityTrust.cloudAuthority" | "identityTrust.modernHomeAuthority" | "identityTrust.modernCloudVerification" | "access.homeEnforcement" | "localAutonomy.policy" | "network.routes" | "network.moduleRoute" | "network.cloudHostSecurity" | "host.bootstrapRuntime" | "storage.hostRoots" | "storage.backupRoot" | "backup.localKopiaSource"
-#ModuleRenderInputValueTypeV2:   "device-enrollment-public-v1" | "home-device-authority-v1" | "basement-identity-verification-v1" | "cloud-identity-authority-v1" | "modern-home-identity-authority-v1" | "modern-cloud-identity-verification-v1" | "home-access-enforcement-v1" | "local-autonomy-policy-v1" | "authority-bound-service-route-list-v4" | "authority-bound-module-route-v1" | "cloud-host-security-policy-v2" | "host-bootstrap-runtime-v1" | "host-storage-roots-v1" | "local-backup-root-v1" | "local-kopia-backup-source-v1"
+#ModuleRenderInputSourceRefV2:   "identity.deviceEnrollment" | "identityTrust.homeDeviceAuthority" | "identityTrust.basementVerification" | "identityTrust.cloudAuthority" | "identityTrust.modernHomeAuthority" | "identityTrust.modernCloudVerification" | "access.homeEnforcement" | "localAutonomy.policy" | "network.routes" | "network.moduleRoute" | "network.cloudHostSecurity" | "host.bootstrapRuntime" | "storage.hostRoots" | "storage.backupRoot" | "backup.localKopiaSource" | "workloads.companions"
+#ModuleRenderInputValueTypeV2:   "device-enrollment-public-v1" | "home-device-authority-v1" | "basement-identity-verification-v1" | "cloud-identity-authority-v1" | "modern-home-identity-authority-v1" | "modern-cloud-identity-verification-v1" | "home-access-enforcement-v1" | "local-autonomy-policy-v1" | "authority-bound-service-route-list-v4" | "authority-bound-module-route-v1" | "cloud-host-security-policy-v2" | "host-bootstrap-runtime-v1" | "host-storage-roots-v1" | "local-backup-root-v1" | "local-kopia-backup-source-v1" | "workload-companion-list-v1"
 #ModuleRenderInputCardinalityV2: "single" | "list"
 
 // This projection renames credentialTTLSeconds to lifetimeSeconds so the
@@ -4178,12 +4259,12 @@ _servicePublicationShape: {
 		nodeRef:        #NodeID
 		composeProject: "stackkit-\(workloadRef)-\(nodeRef)"
 		components: [...close({
-			componentRef: #ContractID
-			role:         #ModuleRuntimeComponentV2.role
-			lifecycle:    #ModuleRuntimeComponentV2.lifecycle
+			componentRef:   #ContractID
+			role:           #ModuleRuntimeComponentV2.role
+			lifecycle:      #ModuleRuntimeComponentV2.lifecycle
 			healthFailure?: "degraded"
-			imageRef:     string & =~"^[^[:space:]@]+$"
-			imageDigest:  #ContentHash
+			imageRef:       string & =~"^[^[:space:]@]+$"
+			imageDigest:    #ContentHash
 			dependsOn: [...#ContractID] | *[]
 		})] & list.MinItems(1)
 
@@ -4487,12 +4568,26 @@ _servicePublicationShape: {
 		cardinality: "single"
 		if required == false {defaultValue: #ModulePublicLocalKopiaBackupSourceV1}
 	}
+	// The selected add-on workloads that join this module's workload network
+	// on the same node (peerNetworks); an empty list when none is selected.
+	if sourceRef == "workloads.companions" {
+		valueType:   "workload-companion-list-v1"
+		cardinality: "list"
+		if required == false {defaultValue: []}
+	}
 } & ({
 	required:      true
 	defaultValue?: _|_
 } | {
 	required: false
-	defaultValue!: #ModulePublicDeviceEnrollmentV2 | #ModulePublicHomeDeviceAuthorityV1 | #ModulePublicBasementVerificationV1 | #ModulePublicCloudIdentityAuthorityV1 | #ModulePublicModernHomeIdentityAuthorityV1 | #ModulePublicModernCloudIdentityVerificationV1 | [...#ModulePublicResolvedRouteV4] | #ModulePublicCloudHostSecurityPolicyV2 | #ModulePublicHostBootstrapRuntimeV1 | #ModulePublicHostStorageRootsV1 | #ModulePublicLocalBackupRootV1 | #ModulePublicLocalKopiaBackupSourceV1 | null
+	defaultValue!: #ModulePublicDeviceEnrollmentV2 | #ModulePublicHomeDeviceAuthorityV1 | #ModulePublicBasementVerificationV1 | #ModulePublicCloudIdentityAuthorityV1 | #ModulePublicModernHomeIdentityAuthorityV1 | #ModulePublicModernCloudIdentityVerificationV1 | [...#ModulePublicResolvedRouteV4] | #ModulePublicCloudHostSecurityPolicyV2 | #ModulePublicHostBootstrapRuntimeV1 | #ModulePublicHostStorageRootsV1 | #ModulePublicLocalBackupRootV1 | #ModulePublicLocalKopiaBackupSourceV1 | [...#ModulePublicWorkloadCompanionV1] | null
+})
+
+// #ModulePublicWorkloadCompanionV1 is one selected add-on workload alternative
+// that joins the bound module's workload network on the same node.
+#ModulePublicWorkloadCompanionV1: close({
+	workloadRef:    #WorkloadID
+	alternativeRef: #ContractID
 })
 
 // #ModuleSecretInputBindingV2 is the closed compiler-owned seam from a
@@ -5432,8 +5527,14 @@ _servicePublicationShape: {
 		computeProfiles: #ModuleComputeProfilesV2 & struct.MinFields(1)
 		_defaultComputeProfileExact: [for id, _ in computeProfiles if id == defaultComputeProfile {id}] & list.MinItems(1) & list.MaxItems(1)
 	}
-	storageProfiles?: [string]:     #ModuleAxisProfileV2
-	acceleratorProfiles?: [string]: #ModuleAxisProfileV2
+	storageProfiles?: [string]: #ModuleAxisProfileV2 & {accelerator?: _|_}
+	// Accelerator profiles are optional even when declared: no selection
+	// means the module runs without a device (CPU). Each names the components
+	// that receive the device.
+	acceleratorProfiles?: [string]: #ModuleAxisProfileV2 & {
+		accelerator: #AcceleratorRequirementV1
+		components: [...#ContractID] & list.MinItems(1)
+	}
 	// Resource-bearing executable workloads must publish module-local compute
 	// authority. Pure policy, plan-only and adapter contracts intentionally do
 	// not acquire an artificial default profile.
@@ -6683,6 +6784,8 @@ _servicePublicationShape: {
 		storageGB?:                   int & >=1
 		storageCapacity?:             #InventoryStorageCapacityV2
 		virtualization?:              #RuntimeVirtualizationV2
+		// Present only when the node was observed; empty means no GPU.
+		accelerators?: [...#InventoryAcceleratorV1]
 		externalHostBinding?:         #ExternalHostBindingV1
 		hostConformanceReceipt?:      #HostConformanceReceiptV1
 		runtimeDaemons: {
@@ -7527,7 +7630,7 @@ _servicePublicationShape: {
 	// that node. Platform services (kind "service") that the node needs stay
 	// allowed. It only strengthens placement; the own mail server uses it
 	// (ADR-0046 amendment 2026-09-25).
-	exclusiveNode?: true
+	exclusiveNode?:      true
 	defaultAlternative?: #ContractID
 	alternatives: [...#WorkloadAlternativeV2] & list.MinItems(1)
 	// Optional per-graph alternative. Init writes it; compiler rejects

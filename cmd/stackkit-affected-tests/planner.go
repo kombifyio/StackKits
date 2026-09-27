@@ -784,7 +784,7 @@ func classifyFiles(files []string) classification {
 		if file == "api/openapi/stackkits-v1.yaml" || file == "website/public/api/openapi.v1.yaml" {
 			result.OpenAPIProjection = true
 			known = true
-		} else if file == "install.sh" || file == "base-install.sh" || file == "cloud-install.sh" {
+		} else if file == "install.sh" || file == "base-install.sh" || file == "cloud-install.sh" || file == "install-host-bootstrap.sh" {
 			result.Website = true
 			known = true
 		} else if top == "website" {

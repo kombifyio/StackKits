@@ -85,7 +85,7 @@ Contract: foundation.#ModuleContract & {
 		// integration test (tests/integration/pocketid_e2e_test.go) docker-runs
 		// v2 directly, so this pin keeps the rendered TF and the integration
 		// harness on the same image.
-		tag:      "v2.7.0"
+		tag:      "v2.16.0@sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea"
 		upstream: {
 			github: {repo: "pocket-id/pocket-id"}
 		}

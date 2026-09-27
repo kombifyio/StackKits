@@ -136,13 +136,34 @@ type ApplicationDeliveryComponentDescriptor struct {
 	// through; both exist only when the owner enabled their workload setting.
 	LANListeners []ApplicationDeliveryLANListener
 	Devices      []ApplicationDeliveryDevice
+	// Accelerator is the GPU grant of the module's selected accelerator
+	// profile; nil for every CPU component.
+	Accelerator *ApplicationDeliveryAccelerator
 	// PeerNetworks are internal networks of other workloads on the node this
 	// add-on component joins; governed per module.
 	PeerNetworks []ApplicationDeliveryPeerNetwork
 	// HomeIdentityAccess and PocketIDClient are the governed native OIDC
 	// rights of the component (nil when not declared).
+	JellyfinSSOPlugin  *JellyfinSSOPluginDescriptor
+	HomeAssistantOIDC  *HomeAssistantOIDCDescriptor
 	HomeIdentityAccess *ApplicationDeliveryHomeIdentityAccess
 	PocketIDClient     *ApplicationDeliveryPocketIDClient
+	// SecretFiles are custody secrets mounted read-only as files, and
+	// RestoreActivationEnvironment names variables that are "true" only when
+	// restore activation created the container (governed per module).
+	SecretFiles                  []ApplicationDeliverySecretFile
+	RestoreActivationEnvironment []string
+}
+
+// ApplicationDeliverySecretFile is one custody secret slot delivered as a
+// read-only file at Target, owned by UID and GID; PathEnvironment receives
+// the file path.
+type ApplicationDeliverySecretFile struct {
+	Slot            string
+	Target          string
+	PathEnvironment string
+	UID             int
+	GID             int
 }
 
 // ApplicationDeliveryPeerNetwork is one governed internal network of another
@@ -198,17 +219,19 @@ type ApplicationDeliveryVolumeDescriptor struct {
 // ApplicationDeliveryBundleDescriptor is the validated provider-neutral
 // workload graph used by the StackKits-owned standalone adapter.
 type ApplicationDeliveryBundleDescriptor struct {
-	WorkloadRef    string
-	ModuleRef      string
-	Release        string
-	EntryComponent string
-	SiteRef        string
-	NodeRef        string
-	InstanceRef    string
-	SecretRefs     map[string]string
-	Components     []ApplicationDeliveryComponentDescriptor
-	ConfigFiles    []ApplicationDeliveryConfigFileDescriptor
-	Route          ApplicationDeliveryRouteDescriptor
+	// RequiredPrivilege is the verified catalog service endpoint admission.
+	RequiredPrivilege string
+	WorkloadRef       string
+	ModuleRef         string
+	Release           string
+	EntryComponent    string
+	SiteRef           string
+	NodeRef           string
+	InstanceRef       string
+	SecretRefs        map[string]string
+	Components        []ApplicationDeliveryComponentDescriptor
+	ConfigFiles       []ApplicationDeliveryConfigFileDescriptor
+	Route             ApplicationDeliveryRouteDescriptor
 	// DaemonSocketPath is set only for an ADR-0043 lifecycle-owner workload.
 	DaemonSocketPath string
 }
@@ -299,9 +322,16 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		if err != nil {
 			return ApplicationDeliveryBundleDescriptor{}, err
 		}
+		accelerator, err := parseAccelerator(component, bundle.Workload.ModuleRef, componentPath)
+		if err != nil {
+			return ApplicationDeliveryBundleDescriptor{}, err
+		}
 		peerNetworks, err := parsePeerNetworks(component, bundle.Workload.ModuleRef, componentPath)
 		if err != nil {
 			return ApplicationDeliveryBundleDescriptor{}, err
+		}
+		if len(component.CompanionEnvironment) != 0 {
+			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".companionEnvironment", "rendered bundles carry only materialized companion wiring")
 		}
 		if err := validateHomeIdentityRights(bundle.Workload.ModuleRef, component, componentPath); err != nil {
 			return ApplicationDeliveryBundleDescriptor{}, err
@@ -311,6 +341,10 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		}
 		homeIdentityAccess, pocketIDClient := homeIdentityDescriptors(component)
 		mailNode, err := parseMailNodeComponentFields(component, bundle.Workload.ModuleRef, bundle.DeliveryRoute, componentPath)
+		if err != nil {
+			return ApplicationDeliveryBundleDescriptor{}, err
+		}
+		secretFiles, restoreEnvironment, err := parseGovernedCustodyNodeFields(component, bundle.Workload.ModuleRef, secretRefs, componentPath)
 		if err != nil {
 			return ApplicationDeliveryBundleDescriptor{}, err
 		}
@@ -331,18 +365,23 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 			SecretEnvironment: cloneStringMap(component.SecretEnvironment),
 			Volumes:           volumes, HealthKind: component.Health.Kind,
 			HealthPath: component.Health.Path, HealthPort: component.Health.Port,
-			HealthCommand:        append([]string(nil), component.Health.Command...),
-			Resources:            resourcesDescriptor(component.Resources),
-			RouteHostLoopback:    component.RouteHostLoopback,
-			DockerLifecycleOwner: component.DockerLifecycleOwner != nil,
-			PublishedTCPPorts:    mailNode.PublishedTCPPorts,
-			RouteHostEnvironment: mailNode.RouteHostEnvironment,
-			ACMETLSALPNPort:      mailNode.ACMETLSALPNPort,
-			LANListeners:         lanListeners,
-			Devices:              devices,
-			PeerNetworks:         peerNetworks,
-			HomeIdentityAccess:   homeIdentityAccess,
-			PocketIDClient:       pocketIDClient,
+			HealthCommand:                append([]string(nil), component.Health.Command...),
+			Resources:                    resourcesDescriptor(component.Resources),
+			RouteHostLoopback:            component.RouteHostLoopback,
+			DockerLifecycleOwner:         component.DockerLifecycleOwner != nil,
+			PublishedTCPPorts:            mailNode.PublishedTCPPorts,
+			RouteHostEnvironment:         mailNode.RouteHostEnvironment,
+			ACMETLSALPNPort:              mailNode.ACMETLSALPNPort,
+			LANListeners:                 lanListeners,
+			Devices:                      devices,
+			Accelerator:                  accelerator,
+			PeerNetworks:                 peerNetworks,
+			HomeIdentityAccess:           homeIdentityAccess,
+			PocketIDClient:               pocketIDClient,
+			SecretFiles:                  secretFiles,
+			RestoreActivationEnvironment: restoreEnvironment,
+			JellyfinSSOPlugin:            component.JellyfinSSOPlugin,
+			HomeAssistantOIDC:            component.HomeAssistantOIDC,
 		}
 	}
 	if !entryFound || len(components) == 0 {
@@ -365,6 +404,7 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		Release: bundle.Workload.Release, EntryComponent: bundle.Workload.EntryComponent,
 		SiteRef: bundle.Target.SiteRef, NodeRef: bundle.Target.NodeRef, InstanceRef: bundle.Target.InstanceRef,
 		SecretRefs: secretRefs, Components: components, ConfigFiles: configFiles,
+		RequiredPrivilege: bundle.Route.RequiredPrivilege,
 	}
 	if bundle.DeliveryRoute != nil {
 		descriptor.Route = bundle.DeliveryRoute.descriptor()

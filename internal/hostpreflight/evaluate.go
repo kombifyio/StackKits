@@ -1,6 +1,7 @@
 package hostpreflight
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -57,6 +58,9 @@ func intField(block map[string]any, key string) int {
 		return int(value)
 	case float64:
 		return int(value)
+	case json.Number:
+		parsed, _ := value.Int64()
+		return int(parsed)
 	default:
 		return 0
 	}
@@ -107,6 +111,7 @@ func Evaluate(facts Facts, requirements Requirements, kitSlug string, policy Pol
 		checkCPUBaseline(facts),
 		checkClock(facts),
 	}
+	checks = append(checks, checkAccelerators(facts, requirements)...)
 	sort.SliceStable(checks, func(i, j int) bool { return checks[i].ID < checks[j].ID })
 	report.Checks = checks
 	report.Status = worstStatus(checks)

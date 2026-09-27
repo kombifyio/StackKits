@@ -65,7 +65,12 @@ fetch_one() {
   curl -fsSL "$url" -o "$archive"
   verify_archive "$archive"
   if [ "$archive_ext" = "zip" ]; then
-    unzip -q -o "$archive" "$binary" -d "$target_dir"
+    if command -v unzip >/dev/null 2>&1; then
+      unzip -q -o "$archive" "$binary" -d "$target_dir"
+    else
+      python3 -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extract(sys.argv[2], sys.argv[3])' \
+        "$archive" "$binary" "$target_dir"
+    fi
   else
     tar -xzf "$archive" -C "$target_dir" "$binary"
   fi

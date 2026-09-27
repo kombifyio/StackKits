@@ -31,7 +31,7 @@ _validBasementV2: #BasementKitStackV2 & {
 		generation: {strategy: "kit-template", target: "compose"}
 		network: {
 			mode: "private"
-			domain: {base: "home"}
+			domain: {base: "lab.home"}
 			transport: {}
 			dns: {}
 			tls: {defaultMode: "internal"}

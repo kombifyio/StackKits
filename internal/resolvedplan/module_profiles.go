@@ -498,7 +498,9 @@ func (c *Compiler) resolveModuleAxisProfiles(spec *specView, moduleID string, co
 			continue
 		}
 		if explicit == "" {
-			if spec.legacyComputeTier {
+			// No accelerator profile is the CPU runtime: it grants no device.
+			// Storage stays an explicit choice once a module declares it.
+			if spec.legacyComputeTier || axis.contractField == "acceleratorProfiles" {
 				continue
 			}
 			return fail(ErrUndeclaredComputeProfile, "spec.modules."+moduleID+"."+axis.intentField, "native v2alpha2 requires an explicit %s for modules that declare %s", axis.intentField, axis.contractField)

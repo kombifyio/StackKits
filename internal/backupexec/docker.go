@@ -493,7 +493,7 @@ func validateDockerV2LabelsForProject(container *docker.ContainerInfo, v2Compose
 	if len(labels) != expected ||
 		labels["com.docker.compose.container-number"] != "1" ||
 		labels["com.docker.compose.depends_on"] != "" ||
-		labels["com.docker.compose.image"] != container.Image ||
+		!composeImageLabelMatches(labels["com.docker.compose.image"], container) ||
 		labels["com.docker.compose.oneoff"] != "False" ||
 		labels["com.docker.compose.project"] != v2ComposeProject ||
 		labels["com.docker.compose.project.config_files"] == "" ||
@@ -509,6 +509,22 @@ func validateDockerV2LabelsForProject(container *docker.ContainerInfo, v2Compose
 		return fmt.Errorf("container Compose config hash label is invalid")
 	}
 	return nil
+}
+
+var imageDigestPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
+
+// composeImageLabelMatches accepts Compose's image label for the classic
+// image store, where it equals the container's image ID, and for the
+// containerd image store (Docker 29 default), where the container records the
+// pinned index digest from Config.Image and Compose labels the resolved
+// platform image digest. Config.Image is checked against the pinned runtime
+// separately.
+func composeImageLabelMatches(label string, container *docker.ContainerInfo) bool {
+	if label == container.Image {
+		return true
+	}
+	return imageDigestPattern.MatchString(label) && imageDigestPattern.MatchString(container.Image) &&
+		strings.HasSuffix(container.Config.Image, "@"+container.Image)
 }
 
 func kopiaPasswordCommand(command []string) ([]string, error) {

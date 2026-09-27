@@ -3523,7 +3523,7 @@
       "group": "start",
       "usage": "stackkit init [stackkit] [flags]",
       "short": "Initialize a new deployment from a StackKit",
-      "description": "Create a stack-spec.yaml in your deployment directory.\nThis saves your choices; it does not install services or change the host.\nThe standalone local path works without a kombify account or Techstack.\n\nStart with the selected Kit's catalog defaults. --owner-source=local keeps the\nowner on this machine and needs --owner-email for the local PocketID owner.\nCloud Kit uses a kombify.me address unless --domain names a domain that\nalready points at this host.\n\nReview the saved configuration before generating or applying it. Defaults\nare recorded as explicit intent and validated by the Kit's CUE contract.\nRequired information, such as a domain, is requested when the Kit needs it.\nUse --non-interactive in scripts to fail instead of prompting.\n\nFor precise control, use --use-case-alternative and --module-compute-profile\ninstead of --catalog-defaults. These selections come from the chosen Kit.\nNative authoring uses stackkit/v2alpha2; --api-version stackkit/v2alpha1\nselects the explicit legacy graph adapter. Flags marked v0.6 compatibility\nare accepted only by an explicitly versioned v0.6 binary.",
+      "description": "Create a stack-spec.yaml in your deployment directory.\nThis saves your choices; it does not install services or change the host.\nThe standalone local path works without a kombify account or Techstack.\n\nStart with the selected Kit's catalog defaults. --owner-source=local keeps the\nowner on this machine and needs --owner-email for the local PocketID owner.\nCloud Kit uses a kombify.me address unless --domain names a domain that\nalready points at this host.\n\nReview the saved configuration before generating or applying it. Defaults\nare recorded as explicit intent and validated by the Kit's CUE contract.\nRequired information, such as a domain, is requested when the Kit needs it.\nUse --non-interactive in scripts to fail instead of prompting.\n\nFor precise control, use --use-case-alternative and --module-compute-profile\ninstead of --catalog-defaults. These selections come from the chosen Kit.\nA use case built from capability modules (Private AI) takes\n--use-case-capability <use-case>.<capability>=<option|off>; omitted modules\nkeep their defaults, and planned modules are refused until they install.\nNative authoring uses stackkit/v2alpha2; --api-version stackkit/v2alpha1\nselects the explicit legacy graph adapter. Flags marked v0.6 compatibility\nare accepted only by an explicitly versioned v0.6 binary.",
       "runnable": true,
       "examples": [
         {
@@ -3541,6 +3541,10 @@
         {
           "command": "stackkit init cloud-kit --catalog-defaults --owner-source=local --owner-email you@example.com --domain example.com --non-interactive",
           "description": "Cloud Kit on your own domain, without prompts (for scripts)"
+        },
+        {
+          "command": "stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com --use-case ai --use-case-capability ai.inference=ollama --use-case-capability ai.chat=open-webui",
+          "description": "Private AI with its default modules (inference with Ollama, chat with Open WebUI) named explicitly"
         },
         {
           "command": "stackkit init basement-kit --owner-source=local --owner-email you@example.com --use-case-alternative basement-core=standalone --module-compute-profile stackkits-basement-core-runtime=standard",
@@ -3761,6 +3765,12 @@
           "name": "use-case-alternative",
           "type": "stringArray",
           "description": "Native v2alpha2: use-case-id=alternative; include required core workloads",
+          "required": false
+        },
+        {
+          "name": "use-case-capability",
+          "type": "stringArray",
+          "description": "Native v2alpha2: use-case.capability=option or off (e.g. ai.chat=open-webui); requires --use-case",
           "required": false
         }
       ],
@@ -5352,8 +5362,7 @@
           "required": false
         }
       ],
-      "subcommands": [],
-      "legacy": true
+      "subcommands": []
     },
     {
       "path": "stackkit support",
@@ -5539,11 +5548,41 @@
         }
       ],
       "subcommands": [
+        "stackkit user activate",
         "stackkit user add",
+        "stackkit user files",
         "stackkit user list",
         "stackkit user owner",
         "stackkit user remove"
       ]
+    },
+    {
+      "path": "stackkit user activate",
+      "name": "activate",
+      "parent": "stackkit user",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit user activate <username> [flags]",
+      "short": "Reissue passkey enrollment for an existing household member",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve reissuing household passkey enrollment",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit user"
+        }
+      ],
+      "subcommands": []
     },
     {
       "path": "stackkit user add",
@@ -5582,6 +5621,87 @@
           "name": "owner-approve",
           "type": "bool",
           "description": "Explicitly approve creating this household user",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit user"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit user files",
+      "name": "files",
+      "parent": "stackkit user",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit user files [flags]",
+      "short": "Resume and hand off app-local Files household accounts",
+      "description": "Cloudreve CE keeps an app-local account behind TinyAuth. These commands converge that account from an approved PocketID household identity and reveal its owner-custodied password only on explicit request.",
+      "runnable": false,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit user"
+        }
+      ],
+      "subcommands": [
+        "stackkit user files credential",
+        "stackkit user files ensure"
+      ]
+    },
+    {
+      "path": "stackkit user files credential",
+      "name": "credential",
+      "parent": "stackkit user files",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit user files credential <username> [flags]",
+      "short": "Print one owner-custodied Files household password",
+      "description": "Verify the approved PocketID household identity and its non-admin Cloudreve account, then print the existing password from signed local-owner custody. Output contains secret material; use it only in a private terminal or intentional pipe.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve revealing this Files password",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit user"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit user files ensure",
+      "name": "ensure",
+      "parent": "stackkit user files",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit user files ensure <username> [flags]",
+      "short": "Create or verify one non-admin Files account",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve Files account provisioning",
           "required": false
         },
         {
@@ -5647,6 +5767,7 @@
       ],
       "subcommands": [
         "stackkit user owner activate",
+        "stackkit user owner migrate-domain",
         "stackkit user owner status"
       ]
     },
@@ -5657,7 +5778,7 @@
       "aliases": [],
       "group": "care",
       "usage": "stackkit user owner activate [flags]",
-      "short": "Return or reissue the owner-bound one-time passkey activation",
+      "short": "Reissue the owner-bound one-time passkey activation link and retire the previous one",
       "description": "",
       "runnable": true,
       "examples": [],
@@ -5665,7 +5786,48 @@
         {
           "name": "owner-approve",
           "type": "bool",
-          "description": "Explicitly approve revealing or reissuing owner activation",
+          "description": "Explicitly approve reissuing the owner activation link",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit user"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit user owner migrate-domain",
+      "name": "migrate-domain",
+      "parent": "stackkit user owner",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit user owner migrate-domain [flags]",
+      "short": "Prepare the owner-approved home to lab.home identity migration",
+      "description": "Preserve the existing owner, CA, service secrets and users while migrating Basement intent and runtime custody from home to lab.home. Preserve the prior-release CLI, packaged tools and provider mirror before using an isolated target CLI for this command. --quiesce-runtime authorizes the command to capture the exact source Core container identities, converge the identity callback while PocketID is available, then gracefully stop and remove only those containers without deleting volumes, networks or images. Use the prior CLI for generate, apply and verify, then use the target CLI for upgrade --to <exact-release>. The upgrade checkpoint covers the migrated prior release on lab.home; this command creates no original-domain rollback checkpoint. The v0.47.4 bridge awaits real-host qualification. After rollout, enroll client DNS and new passkeys at id.lab.home.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve domain migration and new passkey enrollment",
+          "required": false
+        },
+        {
+          "name": "quiesce-runtime",
+          "type": "bool",
+          "description": "Gracefully stop and remove the authenticated source Core containers without deleting persistent resources",
+          "required": false
+        },
+        {
+          "name": "spec",
+          "type": "string",
+          "default": "stack-spec.yaml",
+          "description": "Workspace-relative StackSpec to migrate",
           "required": false
         },
         {

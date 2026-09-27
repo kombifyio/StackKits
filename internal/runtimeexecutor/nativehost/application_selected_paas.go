@@ -31,7 +31,11 @@ const (
 	SelectedPaaSApplicationZigbee2mqtt       SelectedPaaSApplication = "zigbee2mqtt"
 	SelectedPaaSApplicationImmichPublicProxy SelectedPaaSApplication = "immich-public-proxy"
 	SelectedPaaSApplicationImmichKiosk       SelectedPaaSApplication = "immich-kiosk"
+	SelectedPaaSApplicationComfyUI           SelectedPaaSApplication = "comfyui"
 	SelectedPaaSApplicationImmichPowerTools  SelectedPaaSApplication = "immich-power-tools"
+	SelectedPaaSApplicationSearxng           SelectedPaaSApplication = "searxng"
+	SelectedPaaSApplicationTika              SelectedPaaSApplication = "tika"
+	SelectedPaaSApplicationDocling           SelectedPaaSApplication = "docling"
 	SelectedPaaSApplicationPaperless         SelectedPaaSApplication = "paperless-ngx"
 	SelectedPaaSApplicationPterodactyl       SelectedPaaSApplication = "pterodactyl"
 	SelectedPaaSApplicationRoundcube         SelectedPaaSApplication = "roundcube"
@@ -207,6 +211,17 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
 			},
 		}, true
+	case SelectedPaaSApplicationComfyUI:
+		return selectedPaaSApplicationSpec{
+			name: "ComfyUI", providerRef: "stackkits-comfyui", moduleRef: "stackkits-comfyui-runtime",
+			unitRef: "comfyui", workloadRef: "ai-image-video", artifactRef: "comfyui-workload-bundle",
+			outputRef: "workloads/comfyui/bundle.json", healthRef: "comfyui-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.ComfyUIWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseComfyUIWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
 	case SelectedPaaSApplicationImmichKiosk:
 		return selectedPaaSApplicationSpec{
 			name: "ImmichKiosk", providerRef: "stackkits-immich-kiosk", moduleRef: "stackkits-immich-kiosk-runtime",
@@ -226,6 +241,39 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 			rendererContract: architecturev2renderer.ImmichPowerToolsWorkloadBundleRendererContract,
 			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
 				descriptor, err := architecturev2renderer.ParseImmichPowerToolsWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationSearxng:
+		return selectedPaaSApplicationSpec{
+			name: "Searxng", providerRef: "stackkits-searxng", moduleRef: "stackkits-searxng-runtime",
+			unitRef: "searxng", workloadRef: "ai-search", artifactRef: "searxng-workload-bundle",
+			outputRef: "workloads/searxng/bundle.json", healthRef: "searxng-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.SearxngWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseSearxngWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationTika:
+		return selectedPaaSApplicationSpec{
+			name: "Tika", providerRef: "stackkits-tika", moduleRef: "stackkits-tika-runtime",
+			unitRef: "tika", workloadRef: "ai-documents", artifactRef: "tika-workload-bundle",
+			outputRef: "workloads/tika/bundle.json", healthRef: "tika-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.TikaWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseTikaWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationDocling:
+		return selectedPaaSApplicationSpec{
+			name: "Docling", providerRef: "stackkits-docling", moduleRef: "stackkits-docling-runtime",
+			unitRef: "docling", workloadRef: "ai-documents", artifactRef: "docling-workload-bundle",
+			outputRef: "workloads/docling/bundle.json", healthRef: "docling-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.DoclingWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseDoclingWorkloadBundle(content)
 				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
 			},
 		}, true
@@ -320,9 +368,19 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 			},
 		}, true
 	default:
-		return selectedPaaSApplicationSpec{}, false
+		spec, ok := internalSelectedPaaSApplications[application]
+		return spec, ok
 	}
 }
+
+// internalSelectedPaaSApplications holds the specs of internal-only
+// applications (authority manifest internalSources), keyed by application;
+// internalSelectedPaaSModules maps their module refs to the application. The
+// private build fills both from files the public export removes.
+var (
+	internalSelectedPaaSApplications = map[SelectedPaaSApplication]selectedPaaSApplicationSpec{}
+	internalSelectedPaaSModules      = map[string]SelectedPaaSApplication{}
+)
 
 // SelectedPaaSApplicationRefs is the catalog selector identity of one named
 // application, exported so service construction cannot drift from the

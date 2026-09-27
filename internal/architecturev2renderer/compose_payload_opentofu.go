@@ -24,8 +24,8 @@ const (
 	// ComposePayloadLocalProviderVersion is the exact hashicorp/local release
 	// every wrapper root pins, so offline packaging can mirror one provider.
 	ComposePayloadLocalProviderVersion = "2.5.3"
-	// ComposePayloadOpenTofuRequiredVersion is the minimum OpenTofu release.
-	ComposePayloadOpenTofuRequiredVersion = ">= 1.10.0"
+	// ComposePayloadOpenTofuRequiredVersion admits the supported 1.12 line.
+	ComposePayloadOpenTofuRequiredVersion = "~> 1.12.0"
 	// ComposePayloadWaitTimeoutSeconds bounds `docker compose up --wait`.
 	ComposePayloadWaitTimeoutSeconds = 600
 

@@ -5,8 +5,74 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
+	"strings"
 	"time"
+
+	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
+
+// ApplicationSetupAdapter is the executable setup access owned by one exact
+// runtime adapter implementation. Adding a catalog capability does not create
+// a transport: a provider adapter must also register an implementation here.
+type ApplicationSetupAdapter interface {
+	SupportsNativeAction(action string) bool
+	WithHTTP(context.Context, string, SelectedPaaSWorkloadDeployment, func(*http.Client, string) error) error
+}
+
+type applicationSetupAdapterRegistration struct {
+	matches func(runtimeexecutor.RuntimeAdapterBinding) bool
+	adapter ApplicationSetupAdapter
+}
+
+var applicationSetupAdapterRegistrations = []applicationSetupAdapterRegistration{
+	{
+		matches: func(binding runtimeexecutor.RuntimeAdapterBinding) bool {
+			return binding.ID == standaloneComposeAdapterRef &&
+				binding.ProviderRef == "stackkits-standalone-compose" &&
+				binding.ModuleRef == standaloneComposeModuleRef
+		},
+		adapter: standaloneComposeApplicationSetupAdapter{},
+	},
+}
+
+// ResolveApplicationSetupAdapter admits an executable setup transport from
+// the exact verified runtime adapter binding and its catalog capability.
+// Unknown provider adapters remain refused even if they declare the same
+// capability; they need their own executable transport registration.
+func ResolveApplicationSetupAdapter(binding runtimeexecutor.RuntimeAdapterBinding, capabilities []string) (ApplicationSetupAdapter, error) {
+	if !slices.Contains(capabilities, generationartifact.ApplicationSetupLocalAPICapability) {
+		return nil, fmt.Errorf("runtime adapter does not declare %q", generationartifact.ApplicationSetupLocalAPICapability)
+	}
+	if strings.TrimSpace(binding.ID) == "" || strings.TrimSpace(binding.ProviderRef) == "" ||
+		strings.TrimSpace(binding.ProviderVersion) == "" || !validCoreHostBootstrapDigest(binding.ProviderContractHash) ||
+		strings.TrimSpace(binding.ModuleRef) == "" || strings.TrimSpace(binding.ModuleVersion) == "" ||
+		!validCoreHostBootstrapDigest(binding.ModuleContractHash) {
+		return nil, errors.New("application setup runtime adapter binding is incomplete")
+	}
+	for _, registration := range applicationSetupAdapterRegistrations {
+		if registration.matches(binding) {
+			return registration.adapter, nil
+		}
+	}
+	return nil, errors.New("runtime adapter has no executable application setup transport")
+}
+
+type standaloneComposeApplicationSetupAdapter struct{}
+
+func (standaloneComposeApplicationSetupAdapter) SupportsNativeAction(action string) bool {
+	return strings.TrimSpace(action) != ""
+}
+
+func (standaloneComposeApplicationSetupAdapter) WithHTTP(
+	ctx context.Context,
+	workspace string,
+	deployment SelectedPaaSWorkloadDeployment,
+	run func(*http.Client, string) error,
+) error {
+	return WithStandaloneComposeHTTP(ctx, workspace, deployment, run)
+}
 
 // WithStandaloneComposeHTTP extends the existing application adapter with a
 // bounded local API session. The caller supplies its already admitted
@@ -46,7 +112,10 @@ func (o *osStandaloneComposeWorkloadOperations) observeContainerCustody(
 	ctx context.Context,
 	deployment SelectedPaaSWorkloadDeployment,
 ) (map[string]string, error) {
-	project, err := o.prepare(ctx, deployment)
+	// Inspection uses existing signed custody. In particular, backup repeats
+	// this while identity services may be stopped; it must not register clients,
+	// rotate secrets, or reconcile IdP policy as a side effect of readback.
+	project, err := o.prepareWithIdentityMutation(ctx, deployment, false)
 	if err != nil {
 		return nil, err
 	}

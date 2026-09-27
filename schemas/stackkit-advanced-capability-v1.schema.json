@@ -21,6 +21,91 @@
     "uiManagerRef"
   ],
   "properties": {
+    "backupRenewal": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional signed same-repository authority for one restore.drill job; maximum capability lifetime 15 minutes. Local staged restore plus remote target attestation only; never remote data restoration or activation.",
+      "required": [
+        "agentId",
+        "bindingHash",
+        "custodyAttestationRef",
+        "deploymentId",
+        "freshAttestationRef",
+        "jobId",
+        "measuredAt",
+        "planHash",
+        "quotaBytes",
+        "repositoryId",
+        "targetRef",
+        "tenantId",
+        "usedBytes"
+      ],
+      "properties": {
+        "agentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "bindingHash": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "custodyAttestationRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "deploymentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "freshAttestationRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "jobId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "measuredAt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "planHash": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "quotaBytes": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "repositoryId": {
+          "const": "kopia:local:cloud"
+        },
+        "targetRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "tenantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "usedBytes": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      }
+    },
     "schemaVersion": { "const": "stackkit.advanced-capability/v1" },
     "audience": { "const": "stackkit" },
     "allowedOperations": {

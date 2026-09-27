@@ -253,7 +253,7 @@ func (c *Controller) Mutate(ctx context.Context, action, serviceKey string, owne
 		return result, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "service action failed: " + logging.RedactText(err.Error())}
 	}
 	observed := strings.TrimSpace(actionOutput.ObservedState)
-	if target.Adapter == "compose" {
+	if target.Adapter == "compose" || target.Adapter == applicationComposeAdapter {
 		observed, err = c.observe(ctx, target, definition.ComponentRefs)
 		if err != nil {
 			return result, err
@@ -417,21 +417,20 @@ func (c *Controller) authority() (runtimeAuthority, error) {
 	if err := c.verifyPlan(raw); err != nil {
 		return runtimeAuthority{}, &Error{ReasonCode: ReasonPlanChanged, Message: "canonical ResolvedPlan differs from the CUE-verified execution authority"}
 	}
-	var plan struct {
-		PlanHash string `json:"planHash"`
-		Modules  []struct {
-			ServiceControls []serviceDefinition `json:"serviceControls"`
-		} `json:"modules"`
-	}
+	var plan servicePlanProjection
 	if json.Unmarshal(raw, &plan) != nil || !cursorPattern.MatchString(plan.PlanHash) {
 		return runtimeAuthority{}, &Error{ReasonCode: "resolved_plan_invalid", Message: "canonical ResolvedPlan has no valid planHash"}
+	}
+	declared := make([]serviceDefinition, 0)
+	for _, module := range plan.Modules {
+		declared = append(declared, module.ServiceControls...)
 	}
 	definitions := make([]serviceDefinition, 0)
 	services := map[string]serviceDefinition{}
 	serviceRefs := map[string]struct{}{}
 	componentRefs := map[string]struct{}{}
-	for _, module := range plan.Modules {
-		for _, candidate := range module.ServiceControls {
+	for _, candidates := range [][]serviceDefinition{declared, plan.applicationServiceControls(declared)} {
+		for _, candidate := range candidates {
 			definition, err := normalizeServiceDefinition(candidate)
 			if err != nil {
 				return runtimeAuthority{}, &Error{ReasonCode: "resolved_plan_invalid", Message: err.Error()}
@@ -475,7 +474,7 @@ func normalizeServiceDefinition(candidate serviceDefinition) (serviceDefinition,
 	if !contractIDPattern.MatchString(candidate.Key) || !contractIDPattern.MatchString(candidate.ServiceRef) || !contractIDPattern.MatchString(candidate.RuntimeRef) {
 		return serviceDefinition{}, errors.New("canonical ResolvedPlan has an invalid service-control identity")
 	}
-	if candidate.Adapter != "compose" && candidate.Adapter != "komodo" {
+	if candidate.Adapter != "compose" && candidate.Adapter != "komodo" && candidate.Adapter != applicationComposeAdapter {
 		return serviceDefinition{}, errors.New("canonical ResolvedPlan has an unsupported service-control adapter")
 	}
 	componentRefs, err := normalizedContractIDs(candidate.ComponentRefs)
@@ -555,8 +554,11 @@ func serviceContractHash(definitions []serviceDefinition) (string, error) {
 }
 
 func (c *Controller) runtimeTarget(definition serviceDefinition) (runtimeTarget, error) {
-	if definition.Adapter == "compose" {
+	if definition.Adapter == "compose" || definition.Adapter == applicationComposeAdapter {
 		path := filepath.Join(c.workspace, ".stackkit", "runtime", definition.RuntimeRef, "compose.yaml")
+		if definition.Adapter == applicationComposeAdapter {
+			path = applicationComposePath(c.workspace, definition.RuntimeRef)
+		}
 		info, err := os.Lstat(path)
 		if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
 			return runtimeTarget{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "declared Compose runtime is unavailable"}
@@ -664,6 +666,14 @@ func (c *Controller) loadStateIfExists(authority runtimeAuthority) (DesiredState
 	if err != nil || c.signer.Verify(c.workspace, canonical, state.Signature) != nil {
 		return DesiredState{}, false, &Error{ReasonCode: "desired_state_signature_invalid", Message: "desired service state signature does not verify"}
 	}
+	stale := state.PlanHash != authority.PlanHash || state.ServiceContractHash != authority.ServiceContractHash
+	if stale && !holdsStoppedIntent(state) {
+		// Only a stopped service is durable owner intent. A state that
+		// records every service as running asks for the Apply default, so a
+		// new plan supersedes it instead of blocking Apply and later
+		// service commands.
+		return DesiredState{}, false, nil
+	}
 	if state.PlanHash != authority.PlanHash {
 		return DesiredState{}, false, &Error{ReasonCode: ReasonPlanChanged, Message: "desired service state was invalidated by a plan change"}
 	}
@@ -671,6 +681,15 @@ func (c *Controller) loadStateIfExists(authority runtimeAuthority) (DesiredState
 		return DesiredState{}, false, &Error{ReasonCode: ReasonContractChanged, Message: "desired service state was invalidated by a service-contract change"}
 	}
 	return state, true, nil
+}
+
+func holdsStoppedIntent(state DesiredState) bool {
+	for _, service := range state.Services {
+		if service.State == DesiredStopped {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Controller) persistState(state *DesiredState) error {
@@ -741,14 +760,51 @@ func (c *Controller) observe(ctx context.Context, target runtimeTarget, componen
 	if err != nil {
 		return "unknown", &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "service observation failed: " + logging.RedactText(err.Error())}
 	}
-	lower := strings.ToLower(string(output.Bytes))
-	if strings.Contains(lower, "running") || strings.Contains(lower, "up") {
-		return DesiredRunning, nil
+	return observedComposeState(output.Bytes), nil
+}
+
+// observedComposeState reads the State of each `docker compose ps --format
+// json` record (one object per line, or one array). Any running component
+// means running; otherwise any stopped component means stopped. Matching
+// State values avoids reading unrelated names, labels or mounts as a state.
+func observedComposeState(raw []byte) string {
+	type record struct {
+		State string `json:"State"`
 	}
-	if strings.Contains(lower, "exited") || strings.Contains(lower, "stopped") || strings.Contains(lower, "created") {
-		return DesiredStopped, nil
+	var records []record
+	trimmed := bytes.TrimSpace(raw)
+	if bytes.HasPrefix(trimmed, []byte("[")) {
+		if err := json.Unmarshal(trimmed, &records); err != nil {
+			return "unknown"
+		}
+	} else {
+		scanner := bufio.NewScanner(bytes.NewReader(trimmed))
+		scanner.Buffer(make([]byte, 1024), 1<<20)
+		for scanner.Scan() {
+			line := bytes.TrimSpace(scanner.Bytes())
+			if len(line) == 0 {
+				continue
+			}
+			var item record
+			if err := json.Unmarshal(line, &item); err != nil {
+				return "unknown"
+			}
+			records = append(records, item)
+		}
 	}
-	return "unknown", nil
+	stopped := false
+	for _, item := range records {
+		switch strings.ToLower(strings.TrimSpace(item.State)) {
+		case "running", "restarting":
+			return DesiredRunning
+		case "exited", "stopped", "created", "dead", "paused":
+			stopped = true
+		}
+	}
+	if stopped {
+		return DesiredStopped
+	}
+	return "unknown"
 }
 
 func mutationArgs(action string, components []string) []string {
@@ -830,6 +886,9 @@ func (osRunner) Run(ctx context.Context, request runtimeCommandRequest) (runtime
 			return runtimeCommandOutput{}, err
 		}
 		return runtimeCommandOutput{ObservedState: result.ObservedState, OperationRef: result.UpdateID}, nil
+	}
+	if request.Adapter == applicationComposeAdapter {
+		return runApplicationCompose(ctx, request)
 	}
 	if request.Adapter != "compose" || filepath.Base(request.ComposePath) != "compose.yaml" || filepath.Base(filepath.Dir(request.ComposePath)) != request.RuntimeRef {
 		return runtimeCommandOutput{}, errors.New("service control rejected an unbounded runtime adapter")

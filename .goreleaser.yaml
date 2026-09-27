@@ -116,6 +116,8 @@ archives:
       - LICENSING.md
       - LICENSE-APACHE
       - LICENSE-GPL-3.0-or-later
+      - LICENSE-MPL-2.0
+      - THIRD-PARTY-NOTICES.md
       - docs/CLI.md
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
@@ -195,6 +197,8 @@ archives:
       - LICENSING.md
       - LICENSE-APACHE
       - LICENSE-GPL-3.0-or-later
+      - LICENSE-MPL-2.0
+      - THIRD-PARTY-NOTICES.md
       - docs/CLI.md
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
@@ -271,6 +275,8 @@ archives:
       - LICENSING.md
       - LICENSE-APACHE
       - LICENSE-GPL-3.0-or-later
+      - LICENSE-MPL-2.0
+      - THIRD-PARTY-NOTICES.md
       - docs/CLI.md
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
@@ -347,6 +353,8 @@ archives:
       - LICENSING.md
       - LICENSE-APACHE
       - LICENSE-GPL-3.0-or-later
+      - LICENSE-MPL-2.0
+      - THIRD-PARTY-NOTICES.md
       - docs/CLI.md
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
@@ -405,13 +413,24 @@ nfpms:
     contents:
       - src: LICENSING.md
         dst: /usr/share/doc/kombify-stackkits/LICENSING.md
-        type: doc
+        file_info:
+          mode: 0644
       - src: LICENSE-APACHE
         dst: /usr/share/doc/kombify-stackkits/LICENSE-APACHE
-        type: doc
+        file_info:
+          mode: 0644
       - src: LICENSE-GPL-3.0-or-later
         dst: /usr/share/doc/kombify-stackkits/LICENSE-GPL-3.0-or-later
-        type: doc
+        file_info:
+          mode: 0644
+      - src: LICENSE-MPL-2.0
+        dst: /usr/share/doc/kombify-stackkits/LICENSE-MPL-2.0
+        file_info:
+          mode: 0644
+      - src: THIRD-PARTY-NOTICES.md
+        dst: /usr/share/doc/kombify-stackkits/THIRD-PARTY-NOTICES.md
+        file_info:
+          mode: 0644
       - src: ".dist-tools/opentofu/linux_{{ .Arch }}/tofu"
         dst: /usr/local/bin/tofu
         file_info:
@@ -426,6 +445,14 @@ nfpms:
           mode: 0755
       - src: ".dist-tools/opentofu-providers/linux_{{ .Arch }}/providers/registry.opentofu.org/hashicorp/local/2.5.3/linux_{{ .Arch }}/LICENSE"
         dst: /usr/local/lib/stackkit/providers/registry.opentofu.org/hashicorp/local/2.5.3/linux_{{ .Arch }}/LICENSE
+        file_info:
+          mode: 0644
+      - src: ".dist-tools/opentofu-providers/linux_{{ .Arch }}/providers/stackkit-provider-manifest.json"
+        dst: /usr/local/lib/stackkit/providers/stackkit-provider-manifest.json
+        file_info:
+          mode: 0644
+      - src: ".dist-tools/opentofu-providers/linux_{{ .Arch }}/providers/stackkit-provider-lock.hcl"
+        dst: /usr/local/lib/stackkit/providers/stackkit-provider-lock.hcl
         file_info:
           mode: 0644
 

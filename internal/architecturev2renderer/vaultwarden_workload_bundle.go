@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"reflect"
 )
 
 const (
@@ -16,7 +17,7 @@ const (
 )
 
 const vaultwardenWorkloadRendererSchema = `stackkit.workload-bundle/v2|VaultwardenWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:vaultwarden|release:` +
-	vaultwardenRelease + `|secret-material:not-included`
+	vaultwardenRelease + `|secret-material:not-included|native-oidc:pocketid-pkce-v1|admission:owners-admins`
 
 // VaultwardenWorkloadBundleDescriptor is the closed, credential-free runtime
 // artifact accepted by the selected-PaaS executor. AdminTokenRef is opaque.
@@ -202,7 +203,30 @@ func validateVaultwardenWorkloadUnit(unit RenderUnit, contract RendererContract)
 }
 
 func validateVaultwardenRuntimeComponents(components []selectedPaaSRuntimeComponent, path string) ([]selectedPaaSRuntimeComponent, error) {
+	if len(components) != 1 || components[0].ID != "vaultwarden" {
+		return nil, fail(ErrInvalidPlan, path, "Vaultwarden requires its exact application component")
+	}
+	component := components[0]
+	access, client := component.HomeIdentityAccess, component.PocketIDClient
+	if access == nil || access.CABundleTarget != "/etc/stackkit/ca-bundle.pem" ||
+		!exactStringList(access.CABundleEnvironment, []string{"SSL_CERT_FILE"}) || client == nil ||
+		client.CallbackPath != "" || !exactStringList(client.CallbackURLs, []string{"{{origin}}/identity/connect/oidc-signin"}) ||
+		client.Configuration != nil || !reflect.DeepEqual(client.Environment, vaultwardenSSOEnvironment) ||
+		component.Environment["SIGNUPS_ALLOWED"] != "false" || component.SecretEnvironment["ADMIN_TOKEN"] != "admin-token" {
+		return nil, fail(ErrInvalidPlan, path, "Vaultwarden requires governed SSO, private CA trust, closed signup and local recovery")
+	}
+	if err := validateHomeIdentityRights(vaultwardenWorkloadModuleID, component, path); err != nil {
+		return nil, err
+	}
 	return components, nil
+}
+
+var vaultwardenSSOEnvironment = map[string]string{
+	"DOMAIN":      "{{origin}}",
+	"SSO_ENABLED": "true", "SSO_ONLY": "false", "SSO_PKCE": "true",
+	"SSO_CLIENT_ID": "{{clientId}}", "SSO_CLIENT_SECRET": "{{clientSecret}}", "SSO_AUTHORITY": "{{issuer}}",
+	"SSO_SCOPES": "email profile", "SSO_AUTH_ONLY_NOT_SESSION": "true",
+	"SSO_SIGNUPS_MATCH_EMAIL": "true", "SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION": "false",
 }
 
 func validateVaultwardenServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path string) error {

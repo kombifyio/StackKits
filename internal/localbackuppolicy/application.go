@@ -26,11 +26,17 @@ type ApplicationVolume struct {
 	Backup         bool     `json:"backup"`
 	DataClasses    []string `json:"dataClasses"`
 	DataBindingRef string   `json:"dataBindingRef"`
+	// CacheSubpaths are CUE-declared regenerable subtrees below Target.
+	// Portable emergency exports omit them; Kopia keeps the whole volume.
+	CacheSubpaths []string `json:"cacheSubpaths,omitempty"`
 }
 
 var (
 	applicationRefPattern      = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 	applicationVolumeNameRegex = regexp.MustCompile(`^[a-z][a-z0-9_.-]*$`)
+	// cacheSubpathPattern mirrors CUE #StorageSubpath: relative, "/"-separated,
+	// and unable to express ".", ".." or an absolute path.
+	cacheSubpathPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*$`)
 )
 
 // ValidComposeVolumeName reports whether name is a Compose-qualified volume
@@ -66,6 +72,7 @@ func cloneApplicationVolumes(applicationVolumes []ApplicationVolume) []Applicati
 	for index, application := range applicationVolumes {
 		cloned[index] = application
 		cloned[index].DataClasses = append([]string(nil), application.DataClasses...)
+		cloned[index].CacheSubpaths = append([]string(nil), application.CacheSubpaths...)
 	}
 	return cloned
 }
@@ -89,6 +96,12 @@ func canonicalApplicationVolumes(applicationVolumes []ApplicationVolume) ([]Appl
 		for classIndex := 1; classIndex < len(application.DataClasses); classIndex++ {
 			if application.DataClasses[classIndex] == application.DataClasses[classIndex-1] {
 				return nil, fmt.Errorf("application volume %q repeats data class %q", application.VolumeName, application.DataClasses[classIndex])
+			}
+		}
+		slices.Sort(application.CacheSubpaths)
+		for subpathIndex, subpath := range application.CacheSubpaths {
+			if !cacheSubpathPattern.MatchString(subpath) || (subpathIndex > 0 && subpath == application.CacheSubpaths[subpathIndex-1]) {
+				return nil, fmt.Errorf("application volume %q has an invalid or repeated cache subpath", application.VolumeName)
 			}
 		}
 	}

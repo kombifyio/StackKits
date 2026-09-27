@@ -271,7 +271,7 @@ package foundation
 #PocketIDConfig: {
 	enabled: bool | *false
 	// Pin matches modules/pocketid/module.cue and the release pre-pull list.
-	version:       string | *"v2.7.0"
+	version:       string | *"v2.16.0@sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea"
 	image:         string | *"ghcr.io/pocket-id/pocket-id"
 	port:          uint16 & >0 & <=65535 | *3000
 	installMethod: #InstallMethod | *"container"

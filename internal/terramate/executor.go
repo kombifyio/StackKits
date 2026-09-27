@@ -21,14 +21,15 @@ import (
 
 // Executor handles Terramate command execution
 type Executor struct {
-	workDir      string
-	binary       string
-	timeout      time.Duration
-	changeDetect bool
-	parallelism  int
-	tofuBinary   string
-	env          []string
-	unsetEnv     map[string]struct{}
+	workDir          string
+	binary           string
+	timeout          time.Duration
+	changeDetect     bool
+	parallelism      int
+	tofuBinary       string
+	env              []string
+	unsetEnv         map[string]struct{}
+	unsetEnvPrefixes []string
 }
 
 // ExecutorOption configures the Executor
@@ -96,6 +97,11 @@ func WithoutInheritedEnv(names ...string) ExecutorOption {
 			e.unsetEnv[name] = struct{}{}
 		}
 	}
+}
+
+// WithoutEnvPrefix removes matching inherited and explicit overrides.
+func WithoutEnvPrefix(prefixes ...string) ExecutorOption {
+	return func(e *Executor) { e.unsetEnvPrefixes = append(e.unsetEnvPrefixes, prefixes...) }
 }
 
 // NewExecutor creates a new Terramate executor
@@ -512,6 +518,20 @@ func (e *Executor) runAllowingExitCodes(ctx context.Context, allowedNonZero []in
 		fmt.Sprintf("TERRAMATE_EXPERIMENTAL_PARALLEL=%d", e.parallelism),
 	)
 	cmd.Env = append(cmd.Env, e.env...)
+	if len(e.unsetEnvPrefixes) != 0 {
+		kept := cmd.Env[:0]
+		for _, value := range cmd.Env {
+			name, _, _ := strings.Cut(value, "=")
+			drop := false
+			for _, prefix := range e.unsetEnvPrefixes {
+				drop = drop || strings.HasPrefix(name, prefix)
+			}
+			if !drop {
+				kept = append(kept, value)
+			}
+		}
+		cmd.Env = kept
+	}
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

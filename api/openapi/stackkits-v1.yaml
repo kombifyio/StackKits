@@ -4262,10 +4262,10 @@ components:
           $ref: "#/components/schemas/ArchitectureV2ContractID"
         sourceRef:
           type: string
-          enum: [identity.deviceEnrollment, identityTrust.homeDeviceAuthority, identityTrust.basementVerification, identityTrust.cloudAuthority, identityTrust.modernHomeAuthority, identityTrust.modernCloudVerification, access.homeEnforcement, localAutonomy.policy, network.routes, network.moduleRoute, network.cloudHostSecurity, host.bootstrapRuntime, storage.hostRoots, storage.backupRoot, backup.localKopiaSource]
+          enum: [identity.deviceEnrollment, identityTrust.homeDeviceAuthority, identityTrust.basementVerification, identityTrust.cloudAuthority, identityTrust.modernHomeAuthority, identityTrust.modernCloudVerification, access.homeEnforcement, localAutonomy.policy, network.routes, network.moduleRoute, network.cloudHostSecurity, host.bootstrapRuntime, storage.hostRoots, storage.backupRoot, backup.localKopiaSource, workloads.companions]
         valueType:
           type: string
-          enum: [device-enrollment-public-v1, home-device-authority-v1, basement-identity-verification-v1, cloud-identity-authority-v1, modern-home-identity-authority-v1, modern-cloud-identity-verification-v1, home-access-enforcement-v1, local-autonomy-policy-v1, authority-bound-service-route-list-v4, authority-bound-module-route-v1, cloud-host-security-policy-v2, host-bootstrap-runtime-v1, host-storage-roots-v1, local-backup-root-v1, local-kopia-backup-source-v1]
+          enum: [device-enrollment-public-v1, home-device-authority-v1, basement-identity-verification-v1, cloud-identity-authority-v1, modern-home-identity-authority-v1, modern-cloud-identity-verification-v1, home-access-enforcement-v1, local-autonomy-policy-v1, authority-bound-service-route-list-v4, authority-bound-module-route-v1, cloud-host-security-policy-v2, host-bootstrap-runtime-v1, host-storage-roots-v1, local-backup-root-v1, local-kopia-backup-source-v1, workload-companion-list-v1]
         cardinality:
           type: string
           enum: [single, list]
@@ -4287,6 +4287,9 @@ components:
             - $ref: "#/components/schemas/ArchitectureV2ModulePublicHostStorageRoots"
             - $ref: "#/components/schemas/ArchitectureV2ModulePublicLocalBackupRoot"
             - $ref: "#/components/schemas/ArchitectureV2ModulePublicLocalKopiaBackupSource"
+            - type: array
+              items:
+                $ref: "#/components/schemas/ArchitectureV2ModulePublicWorkloadCompanion"
             # network.moduleRoute resolves to a single authority-bound module
             # route; when the binding is optional the CUE authority defaults it
             # to null rather than an empty object.
@@ -4408,12 +4411,30 @@ components:
               defaultValue:
                 $ref: "#/components/schemas/ArchitectureV2ModulePublicLocalKopiaBackupSource"
         - if:
+            properties: {sourceRef: {const: workloads.companions}}
+            required: [sourceRef]
+          then:
+            properties:
+              valueType: {const: workload-companion-list-v1}
+              cardinality: {const: list}
+              defaultValue:
+                type: array
+                maxItems: 0
+        - if:
             properties: {required: {const: true}}
             required: [required]
           then:
             not: {required: [defaultValue]}
           else:
             required: [defaultValue]
+    ArchitectureV2ModulePublicWorkloadCompanion:
+      description: One selected add-on workload alternative that joins the bound module's workload network on the same node.
+      type: object
+      additionalProperties: false
+      required: [workloadRef, alternativeRef]
+      properties:
+        workloadRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+        alternativeRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
     ArchitectureV2ModulePublicDeviceEnrollment:
       type: object
       additionalProperties: false

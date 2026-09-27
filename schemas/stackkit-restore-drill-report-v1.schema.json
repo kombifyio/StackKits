@@ -25,6 +25,9 @@
     "completedAt"
   ],
   "properties": {
+    "backupRenewal": {
+      "$ref": "stackkit-advanced-capability-v1.schema.json#/properties/backupRenewal"
+    },
     "schemaVersion": { "const": "stackkit.restore-drill-report/v1" },
     "mode": { "const": "advanced" },
     "operation": { "const": "restore.drill" },

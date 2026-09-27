@@ -35,6 +35,9 @@ type NodeInventoryFacts struct {
 	// DockerDaemon is the local default Docker daemon when its canonical
 	// socket answers. Lifecycle-owner workloads bind to it (ADR-0043).
 	DockerDaemon *RuntimeDaemonFacts
+	// Accelerators is nil when GPUs were not observed and an empty list when
+	// the node was observed and has none.
+	Accelerators []AcceleratorFacts
 }
 
 // RuntimeDaemonFacts is one observed container daemon on the local node.
@@ -156,6 +159,7 @@ func ObserveNodeInventory(ctx context.Context, probe LocalProbe) (NodeInventoryF
 		Virtualization:              virtualization,
 		StorageCapacity:             storageCapacity,
 		DockerDaemon:                observeLocalDockerDaemon(ctx, source),
+		Accelerators:                ObserveAccelerators(ctx, source),
 	}, nil
 }
 
@@ -222,6 +226,11 @@ func MergeNodeInventoryFacts(inventory resolvedplan.InventoryFacts, nodeRef stri
 		// value from an earlier inventory file into fresh admission evidence.
 		delete(node, "storageCapacity")
 	}
+	// Like storage capacity, an unobserved GPU fact never keeps a stale one.
+	delete(node, "accelerators")
+	if facts.Accelerators != nil {
+		node["accelerators"] = acceleratorsDocument(facts.Accelerators)
+	}
 	if strings.TrimSpace(observedSiteKind) != "" {
 		node["observedSiteKind"] = observedSiteKind
 	}
@@ -253,6 +262,9 @@ func validateNodeInventoryFacts(facts NodeInventoryFacts) error {
 	}
 	if !allowedValue(facts.Virtualization, "bare-metal", "kvm", "openvz", "lxc", "vmware", "hyperv", "xen", "oracle", "microsoft", "none") {
 		return fmt.Errorf("host virtualization class %q is invalid", facts.Virtualization)
+	}
+	if err := validateAcceleratorFacts(facts.Accelerators); err != nil {
+		return err
 	}
 	if facts.StorageCapacity != nil {
 		if _, _, err := validateStorageProbe(LocalProbe{

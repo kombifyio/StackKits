@@ -224,7 +224,7 @@ func init() {
 	rootCmd.AddCommand(serviceCmd)
 	rootCmd.AddCommand(newAddressCommand())
 	rootCmd.AddCommand(outputTransactionCmd)
-	rootCmd.AddCommand(user.NewCommand())
+	rootCmd.AddCommand(user.NewCommandWithFilesProvisioner(nativeFilesHouseholdProvisioner{}))
 }
 
 func commandDisablesDeployObservability(cmd *cobra.Command) bool {

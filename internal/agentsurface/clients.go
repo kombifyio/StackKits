@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/appsetup"
+	"github.com/kombifyio/stackkits/pkg/models"
 )
 
 const AgentDirRelPath = ".stackkit/agent"
@@ -43,7 +44,7 @@ func WriteProductMCPClients(root string, spec map[string]any, doc Document) erro
 			}
 		}
 		if surface.Ref == "smart-home" {
-			setup, supported := appsetup.DescribeNativeAction("home-assistant-owner-bootstrap", "standalone-compose")
+			setup, supported := appsetup.NativeActionMetadata("home-assistant-owner-bootstrap")
 			if !supported {
 				return fmt.Errorf("Home Assistant owner setup metadata is unavailable")
 			}
@@ -92,7 +93,7 @@ func productMCPURL(id, endpoint, domain string) string {
 
 func productUIURL(id, domain string) string {
 	if domain == "" {
-		domain = "home"
+		domain = models.DomainHomeLab
 	}
 	host := id
 	if id == "home-assistant" {

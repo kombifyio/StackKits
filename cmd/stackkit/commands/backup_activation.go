@@ -74,8 +74,15 @@ func runNativeV2RestoreActivationCommand(
 	if err != nil {
 		return err
 	}
+	bootstrapRuntime, err := newRestoreActivationBootstrapRuntime(runtime, workspace)
+	if err != nil {
+		return err
+	}
+	if err := bootstrapRuntime.bind(plan, manifest, operationID); err != nil {
+		return err
+	}
 	service, err := restoreactivation.NewService(
-		runtime,
+		bootstrapRuntime,
 		nativeV2RestoreRecoveryResolver(ctx, workspace),
 	)
 	if err != nil {
@@ -193,6 +200,10 @@ func runNativeV2RestoreRecoveryCommand(
 	if err != nil {
 		return err
 	}
+	bootstrapRuntime, err := newRestoreActivationBootstrapRuntime(runtime, workspace)
+	if err != nil {
+		return err
+	}
 	var (
 		recoveryRestoreResult backuplifecycle.RestoreResult
 		recoveryPlan          generationartifact.VerifiedPlan
@@ -215,11 +226,18 @@ func runNativeV2RestoreRecoveryCommand(
 			return restoreactivation.Authority{}, resolveErr
 		}
 		recoveryPlan = plan
-		return restoreactivation.DeriveAuthority(
+		authority, deriveErr := restoreactivation.DeriveAuthority(
 			workspace, plan, manifest, recoveryRestoreResult, journal.OperationID,
 		)
+		if deriveErr != nil {
+			return restoreactivation.Authority{}, deriveErr
+		}
+		if bindErr := bootstrapRuntime.bind(plan, manifest, journal.OperationID); bindErr != nil {
+			return restoreactivation.Authority{}, bindErr
+		}
+		return authority, nil
 	}
-	service, err := restoreactivation.NewService(runtime, resolver)
+	service, err := restoreactivation.NewService(bootstrapRuntime, resolver)
 	if err != nil {
 		return err
 	}

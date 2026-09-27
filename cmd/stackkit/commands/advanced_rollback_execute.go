@@ -582,7 +582,7 @@ func advancedRollbackTargetRoots(custody upgradelifecycle.ExecutorStateRollbackC
 	roots := make([]advancedrollback.TargetRoot, 0, len(custody.Roots))
 	for _, root := range custody.Roots {
 		roots = append(roots, advancedrollback.TargetRoot{RuntimeRoot: root.Root, Files: advancedrollback.RootFiles{
-			State: root.State, Config: root.Config,
+			State: root.State, Config: root.Config, Lock: root.Lock, HasLock: root.HasLock,
 			Compose: root.Compose, HasCompose: root.HasCompose,
 			Environment: root.Environment, HasEnvironment: root.HasEnvironment,
 		}})

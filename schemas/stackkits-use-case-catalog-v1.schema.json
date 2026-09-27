@@ -100,7 +100,40 @@
         "default": { "type": ["string", "boolean"] },
         "placeholder": { "type": "string" },
         "realization": { "type": "string", "enum": ["install", "recorded"] },
-        "workloadRef": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" }
+        "workloadRef": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+        "acceleratorProfileOf": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" }
+      }
+    },
+    "useCaseCapabilityOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "realization"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$", "not": { "const": "off" } },
+        "name": { "type": "string", "minLength": 1 },
+        "note": { "type": "string", "minLength": 1 },
+        "realization": { "type": "string", "enum": ["install", "recorded"] },
+        "workloadRef": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+        "alternativeRef": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" }
+      },
+      "if": { "properties": { "realization": { "const": "install" } } },
+      "then": { "required": ["workloadRef", "alternativeRef"] },
+      "else": { "not": { "anyOf": [{ "required": ["workloadRef"] }, { "required": ["alternativeRef"] }] } }
+    },
+    "useCaseCapability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "required", "enabledByDefault", "requires", "requiresAccelerator", "default"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+        "name": { "type": "string", "minLength": 1 },
+        "help": { "type": "string", "minLength": 1 },
+        "required": { "type": "boolean" },
+        "enabledByDefault": { "type": "boolean" },
+        "requires": { "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" } },
+        "requiresAccelerator": { "type": "boolean" },
+        "default": { "$ref": "#/$defs/useCaseCapabilityOption" },
+        "alternative": { "$ref": "#/$defs/useCaseCapabilityOption" }
       }
     },
     "mainUseCase": {
@@ -133,6 +166,7 @@
           }
         },
         "settings": { "type": "array", "items": { "$ref": "#/$defs/useCaseSetting" } },
+        "capabilities": { "type": "array", "items": { "$ref": "#/$defs/useCaseCapability" } },
         "docs": { "type": "string", "pattern": "^/[a-z0-9/-]+$" },
         "defaultAlternative": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
         "alternatives": { "type": "array", "items": { "$ref": "#/$defs/authoringAlternative" } },

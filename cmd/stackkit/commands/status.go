@@ -34,9 +34,8 @@ var (
 )
 
 var statusCmd = &cobra.Command{
-	Use:         "status",
-	Short:       "Show deployment status",
-	Annotations: map[string]string{legacyV06BeforeObservabilityAnnotation: "status"},
+	Use:   "status",
+	Short: "Show deployment status",
 	Long: `Display the current status of the StackKit deployment.
 
 Shows:
@@ -578,7 +577,8 @@ func buildArchitectureV2ApplicationExperiences(
 			return nil, err
 		}
 		if len(setup.ActionRefs) == 1 && setup.Policy == "on-demand" {
-			if description, supported := appsetup.DescribeNativeAction(setup.ActionRefs[0], contract.Delivery.AdapterRef); supported {
+			adapter, admitted := nativeApplicationSetupAdapterForWorkload(requirements, contract.WorkloadRef)
+			if description, supported := appsetup.DescribeNativeAction(setup.ActionRefs[0], adapter); admitted && supported {
 				experience.SetupAction = &applicationlifecycle.ApplicationSetupAction{
 					OperationRef: "stackkit.setup", WorkloadRef: contract.WorkloadRef,
 					Title: description.Title, CredentialFields: description.CredentialFields,

@@ -16,9 +16,22 @@ import "list"
 	backup:       bool
 	dataClasses: [...#DataClass] & list.MinItems(1)
 	dataBindingRef: #ContractID
+	// cacheSubpaths names regenerable subtrees below target that the
+	// application recreates (for example a model or download cache shipped in
+	// the image). Portable emergency exports omit them; Kopia snapshots keep
+	// the complete volume so a restore reproduces it exactly.
+	cacheSubpaths?: [...#StorageSubpath] & list.MinItems(1)
 
 	_dataClassesUnique: list.UniqueItems(dataClasses) & true
+	if cacheSubpaths != _|_ {
+		_cacheSubpathsUnique: list.UniqueItems(cacheSubpaths) & true
+	}
 })
+
+// #StorageSubpath is a "/"-separated path below an allocation target. Every
+// segment starts with a lowercase letter or digit, so "..", "." and absolute
+// paths cannot be expressed.
+#StorageSubpath: string & =~"^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*$"
 
 #CacheWorkloadStorageAllocationV1: close({
 	componentRef: #ContractID

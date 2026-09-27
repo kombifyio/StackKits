@@ -204,10 +204,11 @@ func runtimeMaterializationFiles(
 		blobs = append(blobs, *snapshot.Inventory)
 	}
 	if executorStateTargetExecutesOpenTofu(snapshot.GenerationTarget) {
-		// Every root file the graph may bind: runtime Compose, .env, state.
+		// Every root file the graph may bind: runtime Compose, .env, state,
+		// and the exact provider dependency lock.
 		// Contract roots carry state and configuration only.
 		for _, root := range snapshot.RuntimeOpenTofu {
-			for _, blob := range []ExecutorStateBlob{root.Compose, root.Environment, root.State} {
+			for _, blob := range []ExecutorStateBlob{root.Compose, root.Environment, root.State, root.Lock} {
 				if blob != (ExecutorStateBlob{}) {
 					blobs = append(blobs, blob)
 				}

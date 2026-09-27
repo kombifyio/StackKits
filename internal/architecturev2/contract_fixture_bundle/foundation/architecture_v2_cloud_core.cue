@@ -29,8 +29,8 @@ _architectureV2CloudCoreBaseComponents: [
 	{
 		id: "pocketid", role: "application", lifecycle: "daemon"
 		image: {
-			ref:    "ghcr.io/pocket-id/pocket-id:v2.7.0"
-			digest: "sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e"
+			ref:    "ghcr.io/pocket-id/pocket-id:v2.16.0"
+			digest: "sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea"
 		}
 		dependsOn: [], networkRefs: ["cloud-core"]
 		volumes: [{id: "pocketid-data", target: "/app/data", class: "persistent", backup: true}]
@@ -40,8 +40,8 @@ _architectureV2CloudCoreBaseComponents: [
 	{
 		id: "tinyauth", role: "application", lifecycle: "daemon"
 		image: {
-			ref:    "ghcr.io/steveiliop56/tinyauth:v5.0.7"
-			digest: "sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6"
+			ref:    "ghcr.io/tinyauthapp/tinyauth:v5.1.2"
+			digest: "sha256:910f84801dc9597398458d45f8d305eb232dc583d6927c87cc29626527947d35"
 		}
 		dependsOn: ["pocketid"], networkRefs: ["cloud-core"]
 		volumes: [{id: "tinyauth-data", target: "/data", class: "persistent", backup: true}]

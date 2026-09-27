@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,12 +16,13 @@ import (
 
 // Executor handles OpenTofu command execution
 type Executor struct {
-	workDir     string
-	binary      string
-	timeout     time.Duration
-	autoApprove bool
-	env         []string
-	unsetEnv    map[string]struct{}
+	workDir          string
+	binary           string
+	timeout          time.Duration
+	autoApprove      bool
+	env              []string
+	unsetEnv         map[string]struct{}
+	unsetEnvPrefixes []string
 }
 
 // ExecutorOption configures the Executor
@@ -74,6 +76,12 @@ func WithoutInheritedEnv(names ...string) ExecutorOption {
 			e.unsetEnv[name] = struct{}{}
 		}
 	}
+}
+
+// WithoutEnvPrefix prevents diagnostic controls from persisting secret-bearing
+// process data. It filters both inherited and explicitly supplied variables.
+func WithoutEnvPrefix(prefixes ...string) ExecutorOption {
+	return func(e *Executor) { e.unsetEnvPrefixes = append(e.unsetEnvPrefixes, prefixes...) }
 }
 
 // SetAutoApprove sets the auto-approve flag dynamically
@@ -159,6 +167,12 @@ func (e *Executor) Init(ctx context.Context) (*Result, error) {
 	return e.run(ctx, "init", "-input=false")
 }
 
+// InitReadonly initializes a materialized StackKit root without allowing
+// OpenTofu to create or mutate its packaged dependency lock.
+func (e *Executor) InitReadonly(ctx context.Context) (*Result, error) {
+	return e.run(ctx, "init", "-input=false", "-lockfile=readonly")
+}
+
 // Plan runs tofu plan
 func (e *Executor) Plan(ctx context.Context, outFile string, destroy bool) (*Result, error) {
 	args := []string{"plan", "-input=false", "-detailed-exitcode"}
@@ -207,6 +221,13 @@ func (e *Executor) State(ctx context.Context) (*Result, error) {
 	return e.run(ctx, "state", "list")
 }
 
+// StatePush imports plaintext state from memory and lets the configured
+// backend persist it. Callers use this to migrate a local state atomically
+// without ever staging the plaintext payload in a file.
+func (e *Executor) StatePush(ctx context.Context, state io.Reader) (*Result, error) {
+	return e.runInput(ctx, state, "state", "push", "-force", "-")
+}
+
 // Validate runs tofu validate
 func (e *Executor) Validate(ctx context.Context) (*Result, error) {
 	return e.run(ctx, "validate", "-json")
@@ -241,6 +262,10 @@ func (e *Executor) IsInstalled() bool {
 
 // run executes a tofu command
 func (e *Executor) run(ctx context.Context, args ...string) (*Result, error) {
+	return e.runInput(ctx, nil, args...)
+}
+
+func (e *Executor) runInput(ctx context.Context, input io.Reader, args ...string) (*Result, error) {
 	start := time.Now()
 
 	// Create context with timeout
@@ -249,6 +274,7 @@ func (e *Executor) run(ctx context.Context, args ...string) (*Result, error) {
 
 	cmd := exec.CommandContext(ctx, e.binary, args...) // #nosec G204 -- binary path is set at construction, not from user input
 	cmd.Dir = e.workDir
+	cmd.Stdin = input
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -266,7 +292,21 @@ func (e *Executor) run(ctx context.Context, args ...string) (*Result, error) {
 	env = append(env, "TF_IN_AUTOMATION=1")
 	env = append(env, "TF_INPUT=0")
 	env = append(env, e.env...)
-	cmd.Env = env
+	filtered := env[:0]
+	for _, entry := range env {
+		name, _, _ := strings.Cut(entry, "=")
+		drop := false
+		for _, prefix := range e.unsetEnvPrefixes {
+			if strings.HasPrefix(name, prefix) {
+				drop = true
+				break
+			}
+		}
+		if !drop {
+			filtered = append(filtered, entry)
+		}
+	}
+	cmd.Env = filtered
 
 	err := cmd.Run()
 	duration := time.Since(start)

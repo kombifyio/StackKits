@@ -3,10 +3,13 @@ package nativehost
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -56,10 +59,13 @@ func homeIdentityCABundle(workspace string) ([]byte, error) {
 	return bundle.Bytes(), nil
 }
 
-// applyHomeIdentityAccess makes the Pocket ID host resolve to the node's
-// router (published on every host address) and mounts the CA bundle.
+// applyHomeIdentityAccess mounts the CA bundle and preserves the canonical
+// Pocket ID issuer. Cloud resolves that host to the router's network alias;
+// Basement retains the host gateway path to its published router.
 func applyHomeIdentityAccess(
 	workspace string,
+	coreModuleRef string,
+	routingNetwork standaloneComposeNetwork,
 	access *architecturev2renderer.ApplicationDeliveryHomeIdentityAccess,
 	service *standaloneComposeService,
 	configFiles map[string][]byte,
@@ -75,7 +81,18 @@ func applyHomeIdentityAccess(
 	if err != nil {
 		return err
 	}
-	service.ExtraHosts = append(service.ExtraHosts, address.ServiceHost("id")+":host-gateway")
+	switch coreModuleRef {
+	case "stackkits-cloud-core-runtime", "stackkits-cloud-core-standalone-runtime":
+		// The caller selects this external network from the plan-bound core
+		// owner. Never shadow its canonical issuer alias with host-gateway:
+		// that would send same-node identity traffic through host ingress.
+		expected, err := standaloneComposeCoreNetwork(coreModuleRef)
+		if err != nil || !routingNetwork.External || routingNetwork.Name != expected || !slices.Contains(service.Networks, "stackkit-routing") {
+			return errors.New("Cloud identity access requires the plan-bound core routing network")
+		}
+	default:
+		service.ExtraHosts = append(service.ExtraHosts, address.ServiceHost("id")+":host-gateway")
+	}
 	// The bundle persists beside the other owner-only config files.
 	rel := architecturev2renderer.StandaloneComposeConfigRelPath(access.CABundleTarget)
 	configFiles[rel] = bundle
@@ -95,6 +112,7 @@ func applyPocketIDClientEnvironment(
 	component architecturev2renderer.ApplicationDeliveryComponentDescriptor,
 	service *standaloneComposeService,
 	secretValues map[string]string,
+	configFiles map[string][]byte,
 ) error {
 	client := component.PocketIDClient
 	if client == nil {
@@ -104,11 +122,14 @@ func applyPocketIDClientEnvironment(
 	if err != nil {
 		return fmt.Errorf("resolve the home identity provider issuer: %w", err)
 	}
-	secret, err := localevidence.ResolveLocalSecretMaterial(workspace, localowner.ApplicationOIDCClientSecretRef(bundle.WorkloadRef))
-	if err != nil {
-		return fmt.Errorf("resolve the application's Pocket ID client secret: %w", err)
+	var secret []byte
+	if !client.Public {
+		secret, err = localevidence.ResolveLocalSecretMaterial(workspace, localowner.ApplicationOIDCClientSecretRef(bundle.WorkloadRef))
+		if err != nil {
+			return fmt.Errorf("resolve the application's Pocket ID client secret: %w", err)
+		}
+		defer clear(secret)
 	}
-	defer clear(secret)
 	replacer := strings.NewReplacer(
 		"{{issuer}}", address.PocketIDOrigin(),
 		"{{clientId}}", localowner.ApplicationOIDCClientID(bundle.WorkloadRef),
@@ -124,6 +145,22 @@ func applyPocketIDClientEnvironment(
 			continue
 		}
 		service.Environment[name] = strings.ReplaceAll(value, "$", "$$")
+	}
+	if configuration := client.Configuration; configuration != nil {
+		value := replacer.Replace(configuration.Body)
+		rel := architecturev2renderer.StandaloneComposeConfigRelPath(configuration.Target)
+		if _, exists := configFiles[rel]; exists {
+			return errors.New("Pocket ID client configuration shadows another runtime file")
+		}
+		configFiles[rel] = []byte(value)
+		service.Volumes = append(service.Volumes, "./"+rel+":"+configuration.Target+":ro")
+		digest := sha256.Sum256([]byte(configuration.Target + "\x00" + value))
+		label := "sha256:" + hex.EncodeToString(digest[:])
+		if existing := service.Labels["io.stackkit.config-digest"]; existing != "" {
+			combined := sha256.Sum256([]byte(existing + "\x00" + label))
+			label = "sha256:" + hex.EncodeToString(combined[:])
+		}
+		service.Labels["io.stackkit.config-digest"] = label
 	}
 	return nil
 }
@@ -147,16 +184,30 @@ func (o *osStandaloneComposeWorkloadOperations) ensurePocketIDClients(ctx contex
 		if ensure == nil {
 			ensure = ensureApplicationOIDCClientWithLocalOwner
 		}
+		secretRef := localowner.ApplicationOIDCClientSecretRef(bundle.WorkloadRef)
+		if component.PocketIDClient.Public {
+			secretRef = ""
+		}
 		if err := ensure(ctx, o.workspaceRoot, localowner.ApplicationOIDCClientRequest{
-			ClientID:    localowner.ApplicationOIDCClientID(bundle.WorkloadRef),
-			Name:        "StackKit " + bundle.WorkloadRef,
-			CallbackURL: pocketIDRouteOrigin(bundle.Route) + component.PocketIDClient.CallbackPath,
-			SecretRef:   localowner.ApplicationOIDCClientSecretRef(bundle.WorkloadRef),
+			Public:            component.PocketIDClient.Public,
+			ClientID:          localowner.ApplicationOIDCClientID(bundle.WorkloadRef),
+			RequiredPrivilege: bundle.RequiredPrivilege,
+			Name:              "StackKit " + bundle.WorkloadRef,
+			CallbackURLs:      renderPocketIDCallbackURLs(component.PocketIDClient.CallbackURLs, pocketIDRouteOrigin(bundle.Route)),
+			SecretRef:         secretRef,
 		}); err != nil {
 			return fmt.Errorf("register the %s Pocket ID client: %w", bundle.WorkloadRef, err)
 		}
 	}
 	return nil
+}
+
+func renderPocketIDCallbackURLs(templates []string, origin string) []string {
+	callbacks := make([]string, len(templates))
+	for index, template := range templates {
+		callbacks[index] = strings.ReplaceAll(template, "{{origin}}", origin)
+	}
+	return callbacks
 }
 
 func ensureApplicationOIDCClientWithLocalOwner(ctx context.Context, workspace string, request localowner.ApplicationOIDCClientRequest) error {
@@ -165,5 +216,8 @@ func ensureApplicationOIDCClientWithLocalOwner(ctx context.Context, workspace st
 		return err
 	}
 	_, err = service.EnsureApplicationOIDCClient(ctx, request)
+	if err == nil && request.ClientID == localowner.ApplicationOIDCClientID("photos") {
+		return service.EnsureImmichUserClaims(ctx)
+	}
 	return err
 }

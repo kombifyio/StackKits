@@ -666,14 +666,15 @@ if [ "$PREFLIGHT_STATUS" -eq 3 ]; then
   exit 3
 fi
 
-if [ -f "$HOMELAB_DIR/.stackkit/resolved-plan.json" ] || [ -f "$HOMELAB_DIR/deploy/.stackkit/resolved-plan.json" ]; then
-  info "Canonical plan already present; skipping generate"
-else
-  info "Preparing deployment artifacts (stackkit generate)"
-  info "This can take a minute with little extra CLI output"
-  run_stackkit_step generate
-  ok "Deployment artifacts are ready"
-fi
+# Always resolve the plan for this host as it is now. A plan kept from an
+# earlier run predates the host preparation above (Docker, storage roots) or
+# the CLI just installed, and Apply rejects it as a binding mismatch. The
+# resolution is deterministic, so an unchanged host yields the same plan and
+# the apply journal still resumes what already succeeded.
+info "Preparing deployment artifacts (stackkit generate)"
+info "This can take a minute with little extra CLI output"
+run_stackkit_step generate
+ok "Deployment artifacts are ready"
 
 if [ "$INSTALL_MODE" != "auto" ]; then
   echo ""
@@ -703,7 +704,7 @@ info "Installing services (stackkit apply)"
 info "Image download and health waits can take several minutes with little extra output"
 prepare_cloud_install_host || die "Could not prepare this host for Cloud Kit apply. Run the installer again as root on this VPS."
 set +e
-_ssh_user="${OWNER_USERNAME:-kombify}"
+_ssh_user=$(execution_channel_username_from_workspace)
 warn "This apply hardens SSH on this host: root login is disabled and password"
 echo "  authentication is turned off. Keep this session open. Afterwards log in as"
 echo "  ${_ssh_user}:  ssh ${_ssh_user}@<this host>"
@@ -739,7 +740,7 @@ if [ "$APPLY_STATUS" -ne 0 ]; then
   echo "    cd $HOMELAB_DIR && stackkit logs latest --json"
   echo ""
   echo "  Re-run the installer; it prepares this host and converges the same plan:"
-  echo "    curl -sSL https://install.stackkit.cc | sh"
+  echo "    curl -sSL https://cloud.stackkit.cc | sh"
   echo ""
   echo "  Applying again is safe: it converges the same plan and keeps what"
   echo "  already succeeded."
@@ -845,7 +846,7 @@ echo "    stackkit logs latest   Show the latest rollout run"
 echo "    stackkit remove        Tear down everything"
 echo ""
 echo "  SSH access from now on: root login is disabled by the host hardening."
-_ssh_user="${OWNER_USERNAME:-kombify}"
+_ssh_user=$(execution_channel_username_from_workspace)
 echo "    ssh ${_ssh_user}@${DOMAIN}   (passwordless sudo, your SSH key)"
 _exec_key="$(cloud_execution_channel_key_dir)/id_ed25519"
 if [ -f "$_exec_key" ]; then

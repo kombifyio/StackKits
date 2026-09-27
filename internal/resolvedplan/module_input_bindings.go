@@ -27,6 +27,7 @@ const (
 	moduleInputSourceStorageHostRoots   = "storage.hostRoots"
 	moduleInputSourceStorageBackup      = "storage.backupRoot"
 	moduleInputSourceLocalKopiaBackup   = "backup.localKopiaSource"
+	moduleInputSourceWorkloadCompanions = "workloads.companions"
 	moduleInputTypeDeviceEnrollment     = "device-enrollment-public-v1"
 	moduleInputTypeHomeAuthority        = "home-device-authority-v1"
 	moduleInputTypeBasementVerify       = "basement-identity-verification-v1"
@@ -42,6 +43,7 @@ const (
 	moduleInputTypeStorageHostRoots     = "host-storage-roots-v1"
 	moduleInputTypeStorageBackup        = "local-backup-root-v1"
 	moduleInputTypeLocalKopiaBackup     = "local-kopia-backup-source-v1"
+	moduleInputTypeWorkloadCompanions   = "workload-companion-list-v1"
 	moduleInputTypeNetworkRoutes        = moduleInputTypeNetworkRoutesV4
 )
 
@@ -333,6 +335,15 @@ func validateModuleInputBindingShape(sourceRef, valueType, cardinality string, d
 		if hasDefault {
 			return fail(ErrContractConflict, path+".defaultValue", "local Kopia backup source is compiler-owned and cannot declare a default")
 		}
+	case moduleInputSourceWorkloadCompanions:
+		if valueType != moduleInputTypeWorkloadCompanions || cardinality != "list" {
+			return fail(ErrContractConflict, path, "workloads.companions requires type %q and list cardinality", moduleInputTypeWorkloadCompanions)
+		}
+		if hasDefault {
+			if list, ok := defaultValue.([]any); !ok || len(list) != 0 {
+				return fail(ErrContractConflict, path+".defaultValue", "optional workload companions require the exact empty-list default")
+			}
+		}
 	default:
 		return fail(ErrContractConflict, path+".sourceRef", "unsupported resolved-plan input source %q", sourceRef)
 	}
@@ -492,7 +503,22 @@ func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding, 
 			return nil, false, nil
 		}
 		projected, err := projectPublicRouteListFromNetwork(source.network, source.gates, "resolvedPlan.network", true, true)
-		return projected, err == nil, err
+		if err != nil {
+			return nil, false, err
+		}
+		// Core ACLs consume the route list, while application renderers consume
+		// one module route. Both must carry the same selected routing owner;
+		// otherwise deny-default TinyAuth drops every application host.
+		for _, raw := range projected {
+			route, ok := raw.(map[string]any)
+			if !ok {
+				return nil, false, fmt.Errorf("resolved route projection is not an object")
+			}
+			if err := bindDeliveryRouteCore(route, source.workloads); err != nil {
+				return nil, false, err
+			}
+		}
+		return projected, true, nil
 	case moduleInputSourceNetworkModuleRoute:
 		if source.network == nil {
 			return nil, false, nil
@@ -578,6 +604,12 @@ func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding, 
 			return nil, false, fmt.Errorf("local Kopia backup source is not owned by a supported Basement core profile: %w", err)
 		}
 		return localKopiaBackupSourceProjection(source.nodes, source.workloads, source.modules, target.siteRefs, target.nodeRefs, moduleID, source.data)
+	case moduleInputSourceWorkloadCompanions:
+		if source.workloads == nil || source.modules == nil {
+			return nil, false, nil
+		}
+		companions, err := workloadCompanionsForModule(source.workloads, source.modules, moduleID)
+		return companions, err == nil, err
 	default:
 		return nil, false, fmt.Errorf("unsupported resolved-plan input source %q", binding.sourceRef)
 	}

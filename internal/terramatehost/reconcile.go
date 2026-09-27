@@ -117,7 +117,7 @@ func forceStack(ctx context.Context, workspace string, request ReconcileRequest,
 		}, args...)
 	}
 	if info, statErr := os.Stat(filepath.Join(root, ".terraform")); statErr != nil || !info.IsDir() {
-		initialized, initErr := run("init", "-input=false", "-no-color")
+		initialized, initErr := run("init", "-input=false", "-lockfile=readonly", "-no-color")
 		if initErr != nil || initialized.ExitCode != 0 {
 			return finish(StackFailed, stackCommandDetail("tofu init", initialized, initErr))
 		}

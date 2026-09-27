@@ -36,8 +36,6 @@ const (
 	initialAccessOwnerLogin         = "pocketid-passkey"
 	initialAccessCredentialBoundary = "Bootstrap/service setup credentials; Owner login stays PocketID passkey."
 
-	immichPocketIDClientID = "stackkit-immich"
-
 	// baseHubHostNetworkTraefikAuthURL is loopback-only forwardAuth for Base Hub
 	// when TinyAuth runs on the host network stack (not bridge).
 	baseHubHostNetworkTraefikAuthURL = "http://127.0.0.1:3004/api/auth/traefik"
@@ -478,9 +476,9 @@ func ownerActivationWaitingEvidence(serviceKey, appName, dropName string) map[st
 		evidence["technicalAdmin"] = "stackkit-admin-created"
 		evidence["appLocalOwner"] = "waiting-pocketid-owner"
 		evidence["outerAuthBoundary"] = "tinyauth-pocketid"
-		evidence["pocketidOAuth"] = "prepared"
-		evidence["oidcClientId"] = immichPocketIDClientID
-		evidence["autoRegister"] = "false"
+		evidence["pocketidOAuth"] = "managed-by-runtime-config"
+		evidence["oidcClientId"] = "stackkit-photos"
+		evidence["autoRegister"] = "true"
 		evidence["autoLaunch"] = "true"
 	}
 	return evidence
@@ -1382,9 +1380,12 @@ func (s *Server) runImmichOwnerBootstrap(ctx context.Context) (evidence map[stri
 	}()
 	token = technicalToken
 
-	evidence, err := s.configureImmichPocketIDOAuth(ctx, client, baseURL, token)
-	if err != nil {
-		return nil, err
+	evidence = map[string]string{
+		"outerAuthBoundary": "tinyauth-pocketid",
+		"pocketidOAuth":     "managed-by-runtime-config",
+		"oidcClientId":      "stackkit-photos",
+		"autoRegister":      "true",
+		"autoLaunch":        "true",
 	}
 	owner, ownerErr := s.resolvePocketIDOwner(ctx)
 	if ownerErr != nil {
@@ -1639,128 +1640,6 @@ func ensureImmichPocketIDOwner(ctx context.Context, client *http.Client, baseURL
 
 func generatedImmichOwnerBootstrapPassword() string {
 	return "StackKit!" + strings.ReplaceAll(uuid.NewString()+uuid.NewString(), "-", "")
-}
-
-func (s *Server) configureImmichPocketIDOAuth(ctx context.Context, client *http.Client, baseURL, token string) (map[string]string, *skerrors.StackKitError) {
-	evidence := map[string]string{
-		"outerAuthBoundary": "tinyauth-pocketid",
-	}
-
-	_, tfvars, err := loadBaseHubTFVars(s.config.BaseDir)
-	if err != nil {
-		evidence["pocketidOAuth"] = "skipped-no-stackkit-tfvars"
-		return evidence, nil
-	}
-	if !boolTFVar(tfvars, "enable_pocketid", false) {
-		evidence["pocketidOAuth"] = "skipped-pocketid-disabled"
-		return evidence, nil
-	}
-
-	staticAPIKey := strings.TrimSpace(stringTFVar(tfvars, "pocketid_static_api_key", ""))
-	if staticAPIKey == "" {
-		return nil, skerrors.NewValidationError(
-			"immich_pocketid_static_api_key_missing",
-			"Immich PocketID OAuth bootstrap requires the generated PocketID STATIC_API_KEY",
-			skerrors.WithSuggestion("Re-run stackkit generate so PocketID static API material is persisted in terraform.tfvars.json"),
-		)
-	}
-
-	issuerURL := strings.TrimRight(firstNonEmptyString(stringTFVar(tfvars, "pocketid_app_url", ""), serviceURLForDomain(tfvars, "id")), "/")
-	photosURL := strings.TrimRight(serviceURLForDomain(tfvars, "photos"), "/")
-	if issuerURL == "" || photosURL == "" {
-		return nil, skerrors.NewValidationError(
-			"immich_oidc_urls_missing",
-			"Immich PocketID OAuth bootstrap requires generated PocketID and Photos URLs",
-			skerrors.WithSuggestion("Re-run stackkit generate so domain-derived service URLs are present"),
-		)
-	}
-
-	secret, secretErr := s.ensurePocketIDImmichClient(ctx, staticAPIKey, photosURL)
-	if secretErr != nil {
-		return nil, secretErr
-	}
-
-	var config map[string]any
-	if err := immichRequest(ctx, client, baseURL, http.MethodGet, "/api/system-config", nil, token, &config); err != nil {
-		return nil, skerrors.NewDependencyError("immich_system_config_read_failed", "failed to read Immich system config for PocketID OAuth", skerrors.WithCause(err))
-	}
-	oauth, _ := config["oauth"].(map[string]any)
-	if oauth == nil {
-		oauth = map[string]any{}
-	}
-	oauth["enabled"] = true
-	oauth["issuerUrl"] = issuerURL
-	oauth["clientId"] = immichPocketIDClientID
-	oauth["clientSecret"] = secret
-	oauth["tokenEndpointAuthMethod"] = "client_secret_post"
-	oauth["scope"] = "openid email profile"
-	oauth["autoRegister"] = false
-	oauth["autoLaunch"] = true
-	oauth["buttonText"] = "Continue with PocketID"
-	config["oauth"] = oauth
-
-	if err := immichRequest(ctx, client, baseURL, http.MethodPut, "/api/system-config", config, token, nil); err != nil {
-		return nil, skerrors.NewDependencyError("immich_system_config_write_failed", "failed to configure Immich PocketID OAuth", skerrors.WithCause(err))
-	}
-
-	evidence["pocketidOAuth"] = "enabled"
-	evidence["oidcClientId"] = immichPocketIDClientID
-	evidence["oidcIssuer"] = issuerURL
-	evidence["autoRegister"] = "false"
-	evidence["autoLaunch"] = "true"
-	evidence["appLocalSessionHandoff"] = "oidc-configured"
-	return evidence, nil
-}
-
-func (s *Server) ensurePocketIDImmichClient(ctx context.Context, staticAPIKey, photosURL string) (string, *skerrors.StackKitError) {
-	baseURL := strings.TrimRight(firstNonEmptyString(s.config.SetupPocketIDURL, "http://pocketid:1411"), "/")
-	client := &http.Client{Timeout: 20 * time.Second}
-	clientURL := baseURL + "/api/oidc/clients/" + url.PathEscape(immichPocketIDClientID)
-	status, body, err := pocketIDJSONRequest(ctx, client, http.MethodGet, clientURL, staticAPIKey, nil, nil)
-	if err != nil {
-		return "", skerrors.NewDependencyError("immich_pocketid_client_lookup_failed", "failed to look up the PocketID Immich OIDC client", skerrors.WithCause(err))
-	}
-	if status == http.StatusNotFound {
-		payload := map[string]any{
-			"id":                       immichPocketIDClientID,
-			"name":                     "Immich",
-			"callbackURLs":             []string{photosURL + "/auth/login", photosURL + "/user-settings", "app.immich:///oauth-callback"},
-			"logoutCallbackURLs":       []string{},
-			"isPublic":                 false,
-			"pkceEnabled":              false,
-			"requiresReauthentication": false,
-			"isGroupRestricted":        false,
-		}
-		status, body, err = pocketIDJSONRequest(ctx, client, http.MethodPost, baseURL+"/api/oidc/clients", staticAPIKey, payload, nil)
-		if err != nil {
-			return "", skerrors.NewDependencyError("immich_pocketid_client_create_failed", "failed to create the PocketID Immich OIDC client", skerrors.WithCause(err))
-		}
-	}
-	if status < 200 || status >= 300 {
-		return "", skerrors.NewDependencyError(
-			"immich_pocketid_client_unavailable",
-			"PocketID rejected the Immich OIDC client lookup/create request",
-			skerrors.WithField("status", status),
-			skerrors.WithField("body", truncateForField(body)),
-		)
-	}
-
-	var secretResp struct {
-		Secret string `json:"secret"`
-	}
-	status, body, err = pocketIDJSONRequest(ctx, client, http.MethodPost, clientURL+"/secret", staticAPIKey, nil, &secretResp)
-	if err != nil {
-		return "", skerrors.NewDependencyError("immich_pocketid_client_secret_failed", "failed to create the PocketID Immich OIDC client secret", skerrors.WithCause(err))
-	}
-	if status < 200 || status >= 300 || strings.TrimSpace(secretResp.Secret) == "" {
-		return "", skerrors.NewDependencyError(
-			"immich_pocketid_client_secret_unavailable",
-			"PocketID did not return a usable Immich OIDC client secret",
-			skerrors.WithField("status", status),
-			skerrors.WithField("body", truncateForField(body)),
-		)
-	}
-	return secretResp.Secret, nil
 }
 
 func pocketIDJSONRequest(ctx context.Context, client *http.Client, method, rawURL, apiKey string, payload any, out any) (int, string, error) {

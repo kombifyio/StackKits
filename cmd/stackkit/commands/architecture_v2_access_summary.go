@@ -151,6 +151,23 @@ func buildArchitectureV2AccessSummaryFromCanonical(canonical []byte, binding arc
 			}
 			exposed[key], routes[key] = struct{}{}, route
 		}
+	} else {
+		// Non-Cloud kits do not carry the Cloud edge-route contract (default-closed
+		// public policy, edge TLS termination), but their routes still bind a
+		// stable route identity to a service. Recording that identity here (not
+		// the Cloud validations) lets a later verified HTTP probe find the
+		// route's own health-gate contract instead of assuming every route root
+		// answers 200.
+		for _, route := range projection.Network.Routes {
+			key := architectureV2AccessServiceKey(route.ServiceRef)
+			if key == "" || route.ID == "" {
+				continue
+			}
+			if _, duplicate := routes[key]; duplicate {
+				continue
+			}
+			routes[key] = route
+		}
 	}
 	if len(exposed) == 0 {
 		return nil, fmt.Errorf("verified Architecture v2 plan exposes no service endpoints")
@@ -192,7 +209,7 @@ func buildArchitectureV2AccessSummaryFromCanonical(canonical []byte, binding arc
 		service := architectureV2AccessService(entry, protocol, domain)
 		service.AllowedActions = append([]string(nil), controls[entry.Key]...)
 		if route, ok := routes[entry.Key]; ok {
-			service = architectureV2RoutedAccessService(service, route)
+			service = architectureV2BindAccessServiceRoute(service, route, projection.Kit.Slug)
 		}
 		summary.Services = append(summary.Services, service)
 	}
@@ -208,7 +225,7 @@ func buildArchitectureV2AccessSummaryFromCanonical(canonical []byte, binding arc
 		service := architectureV2AccessService(entry, protocol, domain)
 		service.AllowedActions = append([]string(nil), controls[key]...)
 		if route, ok := routes[key]; ok {
-			service = architectureV2RoutedAccessService(service, route)
+			service = architectureV2BindAccessServiceRoute(service, route, projection.Kit.Slug)
 		}
 		summary.Services = append(summary.Services, service)
 	}
@@ -407,6 +424,19 @@ func architectureV2RoutedAccessService(service accessService, route architecture
 	if route.Path != "" && route.Path != "/" {
 		service.URL += route.Path
 	}
+	return service
+}
+
+// architectureV2BindAccessServiceRoute records a service's route identity so
+// a later verified HTTP probe can look up that route's own health-gate
+// contract. Cloud's edge-route contract is already verified above and owns
+// the printed URL and host; every other kit keeps its catalog-derived URL
+// exactly as before and only gains the route reference.
+func architectureV2BindAccessServiceRoute(service accessService, route architectureV2AccessRoute, kitSlug string) accessService {
+	if kitSlug == "cloud-kit" {
+		return architectureV2RoutedAccessService(service, route)
+	}
+	service.RouteRef = route.ID
 	return service
 }
 

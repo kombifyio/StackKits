@@ -1,7 +1,7 @@
 // Package pocketid is a thin HTTP client for the PocketID admin API.
 //
-// API surface notes (verified against ghcr.io/pocket-id/pocket-id:v2.7.0,
-// upstream v2.6.2 — Step 5.0 of Phase 1 / Task 5):
+// API surface notes (verified against pocket-id/pocket-id v2.16.0,
+// commit bb05e6922444c33eec87466919f1bcf105967825):
 //
 //   - Auth header is `X-API-Key` (case-insensitive). PocketID does NOT use
 //     `Authorization: Bearer`. JWT cookies and API keys are accepted by the
@@ -18,7 +18,9 @@
 //     `PUT /api/user-groups/:id/users` with `{"userIds":[...]}`.
 //   - `CreateUser` requires `firstName` plus a valid email if email is set.
 //   - OIDC client registration accepts `callbackURLs` (camelCase). The
-//     client secret is created in a separate call: `POST /api/oidc/clients/:id/secret`.
+//     client secret is created in a separate call: `POST /api/oidc/clients/:id/secrets`.
+//     StackKits supplies the secret value so it can place the same one-time
+//     response into owner custody without depending on server-side generation.
 //
 // Given those findings, BootstrapInitialAdmin is implemented as a
 // verification call against `GET /api/users` using the configured
@@ -33,13 +35,17 @@ package pocketid
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -99,15 +105,159 @@ type CreateUserRequest struct {
 
 // User is the subset of the PocketID user DTO we care about.
 type User struct {
-	ID          string      `json:"id"`
-	Username    string      `json:"username"`
-	Email       string      `json:"email,omitempty"`
-	FirstName   string      `json:"firstName,omitempty"`
-	LastName    string      `json:"lastName,omitempty"`
-	DisplayName string      `json:"displayName,omitempty"`
-	IsAdmin     bool        `json:"isAdmin"`
-	Disabled    bool        `json:"disabled,omitempty"`
-	UserGroups  []UserGroup `json:"userGroups,omitempty"`
+	ID            string        `json:"id"`
+	Username      string        `json:"username"`
+	Email         string        `json:"email,omitempty"`
+	FirstName     string        `json:"firstName,omitempty"`
+	LastName      string        `json:"lastName,omitempty"`
+	DisplayName   string        `json:"displayName,omitempty"`
+	IsAdmin       bool          `json:"isAdmin"`
+	EmailVerified bool          `json:"emailVerified"`
+	Disabled      bool          `json:"disabled,omitempty"`
+	UserGroups    []UserGroup   `json:"userGroups,omitempty"`
+	CustomClaims  []CustomClaim `json:"customClaims,omitempty"`
+}
+
+// SMTPConfiguration is the owner-approved PocketID delivery configuration
+// used for email verification. StackKits deliberately does not expose
+// PocketID's plaintext or skip-verification modes.
+type SMTPConfiguration struct {
+	Host     string
+	Port     int
+	From     string
+	User     string
+	Password string
+	TLS      string
+}
+
+type appConfigVariable struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// pocketID216ApplicationConfigKeys is the full replacement document exposed
+// by the pinned v2.16 API. Requiring every key prevents a partial or masked
+// read from resetting unrelated identity settings on PUT.
+var pocketID216ApplicationConfigKeys = []string{
+	"appName", "sessionDuration", "homePageUrl", "emailsVerified", "disableAnimations",
+	"allowOwnAccountEdit", "allowUserSignups", "signupDefaultUserGroupIDs", "signupDefaultCustomClaims",
+	"accentColor", "requireUserEmail", "smtpHost", "smtpPort", "smtpFrom", "smtpUser", "smtpPassword",
+	"smtpTls", "smtpSkipCertVerify", "ldapEnabled", "ldapUrl", "ldapBindDn", "ldapBindPassword", "ldapBase",
+	"ldapUserSearchFilter", "ldapUserGroupSearchFilter", "ldapSkipCertVerify", "ldapAttributeUserUniqueIdentifier",
+	"ldapAttributeUserUsername", "ldapAttributeUserEmail", "ldapAttributeUserFirstName", "ldapAttributeUserLastName",
+	"ldapAttributeUserDisplayName", "ldapAttributeUserProfilePicture", "ldapAttributeGroupMember",
+	"ldapAttributeGroupUniqueIdentifier", "ldapAttributeGroupName", "ldapAdminGroupName", "ldapSoftDeleteUsers",
+	"webauthnUserVerification", "webauthnAllowSyncedPasskeys", "webauthnAuthenticatorAttachment",
+	"emailOneTimeAccessAsAdminEnabled", "emailOneTimeAccessAsUnauthenticatedEnabled", "emailLoginNotificationEnabled",
+	"emailApiKeyExpirationEnabled", "emailVerificationEnabled", "cimdUrlAllowlist",
+}
+
+// ConfigureEmailVerificationSMTP preserves PocketID's complete current
+// application configuration while replacing the bounded SMTP and email
+// verification values. PocketID v2.16 exposes a full-replacement API, so a
+// partial request would reset unrelated identity policy to defaults.
+func (c *Client) ConfigureEmailVerificationSMTP(ctx context.Context, smtp SMTPConfiguration) error {
+	host := strings.TrimSpace(smtp.Host)
+	from := strings.TrimSpace(smtp.From)
+	user := strings.TrimSpace(smtp.User)
+	password := smtp.Password
+	tls := strings.TrimSpace(smtp.TLS)
+	if host == "" || strings.ContainsAny(host, "/?#@\r\n\t ") || smtp.Port < 1 || smtp.Port > 65535 {
+		return errors.New("configure email verification: SMTP host and port are invalid")
+	}
+	address, err := mail.ParseAddress(from)
+	if err != nil || address.Address != from {
+		return errors.New("configure email verification: SMTP from address is invalid")
+	}
+	if (user == "") != (password == "") {
+		return errors.New("configure email verification: SMTP user and password must be supplied together")
+	}
+	if tls != "starttls" && tls != "tls" {
+		return errors.New("configure email verification: SMTP TLS must be starttls or tls")
+	}
+
+	current, err := c.readApplicationConfiguration(ctx)
+	if err != nil {
+		return err
+	}
+	// v2.16 masks sensitive values as XXXXXXXXXX when UI configuration is
+	// disabled. Its PUT endpoint replaces the whole document; replaying that
+	// marker would destroy unrelated LDAP custody. Refuse before mutation.
+	if current["ldapBindPassword"] == "XXXXXXXXXX" {
+		return errors.New("configure email verification: PocketID masked unrelated secret configuration")
+	}
+	current["smtpHost"] = host
+	current["smtpPort"] = strconv.Itoa(smtp.Port)
+	current["smtpFrom"] = from
+	current["smtpUser"] = user
+	current["smtpPassword"] = password
+	current["smtpTls"] = tls
+	current["smtpSkipCertVerify"] = "false"
+	current["requireUserEmail"] = "true"
+	current["emailsVerified"] = "false"
+	current["emailVerificationEnabled"] = "true"
+
+	var saved []appConfigVariable
+	if err := c.do(ctx, http.MethodPut, "/api/application-configuration", current, &saved); err != nil {
+		return fmt.Errorf("configure email verification: %w", err)
+	}
+	if err := verifyEmailConfiguration(saved, current); err != nil {
+		return err
+	}
+	readback, err := c.readApplicationConfiguration(ctx)
+	if err != nil {
+		return err
+	}
+	return verifyEmailConfigurationMap(readback, current)
+}
+
+func (c *Client) readApplicationConfiguration(ctx context.Context) (map[string]string, error) {
+	var variables []appConfigVariable
+	if err := c.do(ctx, http.MethodGet, "/api/application-configuration/all", nil, &variables); err != nil {
+		return nil, fmt.Errorf("read PocketID application configuration: %w", err)
+	}
+	configuration := make(map[string]string, len(variables))
+	for _, variable := range variables {
+		if variable.Key == "" {
+			return nil, errors.New("read PocketID application configuration: empty key")
+		}
+		if _, duplicate := configuration[variable.Key]; duplicate {
+			return nil, errors.New("read PocketID application configuration: duplicate key")
+		}
+		configuration[variable.Key] = variable.Value
+	}
+	if len(configuration) != len(pocketID216ApplicationConfigKeys) {
+		return nil, errors.New("read PocketID application configuration: pinned field set differs")
+	}
+	for _, required := range pocketID216ApplicationConfigKeys {
+		if _, ok := configuration[required]; !ok {
+			return nil, errors.New("read PocketID application configuration: pinned field set is incomplete")
+		}
+	}
+	return configuration, nil
+}
+
+func verifyEmailConfiguration(variables []appConfigVariable, expected map[string]string) error {
+	actual := make(map[string]string, len(variables))
+	for _, variable := range variables {
+		if variable.Key == "" {
+			return errors.New("configure email verification: readback is malformed")
+		}
+		if _, duplicate := actual[variable.Key]; duplicate {
+			return errors.New("configure email verification: readback contains a duplicate key")
+		}
+		actual[variable.Key] = variable.Value
+	}
+	return verifyEmailConfigurationMap(actual, expected)
+}
+
+func verifyEmailConfigurationMap(actual, expected map[string]string) error {
+	for _, key := range []string{"smtpHost", "smtpPort", "smtpFrom", "smtpUser", "smtpPassword", "smtpTls", "smtpSkipCertVerify", "requireUserEmail", "emailsVerified", "emailVerificationEnabled"} {
+		if actual[key] != expected[key] {
+			return errors.New("configure email verification: PocketID readback differs from the owner-approved settings")
+		}
+	}
+	return nil
 }
 
 // WebAuthnCredential is the secret-free registration metadata returned by the
@@ -154,16 +304,51 @@ func (c *Client) FindUsersByUsername(ctx context.Context, username string) ([]Us
 	return result, nil
 }
 
-// ListUsers returns the current PocketID user page. Callers filter groups
-// themselves; this does not interpret identity roles.
+// ListUsers returns every current user page. Pocket ID v2.16 clamps requests
+// past the end back to the final page, so pagination metadata determines when
+// to stop. Duplicate subjects or a changing collection fail closed.
+// https://github.com/pocket-id/pocket-id/blob/v2.16.0/backend/internal/utils/list_request_util.go
 func (c *Client) ListUsers(ctx context.Context) ([]User, error) {
-	var response struct {
-		Data []User `json:"data"`
+	result := make([]User, 0)
+	seen := map[string]bool{}
+	var expectedTotal int64 = -1
+	for page := 1; ; page++ {
+		var response struct {
+			Data       []User `json:"data"`
+			Pagination struct {
+				CurrentPage int   `json:"currentPage"`
+				TotalPages  int   `json:"totalPages"`
+				TotalItems  int64 `json:"totalItems"`
+			} `json:"pagination"`
+		}
+		path := fmt.Sprintf("/api/users?pagination%%5Blimit%%5D=100&pagination%%5Bpage%%5D=%d&sort%%5Bcolumn%%5D=username&sort%%5Bdirection%%5D=asc", page)
+		if err := c.do(ctx, http.MethodGet, path, nil, &response); err != nil {
+			return nil, fmt.Errorf("list users: %w", err)
+		}
+		pagination := response.Pagination
+		if pagination.CurrentPage != page || pagination.TotalPages < page || pagination.TotalItems < 0 {
+			return nil, errors.New("list users: invalid pagination response")
+		}
+		if expectedTotal == -1 {
+			expectedTotal = pagination.TotalItems
+		}
+		if expectedTotal != pagination.TotalItems {
+			return nil, errors.New("list users: collection changed during pagination")
+		}
+		for _, user := range response.Data {
+			if user.ID == "" || seen[user.ID] {
+				return nil, errors.New("list users: invalid or repeated subject in paginated response")
+			}
+			seen[user.ID] = true
+			result = append(result, user)
+		}
+		if page == pagination.TotalPages {
+			if int64(len(result)) != expectedTotal {
+				return nil, errors.New("list users: incomplete paginated response")
+			}
+			return result, nil
+		}
 	}
-	if err := c.do(ctx, http.MethodGet, "/api/users?pagination%5Blimit%5D=100", nil, &response); err != nil {
-		return nil, fmt.Errorf("list users: %w", err)
-	}
-	return append([]User(nil), response.Data...), nil
 }
 
 // DeleteUser removes one PocketID subject. Callers must refuse owner and
@@ -362,6 +547,43 @@ func (c *Client) CreateOneTimeAccessToken(ctx context.Context, userID string, tt
 	return resp.Token, nil
 }
 
+// RetireOneTimeAccessToken makes a previously issued one-time-access token
+// unusable. PocketID v2.16 has no revocation endpoint and keeps a token
+// redeemable until it is exchanged or its TTL ends, so the only way to retire
+// a superseded link is to redeem it here: the exchange atomically deletes the
+// token, and the session it returns is discarded unread. PocketID records the
+// exchange as a one-time-access sign-in in its audit log.
+//
+// A 401 means the token was already consumed or has expired, which is the
+// wanted end state. The token is a secret: it never appears in an error.
+//
+// Endpoint: `POST /api/one-time-access-token/:token` (unauthenticated).
+func (c *Client) RetireOneTimeAccessToken(ctx context.Context, token string) error {
+	if strings.TrimSpace(token) == "" {
+		return nil
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		c.BaseURL+"/api/one-time-access-token/"+url.PathEscape(token), nil)
+	if err != nil {
+		return errors.New("retire one-time-access-token: build request failed")
+	}
+	req.Header.Set("Accept", "application/json")
+	httpClient := *c.HTTP
+	httpClient.Jar = nil
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return errors.New("retire one-time-access-token: PocketID is unreachable")
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxResponseSize))
+	_ = resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusUnauthorized:
+		return nil
+	default:
+		return fmt.Errorf("retire one-time-access-token: PocketID answered HTTP %d", resp.StatusCode)
+	}
+}
+
 // RegisterClientRequest is the payload for RegisterOIDCClient.
 type RegisterClientRequest struct {
 	RequiresReauthentication bool     `json:"requiresReauthentication"`
@@ -407,21 +629,31 @@ func (c *Client) GetOIDCClient(ctx context.Context, clientID string) (*OIDCClien
 	return &client, nil
 }
 
-// CreateOIDCClientSecret rotates the confidential client's secret. The raw
-// value is returned once and must remain in local private custody.
+// CreateOIDCClientSecret adds a secret to the confidential client. The raw
+// value is chosen locally, returned once, and must remain in local private
+// custody. Callers invoke this only when no custodied secret is available.
 func (c *Client) CreateOIDCClientSecret(ctx context.Context, clientID string) (string, error) {
 	clientID = strings.TrimSpace(clientID)
 	if clientID == "" || strings.ContainsAny(clientID, "/?#") {
 		return "", errors.New("create oidc client secret: id is invalid")
 	}
+	material := make([]byte, 32)
+	if _, err := rand.Read(material); err != nil {
+		return "", fmt.Errorf("create oidc client secret: generate material: %w", err)
+	}
+	secret := base64.RawURLEncoding.EncodeToString(material)
+	clear(material)
+	request := struct {
+		Secret string `json:"secret"`
+	}{Secret: secret}
 	var response struct {
 		Secret string `json:"secret"`
 	}
-	if err := c.do(ctx, http.MethodPost, "/api/oidc/clients/"+clientID+"/secret", nil, &response); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/api/oidc/clients/"+clientID+"/secrets", request, &response); err != nil {
 		return "", fmt.Errorf("create secret for oidc client %s: %w", clientID, err)
 	}
-	if strings.TrimSpace(response.Secret) == "" {
-		return "", errors.New("create oidc client secret: PocketID returned an empty secret")
+	if response.Secret != secret {
+		return "", errors.New("create oidc client secret: PocketID did not return the chosen secret")
 	}
 	return response.Secret, nil
 }
@@ -448,12 +680,22 @@ func (c *Client) UpdateOIDCClientAllowedUserGroups(
 }
 
 // RegisterOIDCClient creates an OIDC client (e.g. TinyAuth) and immediately
-// generates a client secret for it. The returned OIDCClient.Secret is the
+// generates a secret only for a confidential client. Public PKCE clients never
+// create or expose a shared secret. The returned OIDCClient.Secret is the
 // raw value — record it; PocketID will not return it again.
 func (c *Client) RegisterOIDCClient(ctx context.Context, req RegisterClientRequest) (*OIDCClient, error) {
 	var client OIDCClient
 	if err := c.do(ctx, http.MethodPost, "/api/oidc/clients", req, &client); err != nil {
 		return nil, fmt.Errorf("register oidc client %q: %w", req.Name, err)
+	}
+	if req.ID != "" && client.ID != req.ID {
+		return nil, errors.New("register oidc client: PocketID did not preserve the chosen client ID")
+	}
+	if req.IsPublic {
+		if !client.IsPublic || !client.PkceEnabled {
+			return nil, errors.New("register oidc client: public PKCE policy was not preserved")
+		}
+		return &client, nil
 	}
 	secret, err := c.CreateOIDCClientSecret(ctx, client.ID)
 	if err != nil {
@@ -620,4 +862,19 @@ func (c *Client) UpdateOIDCClient(ctx context.Context, clientID string, req Regi
 		return nil, fmt.Errorf("update oidc client %s: %w", clientID, err)
 	}
 	return &client, nil
+}
+
+// OIDCIssuer reads the running server's discovery identity, rather than local
+// desired configuration. Domain migration uses it before passkey reenrollment.
+func (c *Client) OIDCIssuer(ctx context.Context) (string, error) {
+	var discovery struct {
+		Issuer string `json:"issuer"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/.well-known/openid-configuration", nil, &discovery); err != nil {
+		return "", err
+	}
+	if discovery.Issuer == "" {
+		return "", errors.New("pocketid: discovery issuer is absent")
+	}
+	return discovery.Issuer, nil
 }

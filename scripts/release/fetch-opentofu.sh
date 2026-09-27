@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-TOFU_VERSION="${TOFU_VERSION:-1.11.5}"
+TOFU_VERSION="${TOFU_VERSION:-1.12.6}"
 OUT_DIR="${OUT_DIR:-.dist-tools/opentofu}"
 DOWNLOAD_DIR="${OUT_DIR}/downloads"
 TARGETS="${STACKKIT_RELEASE_TOOL_TARGETS:-linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64}"

@@ -147,6 +147,7 @@ type ExecutorStateSnapshot struct {
 	Artifacts             []ExecutorStateBlob                       `json:"artifacts"`
 	RuntimeCompose        ExecutorStateBlob                         `json:"runtimeCompose,omitzero"`
 	RuntimeOpenTofu       []ExecutorStateOpenTofuRoot               `json:"runtimeOpenTofu,omitempty"`
+	OpenTofuLockVersion   int                                       `json:"openTofuLockVersion,omitempty"`
 	KopiaSnapshotAnchor   backuplifecycle.SnapshotAnchor            `json:"kopiaSnapshotAnchor"`
 	CapturedAt            time.Time                                 `json:"capturedAt"`
 	Signature             localevidence.OwnerExecutorStateSignature `json:"signature"`
@@ -484,7 +485,7 @@ func prepareExecutorStateSnapshot(
 		if err != nil {
 			return ExecutorStateSnapshot{}, nil, err
 		}
-		if err := validateExecutorStateOpenTofuRoots(roots, artifacts, profile); err != nil {
+		if err := validateExecutorStateOpenTofuRoots(roots, artifacts, profile, true); err != nil {
 			return ExecutorStateSnapshot{}, nil, err
 		}
 		if err := requireExecutorStatePolicyArtifact(artifacts, profile); err != nil {
@@ -503,7 +504,7 @@ func prepareExecutorStateSnapshot(
 				Version: release.Version, Blob: executable, Server: server,
 			},
 			Lineage: input.Lineage, StackSpec: stackSpec, Inventory: inventory,
-			Artifacts: artifacts, RuntimeOpenTofu: roots,
+			Artifacts: artifacts, RuntimeOpenTofu: roots, OpenTofuLockVersion: 1,
 			KopiaSnapshotAnchor: input.KopiaSnapshotAnchor,
 		}, payloads, nil
 	}
@@ -658,13 +659,18 @@ func (store ExecutorStateStore) verifySnapshot(
 		if snapshot.RuntimeCompose != (ExecutorStateBlob{}) {
 			return errors.New("executor state: an OpenTofu snapshot must not carry native runtime Compose")
 		}
-		if err := validateExecutorStateOpenTofuRoots(snapshot.RuntimeOpenTofu, snapshot.Artifacts, profile); err != nil {
+		// A missing lock is accepted only here, after identity and Owner
+		// signature verification, for checkpoints signed by older releases.
+		if snapshot.OpenTofuLockVersion < 0 || snapshot.OpenTofuLockVersion > 1 {
+			return errors.New("executor state: unsupported OpenTofu dependency lock version")
+		}
+		if err := validateExecutorStateOpenTofuRoots(snapshot.RuntimeOpenTofu, snapshot.Artifacts, profile, snapshot.OpenTofuLockVersion == 1); err != nil {
 			return err
 		}
 		if err := requireExecutorStatePolicyArtifact(snapshot.Artifacts, profile); err != nil {
 			return err
 		}
-	} else if snapshot.RuntimeCompose.Path != profile.RuntimeComposePath || len(snapshot.RuntimeOpenTofu) != 0 {
+	} else if snapshot.RuntimeCompose.Path != profile.RuntimeComposePath || len(snapshot.RuntimeOpenTofu) != 0 || snapshot.OpenTofuLockVersion != 0 {
 		return errors.New("executor state: runtime Compose path is invalid")
 	}
 	sourceMatches := 0

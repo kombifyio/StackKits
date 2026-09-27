@@ -168,6 +168,12 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(esphomeWorkload.contract, esphomeWorkload); err != nil {
 		return nil, err
 	}
+	for _, newInternalWorkload := range internalWorkloadBundleRenderers {
+		contract, renderer := newInternalWorkload()
+		if err := registry.Register(contract, renderer); err != nil {
+			return nil, err
+		}
+	}
 	euroofficeWorkload := newEuroofficeWorkloadBundleRenderer()
 	if err := registry.Register(euroofficeWorkload.contract, euroofficeWorkload); err != nil {
 		return nil, err
@@ -184,6 +190,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(immichPublicProxyWorkload.contract, immichPublicProxyWorkload); err != nil {
 		return nil, err
 	}
+	comfyUIWorkload := newComfyUIWorkloadBundleRenderer()
+	if err := registry.Register(comfyUIWorkload.contract, comfyUIWorkload); err != nil {
+		return nil, err
+	}
 	immichKioskWorkload := newImmichKioskWorkloadBundleRenderer()
 	if err := registry.Register(immichKioskWorkload.contract, immichKioskWorkload); err != nil {
 		return nil, err
@@ -191,6 +201,12 @@ func NewProductRegistry() (*Registry, error) {
 	immichPowerToolsWorkload := newImmichPowerToolsWorkloadBundleRenderer()
 	if err := registry.Register(immichPowerToolsWorkload.contract, immichPowerToolsWorkload); err != nil {
 		return nil, err
+	}
+	for _, workload := range []aiAddOnWorkload{searxngWorkload(), tikaWorkload(), doclingWorkload()} {
+		renderer := newAIAddOnWorkloadBundleRenderer(workload)
+		if err := registry.Register(renderer.contract, renderer); err != nil {
+			return nil, err
+		}
 	}
 	giteaWorkload := newGiteaWorkloadBundleRenderer()
 	if err := registry.Register(giteaWorkload.contract, giteaWorkload); err != nil {

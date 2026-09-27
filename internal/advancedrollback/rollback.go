@@ -373,23 +373,24 @@ func ensureInitialized(
 	if info, statErr := os.Lstat(root); statErr == nil && info.IsDir() {
 		return ""
 	}
-	initialized, err := run("init", "-input=false", "-no-color")
+	initialized, err := run("init", "-input=false", "-lockfile=readonly", "-no-color")
 	if err != nil || initialized.ExitCode != 0 {
 		return commandDetail("tofu init", initialized, err)
 	}
 	return ""
 }
 
-func rootFilePaths(runtimeRoot string) (state, config, compose, environment string) {
+func rootFilePaths(runtimeRoot string) (state, config, lock, compose, environment string) {
 	parent := path.Dir(runtimeRoot)
 	return path.Join(runtimeRoot, opentofu.StateFile),
 		path.Join(runtimeRoot, opentofu.ConfigFile),
+		path.Join(runtimeRoot, opentofu.LockFile),
 		path.Join(parent, opentofu.ComposeFile),
 		path.Join(parent, opentofu.EnvFile)
 }
 
 func hasAppliedRoot(workspaceRoot, runtimeRoot string) (bool, error) {
-	state, config, _, _ := rootFilePaths(runtimeRoot)
+	state, config, _, _, _ := rootFilePaths(runtimeRoot)
 	for _, relative := range []string{config, state} {
 		absolute, err := confinedFile(workspaceRoot, relative, false)
 		if err != nil {
@@ -422,13 +423,13 @@ func directoryExists(workspaceRoot, runtimeRoot string) (bool, error) {
 }
 
 func rootEquals(workspaceRoot, runtimeRoot string, files RootFiles) (bool, error) {
-	state, config, compose, environment := rootFilePaths(runtimeRoot)
+	state, config, lock, compose, environment := rootFilePaths(runtimeRoot)
 	expected := []struct {
 		path    string
 		data    []byte
 		present bool
 	}{
-		{state, files.State, true}, {config, files.Config, true},
+		{state, files.State, true}, {config, files.Config, true}, {lock, files.Lock, files.HasLock},
 		{compose, files.Compose, files.HasCompose}, {environment, files.Environment, files.HasEnvironment},
 	}
 	for _, file := range expected {
@@ -465,18 +466,21 @@ func restoreRoot(workspaceRoot, runtimeRoot string, files RootFiles) error {
 	if info, statErr := os.Lstat(marker); statErr != nil || !info.Mode().IsRegular() {
 		return errors.New("the runtime root has no executor root marker; the runtime executor must materialize the root before it can be restored")
 	}
-	state, config, compose, environment := rootFilePaths(runtimeRoot)
+	state, config, lock, compose, environment := rootFilePaths(runtimeRoot)
 	type rootWrite struct {
 		path string
 		data []byte
 		mode os.FileMode
 	}
-	writes := make([]rootWrite, 0, 4)
+	writes := make([]rootWrite, 0, 5)
 	if files.HasEnvironment {
 		writes = append(writes, rootWrite{environment, files.Environment, 0o600})
 	}
 	if files.HasCompose {
 		writes = append(writes, rootWrite{compose, files.Compose, 0o600})
+	}
+	if files.HasLock {
+		writes = append(writes, rootWrite{lock, files.Lock, 0o640})
 	}
 	writes = append(writes, rootWrite{config, files.Config, 0o640}, rootWrite{state, files.State, 0o600})
 	for _, write := range writes {

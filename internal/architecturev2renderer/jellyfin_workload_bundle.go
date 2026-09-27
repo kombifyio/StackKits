@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"reflect"
+
+	"github.com/kombifyio/stackkits/internal/jellyfinsso"
 )
 
 const (
@@ -17,7 +19,7 @@ const (
 )
 
 const jellyfinWorkloadRendererSchema = `stackkit.workload-bundle/v2|JellyfinWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:jellyfin|release:` +
-	jellyfinRelease + `|secret-material:not-included|library-backup:owner-custodied|library-mount:read-only|source:storage.hostRoots.mediaRoot`
+	jellyfinRelease + `|secret-material:not-included|library-backup:owner-custodied|library-mount:read-only|source:storage.hostRoots.mediaRoot|sso:` + jellyfinsso.Version + `|artifact:` + jellyfinsso.SHA256
 
 type JellyfinWorkloadBundleDescriptor struct {
 	WorkloadRef string
@@ -198,6 +200,9 @@ func validateJellyfinRuntimeComponents(components []selectedPaaSRuntimeComponent
 		components[0].Image.Ref != jellyfinImageRef || components[0].Image.Digest != jellyfinImageDigest ||
 		components[0].Health.Kind != "http" || components[0].Health.Path != "/health" || components[0].Health.Port != 8096 {
 		return nil, fail(ErrInvalidPlan, path, "Jellyfin runtime graph differs from the closed "+jellyfinRelease+" contract")
+	}
+	if err := validateHomeIdentityRights(jellyfinWorkloadModuleID, components[0], path); err != nil {
+		return nil, err
 	}
 	want := map[string]selectedPaaSRuntimeVolume{
 		"config":  {ID: "config", Target: "/config", Class: "persistent", Backup: true},

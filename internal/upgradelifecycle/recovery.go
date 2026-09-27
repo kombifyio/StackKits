@@ -14,6 +14,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/tofu"
 	"gopkg.in/yaml.v3"
 )
 
@@ -380,6 +381,8 @@ type ExecutorStateRootPayload struct {
 	Root           string
 	State          []byte
 	Config         []byte
+	Lock           []byte
+	HasLock        bool
 	Compose        []byte
 	HasCompose     bool
 	Environment    []byte
@@ -440,6 +443,19 @@ func (store ExecutorStateStore) LoadRollbackCustody(
 		if payload.Config, err = readExecutorStateRecoveryBlob(transaction, captured.Config); err != nil {
 			return ExecutorStateRollbackCustody{}, err
 		}
+		if captured.Lock != (ExecutorStateBlob{}) {
+			if payload.Lock, err = readExecutorStateRecoveryBlob(transaction, captured.Lock); err != nil {
+				return ExecutorStateRollbackCustody{}, err
+			}
+		} else {
+			// A valid missing lock can only reach this point through an older
+			// Owner-signed checkpoint. Supply the compiled closure before the
+			// rollback's readonly initialization.
+			if payload.Lock, err = tofu.CanonicalLockForConfiguration(payload.Config); err != nil {
+				return ExecutorStateRollbackCustody{}, err
+			}
+		}
+		payload.HasLock = true
 		if captured.Compose != (ExecutorStateBlob{}) {
 			if payload.Compose, err = readExecutorStateRecoveryBlob(transaction, captured.Compose); err != nil {
 				return ExecutorStateRollbackCustody{}, err

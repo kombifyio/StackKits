@@ -991,6 +991,17 @@ func (c *Client) RemoveContainer(ctx context.Context, nameOrID string) error {
 	return c.removeResource(ctx, []string{"rm", "-f", nameOrID}, "container", nameOrID)
 }
 
+// RemoveStoppedContainer removes one exact stopped container without Docker's
+// force flag. Runtime handoffs use it only after authenticated inspection and
+// a graceful stop, so a container that restarted concurrently is refused
+// rather than killed.
+func (c *Client) RemoveStoppedContainer(ctx context.Context, nameOrID string) error {
+	if err := validateNameOrID(nameOrID); err != nil {
+		return fmt.Errorf("invalid container name/ID: %w", err)
+	}
+	return c.removeResource(ctx, []string{"rm", nameOrID}, "stopped container", nameOrID)
+}
+
 // RemoveNetwork removes a Docker network by name.
 func (c *Client) RemoveNetwork(ctx context.Context, name string) error {
 	if err := validateName(name); err != nil {

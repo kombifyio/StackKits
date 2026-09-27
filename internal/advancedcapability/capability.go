@@ -99,6 +99,7 @@ type Request struct {
 
 // Grant is the fully verified and locally scoped capability.
 type Grant struct {
+	BackupRenewal     *BackupRenewal
 	CapabilityID      string
 	IssuerID          string
 	StackID           string

@@ -81,7 +81,7 @@ Common evidence:
   only that verifier host; LAN, mobile, VPN and public clients need their own
   explicitly scoped evidence;
 - relevant `stackkit logs` output;
-- final Hub URL for local Basement Kit: `https://base.home` from an enrolled device;
+- final Hub URL for local Basement Kit: `https://base.lab.home` from an enrolled device;
 - confirmation that generated artifacts were not hand-edited.
 
 ## Core Decisions Before Install
@@ -401,7 +401,7 @@ curl -sSL https://base.stackkit.cc | sh
 
 For local-server tester rollouts, execute this in the target server shell
 itself: SSH session, physical/VM console, or an agent already running on that
-server. The default URLs use `*.home` with Owner-CA HTTPS. Each client enrolls
+server. The default URLs use `*.lab.home` with Owner-CA HTTPS. Each client enrolls
 once on the LAN so its OS-approved profile scopes `home` lookups to the
 StackKits resolver and trusts the public Owner-CA root. Router/DHCP changes,
 hosts entries and alternate local names are not part of the flow.
@@ -427,7 +427,9 @@ verbs, whoever runs this entrypoint is carried to a running homelab):
    - expert additionally: use cases (`photos,files,vault`), stack name,
      platform adapter (`coolify|komodo`), and image prepull.
 3. Re-running on a workspace that already carries deployment intent
-   skips init and resumes `stackkit apply` (journal). Pick another
+   skips init, prepares the host, resolves the plan again for the host as
+   it is now (`stackkit generate`), and resumes `stackkit apply`
+   (journal). The re-run works from any directory. Pick another
    `HOMELAB_DIR` for a second deployment; `stackkit remove` still
    resets the current one.
 4. Downloads and runs the shared CLI installer from

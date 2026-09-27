@@ -1,0 +1,47 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "searxng",
+  "displayName": "SearXNG",
+  "description": "Private meta search that Open WebUI uses for web search; JSON results enabled, limiter off, no route.",
+  "rationale": "Private AI web-search capability module.",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": false,
+      "minMemory": "128m"
+    }
+  },
+  "services": [
+    {
+      "name": "searxng",
+      "type": "application",
+      "required": false,
+      "networks": [
+        "private-ai-internal"
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/healthz",
+        "port": 8080
+      },
+      "resources": {
+        "memory": "128m",
+        "memoryMax": "512m"
+      },
+      "upstream": {
+        "github": "searxng/searxng",
+        "registryImage": "docker.io/searxng/searxng"
+      },
+      "routed": false,
+      "imageSource": {
+        "moduleRef": "stackkits-searxng-runtime",
+        "componentRef": "searxng"
+      },
+      "environment": {
+        "SEARXNG_LIMITER": "false",
+        "SEARXNG_PUBLIC_INSTANCE": "false"
+      }
+    }
+  ]
+}

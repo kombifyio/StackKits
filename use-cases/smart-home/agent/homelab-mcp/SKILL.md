@@ -59,9 +59,11 @@ select an account. Your username and display name come from that private file.
 
 ## Owner setup
 
-For an applied native Architecture v2 `standalone-compose` workload, create a
-private file at `.stackkit/setup/home-assistant-owner.json` with your chosen
-credentials:
+Native Apply automatically sets up the selected Smart Home owner with the signed
+owner identity and a generated private recovery password. It retains these in
+`.stackkit/setup/home-assistant-owner.json`; do not replace that file on retry.
+For an existing application whose owner credentials are not yet in custody,
+restore its actual credentials to that private file:
 
 ```json
 {
@@ -88,14 +90,16 @@ tokens stay in memory and are revoked before return. Existing installations use
 the same login verification; an unavailable onboarding endpoint is not proof of
 completion.
 
-Complete the remaining personal settings, location and integrations in Home
-Assistant, then run setup again to refresh its signed evidence. Smart Home does
-not support `--complete-onboarding`: those choices belong to the owner. A
-successful owner login can therefore report `onboardingComplete: false`, and the
-State Console will continue to show that setup needs attention. If an operation
-was interrupted, retry using its reported `--operation-id` after addressing the
-diagnostic. MFA and additional login challenges require manual attention and
-cannot be bypassed by this setup action.
+Automatic setup completes the remaining onboarding markers with the current core
+settings and analytics preferences and binds the signed Pocket ID subject to the
+same local owner. It preserves local login and existing account IDs. Location,
+devices and personal preferences remain editable in Home Assistant; setup does
+not opt in to telemetry. The pinned core-config endpoint starts HA's normal
+default integration flows. To request this same completion during manual repair,
+add `--complete-onboarding`; otherwise setup verifies the owner without completing
+those markers. If an operation was interrupted, retry using its reported
+`--operation-id` after addressing the diagnostic. MFA and additional login
+challenges require manual attention and cannot be bypassed by setup.
 
 The legacy deployment runner retains its `homelab` username convention and uses
 the same owner verifier. The native command uses the explicit username from the

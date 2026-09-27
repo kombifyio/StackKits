@@ -381,7 +381,8 @@ func (store Store) Begin(contract Contract, request BeginRequest) (State, error)
 			}
 		}
 		if current := currentOperation(*state); current != nil &&
-			(current.Status == StatusRunning || current.Status == StatusRecoveryRequired) {
+			(current.Status == StatusRunning || current.Status == StatusRecoveryRequired) &&
+			!applyRetrySupersedes(*current, request) {
 			return fmt.Errorf("application lifecycle operation %s requires completion or recovery", current.ID)
 		}
 		now := normalizedNow(request.Now)
@@ -401,6 +402,20 @@ func (store Store) Begin(contract Contract, request BeginRequest) (State, error)
 		state.CurrentOperation = operation.ID
 		return nil
 	})
+}
+
+// applyOperationRef is the complete, idempotent Apply of a workload.
+const applyOperationRef = "stackkit.apply"
+
+// applyRetrySupersedes admits a new Apply after an Apply that ended
+// recovery-required. Apply re-converges the complete workload from the
+// current plan, which is exactly the recovery its diagnostic asks for
+// ("retry stackkit apply"); the old operation stays in the signed history.
+// Every other recovery-required operation (restore, backup, setup) still
+// blocks until its own recovery path completes.
+func applyRetrySupersedes(current Operation, request BeginRequest) bool {
+	return current.Status == StatusRecoveryRequired &&
+		current.OperationRef == applyOperationRef && request.OperationRef == applyOperationRef
 }
 
 func (store Store) Transition(contract Contract, request TransitionRequest) (State, error) {

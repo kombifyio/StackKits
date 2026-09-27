@@ -353,6 +353,9 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	if err := applyStorageFilesystemAdmission(contracts.modules, deployment.storage, deployment.system, spec.nodes); err != nil {
 		return nil, err
 	}
+	if err := applyAcceleratorAdmission(contracts.modules, spec.nodes); err != nil {
+		return nil, err
+	}
 	privilegedInterfaceApprovals, err := c.resolvePrivilegedInterfaceApprovals(contracts.modules, deployment.gates)
 	if err != nil {
 		return nil, err

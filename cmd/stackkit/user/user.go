@@ -27,6 +27,22 @@ type householdAPI interface {
 	IssueOwnerActivation(context.Context) (localowner.OwnerActivation, error)
 }
 
+// FilesAccount is the secret-free result of app-local Cloudreve household
+// provisioning. Selected is false when the current Plan has no Files workload.
+type FilesAccount struct {
+	Selected   bool
+	AccountRef string
+	Email      string
+}
+
+// FilesProvisioner is implemented by the root command package, which owns the
+// admitted applied-workload execution channel. This package retains the public
+// household CLI and never derives a runtime endpoint itself.
+type FilesProvisioner interface {
+	EnsureFilesAccount(context.Context, string, localowner.HouseholdUser) (FilesAccount, error)
+	RevealFilesCredential(context.Context, string, localowner.HouseholdUser) ([]byte, error)
+}
+
 type commandResult struct {
 	SchemaVersion string `json:"schemaVersion"`
 	Command       string `json:"command"`
@@ -36,10 +52,20 @@ type commandResult struct {
 
 // NewCommand returns the public `stackkit user` command tree.
 func NewCommand() *cobra.Command {
-	return newCommand(nil)
+	return newCommandWithFiles(nil, nil)
 }
 
 func newCommand(api householdAPI) *cobra.Command {
+	return newCommandWithFiles(api, nil)
+}
+
+// NewCommandWithFilesProvisioner returns the public user tree with the native
+// Files account hook supplied by the root command package.
+func NewCommandWithFilesProvisioner(provisioner FilesProvisioner) *cobra.Command {
+	return newCommandWithFiles(nil, provisioner)
+}
+
+func newCommandWithFiles(api householdAPI, provisioner FilesProvisioner) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "user",
 		Short: "Invite and manage household users in local PocketID",
@@ -72,7 +98,7 @@ Owner and admin identities cannot be created or removed here.`,
   stackkit user add sam --email sam@example.com --display-name "Sam Doe" --owner-approve --json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runUserAdd(cmd, api, args[0])
+			return runUserAdd(cmd, api, provisioner, args[0])
 		},
 	}
 	add.Flags().String("email", "", "Household member email")
@@ -122,7 +148,7 @@ Owner and admin identities cannot be created or removed here.`,
 		},
 	}
 	ownerActivate := &cobra.Command{
-		Use: "activate", Short: "Return or reissue the owner-bound one-time passkey activation", Args: cobra.NoArgs,
+		Use: "activate", Short: "Reissue the owner-bound one-time passkey activation link and retire the previous one", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			approved, err := cmd.Flags().GetBool("owner-approve")
 			if err != nil {
@@ -142,10 +168,10 @@ Owner and admin identities cannot be created or removed here.`,
 			return writeOwnerActivation(cmd, activation, true)
 		},
 	}
-	ownerActivate.Flags().Bool("owner-approve", false, "Explicitly approve revealing or reissuing owner activation")
-	owner.AddCommand(ownerStatus, ownerActivate)
+	ownerActivate.Flags().Bool("owner-approve", false, "Explicitly approve reissuing the owner activation link")
+	owner.AddCommand(ownerStatus, ownerActivate, newDomainMigrationCommand(api))
 
-	command.AddCommand(add, list, remove, owner)
+	command.AddCommand(add, list, remove, owner, newHouseholdActivateCommand(api), newFilesCommand(api, provisioner))
 	return command
 }
 
@@ -161,10 +187,13 @@ func writeOwnerActivation(cmd *cobra.Command, activation localowner.OwnerActivat
 		return writeJSON(cmd, data)
 	}
 	_, err := fmt.Fprintln(cmd.OutOrStdout(), activation.Status)
+	if err == nil && includeURL && activation.SetupURL != "" {
+		_, err = fmt.Fprintln(cmd.OutOrStdout(), activation.SetupURL)
+	}
 	return err
 }
 
-func runUserAdd(cmd *cobra.Command, api householdAPI, username string) error {
+func runUserAdd(cmd *cobra.Command, api householdAPI, provisioner FilesProvisioner, username string) error {
 	approved, err := cmd.Flags().GetBool("owner-approve")
 	if err != nil {
 		return err
@@ -192,8 +221,26 @@ func runUserAdd(cmd *cobra.Command, api householdAPI, username string) error {
 	if err != nil {
 		return err
 	}
+	var files FilesAccount
+	if provisioner != nil {
+		workspace, workspaceErr := workspaceRoot(cmd)
+		if workspaceErr != nil {
+			return workspaceErr
+		}
+		files, err = provisioner.EnsureFilesAccount(cmd.Context(), workspace, invited)
+		if err != nil {
+			if outputErr := writeHouseholdInvitation(cmd, invited, FilesAccount{}, "failed"); outputErr != nil {
+				return errors.Join(err, outputErr)
+			}
+			return fmt.Errorf("Files account remains pending; retry with `stackkit user files ensure %s --owner-approve`: %w", invited.Username, err)
+		}
+	}
+	return writeHouseholdInvitation(cmd, invited, files, "success")
+}
+
+func writeHouseholdInvitation(cmd *cobra.Command, invited localowner.HouseholdUser, files FilesAccount, status string) error {
 	if jsonOutput(cmd) {
-		data := map[string]string{
+		data := map[string]any{
 			"username":    invited.Username,
 			"email":       invited.Email,
 			"displayName": invited.DisplayName,
@@ -205,15 +252,152 @@ func runUserAdd(cmd *cobra.Command, api householdAPI, username string) error {
 		if !invited.ExpiresAt.IsZero() {
 			data["expiresAt"] = invited.ExpiresAt.UTC().Format(time.RFC3339)
 		}
-		return writeJSON(cmd, data)
+		if files.Selected {
+			data["files"] = map[string]string{
+				"status": "ready", "accountRef": files.AccountRef,
+				"credentialCommand": "stackkit user files credential " + invited.Username + " --owner-approve",
+			}
+		} else if status != "success" {
+			data["partial"] = true
+			data["files"] = map[string]string{
+				"status": "pending", "retryCommand": "stackkit user files ensure " + invited.Username + " --owner-approve",
+			}
+		}
+		return writeJSONStatus(cmd, data, status)
 	}
-	_, err = fmt.Fprintf(
+	_, err := fmt.Fprintf(
 		cmd.OutOrStdout(),
 		"Invited household user %s\nOne-time setup URL: %s\nShare this URL only with that person so they can enroll a passkey.\n",
 		invited.Username,
 		invited.SetupURL,
 	)
+	if err == nil && files.Selected {
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "Files account ready. Reveal its password intentionally with: stackkit user files credential %s --owner-approve\n", invited.Username)
+	} else if err == nil && status != "success" {
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "Files account pending. Retry with: stackkit user files ensure %s --owner-approve\n", invited.Username)
+	}
 	return err
+}
+
+func newFilesCommand(api householdAPI, provisioner FilesProvisioner) *cobra.Command {
+	files := &cobra.Command{
+		Use: "files", Short: "Resume and hand off app-local Files household accounts",
+		Long: "Cloudreve CE keeps an app-local account behind TinyAuth. These commands converge that account from an approved PocketID household identity and reveal its owner-custodied password only on explicit request.",
+	}
+	ensure := &cobra.Command{
+		Use: "ensure <username>", Short: "Create or verify one non-admin Files account", Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := requireOwnerApproval(cmd); err != nil {
+				return err
+			}
+			if provisioner == nil {
+				return errors.New("Files household provisioning is unavailable in this command host")
+			}
+			service, err := resolveHousehold(cmd, api)
+			if err != nil {
+				return err
+			}
+			member, err := exactHouseholdUser(cmd.Context(), service, args[0])
+			if err != nil {
+				return err
+			}
+			workspace, err := workspaceRoot(cmd)
+			if err != nil {
+				return err
+			}
+			account, err := provisioner.EnsureFilesAccount(cmd.Context(), workspace, member)
+			if err != nil {
+				return err
+			}
+			if !account.Selected {
+				return errors.New("the current Plan does not select Cloudreve Files")
+			}
+			if jsonOutput(cmd) {
+				return writeJSON(cmd, map[string]string{
+					"username": member.Username, "email": account.Email, "accountRef": account.AccountRef,
+					"credentialCommand": "stackkit user files credential " + member.Username + " --owner-approve",
+				})
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Files account ready for %s. Reveal its password intentionally with: stackkit user files credential %s --owner-approve\n", member.Username, member.Username)
+			return err
+		},
+	}
+	ensure.Flags().Bool("owner-approve", false, "Explicitly approve Files account provisioning")
+
+	credential := &cobra.Command{
+		Use: "credential <username>", Short: "Print one owner-custodied Files household password", Args: cobra.ExactArgs(1),
+		Long: "Verify the approved PocketID household identity and its non-admin Cloudreve account, then print the existing password from signed local-owner custody. Output contains secret material; use it only in a private terminal or intentional pipe.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := requireOwnerApproval(cmd); err != nil {
+				return err
+			}
+			if jsonOutput(cmd) {
+				return errors.New("Files credential reveal emits only the raw password; omit --json")
+			}
+			if provisioner == nil {
+				return errors.New("Files household credential reveal is unavailable in this command host")
+			}
+			service, err := resolveHousehold(cmd, api)
+			if err != nil {
+				return err
+			}
+			member, err := exactHouseholdUser(cmd.Context(), service, args[0])
+			if err != nil {
+				return err
+			}
+			workspace, err := workspaceRoot(cmd)
+			if err != nil {
+				return err
+			}
+			material, err := provisioner.RevealFilesCredential(cmd.Context(), workspace, member)
+			if err != nil {
+				return err
+			}
+			defer clear(material)
+			if _, err := cmd.OutOrStdout().Write(material); err != nil {
+				return err
+			}
+			_, err = fmt.Fprintln(cmd.OutOrStdout())
+			return err
+		},
+	}
+	credential.Flags().Bool("owner-approve", false, "Explicitly approve revealing this Files password")
+	files.AddCommand(ensure, credential)
+	return files
+}
+
+func requireOwnerApproval(cmd *cobra.Command) error {
+	approved, err := cmd.Flags().GetBool("owner-approve")
+	if err != nil {
+		return err
+	}
+	if !approved {
+		return errors.New("Files household account action requires explicit --owner-approve")
+	}
+	return nil
+}
+
+func exactHouseholdUser(ctx context.Context, api householdAPI, username string) (localowner.HouseholdUser, error) {
+	username = strings.TrimSpace(username)
+	users, err := api.ListHouseholdUsers(ctx)
+	if err != nil {
+		return localowner.HouseholdUser{}, err
+	}
+	var matched *localowner.HouseholdUser
+	for i := range users {
+		if users[i].Username != username {
+			continue
+		}
+		if matched != nil {
+			return localowner.HouseholdUser{}, errors.New("PocketID household identity is ambiguous")
+		}
+		candidate := users[i]
+		matched = &candidate
+	}
+	if matched == nil || strings.TrimSpace(matched.Email) == "" {
+		return localowner.HouseholdUser{}, errors.New("PocketID household identity is absent")
+	}
+	return *matched, nil
 }
 
 func runUserList(cmd *cobra.Command, api householdAPI) error {
@@ -310,12 +494,16 @@ func jsonOutput(cmd *cobra.Command) bool {
 }
 
 func writeJSON(cmd *cobra.Command, data any) error {
+	return writeJSONStatus(cmd, data, "success")
+}
+
+func writeJSONStatus(cmd *cobra.Command, data any, status string) error {
 	encoder := json.NewEncoder(cmd.OutOrStdout())
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(commandResult{
 		SchemaVersion: commandResultSchemaVersion,
 		Command:       cmd.CommandPath(),
-		Status:        "success",
+		Status:        status,
 		Data:          data,
 	})
 }

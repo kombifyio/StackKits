@@ -14,6 +14,14 @@ _architectureV2ImmichServerImage: {ref: "ghcr.io/immich-app/immich-server:v2.7.0
 
 _architectureV2PrivateAIImage: {ref: "ghcr.io/open-webui/open-webui:v0.11.3", digest: "sha256:41daa0cf2561a5d4c8d1ff31ee2a98d93ab4d3ac2605cac69366ff6a3374a933"}
 
+// ComfyUI (GPL-3.0) publishes no official container image. Until StackKits
+// builds its own non-root image, the digest-pinned base image of
+// SaladTechnologies/comfyui-api (MIT build recipe) is used: the official
+// pytorch/pytorch CUDA 13.0 runtime with the ComfyUI v0.35.0 release tag.
+// It also clones ComfyUI-Manager, which the governed command never loads
+// (--disable-all-custom-nodes, no --enable-manager).
+_architectureV2ComfyUIImage: {ref: "ghcr.io/saladtechnologies/comfyui-api:comfy0.35.0-torch2.13.0-cuda13.0-runtime", digest: "sha256:5cc4f79f21e61b9da46e94286c29ef8185520117452027a6f5574cf6125c0ff8"}
+
 // Paperless-ngx is the single application-version authority for every derived
 // module and runtime projection. PostgreSQL and Valkey follow the compatible
 // versions in the upstream v3.1.3 Compose example and are pinned independently.
@@ -331,10 +339,30 @@ _architectureV2AIInfrastructure: #WorkloadInfrastructureV1 & {
 	storageAllocation: {
 		moduleRef: "stackkits-storage-allocation"
 		allocations: [
-			{componentRef: "open-webui", volumeRef: "data", target: "/app/backend/data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai"},
+			// Owner data: webui.db (SQLite + WAL), uploads and vector_db. cache/
+			// holds the embedding, speech and tokenizer caches the image ships
+			// (Hugging Face layout with symlinks); it is regenerable.
+			{componentRef: "open-webui", volumeRef: "data", target: "/app/backend/data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai", cacheSubpaths: ["cache"]},
 			{componentRef: "ollama", volumeRef: "models", target: "/root/.ollama", class: "persistent", backup: false, dataClasses: ["personal"], dataBindingRef: "ai"},
 		]
 	}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Private AI image and video (ComfyUI): workflows, uploads and generated
+// outputs are owner data and backup sources; model weights are
+// re-downloadable, owner-approved downloads and are excluded from backup.
+_architectureV2ComfyUIInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "ai-image-video", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "comfyui", volumeRef: "user", target: "/opt/ComfyUI/user", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai-image-video"},
+		{componentRef: "comfyui", volumeRef: "input", target: "/opt/ComfyUI/input", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai-image-video"},
+		{componentRef: "comfyui", volumeRef: "output", target: "/opt/ComfyUI/output", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai-image-video"},
+		{componentRef: "comfyui", volumeRef: "models", target: "/opt/ComfyUI/models", class: "persistent", backup: false, dataClasses: ["personal"], dataBindingRef: "ai-image-video"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
 	snapshot: moduleRef: "stackkits-snapshot"
 	restore: moduleRef:  "stackkits-restore"
 	recovery: moduleRef: "stackkits-recovery"
@@ -387,12 +415,12 @@ _architectureV2MediaEmbyInfrastructure: #WorkloadInfrastructureV1 & {
 		moduleRef: "stackkits-storage-allocation"
 		allocations: [
 			{
-				componentRef: "emby", volumeRef: "config", target: "/config"
-				class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "media"
+				componentRef: "emby", volumeRef:    "config", target:                                "/config"
+				class:        "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "media"
 			},
 			{
-				componentRef: "emby", volumeRef: "library", target: "/media"
-				class: "persistent", backup: false, dataClasses: ["personal"], dataBindingRef: "media"
+				componentRef: "emby", volumeRef:    "library", target:                                "/media"
+				class:        "persistent", backup: false, dataClasses: ["personal"], dataBindingRef: "media"
 			},
 		]
 	}
@@ -478,7 +506,6 @@ _architectureV2Zigbee2mqttInfrastructure: #WorkloadInfrastructureV1 & {
 	restore: moduleRef:  "stackkits-restore"
 	recovery: moduleRef: "stackkits-recovery"
 }
-
 
 _architectureV2ImmichKioskInfrastructure: #WorkloadInfrastructureV1 & {
 	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "photos-kiosk", classes: ["personal"], locality: "primary-site"}
@@ -1031,6 +1058,138 @@ _architectureV2WorkloadContracts: [
 			infrastructure: _architectureV2AIInfrastructure
 		}]
 	},
+	// Private AI image and video (docs/use-case-expansion/ai-agents.md),
+	// selected through the image-video capability module. It needs a GPU:
+	// the module has no CPU runtime.
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "ai-image-video"
+			version:     "1.0.0"
+			description: "ComfyUI image and video generation on the node's GPU with reviewed workflow templates, selected with the Private AI image-video module. ComfyUI has no sign-in of its own, so it is reached only on a private route behind the kit's login."
+		}
+		kind:       "application"
+		useCaseRef: "ai"
+		functionalCapabilities: ["image-generation", "video-generation"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "comfyui"
+		alternatives: [{
+			id:          "comfyui"
+			providerRef: "stackkits-comfyui"
+			moduleRef:   "stackkits-comfyui-runtime"
+			route: {serviceRef: "ai-image-video", healthRef: "comfyui-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// Model weights are never bundled: the owner downloads a preset
+			// after accepting its license.
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["comfyui-model-download"]}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+			infrastructure: _architectureV2ComfyUIInfrastructure
+		}]
+	},
+	// Private AI add-ons (docs/use-case-expansion/ai-agents.md). Each is a
+	// separate workload selected through a Private AI capability module. They
+	// hold no owner data: nothing is backed up, and they are reached only by
+	// Open WebUI over the node's private AI network.
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "ai-search"
+			version:     "1.0.0"
+			description: "Private SearXNG meta search that Open WebUI uses for web search, selected with the Private AI web-search module. It joins the node's private AI network and has no route of its own."
+		}
+		kind:       "application"
+		useCaseRef: "ai"
+		functionalCapabilities: ["web-search"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: []
+		defaultAlternative: "searxng"
+		alternatives: [{
+			id:          "searxng"
+			providerRef: "stackkits-searxng"
+			moduleRef:   "stackkits-searxng-runtime"
+			route: {serviceRef: "ai-search", healthRef: "searxng-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: ["searxng-secret"], requiredRefs: ["searxng-secret"]}
+			}
+		}]
+	},
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "ai-documents"
+			version:     "1.0.0"
+			description: "Document text extraction for Open WebUI through Apache Tika, or Docling for scanned and complex layouts, selected with the Private AI document-parsing module. It joins the node's private AI network and has no route of its own."
+		}
+		kind:       "application"
+		useCaseRef: "ai"
+		functionalCapabilities: ["document-parsing"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: []
+		defaultAlternative: "tika"
+		alternatives: [{
+			id:          "tika"
+			providerRef: "stackkits-tika"
+			moduleRef:   "stackkits-tika-runtime"
+			route: {serviceRef: "ai-documents", healthRef: "tika-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+		}, {
+			id:          "docling"
+			providerRef: "stackkits-docling"
+			moduleRef:   "stackkits-docling-runtime"
+			route: {serviceRef: "ai-documents", healthRef: "docling-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+		}]
+	},
 	#WorkloadContractV2 & {
 		metadata: {
 			id:          "dev"
@@ -1181,7 +1340,7 @@ _architectureV2WorkloadContracts: [
 			inputs: {
 				settings: {allowedRefs: [], requiredRefs: []}
 				secretInputs: {
-					allowedRefs: _architectureV2PterodactylSecretSlots
+					allowedRefs:  _architectureV2PterodactylSecretSlots
 					requiredRefs: _architectureV2PterodactylSecretSlots
 				}
 			}
@@ -1718,7 +1877,10 @@ _architectureV2ApplicationLifecycleContracts: [
 	#ApplicationLifecycleContractV1 & {metadata: {id: "smart-home-esphome", version: "1.0.0", description: "ESPHome add-on of the smart-home use case."}, workloadRef: "smart-home-esphome", useCaseRef: "smart-home", packageRef: "smart-home", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "files-office", version: "1.0.0", description: "Office editing add-on of the files use case."}, workloadRef: "files-office", useCaseRef: "files", packageRef: "files", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "smart-home-mqtt", version: "1.0.0", description: "MQTT broker add-on of the smart-home use case."}, workloadRef: "smart-home-mqtt", useCaseRef: "smart-home", packageRef: "smart-home", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-image-video", version: "1.0.0", description: "Image and video add-on of the Private AI use case."}, workloadRef: "ai-image-video", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "smart-home-zigbee", version: "1.0.0", description: "Zigbee bridge add-on of the smart-home use case."}, workloadRef: "smart-home-zigbee", useCaseRef: "smart-home", packageRef: "smart-home", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-search", version: "1.0.0", description: "Web search add-on of the Private AI use case."}, workloadRef: "ai-search", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-documents", version: "1.0.0", description: "Document parsing add-on of the Private AI use case."}, workloadRef: "ai-documents", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "photos-share", version: "1.0.0", description: "Public share-link add-on of the photos use case."}, workloadRef: "photos-share", useCaseRef: "photos", packageRef: "photos", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "photos-kiosk", version: "1.0.0", description: "Slideshow add-on of the photos use case."}, workloadRef: "photos-kiosk", useCaseRef: "photos", packageRef: "photos", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "photos-tools", version: "1.0.0", description: "Library maintenance add-on of the photos use case."}, workloadRef: "photos-tools", useCaseRef: "photos", packageRef: "photos", lifecycle: #StandardUseCaseLifecycle},
@@ -1767,7 +1929,7 @@ _architectureV2ApplicationLifecycleContracts: [
 		workloadRef: "files"
 		useCaseRef:  "files"
 		packageRef:  "files"
-		lifecycle:   #StandardUseCaseLifecycle & {stages: setup: {}}
+		lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
 	},
 	#ApplicationLifecycleContractV1 & {
 		metadata: {
@@ -1778,7 +1940,7 @@ _architectureV2ApplicationLifecycleContracts: [
 		workloadRef: "vault"
 		useCaseRef:  "vault"
 		packageRef:  "vault"
-		lifecycle:   #StandardUseCaseLifecycle & {stages: setup: {}}
+		lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
 	},
 	#ApplicationLifecycleContractV1 & {
 		metadata: {
@@ -1789,7 +1951,7 @@ _architectureV2ApplicationLifecycleContracts: [
 		workloadRef: "media"
 		useCaseRef:  "media"
 		packageRef:  "media"
-		lifecycle:   #StandardUseCaseLifecycle & {stages: setup: {}}
+		lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
 	},
 	#ApplicationLifecycleContractV1 & {
 		metadata: {
@@ -2557,6 +2719,80 @@ _architectureV2Providers: list.Concat([[
 			}
 		}
 		evidence: ["private-ai-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-comfyui", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["ai-image-video"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-comfyui-runtime"]
+			}
+		}
+		evidence: ["comfyui-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-searxng", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["ai-search"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-searxng-runtime"]
+			}
+		}
+		evidence: ["searxng-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-tika", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["ai-documents"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-tika-runtime"]
+			}
+		}
+		evidence: ["tika-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-docling", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["ai-documents"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-docling-runtime"]
+			}
+		}
+		evidence: ["docling-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {id: "stackkits-gitea", version: "1.0.0"}
@@ -3647,6 +3883,10 @@ _architectureV2VaultwardenTerramateStack: _architectureV2WorkloadTerramateStack 
 _architectureV2PassboltTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "passbolt", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2PterodactylTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "pterodactyl", _placement: {scope: "node-local", cardinality: "one-per-daemon", daemonRef: "docker-default"}}
 _architectureV2PrivateAITerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "private-ai", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2ComfyUITerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "comfyui", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2SearxngTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "searxng", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2TikaTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "tika", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2DoclingTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "docling", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2GiteaTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "gitea", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2ForgejoTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "forgejo", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2PaperlessTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "paperless-ngx", _placement: {scope: "node-local", cardinality: "one-per-node"}}
@@ -3885,6 +4125,87 @@ _architectureV2PterodactylSupport: #ModuleRealizationSupportV2 & {
 	evidence: requiredRefs: ["pterodactyl-generated-runtime-contract"]
 }
 
+_architectureV2SearxngSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["searxng-secret"]}
+	artifacts: {
+		requiredRefs: ["searxng-workload-bundle", _architectureV2SearxngTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "searxng-workload-bundle"
+			unitRef:     "searxng"
+			outputRef:   "workloads/searxng/bundle.json"
+		}, _architectureV2SearxngTerramateStack.binding]
+		contracts: [{
+			id:       "searxng-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "searxng"
+			outputRef: "workloads/searxng/bundle.json"
+		}, _architectureV2SearxngTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["searxng-selected-paas-runtime-contract"]
+}
+
+_architectureV2TikaSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["tika-workload-bundle", _architectureV2TikaTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "tika-workload-bundle"
+			unitRef:     "tika"
+			outputRef:   "workloads/tika/bundle.json"
+		}, _architectureV2TikaTerramateStack.binding]
+		contracts: [{
+			id:       "tika-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "tika"
+			outputRef: "workloads/tika/bundle.json"
+		}, _architectureV2TikaTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["tika-selected-paas-runtime-contract"]
+}
+
+_architectureV2DoclingSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["docling-workload-bundle", _architectureV2DoclingTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "docling-workload-bundle"
+			unitRef:     "docling"
+			outputRef:   "workloads/docling/bundle.json"
+		}, _architectureV2DoclingTerramateStack.binding]
+		contracts: [{
+			id:       "docling-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "docling"
+			outputRef: "workloads/docling/bundle.json"
+		}, _architectureV2DoclingTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["docling-selected-paas-runtime-contract"]
+}
+
 // Jellyfin is the Media Library vertical. Config is a StackKits backup source;
 // the library volume is owner-custodied and excluded from backup.
 _architectureV2PrivateAISupport: #ModuleRealizationSupportV2 & {
@@ -3912,6 +4233,33 @@ _architectureV2PrivateAISupport: #ModuleRealizationSupportV2 & {
 		}, _architectureV2PrivateAITerramateStack.contract]
 	}
 	evidence: requiredRefs: ["private-ai-selected-paas-runtime-contract"]
+}
+
+_architectureV2ComfyUISupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["comfyui-workload-bundle", _architectureV2ComfyUITerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "comfyui-workload-bundle"
+			unitRef:     "comfyui"
+			outputRef:   "workloads/comfyui/bundle.json"
+		}, _architectureV2ComfyUITerramateStack.binding]
+		contracts: [{
+			id:       "comfyui-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "comfyui"
+			outputRef: "workloads/comfyui/bundle.json"
+		}, _architectureV2ComfyUITerramateStack.contract]
+	}
+	evidence: requiredRefs: ["comfyui-selected-paas-runtime-contract"]
 }
 
 _architectureV2GiteaSupport: #ModuleRealizationSupportV2 & {
@@ -4514,7 +4862,7 @@ _basementCoreServiceEndpoints: [
 		healthRef:      "basement-hub-http"
 	},
 	{
-		serviceRef: "id", upstreamProtocol: "http", targetPort: 1411
+		serviceRef:        "id", upstreamProtocol: "http", targetPort: 1411
 		requiredPrivilege: "identity"
 		ingressAuth:       "none"
 		allowedIngressProtocols: ["http", "https"]
@@ -4523,7 +4871,7 @@ _basementCoreServiceEndpoints: [
 		healthRef:      "pocketid-http"
 	},
 	{
-		serviceRef: "auth", upstreamProtocol: "http", targetPort: 3000
+		serviceRef:        "auth", upstreamProtocol: "http", targetPort: 3000
 		requiredPrivilege: "identity"
 		ingressAuth:       "none"
 		allowedIngressProtocols: ["http", "https"]
@@ -4532,7 +4880,7 @@ _basementCoreServiceEndpoints: [
 		healthRef:      "tinyauth-http"
 	},
 	{
-		serviceRef: "coolify", upstreamProtocol: "http", targetPort: 8080
+		serviceRef:        "coolify", upstreamProtocol: "http", targetPort: 8080
 		requiredPrivilege: "admin"
 		ingressAuth:       "forward-auth"
 		allowedIngressProtocols: ["http", "https"]
@@ -4544,7 +4892,7 @@ _basementCoreServiceEndpoints: [
 
 _cloudCoreServiceEndpoints: [
 	{
-		serviceRef: "base", upstreamProtocol: "http", targetPort: 80
+		serviceRef:        "base", upstreamProtocol: "http", targetPort: 80
 		requiredPrivilege: "admin"
 		ingressAuth:       "forward-auth"
 		allowedIngressProtocols: ["http", "https"]
@@ -4690,8 +5038,31 @@ _architectureV2LocalKopiaSourceRenderUnit: {
 _architectureV2KopiaComposeRenderInputs: {
 	publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs
 	secretInputRefs: []
-	planInputRefs:   []
-	inputBindings:   _architectureV2LocalKopiaSourceRenderUnit.inputBindings
+	planInputRefs: []
+	inputBindings: _architectureV2LocalKopiaSourceRenderUnit.inputBindings
+}
+
+// Exact compiler-owned routes consumed as static TinyAuth ACLs. TinyAuth has
+// no Docker access; every protected core and workload host is configured from
+// the resolved catalog privilege, while unknown hosts follow the deny policy.
+_architectureV2TinyAuthRouteACLInputs: {
+	publicInputRefs: ["tinyauth-route-acls"]
+	secretInputRefs: []
+	planInputRefs: []
+	inputBindings: [{
+		targetRef:   "tinyauth-route-acls"
+		sourceRef:   "network.routes"
+		valueType:   "authority-bound-service-route-list-v4"
+		cardinality: "list"
+		required:    true
+	}]
+}
+
+_architectureV2CoreComposeRenderInputs: {
+	publicInputRefs: list.Concat([_architectureV2KopiaComposeRenderInputs.publicInputRefs, _architectureV2TinyAuthRouteACLInputs.publicInputRefs])
+	secretInputRefs: []
+	planInputRefs: []
+	inputBindings: list.Concat([_architectureV2KopiaComposeRenderInputs.inputBindings, _architectureV2TinyAuthRouteACLInputs.inputBindings])
 }
 
 _architectureV2Modules: list.Concat([[
@@ -5824,28 +6195,31 @@ _architectureV2Modules: list.Concat([[
 		}
 		serviceControls: _cloudCoreServiceControls
 		renderUnits: [{
-			id:           "compose", kind:                                 "compose", rendererRef: "stackkit"
-			templateRef:  "builtin://cloud/core/compose/v1.yaml", version: "1.0.0"
-			contractHash: "sha256:6a165719c9945b0c7e15c8a24aa5003a8fbbb909bcd7439381ed4ee10686c7c4"
-			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			id:              "compose", kind:                                 "compose", rendererRef: "stackkit"
+			templateRef:     "builtin://cloud/core/compose/v1.yaml", version: "1.0.0"
+			contractHash:    "sha256:2489edf0ac17ca7c7439affc1010881dcb8e596b89d07878e49ff51c0c88f92b"
+			publicInputRefs: _architectureV2TinyAuthRouteACLInputs.publicInputRefs, secretInputRefs: [], planInputRefs: []
+			inputBindings: _architectureV2TinyAuthRouteACLInputs.inputBindings
 			outputs: ["platform/cloud-core/compose.yaml"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: _cloudCoreServiceEndpoints
 			runtimeListeners: _cloudCoreVerificationRuntimeListeners
 		}, {
-			id:           "opentofu", kind:                                "opentofu", rendererRef: "stackkit"
-			templateRef:  "builtin://cloud/core/opentofu/v1.tf", version: "1.0.0"
-			contractHash: "sha256:17c124c1205256710d1161ad728885fe34af3fe07aee4111441172143d3bd0ce"
-			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			id:              "opentofu", kind:                               "opentofu", rendererRef: "stackkit"
+			templateRef:     "builtin://cloud/core/opentofu/v1.tf", version: "1.0.0"
+			contractHash:    "sha256:6b245aa7ba15ba268baa422b84b2c549e83fd960ebaa2b351e65fe399847e614"
+			publicInputRefs: _architectureV2TinyAuthRouteACLInputs.publicInputRefs, secretInputRefs: [], planInputRefs: []
+			inputBindings: _architectureV2TinyAuthRouteACLInputs.inputBindings
 			outputs: ["platform/cloud-core/main.tf"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: _cloudCoreServiceEndpoints
 			runtimeListeners: _cloudCoreVerificationRuntimeListeners
 		}, {
-			id:           "terramate", kind:                            "terramate", rendererRef: "stackkit"
-			templateRef:  "builtin://cloud/core/terramate/v1", version: "1.0.0"
-			contractHash: "sha256:8254232c208f363dea7ff27a07ed8b2af616eb8324141e78797707ff5e296a48"
-			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			id:              "terramate", kind:                            "terramate", rendererRef: "stackkit"
+			templateRef:     "builtin://cloud/core/terramate/v1", version: "1.0.0"
+			contractHash:    "sha256:a8c77f4ae0e44044f38f3ecc97fa881d1dec3e185d1ffa1d0aa71100af128beb"
+			publicInputRefs: _architectureV2TinyAuthRouteACLInputs.publicInputRefs, secretInputRefs: [], planInputRefs: []
+			inputBindings: _architectureV2TinyAuthRouteACLInputs.inputBindings
 			outputs: ["platform/cloud-core/main.tf", "platform/cloud-core/stack.tm.hcl"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: _cloudCoreServiceEndpoints
@@ -5853,24 +6227,24 @@ _architectureV2Modules: list.Concat([[
 		}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
-			contractHash: "sha256:6a165719c9945b0c7e15c8a24aa5003a8fbbb909bcd7439381ed4ee10686c7c4"
+			contractHash: "sha256:2489edf0ac17ca7c7439affc1010881dcb8e596b89d07878e49ff51c0c88f92b"
 			unitRefs: ["compose"], artifactRefs: ["cloud-core-compose"]
-			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			publicInputRefs: _architectureV2TinyAuthRouteACLInputs.publicInputRefs, secretInputRefs: [], planInputRefs: []
 		}, {
 			id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
-			contractHash: "sha256:17c124c1205256710d1161ad728885fe34af3fe07aee4111441172143d3bd0ce"
+			contractHash: "sha256:6b245aa7ba15ba268baa422b84b2c549e83fd960ebaa2b351e65fe399847e614"
 			unitRefs: ["opentofu"], artifactRefs: ["cloud-core-opentofu"]
-			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			publicInputRefs: _architectureV2TinyAuthRouteACLInputs.publicInputRefs, secretInputRefs: [], planInputRefs: []
 		}, {
 			id:           "terramate", target: "terramate", rendererRef: "stackkit"
-			contractHash: "sha256:5dc111fb152e893248c944eead9e58911abed6665aeaabb46b5bd813a8f69f13"
+			contractHash: "sha256:5961224d210651af0a3079de0cd8f898fb3ce019620fb9de0c81fc9e1454b54e"
 			unitRefs: ["terramate"], artifactRefs: ["cloud-core-terramate-opentofu", "cloud-core-terramate-stack"]
-			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
+			publicInputRefs: _architectureV2TinyAuthRouteACLInputs.publicInputRefs, secretInputRefs: [], planInputRefs: []
 		}]
 		realizationSupport: {
 			contractVersion: "1.0.0", scope: "concrete", level: "apply-ready"
 			compatibleRendererRefs: ["stackkit"]
-			inputs: {contractComplete: true, requiredRefs: []}
+			inputs: {contractComplete: true, requiredRefs: _architectureV2TinyAuthRouteACLInputs.publicInputRefs}
 			planInputs: {contractComplete: true, requiredRefs: []}
 			artifacts: {
 				requiredRefs: ["cloud-core-compose", "cloud-core-opentofu", "cloud-core-terramate-opentofu", "cloud-core-terramate-stack"]
@@ -5935,25 +6309,25 @@ _architectureV2Modules: list.Concat([[
 		}
 		serviceControls: _architectureV2CloudStandaloneServiceControls
 		renderUnits: [{
-			id:           "compose", kind:                                            "compose", rendererRef: "stackkit"
-			templateRef:  "builtin://cloud/core-standalone/compose/v1.yaml", version: "1.0.0"
-			contractHash: "sha256:10b557a8c1d690d0db2673a50a0dc96f2e08247047a99a2639fc75308ceb30ef"
-			publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
-			secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
-			planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
-			inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+			id:              "compose", kind:                                            "compose", rendererRef: "stackkit"
+			templateRef:     "builtin://cloud/core-standalone/compose/v1.yaml", version: "1.0.0"
+			contractHash:    "sha256:c4525c75cb5b99ea7b42fed15321ba910a32b13a9f6944e454d5a48c675aa1f5"
+			publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
+			secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
+			planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
+			inputBindings:   _architectureV2CoreComposeRenderInputs.inputBindings
 			outputs: ["platform/cloud-core-standalone/compose.yaml"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: _architectureV2CloudStandaloneServiceEndpoints
 			runtimeListeners: _architectureV2CloudStandaloneRuntimeListeners
 		}, {
-			id:           "opentofu", kind:                                           "opentofu", rendererRef: "stackkit"
-			templateRef:  "builtin://cloud/core-standalone/opentofu/v1.tf", version: "1.0.0"
-			contractHash: "sha256:686105c4ab42b787a3a884041751eb577e0821a5aae4ad1f8bedbcaf096723de"
-			publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
-			secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
-			planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
-			inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+			id:              "opentofu", kind:                                          "opentofu", rendererRef: "stackkit"
+			templateRef:     "builtin://cloud/core-standalone/opentofu/v1.tf", version: "1.0.0"
+			contractHash:    "sha256:e20d181b90c576ff25b1ba88c8bdabf391d0c7ce9241a0094c256b2e204a6514"
+			publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
+			secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
+			planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
+			inputBindings:   _architectureV2CoreComposeRenderInputs.inputBindings
 			outputs: ["platform/cloud-core-standalone/main.tf"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: _architectureV2CloudStandaloneServiceEndpoints
@@ -5961,11 +6335,11 @@ _architectureV2Modules: list.Concat([[
 		}, {
 			id:              "terramate", kind:                                       "terramate", rendererRef: "stackkit"
 			templateRef:     "builtin://cloud/core-standalone/terramate/v1", version: "1.0.0"
-			contractHash:    "sha256:d5fb144e69281318cc5041cc6fcee478a10df2cb8206295ee4f1e52590483b4a"
-			publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
-			secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
-			planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
-			inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+			contractHash:    "sha256:066219def11947ce759f5528517efa7aa0a96a3445e579966d683bbb132b7522"
+			publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
+			secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
+			planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
+			inputBindings:   _architectureV2CoreComposeRenderInputs.inputBindings
 			outputs: ["platform/cloud-core-standalone/main.tf", "platform/cloud-core-standalone/stack.tm.hcl"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: _architectureV2CloudStandaloneServiceEndpoints
@@ -5973,24 +6347,24 @@ _architectureV2Modules: list.Concat([[
 		}, _architectureV2LocalKopiaSourceRenderUnit & {_outputRef: "cloud/backup/kopia-source-policy.json"}]
 		renderVariants: [{
 			id:           "compose", target: "compose", rendererRef: "stackkit"
-			contractHash: "sha256:10b557a8c1d690d0db2673a50a0dc96f2e08247047a99a2639fc75308ceb30ef"
+			contractHash: "sha256:677db04f139d7bd6190aef53092da7ff677b1d7b93df314cb77039c65057b67f"
 			unitRefs: ["compose", "source-policy"], artifactRefs: ["cloud-core-standalone-compose", "cloud-kopia-backup-source-policy"]
-			publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
+			publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 		}, {
 			id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
-			contractHash: "sha256:686105c4ab42b787a3a884041751eb577e0821a5aae4ad1f8bedbcaf096723de"
+			contractHash: "sha256:9c001fea8fed2fa388a88561f2dc86da6bad3b04385c5f536febe6fc0e619704"
 			unitRefs: ["opentofu", "source-policy"], artifactRefs: ["cloud-core-standalone-opentofu", "cloud-kopia-backup-source-policy"]
-			publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
+			publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 		}, {
 			id:           "terramate", target: "terramate", rendererRef: "stackkit"
-			contractHash: "sha256:3f2c14c5ddeb144811f8ba25a28fbf5311692b301c37423d9f197b1bdf76c665"
+			contractHash: "sha256:44e664dbb41ac13feab3520917703667e604ded715b3d4817082628c3ffed921"
 			unitRefs: ["terramate", "source-policy"], artifactRefs: ["cloud-core-standalone-terramate-opentofu", "cloud-core-standalone-terramate-stack", "cloud-kopia-backup-source-policy"]
-			publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
+			publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs, secretInputRefs: [], planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 		}]
 		realizationSupport: {
 			contractVersion: "1.0.0", scope: "concrete", level: "apply-ready"
 			compatibleRendererRefs: ["stackkit"]
-			inputs: {contractComplete: true, requiredRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs}
+			inputs: {contractComplete: true, requiredRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs}
 			planInputs: {contractComplete: true, requiredRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs}
 			artifacts: {
 				requiredRefs: ["cloud-core-standalone-compose", "cloud-core-standalone-opentofu", "cloud-core-standalone-terramate-opentofu", "cloud-core-standalone-terramate-stack", "cloud-kopia-backup-source-policy"]
@@ -6076,8 +6450,8 @@ _architectureV2Modules: list.Concat([[
 				{
 					id: "pocketid", role: "application", lifecycle: "daemon"
 					image: {
-						ref:    "ghcr.io/pocket-id/pocket-id:v2.7.0"
-						digest: "sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e"
+						ref:    "ghcr.io/pocket-id/pocket-id:v2.16.0"
+						digest: "sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea"
 					}
 					dependsOn: [], networkRefs: ["basement-core"]
 					volumes: [{id: "pocketid-data", target: "/app/data", class: "persistent", backup: true}]
@@ -6087,8 +6461,8 @@ _architectureV2Modules: list.Concat([[
 				{
 					id: "tinyauth", role: "application", lifecycle: "daemon"
 					image: {
-						ref:    "ghcr.io/steveiliop56/tinyauth:v5.0.7"
-						digest: "sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6"
+						ref:    "ghcr.io/tinyauthapp/tinyauth:v5.1.2"
+						digest: "sha256:910f84801dc9597398458d45f8d305eb232dc583d6927c87cc29626527947d35"
 					}
 					dependsOn: ["pocketid"], networkRefs: ["basement-core"]
 					volumes: [{id: "tinyauth-data", target: "/data", class: "persistent", backup: true}]
@@ -6201,26 +6575,26 @@ _architectureV2Modules: list.Concat([[
 		serviceControls: _basementCoreServiceControls
 		renderUnits: [
 			{
-				id:           "compose", kind:                                    "compose", rendererRef: "stackkit"
-				templateRef:  "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash: "sha256:5f9513fc2a4482d42ef0e0eb8b28f848fa1f13cdc561ff124dc36effa82c6f76"
-				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
-				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
-				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
-				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+				id:              "compose", kind:                                    "compose", rendererRef: "stackkit"
+				templateRef:     "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
+				contractHash:    "sha256:25196644774dc64f1eb1d8bef146b469b6282395820fb0feed596bfa67df6de4"
+				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2CoreComposeRenderInputs.inputBindings
 				outputs: ["platform/basement-core/compose.yaml"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
 				serviceEndpoints: _basementCoreServiceEndpoints
 				runtimeListeners: _basementCoreRuntimeListeners
 			},
 			{
-				id:           "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
-				templateRef:  "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:4b5d98e6f322f5d922cb924369be44544c747d78fc8cabe0d06beb1a24c50cbf"
-				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
-				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
-				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
-				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+				id:              "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
+				templateRef:     "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
+				contractHash:    "sha256:37cdaefa58c3db20f0cfe15f89b01103b8de74a049c4f197cfe4fbd5b235fd42"
+				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2CoreComposeRenderInputs.inputBindings
 				outputs: ["platform/basement-core/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
 				serviceEndpoints: _basementCoreServiceEndpoints
@@ -6229,11 +6603,11 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "terramate", kind:                               "terramate", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/terramate/v1", version: "1.0.0"
-				contractHash:    "sha256:7ec10f279cb5483f6d0260ffe4f715f33f3db852838a894ba0c78e4d24baf4da"
-				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
-				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
-				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
-				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+				contractHash:    "sha256:24f02599c66b117b48c52470907300b28aca30f83c60e1336974be4dee21632f"
+				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2CoreComposeRenderInputs.inputBindings
 				outputs: [
 					"platform/basement-core/main.tf",
 					"platform/basement-core/stack.tm.hcl",
@@ -6247,28 +6621,28 @@ _architectureV2Modules: list.Concat([[
 		renderVariants: [
 			{
 				id:           "compose", target: "compose", rendererRef: "stackkit"
-				contractHash: "sha256:4db83db58296db815c26fdd95b16e1f1099c6c18648be77cf60efa74da9a2e53"
+				contractHash: "sha256:e3a6bc1d4d6535820c078be09a73e6b6570ecfade6308b308b3107b43bab572d"
 				unitRefs: ["compose", "source-policy"], artifactRefs: ["basement-core-compose", "local-kopia-backup-source-policy"]
-				publicInputRefs: ["backup-source"], secretInputRefs: []
+				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs, secretInputRefs: []
 				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
-				contractHash: "sha256:c7628f0520224fa57f4934e20711c55f15a50f2ed00721f67e662941a616037c"
+				contractHash: "sha256:467b1890a9f818d1a0d0f18b31f180493bb0b7cb4be53b0db07f72c64fcc9324"
 				unitRefs: ["opentofu", "source-policy"], artifactRefs: ["basement-core-opentofu", "local-kopia-backup-source-policy"]
-				publicInputRefs: ["backup-source"], secretInputRefs: []
+				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs, secretInputRefs: []
 				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
-				contractHash: "sha256:7ec10f279cb5483f6d0260ffe4f715f33f3db852838a894ba0c78e4d24baf4da"
+				contractHash: "sha256:24f02599c66b117b48c52470907300b28aca30f83c60e1336974be4dee21632f"
 				unitRefs: ["terramate", "source-policy"]
 				artifactRefs: [
 					"basement-core-terramate-opentofu",
 					"basement-core-terramate-stack",
 					"local-kopia-backup-source-policy",
 				]
-				publicInputRefs: ["backup-source"], secretInputRefs: []
+				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs, secretInputRefs: []
 				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 			},
 		]
@@ -6277,7 +6651,7 @@ _architectureV2Modules: list.Concat([[
 			scope:           "concrete"
 			level:           "apply-ready"
 			compatibleRendererRefs: ["stackkit"]
-			inputs: {contractComplete: true, requiredRefs: ["backup-source"]}
+			inputs: {contractComplete: true, requiredRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs}
 			planInputs: {
 				contractComplete: true
 				requiredRefs:     _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
@@ -6411,8 +6785,8 @@ _architectureV2Modules: list.Concat([[
 				{
 					id: "pocketid", role: "application", lifecycle: "daemon"
 					image: {
-						ref:    "ghcr.io/pocket-id/pocket-id:v2.7.0"
-						digest: "sha256:45bdeaf3fcd6d07cf8721e98785d93324bb8e65b586498874c05a3d489c8094e"
+						ref:    "ghcr.io/pocket-id/pocket-id:v2.16.0"
+						digest: "sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea"
 					}
 					dependsOn: [], networkRefs: ["basement-core"]
 					volumes: [{id: "pocketid-data", target: "/app/data", class: "persistent", backup: true}]
@@ -6422,8 +6796,8 @@ _architectureV2Modules: list.Concat([[
 				{
 					id: "tinyauth", role: "application", lifecycle: "daemon"
 					image: {
-						ref:    "ghcr.io/steveiliop56/tinyauth:v5.0.7"
-						digest: "sha256:0793c71c49906e079d90c7e693cded9df569217a92d717dc9b171f2116fcd1c6"
+						ref:    "ghcr.io/tinyauthapp/tinyauth:v5.1.2"
+						digest: "sha256:910f84801dc9597398458d45f8d305eb232dc583d6927c87cc29626527947d35"
 					}
 					dependsOn: ["pocketid"], networkRefs: ["basement-core"]
 					volumes: [{id: "tinyauth-data", target: "/data", class: "persistent", backup: true}]
@@ -6480,26 +6854,26 @@ _architectureV2Modules: list.Concat([[
 		serviceControls: _basementCoreLiteServiceControls
 		renderUnits: [
 			{
-				id:           "compose", kind:                                         "compose", rendererRef: "stackkit"
-				templateRef:  "builtin://basement/core-lite/compose/v1.yaml", version: "1.0.0"
-				contractHash: "sha256:9347b8814c03c8e33f0120768078f82bc4d02ab5e490983a7931abfe0ea65b4c"
-				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
-				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
-				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
-				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+				id:              "compose", kind:                                         "compose", rendererRef: "stackkit"
+				templateRef:     "builtin://basement/core-lite/compose/v1.yaml", version: "1.0.0"
+				contractHash:    "sha256:faabf13c3aa81a4e9168ef5969474cce35e2969c91dbe6625899221bd82cb545"
+				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2CoreComposeRenderInputs.inputBindings
 				outputs: ["platform/basement-core-lite/compose.yaml"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
 				serviceEndpoints: _basementCoreLiteServiceEndpoints
 				runtimeListeners: _basementCoreLiteRuntimeListeners
 			},
 			{
-				id:           "opentofu", kind:                                       "opentofu", rendererRef: "stackkit"
-				templateRef:  "builtin://basement/core-lite/opentofu/v1.tf", version: "1.0.0"
-				contractHash: "sha256:c2a2fc6d92a29440e3fb39232815f4df8007731e52798eaae8511f2fc8a9caf0"
-				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
-				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
-				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
-				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+				id:              "opentofu", kind:                                       "opentofu", rendererRef: "stackkit"
+				templateRef:     "builtin://basement/core-lite/opentofu/v1.tf", version: "1.0.0"
+				contractHash:    "sha256:b164d52ad3001d5f3903417d9c621114546f4722d86f1037eed25e8da050b4ec"
+				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2CoreComposeRenderInputs.inputBindings
 				outputs: ["platform/basement-core-lite/main.tf"]
 				placement: {scope: "node-local", cardinality: "one-per-node"}
 				serviceEndpoints: _basementCoreLiteServiceEndpoints
@@ -6508,11 +6882,11 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "terramate", kind:                                    "terramate", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/terramate/v1", version: "1.0.0"
-				contractHash:    "sha256:23d947aef35b7fbfe3b7667765361fdf0033ce3a2e44f8223c1b7ac090949036"
-				publicInputRefs: _architectureV2KopiaComposeRenderInputs.publicInputRefs
-				secretInputRefs: _architectureV2KopiaComposeRenderInputs.secretInputRefs
-				planInputRefs:   _architectureV2KopiaComposeRenderInputs.planInputRefs
-				inputBindings:   _architectureV2KopiaComposeRenderInputs.inputBindings
+				contractHash:    "sha256:66c2fee8f1d3b99323c588f4fdcb806e9a809ad29bdcdc8bb5a330ac21809480"
+				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
+				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
+				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
+				inputBindings:   _architectureV2CoreComposeRenderInputs.inputBindings
 				outputs: [
 					"platform/basement-core-lite/main.tf",
 					"platform/basement-core-lite/stack.tm.hcl",
@@ -6526,28 +6900,28 @@ _architectureV2Modules: list.Concat([[
 		renderVariants: [
 			{
 				id:           "compose", target: "compose", rendererRef: "stackkit"
-				contractHash: "sha256:01285f8be5db5c502de2ee4b53337ff4a46d8466e11ee14bfa43e8bb49702848"
+				contractHash: "sha256:8771b573e5c7c27010c4cc42325516160fac107bb222a78be69282c9ace5de55"
 				unitRefs: ["compose", "source-policy"], artifactRefs: ["basement-core-lite-compose", "local-kopia-backup-source-policy-lite"]
-				publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: []
+				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs, secretInputRefs: []
 				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
-				contractHash: "sha256:bf2e7666c7d2b3b994e82cf64a5469323521a4a4070d9bafc6a73b179029c6a7"
+				contractHash: "sha256:c2046573b59e6d5aec214e58d44ecff6b0e98c0aad81bd32f7508702e90863ab"
 				unitRefs: ["opentofu", "source-policy"], artifactRefs: ["basement-core-lite-opentofu", "local-kopia-backup-source-policy-lite"]
-				publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: []
+				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs, secretInputRefs: []
 				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
-				contractHash: "sha256:23d947aef35b7fbfe3b7667765361fdf0033ce3a2e44f8223c1b7ac090949036"
+				contractHash: "sha256:66c2fee8f1d3b99323c588f4fdcb806e9a809ad29bdcdc8bb5a330ac21809480"
 				unitRefs: ["terramate", "source-policy"]
 				artifactRefs: [
 					"basement-core-lite-terramate-opentofu",
 					"basement-core-lite-terramate-stack",
 					"local-kopia-backup-source-policy-lite",
 				]
-				publicInputRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs, secretInputRefs: []
+				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs, secretInputRefs: []
 				planInputRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs
 			},
 		]
@@ -6556,7 +6930,7 @@ _architectureV2Modules: list.Concat([[
 			scope:           "concrete"
 			level:           "apply-ready"
 			compatibleRendererRefs: ["stackkit"]
-			inputs: {contractComplete: true, requiredRefs: _architectureV2LocalKopiaSourceRenderUnit.publicInputRefs}
+			inputs: {contractComplete: true, requiredRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs}
 			planInputs: {contractComplete: true, requiredRefs: _architectureV2LocalKopiaSourceRenderUnit.planInputRefs}
 			artifacts: {
 				requiredRefs: [
@@ -6662,6 +7036,15 @@ _architectureV2Modules: list.Concat([[
 						DB_HOSTNAME:    "immich-postgres", DB_PORT:  "5432", DB_USERNAME:                 "immich", DB_DATABASE_NAME: "immich"
 						REDIS_HOSTNAME: "immich-valkey", REDIS_PORT: "6379", IMMICH_MACHINE_LEARNING_URL: "http://immich-machine-learning:3003"
 					}
+					homeIdentityAccess: {caBundleTarget: "/etc/stackkit/ca-bundle.pem", caBundleEnvironment: ["NODE_EXTRA_CA_CERTS"]}
+					pocketIDClient: {
+						callbackURLs: ["{{origin}}/auth/login", "{{origin}}/user-settings", "app.immich:///oauth-callback"]
+						environment: IMMICH_CONFIG_FILE: "/etc/stackkit/immich.json"
+						configuration: {
+							target: "/etc/stackkit/immich.json"
+							body:   "{\"oauth\":{\"autoLaunch\":true,\"autoRegister\":true,\"buttonText\":\"Continue with Pocket ID\",\"clientId\":\"{{clientId}}\",\"clientSecret\":\"{{clientSecret}}\",\"enabled\":true,\"issuerUrl\":\"{{issuer}}\",\"mobileOverrideEnabled\":false,\"mobileRedirectUri\":\"\",\"profileSigningAlgorithm\":\"none\",\"roleClaim\":\"immich_role\",\"scope\":\"openid email profile\",\"signingAlgorithm\":\"RS256\",\"tokenEndpointAuthMethod\":\"client_secret_post\"}}"
+						}
+					}
 					secretEnvironment: DB_PASSWORD: "database-password"
 					volumes: [for allocation in _architectureV2PhotosInfrastructure.storageAllocation.allocations if allocation.componentRef == "immich-server" {
 						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
@@ -6670,7 +7053,7 @@ _architectureV2Modules: list.Concat([[
 					resources: {memoryLimit: "3g", memoryReservation: "512m"}
 				},
 				{
-					id: "immich-machine-learning", role: "machine-learning", lifecycle: "daemon"
+					id:            "immich-machine-learning", role: "machine-learning", lifecycle: "daemon"
 					healthFailure: "degraded"
 					image: {
 						ref:    "ghcr.io/immich-app/immich-machine-learning:v2.7.0"
@@ -6734,8 +7117,8 @@ _architectureV2Modules: list.Concat([[
 			rendererRef: "stackkit"
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/immich/bundle/v2.json"
-			version:      "3.1.0"
-			contractHash: "sha256:bee5bc6660563dd30c44483b33d6247c501cc2ac5c493ba18c362ed1ea403a12"
+			version:      "3.2.0"
+			contractHash: "sha256:ed17e67b131e5525b1e4436cf2794ab121a82b2164b3532d0a99ec1970f344a5"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -6751,7 +7134,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "photos"
 				upstreamProtocol: "http"
 				targetPort:       2283
-				ingressAuth:       "forward-auth"
+				ingressAuth:      "forward-auth"
 				allowedIngressProtocols: ["http", "https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -6842,6 +7225,15 @@ _architectureV2Modules: list.Concat([[
 						REDIS_HOSTNAME:                  "immich-valkey", REDIS_PORT: "6379"
 						IMMICH_MACHINE_LEARNING_ENABLED: "false"
 					}
+					homeIdentityAccess: {caBundleTarget: "/etc/stackkit/ca-bundle.pem", caBundleEnvironment: ["NODE_EXTRA_CA_CERTS"]}
+					pocketIDClient: {
+						callbackURLs: ["{{origin}}/auth/login", "{{origin}}/user-settings", "app.immich:///oauth-callback"]
+						environment: IMMICH_CONFIG_FILE: "/etc/stackkit/immich.json"
+						configuration: {
+							target: "/etc/stackkit/immich.json"
+							body:   "{\"oauth\":{\"autoLaunch\":true,\"autoRegister\":true,\"buttonText\":\"Continue with Pocket ID\",\"clientId\":\"{{clientId}}\",\"clientSecret\":\"{{clientSecret}}\",\"enabled\":true,\"issuerUrl\":\"{{issuer}}\",\"mobileOverrideEnabled\":false,\"mobileRedirectUri\":\"\",\"profileSigningAlgorithm\":\"none\",\"roleClaim\":\"immich_role\",\"scope\":\"openid email profile\",\"signingAlgorithm\":\"RS256\",\"tokenEndpointAuthMethod\":\"client_secret_post\"}}"
+						}
+					}
 					secretEnvironment: DB_PASSWORD: "database-password"
 					volumes: [for allocation in _architectureV2PhotosLiteInfrastructure.storageAllocation.allocations if allocation.componentRef == "immich-server" {
 						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
@@ -6896,8 +7288,8 @@ _architectureV2Modules: list.Concat([[
 			rendererRef: "stackkit"
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/immich-lite/bundle/v2.json"
-			version:      "3.1.0"
-			contractHash: "sha256:5eb57d279f18736169bef048d15a7328162848d3ab2750452f2d057637d0fe17"
+			version:      "3.2.0"
+			contractHash: "sha256:a95e4ce488d83f6dca0e914f49a8e9f318b0da3d08002b47affe55580825ede5"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -6913,7 +7305,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "photos"
 				upstreamProtocol: "http"
 				targetPort:       2283
-				ingressAuth:       "forward-auth"
+				ingressAuth:      "forward-auth"
 				allowedIngressProtocols: ["http", "https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -6928,13 +7320,13 @@ _architectureV2Modules: list.Concat([[
 		renderVariants: [
 			{
 				id:           "compose", target: "compose", rendererRef: "stackkit"
-				contractHash: "sha256:5eb57d279f18736169bef048d15a7328162848d3ab2750452f2d057637d0fe17"
+				contractHash: "sha256:a95e4ce488d83f6dca0e914f49a8e9f318b0da3d08002b47affe55580825ede5"
 				unitRefs: ["immich-server"], artifactRefs: ["immich-lite-workload-bundle"]
 				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
-				contractHash: "sha256:5eb57d279f18736169bef048d15a7328162848d3ab2750452f2d057637d0fe17"
+				contractHash: "sha256:a95e4ce488d83f6dca0e914f49a8e9f318b0da3d08002b47affe55580825ede5"
 				unitRefs: ["immich-server"], artifactRefs: ["immich-lite-workload-bundle"]
 				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password"], planInputRefs: []
 			},
@@ -7003,7 +7395,7 @@ _architectureV2Modules: list.Concat([[
 					resources: {memoryLimit: "3g", memoryReservation: "512m"}
 				},
 				{
-					id: "nextcloud-postgres", role: "database", lifecycle: "daemon"
+					id:    "nextcloud-postgres", role: "database", lifecycle: "daemon"
 					image: _architectureV2PaperlessPostgresImage
 					dependsOn: [], networkRefs: ["nextcloud-internal"]
 					environment: {POSTGRES_DB: "nextcloud", POSTGRES_USER: "nextcloud"}
@@ -7015,7 +7407,7 @@ _architectureV2Modules: list.Concat([[
 					resources: {memoryLimit: "1g", memoryReservation: "256m"}
 				},
 				{
-					id: "nextcloud-valkey", role: "cache", lifecycle: "daemon"
+					id:    "nextcloud-valkey", role: "cache", lifecycle: "daemon"
 					image: _architectureV2PaperlessValkeyImage
 					dependsOn: [], networkRefs: ["nextcloud-internal"]
 					command: ["valkey-server"]
@@ -7039,7 +7431,7 @@ _architectureV2Modules: list.Concat([[
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: [{
 				serviceRef:        "files", upstreamProtocol: "http", targetPort: 80
-				requiredPrivilege: "user", ingressAuth: "forward-auth", allowedIngressProtocols: ["https"]
+				requiredPrivilege: "user", ingressAuth:       "forward-auth", allowedIngressProtocols: ["https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site", healthRef: "nextcloud-http"
 				data: {bindingRef: _architectureV2FilesNextcloudInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2FilesNextcloudInfrastructure.dataBinding.classes, locality: _architectureV2FilesNextcloudInfrastructure.dataBinding.locality}
@@ -7137,7 +7529,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "files"
 				upstreamProtocol: "http"
 				targetPort:       5212
-				ingressAuth:       "forward-auth"
+				ingressAuth:      "forward-auth"
 				allowedIngressProtocols: ["http", "https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -7252,7 +7644,7 @@ _architectureV2Modules: list.Concat([[
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: [{
 				serviceRef:        "vault", upstreamProtocol: "http", targetPort: 8080
-				requiredPrivilege: "user", ingressAuth: "forward-auth", allowedIngressProtocols: ["https"]
+				requiredPrivilege: "user", ingressAuth:       "forward-auth", allowedIngressProtocols: ["https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site", healthRef: "passbolt-http"
 				data: {bindingRef: _architectureV2VaultPassboltInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2VaultPassboltInfrastructure.dataBinding.classes, locality: _architectureV2VaultPassboltInfrastructure.dataBinding.locality}
@@ -7320,7 +7712,18 @@ _architectureV2Modules: list.Concat([[
 				}
 				dependsOn: []
 				networkRefs: ["vaultwarden-internal"]
-				environment: SIGNUPS_ALLOWED:   "false"
+				environment: SIGNUPS_ALLOWED: "false"
+				homeIdentityAccess: {caBundleTarget: "/etc/stackkit/ca-bundle.pem", caBundleEnvironment: ["SSL_CERT_FILE"]}
+				pocketIDClient: {
+					callbackURLs: ["{{origin}}/identity/connect/oidc-signin"]
+					environment: {
+						DOMAIN:                  "{{origin}}"
+						SSO_ENABLED:             "true", SSO_ONLY:                             "false", SSO_PKCE:                 "true"
+						SSO_CLIENT_ID:           "{{clientId}}", SSO_CLIENT_SECRET:            "{{clientSecret}}", SSO_AUTHORITY: "{{issuer}}"
+						SSO_SCOPES:              "email profile", SSO_AUTH_ONLY_NOT_SESSION:   "true"
+						SSO_SIGNUPS_MATCH_EMAIL: "true", SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION: "false"
+					}
+				}
 				secretEnvironment: ADMIN_TOKEN: "admin-token"
 				volumes: [for allocation in _architectureV2VaultInfrastructure.storageAllocation.allocations if allocation.componentRef == "vaultwarden" {
 					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
@@ -7336,7 +7739,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/vaultwarden/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:9355fcb2ec38ca6805efa7eaec56029d40fc63338ff4dc3a530c650b43b52e7e"
+			contractHash: "sha256:44226a82f065830cdc96c5d73667432429b8ba8f65ff0d71e692e32cc8b40cee"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -7353,7 +7756,7 @@ _architectureV2Modules: list.Concat([[
 				upstreamProtocol:  "http"
 				targetPort:        80
 				requiredPrivilege: "vault"
-				ingressAuth:        "forward-auth"
+				ingressAuth:       "forward-auth"
 				allowedIngressProtocols: ["http", "https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -7413,6 +7816,7 @@ _architectureV2Modules: list.Concat([[
 		}
 		computeProfiles:       _architectureV2PrivateAIComputeProfiles
 		defaultComputeProfile: "standard"
+		acceleratorProfiles:   _architectureV2PrivateAIAcceleratorProfiles
 		runtime: {
 			kind:              "container"
 			delivery:          "application-adapter"
@@ -7427,6 +7831,26 @@ _architectureV2Modules: list.Concat([[
 				environment: {OFFLINE_MODE: "true", HF_HUB_OFFLINE: "1", OLLAMA_BASE_URL: "http://ollama:11434", ENABLE_SIGNUP: "false", ENABLE_PERSISTENT_CONFIG: "false", ENABLE_OPENAI_API: "false", RAG_EMBEDDING_MODEL_AUTO_UPDATE: "false", WHISPER_MODEL_AUTO_UPDATE: "false"}
 				ownerEnvironment: {WEBUI_ADMIN_EMAIL: "email"}
 				secretEnvironment: {WEBUI_ADMIN_PASSWORD: "owner-password", WEBUI_SECRET_KEY: "session-key"}
+				// Wiring to the Private AI add-ons: each entry renders only while
+				// its add-on is selected on this node (workloads.companions).
+				// Variable names follow Open WebUI v0.11.3 backend/open_webui/config.py.
+				companionEnvironment: [
+					{workloadRef: "ai-documents", alternativeRef: "docling", environment: {CONTENT_EXTRACTION_ENGINE: "docling", DOCLING_SERVER_URL: "http://docling:5001"}},
+					{workloadRef: "ai-documents", alternativeRef: "tika", environment: {CONTENT_EXTRACTION_ENGINE: "tika", TIKA_SERVER_URL: "http://tika:9998", TIKA_SERVER_VERSION: "4"}},
+					{workloadRef: "ai-search", alternativeRef: "searxng", environment: {ENABLE_WEB_SEARCH: "true", WEB_SEARCH_ENGINE: "searxng", SEARXNG_QUERY_URL: "http://searxng:8080/search"}},
+					// Image generation through ComfyUI with the FLUX.1 schnell preset
+					// (stackkit setup ai-image-video); the workflow is ComfyUI API format.
+					{workloadRef: "ai-image-video", alternativeRef: "comfyui", environment: {
+						ENABLE_IMAGE_GENERATION: "true"
+						IMAGE_GENERATION_ENGINE: "comfyui"
+						COMFYUI_BASE_URL:        "http://comfyui:8188"
+						IMAGE_GENERATION_MODEL:  "flux1-schnell-fp8.safetensors"
+						IMAGE_SIZE:              "1024x1024"
+						IMAGE_STEPS:             "4"
+						COMFYUI_WORKFLOW:        #"{"3":{"class_type":"KSampler","inputs":{"cfg":1,"denoise":1,"latent_image":["5",0],"model":["4",0],"negative":["7",0],"positive":["6",0],"sampler_name":"euler","scheduler":"simple","seed":0,"steps":4}},"4":{"class_type":"CheckpointLoaderSimple","inputs":{"ckpt_name":"flux1-schnell-fp8.safetensors"}},"5":{"class_type":"EmptySD3LatentImage","inputs":{"batch_size":1,"height":1024,"width":1024}},"6":{"class_type":"CLIPTextEncode","inputs":{"clip":["4",1],"text":""}},"7":{"class_type":"CLIPTextEncode","inputs":{"clip":["4",1],"text":""}},"8":{"class_type":"VAEDecode","inputs":{"samples":["3",0],"vae":["4",2]}},"9":{"class_type":"SaveImage","inputs":{"filename_prefix":"open-webui/image","images":["8",0]}}}"#
+						COMFYUI_WORKFLOW_NODES:  #"[{"type":"model","key":"ckpt_name","node_ids":["4"]},{"type":"prompt","key":"text","node_ids":["6"]},{"type":"width","key":"width","node_ids":["5"]},{"type":"height","key":"height","node_ids":["5"]},{"type":"n","key":"batch_size","node_ids":["5"]},{"type":"steps","key":"steps","node_ids":["3"]},{"type":"seed","key":"seed","node_ids":["3"]}]"#
+					}},
+				]
 				volumes: [{id: "data", target: "/app/backend/data", class: "persistent", backup: true}]
 				health: {kind: "http", path: "/health", port: 8080}
 				resources: {memoryLimit: "2g", memoryReservation: "512m"}
@@ -7448,11 +7872,14 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/private-ai/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:a8e2e18dfbc0f0d17e11d6ac959c9313a501370c37f1d9f8ff2ea63f3e4c64bf"
-			publicInputRefs: ["delivery-route"]
+			contractHash: "sha256:3480951e70e98341a0f03a30d1c30da35b5768417c2b055a8fcff5cebe6e5159"
+			publicInputRefs: ["delivery-route", "companions"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
 				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}, {
+				targetRef: "companions", sourceRef:                   "workloads.companions"
+				valueType: "workload-companion-list-v1", cardinality: "list", required: false, defaultValue: []
 			}]
 			secretInputRefs: ["owner-password", "session-key"]
 			outputs: ["workloads/private-ai/bundle.json"]
@@ -7465,7 +7892,7 @@ _architectureV2Modules: list.Concat([[
 				upstreamProtocol:  "http"
 				targetPort:        8080
 				requiredPrivilege: "user"
-				ingressAuth:        "forward-auth"
+				ingressAuth:       "forward-auth"
 				allowedIngressProtocols: ["http", "https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -7482,19 +7909,19 @@ _architectureV2Modules: list.Concat([[
 				id:           "compose", target: "compose", rendererRef: "stackkit"
 				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
 				unitRefs: ["private-ai"], artifactRefs: ["private-ai-workload-bundle"]
-				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
+				publicInputRefs: ["delivery-route", "companions"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
 				unitRefs: ["private-ai"], artifactRefs: ["private-ai-workload-bundle"]
-				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
+				publicInputRefs: ["delivery-route", "companions"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
 				contractHash: _architectureV2TerramateStackHashes.workload
 				unitRefs: ["private-ai", "terramate-stack"], artifactRefs: ["private-ai-workload-bundle", _architectureV2PrivateAITerramateStack.contract.id]
-				publicInputRefs: ["delivery-route"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
+				publicInputRefs: ["delivery-route", "companions"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
 			},
 		]
 		realizationSupport: _architectureV2PrivateAISupport
@@ -7508,6 +7935,426 @@ _architectureV2Modules: list.Concat([[
 			expectedStatuses: [200]
 		}]
 		evidence: ["private-ai-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-comfyui-runtime"
+			version:     "1.0.0"
+			description: "ComfyUI image and video generation on the node's NVIDIA GPU with reviewed workflow templates. It never loads ComfyUI-Manager, custom nodes or paid API nodes, holds no model until the owner downloads a preset, and is reached only on a private route behind the kit's login and by Open WebUI."
+		}
+		role:        "workload"
+		providerRef: "stackkits-comfyui"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2ComfyUIComputeProfiles
+		defaultComputeProfile: "standard"
+		acceleratorProfiles:   _architectureV2ComfyUIAcceleratorProfiles
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "comfyui"
+			components: [{
+				id: "comfyui", role: "application", lifecycle: "daemon"
+				image: _architectureV2ComfyUIImage
+				dependsOn: []
+				networkRefs: ["comfyui-internal"]
+				// Open WebUI reaches ComfyUI on the private AI network.
+				peerNetworks: [{workloadRef: "ai", networkRef: "private-ai-internal"}]
+				// Only owner-approved model downloads (stackkit setup) use egress.
+				egress: true
+				// Custom nodes run arbitrary Python and ComfyUI-Manager can install
+				// them remotely: neither is ever loaded. API nodes (paid external
+				// services) are off, which also keeps the frontend offline.
+				command: ["python", "main.py", "--listen", "0.0.0.0", "--port", "8188", "--disable-all-custom-nodes", "--disable-api-nodes"]
+				volumes: [for allocation in _architectureV2ComfyUIInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+				}]
+				health: {kind: "http", path: "/system_stats", port: 8188}
+				resources: {memoryLimit: "28g", memoryReservation: "2g"}
+			}]
+		}
+		renderUnits: [{
+			id:          "comfyui"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/comfyui/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:ee2b5f0f8ecc6c2f2cda5947667987b44455e132bafaf2c9da8e3e681a8ed129"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: []
+			outputs: ["workloads/comfyui/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			// ComfyUI has no sign-in of its own: only a private route behind
+			// the kit's login, never public.
+			serviceEndpoints: [{
+				serviceRef:        "ai-image-video"
+				upstreamProtocol:  "http"
+				targetPort:        8188
+				requiredPrivilege: "user"
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private"]
+				originSelector: "control-authority-site"
+				healthRef:      "comfyui-http"
+				data: {
+					bindingRef:      _architectureV2ComfyUIInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2ComfyUIInfrastructure.dataBinding.classes
+					locality:        _architectureV2ComfyUIInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2ComfyUITerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["comfyui"], artifactRefs: ["comfyui-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["comfyui"], artifactRefs: ["comfyui-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["comfyui", "terramate-stack"], artifactRefs: ["comfyui-workload-bundle", _architectureV2ComfyUITerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2ComfyUISupport
+		health: [{
+			id:             "comfyui-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/system_stats"
+			port:           8188
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["comfyui-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-searxng-runtime"
+			version:     "1.0.0"
+			description: "Private SearXNG meta search for Open WebUI web search on the node's private AI network. JSON results are enabled for Open WebUI; the limiter stays off because only Open WebUI reaches it and it has no route."
+		}
+		role:        "workload"
+		providerRef: "stackkits-searxng"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2SearxngComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "searxng"
+			components: [{
+				id: "searxng", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "docker.io/searxng/searxng:2026.9.25-12f8b6515"
+					digest: "sha256:5286edb35782454ab8a102c5eff6b54bff745853191b46aeead95f225aa6dfb6"
+				}
+				dependsOn: []
+				networkRefs: ["searxng-internal"]
+				peerNetworks: [{workloadRef: "ai", networkRef: "private-ai-internal"}]
+				egress: true
+				// The upstream container entrypoint (searxng/searxng container/)
+				// creates settings.yml only when absent; StackKits writes the
+				// minimal override at every start so JSON results stay enabled.
+				// The secret key comes from custody through SEARXNG_SECRET.
+				entrypoint: ["/bin/sh", "-ec", "printf 'use_default_settings: true\\nsearch:\\n  formats:\\n    - html\\n    - json\\n' > /etc/searxng/settings.yml && exec /usr/local/searxng/entrypoint.sh"]
+				environment: {SEARXNG_LIMITER: "false", SEARXNG_PUBLIC_INSTANCE: "false"}
+				secretEnvironment: {SEARXNG_SECRET: "searxng-secret"}
+				health: {kind: "http", path: "/healthz", port: 8080}
+				resources: {memoryLimit: "512m", memoryReservation: "128m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "searxng"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/searxng/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:01fa446a7349ea63d30c58a765c9a94e913a55d0e04a13d52ee8f5fb6e01b89d"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["searxng-secret"]
+			outputs: ["workloads/searxng/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			// Reached by Open WebUI only; an owner route may be local or
+			// remote-private, never public.
+			serviceEndpoints: [{
+				serviceRef:       "ai-search"
+				upstreamProtocol: "http"
+				targetPort:       8080
+				ingressAuth:      "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private"]
+				originSelector: "control-authority-site"
+				healthRef:      "searxng-http"
+			}]
+		}, _architectureV2SearxngTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["searxng"], artifactRefs: ["searxng-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["searxng-secret"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["searxng"], artifactRefs: ["searxng-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["searxng-secret"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["searxng", "terramate-stack"], artifactRefs: ["searxng-workload-bundle", _architectureV2SearxngTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["searxng-secret"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2SearxngSupport
+		health: [{
+			id:             "searxng-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/healthz"
+			port:           8080
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["searxng-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-tika-runtime"
+			version:     "1.0.0"
+			description: "Apache Tika server (minimal image, no OCR) that extracts text from PDFs and office files for Open WebUI on the node's private AI network."
+		}
+		role:        "workload"
+		providerRef: "stackkits-tika"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2TikaComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "tika"
+			components: [{
+				id: "tika", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "docker.io/apache/tika:4.0.0-1"
+					digest: "sha256:a8b442501f601fb15015de974f9afe13dd242b0f14e49a2b144fadcb214a555b"
+				}
+				dependsOn: []
+				networkRefs: ["tika-internal"]
+				peerNetworks: [{workloadRef: "ai", networkRef: "private-ai-internal"}]
+				health: {kind: "http", path: "/tika", port: 9998}
+				resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "tika"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/tika/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:f38ee59d1693016608198af8534946b241887ec1c8cef19ca6faed7ecf291260"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: []
+			outputs: ["workloads/tika/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			// Reached by Open WebUI only; an owner route may be local or
+			// remote-private, never public.
+			serviceEndpoints: [{
+				serviceRef:       "ai-documents"
+				upstreamProtocol: "http"
+				targetPort:       9998
+				ingressAuth:      "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private"]
+				originSelector: "control-authority-site"
+				healthRef:      "tika-http"
+			}]
+		}, _architectureV2TikaTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["tika"], artifactRefs: ["tika-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["tika"], artifactRefs: ["tika-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["tika", "terramate-stack"], artifactRefs: ["tika-workload-bundle", _architectureV2TikaTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2TikaSupport
+		health: [{
+			id:             "tika-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/tika"
+			port:           9998
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["tika-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-docling-runtime"
+			version:     "1.0.0"
+			description: "Docling Serve (CPU image with its layout, table and OCR models built in) that converts scanned and complex-layout documents for Open WebUI on the node's private AI network."
+		}
+		role:        "workload"
+		providerRef: "stackkits-docling"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2DoclingComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "docling"
+			components: [{
+				id: "docling", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "quay.io/docling-project/docling-serve-cpu:v1.35.0"
+					digest: "sha256:79e5fcd19ab227ed36323fa5fa31820d14d53efc4f073417ba37be7931c7af0a"
+				}
+				dependsOn: []
+				networkRefs: ["docling-internal"]
+				peerNetworks: [{workloadRef: "ai", networkRef: "private-ai-internal"}]
+				// Models are part of the image; nothing is downloaded at runtime.
+				environment: {HF_HUB_OFFLINE: "1", DOCLING_SERVE_ENABLE_UI: "false", DOCLING_SERVE_MAX_SYNC_WAIT: "600"}
+				health: {kind: "http", path: "/health", port: 5001}
+				resources: {memoryLimit: "6g", memoryReservation: "1g"}
+			}]
+		}
+		renderUnits: [{
+			id:          "docling"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/docling/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:e1a5d72a2922ab1273d33bef31195721a2bd2c5e1311f376496ee4dd6d1c9d7f"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: []
+			outputs: ["workloads/docling/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			// Reached by Open WebUI only; an owner route may be local or
+			// remote-private, never public.
+			serviceEndpoints: [{
+				serviceRef:       "ai-documents"
+				upstreamProtocol: "http"
+				targetPort:       5001
+				ingressAuth:      "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private"]
+				originSelector: "control-authority-site"
+				healthRef:      "docling-http"
+			}]
+		}, _architectureV2DoclingTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["docling"], artifactRefs: ["docling-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["docling"], artifactRefs: ["docling-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["docling", "terramate-stack"], artifactRefs: ["docling-workload-bundle", _architectureV2DoclingTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2DoclingSupport
+		health: [{
+			id:             "docling-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/health"
+			port:           5001
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["docling-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {
@@ -7617,7 +8464,7 @@ _architectureV2Modules: list.Concat([[
 				upstreamProtocol:  "http"
 				targetPort:        3000
 				requiredPrivilege: "user"
-				ingressAuth:        "forward-auth"
+				ingressAuth:       "forward-auth"
 				allowedIngressProtocols: ["https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -7763,7 +8610,7 @@ _architectureV2Modules: list.Concat([[
 				upstreamProtocol:  "http"
 				targetPort:        3000
 				requiredPrivilege: "user"
-				ingressAuth:        "forward-auth"
+				ingressAuth:       "forward-auth"
 				allowedIngressProtocols: ["https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -7902,7 +8749,7 @@ _architectureV2Modules: list.Concat([[
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: [{
 				serviceRef:        "documents", upstreamProtocol: "http", targetPort: 8000
-				requiredPrivilege: "user", ingressAuth: "forward-auth", allowedIngressProtocols: ["https"]
+				requiredPrivilege: "user", ingressAuth:           "forward-auth", allowedIngressProtocols: ["https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site", healthRef: "paperless-http"
 				data: {bindingRef: _architectureV2DocumentsInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2DocumentsInfrastructure.dataBinding.classes, locality: _architectureV2DocumentsInfrastructure.dataBinding.locality}
@@ -7946,7 +8793,7 @@ _architectureV2Modules: list.Concat([[
 				entrypoint: ["/bin/sh", "/var/roundcube/config/stackkit/init.sh"]
 				command: ["apache2-foreground"]
 				environment: {
-					ROUNDCUBEMAIL_DB_TYPE:     "sqlite"
+					ROUNDCUBEMAIL_DB_TYPE:      "sqlite"
 					ROUNDCUBEMAIL_DB_DIR:       "/var/roundcube/db"
 					ROUNDCUBEMAIL_SKIN:         "elastic"
 					ROUNDCUBEMAIL_PLUGINS:      "archive,zipdownload"
@@ -7975,7 +8822,7 @@ _architectureV2Modules: list.Concat([[
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: [{
 				serviceRef:        "mail", upstreamProtocol: "http", targetPort: 80
-				requiredPrivilege: "user", ingressAuth: "native", allowedIngressProtocols: ["https"]
+				requiredPrivilege: "user", ingressAuth:      "native", allowedIngressProtocols: ["https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site", healthRef: "roundcube-http"
 				data: {bindingRef: _architectureV2MailInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2MailInfrastructure.dataBinding.classes, locality: _architectureV2MailInfrastructure.dataBinding.locality}
@@ -8042,7 +8889,7 @@ _architectureV2Modules: list.Concat([[
 			placement: {scope: "node-local", cardinality: "one-per-node"}
 			serviceEndpoints: [{
 				serviceRef:        "mail-server", upstreamProtocol: "http", targetPort: 8080
-				requiredPrivilege: "user", ingressAuth: "native", allowedIngressProtocols: ["https"]
+				requiredPrivilege: "user", ingressAuth:             "native", allowedIngressProtocols: ["https"]
 				// Mail needs a public host name; private exposures are refused.
 				allowedExposures: ["public"]
 				originSelector: "control-authority-site", healthRef: "stalwart-http"
@@ -8083,27 +8930,27 @@ _architectureV2Modules: list.Concat([[
 					entrypoint: ["/bin/ash", "/stackkit/panel-entrypoint.sh"]
 					command: ["supervisord", "-n", "-c", "/etc/supervisord.conf"]
 					environment: {
-						APP_ENV:              "production"
-						APP_ENVIRONMENT_ONLY: "false"
-						APP_TIMEZONE:         "UTC"
-						CACHE_DRIVER:         "redis"
-						SESSION_DRIVER:       "redis"
-						QUEUE_DRIVER:         "redis"
-						REDIS_HOST:           "panel-cache"
-						DB_HOST:              "panel-database"
-						DB_PORT:              "3306"
-						DB_DATABASE:          "panel"
-						DB_USERNAME:          "pterodactyl"
-						MAIL_DRIVER:          "log"
-						TRUSTED_PROXIES:      "*"
+						APP_ENV:                       "production"
+						APP_ENVIRONMENT_ONLY:          "false"
+						APP_TIMEZONE:                  "UTC"
+						CACHE_DRIVER:                  "redis"
+						SESSION_DRIVER:                "redis"
+						QUEUE_DRIVER:                  "redis"
+						REDIS_HOST:                    "panel-cache"
+						DB_HOST:                       "panel-database"
+						DB_PORT:                       "3306"
+						DB_DATABASE:                   "panel"
+						DB_USERNAME:                   "pterodactyl"
+						MAIL_DRIVER:                   "log"
+						TRUSTED_PROXIES:               "*"
 						PTERODACTYL_TELEMETRY_ENABLED: "false"
 						RECAPTCHA_ENABLED:             "false"
 					}
 					ownerEnvironment: {APP_SERVICE_AUTHOR: "email"}
 					secretEnvironment: {
-						DB_PASSWORD:              "database-password"
-						STACKKIT_APP_KEY:         "app-key"
-						STACKKIT_HASHIDS_SALT:    "hashids-salt"
+						DB_PASSWORD:           "database-password"
+						STACKKIT_APP_KEY:      "app-key"
+						STACKKIT_HASHIDS_SALT: "hashids-salt"
 					}
 					// The Panel reaches its node under its own route host on
 					// loopback, so console and API calls never cross the router.
@@ -8147,19 +8994,19 @@ _architectureV2Modules: list.Concat([[
 					entrypoint: ["/bin/ash"]
 					command: ["/stackkit/bootstrap.sh"]
 					environment: {
-						APP_ENV:              "production"
-						APP_ENVIRONMENT_ONLY: "false"
-						APP_TIMEZONE:         "UTC"
-						CACHE_DRIVER:         "redis"
-						SESSION_DRIVER:       "redis"
-						QUEUE_DRIVER:         "redis"
-						REDIS_HOST:           "panel-cache"
-						DB_HOST:              "panel-database"
-						DB_PORT:              "3306"
-						DB_DATABASE:          "panel"
-						DB_USERNAME:          "pterodactyl"
-						MAIL_DRIVER:          "log"
-						TRUSTED_PROXIES:      "*"
+						APP_ENV:                       "production"
+						APP_ENVIRONMENT_ONLY:          "false"
+						APP_TIMEZONE:                  "UTC"
+						CACHE_DRIVER:                  "redis"
+						SESSION_DRIVER:                "redis"
+						QUEUE_DRIVER:                  "redis"
+						REDIS_HOST:                    "panel-cache"
+						DB_HOST:                       "panel-database"
+						DB_PORT:                       "3306"
+						DB_DATABASE:                   "panel"
+						DB_USERNAME:                   "pterodactyl"
+						MAIL_DRIVER:                   "log"
+						TRUSTED_PROXIES:               "*"
 						PTERODACTYL_TELEMETRY_ENABLED: "false"
 						RECAPTCHA_ENABLED:             "false"
 					}
@@ -8221,7 +9068,7 @@ _architectureV2Modules: list.Concat([[
 			}]
 			serviceEndpoints: [{
 				serviceRef:        "game", upstreamProtocol: "http", targetPort: 80
-				requiredPrivilege: "user", ingressAuth: "native", allowedIngressProtocols: ["https"]
+				requiredPrivilege: "user", ingressAuth:      "native", allowedIngressProtocols: ["https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site", healthRef: "pterodactyl-panel-http"
 				data: {bindingRef: _architectureV2GameInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2GameInfrastructure.dataBinding.classes, locality: _architectureV2GameInfrastructure.dataBinding.locality}
@@ -8297,7 +9144,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "media"
 				upstreamProtocol: "http"
 				targetPort:       8096
-				ingressAuth:       "forward-auth"
+				ingressAuth:      "forward-auth"
 				allowedIngressProtocols: ["http", "https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -8403,7 +9250,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "media-music"
 				upstreamProtocol: "http"
 				targetPort:       4533
-				ingressAuth:       "forward-auth"
+				ingressAuth:      "forward-auth"
 				allowedIngressProtocols: ["http", "https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -8508,7 +9355,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "media-audiobooks"
 				upstreamProtocol: "http"
 				targetPort:       80
-				ingressAuth:       "forward-auth"
+				ingressAuth:      "forward-auth"
 				allowedIngressProtocols: ["http", "https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -8613,7 +9460,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "smart-home-esphome"
 				upstreamProtocol: "http"
 				targetPort:       6052
-				ingressAuth:       "forward-auth"
+				ingressAuth:      "forward-auth"
 				allowedIngressProtocols: ["https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -8720,7 +9567,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "files-office"
 				upstreamProtocol: "http"
 				targetPort:       80
-				ingressAuth:       "native"
+				ingressAuth:      "native"
 				allowedIngressProtocols: ["https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -8828,7 +9675,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "smart-home-mqtt"
 				upstreamProtocol: "http"
 				targetPort:       8080
-				ingressAuth:       "forward-auth"
+				ingressAuth:      "forward-auth"
 				allowedIngressProtocols: ["https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -8936,7 +9783,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "smart-home-zigbee"
 				upstreamProtocol: "http"
 				targetPort:       8080
-				ingressAuth:       "forward-auth"
+				ingressAuth:      "forward-auth"
 				allowedIngressProtocols: ["https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -9039,7 +9886,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "photos-share"
 				upstreamProtocol: "http"
 				targetPort:       3000
-				ingressAuth:       "native"
+				ingressAuth:      "native"
 				allowedIngressProtocols: ["https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -9142,7 +9989,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "photos-kiosk"
 				upstreamProtocol: "http"
 				targetPort:       3000
-				ingressAuth:       "forward-auth"
+				ingressAuth:      "forward-auth"
 				allowedIngressProtocols: ["https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -9250,7 +10097,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "photos-tools"
 				upstreamProtocol: "http"
 				targetPort:       3000
-				ingressAuth:       "forward-auth"
+				ingressAuth:      "forward-auth"
 				allowedIngressProtocols: ["https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -9319,11 +10166,21 @@ _architectureV2Modules: list.Concat([[
 			components: [{
 				id: "jellyfin", role: "application", lifecycle: "daemon"
 				image: {
-					ref:    "docker.io/jellyfin/jellyfin:10.10.7"
-					digest: "sha256:7ae36aab93ef9b6aaff02b37f8bb23df84bb2d7a3f6054ec8fc466072a648ce2"
+					ref:    "docker.io/jellyfin/jellyfin:12.1"
+					digest: "sha256:78d3ea1207d1322471fcac39a614f004f2ccf7e878f95ab2977d752f07e4dd7e"
 				}
 				dependsOn: []
 				networkRefs: ["jellyfin-internal"]
+				homeIdentityAccess: {caBundleTarget: "/etc/stackkit/ca-bundle.pem", caBundleEnvironment: ["SSL_CERT_FILE"]}
+				pocketIDClient: {
+					callbackURLs: ["{{origin}}/sso/OID/redirect/pocketid", "{{origin}}/sso/OID/r/pocketid"]
+					environment: {JELLYFIN_PublishedServerUrl: "{{origin}}"}
+				}
+				jellyfinSSOPlugin: {
+					version:   "5.1.1"
+					sha256:    "sha256:db126b4763bda3a3754fa2103232fc03ef1bf929cfeda35f2e9af39c875233b1"
+					sourceURL: "https://github.com/K0lin/jellyfin-plugin-sso/releases/download/v5.1.1/sso-authentication_5.1.1.zip"
+				}
 				volumes: [for allocation in _architectureV2MediaInfrastructure.storageAllocation.allocations if allocation.componentRef == "jellyfin" {
 					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
 					if allocation.volumeRef == "library" {readOnly: true}
@@ -9339,7 +10196,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/jellyfin/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:6d8bd298e33bffb6249a589cb7a845c513e0e0578bd186bb4c01bee0f00fc393"
+			contractHash: "sha256:9ae6436e4d6f64059b0686caa405d9379f776c0fe744c3793e24417a5334ccbb"
 			publicInputRefs: ["delivery-route", "storage-roots"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -9355,7 +10212,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "media"
 				upstreamProtocol: "http"
 				targetPort:       8096
-				ingressAuth:       "forward-auth"
+				ingressAuth:      "forward-auth"
 				allowedIngressProtocols: ["http", "https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -9430,6 +10287,40 @@ _architectureV2Modules: list.Concat([[
 				}
 				dependsOn: []
 				networkRefs: ["home-assistant-internal"]
+				homeIdentityAccess: {caBundleTarget: "/etc/stackkit/ca-bundle.pem", caBundleEnvironment: ["SSL_CERT_FILE"]}
+				pocketIDClient: {
+					publicClient: true
+					callbackPath: "/auth/oidc/callback"
+					environment: {}
+					configuration: {
+						target: "/config/stackkit-oidc.yaml"
+						body: """
+                            client_id: "{{clientId}}"
+                            discovery_url: "{{issuer}}/.well-known/openid-configuration"
+                            roles:
+                              admin: admins
+                              user: household
+                            claims:
+                              username: sub
+                              groups: groups
+                            features:
+                              automatic_user_linking: false
+                              force_https: true
+                              default_redirect: false
+                            network:
+                              tls_verify: true
+                              tls_ca_path: /etc/stackkit/ca-bundle.pem
+                            """
+					}
+				}
+				homeAssistantOIDC: {
+					version:        "1.2.1"
+					sha256:         "sha256:e5badaaacaa63cfd6fe733924a05e76d75058836190398598fb24de57cd47ccd"
+					patch:          "stackkit-owner-binding-v1"
+					patchSHA256:    "sha256:052c4e0b85b962a5fad74e395f250f4d5cf9eff63fa5be68fc1c4494535d1a8a"
+					aiofilesSHA256: "sha256:abe311e527c862958650f9438e859c1fa7568a141b22abcd015e120e86a85695"
+					joserfcSHA256:  "sha256:17e5d7a5a35e65442b05efc435a3d5d46696ffa2c8a2ed0eea6f63fc268e3224"
+				}
 				volumes: [for allocation in _architectureV2SmartHomeInfrastructure.storageAllocation.allocations if allocation.componentRef == "home-assistant" {
 					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
 				}]
@@ -9444,7 +10335,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/home-assistant/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:0c8716ed5f3b19245b14bc5304282edcbaef30f47c4bef6c65100b0070d37f77"
+			contractHash: "sha256:efe2146a150b11a0d77514036e60022c2830d63975ed0edd27029a52d8447710"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -9460,7 +10351,7 @@ _architectureV2Modules: list.Concat([[
 				serviceRef:       "smart-home"
 				upstreamProtocol: "http"
 				targetPort:       8123
-				ingressAuth:       "forward-auth"
+				ingressAuth:      "forward-auth"
 				allowedIngressProtocols: ["http", "https"]
 				allowedExposures: ["local", "remote-private", "public"]
 				originSelector: "control-authority-site"
@@ -9921,13 +10812,32 @@ _architectureV2RILActionExecutors: [{
 	}
 }]
 
+// Internal-only authority sources (architecture/v2/authority-manifest.json
+// internalSources) append their entries through these lists. Private builds
+// compile them into this one catalog; the public export removes those sources,
+// so the defaults below keep the public catalog complete without them.
+_architectureV2InternalProviders: *[] | [...]
+_architectureV2InternalModules: *[] | [...]
+_architectureV2InternalWorkloadContracts: *[] | [...]
+_architectureV2InternalApplicationLifecycleContracts: *[] | [...]
+_architectureV2InternalHomeWorkloadRefs: *[] | [...string]
+
+// ArchitectureV2RoutelessAddOnWorkloadRefs are optional add-on workloads that
+// only their primary application reaches over its internal network; kits give
+// them no initial route.
+ArchitectureV2RoutelessAddOnWorkloadRefs: ["ai-search", "ai-documents"]
+
+// ArchitectureV2InternalHomeWorkloadRefs lets the home kits offer the optional
+// internal-only workloads without naming them in public sources.
+ArchitectureV2InternalHomeWorkloadRefs: _architectureV2InternalHomeWorkloadRefs
+
 ArchitectureV2Catalog: #ArchitectureV2CatalogContract & {
 	capabilities: [for contract in _architectureV2Capabilities {#CapabilityContract & contract}]
-	providers: [for contract in list.Concat([_architectureV2Providers, _architectureV2HomeAssistantInstanceProviders]) {#CapabilityProvider & contract}]
+	providers: [for contract in list.Concat([_architectureV2Providers, _architectureV2HomeAssistantInstanceProviders, _architectureV2InternalProviders]) {#CapabilityProvider & contract}]
 	addons: [for contract in _architectureV2AddOns {#AddOnContract & contract}]
-	modules: [for contract in list.Concat([_architectureV2Modules, _architectureV2HomeAssistantInstanceModules]) {#ModuleContractV2 & contract}]
-	workloads:             _architectureV2WorkloadContracts
-	applicationLifecycles: _architectureV2ApplicationLifecycleContracts
+	modules: [for contract in list.Concat([_architectureV2Modules, _architectureV2HomeAssistantInstanceModules, _architectureV2InternalModules]) {#ModuleContractV2 & contract}]
+	workloads:             list.Concat([_architectureV2WorkloadContracts, _architectureV2InternalWorkloadContracts])
+	applicationLifecycles: list.Concat([_architectureV2ApplicationLifecycleContracts, _architectureV2InternalApplicationLifecycleContracts])
 	privilegedInterfaceApprovals: [for contract in _architectureV2PrivilegedInterfaceApprovals {#PrivilegedInterfaceApprovalV2 & contract}]
 	rilActionExecutors: [for contract in _architectureV2RILActionExecutors {#RILActionExecutorContractV1 & contract}]
 	rilActionPrimitives: list.Concat([

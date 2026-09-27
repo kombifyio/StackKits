@@ -14,6 +14,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
+	"github.com/kombifyio/stackkits/internal/tofu"
 )
 
 // Generation targets whose runtime the executor-state snapshot captures.
@@ -38,6 +39,7 @@ type ExecutorStateOpenTofuRootInput struct {
 	Root        string
 	State       ExecutorStateBlobInput
 	Config      ExecutorStateBlobInput
+	Lock        ExecutorStateBlobInput
 	Compose     ExecutorStateBlobInput
 	Environment ExecutorStateBlobInput
 }
@@ -48,6 +50,7 @@ type ExecutorStateOpenTofuRoot struct {
 	Root        string            `json:"root"`
 	State       ExecutorStateBlob `json:"state"`
 	Config      ExecutorStateBlob `json:"config"`
+	Lock        ExecutorStateBlob `json:"lock,omitzero"`
 	Compose     ExecutorStateBlob `json:"compose,omitzero"`
 	Environment ExecutorStateBlob `json:"environment,omitzero"`
 }
@@ -60,6 +63,9 @@ func executorStateTargetExecutesOpenTofu(target string) bool {
 // order: state, configuration, then the Compose file and .env when present.
 func executorStateOpenTofuRootInputBlobs(root ExecutorStateOpenTofuRootInput) []ExecutorStateBlobInput {
 	result := []ExecutorStateBlobInput{root.State, root.Config}
+	if root.Lock.ID != "" {
+		result = append(result, root.Lock)
+	}
 	if root.Compose.ID != "" {
 		result = append(result, root.Compose)
 	}
@@ -71,6 +77,9 @@ func executorStateOpenTofuRootInputBlobs(root ExecutorStateOpenTofuRootInput) []
 
 func executorStateOpenTofuRootBlobs(root ExecutorStateOpenTofuRoot) []ExecutorStateBlob {
 	result := []ExecutorStateBlob{root.State, root.Config}
+	if root.Lock != (ExecutorStateBlob{}) {
+		result = append(result, root.Lock)
+	}
 	if root.Compose != (ExecutorStateBlob{}) {
 		result = append(result, root.Compose)
 	}
@@ -116,6 +125,11 @@ func executorStateOpenTofuRootsFromPayloads(inputs []ExecutorStateOpenTofuRootIn
 		if root.Config, err = next(); err != nil {
 			return nil, err
 		}
+		if input.Lock.ID != "" {
+			if root.Lock, err = next(); err != nil {
+				return nil, err
+			}
+		}
 		if input.Compose.ID != "" {
 			if root.Compose, err = next(); err != nil {
 				return nil, err
@@ -141,6 +155,7 @@ func validateExecutorStateOpenTofuRoots(
 	roots []ExecutorStateOpenTofuRoot,
 	artifacts []ExecutorStateBlob,
 	profile CurrentStateCoreProfile,
+	requireLock bool,
 ) error {
 	if len(roots) == 0 {
 		return errors.New("executor state: an OpenTofu generation target requires captured OpenTofu roots")
@@ -170,6 +185,13 @@ func validateExecutorStateOpenTofuRoots(
 		if root.State.Path != path.Join(root.Root, opentofu.StateFile) || root.State.Mode != "0600" ||
 			root.Config.Path != path.Join(root.Root, opentofu.ConfigFile) || root.Config.Mode != "0640" {
 			return errors.New("executor state: OpenTofu root files are not the governed state and configuration")
+		}
+		if requireLock && root.Lock == (ExecutorStateBlob{}) {
+			return errors.New("executor state: a new OpenTofu checkpoint requires the dependency lock")
+		}
+		if root.Lock != (ExecutorStateBlob{}) &&
+			(root.Lock.Path != path.Join(root.Root, opentofu.LockFile) || root.Lock.Mode != "0640") {
+			return errors.New("executor state: OpenTofu dependency lock is outside the governed root")
 		}
 		composeFile := root.Compose.Path == path.Join(runtimeDir, opentofu.ComposeFile) && root.Compose.Mode == "0600"
 		environmentFile := root.Environment.Path == path.Join(runtimeDir, opentofu.EnvFile) && root.Environment.Mode == "0600" &&
@@ -289,6 +311,21 @@ func collectOpenTofuRootState(workspaceRoot, parent, name string) (ExecutorState
 	if root.Config, err = read(path.Join(relative, opentofu.ConfigFile), "opentofu-config-"+idSuffix, "0640"); err != nil {
 		return ExecutorStateOpenTofuRootInput{}, false, err
 	}
+	lockPath := path.Join(relative, opentofu.LockFile)
+	if root.Lock, err = read(lockPath, "opentofu-lock-"+idSuffix, "0640"); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return ExecutorStateOpenTofuRootInput{}, false, err
+		}
+		// Older runtime roots did not always materialize a lock, especially
+		// provider-free roots. Supply the compiled lock as new recovery input;
+		// the current-source verifier still authenticates this root/config
+		// before capture and the new checkpoint MUST sign the lock blob.
+		lock, lockErr := tofu.CanonicalLockForConfiguration(root.Config.Data)
+		if lockErr != nil {
+			return ExecutorStateOpenTofuRootInput{}, false, lockErr
+		}
+		root.Lock = ExecutorStateBlobInput{ID: "opentofu-lock-" + idSuffix, Path: lockPath, Mode: "0640", Data: lock}
+	}
 	if parent != opentofu.ModulesDir {
 		if root.Compose, err = read(path.Join(runtimeDir, opentofu.ComposeFile), "opentofu-compose-"+idSuffix, "0600"); err != nil {
 			return ExecutorStateOpenTofuRootInput{}, false, err
@@ -321,6 +358,9 @@ func restoreExecutorStateOpenTofuRoots(
 			if blob != (ExecutorStateBlob{}) {
 				blobs = append(blobs, blob)
 			}
+		}
+		if root.Lock != (ExecutorStateBlob{}) {
+			blobs = append(blobs, root.Lock)
 		}
 		for _, blob := range append(blobs, root.Config, root.State) {
 			data, err := readExecutorStateRecoveryBlob(transaction, blob)

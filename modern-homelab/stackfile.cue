@@ -121,7 +121,7 @@ Definition: foundation.#ProductKitDefinition & {
 		optional: ["lan-discovery", "lan-dns", "internal-pki", "private-admin-mesh", "failure-domain-placement", "telemetry-collection", "availability-ha"]
 		forbidden: ["cloud-enrollment-authority", "broad-lan-route-advertisement"]
 	}
-	workloads: {required: ["basement-core"], defaults: [], optional: ["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "game", "mail", "media-music", "media-audiobooks", "smart-home-esphome", "files-office", "smart-home-mqtt", "smart-home-zigbee", "photos-share", "photos-kiosk", "photos-tools"], forbidden: []}
+	workloads: {required: ["basement-core"], defaults: [], optional: list.Concat([["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "game", "mail", "media-music", "media-audiobooks", "smart-home-esphome", "files-office", "smart-home-mqtt", "smart-home-zigbee", "photos-share", "photos-kiosk", "photos-tools", "ai-search", "ai-documents", "ai-image-video"], foundation.ArchitectureV2InternalHomeWorkloadRefs]), forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false
@@ -254,7 +254,9 @@ Definition: foundation.#ProductKitDefinition & {
 		requiredOverrides: ["network.domain.base"]
 		selectedWorkloadAccess: {
 			// Every selectable application gets its initial HTTPS route and data binding.
-			workloadRefs: workloads.optional
+			// Private AI add-ons are reached only by Open WebUI over the private
+			// AI network; they get no initial route.
+			workloadRefs: [for ref in workloads.optional if !list.Contains(foundation.ArchitectureV2RoutelessAddOnWorkloadRefs, ref) {ref}]
 			enableCapabilities: ["internal-pki"]
 			route: {exposure: "local", protocol: "https", port: 443, path: "/"}
 			accessPolicies: {

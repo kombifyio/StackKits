@@ -281,6 +281,89 @@ _architectureV2PrivateAIComputeProfiles: {
 	high: standard
 }
 
+// GPU inference for Ollama (docs/use-case-expansion/ai-agents.md, item 2).
+// Selecting no accelerator profile keeps the CPU runtime above unchanged. The
+// reservation is the declared support envelope for the GPU runtime libraries
+// on the host (and, for ROCm, the larger image), not a measurement. Model
+// weights still need their own RAM/VRAM and disk.
+_architectureV2PrivateAIAcceleratorProfiles: {
+	nvidia: #ModuleAxisProfileV2 & {
+		description: "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. Open WebUI stays on the CPU."
+		maturity:    "experimental"
+		realization: "apply-ready"
+		reservation: {cpuCores: 1, ramGB: 1, storageGB: 1}
+		components: ["ollama"]
+		accelerator: {vendor: "nvidia", access: "cdi", minDriverMajor: 550}
+	}
+	amd: #ModuleAxisProfileV2 & {
+		description: "Ollama inference on AMD GPUs with ROCm through /dev/kfd and /dev/dri, using the Ollama ROCm image (amd64 only). Needs a ROCm-capable card with the amdgpu kernel driver. Open WebUI stays on the CPU."
+		maturity:    "experimental"
+		realization: "apply-ready"
+		reservation: {cpuCores: 1, ramGB: 1, storageGB: 6}
+		components: ["ollama"]
+		accelerator: {
+			vendor: "amd", access: "rocm-device-nodes"
+			images: ollama: {ref: "docker.io/ollama/ollama:0.34.0-rocm", digest: "sha256:36a99c0aaa4d28d0fc84969124bcf2f3d1ba8ab89181e2bd33bbc12f6ac2c4ce"}
+		}
+	}
+}
+
+// Private AI add-ons. Each serves Open WebUI only and holds no owner data.
+_architectureV2SearxngComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Private SearXNG meta search for Open WebUI web search. It queries public search engines on the owner's behalf and keeps no search history; there is no route of its own."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.125
+	components: ["searxng"]
+}
+_architectureV2SearxngComputeProfiles: {standard: _architectureV2SearxngComputeProfile, high: _architectureV2SearxngComputeProfile}
+
+_architectureV2TikaComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Apache Tika text extraction for Open WebUI documents. The minimal image has no OCR, so scanned pages yield no text; Docling is the alternative for them."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.5
+	components: ["tika"]
+}
+_architectureV2TikaComputeProfiles: {standard: _architectureV2TikaComputeProfile, high: _architectureV2TikaComputeProfile}
+
+_architectureV2DoclingComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Docling document conversion with layout, table and OCR models on the CPU for Open WebUI documents. Large scanned documents take minutes on a CPU; GPU acceleration is not enabled by this profile."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor: {minCpuCores: 4, minRamGB: 8, minStorageGB: 20}
+	reservation: ramGB: 1
+	components: ["docling"]
+}
+_architectureV2DoclingComputeProfiles: {standard: _architectureV2DoclingComputeProfile, high: _architectureV2DoclingComputeProfile}
+
+// Private AI image and video (ComfyUI). The module has no CPU runtime: it
+// installs only with one of its accelerator profiles. The compute profile is
+// the host floor next to the GPU: RAM holds the model parts the GPU
+// offloads (the FLUX.1 schnell checkpoint is 17 GB, the Wan 2.2 5B preset
+// 18 GB), and the presets need their own disk.
+_architectureV2ComfyUIComputeProfile: #ModuleComputeProfileV2 & {
+	description: "ComfyUI image and video generation on a GPU with owner-downloaded models. RAM holds the models the GPU offloads; video needs more RAM than images. No model is downloaded at install."
+	maturity:    "experimental", executable: true, realization: "apply-ready"
+	hostFloor: {minCpuCores: 4, minRamGB: 24, minStorageGB: 80}
+	recommended: {cpuCores: 8, ramGB: 32, storageGB: 150}
+	reservation: ramGB: 2
+	components: ["comfyui"]
+}
+_architectureV2ComfyUIComputeProfiles: {standard: _architectureV2ComfyUIComputeProfile, high: _architectureV2ComfyUIComputeProfile}
+
+// The image templates need 8 GiB of VRAM; the Wan 2.2 video template needs
+// 16 GiB, which the model download refuses to fetch on a smaller GPU.
+_architectureV2ComfyUIAcceleratorProfiles: {
+	nvidia: #ModuleAxisProfileV2 & {
+		description: "ComfyUI on NVIDIA GPUs through the Container Device Interface (all GPUs of the node), with at least 8 GiB of VRAM (Turing or newer). Needs the NVIDIA driver 580 or newer for the CUDA 13.0 image, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers."
+		maturity:    "experimental"
+		realization: "apply-ready"
+		reservation: {cpuCores: 1, ramGB: 2, storageGB: 1}
+		components: ["comfyui"]
+		accelerator: {vendor: "nvidia", access: "cdi", minDriverMajor: 580, minVramGiB: 8}
+	}
+}
+
 _architectureV2GiteaComputeProfile: #ModuleComputeProfileV2 & {
 	description: "Private Git hosting with SQLite and persistent repositories, LFS objects and configuration. CI runners and SSH are not included. Repository growth needs a separate data budget."
 	maturity:    "beta", executable: true, realization: "apply-ready"

@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 )
 
@@ -250,7 +251,11 @@ func (runtime *dockerRuntime) Start(ctx context.Context, authority Authority) er
 		if len(composeRuntime.Readiness) == 0 {
 			start = append(start, "--wait", "--wait-timeout", "600")
 		}
-		if _, err = runtime.docker(ctx, start...); err != nil {
+		// A workload that declares a restore-activation variable
+		// is recreated with it set, so it starts with side effects held until
+		// the owner resumes. Every other start leaves the variable unset.
+		restored := architecturev2renderer.RestoreActivationComposeVariable + "=true"
+		if _, err = runtime.dockerWithEnvironment(ctx, []string{restored}, start...); err != nil {
 			return wrapDocker("start verified Compose runtime "+composeRuntime.Project, err)
 		}
 		if len(composeRuntime.Readiness) != 0 {
@@ -569,6 +574,10 @@ func validRestoreHelperMounts(mounts []struct {
 }
 
 func (runtime *dockerRuntime) docker(ctx context.Context, args ...string) ([]byte, error) {
+	return runtime.dockerWithEnvironment(ctx, nil, args...)
+}
+
+func (runtime *dockerRuntime) dockerWithEnvironment(ctx context.Context, extra []string, args ...string) ([]byte, error) {
 	if runtime == nil || runtime.run == nil {
 		return nil, errors.New("restoreactivation: Docker runtime is not initialized")
 	}
@@ -577,7 +586,7 @@ func (runtime *dockerRuntime) docker(ctx context.Context, args ...string) ([]byt
 	if err != nil {
 		return nil, fmt.Errorf("restoreactivation: compose interpolation environment: %w", err)
 	}
-	environment := append(minimalCommandEnvironment(), interpolation...)
+	environment := append(append(minimalCommandEnvironment(), interpolation...), extra...)
 	return runtime.run(ctx, "docker", full, environment)
 }
 

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
@@ -64,9 +65,13 @@ func runNativeSetup(cmd *cobra.Command, workload string, options nativeSetupOpti
 		return errors.New("application setup requires --owner-approve")
 	}
 	timeout := 3 * time.Minute
-	if workload == "game" {
+	switch workload {
+	case "game":
 		// Installing and first-starting a game server downloads its release.
 		timeout = 20 * time.Minute
+	case "ai-image-video":
+		// A model preset is 10 to 25 GB; an interrupted download resumes.
+		timeout = 3 * time.Hour
 	}
 	ctx, cancel := context.WithTimeout(commandContext(cmd), timeout)
 	defer cancel()
@@ -81,8 +86,16 @@ func runNativeSetup(cmd *cobra.Command, workload string, options nativeSetupOpti
 		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s: Immich issued the add-on API key into local custody; the next apply starts the add-on with it.\nPlan: %s\n", workload, result.Authority.PlanHash)
 		return err
 	}
+	if preset, ok := strings.CutPrefix(result.Preparation, "model-preset-"); ok {
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s: model preset %s is downloaded, verified and listed by ComfyUI.\nPlan: %s\n", workload, preset, result.Authority.PlanHash)
+		return err
+	}
 	if result.Preparation != "" {
-		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s setup preparation %q recorded; complete the owner's encrypted account setup in the official client.\nPlan: %s\n", workload, result.Preparation, result.Authority.PlanHash)
+		if result.EmailVerification == applicationlifecycle.OwnerEmailVerificationPending {
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s setup preparation %q recorded; PocketID SMTP is configured, but the owner email still needs confirmation from the owner's PocketID account before native Vault sign-in. Complete that confirmation, then finish the encrypted account setup in the official client.\nPlan: %s\n", workload, result.Preparation, result.Authority.PlanHash)
+			return err
+		}
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s setup preparation %q recorded; owner email confirmation is verified. Complete the owner's encrypted account setup in the official client.\nPlan: %s\n", workload, result.Preparation, result.Authority.PlanHash)
 		return err
 	}
 	_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s owner login verified. Onboarding complete: %t\nPlan: %s\n", workload, result.OnboardingComplete, result.Authority.PlanHash)
@@ -120,16 +133,20 @@ func executeNativeSetup(ctx context.Context, workspace, workload string, options
 			if setup.Policy != "on-demand" || len(setup.ActionRefs) != 1 {
 				return errors.New("the current Plan does not declare one on-demand owner setup action")
 			}
-			description, supported := appsetup.DescribeNativeAction(setup.ActionRefs[0], contract.Delivery.AdapterRef)
+			deployment, err := nativeAppliedWorkloadDeployment(current, workload)
+			if err != nil {
+				return err
+			}
+			setupAdapter, err := nativeApplicationSetupAdapter(deployment)
+			if err != nil {
+				return err
+			}
+			description, supported := appsetup.DescribeNativeAction(setup.ActionRefs[0], setupAdapter)
 			if !supported {
 				return errors.New("the selected runtime adapter has no executable native action for this application; follow its declared setup guide")
 			}
 			if options.credentialsFile == "" {
 				options.credentialsFile = description.CredentialsFile
-			}
-			deployment, err := nativeAppliedWorkloadDeployment(current, workload)
-			if err != nil {
-				return err
 			}
 			if err := validateNativeOwnerSetupAction(deployment, setup.ActionRefs[0], options); err != nil {
 				return err
@@ -147,12 +164,16 @@ func executeNativeSetup(ctx context.Context, workspace, workload string, options
 			// The Immich add-on key is issued by Immich itself, so its HTTP
 			// target is the applied photos workload on the same node.
 			httpDeployment := deployment
+			httpAdapter := setupAdapter
 			if setup.ActionRefs[0] == immichAddOnAPIKeyAction {
 				if httpDeployment, err = nativeAppliedWorkloadDeployment(current, "photos"); err != nil {
 					return fail(fmt.Errorf("the Immich add-on API key needs the applied photos workload: %w", err))
 				}
+				if httpAdapter, err = nativeApplicationSetupAdapter(httpDeployment); err != nil {
+					return fail(fmt.Errorf("the Immich add-on API key needs executable photos setup access: %w", err))
+				}
 			}
-			err = nativehost.WithStandaloneComposeHTTP(ctx, workspace, httpDeployment, func(client *http.Client, baseURL string) error {
+			err = httpAdapter.WithHTTP(ctx, workspace, httpDeployment, func(client *http.Client, baseURL string) error {
 				value, setupErr := executeNativeOwnerSetupAction(ctx, client, baseURL, current.WorkspaceRoot, deployment, deployment.Release, setup.ActionRefs[0], options)
 				observed = value
 				return setupErr
@@ -173,7 +194,8 @@ func executeNativeSetup(ctx context.Context, workspace, workload string, options
 				WorkloadRef: workload, OperationID: operationID, ActionRef: setup.ActionRefs[0], ApplyResultHash: current.Lineage.ApplyResultHash,
 				ArtifactDigest: deployment.ArtifactDigest, InstanceRef: deployment.InstanceRef, ApplicationVersion: deployment.Release,
 				AccountRef: observed.AccountRef, Initialized: observed.Initialized, AdminLoginVerified: observed.AdminLoginVerified,
-				OnboardingComplete: observed.OnboardingComplete, Preparation: observed.Preparation, VerifiedAt: time.Now().UTC(),
+				OnboardingComplete: observed.OnboardingComplete, Preparation: observed.Preparation,
+				EmailVerification: observed.EmailVerification, VerifiedAt: time.Now().UTC(),
 			}
 			evidence, err := store.SaveSetupResult(contract, result)
 			if err != nil {
@@ -187,6 +209,10 @@ func executeNativeSetup(ctx context.Context, workspace, workload string, options
 		return applicationlifecycle.SetupResult{}, err
 	}
 	return result, nil
+}
+
+func nativeApplicationSetupAdapter(deployment nativehost.SelectedPaaSWorkloadDeployment) (nativehost.ApplicationSetupAdapter, error) {
+	return nativehost.ResolveApplicationSetupAdapter(deployment.RuntimeAdapter, deployment.RuntimeAdapterCapabilities)
 }
 
 func beginNativeSetup(store applicationlifecycle.Store, contract applicationlifecycle.Contract, requested string) (string, error) {
@@ -326,10 +352,15 @@ func nativeAppliedWorkloadDeployment(authority nativeV2AppliedAuthority, workloa
 			if !slices.Contains(applied.Artifacts, architecturev2.AppliedArtifactIdentity{Ref: artifact.ID, Digest: artifact.SHA256}) {
 				return nativehost.SelectedPaaSWorkloadDeployment{}, errors.New("application setup artifact differs from the signed applied workload")
 			}
-			expectedEntry := target.UnitRef
-			if target.ModuleRef == "stackkits-pterodactyl-runtime" {
-				// ADR-0043: the Panel is the routed entry of the game unit.
-				expectedEntry = "panel"
+			// The verified Plan's CUE runtime names the entry component (the
+			// Pterodactyl Panel, Open WebUI for Private AI); a unit without one
+			// is entered through the component named after the unit.
+			expectedEntry, declared, err := architecturev2renderer.PlanRuntimeEntryComponentRef(authority.Plan, target.ModuleRef, target.UnitRef)
+			if err != nil {
+				return nativehost.SelectedPaaSWorkloadDeployment{}, err
+			}
+			if !declared {
+				expectedEntry = target.UnitRef
 			}
 			if bundle.WorkloadRef != workload || bundle.ModuleRef != target.ModuleRef || bundle.InstanceRef != target.InstanceRef || bundle.EntryComponent != expectedEntry || bundle.SiteRef != target.SiteRefs[0] || bundle.NodeRef != target.NodeRefs[0] {
 				return nativehost.SelectedPaaSWorkloadDeployment{}, errors.New("application bundle is outside its exact applied workload contract")
@@ -340,7 +371,8 @@ func nativeAppliedWorkloadDeployment(authority nativeV2AppliedAuthority, workloa
 			adapter := target.RuntimeAdapter
 			selected = &nativehost.SelectedPaaSWorkloadDeployment{WorkloadRef: workload, ModuleRef: target.ModuleRef, UnitRef: target.UnitRef, Release: bundle.Release, SiteRef: bundle.SiteRef, NodeRef: bundle.NodeRef, InstanceRef: target.InstanceRef,
 				ExecutionChannelRef: authority.Owner.Binding.ChannelRef, ArtifactRef: artifact.ID, ArtifactDigest: artifact.SHA256, Bundle: raw, Route: bundle.Route,
-				RuntimeAdapter: runtimeexecutor.RuntimeAdapterBinding{ID: adapter.ID, ProviderRef: adapter.ProviderRef, ProviderVersion: adapter.ProviderVersion, ProviderContractHash: adapter.ProviderContractHash, ModuleRef: adapter.ModuleRef, ModuleVersion: adapter.ModuleVersion, ModuleContractHash: adapter.ModuleContractHash},
+				RuntimeAdapter:             runtimeexecutor.RuntimeAdapterBinding{ID: adapter.ID, ProviderRef: adapter.ProviderRef, ProviderVersion: adapter.ProviderVersion, ProviderContractHash: adapter.ProviderContractHash, ModuleRef: adapter.ModuleRef, ModuleVersion: adapter.ModuleVersion, ModuleContractHash: adapter.ModuleContractHash},
+				RuntimeAdapterCapabilities: append([]string(nil), adapter.Capabilities...),
 			}
 		}
 	}

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -356,6 +357,7 @@ func architectureV2HTTPProbeAccess(
 		}
 		runtimeOwnerByService[serviceKey] = ownerKey
 	}
+	routeProbePaths := architectureV2RouteProbePaths(requirements)
 	result := &stackverify.AccessSummary{Services: make([]stackverify.AccessService, 0, len(access.Services))}
 	for _, service := range access.Services {
 		key := strings.TrimSpace(service.Key)
@@ -391,7 +393,7 @@ func architectureV2HTTPProbeAccess(
 				return nil, fmt.Errorf("verified Access manifest route %q has no route identity", key)
 			}
 			result.Services = append(result.Services, stackverify.AccessService{
-				Key: key, URL: url, ServiceRef: key, RouteRef: routeRef,
+				Key: key, URL: architectureV2ProbeURL(url, routeProbePaths[routeRef]), ServiceRef: key, RouteRef: routeRef,
 			})
 			continue
 		}
@@ -418,10 +420,48 @@ func architectureV2HTTPProbeAccess(
 			return nil, fmt.Errorf("verified Access manifest route %q has no route identity", key)
 		}
 		result.Services = append(result.Services, stackverify.AccessService{
-			Key: key, URL: url, ServiceRef: serviceRef, RouteRef: routeRef, WorkloadRef: workloadRef,
+			Key: key, URL: architectureV2ProbeURL(url, routeProbePaths[routeRef]), ServiceRef: serviceRef, RouteRef: routeRef, WorkloadRef: workloadRef,
 		})
 	}
 	return result, nil
+}
+
+// architectureV2RouteProbePaths indexes each route's own verified HTTP
+// health-gate path (declared once on the module's service endpoint and
+// carried onto the route by the resolved-plan compiler) by route identity.
+// A route whose backing endpoint has no declared HTTP probe, or whose probe
+// path is the route root, is left out: the bare route URL already covers it.
+func architectureV2RouteProbePaths(requirements generationartifact.ApplyRequirements) map[string]string {
+	paths := map[string]string{}
+	for _, requirement := range requirements.HealthRequirements {
+		if requirement.TargetKind != "route" || requirement.Probe == nil {
+			continue
+		}
+		routeRef := strings.TrimSpace(requirement.RouteRef)
+		probePath := strings.TrimSpace(requirement.Probe.Path)
+		if routeRef == "" || probePath == "" || probePath == "/" {
+			continue
+		}
+		paths[routeRef] = probePath
+	}
+	return paths
+}
+
+// architectureV2ProbeURL applies a route's own declared HTTP health-gate path
+// to the verified route URL for the probe request only. It never overrides a
+// URL that already carries an explicit non-root path: that path was chosen
+// deliberately (for example a verified Cloud edge route) and must not gain a
+// second, conflicting one.
+func architectureV2ProbeURL(rawURL, probePath string) string {
+	if probePath == "" {
+		return rawURL
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || (parsed.Path != "" && parsed.Path != "/") {
+		return rawURL
+	}
+	parsed.Path = probePath
+	return parsed.String()
 }
 
 func architectureV2HTTPProbeScopes(

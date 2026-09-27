@@ -130,6 +130,7 @@ type StandaloneComposeRuntimeFile struct {
 type StandaloneComposeRuntimeCustody struct {
 	Project     string
 	Runtime     ComposeRuntime
+	Bundle      StandaloneComposeRuntimeFile
 	Compose     StandaloneComposeRuntimeFile
 	Environment StandaloneComposeRuntimeFile
 	ConfigFiles []StandaloneComposeRuntimeFile

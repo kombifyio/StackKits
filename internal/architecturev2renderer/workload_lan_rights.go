@@ -27,7 +27,9 @@ var governedLANRights = map[string]struct {
 }
 
 // hostDevicePattern admits stable serial adapter paths only: a by-id link
-// or a USB/ACM tty. Block devices, GPUs and raw buses are never passed.
+// or a USB/ACM tty. Block devices, GPUs and raw buses are never passed as
+// owner-chosen devices; a GPU reaches a container only through a selected
+// accelerator profile (workload_accelerators.go).
 var hostDevicePattern = regexp.MustCompile(`^/dev/(serial/by-id/[A-Za-z0-9._:+-]+|tty(USB|ACM)[0-9]{1,3})$`)
 
 // ValidHostDevicePath reports whether a host device path may be passed through.

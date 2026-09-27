@@ -1,0 +1,43 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "tika",
+  "displayName": "Apache Tika",
+  "description": "Apache Tika server (minimal image, no OCR) that extracts document text for Open WebUI; no route.",
+  "rationale": "Private AI document-parsing capability module (default).",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": false,
+      "minMemory": "512m"
+    }
+  },
+  "services": [
+    {
+      "name": "tika",
+      "type": "application",
+      "required": false,
+      "networks": [
+        "private-ai-internal"
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/tika",
+        "port": 9998
+      },
+      "resources": {
+        "memory": "512m",
+        "memoryMax": "2g"
+      },
+      "upstream": {
+        "github": "apache/tika-docker",
+        "registryImage": "docker.io/apache/tika"
+      },
+      "routed": false,
+      "imageSource": {
+        "moduleRef": "stackkits-tika-runtime",
+        "componentRef": "tika"
+      }
+    }
+  ]
+}

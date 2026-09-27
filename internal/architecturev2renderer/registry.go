@@ -162,6 +162,7 @@ type RenderUnit struct {
 	declaredOutputRef          []string
 	networkDomainBase          string
 	networkSubdomainPrefix     string
+	accelerator                *ModuleAccelerator
 }
 
 func (u RenderUnit) ModuleID() string        { return u.moduleID }
@@ -261,6 +262,15 @@ func (u RenderUnit) NetworkSubdomainPrefix() (string, bool) {
 }
 
 func optionalAccessor(value string) (string, bool) { return value, value != "" }
+
+// ModuleAccelerator returns the module's selected accelerator profile; false
+// is the CPU runtime.
+func (u RenderUnit) ModuleAccelerator() (ModuleAccelerator, bool) {
+	if u.accelerator == nil {
+		return ModuleAccelerator{}, false
+	}
+	return *u.accelerator, true
+}
 
 // UnitOutput carries bytes for exactly one declared render-unit output ref.
 type UnitOutput struct {
@@ -447,6 +457,7 @@ func newRenderUnit(moduleID string, contract renderUnitContract, instance render
 		declaredOutputRef:          instanceLogicalOutputRefs(instance.outputs),
 		networkDomainBase:          domain,
 		networkSubdomainPrefix:     prefix,
+		accelerator:                contract.accelerator,
 	}
 }
 

@@ -756,13 +756,14 @@ func deriveStandaloneComposeRuntimeCustody(
 	}
 	custody := make([]StandaloneComposeRuntimeCustody, 0, len(bindings))
 	for _, binding := range bindings {
-		configFiles, configErr := bindStandaloneComposeConfigCustody(
+		bundle, configFiles, configErr := bindStandaloneComposeConfigCustody(
 			workspaceRoot, planDocument, plan.OutputRoot(), manifest, binding,
 		)
 		if configErr != nil {
 			return nil, fmt.Errorf("restoreactivation: bind standalone Application %q configuration custody: %w", binding.WorkloadRef, configErr)
 		}
 		bound := binding.Custody
+		bound.Bundle = bundle
 		bound.ConfigFiles = configFiles
 		custody = append(custody, bound)
 	}
@@ -775,36 +776,39 @@ func bindStandaloneComposeConfigCustody(
 	outputRoot string,
 	manifest generationartifact.ArtifactManifest,
 	binding standaloneComposeApplicationBinding,
-) ([]StandaloneComposeRuntimeFile, error) {
+) (StandaloneComposeRuntimeFile, []StandaloneComposeRuntimeFile, error) {
 	artifact, err := standaloneComposeBundleArtifact(plan, outputRoot, manifest, binding)
 	if err != nil {
-		return nil, err
+		return StandaloneComposeRuntimeFile{}, nil, err
 	}
 	root, err := confinedfs.Open(workspaceRoot)
 	if err != nil {
-		return nil, err
+		return StandaloneComposeRuntimeFile{}, nil, err
 	}
 	defer func() { _ = root.Close() }()
 	transaction, err := root.BeginTransaction()
 	if err != nil {
-		return nil, err
+		return StandaloneComposeRuntimeFile{}, nil, err
 	}
 	defer func() { _ = transaction.Close() }()
 	bundleBytes, err := readStandaloneComposeCustodyFile(transaction, artifact.Path, false)
 	if err != nil {
-		return nil, fmt.Errorf("read generated application bundle %q: %w", artifact.ID, err)
+		return StandaloneComposeRuntimeFile{}, nil, fmt.Errorf("read generated application bundle %q: %w", artifact.ID, err)
 	}
 	bundleDigest := sha256.Sum256(bundleBytes)
 	if artifact.SHA256 != "sha256:"+hex.EncodeToString(bundleDigest[:]) {
-		return nil, fmt.Errorf("generated application bundle %q differs from the generation manifest", artifact.ID)
+		return StandaloneComposeRuntimeFile{}, nil, fmt.Errorf("generated application bundle %q differs from the generation manifest", artifact.ID)
 	}
 	bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(bundleBytes)
 	if err != nil {
-		return nil, fmt.Errorf("decode generated application bundle %q: %w", artifact.ID, err)
+		return StandaloneComposeRuntimeFile{}, nil, fmt.Errorf("decode generated application bundle %q: %w", artifact.ID, err)
 	}
 	if bundle.WorkloadRef != binding.WorkloadRef || bundle.ModuleRef != binding.ModuleRef ||
 		bundle.SiteRef != binding.SiteRef || bundle.NodeRef != binding.NodeRef {
-		return nil, errors.New("generated application bundle does not bind the selected standalone runtime")
+		return StandaloneComposeRuntimeFile{}, nil, errors.New("generated application bundle does not bind the selected standalone runtime")
+	}
+	bundleFile := StandaloneComposeRuntimeFile{
+		Path: artifact.Path, Mode: artifact.Mode, Data: append([]byte(nil), bundleBytes...),
 	}
 	files := make([]StandaloneComposeRuntimeFile, 0, len(bundle.ConfigFiles))
 	for _, config := range bundle.ConfigFiles {
@@ -814,17 +818,17 @@ func bindStandaloneComposeConfigCustody(
 		)
 		data, readErr := readStandaloneComposeCustodyFile(transaction, relativePath, false)
 		if readErr != nil {
-			return nil, fmt.Errorf("read generated application configuration %q: %w", config.Path, readErr)
+			return StandaloneComposeRuntimeFile{}, nil, fmt.Errorf("read generated application configuration %q: %w", config.Path, readErr)
 		}
 		if !bytes.Equal(data, []byte(config.Body)) {
-			return nil, fmt.Errorf("application configuration %q differs from the generated workload bundle", config.Path)
+			return StandaloneComposeRuntimeFile{}, nil, fmt.Errorf("application configuration %q differs from the generated workload bundle", config.Path)
 		}
 		files = append(files, StandaloneComposeRuntimeFile{
 			Path: relativePath, Mode: "0600", Data: append([]byte(nil), data...),
 		})
 	}
 	sort.Slice(files, func(left, right int) bool { return files[left].Path < files[right].Path })
-	return files, nil
+	return bundleFile, files, nil
 }
 
 func standaloneComposeBundleArtifact(

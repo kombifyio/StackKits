@@ -374,8 +374,8 @@ func baseKitImages(tier string) []string {
 	// Common images across all tiers
 	images := []string{
 		"ghcr.io/traefik/traefik:v3",
-		"ghcr.io/steveiliop56/tinyauth:v5.0.7",
-		"ghcr.io/pocket-id/pocket-id:v2.7.0",
+		"ghcr.io/tinyauthapp/tinyauth:v5.1.2",
+		"ghcr.io/pocket-id/pocket-id:v2.16.0@sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea",
 		"public.ecr.aws/docker/library/nginx:alpine",
 		"ghcr.io/gethomepage/homepage:latest",
 		"ghcr.io/tecnativa/docker-socket-proxy:latest",

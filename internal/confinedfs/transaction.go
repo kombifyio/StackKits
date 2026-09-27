@@ -472,19 +472,28 @@ func (t *Transaction) rename(oldRelative, newRelative string, requireNamedRoot b
 // Walk returns a deterministic point-in-time traversal rooted at relative.
 // It rejects symlinks, reparse-like irregular entries, devices, and sockets.
 func (t *Transaction) Walk(relative string) ([]TreeEntry, error) {
+	return t.WalkExcluding(relative, nil)
+}
+
+// WalkExcluding is Walk with caller-declared subtrees left out. excluded
+// receives each canonical entry path below the root before the entry is
+// inspected; an excluded entry is neither returned nor descended into, so
+// entries inside it are never classified or opened. The root is never
+// excluded.
+func (t *Transaction) WalkExcluding(relative string, excluded func(string) bool) ([]TreeEntry, error) {
 	full, release, err := t.beginPath("transaction-walk", relative, true)
 	if err != nil {
 		return nil, err
 	}
 	defer release()
 	entries := make([]TreeEntry, 0, 16)
-	if err := t.walk(full, &entries); err != nil {
+	if err := t.walk(full, &entries, excluded); err != nil {
 		return nil, err
 	}
 	return entries, nil
 }
 
-func (t *Transaction) walk(full string, entries *[]TreeEntry) error {
+func (t *Transaction) walk(full string, entries *[]TreeEntry, excluded func(string) bool) error {
 	if err := t.requirePlainParents(full); err != nil {
 		return err
 	}
@@ -499,10 +508,10 @@ func (t *Transaction) walk(full string, entries *[]TreeEntry) error {
 	if isPlainRegular(info) {
 		return nil
 	}
-	return t.walkDirectory(full, info, entries)
+	return t.walkDirectory(full, info, entries, excluded)
 }
 
-func (t *Transaction) walkDirectory(full string, info os.FileInfo, entries *[]TreeEntry) error {
+func (t *Transaction) walkDirectory(full string, info os.FileInfo, entries *[]TreeEntry, excluded func(string) bool) error {
 	directory, err := t.root.fs.Open(nativePath(full))
 	if err != nil {
 		return wrap(ErrIO, "transaction-walk", full, "open tree directory", err)
@@ -525,7 +534,10 @@ func (t *Transaction) walkDirectory(full string, info os.FileInfo, entries *[]Tr
 		if err != nil {
 			return err
 		}
-		if err := t.walk(canonical, entries); err != nil {
+		if excluded != nil && excluded(canonical) {
+			continue
+		}
+		if err := t.walk(canonical, entries, excluded); err != nil {
 			return err
 		}
 	}

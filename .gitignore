@@ -132,6 +132,13 @@ coverage.out
 .tmp-*
 *.test
 
+# architecturev2 bundle generator staging dirs: os.MkdirTemp creates these
+# beside the real output dir and renames them into place on success, removing
+# them on failure. A leftover staging dir from an interrupted run must never
+# be committed (see internal/architecturev2/cmd/bundlegen/main.go).
+.authority_bundle-staging-*
+.contract_fixture_bundle-staging-*
+
 .dolt/
 *.db
 

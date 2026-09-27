@@ -78,32 +78,45 @@ func (e *ContractRootExecutor) Execute(ctx context.Context, request runtimeexecu
 	if err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, err
 	}
+	lock, err := providers.LockForConfiguration(config)
+	if err != nil {
+		return runtimeexecutor.ExecutionOutcome{}, err
+	}
 	workspace, err := filepath.Abs(e.runtime.WorkspaceRoot)
 	if err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("resolve workspace: %w", err)
 	}
-	outcome, err := e.native.Execute(ctx, request)
+	var outcome runtimeexecutor.ExecutionOutcome
+	err = e.runtime.withStateCustody(relative, func(key []byte) error {
+		if err := e.runtime.preflightStateCustody(ctx, filepath.Join(workspace, filepath.FromSlash(relative)), binary, providers.Directory(), key); err != nil {
+			return err
+		}
+		var runErr error
+		outcome, runErr = e.native.Execute(ctx, request)
+		if runErr != nil {
+			return runErr
+		}
+		root, runErr := ensureRootDir(workspace, relative)
+		if runErr != nil {
+			return runErr
+		}
+		if runErr := writeRoot(root, RootMarker{
+			SchemaVersion: RootMarkerSchemaVersion, ModuleRef: target.ModuleRef, InstanceRef: target.InstanceRef,
+			RuntimeDir: target.ModuleRef, Kind: RootKindModule,
+		}, providers.Directory(), lock, rootFile{ConfigFile, config, 0o640}); runErr != nil {
+			return runErr
+		}
+		record := contractObservation{
+			SchemaVersion: contractObservationSchemaVersion, ModuleRef: target.ModuleRef, InstanceRef: target.InstanceRef,
+			RequirementID: target.RequirementID, ArtifactID: contract.ID, ArtifactDigest: contract.Digest, Root: relative,
+		}
+		if record.tofuRun, runErr = e.runtime.runRootWithKey(ctx, root, binary, []string{"LANG=C", "LC_ALL=C"}, key); runErr != nil {
+			return fmt.Errorf("record the applied %s contract in OpenTofu state: %w", target.ModuleRef, runErr)
+		}
+		_, runErr = writeObservation(root, record)
+		return runErr
+	})
 	if err != nil {
-		return runtimeexecutor.ExecutionOutcome{}, err
-	}
-	root, err := ensureRootDir(workspace, relative)
-	if err != nil {
-		return runtimeexecutor.ExecutionOutcome{}, err
-	}
-	if err := writeRoot(root, RootMarker{
-		SchemaVersion: RootMarkerSchemaVersion, ModuleRef: target.ModuleRef, InstanceRef: target.InstanceRef,
-		RuntimeDir: target.ModuleRef, Kind: RootKindModule,
-	}, providers, rootFile{ConfigFile, config, 0o640}); err != nil {
-		return runtimeexecutor.ExecutionOutcome{}, err
-	}
-	record := contractObservation{
-		SchemaVersion: contractObservationSchemaVersion, ModuleRef: target.ModuleRef, InstanceRef: target.InstanceRef,
-		RequirementID: target.RequirementID, ArtifactID: contract.ID, ArtifactDigest: contract.Digest, Root: relative,
-	}
-	if record.tofuRun, err = e.runtime.runRoot(ctx, root, binary, []string{"LANG=C", "LC_ALL=C"}); err != nil {
-		return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("record the applied %s contract in OpenTofu state: %w", target.ModuleRef, err)
-	}
-	if _, err := writeObservation(root, record); err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, err
 	}
 	return outcome, nil

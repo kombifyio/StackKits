@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "32a4f00cfbeb61107f8e0c2b2ee9d56ba9647cfa",
-  "authority_bundle_sha256": "b3e1f92adcaf02184f7d2c6c68454548065c53bbafeeea0a91439aaebcebc148",
+  "source_sha": "f5df7872ecc01d89164ba0b4a9347a1b5f38a583",
+  "authority_bundle_sha256": "df2b9186c8ee1b3d27af469491ee9ec6da4e0c4ebc4ff20d497dd2a0bb2cbb82",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -376,6 +376,103 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-comfyui-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-image-video"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "default_accelerator_profile": "nvidia",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "ComfyUI image and video generation on a GPU with owner-downloaded models. RAM holds the models the GPU offloads; video needs more RAM than images. No model is downloaded at install.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 24,
+                "storage_gb": 80
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 32,
+                "storage_gb": 150
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "comfyui"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "cce9a864f223bd5df3be1a08a3e55684c57bbdf657926d29cce799f978498f61"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "ComfyUI image and video generation on a GPU with owner-downloaded models. RAM holds the models the GPU offloads; video needs more RAM than images. No model is downloaded at install.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 24,
+                "storage_gb": 80
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 32,
+                "storage_gb": 150
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "comfyui"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d8a9f78584b883ce9f991ac5376bf932329653ec40a74d6d02e2b7be3b0e1eaf"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": [
+            {
+              "id": "nvidia",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "realization": "apply-ready",
+              "description": "ComfyUI on NVIDIA GPUs through the Container Device Interface (all GPUs of the node), with at least 8 GiB of VRAM (Turing or newer). Needs the NVIDIA driver 580 or newer for the CUDA 13.0 image, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers.",
+              "reservation": {
+                "cpu_cores": 1,
+                "ram_gb": 2,
+                "storage_gb": 1
+              },
+              "accelerator": {
+                "vendor": "nvidia",
+                "access": "cdi",
+                "min_vram_gib": 8,
+                "min_driver_major": 580
+              },
+              "components": [
+                "comfyui"
+              ],
+              "capabilities": [],
+              "profile_sha256": "9ee994d3cd7001ef180efa872e16bed532c42a3c9a4f894925ffea300ee86a92"
+            }
+          ]
+        },
+        {
           "module_id": "stackkits-core-host-bootstrap",
           "role": "foundation",
           "required": false,
@@ -384,6 +481,68 @@
             "host-bootstrap"
           ],
           "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-docling-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-documents"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Docling document conversion with layout, table and OCR models on the CPU for Open WebUI documents. Large scanned documents take minutes on a CPU; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 8,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "docling"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "7bba724c06150dabb9ff20736dab06121505ff4c5f62c93404a96477977e9b74"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Docling document conversion with layout, table and OCR models on the CPU for Open WebUI documents. Large scanned documents take minutes on a CPU; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 8,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "docling"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "67acb366b5a9ca29e02b3f082a8cf3ee188b98ab8d713c771939d106586e1016"
+            }
+          ],
           "storage_profiles": [],
           "accelerator_profiles": []
         },
@@ -1679,7 +1838,57 @@
             }
           ],
           "storage_profiles": [],
-          "accelerator_profiles": []
+          "accelerator_profiles": [
+            {
+              "id": "amd",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "realization": "apply-ready",
+              "description": "Ollama inference on AMD GPUs with ROCm through /dev/kfd and /dev/dri, using the Ollama ROCm image (amd64 only). Needs a ROCm-capable card with the amdgpu kernel driver. Open WebUI stays on the CPU.",
+              "reservation": {
+                "cpu_cores": 1,
+                "ram_gb": 1,
+                "storage_gb": 6
+              },
+              "accelerator": {
+                "vendor": "amd",
+                "access": "rocm-device-nodes",
+                "images": {
+                  "ollama": {
+                    "ref": "docker.io/ollama/ollama:0.34.0-rocm",
+                    "digest": "36a99c0aaa4d28d0fc84969124bcf2f3d1ba8ab89181e2bd33bbc12f6ac2c4ce"
+                  }
+                }
+              },
+              "components": [
+                "ollama"
+              ],
+              "capabilities": [],
+              "profile_sha256": "60e645f9b5db5545ae2b08dbea81be30829b86b69e89685af87f174fe50b07a3"
+            },
+            {
+              "id": "nvidia",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "realization": "apply-ready",
+              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. Open WebUI stays on the CPU.",
+              "reservation": {
+                "cpu_cores": 1,
+                "ram_gb": 1,
+                "storage_gb": 1
+              },
+              "accelerator": {
+                "vendor": "nvidia",
+                "access": "cdi",
+                "min_driver_major": 550
+              },
+              "components": [
+                "ollama"
+              ],
+              "capabilities": [],
+              "profile_sha256": "65534878a37752469db42c17f6284b2cf7d66892a23872cee38a3fe84e585071"
+            }
+          ]
         },
         {
           "module_id": "stackkits-pterodactyl-runtime",
@@ -1832,6 +2041,130 @@
               "capabilities": [],
               "degradations": [],
               "profile_sha256": "58b545b5b54e61b8be0e67fee2e6541fce1f13f44eb6deb05cdf9def549e4a81"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-searxng-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-search"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private SearXNG meta search for Open WebUI web search. It queries public search engines on the owner's behalf and keeps no search history; there is no route of its own.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "searxng"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "e0e96b8059381a2c5a12762a8c5c034807817adae997d67b79872f8bde916983"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private SearXNG meta search for Open WebUI web search. It queries public search engines on the owner's behalf and keeps no search history; there is no route of its own.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "searxng"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "ab7c9a6ea952d47bc0ec364eaa754ac3a97818faf03275fe9153262df1fb00df"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-tika-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-documents"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Apache Tika text extraction for Open WebUI documents. The minimal image has no OCR, so scanned pages yield no text; Docling is the alternative for them.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "tika"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "291f5afc53e24b3dfd76d06111cd08e96e49c96a6aec02f179625122c1f1b475"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Apache Tika text extraction for Open WebUI documents. The minimal image has no OCR, so scanned pages yield no text; Docling is the alternative for them.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "tika"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "de1bece7043c6ad05b36b9cae2e4420a3248b50e338fe2c2fbafa1eb493564e7"
             }
           ],
           "storage_profiles": [],
@@ -2003,6 +2336,88 @@
                 "chat-interface",
                 "local-inference",
                 "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-documents",
+          "title": "ai-documents",
+          "description": "Document text extraction for Open WebUI through Apache Tika, or Docling for scanned and complex layouts, selected with the Private AI document-parsing module. It joins the node's private AI network and has no route of its own.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "tika",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "docling",
+              "module_id": "stackkits-docling-runtime",
+              "functions": [
+                "document-parsing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "tika",
+              "module_id": "stackkits-tika-runtime",
+              "functions": [
+                "document-parsing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-image-video",
+          "title": "ai-image-video",
+          "description": "ComfyUI image and video generation on the node's GPU with reviewed workflow templates, selected with the Private AI image-video module. ComfyUI has no sign-in of its own, so it is reached only on a private route behind the kit's login.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "comfyui",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "comfyui",
+              "module_id": "stackkits-comfyui-runtime",
+              "functions": [
+                "image-generation",
+                "video-generation"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-search",
+          "title": "ai-search",
+          "description": "Private SearXNG meta search that Open WebUI uses for web search, selected with the Private AI web-search module. It joins the node's private AI network and has no route of its own.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "searxng",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "searxng",
+              "module_id": "stackkits-searxng-runtime",
+              "functions": [
+                "web-search"
               ],
               "load": {
                 "residency": "always-on",
@@ -2981,6 +3396,103 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-comfyui-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-image-video"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "default_accelerator_profile": "nvidia",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "ComfyUI image and video generation on a GPU with owner-downloaded models. RAM holds the models the GPU offloads; video needs more RAM than images. No model is downloaded at install.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 24,
+                "storage_gb": 80
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 32,
+                "storage_gb": 150
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "comfyui"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "cce9a864f223bd5df3be1a08a3e55684c57bbdf657926d29cce799f978498f61"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "ComfyUI image and video generation on a GPU with owner-downloaded models. RAM holds the models the GPU offloads; video needs more RAM than images. No model is downloaded at install.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 24,
+                "storage_gb": 80
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 32,
+                "storage_gb": 150
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "comfyui"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d8a9f78584b883ce9f991ac5376bf932329653ec40a74d6d02e2b7be3b0e1eaf"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": [
+            {
+              "id": "nvidia",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "realization": "apply-ready",
+              "description": "ComfyUI on NVIDIA GPUs through the Container Device Interface (all GPUs of the node), with at least 8 GiB of VRAM (Turing or newer). Needs the NVIDIA driver 580 or newer for the CUDA 13.0 image, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers.",
+              "reservation": {
+                "cpu_cores": 1,
+                "ram_gb": 2,
+                "storage_gb": 1
+              },
+              "accelerator": {
+                "vendor": "nvidia",
+                "access": "cdi",
+                "min_vram_gib": 8,
+                "min_driver_major": 580
+              },
+              "components": [
+                "comfyui"
+              ],
+              "capabilities": [],
+              "profile_sha256": "9ee994d3cd7001ef180efa872e16bed532c42a3c9a4f894925ffea300ee86a92"
+            }
+          ]
+        },
+        {
           "module_id": "stackkits-core-host-bootstrap",
           "role": "foundation",
           "required": false,
@@ -2989,6 +3501,68 @@
             "host-bootstrap"
           ],
           "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-docling-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-documents"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Docling document conversion with layout, table and OCR models on the CPU for Open WebUI documents. Large scanned documents take minutes on a CPU; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 8,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "docling"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "7bba724c06150dabb9ff20736dab06121505ff4c5f62c93404a96477977e9b74"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Docling document conversion with layout, table and OCR models on the CPU for Open WebUI documents. Large scanned documents take minutes on a CPU; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 8,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "docling"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "67acb366b5a9ca29e02b3f082a8cf3ee188b98ab8d713c771939d106586e1016"
+            }
+          ],
           "storage_profiles": [],
           "accelerator_profiles": []
         },
@@ -4272,7 +4846,57 @@
             }
           ],
           "storage_profiles": [],
-          "accelerator_profiles": []
+          "accelerator_profiles": [
+            {
+              "id": "amd",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "realization": "apply-ready",
+              "description": "Ollama inference on AMD GPUs with ROCm through /dev/kfd and /dev/dri, using the Ollama ROCm image (amd64 only). Needs a ROCm-capable card with the amdgpu kernel driver. Open WebUI stays on the CPU.",
+              "reservation": {
+                "cpu_cores": 1,
+                "ram_gb": 1,
+                "storage_gb": 6
+              },
+              "accelerator": {
+                "vendor": "amd",
+                "access": "rocm-device-nodes",
+                "images": {
+                  "ollama": {
+                    "ref": "docker.io/ollama/ollama:0.34.0-rocm",
+                    "digest": "36a99c0aaa4d28d0fc84969124bcf2f3d1ba8ab89181e2bd33bbc12f6ac2c4ce"
+                  }
+                }
+              },
+              "components": [
+                "ollama"
+              ],
+              "capabilities": [],
+              "profile_sha256": "60e645f9b5db5545ae2b08dbea81be30829b86b69e89685af87f174fe50b07a3"
+            },
+            {
+              "id": "nvidia",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "realization": "apply-ready",
+              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. Open WebUI stays on the CPU.",
+              "reservation": {
+                "cpu_cores": 1,
+                "ram_gb": 1,
+                "storage_gb": 1
+              },
+              "accelerator": {
+                "vendor": "nvidia",
+                "access": "cdi",
+                "min_driver_major": 550
+              },
+              "components": [
+                "ollama"
+              ],
+              "capabilities": [],
+              "profile_sha256": "65534878a37752469db42c17f6284b2cf7d66892a23872cee38a3fe84e585071"
+            }
+          ]
         },
         {
           "module_id": "stackkits-pterodactyl-runtime",
@@ -4443,6 +5067,68 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-searxng-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-search"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private SearXNG meta search for Open WebUI web search. It queries public search engines on the owner's behalf and keeps no search history; there is no route of its own.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "searxng"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "e0e96b8059381a2c5a12762a8c5c034807817adae997d67b79872f8bde916983"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private SearXNG meta search for Open WebUI web search. It queries public search engines on the owner's behalf and keeps no search history; there is no route of its own.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "searxng"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "ab7c9a6ea952d47bc0ec364eaa754ac3a97818faf03275fe9153262df1fb00df"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-stalwart-runtime",
           "role": "workload",
           "required": false,
@@ -4523,6 +5209,68 @@
               "capabilities": [],
               "degradations": [],
               "profile_sha256": "0f5263ad3d98d797027ab328cd1a89fd953b8d33050966df6e0e9dc0239b3f5c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-tika-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-documents"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Apache Tika text extraction for Open WebUI documents. The minimal image has no OCR, so scanned pages yield no text; Docling is the alternative for them.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "tika"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "291f5afc53e24b3dfd76d06111cd08e96e49c96a6aec02f179625122c1f1b475"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Apache Tika text extraction for Open WebUI documents. The minimal image has no OCR, so scanned pages yield no text; Docling is the alternative for them.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "tika"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "de1bece7043c6ad05b36b9cae2e4420a3248b50e338fe2c2fbafa1eb493564e7"
             }
           ],
           "storage_profiles": [],
@@ -4694,6 +5442,88 @@
                 "chat-interface",
                 "local-inference",
                 "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-documents",
+          "title": "ai-documents",
+          "description": "Document text extraction for Open WebUI through Apache Tika, or Docling for scanned and complex layouts, selected with the Private AI document-parsing module. It joins the node's private AI network and has no route of its own.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "tika",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "docling",
+              "module_id": "stackkits-docling-runtime",
+              "functions": [
+                "document-parsing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "tika",
+              "module_id": "stackkits-tika-runtime",
+              "functions": [
+                "document-parsing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-image-video",
+          "title": "ai-image-video",
+          "description": "ComfyUI image and video generation on the node's GPU with reviewed workflow templates, selected with the Private AI image-video module. ComfyUI has no sign-in of its own, so it is reached only on a private route behind the kit's login.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "comfyui",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "comfyui",
+              "module_id": "stackkits-comfyui-runtime",
+              "functions": [
+                "image-generation",
+                "video-generation"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-search",
+          "title": "ai-search",
+          "description": "Private SearXNG meta search that Open WebUI uses for web search, selected with the Private AI web-search module. It joins the node's private AI network and has no route of its own.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "searxng",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "searxng",
+              "module_id": "stackkits-searxng-runtime",
+              "functions": [
+                "web-search"
               ],
               "load": {
                 "residency": "always-on",
@@ -5690,6 +6520,103 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-comfyui-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-image-video"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "default_accelerator_profile": "nvidia",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "ComfyUI image and video generation on a GPU with owner-downloaded models. RAM holds the models the GPU offloads; video needs more RAM than images. No model is downloaded at install.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 24,
+                "storage_gb": 80
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 32,
+                "storage_gb": 150
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "comfyui"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "cce9a864f223bd5df3be1a08a3e55684c57bbdf657926d29cce799f978498f61"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "ComfyUI image and video generation on a GPU with owner-downloaded models. RAM holds the models the GPU offloads; video needs more RAM than images. No model is downloaded at install.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 24,
+                "storage_gb": 80
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 32,
+                "storage_gb": 150
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "comfyui"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "d8a9f78584b883ce9f991ac5376bf932329653ec40a74d6d02e2b7be3b0e1eaf"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": [
+            {
+              "id": "nvidia",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "realization": "apply-ready",
+              "description": "ComfyUI on NVIDIA GPUs through the Container Device Interface (all GPUs of the node), with at least 8 GiB of VRAM (Turing or newer). Needs the NVIDIA driver 580 or newer for the CUDA 13.0 image, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers.",
+              "reservation": {
+                "cpu_cores": 1,
+                "ram_gb": 2,
+                "storage_gb": 1
+              },
+              "accelerator": {
+                "vendor": "nvidia",
+                "access": "cdi",
+                "min_vram_gib": 8,
+                "min_driver_major": 580
+              },
+              "components": [
+                "comfyui"
+              ],
+              "capabilities": [],
+              "profile_sha256": "9ee994d3cd7001ef180efa872e16bed532c42a3c9a4f894925ffea300ee86a92"
+            }
+          ]
+        },
+        {
           "module_id": "stackkits-core-host-bootstrap",
           "role": "foundation",
           "required": false,
@@ -5698,6 +6625,68 @@
             "host-bootstrap"
           ],
           "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-docling-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-documents"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Docling document conversion with layout, table and OCR models on the CPU for Open WebUI documents. Large scanned documents take minutes on a CPU; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 8,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "docling"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "7bba724c06150dabb9ff20736dab06121505ff4c5f62c93404a96477977e9b74"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Docling document conversion with layout, table and OCR models on the CPU for Open WebUI documents. Large scanned documents take minutes on a CPU; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 8,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "docling"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "67acb366b5a9ca29e02b3f082a8cf3ee188b98ab8d713c771939d106586e1016"
+            }
+          ],
           "storage_profiles": [],
           "accelerator_profiles": []
         },
@@ -6993,7 +7982,57 @@
             }
           ],
           "storage_profiles": [],
-          "accelerator_profiles": []
+          "accelerator_profiles": [
+            {
+              "id": "amd",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "realization": "apply-ready",
+              "description": "Ollama inference on AMD GPUs with ROCm through /dev/kfd and /dev/dri, using the Ollama ROCm image (amd64 only). Needs a ROCm-capable card with the amdgpu kernel driver. Open WebUI stays on the CPU.",
+              "reservation": {
+                "cpu_cores": 1,
+                "ram_gb": 1,
+                "storage_gb": 6
+              },
+              "accelerator": {
+                "vendor": "amd",
+                "access": "rocm-device-nodes",
+                "images": {
+                  "ollama": {
+                    "ref": "docker.io/ollama/ollama:0.34.0-rocm",
+                    "digest": "36a99c0aaa4d28d0fc84969124bcf2f3d1ba8ab89181e2bd33bbc12f6ac2c4ce"
+                  }
+                }
+              },
+              "components": [
+                "ollama"
+              ],
+              "capabilities": [],
+              "profile_sha256": "60e645f9b5db5545ae2b08dbea81be30829b86b69e89685af87f174fe50b07a3"
+            },
+            {
+              "id": "nvidia",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "realization": "apply-ready",
+              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. Open WebUI stays on the CPU.",
+              "reservation": {
+                "cpu_cores": 1,
+                "ram_gb": 1,
+                "storage_gb": 1
+              },
+              "accelerator": {
+                "vendor": "nvidia",
+                "access": "cdi",
+                "min_driver_major": 550
+              },
+              "components": [
+                "ollama"
+              ],
+              "capabilities": [],
+              "profile_sha256": "65534878a37752469db42c17f6284b2cf7d66892a23872cee38a3fe84e585071"
+            }
+          ]
         },
         {
           "module_id": "stackkits-pterodactyl-runtime",
@@ -7146,6 +8185,130 @@
               "capabilities": [],
               "degradations": [],
               "profile_sha256": "58b545b5b54e61b8be0e67fee2e6541fce1f13f44eb6deb05cdf9def549e4a81"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-searxng-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-search"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private SearXNG meta search for Open WebUI web search. It queries public search engines on the owner's behalf and keeps no search history; there is no route of its own.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "searxng"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "e0e96b8059381a2c5a12762a8c5c034807817adae997d67b79872f8bde916983"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Private SearXNG meta search for Open WebUI web search. It queries public search engines on the owner's behalf and keeps no search history; there is no route of its own.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "searxng"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "ab7c9a6ea952d47bc0ec364eaa754ac3a97818faf03275fe9153262df1fb00df"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-tika-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-documents"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Apache Tika text extraction for Open WebUI documents. The minimal image has no OCR, so scanned pages yield no text; Docling is the alternative for them.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "tika"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "291f5afc53e24b3dfd76d06111cd08e96e49c96a6aec02f179625122c1f1b475"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Apache Tika text extraction for Open WebUI documents. The minimal image has no OCR, so scanned pages yield no text; Docling is the alternative for them.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "tika"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "de1bece7043c6ad05b36b9cae2e4420a3248b50e338fe2c2fbafa1eb493564e7"
             }
           ],
           "storage_profiles": [],
@@ -7317,6 +8480,88 @@
                 "chat-interface",
                 "local-inference",
                 "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-documents",
+          "title": "ai-documents",
+          "description": "Document text extraction for Open WebUI through Apache Tika, or Docling for scanned and complex layouts, selected with the Private AI document-parsing module. It joins the node's private AI network and has no route of its own.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "tika",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "docling",
+              "module_id": "stackkits-docling-runtime",
+              "functions": [
+                "document-parsing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "tika",
+              "module_id": "stackkits-tika-runtime",
+              "functions": [
+                "document-parsing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-image-video",
+          "title": "ai-image-video",
+          "description": "ComfyUI image and video generation on the node's GPU with reviewed workflow templates, selected with the Private AI image-video module. ComfyUI has no sign-in of its own, so it is reached only on a private route behind the kit's login.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "comfyui",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "comfyui",
+              "module_id": "stackkits-comfyui-runtime",
+              "functions": [
+                "image-generation",
+                "video-generation"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-search",
+          "title": "ai-search",
+          "description": "Private SearXNG meta search that Open WebUI uses for web search, selected with the Private AI web-search module. It joins the node's private AI network and has no route of its own.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "searxng",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "searxng",
+              "module_id": "stackkits-searxng-runtime",
+              "functions": [
+                "web-search"
               ],
               "load": {
                 "residency": "always-on",
@@ -9235,5 +10480,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "3030f63f2003ed184f053ebdaa874253c436c872b03fb77af7d8dccb98c597db"
+  "catalog_sha256": "93de79c1519bea5ba480919cbebaf976ffaadc3621240abef8297c7f5c506657"
 }

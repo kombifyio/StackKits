@@ -183,7 +183,7 @@ async function projectNativeComputeProfile(id, source, path) {
 
 async function projectNativeAxisProfile(id, source, path) {
   rejectUnknownKeys(source, `${path}.${id}`, new Set([
-    "profileHash", "profile_sha256", "capacityDeclaration", "capacity_declaration", "maturity", "realization", "description", "reservation", "components", "capabilities", "degradations",
+    "profileHash", "profile_sha256", "capacityDeclaration", "capacity_declaration", "maturity", "realization", "description", "reservation", "accelerator", "components", "capabilities", "degradations",
   ]));
   const projected = {
     id: publicId(id, `${path}.${id}`),
@@ -192,6 +192,7 @@ async function projectNativeAxisProfile(id, source, path) {
     realization: profileRealization(source, `${path}.${id}`),
     ...(source.description === undefined ? {} : { description: publicString(source.description, `${path}.${id}.description`) }),
     ...optionalResource("reservation", "reservation", source, `${path}.${id}`),
+    ...(source.accelerator === undefined ? {} : { accelerator: publicAcceleratorRequirement(source.accelerator, `${path}.${id}.accelerator`) }),
     components: publicIdArray(source.components ?? [], `${path}.${id}.components`),
     capabilities: publicIdArray(source.capabilities ?? [], `${path}.${id}.capabilities`),
     ...(source.degradations === undefined ? {} : { degradations: publicIdArray(source.degradations, `${path}.${id}.degradations`) }),
@@ -289,6 +290,48 @@ function publicHostRequirements(floor, path) {
     };
   }
   return Object.keys(requirements).length > 0 ? { host_requirements: requirements } : {};
+}
+
+// The device demand of one accelerator profile. It is the only path through
+// which a workload container receives a GPU (see #AcceleratorRequirementV1);
+// the public projection carries the vendor/access facts a caller needs to
+// decide whether its host qualifies, plus the vendor image override when the
+// catalog author published one.
+function publicAcceleratorRequirement(source, path) {
+  if (!isObject(source)) fail(`${path} must be an object`);
+  rejectUnknownKeys(source, path, new Set(["vendor", "access", "minVramGiB", "minDriverMajor", "images"]));
+  if (!["nvidia", "amd"].includes(source.vendor)) fail(`${path}.vendor must be nvidia or amd`);
+  if (!["cdi", "rocm-device-nodes"].includes(source.access)) fail(`${path}.access must be cdi or rocm-device-nodes`);
+  const projected = { vendor: source.vendor, access: source.access };
+  if (source.minVramGiB !== undefined) {
+    if (!Number.isInteger(source.minVramGiB) || source.minVramGiB < 1) fail(`${path}.minVramGiB must be a positive integer`);
+    projected.min_vram_gib = source.minVramGiB;
+  }
+  if (source.minDriverMajor !== undefined) {
+    if (source.vendor !== "nvidia") fail(`${path}.minDriverMajor is only supported for an nvidia accelerator`);
+    if (!Number.isInteger(source.minDriverMajor) || source.minDriverMajor < 550) fail(`${path}.minDriverMajor must be an integer >= 550`);
+    projected.min_driver_major = source.minDriverMajor;
+  }
+  if (source.images !== undefined) {
+    if (!isObject(source.images)) fail(`${path}.images must be an object`);
+    const images = {};
+    for (const [componentId, image] of Object.entries(source.images).sort(([left], [right]) => left.localeCompare(right))) {
+      publicId(componentId, `${path}.images.${componentId}`);
+      if (!isObject(image)) fail(`${path}.images.${componentId} must be an object`);
+      rejectUnknownKeys(image, `${path}.images.${componentId}`, new Set(["ref", "digest"]));
+      if (typeof image.ref !== "string" || image.ref.length === 0 || /\s/.test(image.ref) || hasSensitiveReference(image.ref)) {
+        fail(`${path}.images.${componentId}.ref must be a public image reference`);
+      }
+      if (typeof image.digest !== "string" || !/^sha256:[a-f0-9]{64}$/.test(image.digest)) {
+        fail(`${path}.images.${componentId}.digest must be sha256:<64 lowercase hex characters>`);
+      }
+      // Consistent with every other digest in this catalog (profile_sha256,
+      // authority_bundle_sha256, ...): the algorithm is implied, not repeated.
+      images[componentId] = { ref: image.ref, digest: image.digest.slice("sha256:".length) };
+    }
+    if (Object.keys(images).length > 0) projected.images = images;
+  }
+  return projected;
 }
 
 function publicStringArray(value, path, allowed) {

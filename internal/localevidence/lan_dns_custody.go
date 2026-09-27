@@ -22,7 +22,7 @@ func discoverSiteAddress() (netip.Addr, error) { return siteaddress.DiscoverSite
 // resolves to the node running the router rather than requiring one record per
 // service; services are added and removed by the router, not by DNS.
 func buildLANDNSRecords(domain string, address netip.Addr) ([]byte, error) {
-	if !validBasementRuntimeDomain(domain) {
+	if !validBasementRuntimeDomain(domain) && domain != LegacyBasementDomain {
 		return nil, fmt.Errorf("localevidence: invalid Basement runtime domain %q for the LAN resolver", domain)
 	}
 	if !address.IsValid() || address.IsLoopback() || address.IsUnspecified() {

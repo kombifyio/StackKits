@@ -124,6 +124,18 @@ func writeMachineCommandFailure(cmd *cobra.Command, err error, guidance ...strin
 		}
 		return err
 	}
+	var actionableDenial interface {
+		ActionableError() actionableerror.Contract
+	}
+	if errors.As(err, &actionableDenial) {
+		detail := actionableDenial.ActionableError()
+		if detail.Validate() == nil {
+			if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), "denied", detail); writeErr != nil {
+				return errors.Join(err, fmt.Errorf("write machine-readable command failure: %w", writeErr))
+			}
+			return err
+		}
+	}
 	status := machineCommandFailureStatus(err)
 	if len(guidance) == 0 {
 		guidance = []string{

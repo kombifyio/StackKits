@@ -1,0 +1,48 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "docling",
+  "displayName": "Docling",
+  "description": "Docling Serve (CPU image with built-in layout, table and OCR models) that converts scanned and complex documents for Open WebUI; no route.",
+  "rationale": "Private AI document-parsing capability module (alternative).",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": false,
+      "minMemory": "1g"
+    }
+  },
+  "services": [
+    {
+      "name": "docling",
+      "type": "application",
+      "required": false,
+      "networks": [
+        "private-ai-internal"
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/health",
+        "port": 5001
+      },
+      "resources": {
+        "memory": "1g",
+        "memoryMax": "6g"
+      },
+      "upstream": {
+        "github": "docling-project/docling-serve",
+        "registryImage": "quay.io/docling-project/docling-serve-cpu"
+      },
+      "routed": false,
+      "imageSource": {
+        "moduleRef": "stackkits-docling-runtime",
+        "componentRef": "docling"
+      },
+      "environment": {
+        "HF_HUB_OFFLINE": "1",
+        "DOCLING_SERVE_ENABLE_UI": "false",
+        "DOCLING_SERVE_MAX_SYNC_WAIT": "600"
+      }
+    }
+  ]
+}

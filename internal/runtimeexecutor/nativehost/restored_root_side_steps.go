@@ -109,6 +109,18 @@ func prepareNativeComposeRoot(ctx context.Context, runtime *osNativeComposeRunti
 // runtime compose.yaml the restored root wrote. It refuses a payload that
 // differs from the one prepared.
 func (s *NativeComposeRootSteps) Complete(ctx context.Context) error {
+	return s.complete(ctx, false)
+}
+
+// CompleteWithRetainedIdentity runs the Core runtime completion while
+// requiring the restored PocketID owner and TinyAuth client to verify against
+// existing custody. Unlike Apply and coordinated rollback, restore activation
+// must not repair identity by creating users or rotating credentials.
+func (s *NativeComposeRootSteps) CompleteWithRetainedIdentity(ctx context.Context) error {
+	return s.complete(ctx, true)
+}
+
+func (s *NativeComposeRootSteps) complete(ctx context.Context, retainIdentity bool) error {
 	if ctx == nil || s == nil || s.runtime == nil || s.preparation.moduleRef != s.moduleRef {
 		return errors.New("native Compose root completion requires its preparation")
 	}
@@ -124,9 +136,14 @@ func (s *NativeComposeRootSteps) Complete(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		_, err = s.runtime.basement.completeApply(ctx, s.composePath, environment, basementApplyPreparation{
+		preparation := basementApplyPreparation{
 			originReload: s.preparation.originReload, recreateServer: s.preparation.recreateServer,
-		})
+		}
+		if retainIdentity {
+			_, err = s.runtime.basement.completeRestoredApply(ctx, s.composePath, environment, preparation)
+		} else {
+			_, err = s.runtime.basement.completeApply(ctx, s.composePath, environment, preparation)
+		}
 		return err
 	}
 	cloud, err := s.runtime.cloud(s.moduleRef)
@@ -142,7 +159,11 @@ func (s *NativeComposeRootSteps) Complete(ctx context.Context) error {
 	for index, service := range services {
 		project.Services[index] = BasementCoreServiceExpectation(service)
 	}
-	_, err = cloud.completeApply(ctx, s.composePath, project, s.preparation.recreateServer)
+	if retainIdentity {
+		_, err = cloud.completeRestoredApply(ctx, s.composePath, project, s.preparation.recreateServer)
+	} else {
+		_, err = cloud.completeApply(ctx, s.composePath, project, s.preparation.recreateServer)
+	}
 	return err
 }
 
@@ -212,12 +233,12 @@ func (o *osStandaloneComposeWorkloadOperations) prepareBundle(ctx context.Contex
 	if !found || unitRef == "" {
 		return standaloneComposeProject{}, errors.New("workload bundle instance does not name its render unit")
 	}
-	return o.prepare(ctx, SelectedPaaSWorkloadDeployment{
+	return o.prepareWithIdentityMutation(ctx, SelectedPaaSWorkloadDeployment{
 		WorkloadRef: bundle.WorkloadRef, ModuleRef: bundle.ModuleRef, UnitRef: unitRef, Release: bundle.Release,
 		SiteRef: bundle.SiteRef, NodeRef: bundle.NodeRef, InstanceRef: bundle.InstanceRef,
 		Bundle: raw, Route: bundle.Route,
 		RuntimeAdapter: runtimeexecutor.RuntimeAdapterBinding{ID: standaloneComposeAdapterRef, ModuleRef: standaloneComposeModuleRef},
-	})
+	}, false)
 }
 
 // RuntimeFileRestore is one governed runtime file an Advanced reconcile

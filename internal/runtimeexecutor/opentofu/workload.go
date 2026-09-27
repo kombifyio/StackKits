@@ -61,20 +61,28 @@ func (o *WorkloadOperations) ApplyWorkload(ctx context.Context, deployment nativ
 	if err != nil {
 		return nativehost.SelectedPaaSApplyReceipt{}, fmt.Errorf("resolve workspace: %w", err)
 	}
+	expectedProject := "stackkit-" + deployment.WorkloadRef + "-" + deployment.NodeRef
+	relative, err := WorkloadRootRelativePath(expectedProject)
+	if err != nil {
+		return nativehost.SelectedPaaSApplyReceipt{}, err
+	}
+	if err := o.runtime.requireStateCustody(ctx, relative, binary, providers.Directory()); err != nil {
+		return nativehost.SelectedPaaSApplyReceipt{}, err
+	}
 	prepared, err := o.native.PrepareWorkloadCompose(ctx, deployment)
 	if err != nil {
 		return nativehost.SelectedPaaSApplyReceipt{}, err
 	}
-	relative, err := WorkloadRootRelativePath(prepared.ProjectName)
-	if err != nil {
-		return nativehost.SelectedPaaSApplyReceipt{}, err
-	}
-	if prepared.ProjectName != "stackkit-"+deployment.WorkloadRef+"-"+deployment.NodeRef ||
+	if prepared.ProjectName != expectedProject ||
 		prepared.EnvFile != EnvFile ||
 		filepath.Join(workspace, filepath.FromSlash(relative)) != filepath.Join(prepared.Directory, RootDirName) {
 		return nativehost.SelectedPaaSApplyReceipt{}, errors.New("native workload project is not the stack graph runtime root")
 	}
 	config, err := RenderWorkloadRoot(prepared)
+	if err != nil {
+		return nativehost.SelectedPaaSApplyReceipt{}, err
+	}
+	lock, err := providers.LockForConfiguration(config)
 	if err != nil {
 		return nativehost.SelectedPaaSApplyReceipt{}, err
 	}
@@ -85,7 +93,7 @@ func (o *WorkloadOperations) ApplyWorkload(ctx context.Context, deployment nativ
 	if err := writeRoot(root, RootMarker{
 		SchemaVersion: RootMarkerSchemaVersion, ModuleRef: deployment.ModuleRef, InstanceRef: deployment.InstanceRef,
 		RuntimeDir: prepared.ProjectName, ComposeProject: prepared.ProjectName, Kind: RootKindWorkload,
-	}, providers, rootFile{ConfigFile, config, 0o640}); err != nil {
+	}, providers.Directory(), lock, rootFile{ConfigFile, config, 0o640}); err != nil {
 		return nativehost.SelectedPaaSApplyReceipt{}, err
 	}
 	record := workloadObservation{
@@ -96,7 +104,7 @@ func (o *WorkloadOperations) ApplyWorkload(ctx context.Context, deployment nativ
 	// The native runner passes only a fixed locale to Docker Compose; the
 	// wrapper's local-exec adds the native project name.
 	environment := []string{"LANG=C", "LC_ALL=C", "COMPOSE_PROJECT_NAME=" + prepared.ProjectName}
-	if record.tofuRun, err = o.runtime.runRoot(ctx, root, binary, environment); err != nil {
+	if record.tofuRun, err = o.runtime.runRoot(ctx, relative, root, binary, environment); err != nil {
 		return nativehost.SelectedPaaSApplyReceipt{}, err
 	}
 	applied, err := os.ReadFile(filepath.Join(prepared.Directory, ComposeFile))

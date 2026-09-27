@@ -111,6 +111,10 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		if err != nil {
 			return err
 		}
+		useCaseCapabilities, err := parseInitCapabilitySelections(initUseCaseCapabilities)
+		if err != nil {
+			return err
+		}
 		validation, err = service.MaterializeInitialStackSpec(profile, architecturev2.AuthoringOverrides{
 			CatalogDefaults:     initCatalogDefaults,
 			APIVersion:          architectureV2InitAPIVersion(),
@@ -122,6 +126,7 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 			ComputeTier:         initComputeTier,
 			ModuleProfiles:      moduleProfiles,
 			UseCaseAlternatives: useCaseAlternatives,
+			UseCaseCapabilities: useCaseCapabilities,
 			HardwareProfile:     initHardwareProfile,
 		})
 		if err != nil {
@@ -332,8 +337,8 @@ func validateArchitectureV2InitFlags(cmd *cobra.Command) error {
 	if apiVersion == stackspecmigration.APIVersionV2Alpha2 && strings.TrimSpace(initComputeTier) != "" {
 		return fmt.Errorf("--compute-tier is forbidden by native v2alpha2; use --module-compute-profile for each selected module")
 	}
-	if apiVersion == stackspecmigration.APIVersionV2Alpha1 && len(initModuleComputeProfiles)+len(initModuleStorageProfiles)+len(initModuleAcceleratorProfiles)+len(initUseCaseAlternatives) > 0 {
-		return fmt.Errorf("module profiles and explicit alternatives require --api-version stackkit/v2alpha2")
+	if apiVersion == stackspecmigration.APIVersionV2Alpha1 && len(initModuleComputeProfiles)+len(initModuleStorageProfiles)+len(initModuleAcceleratorProfiles)+len(initUseCaseAlternatives)+len(initUseCaseCapabilities) > 0 {
+		return fmt.Errorf("module profiles, explicit alternatives and capability modules require --api-version stackkit/v2alpha2")
 	}
 	unsupported := architectureV2RefusedInitFlags(cmd)
 	if len(unsupported) == 0 {

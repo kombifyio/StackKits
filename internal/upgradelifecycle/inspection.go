@@ -69,6 +69,10 @@ type Inspection struct {
 	Plan          PlanDiff            `json:"plan"`
 	Artifacts     []ArtifactDiff      `json:"artifacts"`
 	Execution     InspectionExecution `json:"execution"`
+	// PinnedInventory is the exact Inventory document the shadow resolved
+	// (Inspector.PinnedInventory). The target execution must resolve the same
+	// document or its plan cannot equal the verified shadow plan.
+	PinnedInventory []byte `json:"-"`
 }
 
 type Target struct {
@@ -227,6 +231,7 @@ func (inspector Inspector) Inspect(ctx context.Context, resolution releaseindex.
 			return err
 		}
 		result = buildInspection(resolution, filepath.Base(targetBinary), current, target)
+		result.PinnedInventory = append([]byte(nil), inspector.PinnedInventory...)
 		return nil
 	})
 	if err != nil {

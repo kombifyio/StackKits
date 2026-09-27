@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-09-26T16:30:01Z",
+  "generated_at": "2026-09-27T18:44:06Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -790,6 +790,19 @@
       "core": true
     },
     {
+      "slug": "comfyui",
+      "display_name": "ComfyUI",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "ComfyUI image and video generation on an NVIDIA GPU with reviewed workflow templates; no ComfyUI-Manager, custom nodes or API nodes; private route behind the kit login.",
+      "contract_hash": "82e17af78d2d45f283bb45b8dcd52d6a430c99753a4f23b8eb47a00f78c6fbb1",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
       "slug": "crowdsec",
       "display_name": "CrowdSec",
       "version": "1.0.0",
@@ -816,6 +829,19 @@
         "pi"
       ],
       "core": true
+    },
+    {
+      "slug": "docling",
+      "display_name": "Docling",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Docling Serve (CPU image with built-in layout, table and OCR models) that converts scanned and complex documents for Open WebUI; no route.",
+      "contract_hash": "a58cb516f241740a7acc58797d5dab2eff044aaef268e80b6b692671cfb9393f",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
     },
     {
       "slug": "dokploy",
@@ -1246,6 +1272,19 @@
       ]
     },
     {
+      "slug": "searxng",
+      "display_name": "SearXNG",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Private meta search that Open WebUI uses for web search; JSON results enabled, limiter off, no route.",
+      "contract_hash": "e8f0748cee70fec3104af11d6fd615f29ae9a8cf04513f7a30b8433c9d785ced",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
       "slug": "security-baseline",
       "display_name": "Security Baseline",
       "version": "0.1.1",
@@ -1299,6 +1338,19 @@
         "pi"
       ],
       "core": true
+    },
+    {
+      "slug": "tika",
+      "display_name": "Apache Tika",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Apache Tika server (minimal image, no OCR) that extracts document text for Open WebUI; no route.",
+      "contract_hash": "28fa04ecdfc90dbfc4434a37acc4e6a8313c1a3c24a72a2fad2d9fee0bcc46c6",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
     },
     {
       "slug": "tinyauth",
