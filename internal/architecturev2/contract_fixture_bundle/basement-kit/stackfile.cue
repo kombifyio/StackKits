@@ -124,7 +124,7 @@ Definition: foundation.#ProductKitDefinition & {
 		]
 		forbidden: ["site-cloud", "cloud-control-authority", "inter-site-link"]
 	}
-	workloads: {required: ["basement-core"], defaults: [], optional: list.Concat([["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "game", "mail", "media-music", "media-audiobooks", "smart-home-esphome", "files-office", "smart-home-mqtt", "smart-home-zigbee", "photos-share", "photos-kiosk", "photos-tools", "ai-search", "ai-documents", "ai-image-video"], foundation.ArchitectureV2InternalHomeWorkloadRefs]), forbidden: []}
+	workloads: {required: ["basement-core"], defaults: [], optional: list.Concat([["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "game", "mail", "media-music", "media-audiobooks", "smart-home-esphome", "files-office", "smart-home-mqtt", "smart-home-zigbee", "photos-share", "photos-kiosk", "photos-tools", "ai-search", "ai-documents", "ai-image-video", "ai-assistant", "ai-speech", "ai-harness"], foundation.ArchitectureV2InternalHomeWorkloadRefs]), forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false

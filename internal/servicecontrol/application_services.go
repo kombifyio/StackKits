@@ -2,6 +2,7 @@ package servicecontrol
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -26,10 +27,14 @@ type servicePlanProjection struct {
 		ServiceControls []serviceDefinition `json:"serviceControls"`
 		Runtime         struct {
 			Components []struct {
-				ID        string `json:"id"`
-				Lifecycle string `json:"lifecycle"`
+				ID               string `json:"id"`
+				Lifecycle        string `json:"lifecycle"`
+				EnabledBySetting string `json:"enabledBySetting"`
 			} `json:"components"`
 		} `json:"runtime"`
+		RenderUnits []struct {
+			Values map[string]json.RawMessage `json:"values"`
+		} `json:"renderUnits"`
 	} `json:"modules"`
 	Workloads []struct {
 		ID          string   `json:"id"`
@@ -82,9 +87,14 @@ func (p servicePlanProjection) applicationServiceControls(declared []serviceDefi
 				continue
 			}
 			for _, component := range module.Runtime.Components {
-				if component.Lifecycle == "daemon" {
-					components = append(components, component.ID)
+				if component.Lifecycle != "daemon" {
+					continue
 				}
+				// An optional component exists only while its setting is on.
+				if component.EnabledBySetting != "" && !moduleSettingOn(module.RenderUnits, component.EnabledBySetting) {
+					continue
+				}
+				components = append(components, component.ID)
 			}
 		}
 		if len(components) == 0 {
@@ -99,6 +109,18 @@ func (p servicePlanProjection) applicationServiceControls(declared []serviceDefi
 		})
 	}
 	return result
+}
+
+func moduleSettingOn(units []struct {
+	Values map[string]json.RawMessage `json:"values"`
+}, setting string) bool {
+	for _, unit := range units {
+		var on bool
+		if raw, set := unit.Values[setting]; set && json.Unmarshal(raw, &on) == nil && on {
+			return true
+		}
+	}
+	return false
 }
 
 func applicationComposeDirectory(workspace, runtimeRef string) string {

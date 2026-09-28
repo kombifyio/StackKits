@@ -194,6 +194,18 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(comfyUIWorkload.contract, comfyUIWorkload); err != nil {
 		return nil, err
 	}
+	openHandsWorkload := newOpenHandsWorkloadBundleRenderer()
+	if err := registry.Register(openHandsWorkload.contract, openHandsWorkload); err != nil {
+		return nil, err
+	}
+	hermesWorkload := newHermesWorkloadBundleRenderer()
+	if err := registry.Register(hermesWorkload.contract, hermesWorkload); err != nil {
+		return nil, err
+	}
+	speechKitWorkload := newSpeechKitWorkloadBundleRenderer()
+	if err := registry.Register(speechKitWorkload.contract, speechKitWorkload); err != nil {
+		return nil, err
+	}
 	immichKioskWorkload := newImmichKioskWorkloadBundleRenderer()
 	if err := registry.Register(immichKioskWorkload.contract, immichKioskWorkload); err != nil {
 		return nil, err
@@ -230,6 +242,10 @@ func NewProductRegistry() (*Registry, error) {
 	}
 	privateAIWorkload := newPrivateAIWorkloadBundleRenderer()
 	if err := registry.Register(privateAIWorkload.contract, privateAIWorkload); err != nil {
+		return nil, err
+	}
+	anythingLLMWorkload := newAnythingLLMWorkloadBundleRenderer()
+	if err := registry.Register(anythingLLMWorkload.contract, anythingLLMWorkload); err != nil {
 		return nil, err
 	}
 	homeAssistantWorkload := newHomeAssistantWorkloadBundleRenderer()

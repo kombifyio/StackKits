@@ -1,0 +1,32 @@
+# Your Hermes settings, seeded once by StackKits. Edit them here, in the
+# dashboard or with `hermes config` and `hermes tools`; StackKits does not
+# overwrite this file. The keys pinned in /etc/hermes/config.yaml win.
+#
+# Pull this model in Open WebUI (or `ollama pull`) before the first chat, or
+# name another model you have pulled.
+model:
+  default: qwen3.5:9b
+
+# Grants. By default the assistant only inspects and drafts: it reads and
+# writes files in its own workspace, uses its skills, memory, notes and past
+# sessions. Each further permission is a toolset you add per platform:
+#   web        search the web through the node's SearXNG (needs the Private AI
+#              web-search module) and read pages
+#   browser    drive a headless browser
+#   cronjob    create schedules that run without you
+#   terminal   run commands inside the assistant's container
+#   send_message, tts, image_gen, skills_hub, vision: external writes and
+#              third-party services; check the data flow first
+# Messaging (Telegram, Discord, ...) is a further grant: configure the platform
+# with `hermes gateway setup`; its tools follow the list below.
+platform_toolsets:
+  cli: [file, skills, todo, memory, session_search]
+  telegram: [file, skills, todo, memory, session_search]
+  discord: [file, skills, todo, memory, session_search]
+  whatsapp: [file, skills, todo, memory, session_search]
+  slack: [file, skills, todo, memory, session_search]
+  signal: [file, skills, todo, memory, session_search]
+  matrix: [file, skills, todo, memory, session_search]
+  mattermost: [file, skills, todo, memory, session_search]
+  email: [file, skills, todo, memory, session_search]
+  homeassistant: [file, skills, todo, memory, session_search]

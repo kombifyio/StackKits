@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -88,12 +89,25 @@ type Setting struct {
 // names the Architecture v2 workload alternative that realizes it; a recorded
 // option is planned and refused by authoring.
 type CapabilityOption struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Note           string `json:"note,omitempty"`
-	Realization    string `json:"realization"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Note        string `json:"note,omitempty"`
+	Realization string `json:"realization"`
+	// Pending names what a recorded option waits for; authoring repeats it
+	// in the refusal so the owner learns the exact blocker.
+	Pending        string `json:"pending,omitempty"`
 	WorkloadRef    string `json:"workloadRef,omitempty"`
 	AlternativeRef string `json:"alternativeRef,omitempty"`
+	// AlternativeRefs lists every alternative of WorkloadRef that installs
+	// this tool; AlternativeRef is the one used unless another capability of
+	// the use case decides the workload. Empty means only AlternativeRef.
+	AlternativeRefs []string `json:"alternativeRefs,omitempty"`
+}
+
+// InstallsWith reports whether the option's tool is part of the named
+// alternative of its workload.
+func (o CapabilityOption) InstallsWith(alternativeRef string) bool {
+	return o.AlternativeRef == alternativeRef || slices.Contains(o.AlternativeRefs, alternativeRef)
 }
 
 // Capability is an independently selectable capability module of a use case;
@@ -1278,14 +1292,16 @@ func validateCapabilityWorkloads(useCase UseCase, workloads []map[string]any) er
 			if workload == nil || stringField(workload, "useCaseRef") != useCase.ID {
 				return fmt.Errorf("use case %s capability %s option %s names %s, which is not an application workload of this use case", useCase.ID, capability.ID, option.ID, option.WorkloadRef)
 			}
-			admitted := false
+			declared := map[string]bool{}
 			alternatives, _ := workload["alternatives"].([]any)
 			for _, raw := range alternatives {
 				alternative, _ := raw.(map[string]any)
-				admitted = admitted || stringField(alternative, "id") == option.AlternativeRef
+				declared[stringField(alternative, "id")] = true
 			}
-			if !admitted {
-				return fmt.Errorf("use case %s capability %s option %s names alternative %s, which workload %s does not declare", useCase.ID, capability.ID, option.ID, option.AlternativeRef, option.WorkloadRef)
+			for _, alternativeRef := range append([]string{option.AlternativeRef}, option.AlternativeRefs...) {
+				if !declared[alternativeRef] {
+					return fmt.Errorf("use case %s capability %s option %s names alternative %s, which workload %s does not declare", useCase.ID, capability.ID, option.ID, alternativeRef, option.WorkloadRef)
+				}
 			}
 		}
 		if !capability.EnabledByDefault {

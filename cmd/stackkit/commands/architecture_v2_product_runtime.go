@@ -461,6 +461,15 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return architecturev2.NewProductComfyUISelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductOpenHandsSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductHermesSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductSpeechKitSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductImmichKioskSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
@@ -495,6 +504,9 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductPrivateAISelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductAnythingLLMSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductImmichSelectedPaaSRegistration(

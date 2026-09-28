@@ -1,0 +1,52 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "hermes",
+  "displayName": "Hermes Agent",
+  "description": "Hermes Agent personal assistant on the node's local Ollama model with persistent memory and skills; StackKits pins the policy floor as managed scope, grants are owner toolsets; private dashboard behind the kit login.",
+  "rationale": "Private AI assistant capability module (default).",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "512m"
+    }
+  },
+  "services": [
+    {
+      "name": "hermes",
+      "type": "application",
+      "required": false,
+      "networks": [
+        "private-ai-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`ai-assistant.{{.domain}}`)",
+        "port": 9119
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "self-auth",
+        "reason": "The dashboard runs the owner's agent: the gateway login protects the private route and Hermes asks for its own owner password."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/api/status",
+        "port": 9119
+      },
+      "resources": {
+        "memory": "512m",
+        "memoryMax": "3g"
+      },
+      "upstream": {
+        "github": "NousResearch/hermes-agent",
+        "registryImage": "docker.io/nousresearch/hermes-agent"
+      },
+      "imageSource": {
+        "moduleRef": "stackkits-hermes-runtime",
+        "componentRef": "hermes"
+      }
+    }
+  ]
+}

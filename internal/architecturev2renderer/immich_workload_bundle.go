@@ -67,14 +67,25 @@ type selectedPaaSRuntimeHealth struct {
 }
 
 type selectedPaaSRuntimeComponent struct {
-	ID                string                      `json:"id"`
-	Role              string                      `json:"role"`
-	Lifecycle         string                      `json:"lifecycle"`
-	HealthFailure     string                      `json:"healthFailure,omitempty"`
-	Image             selectedPaaSRuntimeImage    `json:"image"`
-	DependsOn         []string                    `json:"dependsOn"`
-	NetworkRefs       []string                    `json:"networkRefs"`
-	Egress            bool                        `json:"egress,omitempty"`
+	ID            string                   `json:"id"`
+	Role          string                   `json:"role"`
+	Lifecycle     string                   `json:"lifecycle"`
+	HealthFailure string                   `json:"healthFailure,omitempty"`
+	Image         selectedPaaSRuntimeImage `json:"image"`
+	DependsOn     []string                 `json:"dependsOn"`
+	NetworkRefs   []string                 `json:"networkRefs"`
+	Egress        bool                     `json:"egress,omitempty"`
+	// StopSignal and Init are the governed stop behavior of a component whose
+	// PID 1 does not act on SIGTERM (workload_stop_behavior.go).
+	StopSignal string `json:"stopSignal,omitempty"`
+	Init       bool   `json:"init,omitempty"`
+	// EnabledBySetting marks an optional catalog component; rendered bundles
+	// carry only enabled components and never this field.
+	EnabledBySetting string `json:"enabledBySetting,omitempty"`
+	// SandboxRuntime runs the container under the host's gVisor runtime
+	// (workload_sandbox_runtime.go); admitted only for the governed
+	// agent-harness component.
+	SandboxRuntime    string                      `json:"sandboxRuntime,omitempty"`
 	OwnerEnvironment  map[string]string           `json:"ownerEnvironment,omitempty"`
 	Command           []string                    `json:"command,omitempty"`
 	Entrypoint        []string                    `json:"entrypoint,omitempty"`

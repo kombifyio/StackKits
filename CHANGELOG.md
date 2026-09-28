@@ -26,12 +26,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+* **ai:** the Private AI agent-harness module installs OpenHands. `--use-case-capability ai.agent-harness=openhands` adds the add-on workload `ai-harness`: OpenHands Agent Canvas 1.24.0 in one container that the node runs under gVisor (`runtime: runsc`), with its own settings and workspace volumes, no Docker socket, no host path and the node's Ollama seeded as the agent's model, on a private route behind the kit's login. A node whose Docker daemon has not registered `runsc` is refused before anything is installed; the inventory records the daemon's runtimes, `stackkit host preflight` gains the `sandbox-runtime` check, and the new host resolution `gvisor-runsc` installs gVisor from its apt source with the signing key pinned in the binary, deep-merges `runtimes.runsc` into `/etc/docker/daemon.json` (other runtimes and settings stay) and restarts Docker; Debian and Ubuntu only. Settings and workspace are backed up. Goose stays recorded (no self-hostable web surface). No host has run it yet.
+* **ai:** the Private AI speech module is wired: the add-on workload `ai-speech=speechkit` installs the kombify SpeechKit server with local providers only (a digest-pinned whisper.cpp `whisper-server` sidecar that fetches the MIT `ggml-small` model once and verifies it, a digest-pinned Kokoro-FastAPI v0.9.0 sidecar, the node's Ollama for Assist), the local-only bearer-auth server profile, the token from custody, the SQLite store as backup source, no route and no egress from the server; Open WebUI (`AUDIO_STT_*`, `AUDIO_TTS_*`) and AnythingLLM (`STT_PROVIDER`, `WHISPER_PROVIDER`, `TTS_PROVIDER=generic-openai`) are pointed at its OpenAI-compatible audio routes. The option stays recorded and `ai.speech=speechkit` is refused with "waiting for a SpeechKit release with OpenAI audio endpoints and a public image"; the server image pin is a marked placeholder. A recorded capability option can now state what it waits for (`pending`), repeated in the refusal. The chat module's API key is not rendered (workload secrets are per workload); Kokoro has no German voice (Speaches is the later alternative).
+* **ai:** AnythingLLM is an installable chat alternative. `stackkit init --use-case ai --use-case-capability ai.chat=anythingllm` selects the second alternative `ai=anythingllm` of the Private AI workload: the same pinned Ollama (same model volume, same `nvidia`/`amd` accelerator profiles) plus `mintplexlabs/anythingllm` 1.16.2 (MIT, digest-pinned) instead of Open WebUI, behind the kit's login, bound to the local Ollama for chat and embeddings, LanceDB, telemetry off, the owner password and session key from custody, and its settings file linked into the backed-up storage volume. The web-search add-on is wired into AnythingLLM's agent (`AGENT_SEARXNG_API_URL`), ComfyUI coexists on its own route, and `ai.document-parsing` with AnythingLLM is refused with guidance because AnythingLLM parses documents itself. A capability option may now list every workload alternative that installs it (`alternativeRefs`), so inference (Ollama) resolves with either chat module. Ollama, Open WebUI and ComfyUI stay the core: the default selection and its rendered bundle are unchanged. No node has run AnythingLLM yet; multi-user mode is the owner's first-sign-in step.
+* **ai:** the Private AI assistant module installs Hermes Agent (experimental, one owner). `--use-case-capability ai.assistant=hermes` adds the add-on workload `ai-assistant` with the official `nousresearch/hermes-agent` v2026.9.24 image pinned by digest, inference only on the node's Ollama, and a StackKits policy installed as Hermes managed scope at every start: local terminal backend, dangerous commands always ask, no anonymous web search endpoints. The owner's settings are seeded once with every grant off; messaging, web search through SearXNG, browser, schedules, commands and external writes are toolsets the owner adds. The dashboard is reached only on a private route behind the kit's login and its own custody password; HERMES_HOME is the backup source and schedules come back paused after a restore. OpenBot stays recorded (self-hosting CopilotKit Intelligence needs a paid plan); OpenClaw is not offered. Live evidence on a node is pending.
+
 * **opentofu:** bundle the exact `sebastianfs82/komodo` v0.12.0 provider for every release platform and Debian package. Its archive and unpacked mirror now pass the same compiled offline closure as `hashicorp/local`; Komodo roots receive their own exact dependency lock. This packages the provider, not a rendered Komodo runtime target or real-host parity claim.
 * **ai:** ComfyUI is a core Private AI component and now runs without a GPU. Without `--module-accelerator-profile` the image-video module installs ComfyUI with `--cpu` (host floor 4 cores, 8 GB RAM); `stackkit setup ai-image-video` then admits the Real-ESRGAN upscaler on any node, FLUX.1 schnell only with about 32 GB of RAM, and refuses the Wan 2.2 video preset on the CPU. CPU generation is slow; the setup says so.
 
 * **ai:** the Private AI image-video module installs ComfyUI on an NVIDIA GPU. `--use-case-capability ai.image-video=comfyui --module-accelerator-profile stackkits-comfyui-runtime=nvidia` adds the add-on workload `ai-image-video`; without a GPU profile it is refused, and Apply refuses a host without an NVIDIA GPU with 8 GiB of VRAM. ComfyUI never loads ComfyUI-Manager, custom nodes or paid API nodes and is reached only on a private route behind the kit's login. Four reviewed workflow templates ship (text-to-image, image-to-image, 4x upscale, Wan 2.2 video). No model is bundled: `stackkit setup ai-image-video` downloads one preset (FLUX.1 schnell, Real-ESRGAN or Wan 2.2 5B) after the owner accepts its license, and verifies each file's size and SHA-256. Workflows, uploads and outputs are backed up; models are not. When chat is selected, Open WebUI generates images through ComfyUI. No GPU host has run it yet.
 
-* **ai:** the Private AI web-search and document-parsing modules install. `--use-case-capability ai.web-search=searxng` adds SearXNG, and `ai.document-parsing=tika` (or `=docling`) adds Apache Tika or Docling, each as its own add-on workload on the node's private AI network. Open WebUI is configured to use them only while they are selected; without them its configuration is unchanged. The add-ons have no route of their own, are never public and hold no data to back up. Speech stays planned: the SpeechKit server image is not publicly pullable and offers no OpenAI-compatible audio API for Open WebUI.
+* **ai:** the Private AI web-search and document-parsing modules install. `--use-case-capability ai.web-search=searxng` adds SearXNG, and `ai.document-parsing=tika` (or `=docling`) adds Apache Tika or Docling, each as its own add-on workload on the node's private AI network. Open WebUI is configured to use them only while they are selected; without them its configuration is unchanged. The add-ons have no route of their own, are never public and hold no data to back up. Speech stayed planned at that point: the SpeechKit server image was not publicly pullable and offered no OpenAI-compatible audio API for Open WebUI.
 
 * **ai:** Private AI can run Ollama on a GPU. `stackkit init --use-case ai --module-accelerator-profile stackkits-private-ai-runtime=nvidia` (or `=amd`) selects an accelerator profile; without one, the StackSpec and rendered artifacts stay exactly as before (CPU). NVIDIA uses the Container Device Interface (Compose device reservation `nvidia.com/gpu=all`) and needs driver 550 or newer. The new host resolution `nvidia-container-toolkit` installs the NVIDIA Container Toolkit and generates the CDI spec; StackKits never installs GPU drivers. AMD uses the Ollama ROCm image with `/dev/kfd` and `/dev/dri`. The local inventory now records GPU facts (vendor, count, VRAM, driver version, container access). Apply refuses a selected profile before installing anything when the host has no qualifying GPU, driver or VRAM, and says what to do. The Private AI Accelerator setting now installs. Only governed components receive a GPU. No GPU host has run these profiles yet.
 
@@ -88,6 +93,85 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **photos:** keep Apply and restore available when optional machine learning is degraded, while reporting its health and retaining blocking checks for core services
 * **upgrade:** inspect the applied generation with its attested source release before a newer compiler takes authority
 * **upgrade:** recover the attested source release from the signed public index when a system installer left no workspace release receipt
+
+## [0.48.0] (2026-09-28)
+
+
+
+### Highlights
+
+* **Private AI grows into a full local AI lab:** pick Open WebUI or AnythingLLM as the chat, add web search, document parsing, a Hermes assistant, an OpenHands agent harness under gVisor and ComfyUI for images and video, on the CPU or on NVIDIA and AMD GPUs.
+* **Use your homelab model from kombify AI:** an optional connector next to Ollama links it to your kombify AI as your own model endpoint. It dials out, so no inbound port opens, Ollama stays unpublished and requests on it do not count against your Cloud AI allowance.
+* **Sign-in and identity for more apps:** Paperless-ngx, Media and Smart Home sign in through Pocket ID, Files provisions household accounts, and existing Basement domains migrate with signed recovery.
+* **Safer state and lifecycle:** OpenTofu state and plans are encrypted with owner custody, retried Apply recovers interrupted runs, and upgrades bind to the verified source inventory.
+
+### Added
+
+* **ai:** agent-harness module installs OpenHands under gVisor
+* **ai:** AnythingLLM as chat alternative; Ollama, Open WebUI, ComfyUI are the core
+* **ai:** AnythingLLM installs as the chat alternative of the ai workload
+* **ai:** assistant module installs Hermes Agent with a pinned policy
+* **ai:** capability-module contract for Private AI
+* **ai:** ComfyUI runs on the CPU without an accelerator profile
+* **ai:** GPU enablement for Private AI (NVIDIA CDI, AMD ROCm)
+* **ai:** image-video module installs ComfyUI on an NVIDIA GPU
+* **ai:** optional kombify AI connector next to the Private AI Ollama
+* **ai:** speech module wires kombify SpeechKit with local providers, kept recorded
+* **ai:** web-search and document-parsing modules install and wire into Open WebUI
+* **backup:** verify signed managed restore-drill renewals
+* **identity:** apps reach Pocket ID server-side; Paperless-ngx signs in with OIDC
+* **identity:** automate Media and Smart Home OIDC bootstrap
+* **identity:** migrate existing Basement domains with signed recovery
+* **identity:** provision Files household accounts through admitted adapters
+* **network:** Basement default domain lab.home; refuse a domain that is its own public suffix
+* **opentofu:** encrypt state and plans with owner custody
+* **photos:** Immich add-ons install with Immich-issued API keys; fix route ordering with 3+ routes
+* **smart-home:** owner-chosen LAN listeners and device passthrough; Mosquitto and Zigbee2MQTT install
+* **tofu:** package pinned Komodo provider offline
+
+
+### Fixed
+
+* **access:** bind generated app ACLs to their Core owner
+* **ai:** ComfyUI stops on SIGINT and AnythingLLM runs under init so quiescence no longer waits for SIGKILL
+* **backup:** accept Apache's graceful stop signal in snapshot quiescence
+* **backup:** carry the configuration forward on apply and name the remedy when it binds an earlier Apply
+* **backup:** make Private AI backup, export and service control work
+* **bootstrap:** enforce application identity and preserve checkpoint custody
+* **compat:** import activated restore qualification
+* **files:** accept automatic owner custody for household provisioning
+* **files:** preserve successful household setup
+* **identity:** activation links use the PocketID one-time code route
+* **identity:** hold one lock across domain migration
+* **identity:** resolve Cloud custody for owner step-up
+* **identity:** route Cloud issuer discovery over the core network
+* **identity:** upgrade PocketID while preserving existing custody
+* **init:** honor the declared Basement OpenTofu default
+* **installer:** resume an interrupted Cloud install from any directory
+* **lifecycle:** a retried Apply recovers a recovery-required Apply
+* **media:** accept omitted nullable SSO port
+* **media:** compare Jellyfin account links as UUIDs
+* **migration:** quiesce authenticated source runtime before domain bridge
+* **opentofu:** bind offline providers and Day 2 state custody
+* **opentofu:** verify encrypted runtime state
+* **owner:** reissue a fresh owner activation link and retire the previous one
+* **release:** compare archive legal files with public source root
+* **release:** ship MPL notices with bundled tools
+* **restore:** complete bootstrap while preserving restored identity
+* **runtime:** verify public TLS after workload routes exist
+* **service:** a new plan supersedes running-only service desired state
+* **setup:** admit and record setup for ComfyUI model presets and Immich add-ons
+* **setup:** preserve successful Files bootstrap
+* **smart-home:** retain PKCE with pinned OIDC schema
+* **tofu:** select provider locks per root declaration
+* **upgrade:** bind attested source to sealed Plan inventory
+* **upgrade:** preserve legacy source inventory compatibility
+* **upgrade:** target and rollback generate resolve the verified Inventory
+* **vault:** restore mandatory SMTP email verification
+* **verify:** probe a route's declared HTTP health-gate path
+* **webmcp:** page complete catalog discovery within output budget
+* **webmcp:** project GPU accelerator profiles; remove committed generator staging dir
+* **website:** keep nav dropdowns open on touch and tablet
 
 ## [0.47.9](https://github.com/kombifyio/StackKits/compare/v0.47.8...v0.47.9) (2026-09-27)
 

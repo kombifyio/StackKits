@@ -216,6 +216,8 @@ func ValidateSelectedPaaSWorkloadObservation(
 			return err
 		}
 		return validateStandaloneApplicationObservation(observation, deployment, bundle, []int{200})
+	case "stackkits-anythingllm-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationAnythingLLM, deployment, observation)
 	case "stackkits-emby-runtime":
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationEmby, deployment, observation)
 	case "stackkits-forgejo-runtime":
@@ -242,6 +244,12 @@ func ValidateSelectedPaaSWorkloadObservation(
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationImmichPublicProxy, deployment, observation)
 	case "stackkits-comfyui-runtime":
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationComfyUI, deployment, observation)
+	case "stackkits-openhands-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationOpenHands, deployment, observation)
+	case "stackkits-hermes-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationHermes, deployment, observation)
+	case "stackkits-speechkit-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationSpeechKit, deployment, observation)
 	case "stackkits-immich-kiosk-runtime":
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationImmichKiosk, deployment, observation)
 	case "stackkits-searxng-runtime":

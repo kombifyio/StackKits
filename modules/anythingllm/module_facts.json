@@ -1,0 +1,69 @@
+{
+  "facts_schema_version": "1.0.0",
+  "slug": "anythingllm",
+  "displayName": "AnythingLLM",
+  "description": "AnythingLLM chat alternative for owner-controlled private AI: workspaces with built-in RAG (LanceDB) and agents over the local Ollama. Models require an explicit owner download.",
+  "rationale": "Private AI chat capability module (alternative to Open WebUI, owner decision 2026-09-27).",
+  "layer": "L3-application",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "1g"
+    }
+  },
+  "services": [
+    {
+      "name": "anythingllm",
+      "type": "application",
+      "required": false,
+      "networks": [
+        "private-ai-internal"
+      ],
+      "volumes": [
+        {
+          "source": "anythingllm-storage",
+          "target": "/app/server/storage",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/api/ping",
+        "port": 3001
+      },
+      "resources": {
+        "memory": "512m",
+        "memoryMax": "2g"
+      },
+      "upstream": {
+        "github": "Mintplex-Labs/anything-llm",
+        "registryImage": "docker.io/mintplexlabs/anythingllm"
+      },
+      "environment": {
+        "SERVER_PORT": "3001",
+        "STORAGE_DIR": "/app/server/storage",
+        "LLM_PROVIDER": "ollama",
+        "OLLAMA_BASE_PATH": "http://ollama:11434",
+        "EMBEDDING_ENGINE": "ollama",
+        "EMBEDDING_BASE_PATH": "http://ollama:11434",
+        "VECTOR_DB": "lancedb",
+        "DISABLE_TELEMETRY": "true"
+      },
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`ai.{{.domain}}`)",
+        "port": 3001
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "self-auth"
+      },
+      "imageSource": {
+        "moduleRef": "stackkits-anythingllm-runtime",
+        "componentRef": "anythingllm"
+      }
+    }
+  ]
+}

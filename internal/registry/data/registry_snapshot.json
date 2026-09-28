@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-09-27T20:29:49Z",
+  "generated_at": "2026-09-28T07:12:02Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -763,6 +763,19 @@
       "core": true
     },
     {
+      "slug": "anythingllm",
+      "display_name": "AnythingLLM",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "AnythingLLM chat alternative for owner-controlled private AI: workspaces with built-in RAG (LanceDB) and agents over the local Ollama. Models require an explicit owner download.",
+      "contract_hash": "85e5f302a59ce24673a6cf1d527d4d265b2c8e850576cec313d5f6e908885e83",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
       "slug": "audiobookshelf",
       "display_name": "Audiobookshelf",
       "version": "0.1.0",
@@ -943,6 +956,19 @@
       "layer": "L3-application",
       "description": "Gitea image and storage catalog. Executable owner bootstrap is the native-v2 dev workload; this legacy scaffold is not an unattended installer.",
       "contract_hash": "0738ee4ec3d3d240ee9e9ee893402eb8fc88f8de77a6536888c7e9387e266a16",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
+      "slug": "hermes",
+      "display_name": "Hermes Agent",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Hermes Agent personal assistant on the node's local Ollama model with persistent memory and skills; StackKits pins the policy floor as managed scope, grants are owner toolsets; private dashboard behind the kit login.",
+      "contract_hash": "e37cd40ca0e4321cf8ffed9f2371224a13dd3425046ff1ba37072377ee6a0197",
       "supported_contexts": [
         "local",
         "cloud",
@@ -1193,6 +1219,19 @@
       ]
     },
     {
+      "slug": "openhands",
+      "display_name": "OpenHands",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "OpenHands Agent Canvas task and coding agent in one gVisor-isolated container with its own workspace; no host Docker socket, the node's Ollama as model endpoint, private route behind the kit login.",
+      "contract_hash": "6b1398cf7580a73814c059f7bb1d90884f353ca2eb69780ab578001a23f4b75c",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
       "slug": "paperless-ngx",
       "display_name": "Paperless-ngx",
       "version": "0.1.0",
@@ -1311,6 +1350,19 @@
         "pi"
       ],
       "core": true
+    },
+    {
+      "slug": "speechkit",
+      "display_name": "kombify SpeechKit",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "kombify SpeechKit server with local speech providers only (whisper.cpp speech-to-text, Kokoro text-to-speech, the node's Ollama for Assist); OpenAI-compatible audio routes for the chat module behind a bearer token on the private AI network.",
+      "contract_hash": "0c0ab5f3c6190466e04e3eccd9eef2f7cd4bbc188ca581bc33f2f18d4973f364",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
     },
     {
       "slug": "stalwart",

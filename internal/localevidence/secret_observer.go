@@ -131,6 +131,42 @@ func StoreLocalIssuedSecret(workspaceRoot, secretRef string, material []byte) er
 	return nil
 }
 
+// RemoveLocalIssuedSecret deletes the issued credential custodied under
+// secretRef so that no later apply can hand it to an application. It never
+// removes a generated secret and succeeds when nothing is custodied.
+func RemoveLocalIssuedSecret(workspaceRoot, secretRef string) (returnErr error) {
+	refDigest, err := localSecretRefDigest(secretRef)
+	if err != nil {
+		return err
+	}
+	record, err := loadLocalSecretCustody(workspaceRoot, refDigest)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if record.Kind != localIssuedSecretCustodyKind {
+		return errors.New("localevidence: only an issued secret can be removed from custody")
+	}
+	root, err := confinedfs.Open(workspaceRoot)
+	if err != nil {
+		return err
+	}
+	defer func() { returnErr = errors.Join(returnErr, root.Close()) }()
+	transaction, err := root.BeginTransaction()
+	if err != nil {
+		return err
+	}
+	defer func() { returnErr = errors.Join(returnErr, transaction.Close()) }()
+	relative := filepath.ToSlash(filepath.Join(localSecretCustodyDirectory, refDigest+".json"))
+	_, info, err := transaction.ReadStable(relative)
+	if err != nil {
+		return fmt.Errorf("localevidence: read issued secret custody before removal: %w", err)
+	}
+	return transaction.RemoveRegularFile(relative, info)
+}
+
 // SecretObserver proves that the exact opaque secret locator in an Apply
 // expectation resolves to valid owner-only local custody.
 type SecretObserver struct{ workspaceRoot string }

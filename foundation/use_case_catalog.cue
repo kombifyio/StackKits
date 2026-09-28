@@ -110,6 +110,12 @@ import "list"
 	// planned; authoring refuses it until its workload lands, never a silent
 	// no-op. Several options may share one workload alternative (a bundle).
 	realization: "install" | "recorded"
+	// pending names what a recorded option waits for; authoring repeats it in
+	// the refusal so the owner learns the exact blocker, not only "planned".
+	pending?: string & =~"^.+$"
+	if pending != _|_ {
+		realization: "recorded"
+	}
 	workloadRef?:    =~"^[a-z][a-z0-9-]+$"
 	alternativeRef?: =~"^[a-z][a-z0-9-]+$"
 	if realization == "install" {
@@ -118,6 +124,17 @@ import "list"
 	}
 	if workloadRef != _|_ || alternativeRef != _|_ {
 		realization: "install"
+	}
+	// alternativeRefs lists every alternative of workloadRef that installs
+	// this tool (a bundle shared by several alternatives, such as Ollama in
+	// both chat compositions). alternativeRef is the one resolved when no
+	// other module of the use case decides the workload; another module may
+	// pick any listed alternative without a conflict.
+	alternativeRefs?: [...=~"^[a-z][a-z0-9-]+$"] & list.MinItems(1)
+	if alternativeRefs != _|_ {
+		realization: "install"
+		_alternativeRefsIncludePrimary: list.Contains(alternativeRefs, alternativeRef) & true
+		_alternativeRefsUnique:         list.UniqueItems(alternativeRefs) & true
 	}
 }
 
@@ -550,10 +567,13 @@ UseCaseCatalog: #UseCaseCatalog & {
 			components: {
 				ollama: {id: "ollama", name: "Ollama", role: "primary", kind: "application"}
 				"open-webui": {id: "open-webui", name: "Open WebUI", role: "supporting", kind: "application"}
+				anythingllm: {id: "anythingllm", name: "AnythingLLM", role: "alternative", kind: "application"}
 				searxng: {id: "searxng", name: "SearXNG", role: "supporting", kind: "application"}
 				tika: {id: "tika", name: "Apache Tika", role: "supporting", kind: "application"}
 				docling: {id: "docling", name: "Docling", role: "supporting", kind: "application"}
 				comfyui: {id: "comfyui", name: "ComfyUI", role: "supporting", kind: "application"}
+				hermes: {id: "hermes", name: "Hermes Agent", role: "supporting", kind: "application"}
+				speechkit: {id: "speechkit", name: "kombify SpeechKit", role: "supporting", kind: "application"}
 			}
 			settings: [
 				{
@@ -590,18 +610,25 @@ UseCaseCatalog: #UseCaseCatalog & {
 			]
 			// docs/use-case-expansion/ai-agents.md "Plan (owner request
 			// 2026-09-27)". Inference and chat keep the existing private-ai
-			// composition. Web search and document parsing install as separate
-			// add-on workloads wired into Open WebUI; every other module is
-			// recorded until its workload lands. Speech stays recorded: the
-			// kombify SpeechKit server image is not publicly pullable and has
-			// no OpenAI-compatible audio API that Open WebUI can use.
+			// composition by default; chat=anythingllm selects the second
+			// alternative of the same ai workload (Ollama plus AnythingLLM),
+			// which is why the Ollama option lists both alternatives. Web
+			// search and document parsing install as separate add-on
+			// workloads wired into the chat module; authoring refuses an
+			// add-on the selected chat module cannot use. Every other module
+			// is recorded until its workload lands. Speech is wired (workload
+			// ai-speech, alternative speechkit, chat wiring) but stays recorded:
+			// no SpeechKit release contains the OpenAI-compatible audio routes
+			// of SpeechKit #638 yet and ghcr.io/kombifyio/speechkit-server is
+			// not publicly pullable. The flip is documented in
+			// docs/use-case-expansion/ai-agents.md.
 			capabilities: [
 				{
 					id:       "inference"
 					name:     "Inference"
 					help:     "Serves the models you download; every other AI module uses this local endpoint."
 					required: true
-					default: {id: "ollama", name: "Ollama", realization: "install", workloadRef: "ai", alternativeRef: "private-ai"}
+					default: {id: "ollama", name: "Ollama", realization: "install", workloadRef: "ai", alternativeRef: "private-ai", alternativeRefs: ["private-ai", "anythingllm"]}
 					alternative: {id: "llama-cpp", name: "llama.cpp server", note: "For small or non-NVIDIA nodes", realization: "recorded"}
 				},
 				{
@@ -611,14 +638,14 @@ UseCaseCatalog: #UseCaseCatalog & {
 					enabledByDefault: true
 					requires: ["inference"]
 					default: {id: "open-webui", name: "Open WebUI", realization: "install", workloadRef: "ai", alternativeRef: "private-ai"}
-					alternative: {id: "anythingllm", name: "AnythingLLM", note: "Workspaces with built-in RAG and agents, multi-user mode", realization: "recorded"}
+					alternative: {id: "anythingllm", name: "AnythingLLM", note: "Workspaces with built-in RAG and agents, multi-user mode; parses documents itself, so Tika and Docling are not selectable with it", realization: "install", workloadRef: "ai", alternativeRef: "anythingllm"}
 				},
 				{
 					id:   "speech"
 					name: "Speech"
 					help: "Speak to your assistant and hear answers; recognition runs on your device where it can."
 					requires: ["inference"]
-					default: {id: "speechkit", name: "kombify SpeechKit", note: "Local speech providers only", realization: "recorded"}
+					default: {id: "speechkit", name: "kombify SpeechKit", note: "Local speech providers only", realization: "recorded", pending: "waiting for a SpeechKit release with OpenAI audio endpoints and a public image"}
 				},
 				{
 					id:   "web-search"
@@ -648,16 +675,25 @@ UseCaseCatalog: #UseCaseCatalog & {
 					name: "Personal assistant"
 					help: "An assistant with memory that drafts and inspects first; every further permission is a separate grant."
 					requires: ["inference"]
-					default: {id: "hermes", name: "Hermes Agent", realization: "recorded"}
-					alternative: {id: "openbot", name: "OpenBot", note: "Supervised AI coworker with its own workspace", realization: "recorded"}
+					default: {id: "hermes", name: "Hermes Agent", note: "Experimental; one owner, inspect and draft by default", realization: "install", workloadRef: "ai-assistant", alternativeRef: "hermes"}
+					// OpenBot needs a CopilotKit Intelligence server and API key and has
+					// no degraded mode; self-hosting Intelligence is a paid CopilotKit
+					// plan, so it stays recorded.
+					alternative: {id: "openbot", name: "OpenBot", note: "Supervised AI coworker with its own workspace; needs a paid CopilotKit Intelligence plan to self-host", realization: "recorded"}
 				},
 				{
 					id:   "agent-harness"
 					name: "Agent harness"
 					help: "Task and coding agents that run only inside isolated workspaces."
 					requires: ["inference"]
-					default: {id: "openhands", name: "OpenHands", realization: "recorded"}
-					alternative: {id: "goose", name: "Goose", realization: "recorded"}
+					// OpenHands installs as the add-on workload ai-harness in a
+					// gVisor-isolated container; the host needs the runsc runtime
+					// (stackkit host remediate --apply gvisor-runsc). Goose stays
+					// recorded: it ships a desktop app, a CLI and the goosed
+					// companion server, but no self-hostable multi-user web
+					// surface or official container image for a node workload.
+					default: {id: "openhands", name: "OpenHands", note: "Runs in a gVisor sandbox; the host needs the runsc runtime", realization: "install", workloadRef: "ai-harness", alternativeRef: "openhands"}
+					alternative: {id: "goose", name: "Goose", note: "Desktop app and CLI; no self-hostable web surface yet", realization: "recorded"}
 				},
 				{
 					id:   "agent-control-plane"

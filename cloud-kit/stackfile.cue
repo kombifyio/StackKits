@@ -115,7 +115,7 @@ Definition: foundation.#ProductKitDefinition & {
 		optional: ["private-admin-mesh", "offsite-object-backup", "failure-domain-placement", "telemetry-collection", "availability-ha"]
 		forbidden: ["site-local", "lan-discovery", "local-ingress", "lan-access-policy", "device-enrollment-home"]
 	}
-	workloads: {required: ["cloud-core"], defaults: [], optional: ["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "game", "mail", "mail-server", "media-music", "media-audiobooks", "smart-home-esphome", "files-office", "smart-home-mqtt", "smart-home-zigbee", "photos-share", "photos-kiosk", "photos-tools", "ai-search", "ai-documents", "ai-image-video"], forbidden: []}
+	workloads: {required: ["cloud-core"], defaults: [], optional: ["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "game", "mail", "mail-server", "media-music", "media-audiobooks", "smart-home-esphome", "files-office", "smart-home-mqtt", "smart-home-zigbee", "photos-share", "photos-kiosk", "photos-tools", "ai-search", "ai-documents", "ai-image-video", "ai-assistant", "ai-speech", "ai-harness"], forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false
@@ -243,9 +243,11 @@ Definition: foundation.#ProductKitDefinition & {
 			// Every selectable application gets its initial HTTPS route and data binding.
 			// Private AI add-ons are reached only by Open WebUI over the private
 			// AI network; they get no initial route.
-			// ComfyUI has no sign-in of its own and this kit's routes are public,
-			// so it gets no route here; Open WebUI reaches it privately.
-			workloadRefs: [for ref in workloads.optional if !list.Contains(foundation.ArchitectureV2RoutelessAddOnWorkloadRefs, ref) && ref != "ai-image-video" {ref}]
+			// ComfyUI has no sign-in of its own, the Hermes dashboard runs the
+			// owner's agent and OpenHands signs its browser session in by itself;
+			// this kit's routes are public, so none of them gets a route here.
+			// Open WebUI reaches ComfyUI privately.
+			workloadRefs: [for ref in workloads.optional if !list.Contains(foundation.ArchitectureV2RoutelessAddOnWorkloadRefs, ref) && ref != "ai-image-video" && ref != "ai-assistant" && ref != "ai-harness" {ref}]
 			enableCapabilities: []
 			route: {exposure: "public", protocol: "https", port: 443, path: "/"}
 			accessPolicies: {

@@ -88,6 +88,7 @@ func evaluateHostPreflightForRequest(ctx context.Context, workspace, kitSlug str
 		}
 	}
 	requirements.Accelerators = hostPreflightAcceleratorRequirements(workspace)
+	requirements.SandboxRuntimes = hostPreflightSandboxRuntimeRequirements(workspace)
 	request.ObserveAccelerators = len(requirements.Accelerators) > 0
 	facts := hostpreflight.Observe(ctx, request)
 	return hostpreflight.Evaluate(facts, requirements, kitSlug, policy)
@@ -116,6 +117,73 @@ func refuseUnqualifiedAcceleratorHost(ctx context.Context, workspace string, raw
 	return &exitCodeError{code: ExitCodeHostBlocked, err: fmt.Errorf(
 		"%s: %s; nothing was applied. %s", check.ID, check.Summary, strings.Join(check.Remediation, " "),
 	)}
+}
+
+// refuseUnpreparedSandboxHost refuses a local Apply before the plan is
+// resolved when a selected component runs under a sandbox runtime (gVisor)
+// that this host's Docker daemon has not registered. The compiler would block
+// the same plan with a bare runtime-capacity-unsatisfied readiness code; this
+// names the fix. An unobservable daemon is left to preflight and admission.
+func refuseUnpreparedSandboxHost(ctx context.Context, workspace string, rawSpec []byte, options architectureV2ExecutionCLIOptions) error {
+	if strings.TrimSpace(options.inventoryPath) != "" || architectureV2WorkspaceIsMember(workspace) {
+		return nil
+	}
+	policy, err := resolveHostPreflightPolicy(options.preflightPolicy)
+	if err != nil || policy == hostpreflight.PolicySkip {
+		return nil
+	}
+	requirements := sandboxRuntimeRequirementsFromSpec(rawSpec)
+	if len(requirements) == 0 {
+		return nil
+	}
+	registered := hostconformance.ObserveContainerRuntimes(ctx, nil)
+	if registered == nil {
+		return nil
+	}
+	check := hostpreflight.CheckSandboxRuntimeRegistered(registered, requirements)
+	if check.Status != hostpreflight.StatusBlocked {
+		return nil
+	}
+	return &exitCodeError{code: ExitCodeHostBlocked, err: fmt.Errorf(
+		"%s: %s; nothing was applied. %s", check.ID, check.Summary, strings.Join(check.Remediation, " "),
+	)}
+}
+
+// hostPreflightSandboxRuntimeRequirements projects the sandbox runtimes of the
+// modules the workspace StackSpec enables through the embedded module catalog.
+// A plan without such a component yields none, so its report is unchanged.
+func hostPreflightSandboxRuntimeRequirements(workspace string) []hostpreflight.SandboxRuntimeRequirement {
+	loaded, err := config.NewLoader(workspace).ReadStackSpecDocument(specFile)
+	if err != nil {
+		return nil
+	}
+	return sandboxRuntimeRequirementsFromSpec(loaded.Document.Raw)
+}
+
+func sandboxRuntimeRequirementsFromSpec(rawSpec []byte) []hostpreflight.SandboxRuntimeRequirement {
+	var view struct {
+		Modules map[string]struct {
+			Enabled *bool `yaml:"enabled"`
+		} `yaml:"modules"`
+	}
+	if err := yaml.Unmarshal(rawSpec, &view); err != nil {
+		return nil
+	}
+	var result []hostpreflight.SandboxRuntimeRequirement
+	for moduleID, intent := range view.Modules {
+		if intent.Enabled != nil && !*intent.Enabled {
+			continue
+		}
+		module, err := architecturev2.EmbeddedCatalogModule(moduleID)
+		if err != nil {
+			continue
+		}
+		result = append(result, hostpreflight.SandboxRuntimeRequirementsFromModule(moduleID, module)...)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].ModuleRef+result[i].ComponentRef < result[j].ModuleRef+result[j].ComponentRef
+	})
+	return result
 }
 
 // hostPreflightAcceleratorRequirements projects the accelerator profiles the

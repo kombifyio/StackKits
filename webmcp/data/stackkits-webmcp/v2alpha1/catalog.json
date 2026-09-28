@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "0f9f68968c4b32763f70446aa3af5769923c363f",
-  "authority_bundle_sha256": "97bdc693d40382807162739d35fceab73f6a80c90dbe831d4e8e07d154b51c44",
+  "source_sha": "3f35df6760d023e61cc3b7c2ef08aa41b41e3fac",
+  "authority_bundle_sha256": "f6fa5ffca7e2784e591c339876f7c5a54b2ff10c66894ced7d771721076fd3fb",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -11,6 +11,130 @@
       "status": "supported",
       "planner_link": "/planner?stackkit_id=basement-kit",
       "modules": [
+        {
+          "module_id": "stackkits-anythingllm-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "CPU inference for an explicitly selected small model with AnythingLLM as the chat module. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 12,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1.5
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 80
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "anythingllm",
+                "ollama"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "26edae9debc7813385a36cfb0d885888f0e29826a90307ded0633f2b3855a0ac"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "CPU inference for an explicitly selected small model with AnythingLLM as the chat module. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 12,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1.5
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 80
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "anythingllm",
+                "ollama"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "40be8614a0e778d2c47b7de4d038c124b01a466325282f313c7f571a3eb84f98"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": [
+            {
+              "id": "amd",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "realization": "apply-ready",
+              "description": "Ollama inference on AMD GPUs with ROCm through /dev/kfd and /dev/dri, using the Ollama ROCm image (amd64 only). Needs a ROCm-capable card with the amdgpu kernel driver. AnythingLLM stays on the CPU.",
+              "reservation": {
+                "cpu_cores": 1,
+                "ram_gb": 1,
+                "storage_gb": 6
+              },
+              "accelerator": {
+                "vendor": "amd",
+                "access": "rocm-device-nodes",
+                "images": {
+                  "ollama": {
+                    "ref": "docker.io/ollama/ollama:0.34.0-rocm",
+                    "digest": "36a99c0aaa4d28d0fc84969124bcf2f3d1ba8ab89181e2bd33bbc12f6ac2c4ce"
+                  }
+                }
+              },
+              "components": [
+                "ollama"
+              ],
+              "capabilities": [],
+              "profile_sha256": "207ae965ce66ac8a66b562345136df50c7230e22912e88735d53af5ff3f6ce05"
+            },
+            {
+              "id": "nvidia",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "realization": "apply-ready",
+              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. AnythingLLM stays on the CPU.",
+              "reservation": {
+                "cpu_cores": 1,
+                "ram_gb": 1,
+                "storage_gb": 1
+              },
+              "accelerator": {
+                "vendor": "nvidia",
+                "access": "cdi",
+                "min_driver_major": 550
+              },
+              "components": [
+                "ollama"
+              ],
+              "capabilities": [],
+              "profile_sha256": "6c2385577f944bfbccf2acf1e083e8353dc6b624261104987eb6947480c17058"
+            }
+          ]
+        },
         {
           "module_id": "stackkits-audiobookshelf-runtime",
           "role": "workload",
@@ -857,6 +981,68 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-hermes-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-assistant"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Hermes Agent personal assistant (gateway, scheduler and dashboard) on the node's local model. The model's memory belongs to the inference module; the assistant needs about 512 MB and up to 3 GB with its dashboard chat.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "hermes"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "cb32d6899206bd1b4ab6e18a228a69974b864e2524cfd3744792b5e2b06afcbd"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Hermes Agent personal assistant (gateway, scheduler and dashboard) on the node's local model. The model's memory belongs to the inference module; the assistant needs about 512 MB and up to 3 GB with its dashboard chat.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "hermes"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "11f85911491017692f3674d29e751972c4fd8e687e75acb0ac79cc7e7ee4d94b"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-home-assistant-existing-runtime",
           "role": "workload",
           "required": false,
@@ -1637,6 +1823,78 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-openhands-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-harness"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "OpenHands agent harness in one gVisor-isolated container with its own workspace: agent server, automations and editor. Models run in Ollama; the workspace grows with the owner's projects.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 8,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 100
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "openhands"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "7eccf654b797dceeb9b59a444bd0c125f672d00ca8f779876533ef3457ae3d2d"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "OpenHands agent harness in one gVisor-isolated container with its own workspace: agent server, automations and editor. Models run in Ollama; the workspace grows with the owner's projects.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 8,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 100
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "openhands"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "ceedeed9b12a3407acd6119a61a0ad198c6f1c7a27bad8251be98ab4cc8ae0ba"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-paperless-runtime",
           "role": "workload",
           "required": false,
@@ -1799,12 +2057,13 @@
               "architectures": [],
               "virtualization": [],
               "components": [
+                "kombify-ai-connector",
                 "ollama",
                 "open-webui"
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "29406da684e0c037eeda608d1f4acf490959f151a45f85a7eaf8d25e3303c60b"
+              "profile_sha256": "d92c98e304ec2b8865448a624f559962778cb962db2284d4f66acae46845004a"
             },
             {
               "id": "high",
@@ -1829,12 +2088,13 @@
               "architectures": [],
               "virtualization": [],
               "components": [
+                "kombify-ai-connector",
                 "ollama",
                 "open-webui"
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "70c31040def4b3b1c797f75a46430c9251dd139ee4e3696fdaa9c9734e56728a"
+              "profile_sha256": "ebd82395455648561bb83f3ab4706ff4cdba5a2fc020220628d1b538945ab7a9"
             }
           ],
           "storage_profiles": [],
@@ -2109,6 +2369,72 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-speechkit-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-speech"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "speechkit",
+                "speechkit-tts",
+                "speechkit-whisper"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "2f920d003b0df4b36163523e99d4d64d68ebde53268f171e2d37397a8f0973cd"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "speechkit",
+                "speechkit-tts",
+                "speechkit-whisper"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "3dd32c8796b6a52da09350d745d066be68670b3ea86ccc3d3ddc1f9adfe23b2c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-tika-runtime",
           "role": "workload",
           "required": false,
@@ -2330,12 +2656,49 @@
           "availability": "available",
           "alternatives": [
             {
+              "alternative_id": "anythingllm",
+              "module_id": "stackkits-anythingllm-runtime",
+              "functions": [
+                "chat-interface",
+                "local-inference",
+                "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
               "alternative_id": "private-ai",
               "module_id": "stackkits-private-ai-runtime",
               "functions": [
                 "chat-interface",
                 "local-inference",
                 "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-assistant",
+          "title": "ai-assistant",
+          "description": "Hermes Agent personal assistant with persistent memory and skills on the node's local model, selected with the Private AI assistant module. It inspects and drafts by default; messaging, web search, schedules and external writes are toolsets the owner grants in Hermes. Its dashboard is reached only on a private route behind the kit's login and its own password.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "hermes",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "hermes",
+              "module_id": "stackkits-hermes-runtime",
+              "functions": [
+                "personal-assistant"
               ],
               "load": {
                 "residency": "always-on",
@@ -2371,6 +2734,29 @@
               "module_id": "stackkits-tika-runtime",
               "functions": [
                 "document-parsing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-harness",
+          "title": "ai-harness",
+          "description": "OpenHands task and coding agent whose shell, editor and automations run inside one gVisor-isolated container with its own workspace volume and the node's Ollama as model endpoint, selected with the Private AI agent-harness module. Reached only on a private route behind the kit's login.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "openhands",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "openhands",
+              "module_id": "stackkits-openhands-runtime",
+              "functions": [
+                "agent-harness"
               ],
               "load": {
                 "residency": "always-on",
@@ -2418,6 +2804,30 @@
               "module_id": "stackkits-searxng-runtime",
               "functions": [
                 "web-search"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-speech",
+          "title": "ai-speech",
+          "description": "kombify SpeechKit server with local speech providers (whisper.cpp STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves OpenAI-compatible audio routes to the chat module on the node's private AI network behind its bearer token and has no route of its own.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "speechkit",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "speechkit",
+              "module_id": "stackkits-speechkit-runtime",
+              "functions": [
+                "speech-to-text",
+                "text-to-speech"
               ],
               "load": {
                 "residency": "always-on",
@@ -3051,6 +3461,130 @@
           "compute_profiles": [],
           "storage_profiles": [],
           "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-anythingllm-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "CPU inference for an explicitly selected small model with AnythingLLM as the chat module. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 12,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1.5
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 80
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "anythingllm",
+                "ollama"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "26edae9debc7813385a36cfb0d885888f0e29826a90307ded0633f2b3855a0ac"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "CPU inference for an explicitly selected small model with AnythingLLM as the chat module. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 12,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1.5
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 80
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "anythingllm",
+                "ollama"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "40be8614a0e778d2c47b7de4d038c124b01a466325282f313c7f571a3eb84f98"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": [
+            {
+              "id": "amd",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "realization": "apply-ready",
+              "description": "Ollama inference on AMD GPUs with ROCm through /dev/kfd and /dev/dri, using the Ollama ROCm image (amd64 only). Needs a ROCm-capable card with the amdgpu kernel driver. AnythingLLM stays on the CPU.",
+              "reservation": {
+                "cpu_cores": 1,
+                "ram_gb": 1,
+                "storage_gb": 6
+              },
+              "accelerator": {
+                "vendor": "amd",
+                "access": "rocm-device-nodes",
+                "images": {
+                  "ollama": {
+                    "ref": "docker.io/ollama/ollama:0.34.0-rocm",
+                    "digest": "36a99c0aaa4d28d0fc84969124bcf2f3d1ba8ab89181e2bd33bbc12f6ac2c4ce"
+                  }
+                }
+              },
+              "components": [
+                "ollama"
+              ],
+              "capabilities": [],
+              "profile_sha256": "207ae965ce66ac8a66b562345136df50c7230e22912e88735d53af5ff3f6ce05"
+            },
+            {
+              "id": "nvidia",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "realization": "apply-ready",
+              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. AnythingLLM stays on the CPU.",
+              "reservation": {
+                "cpu_cores": 1,
+                "ram_gb": 1,
+                "storage_gb": 1
+              },
+              "accelerator": {
+                "vendor": "nvidia",
+                "access": "cdi",
+                "min_driver_major": 550
+              },
+              "components": [
+                "ollama"
+              ],
+              "capabilities": [],
+              "profile_sha256": "6c2385577f944bfbccf2acf1e083e8353dc6b624261104987eb6947480c17058"
+            }
+          ]
         },
         {
           "module_id": "stackkits-audiobookshelf-runtime",
@@ -3877,6 +4411,68 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-hermes-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-assistant"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Hermes Agent personal assistant (gateway, scheduler and dashboard) on the node's local model. The model's memory belongs to the inference module; the assistant needs about 512 MB and up to 3 GB with its dashboard chat.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "hermes"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "cb32d6899206bd1b4ab6e18a228a69974b864e2524cfd3744792b5e2b06afcbd"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Hermes Agent personal assistant (gateway, scheduler and dashboard) on the node's local model. The model's memory belongs to the inference module; the assistant needs about 512 MB and up to 3 GB with its dashboard chat.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "hermes"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "11f85911491017692f3674d29e751972c4fd8e687e75acb0ac79cc7e7ee4d94b"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-home-assistant-existing-runtime",
           "role": "workload",
           "required": false,
@@ -4645,6 +5241,78 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-openhands-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-harness"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "OpenHands agent harness in one gVisor-isolated container with its own workspace: agent server, automations and editor. Models run in Ollama; the workspace grows with the owner's projects.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 8,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 100
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "openhands"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "7eccf654b797dceeb9b59a444bd0c125f672d00ca8f779876533ef3457ae3d2d"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "OpenHands agent harness in one gVisor-isolated container with its own workspace: agent server, automations and editor. Models run in Ollama; the workspace grows with the owner's projects.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 8,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 100
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "openhands"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "ceedeed9b12a3407acd6119a61a0ad198c6f1c7a27bad8251be98ab4cc8ae0ba"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-paperless-runtime",
           "role": "workload",
           "required": false,
@@ -4807,12 +5475,13 @@
               "architectures": [],
               "virtualization": [],
               "components": [
+                "kombify-ai-connector",
                 "ollama",
                 "open-webui"
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "29406da684e0c037eeda608d1f4acf490959f151a45f85a7eaf8d25e3303c60b"
+              "profile_sha256": "d92c98e304ec2b8865448a624f559962778cb962db2284d4f66acae46845004a"
             },
             {
               "id": "high",
@@ -4837,12 +5506,13 @@
               "architectures": [],
               "virtualization": [],
               "components": [
+                "kombify-ai-connector",
                 "ollama",
                 "open-webui"
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "70c31040def4b3b1c797f75a46430c9251dd139ee4e3696fdaa9c9734e56728a"
+              "profile_sha256": "ebd82395455648561bb83f3ab4706ff4cdba5a2fc020220628d1b538945ab7a9"
             }
           ],
           "storage_profiles": [],
@@ -5123,6 +5793,72 @@
               "capabilities": [],
               "degradations": [],
               "profile_sha256": "ab7c9a6ea952d47bc0ec364eaa754ac3a97818faf03275fe9153262df1fb00df"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-speechkit-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-speech"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "speechkit",
+                "speechkit-tts",
+                "speechkit-whisper"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "2f920d003b0df4b36163523e99d4d64d68ebde53268f171e2d37397a8f0973cd"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "speechkit",
+                "speechkit-tts",
+                "speechkit-whisper"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "3dd32c8796b6a52da09350d745d066be68670b3ea86ccc3d3ddc1f9adfe23b2c"
             }
           ],
           "storage_profiles": [],
@@ -5436,12 +6172,49 @@
           "availability": "available",
           "alternatives": [
             {
+              "alternative_id": "anythingllm",
+              "module_id": "stackkits-anythingllm-runtime",
+              "functions": [
+                "chat-interface",
+                "local-inference",
+                "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
               "alternative_id": "private-ai",
               "module_id": "stackkits-private-ai-runtime",
               "functions": [
                 "chat-interface",
                 "local-inference",
                 "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-assistant",
+          "title": "ai-assistant",
+          "description": "Hermes Agent personal assistant with persistent memory and skills on the node's local model, selected with the Private AI assistant module. It inspects and drafts by default; messaging, web search, schedules and external writes are toolsets the owner grants in Hermes. Its dashboard is reached only on a private route behind the kit's login and its own password.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "hermes",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "hermes",
+              "module_id": "stackkits-hermes-runtime",
+              "functions": [
+                "personal-assistant"
               ],
               "load": {
                 "residency": "always-on",
@@ -5477,6 +6250,29 @@
               "module_id": "stackkits-tika-runtime",
               "functions": [
                 "document-parsing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-harness",
+          "title": "ai-harness",
+          "description": "OpenHands task and coding agent whose shell, editor and automations run inside one gVisor-isolated container with its own workspace volume and the node's Ollama as model endpoint, selected with the Private AI agent-harness module. Reached only on a private route behind the kit's login.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "openhands",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "openhands",
+              "module_id": "stackkits-openhands-runtime",
+              "functions": [
+                "agent-harness"
               ],
               "load": {
                 "residency": "always-on",
@@ -5524,6 +6320,30 @@
               "module_id": "stackkits-searxng-runtime",
               "functions": [
                 "web-search"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-speech",
+          "title": "ai-speech",
+          "description": "kombify SpeechKit server with local speech providers (whisper.cpp STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves OpenAI-compatible audio routes to the chat module on the node's private AI network behind its bearer token and has no route of its own.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "speechkit",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "speechkit",
+              "module_id": "stackkits-speechkit-runtime",
+              "functions": [
+                "speech-to-text",
+                "text-to-speech"
               ],
               "load": {
                 "residency": "always-on",
@@ -6155,6 +6975,130 @@
       "status": "preview",
       "planner_link": "/planner?stackkit_id=modern-homelab",
       "modules": [
+        {
+          "module_id": "stackkits-anythingllm-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "CPU inference for an explicitly selected small model with AnythingLLM as the chat module. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 12,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1.5
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 80
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "anythingllm",
+                "ollama"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "26edae9debc7813385a36cfb0d885888f0e29826a90307ded0633f2b3855a0ac"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "CPU inference for an explicitly selected small model with AnythingLLM as the chat module. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 12,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1.5
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 80
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "anythingllm",
+                "ollama"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "40be8614a0e778d2c47b7de4d038c124b01a466325282f313c7f571a3eb84f98"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": [
+            {
+              "id": "amd",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "realization": "apply-ready",
+              "description": "Ollama inference on AMD GPUs with ROCm through /dev/kfd and /dev/dri, using the Ollama ROCm image (amd64 only). Needs a ROCm-capable card with the amdgpu kernel driver. AnythingLLM stays on the CPU.",
+              "reservation": {
+                "cpu_cores": 1,
+                "ram_gb": 1,
+                "storage_gb": 6
+              },
+              "accelerator": {
+                "vendor": "amd",
+                "access": "rocm-device-nodes",
+                "images": {
+                  "ollama": {
+                    "ref": "docker.io/ollama/ollama:0.34.0-rocm",
+                    "digest": "36a99c0aaa4d28d0fc84969124bcf2f3d1ba8ab89181e2bd33bbc12f6ac2c4ce"
+                  }
+                }
+              },
+              "components": [
+                "ollama"
+              ],
+              "capabilities": [],
+              "profile_sha256": "207ae965ce66ac8a66b562345136df50c7230e22912e88735d53af5ff3f6ce05"
+            },
+            {
+              "id": "nvidia",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "realization": "apply-ready",
+              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. AnythingLLM stays on the CPU.",
+              "reservation": {
+                "cpu_cores": 1,
+                "ram_gb": 1,
+                "storage_gb": 1
+              },
+              "accelerator": {
+                "vendor": "nvidia",
+                "access": "cdi",
+                "min_driver_major": 550
+              },
+              "components": [
+                "ollama"
+              ],
+              "capabilities": [],
+              "profile_sha256": "6c2385577f944bfbccf2acf1e083e8353dc6b624261104987eb6947480c17058"
+            }
+          ]
+        },
         {
           "module_id": "stackkits-audiobookshelf-runtime",
           "role": "workload",
@@ -7001,6 +7945,68 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-hermes-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-assistant"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Hermes Agent personal assistant (gateway, scheduler and dashboard) on the node's local model. The model's memory belongs to the inference module; the assistant needs about 512 MB and up to 3 GB with its dashboard chat.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "hermes"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "cb32d6899206bd1b4ab6e18a228a69974b864e2524cfd3744792b5e2b06afcbd"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Hermes Agent personal assistant (gateway, scheduler and dashboard) on the node's local model. The model's memory belongs to the inference module; the assistant needs about 512 MB and up to 3 GB with its dashboard chat.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "hermes"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "11f85911491017692f3674d29e751972c4fd8e687e75acb0ac79cc7e7ee4d94b"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-home-assistant-existing-runtime",
           "role": "workload",
           "required": false,
@@ -7781,6 +8787,78 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-openhands-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-harness"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "OpenHands agent harness in one gVisor-isolated container with its own workspace: agent server, automations and editor. Models run in Ollama; the workspace grows with the owner's projects.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 8,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 100
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "openhands"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "7eccf654b797dceeb9b59a444bd0c125f672d00ca8f779876533ef3457ae3d2d"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "OpenHands agent harness in one gVisor-isolated container with its own workspace: agent server, automations and editor. Models run in Ollama; the workspace grows with the owner's projects.",
+              "host_floor": {
+                "cpu_cores": 4,
+                "ram_gb": 8,
+                "storage_gb": 40
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "recommended": {
+                "cpu_cores": 8,
+                "ram_gb": 16,
+                "storage_gb": 100
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "openhands"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "ceedeed9b12a3407acd6119a61a0ad198c6f1c7a27bad8251be98ab4cc8ae0ba"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-paperless-runtime",
           "role": "workload",
           "required": false,
@@ -7943,12 +9021,13 @@
               "architectures": [],
               "virtualization": [],
               "components": [
+                "kombify-ai-connector",
                 "ollama",
                 "open-webui"
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "29406da684e0c037eeda608d1f4acf490959f151a45f85a7eaf8d25e3303c60b"
+              "profile_sha256": "d92c98e304ec2b8865448a624f559962778cb962db2284d4f66acae46845004a"
             },
             {
               "id": "high",
@@ -7973,12 +9052,13 @@
               "architectures": [],
               "virtualization": [],
               "components": [
+                "kombify-ai-connector",
                 "ollama",
                 "open-webui"
               ],
               "capabilities": [],
               "degradations": [],
-              "profile_sha256": "70c31040def4b3b1c797f75a46430c9251dd139ee4e3696fdaa9c9734e56728a"
+              "profile_sha256": "ebd82395455648561bb83f3ab4706ff4cdba5a2fc020220628d1b538945ab7a9"
             }
           ],
           "storage_profiles": [],
@@ -8253,6 +9333,72 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-speechkit-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-speech"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "speechkit",
+                "speechkit-tts",
+                "speechkit-whisper"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "2f920d003b0df4b36163523e99d4d64d68ebde53268f171e2d37397a8f0973cd"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 2
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "speechkit",
+                "speechkit-tts",
+                "speechkit-whisper"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "profile_sha256": "3dd32c8796b6a52da09350d745d066be68670b3ea86ccc3d3ddc1f9adfe23b2c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-tika-runtime",
           "role": "workload",
           "required": false,
@@ -8474,12 +9620,49 @@
           "availability": "available",
           "alternatives": [
             {
+              "alternative_id": "anythingllm",
+              "module_id": "stackkits-anythingllm-runtime",
+              "functions": [
+                "chat-interface",
+                "local-inference",
+                "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
               "alternative_id": "private-ai",
               "module_id": "stackkits-private-ai-runtime",
               "functions": [
                 "chat-interface",
                 "local-inference",
                 "model-serving"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-assistant",
+          "title": "ai-assistant",
+          "description": "Hermes Agent personal assistant with persistent memory and skills on the node's local model, selected with the Private AI assistant module. It inspects and drafts by default; messaging, web search, schedules and external writes are toolsets the owner grants in Hermes. Its dashboard is reached only on a private route behind the kit's login and its own password.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "hermes",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "hermes",
+              "module_id": "stackkits-hermes-runtime",
+              "functions": [
+                "personal-assistant"
               ],
               "load": {
                 "residency": "always-on",
@@ -8515,6 +9698,29 @@
               "module_id": "stackkits-tika-runtime",
               "functions": [
                 "document-parsing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-harness",
+          "title": "ai-harness",
+          "description": "OpenHands task and coding agent whose shell, editor and automations run inside one gVisor-isolated container with its own workspace volume and the node's Ollama as model endpoint, selected with the Private AI agent-harness module. Reached only on a private route behind the kit's login.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "openhands",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "openhands",
+              "module_id": "stackkits-openhands-runtime",
+              "functions": [
+                "agent-harness"
               ],
               "load": {
                 "residency": "always-on",
@@ -8562,6 +9768,30 @@
               "module_id": "stackkits-searxng-runtime",
               "functions": [
                 "web-search"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-speech",
+          "title": "ai-speech",
+          "description": "kombify SpeechKit server with local speech providers (whisper.cpp STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves OpenAI-compatible audio routes to the chat module on the node's private AI network behind its bearer token and has no route of its own.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "speechkit",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "speechkit",
+              "module_id": "stackkits-speechkit-runtime",
+              "functions": [
+                "speech-to-text",
+                "text-to-speech"
               ],
               "load": {
                 "residency": "always-on",
@@ -10480,5 +11710,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "b5a2863795af8b0005bf2f381010a89ef0a108aaadafbcc3f54a3e9b2b5e65da"
+  "catalog_sha256": "4266c7c0e529b301f81b361049d5f77cfdc2acaccf5b33cb84270d1606ae50bf"
 }

@@ -9,7 +9,9 @@ import (
 	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/applyoutcome"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
+	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/localbackupschedule"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/logging"
 	"github.com/kombifyio/stackkits/internal/managedentitlement"
@@ -113,6 +115,33 @@ func writeMachineCommandFailure(cmd *cobra.Command, err error, guidance ...strin
 			logging.RedactText(err.Error()), memberDenial.Guidance(), false,
 		)
 		if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), "denied", detail); writeErr != nil {
+			return errors.Join(err, fmt.Errorf("write machine-readable command failure: %w", writeErr))
+		}
+		return err
+	}
+	// A backup configuration or schedule approval made for an earlier Apply
+	// (every re-apply, a CLI upgrade included, re-signs Plan and Apply) is a
+	// local condition with one exact remedy; report that remedy instead of
+	// the generic retry guidance so a scheduled run or dashboard never
+	// stops silently.
+	var staleConfiguration *backuplifecycle.ConfigurationBindingError
+	if errors.As(err, &staleConfiguration) {
+		detail := actionableerror.New(
+			"stackkit_command_failed", "backup_configuration_stale",
+			logging.RedactText(err.Error()), staleConfiguration.Guidance(), false,
+		)
+		if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), "failed", detail); writeErr != nil {
+			return errors.Join(err, fmt.Errorf("write machine-readable command failure: %w", writeErr))
+		}
+		return err
+	}
+	var staleSchedule *localbackupschedule.StaleAuthorizationError
+	if errors.As(err, &staleSchedule) {
+		detail := actionableerror.New(
+			"stackkit_command_failed", "backup_schedule_stale",
+			logging.RedactText(err.Error()), staleSchedule.Guidance(), false,
+		)
+		if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), "failed", detail); writeErr != nil {
 			return errors.Join(err, fmt.Errorf("write machine-readable command failure: %w", writeErr))
 		}
 		return err

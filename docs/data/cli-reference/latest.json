@@ -5314,6 +5314,54 @@
           "required": false
         }
       ],
+      "subcommands": [
+        "stackkit setup ai-connect"
+      ]
+    },
+    {
+      "path": "stackkit setup ai-connect",
+      "name": "ai-connect",
+      "parent": "stackkit setup",
+      "aliases": [],
+      "group": "start",
+      "usage": "stackkit setup ai-connect [flags]",
+      "short": "Connect the Private AI Ollama to your kombify AI as an own model endpoint",
+      "description": "Turn on the optional kombify AI connector of the Private AI use case. Create a\nmodel endpoint in Companion Studio (Settings, AI access, Model endpoints) with\nthe origin http://ollama:11434 and copy its connector token. This command reads\nthe token from standard input or from --token-file, never from an argument,\nchecks its shape, keeps it in local owner custody and turns the connector on.\nThe next generate and apply start the outbound connector next to Ollama.\nNothing inbound is opened and Ollama stays unpublished.\n\n--disable turns the connector off and removes the token from local custody.\nRevoke the endpoint in Companion Studio to make the token useless everywhere.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit setup ai-connect --token-file -",
+          "description": "Paste the connector token, then press Enter and Ctrl-D (or read it hidden on a terminal)"
+        },
+        {
+          "command": "stackkit setup ai-connect --token-file ~/kombify-connector-token",
+          "description": "Read the token from a private file"
+        },
+        {
+          "command": "stackkit setup ai-connect --disable",
+          "description": "Turn the connector off and remove its token"
+        }
+      ],
+      "flags": [
+        {
+          "name": "disable",
+          "type": "bool",
+          "description": "Turn the connector off and remove its token from local custody",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the secret-free result",
+          "required": false
+        },
+        {
+          "name": "token-file",
+          "type": "string",
+          "description": "File with the connector token; \"-\" or no flag reads standard input",
+          "required": false
+        }
+      ],
       "subcommands": []
     },
     {

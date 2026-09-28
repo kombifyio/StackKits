@@ -1,0 +1,56 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "openhands",
+  "displayName": "OpenHands",
+  "description": "OpenHands Agent Canvas task and coding agent in one gVisor-isolated container with its own workspace; no host Docker socket, the node's Ollama as model endpoint, private route behind the kit login.",
+  "rationale": "Private AI agent-harness capability module (default).",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "1g"
+    }
+  },
+  "services": [
+    {
+      "name": "openhands",
+      "type": "application",
+      "required": false,
+      "networks": [
+        "private-ai-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`ai-harness.{{.domain}}`)",
+        "port": 8000
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "none",
+        "reason": "OpenHands signs its own browser session in with the container's session key, so only the gateway login protects the private route."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/alive",
+        "port": 8000
+      },
+      "resources": {
+        "memory": "1g",
+        "memoryMax": "6g"
+      },
+      "upstream": {
+        "github": "OpenHands/OpenHands",
+        "registryImage": "ghcr.io/openhands/agent-canvas"
+      },
+      "imageSource": {
+        "moduleRef": "stackkits-openhands-runtime",
+        "componentRef": "openhands"
+      },
+      "environment": {
+        "DO_NOT_TRACK": "1",
+        "VITE_DO_NOT_TRACK": "1"
+      }
+    }
+  ]
+}

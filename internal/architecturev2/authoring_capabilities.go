@@ -58,7 +58,11 @@ func resolveUseCaseCapabilities(contracts map[string][]usecasecatalog.Capability
 
 // resolveCapabilityComposition returns workload ID -> alternative for one use
 // case after enforcing the closed selection rules in a fixed order: known IDs,
-// required modules, dependencies, realization, accelerator, then conflicts.
+// required modules, dependencies, realization, accelerator, conflicts, then
+// add-on wiring. Two modules may resolve one workload only when each tool is
+// part of the chosen alternative (CapabilityOption.AlternativeRefs), and an
+// add-on that joins another workload's network is admitted only when the
+// alternative chosen for that workload declares how it uses the add-on.
 //
 //nolint:gocyclo // Each branch is one closed-selection rule with its own guidance.
 func resolveCapabilityComposition(useCaseID string, capabilities []usecasecatalog.Capability, catalog resolvedplan.Catalog, overrides AuthoringOverrides) (map[string]string, error) {
@@ -108,6 +112,7 @@ func resolveCapabilityComposition(useCaseID string, capabilities []usecasecatalo
 	}
 	realized := map[string]string{}
 	realizedBy := map[string]string{}
+	realizedOption := map[string]usecasecatalog.CapabilityOption{}
 	for _, capability := range capabilities {
 		option, on := enabled[capability.ID]
 		if !on {
@@ -118,7 +123,11 @@ func resolveCapabilityComposition(useCaseID string, capabilities []usecasecatalo
 			if installable := installableOptions(useCaseID, []usecasecatalog.Capability{capability}); len(installable) > 0 {
 				guidance = "choose " + strings.Join(installable, " or ")
 			}
-			return nil, invalidCapability("capability %s.%s=%s is planned and not installable in this release; %s. Installable now: %s", useCaseID, capability.ID, option.ID, guidance, strings.Join(installableOptions(useCaseID, capabilities), ", "))
+			pending := ""
+			if strings.TrimSpace(option.Pending) != "" {
+				pending = " (" + option.Pending + ")"
+			}
+			return nil, invalidCapability("capability %s.%s=%s is planned and not installable in this release%s; %s. Installable now: %s", useCaseID, capability.ID, option.ID, pending, guidance, strings.Join(installableOptions(useCaseID, capabilities), ", "))
 		}
 		if capability.RequiresAccelerator {
 			moduleID := workloadAlternativeModule(catalog, option.WorkloadRef, option.AlternativeRef)
@@ -127,10 +136,19 @@ func resolveCapabilityComposition(useCaseID string, capabilities []usecasecatalo
 			}
 		}
 		if existing, taken := realized[option.WorkloadRef]; taken && existing != option.AlternativeRef {
-			return nil, invalidCapability("capability %s.%s=%s needs %s=%s, which conflicts with %s.%s needing %s=%s", useCaseID, capability.ID, option.ID, option.WorkloadRef, option.AlternativeRef, useCaseID, realizedBy[option.WorkloadRef], option.WorkloadRef, existing)
+			switch {
+			case option.InstallsWith(existing):
+				// This tool is part of the alternative another module chose.
+				continue
+			case realizedOption[option.WorkloadRef].InstallsWith(option.AlternativeRef):
+				// The earlier tool is part of this alternative too: this module decides.
+			default:
+				return nil, invalidCapability("capability %s.%s=%s needs %s=%s, which conflicts with %s.%s needing %s=%s", useCaseID, capability.ID, option.ID, option.WorkloadRef, option.AlternativeRef, useCaseID, realizedBy[option.WorkloadRef], option.WorkloadRef, existing)
+			}
 		}
 		realized[option.WorkloadRef] = option.AlternativeRef
 		realizedBy[option.WorkloadRef] = capability.ID
+		realizedOption[option.WorkloadRef] = option
 	}
 	// A module that is off must not be installed as part of another module's
 	// workload alternative: that would be a silent no-op of the "off".
@@ -139,9 +157,37 @@ func resolveCapabilityComposition(useCaseID string, capabilities []usecasecatalo
 			continue
 		}
 		for _, option := range capability.Options() {
-			if option.Realization == "install" && realized[option.WorkloadRef] == option.AlternativeRef {
-				return nil, invalidCapability("capability %s.%s cannot be off: %s is installed together with %s.%s by %s=%s", useCaseID, capability.ID, option.Name, useCaseID, realizedBy[option.WorkloadRef], option.WorkloadRef, option.AlternativeRef)
+			if option.Realization == "install" && option.InstallsWith(realized[option.WorkloadRef]) {
+				return nil, invalidCapability("capability %s.%s cannot be off: %s is installed together with %s.%s by %s=%s", useCaseID, capability.ID, option.Name, useCaseID, realizedBy[option.WorkloadRef], option.WorkloadRef, realized[option.WorkloadRef])
 			}
+		}
+	}
+	// An add-on joins another workload's network to be used by it. The
+	// alternative chosen for that workload must declare the wiring; otherwise
+	// the add-on would run unused, which is refused instead of silently done.
+	for _, capability := range capabilities {
+		option, on := enabled[capability.ID]
+		if !on {
+			continue
+		}
+		addOnModule := workloadAlternativeModule(catalog, option.WorkloadRef, option.AlternativeRef)
+		for _, primaryRef := range modulePeerWorkloads(catalog, addOnModule) {
+			primaryAlternative, realizedPrimary := realized[primaryRef]
+			if !realizedPrimary || moduleWiresCompanion(catalog, workloadAlternativeModule(catalog, primaryRef, primaryAlternative), option.WorkloadRef, option.AlternativeRef) {
+				continue
+			}
+			primaryCapability := realizedBy[primaryRef]
+			guidance := fmt.Sprintf("omit %s.%s", useCaseID, capability.ID)
+			usable := []string{}
+			for _, candidate := range byID[primaryCapability].Options() {
+				if candidate.Realization == "install" && moduleWiresCompanion(catalog, workloadAlternativeModule(catalog, candidate.WorkloadRef, candidate.AlternativeRef), option.WorkloadRef, option.AlternativeRef) {
+					usable = append(usable, fmt.Sprintf("%s.%s=%s", useCaseID, primaryCapability, candidate.ID))
+				}
+			}
+			if len(usable) > 0 {
+				guidance += " or choose " + strings.Join(usable, " or ")
+			}
+			return nil, invalidCapability("capability %s.%s=%s is not usable with %s.%s=%s: %s does not use %s; %s", useCaseID, capability.ID, option.ID, useCaseID, primaryCapability, realizedOption[primaryRef].ID, realizedOption[primaryRef].Name, option.Name, guidance)
 		}
 	}
 	return realized, nil
@@ -193,6 +239,63 @@ func workloadAlternativeModule(catalog resolvedplan.Catalog, workloadID, alterna
 		}
 	}
 	return ""
+}
+
+// catalogModule returns the Architecture v2 module contract with the given ID.
+func catalogModule(catalog resolvedplan.Catalog, moduleID string) map[string]any {
+	if moduleID == "" {
+		return nil
+	}
+	for _, module := range catalog.Modules {
+		metadata, _ := module["metadata"].(map[string]any)
+		if metadata["id"] == moduleID {
+			return module
+		}
+	}
+	return nil
+}
+
+func moduleRuntimeComponents(catalog resolvedplan.Catalog, moduleID string) []map[string]any {
+	runtime, _ := catalogModule(catalog, moduleID)["runtime"].(map[string]any)
+	raw, _ := runtime["components"].([]any)
+	components := make([]map[string]any, 0, len(raw))
+	for _, item := range raw {
+		if component, ok := item.(map[string]any); ok {
+			components = append(components, component)
+		}
+	}
+	return components
+}
+
+// modulePeerWorkloads returns the workloads whose internal network a
+// component of the module joins (its declared peerNetworks).
+func modulePeerWorkloads(catalog resolvedplan.Catalog, moduleID string) []string {
+	var refs []string
+	for _, component := range moduleRuntimeComponents(catalog, moduleID) {
+		peers, _ := component["peerNetworks"].([]any)
+		for _, raw := range peers {
+			peer, _ := raw.(map[string]any)
+			if ref, _ := peer["workloadRef"].(string); ref != "" && !slices.Contains(refs, ref) {
+				refs = append(refs, ref)
+			}
+		}
+	}
+	return refs
+}
+
+// moduleWiresCompanion reports whether a component of the module declares a
+// companionEnvironment entry for the add-on alternative.
+func moduleWiresCompanion(catalog resolvedplan.Catalog, moduleID, workloadRef, alternativeRef string) bool {
+	for _, component := range moduleRuntimeComponents(catalog, moduleID) {
+		entries, _ := component["companionEnvironment"].([]any)
+		for _, raw := range entries {
+			entry, _ := raw.(map[string]any)
+			if entry["workloadRef"] == workloadRef && entry["alternativeRef"] == alternativeRef {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func invalidCapability(format string, args ...any) error {

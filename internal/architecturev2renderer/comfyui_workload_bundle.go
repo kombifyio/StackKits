@@ -76,7 +76,7 @@ func comfyUIAssetsDigest() string {
 
 func comfyUIWorkloadRendererSchema() string {
 	return `stackkit.workload-bundle/v2|ComfyUIWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:comfyui|accelerator:required|egress:owner-model-download|volumes:user,input,output,models|custom-nodes:disabled|governed-files:sha256:` +
-		comfyUIAssetsDigest() + `|release:` + comfyuiRelease + `|secret-material:not-included|peer:ai/private-ai-internal`
+		comfyUIAssetsDigest() + `|release:` + comfyuiRelease + `|secret-material:not-included|peer:ai/private-ai-internal|stop-signal:SIGINT`
 }
 
 // ComfyUIWorkloadBundleDescriptor is the closed, credential-free runtime
@@ -278,8 +278,12 @@ func comfyUIComponent() (selectedPaaSRuntimeComponent, error) {
 	}
 	return selectedPaaSRuntimeComponent{
 		ID: "comfyui", Role: "application", Lifecycle: "daemon", Egress: true,
-		Image:     selectedPaaSRuntimeImage{Ref: comfyuiImageRef, Digest: comfyuiImageDigest},
-		DependsOn: []string{}, NetworkRefs: []string{"comfyui-internal"},
+		// python main.py as PID 1 ignores SIGTERM, handles SIGINT as
+		// KeyboardInterrupt and shuts down in ~2 s (measured 2026-09-28 on the
+		// pinned image).
+		StopSignal: "SIGINT",
+		Image:      selectedPaaSRuntimeImage{Ref: comfyuiImageRef, Digest: comfyuiImageDigest},
+		DependsOn:  []string{}, NetworkRefs: []string{"comfyui-internal"},
 		Command: command,
 		Volumes: []selectedPaaSRuntimeVolume{
 			{ID: "user", Target: "/opt/ComfyUI/user", Class: "persistent", Backup: true},

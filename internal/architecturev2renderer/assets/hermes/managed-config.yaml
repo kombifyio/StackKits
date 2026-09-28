@@ -1,0 +1,32 @@
+# StackKits policy for the Private AI assistant, installed as Hermes managed
+# scope (/etc/hermes/config.yaml, root-owned) at every start. Every key here is
+# pinned over the owner's own settings; everything else stays the owner's.
+#
+# Inference is the node's Ollama on the private AI network. The owner chooses
+# the model (model.default) after pulling it in Open WebUI or with Ollama.
+model:
+  provider: custom
+  base_url: http://ollama:11434/v1
+  api_key: ollama
+
+# Code runs, when the owner grants the terminal toolset, only inside this
+# container as the unprivileged hermes user. No Docker, SSH or cloud backend:
+# the container has no Docker socket, host mount or StackKits credential.
+terminal:
+  backend: local
+  docker_mount_cwd_to_workspace: false
+
+# Dangerous commands always ask the owner; unattended contexts (schedules,
+# webhooks, one-shot queries) are denied instead of auto-approved.
+approvals:
+  mode: manual
+  cron_mode: deny
+  unattended_mode: deny
+  single_query_mode: deny
+
+# Web search goes through the node's SearXNG (Private AI web-search module)
+# and never through anonymous third-party endpoints.
+web:
+  search_backend: searxng
+  keyless_fallback: false
+  keyless_rescue: false

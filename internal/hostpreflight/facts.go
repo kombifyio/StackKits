@@ -73,6 +73,9 @@ type Requirements struct {
 	// Accelerators are the selected accelerator profiles; empty for a CPU
 	// selection, which adds no GPU check.
 	Accelerators []AcceleratorRequirement `json:"accelerators,omitempty"`
+	// SandboxRuntimes are the components that run under a registered sandbox
+	// runtime (gVisor); empty for every plan without the agent harness.
+	SandboxRuntimes []SandboxRuntimeRequirement `json:"sandboxRuntimes,omitempty"`
 }
 
 // Declared reports whether the kit supplied a usable floor.
@@ -99,6 +102,8 @@ type DockerFacts struct {
 	// CDIEnabled is true when the daemon reports CDI spec directories
 	// (Docker Engine 25+ with CDI on; the default from 28.2).
 	CDIEnabled bool `json:"cdiEnabled,omitempty"`
+	// Runtimes are the OCI runtimes the daemon has registered (runc, runsc).
+	Runtimes []string `json:"runtimes,omitempty"`
 }
 
 // MemoryFacts reports host memory in gibibytes. Available and Swap are read

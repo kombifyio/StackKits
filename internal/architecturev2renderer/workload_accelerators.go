@@ -10,8 +10,9 @@ import (
 // The grant is the vendor's container access, never a raw host device path:
 // NVIDIA through a CDI device request, AMD ROCm through /dev/kfd and /dev/dri.
 var governedAcceleratorComponents = map[string][]string{
-	privateAIWorkloadModuleID: {"ollama"},
-	comfyUIWorkloadModuleID:   {"comfyui"},
+	privateAIWorkloadModuleID:   {"ollama"},
+	anythingLLMWorkloadModuleID: {"ollama"},
+	comfyUIWorkloadModuleID:     {"comfyui"},
 }
 
 // selectedPaaSAccelerator is the GPU grant carried by one bundle component.

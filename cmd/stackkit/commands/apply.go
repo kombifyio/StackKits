@@ -117,8 +117,11 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	})
 	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Apply, applyV2ExecutionOptions); handled {
 		if err == nil {
-			// The runtime converged: the owner is set up in every
-			// application, as on every other execution path.
+			// The runtime converged: the local backup follows the re-signed
+			// Apply (an upgraded CLI re-signs it even for an unchanged spec)
+			// and the owner is set up in every application, as on every
+			// other execution path.
+			runAutomaticBackupRebind(cmd.Context(), wd)
 			runAutomaticOwnerSetup(cmd.Context(), wd)
 		}
 		return err

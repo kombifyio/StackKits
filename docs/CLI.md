@@ -495,7 +495,12 @@ process runtime mode, and `stackkit.runtime-observation/v2` records. Status is
 read-only: historical signed Apply evidence is marked `live: false`. If Apply
 evidence is absent or invalid, the command still returns the Plan and a
 `stackkit.actionable-error/v1` recovery contract instead of leaving the
-operator at a dead end.
+operator at a dead end. The additive `backup` projection
+(`stackkit.backup-binding-status/v1`) reports whether the local backup
+configuration and the Owner-approved schedule still bind the current Apply;
+after a re-apply or CLI upgrade a `stale` axis carries the exact remedy
+(`stackkit backup configure`, `stackkit backup schedule enable
+--owner-approve`) so a paused timer is never silent.
 
 The additive `applications` projection contains one
 `stackkit.application-experience/v1` view per selected workload, even when

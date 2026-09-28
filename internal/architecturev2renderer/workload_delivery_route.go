@@ -139,6 +139,9 @@ type ApplicationDeliveryComponentDescriptor struct {
 	// Accelerator is the GPU grant of the module's selected accelerator
 	// profile; nil for every CPU component.
 	Accelerator *ApplicationDeliveryAccelerator
+	// SandboxRuntime is the host container runtime the component runs under
+	// ("runsc" for the governed agent harness); empty means the daemon default.
+	SandboxRuntime string
 	// PeerNetworks are internal networks of other workloads on the node this
 	// add-on component joins; governed per module.
 	PeerNetworks []ApplicationDeliveryPeerNetwork
@@ -153,6 +156,10 @@ type ApplicationDeliveryComponentDescriptor struct {
 	// restore activation created the container (governed per module).
 	SecretFiles                  []ApplicationDeliverySecretFile
 	RestoreActivationEnvironment []string
+	// StopSignal and Init are the governed stop behavior (empty and false
+	// keep the image's own stop signal and PID 1).
+	StopSignal string
+	Init       bool
 }
 
 // ApplicationDeliverySecretFile is one custody secret slot delivered as a
@@ -289,6 +296,9 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 			// v2 bundles created before health impact was explicit are blocking.
 			component.HealthFailure = "blocking"
 		}
+		if component.EnabledBySetting != "" {
+			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".enabledBySetting", "rendered bundles carry only enabled components")
+		}
 		seen[component.ID] = struct{}{}
 		entryFound = entryFound || component.ID == bundle.Workload.EntryComponent
 		for envName, slot := range component.SecretEnvironment {
@@ -318,6 +328,9 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		if (component.RouteHostLoopback || component.DockerLifecycleOwner != nil) && bundle.Workload.ModuleRef != pterodactylWorkloadModuleID {
 			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath, "loopback route host and Docker lifecycle ownership are admitted only for the governed game node")
 		}
+		if err := validateStopBehavior(bundle.Workload.ModuleRef, component, componentPath); err != nil {
+			return ApplicationDeliveryBundleDescriptor{}, err
+		}
 		lanListeners, devices, err := parseLANRights(component, bundle.Workload.ModuleRef, componentPath)
 		if err != nil {
 			return ApplicationDeliveryBundleDescriptor{}, err
@@ -328,6 +341,9 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		}
 		peerNetworks, err := parsePeerNetworks(component, bundle.Workload.ModuleRef, componentPath)
 		if err != nil {
+			return ApplicationDeliveryBundleDescriptor{}, err
+		}
+		if err := validateSandboxRuntime(bundle.Workload.ModuleRef, component, componentPath); err != nil {
 			return ApplicationDeliveryBundleDescriptor{}, err
 		}
 		if len(component.CompanionEnvironment) != 0 {
@@ -358,6 +374,8 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 			DependsOn:         append([]string(nil), component.DependsOn...),
 			NetworkRefs:       append([]string(nil), component.NetworkRefs...),
 			Egress:            component.Egress,
+			StopSignal:        component.StopSignal,
+			Init:              component.Init,
 			OwnerEnvironment:  cloneStringMap(component.OwnerEnvironment),
 			Command:           append([]string(nil), component.Command...),
 			Entrypoint:        append([]string(nil), component.Entrypoint...),
@@ -375,6 +393,7 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 			LANListeners:                 lanListeners,
 			Devices:                      devices,
 			Accelerator:                  accelerator,
+			SandboxRuntime:               component.SandboxRuntime,
 			PeerNetworks:                 peerNetworks,
 			HomeIdentityAccess:           homeIdentityAccess,
 			PocketIDClient:               pocketIDClient,

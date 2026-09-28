@@ -176,10 +176,26 @@ func inspectAttestedSourceRelease(
 	return bridge, nil
 }
 
-// v0.47.5 first admitted observed accelerators. An older installed compiler
-// cannot read that later fact, even when its own persisted Plan never used it.
-// Project only the input to the attested source CLI. The shadow inspection,
-// target execution, and sealed checkpoint keep their full verified Inventory.
+// legacyInventoryFacts are node facts a later release first admitted, each
+// with the release that can read it. An older installed compiler cannot read a
+// later fact, even when its own persisted Plan never used it, so the input to
+// the attested source CLI is projected without the facts it predates. The
+// shadow inspection, target execution, and sealed checkpoint keep their full
+// verified Inventory.
+var legacyInventoryFacts = []struct{ fact, since string }{
+	{fact: "accelerators", since: "v0.47.5"},
+	{fact: "containerRuntimes", since: "v0.47.10"},
+}
+
+func legacyInventoryProjectionNeeded(sourceVersion string) bool {
+	for _, fact := range legacyInventoryFacts {
+		if semver.Compare(sourceVersion, fact.since) < 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func materializeAttestedSourceInventory(
 	workspace, requestedSpec, sourceVersion string, freeze bool,
 ) (string, func(), error) {
@@ -193,7 +209,7 @@ func materializeAttestedSourceInventory(
 		}
 		historicalPath = path
 		cleanup = remove
-		if semver.Compare(sourceVersion, "v0.47.5") >= 0 {
+		if !legacyInventoryProjectionNeeded(sourceVersion) {
 			return path, cleanup, nil
 		}
 		inventory, err = os.ReadFile(path)
@@ -202,7 +218,7 @@ func materializeAttestedSourceInventory(
 			return "", nil, fmt.Errorf("read historical source Inventory: %w", err)
 		}
 	} else {
-		if semver.Compare(sourceVersion, "v0.47.5") >= 0 {
+		if !legacyInventoryProjectionNeeded(sourceVersion) {
 			return "", cleanup, nil
 		}
 		var err error
@@ -214,7 +230,7 @@ func materializeAttestedSourceInventory(
 			return "", cleanup, nil
 		}
 	}
-	projected, changed, err := projectLegacySourceInventory(inventory)
+	projected, changed, err := projectLegacySourceInventory(inventory, sourceVersion)
 	if err != nil {
 		cleanup()
 		return "", nil, err
@@ -230,7 +246,7 @@ func materializeAttestedSourceInventory(
 	return path, remove, err
 }
 
-func projectLegacySourceInventory(inventory []byte) ([]byte, bool, error) {
+func projectLegacySourceInventory(inventory []byte, sourceVersion string) ([]byte, bool, error) {
 	document, err := decodeInventoryDocument(inventory)
 	if err != nil {
 		return nil, false, err
@@ -242,9 +258,11 @@ func projectLegacySourceInventory(inventory []byte) ([]byte, bool, error) {
 		if !ok {
 			continue
 		}
-		if _, present := node["accelerators"]; present {
-			delete(node, "accelerators")
-			changed = true
+		for _, fact := range legacyInventoryFacts {
+			if _, present := node[fact.fact]; present && semver.Compare(sourceVersion, fact.since) < 0 {
+				delete(node, fact.fact)
+				changed = true
+			}
 		}
 	}
 	if !changed {

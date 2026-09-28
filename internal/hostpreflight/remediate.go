@@ -66,6 +66,8 @@ func Executable(resolution Resolution) (bool, string) {
 		return false, "host remediation applies to Linux hosts only"
 	case resolution.RequiresRoot && os.Geteuid() != 0:
 		return false, "run this again as root (sudo stackkit host remediate --apply " + resolution.ID + " --yes)"
+	case !supportsDistribution(resolution, hostDistributionIDs()):
+		return false, "this fix installs packages for " + strings.Join(resolution.Distributions, " and ") + " hosts only; " + strings.Join(resolution.Guidance, " ")
 	}
 	return true, ""
 }
@@ -168,9 +170,7 @@ func nextFileContent(change FileChange, existing []byte, exists bool) ([]byte, b
 				return nil, false, fmt.Errorf("%s is not valid JSON; refusing to overwrite it", change.Path)
 			}
 		}
-		for key, value := range change.Merge {
-			document[key] = value
-		}
+		mergeJSONObjects(document, change.Merge)
 		encoded, err := json.MarshalIndent(document, "", "  ")
 		if err != nil {
 			return nil, false, err
@@ -192,6 +192,22 @@ func nextFileContent(change FileChange, existing []byte, exists bool) ([]byte, b
 		return []byte(change.Content), false, nil
 	}
 	return nil, false, fmt.Errorf("file change for %s declares no content", change.Path)
+}
+
+// mergeJSONObjects folds the declared keys into the document. A nested object
+// is merged key by key rather than replaced, so declaring runtimes.runsc keeps
+// the host's other runtimes and declaring log-opts.max-size keeps its other
+// log options; every other value takes the declared one.
+func mergeJSONObjects(document, declared map[string]any) {
+	for key, value := range declared {
+		nested, declaredIsObject := value.(map[string]any)
+		existing, existingIsObject := document[key].(map[string]any)
+		if declaredIsObject && existingIsObject {
+			mergeJSONObjects(existing, nested)
+			continue
+		}
+		document[key] = value
+	}
 }
 
 // runRemediationCommand runs one closed argv under a deadline.

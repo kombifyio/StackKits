@@ -55,6 +55,18 @@ var governedCompanionEnvironments = map[string]struct {
 		{WorkloadRef: "ai-search", AlternativeRef: "searxng", Environment: map[string]string{
 			"ENABLE_WEB_SEARCH": "true", "WEB_SEARCH_ENGINE": "searxng", "SEARXNG_QUERY_URL": "http://searxng:8080/search",
 		}},
+		// The assistant talks to Ollama itself; Open WebUI gets no variable.
+		{WorkloadRef: "ai-assistant", AlternativeRef: "hermes", Environment: map[string]string{}},
+		// The agent harness reaches Ollama on this network and needs no variable.
+		{WorkloadRef: "ai-harness", AlternativeRef: "openhands", Environment: map[string]string{}},
+		// Open WebUI v0.11.3 speech through SpeechKit's OpenAI-compatible audio
+		// routes (backend/open_webui/config.py AUDIO_*). The bearer token is a
+		// custody secret of the ai-speech workload; companion wiring carries
+		// no secret, so AUDIO_*_OPENAI_API_KEY stays a documented gap.
+		{WorkloadRef: "ai-speech", AlternativeRef: "speechkit", Environment: map[string]string{
+			"AUDIO_STT_ENGINE": "openai", "AUDIO_STT_OPENAI_API_BASE_URL": "http://speechkit:8080/v1", "AUDIO_STT_MODEL": "whisper-1",
+			"AUDIO_TTS_ENGINE": "openai", "AUDIO_TTS_OPENAI_API_BASE_URL": "http://speechkit:8080/v1", "AUDIO_TTS_MODEL": "tts-1", "AUDIO_TTS_VOICE": "af_bella",
+		}},
 		// Open WebUI v0.11.3 image generation through ComfyUI. Private AI runs
 		// with ENABLE_PERSISTENT_CONFIG=false, so these values apply at every
 		// start, also when ComfyUI is added to an existing chat install.
@@ -62,6 +74,31 @@ var governedCompanionEnvironments = map[string]struct {
 			"ENABLE_IMAGE_GENERATION": "true", "IMAGE_GENERATION_ENGINE": "comfyui", "COMFYUI_BASE_URL": "http://comfyui:8188",
 			"IMAGE_GENERATION_MODEL": "flux1-schnell-fp8.safetensors", "IMAGE_SIZE": "1024x1024", "IMAGE_STEPS": "4",
 			"COMFYUI_WORKFLOW": openWebUIComfyUIWorkflow, "COMFYUI_WORKFLOW_NODES": openWebUIComfyUIWorkflowNodes,
+		}},
+	}},
+	// AnythingLLM 1.16.2 (server/utils/agents/aibitat/plugins/web-browsing.js):
+	// the agent's SearXNG engine reads AGENT_SEARXNG_API_URL and appends
+	// q and format=json. ComfyUI coexists on its own route without wiring:
+	// AnythingLLM has no image generation. Document parsing has no entry,
+	// because AnythingLLM uses its own collector; authoring refuses it.
+	anythingLLMWorkloadModuleID: {component: "anythingllm", entries: []selectedPaaSCompanionEnvironment{
+		{WorkloadRef: "ai-search", AlternativeRef: "searxng", Environment: map[string]string{
+			"AGENT_SEARXNG_API_URL": "http://searxng:8080/search",
+		}},
+		{WorkloadRef: "ai-image-video", AlternativeRef: "comfyui", Environment: map[string]string{}},
+		// The assistant talks to Ollama itself; AnythingLLM gets no variable.
+		{WorkloadRef: "ai-assistant", AlternativeRef: "hermes", Environment: map[string]string{}},
+		// The agent harness reaches Ollama on this network and needs no variable.
+		{WorkloadRef: "ai-harness", AlternativeRef: "openhands", Environment: map[string]string{}},
+		// AnythingLLM 1.16.2 speech through SpeechKit's OpenAI-compatible audio
+		// routes: server/utils/SpeechToText/openAiGeneric (STT_*),
+		// TextToSpeech/openAiGeneric (TTS_*) and the collector's
+		// GenericOpenAiWhisper for uploaded audio (WHISPER_*). The *_KEY
+		// values are the ai-speech custody token the owner enters in Settings.
+		{WorkloadRef: "ai-speech", AlternativeRef: "speechkit", Environment: map[string]string{
+			"STT_PROVIDER": "generic-openai", "STT_OPEN_AI_COMPATIBLE_ENDPOINT": "http://speechkit:8080/v1", "STT_OPEN_AI_COMPATIBLE_MODEL": "whisper-1",
+			"WHISPER_PROVIDER": "generic-openai", "WHISPER_GENERIC_OPEN_AI_BASE_URL": "http://speechkit:8080/v1", "WHISPER_GENERIC_OPEN_AI_MODEL": "whisper-1",
+			"TTS_PROVIDER": "generic-openai", "TTS_OPEN_AI_COMPATIBLE_ENDPOINT": "http://speechkit:8080/v1", "TTS_OPEN_AI_COMPATIBLE_MODEL": "tts-1", "TTS_OPEN_AI_COMPATIBLE_VOICE_MODEL": "af_bella",
 		}},
 	}},
 }
@@ -81,11 +118,13 @@ func decodeWorkloadCompanions(raw []byte, path string) ([]workloadCompanion, err
 }
 
 // validateApplicationDeliveryInputsWithCompanions accepts exactly the
-// compiler-owned delivery route and workload companion bindings.
-func validateApplicationDeliveryInputsWithCompanions(unit RenderUnit, moduleRef, serviceRef string, targetPort int, path string) (*applicationDeliveryRoute, []workloadCompanion, error) {
-	if !sameStringSet(unit.PublicInputRefs(), []string{applicationDeliveryRouteInputRef, workloadCompanionsInputRef}) ||
+// compiler-owned delivery route and workload companion bindings plus the named
+// owner settings of the workload, and returns the raw values of the settings
+// the owner set.
+func validateApplicationDeliveryInputsWithCompanions(unit RenderUnit, moduleRef, serviceRef string, targetPort int, settings []string, path string) (*applicationDeliveryRoute, []workloadCompanion, map[string]json.RawMessage, error) {
+	if !sameStringSet(unit.PublicInputRefs(), append([]string{applicationDeliveryRouteInputRef, workloadCompanionsInputRef}, settings...)) ||
 		len(unit.PlanInputRefs()) != 0 || !emptyJSONObject(unit.PlanInputsJSON()) {
-		return nil, nil, fail(ErrInvalidPlan, path, "requires only the delivery route and workload companion inputs")
+		return nil, nil, nil, fail(ErrInvalidPlan, path, "requires only the delivery route, workload companion and declared owner setting inputs")
 	}
 	var bindings []struct {
 		TargetRef    string          `json:"targetRef"`
@@ -96,7 +135,7 @@ func validateApplicationDeliveryInputsWithCompanions(unit RenderUnit, moduleRef,
 		DefaultValue json.RawMessage `json:"defaultValue"`
 	}
 	if err := decodeStrict(unit.InputBindingsJSON(), &bindings); err != nil || len(bindings) != 2 {
-		return nil, nil, fail(ErrInvalidPlan, path+".inputBindings", "delivery route and companion bindings differ from the compiler-owned contract")
+		return nil, nil, nil, fail(ErrInvalidPlan, path+".inputBindings", "delivery route and companion bindings differ from the compiler-owned contract")
 	}
 	for _, binding := range bindings {
 		switch binding.TargetRef {
@@ -104,35 +143,53 @@ func validateApplicationDeliveryInputsWithCompanions(unit RenderUnit, moduleRef,
 			if binding.SourceRef != applicationDeliveryRouteSourceRef || binding.ValueType != applicationDeliveryRouteValueType ||
 				binding.Cardinality != applicationDeliveryRouteCardinality || binding.Required ||
 				!bytes.Equal(bytes.TrimSpace(binding.DefaultValue), []byte("null")) {
-				return nil, nil, fail(ErrInvalidPlan, path+".inputBindings", "delivery route binding identity differs from the compiler-owned contract")
+				return nil, nil, nil, fail(ErrInvalidPlan, path+".inputBindings", "delivery route binding identity differs from the compiler-owned contract")
 			}
 		case workloadCompanionsInputRef:
 			if binding.SourceRef != workloadCompanionsSourceRef || binding.ValueType != workloadCompanionsValueType ||
 				binding.Cardinality != workloadCompanionsCardinality || binding.Required ||
 				!bytes.Equal(bytes.TrimSpace(binding.DefaultValue), []byte("[]")) {
-				return nil, nil, fail(ErrInvalidPlan, path+".inputBindings", "workload companion binding identity differs from the compiler-owned contract")
+				return nil, nil, nil, fail(ErrInvalidPlan, path+".inputBindings", "workload companion binding identity differs from the compiler-owned contract")
 			}
 		default:
-			return nil, nil, fail(ErrInvalidPlan, path+".inputBindings", "carries an undeclared input binding")
+			return nil, nil, nil, fail(ErrInvalidPlan, path+".inputBindings", "carries an undeclared input binding")
 		}
 	}
-	var values struct {
-		Route      *applicationDeliveryRoute `json:"delivery-route"`
-		Companions json.RawMessage           `json:"companions"`
-	}
+	var values map[string]json.RawMessage
 	if err := decodeStrict(unit.ValuesJSON(), &values); err != nil {
-		return nil, nil, wrap(ErrInvalidPlan, path+".values", "decode delivery route and companions", err)
+		return nil, nil, nil, wrap(ErrInvalidPlan, path+".values", "decode delivery route, companions and owner settings", err)
 	}
-	companions, err := decodeWorkloadCompanions(values.Companions, path+".values.companions")
-	if err != nil {
-		return nil, nil, err
-	}
-	if values.Route != nil {
-		if err := validateParsedApplicationDeliveryRoute(*values.Route, moduleRef, serviceRef, targetPort, path+".values.delivery-route"); err != nil {
-			return nil, nil, err
+	var route *applicationDeliveryRoute
+	var rawCompanions json.RawMessage
+	settingValues := map[string]json.RawMessage{}
+	for key, raw := range values {
+		switch {
+		case key == applicationDeliveryRouteInputRef:
+			if string(bytes.TrimSpace(raw)) == "null" {
+				continue
+			}
+			route = &applicationDeliveryRoute{}
+			if err := decodeStrict(raw, route); err != nil {
+				return nil, nil, nil, wrap(ErrInvalidPlan, path+".values.delivery-route", "decode exact delivery route", err)
+			}
+		case key == workloadCompanionsInputRef:
+			rawCompanions = raw
+		case slices.Contains(settings, key):
+			settingValues[key] = raw
+		default:
+			return nil, nil, nil, fail(ErrInvalidPlan, path+".values", "carries an undeclared input")
 		}
 	}
-	return values.Route, companions, nil
+	companions, err := decodeWorkloadCompanions(rawCompanions, path+".values.companions")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if route != nil {
+		if err := validateParsedApplicationDeliveryRoute(*route, moduleRef, serviceRef, targetPort, path+".values.delivery-route"); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+	return route, companions, settingValues, nil
 }
 
 // materializeCompanionEnvironment checks the catalog declaration of a

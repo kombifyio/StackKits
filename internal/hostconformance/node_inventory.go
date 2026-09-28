@@ -38,6 +38,10 @@ type NodeInventoryFacts struct {
 	// Accelerators is nil when GPUs were not observed and an empty list when
 	// the node was observed and has none.
 	Accelerators []AcceleratorFacts
+	// ContainerRuntimes are the OCI runtimes the local Docker daemon has
+	// registered; nil when the daemon was not observed. A module that runs a
+	// component under gVisor is admitted only on a node that records runsc.
+	ContainerRuntimes []string
 }
 
 // RuntimeDaemonFacts is one observed container daemon on the local node.
@@ -160,6 +164,7 @@ func ObserveNodeInventory(ctx context.Context, probe LocalProbe) (NodeInventoryF
 		StorageCapacity:             storageCapacity,
 		DockerDaemon:                observeLocalDockerDaemon(ctx, source),
 		Accelerators:                ObserveAccelerators(ctx, source),
+		ContainerRuntimes:           ObserveContainerRuntimes(ctx, source),
 	}, nil
 }
 
@@ -231,6 +236,10 @@ func MergeNodeInventoryFacts(inventory resolvedplan.InventoryFacts, nodeRef stri
 	if facts.Accelerators != nil {
 		node["accelerators"] = acceleratorsDocument(facts.Accelerators)
 	}
+	delete(node, "containerRuntimes")
+	if facts.ContainerRuntimes != nil {
+		node["containerRuntimes"] = containerRuntimesDocument(facts.ContainerRuntimes)
+	}
 	if strings.TrimSpace(observedSiteKind) != "" {
 		node["observedSiteKind"] = observedSiteKind
 	}
@@ -264,6 +273,9 @@ func validateNodeInventoryFacts(facts NodeInventoryFacts) error {
 		return fmt.Errorf("host virtualization class %q is invalid", facts.Virtualization)
 	}
 	if err := validateAcceleratorFacts(facts.Accelerators); err != nil {
+		return err
+	}
+	if err := validateContainerRuntimeFacts(facts.ContainerRuntimes); err != nil {
 		return err
 	}
 	if facts.StorageCapacity != nil {

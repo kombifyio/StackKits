@@ -1341,18 +1341,115 @@ func (s *Service) boundConfiguration(input StatusInput) (Configuration, error) {
 	if err != nil {
 		return Configuration{}, err
 	}
-	if !configurationMatchesBinding(configuration, binding) {
-		return Configuration{}, errors.New("backuplifecycle: backup configuration differs from current authority lineage or policy artifact")
+	if issue := configurationBindingIssue(configuration, binding); issue != nil {
+		return Configuration{}, issue
 	}
 	return configuration, nil
 }
 
+// InspectConfigurationBinding reports, without touching the repository
+// runtime, whether the stored backup configuration binds the authority the
+// caller holds now. It returns os.ErrNotExist when no configuration exists
+// and a *ConfigurationBindingError when one exists for an earlier Apply or
+// policy artifact, so `stackkit status` can surface the same condition the
+// backup commands fail on.
+func InspectConfigurationBinding(workspaceRoot string, input StatusInput) (Configuration, error) {
+	absolute, err := filepath.Abs(workspaceRoot)
+	if err != nil {
+		return Configuration{}, err
+	}
+	service := &Service{workspaceRoot: absolute}
+	if _, err := service.validateBinding(input.OwnerRef, input.AuthorityRef); err != nil {
+		return Configuration{}, err
+	}
+	binding, err := normalizeBinding(input.OwnerRef, input.AuthorityRef, input.Lineage, input.PolicyArtifact)
+	if err != nil {
+		return Configuration{}, err
+	}
+	configuration, err := service.loadConfiguration()
+	if err != nil {
+		return Configuration{}, err
+	}
+	if issue := configurationBindingIssue(configuration, binding); issue != nil {
+		return configuration, issue
+	}
+	return configuration, nil
+}
+
+// ConfigurationBindingError reports a stored backup configuration that was
+// made for an earlier authority than the one now in force. Every re-apply
+// (a CLI upgrade included) re-signs Plan and Apply, so the lineage moves even
+// when the owner changed nothing. The configuration, the repository and its
+// snapshots stay intact; `stackkit backup configure` carries them forward to
+// the current Apply with the same Owner custody and no new secret.
+type ConfigurationBindingError struct {
+	OwnerDiffers     bool
+	AuthorityDiffers bool
+	LineageDiffers   bool
+	PolicyDiffers    bool
+}
+
+func configurationBindingIssue(configuration Configuration, binding normalizedBinding) *ConfigurationBindingError {
+	issue := &ConfigurationBindingError{
+		OwnerDiffers:     configuration.OwnerRef != binding.OwnerRef,
+		AuthorityDiffers: configuration.AuthorityRef != binding.AuthorityRef,
+		LineageDiffers:   !lineagesEqual(configuration.Lineage, binding.Lineage),
+		PolicyDiffers: configuration.PolicyArtifactDigest != binding.PolicyArtifactDigest ||
+			!policiesEqual(configuration.Policy, binding.Policy),
+	}
+	if !issue.OwnerDiffers && !issue.AuthorityDiffers && !issue.LineageDiffers && !issue.PolicyDiffers {
+		return nil
+	}
+	return issue
+}
+
 func configurationMatchesBinding(configuration Configuration, binding normalizedBinding) bool {
-	return configuration.OwnerRef == binding.OwnerRef &&
-		configuration.AuthorityRef == binding.AuthorityRef &&
-		lineagesEqual(configuration.Lineage, binding.Lineage) &&
-		configuration.PolicyArtifactDigest == binding.PolicyArtifactDigest &&
-		policiesEqual(configuration.Policy, binding.Policy)
+	return configurationBindingIssue(configuration, binding) == nil
+}
+
+// CarryForwardable reports whether `stackkit backup configure` can move the
+// configuration to the current authority: the Owner and human authority are
+// unchanged and only the Apply lineage or the generated policy moved.
+func (e *ConfigurationBindingError) CarryForwardable() bool {
+	return e != nil && !e.OwnerDiffers && !e.AuthorityDiffers
+}
+
+func (e *ConfigurationBindingError) Error() string {
+	if e == nil {
+		return "backuplifecycle: backup configuration binding issue"
+	}
+	var changed []string
+	if e.OwnerDiffers {
+		changed = append(changed, "Owner")
+	}
+	if e.AuthorityDiffers {
+		changed = append(changed, "human authority")
+	}
+	if e.LineageDiffers {
+		changed = append(changed, "Plan/Apply lineage")
+	}
+	if e.PolicyDiffers {
+		changed = append(changed, "backup policy artifact")
+	}
+	message := "backuplifecycle: backup configuration was made for an earlier " + strings.Join(changed, ", ") +
+		" than the current Apply"
+	if e.CarryForwardable() {
+		return message + "; run `stackkit backup configure` to carry it forward (the repository, its snapshots and Owner custody stay the same)"
+	}
+	return message + "; the configuration cannot be carried forward automatically because it belongs to a different Owner or authority"
+}
+
+// Guidance lists the exact recovery commands for the actionable-error contract.
+func (e *ConfigurationBindingError) Guidance() []string {
+	if e.CarryForwardable() {
+		return []string{
+			"Run `stackkit backup configure` to carry the existing backup configuration forward to the current Apply; the repository, its snapshots and Owner custody stay the same and no new secret is created.",
+			"If a scheduled backup timer is enabled, run `stackkit backup schedule enable --owner-approve` afterwards so the timer follows the current Apply and CLI; `stackkit status` shows both conditions.",
+		}
+	}
+	return []string{
+		"The stored backup configuration belongs to a different Owner or human authority than the current Apply; verify local Owner custody with `stackkit verify --json` before any backup command.",
+	}
 }
 
 func (s *Service) loadConfiguration() (Configuration, error) {

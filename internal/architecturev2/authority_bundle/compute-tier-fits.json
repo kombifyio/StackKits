@@ -1,10 +1,29 @@
 {
-  "contentDigest": "sha256:5e395ccb2bd04960768aab0728f5d87f6a43014cb3c1a18cb6f29bcd28428689",
+  "contentDigest": "sha256:20cebea30f63a0f4dc4f596387ba27191ea8aaf05a4424a6158286b36f910365",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
     {
       "addOns": [
+        {
+          "alternatives": [
+            {
+              "id": "hermes",
+              "modules": [
+                {
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-hermes-runtime"
+                }
+              ],
+              "name": "hermes"
+            }
+          ],
+          "defaultAlternative": "hermes",
+          "id": "ai-assistant"
+        },
         {
           "alternatives": [
             {
@@ -36,6 +55,25 @@
           ],
           "defaultAlternative": "tika",
           "id": "ai-documents"
+        },
+        {
+          "alternatives": [
+            {
+              "id": "openhands",
+              "modules": [
+                {
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-openhands-runtime"
+                }
+              ],
+              "name": "openhands"
+            }
+          ],
+          "defaultAlternative": "openhands",
+          "id": "ai-harness"
         },
         {
           "alternatives": [
@@ -74,9 +112,41 @@
           ],
           "defaultAlternative": "searxng",
           "id": "ai-search"
+        },
+        {
+          "alternatives": [
+            {
+              "id": "speechkit",
+              "modules": [
+                {
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-speechkit-runtime"
+                }
+              ],
+              "name": "speechkit"
+            }
+          ],
+          "defaultAlternative": "speechkit",
+          "id": "ai-speech"
         }
       ],
       "alternatives": [
+        {
+          "id": "anythingllm",
+          "modules": [
+            {
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-anythingllm-runtime"
+            }
+          ],
+          "name": "anythingllm"
+        },
         {
           "id": "private-ai",
           "modules": [
@@ -101,6 +171,10 @@
           },
           "default": {
             "alternativeRef": "private-ai",
+            "alternativeRefs": [
+              "private-ai",
+              "anythingllm"
+            ],
             "id": "ollama",
             "name": "Ollama",
             "realization": "install",
@@ -116,10 +190,12 @@
         },
         {
           "alternative": {
+            "alternativeRef": "anythingllm",
             "id": "anythingllm",
             "name": "AnythingLLM",
-            "note": "Workspaces with built-in RAG and agents, multi-user mode",
-            "realization": "recorded"
+            "note": "Workspaces with built-in RAG and agents, multi-user mode; parses documents itself, so Tika and Docling are not selectable with it",
+            "realization": "install",
+            "workloadRef": "ai"
           },
           "default": {
             "alternativeRef": "private-ai",
@@ -143,6 +219,7 @@
             "id": "speechkit",
             "name": "kombify SpeechKit",
             "note": "Local speech providers only",
+            "pending": "waiting for a SpeechKit release with OpenAI audio endpoints and a public image",
             "realization": "recorded"
           },
           "enabledByDefault": false,
@@ -229,13 +306,16 @@
           "alternative": {
             "id": "openbot",
             "name": "OpenBot",
-            "note": "Supervised AI coworker with its own workspace",
+            "note": "Supervised AI coworker with its own workspace; needs a paid CopilotKit Intelligence plan to self-host",
             "realization": "recorded"
           },
           "default": {
+            "alternativeRef": "hermes",
             "id": "hermes",
             "name": "Hermes Agent",
-            "realization": "recorded"
+            "note": "Experimental; one owner, inspect and draft by default",
+            "realization": "install",
+            "workloadRef": "ai-assistant"
           },
           "enabledByDefault": false,
           "help": "An assistant with memory that drafts and inspects first; every further permission is a separate grant.",
@@ -251,12 +331,16 @@
           "alternative": {
             "id": "goose",
             "name": "Goose",
+            "note": "Desktop app and CLI; no self-hostable web surface yet",
             "realization": "recorded"
           },
           "default": {
+            "alternativeRef": "openhands",
             "id": "openhands",
             "name": "OpenHands",
-            "realization": "recorded"
+            "note": "Runs in a gVisor sandbox; the host needs the runsc runtime",
+            "realization": "install",
+            "workloadRef": "ai-harness"
           },
           "enabledByDefault": false,
           "help": "Task and coding agents that run only inside isolated workspaces.",
@@ -315,6 +399,13 @@
       ],
       "components": [
         {
+          "id": "anythingllm",
+          "kind": "application",
+          "name": "AnythingLLM",
+          "realization": "install",
+          "role": "alternative"
+        },
+        {
           "id": "comfyui",
           "kind": "application",
           "name": "ComfyUI",
@@ -324,6 +415,12 @@
           "id": "docling",
           "kind": "application",
           "name": "Docling",
+          "role": "supporting"
+        },
+        {
+          "id": "hermes",
+          "kind": "application",
+          "name": "Hermes Agent",
           "role": "supporting"
         },
         {
@@ -342,6 +439,12 @@
           "id": "searxng",
           "kind": "application",
           "name": "SearXNG",
+          "role": "supporting"
+        },
+        {
+          "id": "speechkit",
+          "kind": "application",
+          "name": "kombify SpeechKit",
           "role": "supporting"
         },
         {

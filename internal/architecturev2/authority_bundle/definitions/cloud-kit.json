@@ -899,7 +899,10 @@
       "photos-tools",
       "ai-search",
       "ai-documents",
-      "ai-image-video"
+      "ai-image-video",
+      "ai-assistant",
+      "ai-speech",
+      "ai-harness"
     ],
     "required": [
       "cloud-core"

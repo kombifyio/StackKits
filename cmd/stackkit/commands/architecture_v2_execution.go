@@ -434,6 +434,9 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 		if err := refuseUnqualifiedAcceleratorHost(ctx, wd, rawSpec, options); err != nil {
 			return err
 		}
+		if err := refuseUnpreparedSandboxHost(ctx, wd, rawSpec, options); err != nil {
+			return err
+		}
 	}
 	switch mode {
 	case architectureV2Generate:

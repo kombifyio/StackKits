@@ -1,5 +1,12 @@
 package hostpreflight
 
+import (
+	_ "embed"
+	"os"
+	"slices"
+	"strings"
+)
+
 // Host resolutions are the fixes for what preflight found.
 //
 // Preflight already names what is wrong and what would fix it, but naming is
@@ -60,6 +67,11 @@ type Resolution struct {
 	// the caveats of an apply.
 	Guidance []string `json:"guidance,omitempty"`
 
+	// Distributions restricts an apply to hosts whose /etc/os-release ID or
+	// ID_LIKE names one of them (package sources are distribution-specific).
+	// Elsewhere the resolution is refused with its guidance; empty means any.
+	Distributions []string `json:"distributions,omitempty"`
+
 	RequiresRoot   bool `json:"requiresRoot"`
 	RequiresReboot bool `json:"requiresReboot"`
 
@@ -79,6 +91,24 @@ const (
 	nvidiaContainerToolkitKeyring    = "/usr/share/keyrings/nvidia-container-toolkit-keyring.asc"
 	nvidiaContainerToolkitSourceList = "/etc/apt/sources.list.d/nvidia-container-toolkit.list"
 )
+
+// The gVisor apt source (https://gvisor.dev/docs/user_guide/install/) signs
+// with "The gVisor Authors" key, fingerprint
+// 6F1D F85E 3A71 C249 18E7 27D5 6FC6 D554 E32B D943. The key is pinned in the
+// binary rather than fetched at install, so a changed download cannot
+// change what the host trusts. The runsc package installs /usr/bin/runsc.
+const (
+	gvisorKeyring    = "/usr/share/keyrings/gvisor-archive-keyring.asc"
+	gvisorSourceList = "/etc/apt/sources.list.d/gvisor.list"
+	gvisorRunscPath  = "/usr/bin/runsc"
+)
+
+//go:embed assets/gvisor-archive-keyring.asc
+var gvisorArchiveKey string
+
+// debianFamily are the distributions whose apt sources these resolutions
+// declare (Debian, Ubuntu and ID_LIKE derivatives).
+var debianFamily = []string{"debian", "ubuntu"}
 
 // Resolutions is the closed catalog, ordered by the check they answer.
 func Resolutions() []Resolution {
@@ -183,6 +213,33 @@ func Resolutions() []Resolution {
 			RequiresRoot: true, Reversible: true, AutoInstallerEligible: true,
 		},
 		{
+			ID: "gvisor-runsc", Title: "Register the gVisor sandbox runtime",
+			AppliesTo: CheckSandboxRuntime, Mode: ModeApply,
+			Summary:       "The selected agent harness runs its container under gVisor (runsc), which Docker on this host has not registered.",
+			Distributions: debianFamily,
+			Files: []FileChange{
+				{Path: gvisorKeyring, Mode: 0o644, Content: gvisorArchiveKey},
+				{Path: gvisorSourceList, Mode: 0o644, Content: "deb [signed-by=" + gvisorKeyring + "] https://storage.googleapis.com/gvisor/releases release main\n"},
+				{
+					Path: "/etc/docker/daemon.json", Mode: 0o644, Backup: true,
+					Merge: map[string]any{"runtimes": map[string]any{"runsc": map[string]any{"path": gvisorRunscPath}}},
+				},
+			},
+			Commands: [][]string{
+				{"apt-get", "update"},
+				{"apt-get", "install", "-y", "runsc"},
+				{"systemctl", "restart", "docker"},
+			},
+			Guidance: []string{
+				"Debian and Ubuntu hosts only; on other distributions install runsc from https://gvisor.dev/docs/user_guide/install/, add {\"runtimes\":{\"runsc\":{\"path\":\"/usr/bin/runsc\"}}} to /etc/docker/daemon.json and restart Docker.",
+				"The apt source is signed by the pinned gVisor Authors key (6F1D F85E 3A71 C249 18E7 27D5 6FC6 D554 E32B D943); nothing is downloaded to decide what to trust.",
+				"daemon.json keeps every other setting, including other runtimes and CDI; the previous file is kept beside it as daemon.json.stackkit-backup.",
+				"Restarting the Docker daemon restarts every running container, so run this before an Apply rather than during one.",
+				"Undo with apt-get remove runsc, by removing runtimes.runsc from /etc/docker/daemon.json and by deleting the key and the source list, then restart Docker.",
+			},
+			RequiresRoot: true, Reversible: true, AutoInstallerEligible: true,
+		},
+		{
 			ID: "proxmox-cpu-host", Title: "Pass the host CPU through to the VM",
 			AppliesTo: "cpu-baseline", Mode: ModeHint,
 			Summary: "A masked virtual CPU hides instruction sets that some images require.",
@@ -192,6 +249,32 @@ func Resolutions() []Resolution {
 			},
 		},
 	}
+}
+
+// hostDistributionIDs reads ID and ID_LIKE from /etc/os-release, lower-cased.
+func hostDistributionIDs() []string {
+	data, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		return nil
+	}
+	var ids []string
+	for _, line := range strings.Split(string(data), "\n") {
+		key, value, found := strings.Cut(strings.TrimSpace(line), "=")
+		if !found || (key != "ID" && key != "ID_LIKE") {
+			continue
+		}
+		ids = append(ids, strings.Fields(strings.ToLower(strings.Trim(value, osReleaseQuotes)))...)
+	}
+	return ids
+}
+
+// supportsDistribution reports whether the host's distribution family is one
+// the resolution declares. An unrestricted resolution applies anywhere.
+func supportsDistribution(resolution Resolution, hostIDs []string) bool {
+	if len(resolution.Distributions) == 0 {
+		return true
+	}
+	return slices.ContainsFunc(hostIDs, func(id string) bool { return slices.Contains(resolution.Distributions, id) })
 }
 
 // ResolutionByID returns one catalog entry.

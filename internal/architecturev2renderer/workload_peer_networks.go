@@ -19,6 +19,13 @@ var governedPeerNetworks = map[string]struct {
 	doclingWorkloadModuleID: {component: "docling", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}}},
 	// ComfyUI joins the private AI network so Open WebUI reaches it.
 	comfyUIWorkloadModuleID: {component: "comfyui", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}}},
+	// OpenHands joins the private AI network to reach Ollama.
+	openHandsWorkloadModuleID: {component: "openhands", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}}},
+	// Hermes reaches Ollama and, when selected, SearXNG on the private AI network.
+	hermesWorkloadModuleID: {component: "hermes", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}}},
+	// Only the SpeechKit server joins the private AI network (Ollama for
+	// Assist, the chat module as its client); its provider sidecars do not.
+	speechKitWorkloadModuleID: {component: "speechkit", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}}},
 }
 
 // validatePeerNetworks accepts a component's peer networks only when they are

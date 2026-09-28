@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -247,15 +248,16 @@ func observeCPUBaseline(architecture string) *bool {
 
 // dockerInfo is the subset of docker info this admission needs.
 type dockerInfo struct {
-	ServerVersion   string   `json:"ServerVersion"`
-	Driver          string   `json:"Driver"`
-	CgroupDriver    string   `json:"CgroupDriver"`
-	CgroupVersion   string   `json:"CgroupVersion"`
-	MemoryLimit     bool     `json:"MemoryLimit"`
-	SwapLimit       bool     `json:"SwapLimit"`
-	DockerRootDir   string   `json:"DockerRootDir"`
-	SecurityOptions []string `json:"SecurityOptions"`
-	CDISpecDirs     []string `json:"CDISpecDirs"`
+	ServerVersion   string         `json:"ServerVersion"`
+	Driver          string         `json:"Driver"`
+	CgroupDriver    string         `json:"CgroupDriver"`
+	CgroupVersion   string         `json:"CgroupVersion"`
+	MemoryLimit     bool           `json:"MemoryLimit"`
+	SwapLimit       bool           `json:"SwapLimit"`
+	DockerRootDir   string         `json:"DockerRootDir"`
+	SecurityOptions []string       `json:"SecurityOptions"`
+	CDISpecDirs     []string       `json:"CDISpecDirs"`
+	Runtimes        map[string]any `json:"Runtimes"`
 }
 
 func observeDocker(ctx context.Context) DockerFacts {
@@ -289,6 +291,10 @@ func observeDocker(ctx context.Context) DockerFacts {
 	facts.SwapLimitSupported = info.SwapLimit
 	facts.RootDir = info.DockerRootDir
 	facts.CDIEnabled = len(info.CDISpecDirs) > 0
+	for name := range info.Runtimes {
+		facts.Runtimes = append(facts.Runtimes, name)
+	}
+	sort.Strings(facts.Runtimes)
 	for _, option := range info.SecurityOptions {
 		if strings.Contains(option, "rootless") {
 			facts.Rootless = true

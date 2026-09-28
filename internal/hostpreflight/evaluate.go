@@ -112,6 +112,7 @@ func Evaluate(facts Facts, requirements Requirements, kitSlug string, policy Pol
 		checkClock(facts),
 	}
 	checks = append(checks, checkAccelerators(facts, requirements)...)
+	checks = append(checks, checkSandboxRuntime(facts, requirements)...)
 	sort.SliceStable(checks, func(i, j int) bool { return checks[i].ID < checks[j].ID })
 	report.Checks = checks
 	report.Status = worstStatus(checks)

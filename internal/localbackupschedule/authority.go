@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/backupcustody"
@@ -196,6 +197,46 @@ func DisableAuthorization(workspace string, ownerApproved bool) (Authorization, 
 	return persistAuthorization(workspace, record)
 }
 
+// StaleAuthorizationError reports an enabled schedule whose Owner approval
+// was given for an earlier Apply, policy artifact or CLI than the ones now in
+// force. Every re-apply (a CLI upgrade included) re-signs Plan and Apply, so
+// scheduled snapshots pause until the Owner approves the current binding
+// again; approval is never carried forward without the Owner.
+type StaleAuthorizationError struct {
+	LineageDiffers bool
+	PolicyDiffers  bool
+	CLIDiffers     bool
+}
+
+func (e *StaleAuthorizationError) Error() string {
+	if e == nil {
+		return "backup schedule authorization is stale"
+	}
+	var changed []string
+	if e.LineageDiffers {
+		changed = append(changed, "Plan/Apply lineage")
+	}
+	if e.PolicyDiffers {
+		changed = append(changed, "backup policy artifact")
+	}
+	if e.CLIDiffers {
+		changed = append(changed, "StackKit CLI")
+	}
+	if len(changed) == 0 {
+		changed = append(changed, "schedule binding")
+	}
+	return "backup schedule was approved for an earlier " + strings.Join(changed, ", ") +
+		" than the current one; scheduled snapshots are paused until you run `stackkit backup schedule enable --owner-approve`"
+}
+
+// Guidance lists the exact recovery commands for the actionable-error contract.
+func (e *StaleAuthorizationError) Guidance() []string {
+	return []string{
+		"Run `stackkit backup configure` if `stackkit backup status` reports the configuration was made for an earlier Apply, then `stackkit backup schedule enable --owner-approve` to approve the schedule for the current Apply and CLI.",
+		"Until then no scheduled snapshot runs; `stackkit status` and `stackkit backup schedule status` report the paused schedule.",
+	}
+}
+
 // RequireAuthorization fails closed when a schedule is stale, disabled or the
 // CLI bytes changed. The binding supplied here must come from current local
 // authority, never directly from the persisted record.
@@ -205,8 +246,18 @@ func RequireAuthorization(workspace string, current AuthorizationBinding) (Autho
 		return Authorization{}, err
 	}
 	now := time.Now().UTC()
-	if record.State != "enabled" || !reflect.DeepEqual(record.Binding, current) || now.Before(record.ApprovedAt) || now.Before(record.ChangedAt) {
-		return Authorization{}, errors.New("backup schedule is disabled or differs from current local authority; reapprove its binding")
+	if record.State != "enabled" {
+		return Authorization{}, errors.New("backup schedule is not enabled; run `stackkit backup schedule enable --owner-approve` to approve the current cadence")
+	}
+	if !reflect.DeepEqual(record.Binding, current) {
+		return Authorization{}, &StaleAuthorizationError{
+			LineageDiffers: !reflect.DeepEqual(record.Binding.Lineage, current.Lineage),
+			PolicyDiffers:  record.Binding.PolicyDigest != current.PolicyDigest,
+			CLIDiffers:     !reflect.DeepEqual(record.Binding.CLI, current.CLI),
+		}
+	}
+	if now.Before(record.ApprovedAt) || now.Before(record.ChangedAt) {
+		return Authorization{}, errors.New("backup schedule authorization is dated in the future; reapprove its binding")
 	}
 	if err := clibinding.VerifyIdentity(current.CLI); err != nil {
 		return Authorization{}, err

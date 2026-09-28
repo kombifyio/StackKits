@@ -113,11 +113,18 @@
         "name": { "type": "string", "minLength": 1 },
         "note": { "type": "string", "minLength": 1 },
         "realization": { "type": "string", "enum": ["install", "recorded"] },
+        "pending": { "type": "string", "minLength": 1 },
         "workloadRef": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
-        "alternativeRef": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" }
+        "alternativeRef": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+        "alternativeRefs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" }
+        }
       },
       "if": { "properties": { "realization": { "const": "install" } } },
-      "then": { "required": ["workloadRef", "alternativeRef"] },
+      "then": { "required": ["workloadRef", "alternativeRef"], "not": { "required": ["pending"] } },
       "else": { "not": { "anyOf": [{ "required": ["workloadRef"] }, { "required": ["alternativeRef"] }] } }
     },
     "useCaseCapability": {

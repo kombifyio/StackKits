@@ -1,0 +1,91 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "speechkit",
+  "displayName": "kombify SpeechKit",
+  "description": "kombify SpeechKit server with local speech providers only (whisper.cpp speech-to-text, Kokoro text-to-speech, the node's Ollama for Assist); OpenAI-compatible audio routes for the chat module behind a bearer token on the private AI network.",
+  "rationale": "Private AI speech capability module (default).",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "2g"
+    }
+  },
+  "services": [
+    {
+      "name": "speechkit",
+      "type": "application",
+      "required": false,
+      "networks": [
+        "private-ai-internal"
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/healthz",
+        "port": 8080
+      },
+      "resources": {
+        "memory": "256m",
+        "memoryMax": "1g"
+      },
+      "upstream": {
+        "github": "kombifyio/SpeechKit",
+        "registryImage": "ghcr.io/kombifyio/speechkit-server"
+      },
+      "routed": false,
+      "imageSource": {
+        "moduleRef": "stackkits-speechkit-runtime",
+        "componentRef": "speechkit"
+      }
+    },
+    {
+      "name": "speechkit-whisper",
+      "type": "application",
+      "required": false,
+      "networks": [],
+      "healthCheck": {
+        "type": "http",
+        "path": "/",
+        "port": 8080
+      },
+      "resources": {
+        "memory": "1g",
+        "memoryMax": "3g"
+      },
+      "upstream": {
+        "github": "ggml-org/whisper.cpp",
+        "registryImage": "ghcr.io/ggml-org/whisper.cpp"
+      },
+      "routed": false,
+      "imageSource": {
+        "moduleRef": "stackkits-speechkit-runtime",
+        "componentRef": "speechkit-whisper"
+      }
+    },
+    {
+      "name": "speechkit-tts",
+      "type": "application",
+      "required": false,
+      "networks": [],
+      "healthCheck": {
+        "type": "http",
+        "path": "/health",
+        "port": 8880
+      },
+      "resources": {
+        "memory": "512m",
+        "memoryMax": "2g"
+      },
+      "upstream": {
+        "github": "remsky/Kokoro-FastAPI",
+        "registryImage": "ghcr.io/remsky/kokoro-fastapi-cpu"
+      },
+      "routed": false,
+      "imageSource": {
+        "moduleRef": "stackkits-speechkit-runtime",
+        "componentRef": "speechkit-tts"
+      }
+    }
+  ]
+}

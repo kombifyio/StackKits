@@ -30,12 +30,19 @@ const (
 	// ComfyUIModelDownloadActionRef installs a reviewed model preset. ComfyUI
 	// has no accounts, so no administrator login is verified; the result
 	// records the preset (Preparation "model-preset-<id>").
-	ComfyUIModelDownloadActionRef   = "comfyui-model-download"
-	ComfyUIModelPresetPreparation   = "model-preset-"
-	VaultOwnerPreparationInvited    = "owner-invited"
-	VaultOwnerPreparationRegistered = "owner-registered"
-	OwnerEmailVerificationPending   = "pending"
-	OwnerEmailVerificationVerified  = "verified"
+	ComfyUIModelDownloadActionRef = "comfyui-model-download"
+	ComfyUIModelPresetPreparation = "model-preset-"
+	// KombifyAIConnectorEnabledPreparation and KombifyAIConnectorDisabled-
+	// Preparation report `stackkit setup ai-connect`. It changes the owner's
+	// intent (connector token custody and the kombify-connector setting) ahead
+	// of the next apply, so it observes no application and seals no setup
+	// receipt; the next apply records the connector like any component.
+	KombifyAIConnectorEnabledPreparation  = "kombify-ai-connector-enabled"
+	KombifyAIConnectorDisabledPreparation = "kombify-ai-connector-disabled"
+	VaultOwnerPreparationInvited          = "owner-invited"
+	VaultOwnerPreparationRegistered       = "owner-registered"
+	OwnerEmailVerificationPending         = "pending"
+	OwnerEmailVerificationVerified        = "verified"
 )
 
 // SetupResult is a secret-free observation of the application API. It is

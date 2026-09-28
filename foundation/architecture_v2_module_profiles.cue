@@ -275,8 +275,24 @@ _architectureV2PrivateAIComputeProfiles: {
 		maturity:    "beta", executable: true, realization: "apply-ready"
 		hostFloor: {minCpuCores: 4, minRamGB: 12, minStorageGB: 40}
 		recommended: {cpuCores: 8, ramGB: 16, storageGB: 80}
+		// The optional kombify AI connector declares a memory limit only; it
+		// adds no reservation while it is off.
 		reservation: ramGB: 1.5
-		components: ["open-webui", "ollama"]
+		components: ["open-webui", "ollama", "kombify-ai-connector"]
+	}
+	high: standard
+}
+
+// AnythingLLM chat alternative of the ai workload: the same Ollama runtime
+// with AnythingLLM instead of Open WebUI; the same host floor applies.
+_architectureV2AnythingLLMComputeProfiles: {
+	standard: #ModuleComputeProfileV2 & {
+		description: "CPU inference for an explicitly selected small model with AnythingLLM as the chat module. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile."
+		maturity:    "beta", executable: true, realization: "apply-ready"
+		hostFloor: {minCpuCores: 4, minRamGB: 12, minStorageGB: 40}
+		recommended: {cpuCores: 8, ramGB: 16, storageGB: 80}
+		reservation: ramGB: 1.5
+		components: ["anythingllm", "ollama"]
 	}
 	high: standard
 }
@@ -297,6 +313,30 @@ _architectureV2PrivateAIAcceleratorProfiles: {
 	}
 	amd: #ModuleAxisProfileV2 & {
 		description: "Ollama inference on AMD GPUs with ROCm through /dev/kfd and /dev/dri, using the Ollama ROCm image (amd64 only). Needs a ROCm-capable card with the amdgpu kernel driver. Open WebUI stays on the CPU."
+		maturity:    "experimental"
+		realization: "apply-ready"
+		reservation: {cpuCores: 1, ramGB: 1, storageGB: 6}
+		components: ["ollama"]
+		accelerator: {
+			vendor: "amd", access: "rocm-device-nodes"
+			images: ollama: {ref: "docker.io/ollama/ollama:0.34.0-rocm", digest: "sha256:36a99c0aaa4d28d0fc84969124bcf2f3d1ba8ab89181e2bd33bbc12f6ac2c4ce"}
+		}
+	}
+}
+
+// The same GPU profiles for the AnythingLLM alternative; only Ollama
+// receives the device.
+_architectureV2AnythingLLMAcceleratorProfiles: {
+	nvidia: #ModuleAxisProfileV2 & {
+		description: "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. AnythingLLM stays on the CPU."
+		maturity:    "experimental"
+		realization: "apply-ready"
+		reservation: {cpuCores: 1, ramGB: 1, storageGB: 1}
+		components: ["ollama"]
+		accelerator: {vendor: "nvidia", access: "cdi", minDriverMajor: 550}
+	}
+	amd: #ModuleAxisProfileV2 & {
+		description: "Ollama inference on AMD GPUs with ROCm through /dev/kfd and /dev/dri, using the Ollama ROCm image (amd64 only). Needs a ROCm-capable card with the amdgpu kernel driver. AnythingLLM stays on the CPU."
 		maturity:    "experimental"
 		realization: "apply-ready"
 		reservation: {cpuCores: 1, ramGB: 1, storageGB: 6}
@@ -351,6 +391,20 @@ _architectureV2ComfyUIComputeProfile: #ModuleComputeProfileV2 & {
 }
 _architectureV2ComfyUIComputeProfiles: {standard: _architectureV2ComfyUIComputeProfile, high: _architectureV2ComfyUIComputeProfile}
 
+// Private AI agent harness (OpenHands). Inference happens in Ollama; this
+// container holds the agent server, the automation backend, the editor and
+// whatever the agent builds in its workspace. The gVisor runtime adds memory
+// for its sentry, and repositories and package installs need their own disk.
+_architectureV2OpenHandsComputeProfile: #ModuleComputeProfileV2 & {
+	description: "OpenHands agent harness in one gVisor-isolated container with its own workspace: agent server, automations and editor. Models run in Ollama; the workspace grows with the owner's projects."
+	maturity:    "experimental", executable: true, realization: "apply-ready"
+	hostFloor: {minCpuCores: 4, minRamGB: 8, minStorageGB: 40}
+	recommended: {cpuCores: 8, ramGB: 16, storageGB: 100}
+	reservation: ramGB: 1
+	components: ["openhands"]
+}
+_architectureV2OpenHandsComputeProfiles: {standard: _architectureV2OpenHandsComputeProfile, high: _architectureV2OpenHandsComputeProfile}
+
 // The image templates need 8 GiB of VRAM; the Wan 2.2 video template needs
 // 16 GiB, which the model download refuses to fetch on a smaller GPU.
 _architectureV2ComfyUIAcceleratorProfiles: {
@@ -363,6 +417,31 @@ _architectureV2ComfyUIAcceleratorProfiles: {
 		accelerator: {vendor: "nvidia", access: "cdi", minDriverMajor: 580, minVramGiB: 8}
 	}
 }
+
+// Private AI personal assistant (Hermes Agent). The agent itself is light:
+// the model runs in the node's Ollama, whose profile carries the model
+// memory. The image bundles Python, Node and a headless browser runtime.
+_architectureV2HermesComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Hermes Agent personal assistant (gateway, scheduler and dashboard) on the node's local model. The model's memory belongs to the inference module; the assistant needs about 512 MB and up to 3 GB with its dashboard chat."
+	maturity:    "experimental", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.5
+	components: ["hermes"]
+}
+_architectureV2HermesComputeProfiles: {standard: _architectureV2HermesComputeProfile, high: _architectureV2HermesComputeProfile}
+
+// Private AI speech (kombify SpeechKit with local providers). The server is
+// light; the whisper.cpp small model (CPU) and the Kokoro-82M CPU runtime
+// carry the memory. Assist uses the node's Ollama, whose profile holds the
+// model memory.
+_architectureV2SpeechKitComputeProfile: #ModuleComputeProfileV2 & {
+	description: "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama."
+	maturity:    "experimental", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 2
+	components: ["speechkit", "speechkit-whisper", "speechkit-tts"]
+}
+_architectureV2SpeechKitComputeProfiles: {standard: _architectureV2SpeechKitComputeProfile, high: _architectureV2SpeechKitComputeProfile}
 
 _architectureV2GiteaComputeProfile: #ModuleComputeProfileV2 & {
 	description: "Private Git hosting with SQLite and persistent repositories, LFS objects and configuration. CI runners and SSH are not included. Repository growth needs a separate data budget."

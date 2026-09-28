@@ -3210,6 +3210,24 @@ _servicePublicationShape: {
 	networkRefs: [...#ContractID] & list.MinItems(1)
 	// Outbound access for owner-requested downloads; never publishes a port.
 	egress?: bool
+	// stopSignal replaces the image's stop signal when its PID 1 does not act
+	// on SIGTERM; only signals the snapshot quiescer admits. Renderers admit
+	// it only for their governed component.
+	stopSignal?: "SIGINT" | "SIGTERM"
+	// init runs the engine's minimal init as PID 1, for a shell entrypoint
+	// that has no signal handlers; admitted only for the governed component.
+	init?: true
+	// enabledBySetting makes the component optional: it runs only while the
+	// owner turns on the named boolean workload setting and is absent from the
+	// rendered workload otherwise. Renderers admit it only for their governed
+	// component; it never gates the entry component.
+	enabledBySetting?: #ContractID
+	// sandboxRuntime runs the container under the host's gVisor runtime
+	// (runsc) instead of runc, for a component that executes code an agent
+	// writes. The host must have registered the runtime; admission refuses a
+	// node whose inventory does not record it. Renderers admit it only for
+	// their governed agent-harness component, never as a generic right.
+	sandboxRuntime?: "runsc"
 	// Bind existing local owner identity without fabricating a credential.
 	ownerEnvironment?: [string]: "email"
 	// ADR-0043 game-node fields. Renderers admit each only for the one module
@@ -3380,6 +3398,7 @@ _servicePublicationShape: {
 		entryComponentRef: #ContractID
 		_componentIDsUnique: list.UniqueItems([for component in components {component.id}]) & true
 		_entryComponentExact: [for component in components if component.id == entryComponentRef {component.id}] & list.MinItems(1) & list.MaxItems(1)
+		_entryComponentAlwaysOn: [for component in components if component.id == entryComponentRef && component.enabledBySetting != _|_ {component.id}] & list.MaxItems(0)
 		_componentDependenciesClosed: [for component in components for dependencyRef in component.dependsOn {
 			component:  component.id
 			dependency: dependencyRef
@@ -6786,6 +6805,9 @@ _servicePublicationShape: {
 		virtualization?:              #RuntimeVirtualizationV2
 		// Present only when the node was observed; empty means no GPU.
 		accelerators?: [...#InventoryAcceleratorV1]
+		// Container runtimes the node's Docker daemon has registered (runc,
+		// runsc, ...). Present only when the daemon was observed.
+		containerRuntimes?: [...(string & =~"^[a-z][a-z0-9._-]*$")]
 		externalHostBinding?:         #ExternalHostBindingV1
 		hostConformanceReceipt?:      #HostConformanceReceiptV1
 		runtimeDaemons: {

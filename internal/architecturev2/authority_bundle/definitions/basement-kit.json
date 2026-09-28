@@ -251,7 +251,9 @@
         "photos-share",
         "photos-kiosk",
         "photos-tools",
-        "ai-image-video"
+        "ai-image-video",
+        "ai-assistant",
+        "ai-harness"
       ]
     },
     "standaloneOwner": {
@@ -891,7 +893,10 @@
       "photos-tools",
       "ai-search",
       "ai-documents",
-      "ai-image-video"
+      "ai-image-video",
+      "ai-assistant",
+      "ai-speech",
+      "ai-harness"
     ],
     "required": [
       "basement-core"

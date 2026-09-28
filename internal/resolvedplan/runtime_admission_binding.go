@@ -108,6 +108,9 @@ func validateRuntimeAdmissionProjection(plan ResolvedPlan) error {
 	if err := applyAcceleratorAdmission(expected, view.nodes); err != nil {
 		return err
 	}
+	if err := applySandboxRuntimeAdmission(expected, view.nodes); err != nil {
+		return err
+	}
 	for index, module := range modules {
 		want := expected[index].(map[string]any)["runtimeAdmission"]
 		equal, err := canonicalEqual(module["runtimeAdmission"], want)

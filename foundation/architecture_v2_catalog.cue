@@ -14,6 +14,10 @@ _architectureV2ImmichServerImage: {ref: "ghcr.io/immich-app/immich-server:v2.7.0
 
 _architectureV2PrivateAIImage: {ref: "ghcr.io/open-webui/open-webui:v0.11.3", digest: "sha256:41daa0cf2561a5d4c8d1ff31ee2a98d93ab4d3ac2605cac69366ff6a3374a933"}
 
+// AnythingLLM (MIT) is the chat alternative of Private AI (owner decision
+// 2026-09-27). Release 1.16.2, multi-arch index digest (amd64, arm64).
+_architectureV2AnythingLLMImage: {ref: "docker.io/mintplexlabs/anythingllm:1.16.2", digest: "sha256:480b0f105efd6a4c8a4cde82713fe81348d75c979a24a38e9ed8e236bed0fd17"}
+
 // ComfyUI (GPL-3.0) publishes no official container image. Until StackKits
 // builds its own non-root image, the digest-pinned base image of
 // SaladTechnologies/comfyui-api (MIT build recipe) is used: the official
@@ -21,6 +25,38 @@ _architectureV2PrivateAIImage: {ref: "ghcr.io/open-webui/open-webui:v0.11.3", di
 // It also clones ComfyUI-Manager, which the governed command never loads
 // (--disable-all-custom-nodes, no --enable-manager).
 _architectureV2ComfyUIImage: {ref: "ghcr.io/saladtechnologies/comfyui-api:comfy0.35.0-torch2.13.0-cuda13.0-runtime", digest: "sha256:5cc4f79f21e61b9da46e94286c29ef8185520117452027a6f5574cf6125c0ff8"}
+
+// Hermes Agent (MIT) publishes its official multi-arch image on Docker Hub
+// from the upstream Dockerfile (.github/workflows/docker.yml). The tag is the
+// v2026.9.24 release (Hermes Agent v0.21.5); the digest is the image index.
+_architectureV2HermesImage: {ref: "docker.io/nousresearch/hermes-agent:v2026.9.24", digest: "sha256:fca358f12efd65bfaaca05884166f15c0e2788375ca30d77061ac1ebc96452b7"}
+
+// OpenHands (MIT) publishes the all-in-one Agent Canvas image: the web
+// frontend, the agent server and the automation backend in one container that
+// runs as the unprivileged `openhands` user (uid 10001). The agent's shell and
+// editor run inside this container (agent-server `conversation_runtime:
+// local`), so the container is the sandbox: StackKits runs it under gVisor
+// and never hands it a Docker socket.
+_architectureV2OpenHandsImage: {ref: "ghcr.io/openhands/agent-canvas:1.24.0", digest: "sha256:ad0829a7082a71ddfd2d16c1fae5a2172e4ca5a34eba7f03b69bd5b9b1bc54d7"}
+
+// kombify SpeechKit (Apache-2.0) is the speech module of Private AI (owner
+// decision 2026-09-27: on-device speech plus speechkit-server with local
+// providers only). SpeechKit #638 added the OpenAI-compatible
+// /v1/audio/transcriptions and /v1/audio/speech routes, but no released
+// image contains them yet and ghcr.io/kombifyio/speechkit-server is not
+// publicly pullable. PLACEHOLDER: this pin is not a real release. The speech
+// capability option stays realization "recorded" until an organization owner
+// makes the package public and a release with the audio routes exists; the
+// flip replaces this constant and the option (docs/use-case-expansion/ai-agents.md).
+_architectureV2SpeechKitServerImage: {ref: "ghcr.io/kombifyio/speechkit-server:v0.0.0-placeholder", digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+// whisper.cpp whisper-server (MIT; Whisper weights MIT): the same digest that
+// SpeechKit's deploy/docker/docker-compose.local-only.yml pins (a whisper.cpp
+// main build of 2026-05-15; the project publishes no semver tags).
+_architectureV2SpeechKitWhisperImage: {ref: "ghcr.io/ggml-org/whisper.cpp:main", digest: "sha256:fd7ca21c83126b08f610d02a50f68878a66388a4b96e90e2637ced84397013b5"}
+// Kokoro-FastAPI v0.9.0 CPU build (Apache-2.0) with the Kokoro-82M weights
+// (Apache-2.0) baked in; digest of the v0.9.0 tag. It runs espeak-ng
+// (GPL-3.0) as a separate phonemizer program. Kokoro has no German voice.
+_architectureV2SpeechKitTTSImage: {ref: "ghcr.io/remsky/kokoro-fastapi-cpu:v0.9.0", digest: "sha256:ee3111d6a2c903ed62f3b4fa19543c6901205ed39fce3c177e895b34a8386b9c"}
 
 // Paperless-ngx is the single application-version authority for every derived
 // module and runtime projection. PostgreSQL and Valkey follow the compatible
@@ -351,6 +387,28 @@ _architectureV2AIInfrastructure: #WorkloadInfrastructureV1 & {
 	recovery: moduleRef: "stackkits-recovery"
 }
 
+// AnythingLLM alternative of the same ai workload. The Ollama allocation is
+// identical to Private AI's (same component, volume and target), so a
+// switch between the two chat alternatives keeps the pulled model weights.
+_architectureV2AnythingLLMInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "ai", classes: ["personal"], locality: "primary-site"}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [{componentRef: "anythingllm", volumeRef: "storage", dataClasses: ["personal"]}]}
+	storageAllocation: {
+		moduleRef: "stackkits-storage-allocation"
+		allocations: [
+			// Owner data: anythingllm.db (SQLite), lancedb/, documents/,
+			// vector-cache/ and the .env StackKits links into the volume so
+			// UI-made settings survive a container replacement. models/ holds
+			// downloadable native embedder weights (unused with Ollama).
+			{componentRef: "anythingllm", volumeRef: "storage", target: "/app/server/storage", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai", cacheSubpaths: ["models"]},
+			{componentRef: "ollama", volumeRef: "models", target: "/root/.ollama", class: "persistent", backup: false, dataClasses: ["personal"], dataBindingRef: "ai"},
+		]
+	}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
 // Private AI image and video (ComfyUI): workflows, uploads and generated
 // outputs are owner data and backup sources; model weights are
 // re-downloadable, owner-approved downloads and are excluded from backup.
@@ -361,6 +419,55 @@ _architectureV2ComfyUIInfrastructure: #WorkloadInfrastructureV1 & {
 		{componentRef: "comfyui", volumeRef: "input", target: "/opt/ComfyUI/input", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai-image-video"},
 		{componentRef: "comfyui", volumeRef: "output", target: "/opt/ComfyUI/output", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai-image-video"},
 		{componentRef: "comfyui", volumeRef: "models", target: "/opt/ComfyUI/models", class: "persistent", backup: false, dataClasses: ["personal"], dataBindingRef: "ai-image-video"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Private AI personal assistant (Hermes Agent): HERMES_HOME holds memory,
+// skills, sessions (SQLite state.db), schedules and the owner's own settings
+// and is the backup source. The StackKits policy volume is rendered again at
+// every apply and is not backed up.
+_architectureV2HermesInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "ai-assistant", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "hermes", volumeRef: "data", target: "/opt/data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai-assistant"},
+		{componentRef: "hermes", volumeRef: "policy", target: "/opt/stackkit", class: "cache", backup: false, dataClasses: []},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Private AI agent harness (OpenHands): the agent's settings, conversations
+// and automations (`.openhands`) and its workspace (`/projects`) are owner
+// data and backup sources. Package caches live in the container filesystem
+// and are never persisted; container images are pulled again.
+_architectureV2OpenHandsInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "ai-harness", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "openhands", volumeRef: "settings", target: "/home/openhands/.openhands", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai-harness"},
+		{componentRef: "openhands", volumeRef: "workspace", target: "/projects", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai-harness"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Private AI speech (kombify SpeechKit): the server's SQLite store (transcripts,
+// vocabulary and other owner customizations) is the backup source. The
+// rendered server profile and the whisper.cpp model cache are reproducible
+// and excluded; Kokoro voices are part of the TTS image.
+_architectureV2SpeechKitInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "ai-speech", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "speechkit", volumeRef: "data", target: "/var/lib/speechkit/data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai-speech"},
+		{componentRef: "speechkit", volumeRef: "config", target: "/etc/speechkit", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "speechkit-whisper", volumeRef: "models", target: "/models", class: "cache", backup: false, dataClasses: []},
 	]}
 	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
 	snapshot: moduleRef: "stackkits-snapshot"
@@ -1018,8 +1125,8 @@ _architectureV2WorkloadContracts: [
 	#WorkloadContractV2 & {
 		metadata: {
 			id:          "ai"
-			version:     "1.1.0"
-			description: "Private AI chat and local model serving selected independently from kit architecture capabilities."
+			version:     "1.2.0"
+			description: "Private AI chat and local model serving selected independently from kit architecture capabilities. Two alternatives share the same Ollama inference: Open WebUI (default) or AnythingLLM as the chat module."
 		}
 		kind:       "application"
 		useCaseRef: "ai"
@@ -1049,13 +1156,42 @@ _architectureV2WorkloadContracts: [
 			}
 			setup: {mode: "manual", owner: "operator", actionRefs: []}
 			inputs: {
-				settings: {allowedRefs: [], requiredRefs: []}
+				// kombify-connector turns on the optional outbound connector to the
+				// owner's kombify AI; `stackkit setup ai-connect` sets it only after
+				// the connector token is in local custody.
+				settings: {allowedRefs: ["kombify-connector"], requiredRefs: []}
 				secretInputs: {
 					allowedRefs: ["owner-password", "session-key"]
 					requiredRefs: ["owner-password", "session-key"]
 				}
 			}
 			infrastructure: _architectureV2AIInfrastructure
+		}, {
+			// Chat alternative (capability ai.chat=anythingllm): the same
+			// pinned Ollama plus AnythingLLM instead of Open WebUI.
+			id:          "anythingllm"
+			providerRef: "stackkits-anythingllm"
+			moduleRef:   "stackkits-anythingllm-runtime"
+			route: {serviceRef: "ai", healthRef: "anythingllm-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["owner-password", "session-key"]
+					requiredRefs: ["owner-password", "session-key"]
+				}
+			}
+			infrastructure: _architectureV2AnythingLLMInfrastructure
 		}]
 	},
 	// Private AI image and video (docs/use-case-expansion/ai-agents.md),
@@ -1096,6 +1232,132 @@ _architectureV2WorkloadContracts: [
 				secretInputs: {allowedRefs: [], requiredRefs: []}
 			}
 			infrastructure: _architectureV2ComfyUIInfrastructure
+		}]
+	},
+	// Private AI personal assistant (docs/use-case-expansion/ai-agents.md),
+	// selected through the assistant capability module. Experimental and
+	// owner-only: the default tools inspect and draft; messaging, web search,
+	// schedules and external writes are separate owner settings, off by default.
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "ai-assistant"
+			version:     "1.0.0"
+			description: "Hermes Agent personal assistant with persistent memory and skills on the node's local model, selected with the Private AI assistant module. It inspects and drafts by default; messaging, web search, schedules and external writes are toolsets the owner grants in Hermes. Its dashboard is reached only on a private route behind the kit's login and its own password."
+		}
+		kind:       "application"
+		useCaseRef: "ai"
+		functionalCapabilities: ["personal-assistant"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "hermes"
+		alternatives: [{
+			id:          "hermes"
+			providerRef: "stackkits-hermes"
+			moduleRef:   "stackkits-hermes-runtime"
+			route: {serviceRef: "ai-assistant", healthRef: "hermes-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// The owner pulls the model in Open WebUI or with Ollama; no model is
+			// downloaded at install. Grants are Hermes toolsets the owner adds.
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: ["dashboard-password", "dashboard-session-secret"], requiredRefs: ["dashboard-password", "dashboard-session-secret"]}
+			}
+			infrastructure: _architectureV2HermesInfrastructure
+		}]
+	},
+	// Private AI agent harness (docs/use-case-expansion/ai-agents.md),
+	// selected through the agent-harness capability module. The agent writes
+	// and runs code inside its own container, which the node runs under the
+	// gVisor runtime; a node without that runtime is refused before install.
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "ai-harness"
+			version:     "1.0.0"
+			description: "OpenHands task and coding agent whose shell, editor and automations run inside one gVisor-isolated container with its own workspace volume and the node's Ollama as model endpoint, selected with the Private AI agent-harness module. Reached only on a private route behind the kit's login."
+		}
+		kind:       "application"
+		useCaseRef: "ai"
+		functionalCapabilities: ["agent-harness"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "openhands"
+		alternatives: [{
+			id:          "openhands"
+			providerRef: "stackkits-openhands"
+			moduleRef:   "stackkits-openhands-runtime"
+			route: {serviceRef: "ai-harness", healthRef: "openhands-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// The owner configures the agent in OpenHands itself; StackKits
+			// seeds only the model endpoint at first start.
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: [], requiredRefs: []}
+			}
+			infrastructure: _architectureV2OpenHandsInfrastructure
+		}]
+	},
+	// Private AI speech (docs/use-case-expansion/ai-agents.md): kombify
+	// SpeechKit server with local providers only, selected with the speech
+	// capability module. Reached by the chat module over the private AI
+	// network through its OpenAI-compatible audio routes; every /v1 route
+	// requires the bearer token from custody. No route of its own in this
+	// slice: SpeechKit device clients need a bearer-token route that the kit's
+	// browser forward-auth cannot serve, which is a follow-up.
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "ai-speech"
+			version:     "1.0.0"
+			description: "kombify SpeechKit server with local speech providers (whisper.cpp STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves OpenAI-compatible audio routes to the chat module on the node's private AI network behind its bearer token and has no route of its own."
+		}
+		kind:       "application"
+		useCaseRef: "ai"
+		functionalCapabilities: ["speech-to-text", "text-to-speech"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "speechkit"
+		alternatives: [{
+			id:          "speechkit"
+			providerRef: "stackkits-speechkit"
+			moduleRef:   "stackkits-speechkit-runtime"
+			route: {serviceRef: "ai-speech", healthRef: "speechkit-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// The whisper.cpp sidecar fetches its MIT-licensed model file at
+			// first start; no owner setup action exists.
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: ["server-token"], requiredRefs: ["server-token"]}
+			}
+			infrastructure: _architectureV2SpeechKitInfrastructure
 		}]
 	},
 	// Private AI add-ons (docs/use-case-expansion/ai-agents.md). Each is a
@@ -1878,6 +2140,9 @@ _architectureV2ApplicationLifecycleContracts: [
 	#ApplicationLifecycleContractV1 & {metadata: {id: "files-office", version: "1.0.0", description: "Office editing add-on of the files use case."}, workloadRef: "files-office", useCaseRef: "files", packageRef: "files", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "smart-home-mqtt", version: "1.0.0", description: "MQTT broker add-on of the smart-home use case."}, workloadRef: "smart-home-mqtt", useCaseRef: "smart-home", packageRef: "smart-home", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-image-video", version: "1.0.0", description: "Image and video add-on of the Private AI use case."}, workloadRef: "ai-image-video", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-harness", version: "1.0.0", description: "Agent harness add-on of the Private AI use case."}, workloadRef: "ai-harness", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-speech", version: "1.0.0", description: "Speech add-on of the Private AI use case."}, workloadRef: "ai-speech", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-assistant", version: "1.0.0", description: "Personal assistant add-on of the Private AI use case."}, workloadRef: "ai-assistant", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "smart-home-zigbee", version: "1.0.0", description: "Zigbee bridge add-on of the smart-home use case."}, workloadRef: "smart-home-zigbee", useCaseRef: "smart-home", packageRef: "smart-home", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-search", version: "1.0.0", description: "Web search add-on of the Private AI use case."}, workloadRef: "ai-search", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-documents", version: "1.0.0", description: "Document parsing add-on of the Private AI use case."}, workloadRef: "ai-documents", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
@@ -2721,6 +2986,26 @@ _architectureV2Providers: list.Concat([[
 		evidence: ["private-ai-selected-paas-runtime-contract"]
 	},
 	{
+		metadata: {id: "stackkits-anythingllm", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["ai"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-anythingllm-runtime"]
+			}
+		}
+		evidence: ["anythingllm-selected-paas-runtime-contract"]
+	},
+	{
 		metadata: {id: "stackkits-comfyui", version: "1.0.0"}
 		provides: []
 		workloadRefs: ["ai-image-video"]
@@ -2739,6 +3024,66 @@ _architectureV2Providers: list.Concat([[
 			}
 		}
 		evidence: ["comfyui-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-hermes", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["ai-assistant"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-hermes-runtime"]
+			}
+		}
+		evidence: ["hermes-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-openhands", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["ai-harness"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-openhands-runtime"]
+			}
+		}
+		evidence: ["openhands-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-speechkit", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["ai-speech"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-speechkit-runtime"]
+			}
+		}
+		evidence: ["speechkit-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {id: "stackkits-searxng", version: "1.0.0"}
@@ -3883,7 +4228,15 @@ _architectureV2VaultwardenTerramateStack: _architectureV2WorkloadTerramateStack 
 _architectureV2PassboltTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "passbolt", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2PterodactylTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "pterodactyl", _placement: {scope: "node-local", cardinality: "one-per-daemon", daemonRef: "docker-default"}}
 _architectureV2PrivateAITerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "private-ai", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2AnythingLLMTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "anythingllm", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2ComfyUITerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "comfyui", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2HermesTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "hermes", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+// The OpenHands container seeds its agent settings once from the governed
+// read-only seed file (the node's Ollama endpoint), then hands over to the
+// image entrypoint. An existing settings file is never touched.
+_architectureV2OpenHandsEntrypointScript: "s=/home/openhands/.openhands/settings.json; if [ ! -e \"$s\" ]; then cp /home/openhands/.openhands/stackkit/settings.seed.json \"$s\" && chmod 600 \"$s\"; fi; exec tini -- /opt/agent-canvas/entrypoint.sh"
+_architectureV2OpenHandsTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "openhands", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2SpeechKitTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "speechkit", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2SearxngTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "searxng", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2TikaTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "tika", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2DoclingTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "docling", _placement: {scope: "node-local", cardinality: "one-per-node"}}
@@ -4235,6 +4588,60 @@ _architectureV2PrivateAISupport: #ModuleRealizationSupportV2 & {
 	evidence: requiredRefs: ["private-ai-selected-paas-runtime-contract"]
 }
 
+_architectureV2AnythingLLMSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["owner-password", "session-key"]}
+	artifacts: {
+		requiredRefs: ["anythingllm-workload-bundle", _architectureV2AnythingLLMTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "anythingllm-workload-bundle"
+			unitRef:     "anythingllm"
+			outputRef:   "workloads/anythingllm/bundle.json"
+		}, _architectureV2AnythingLLMTerramateStack.binding]
+		contracts: [{
+			id:       "anythingllm-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "anythingllm"
+			outputRef: "workloads/anythingllm/bundle.json"
+		}, _architectureV2AnythingLLMTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["anythingllm-selected-paas-runtime-contract"]
+}
+
+_architectureV2HermesSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["dashboard-password", "dashboard-session-secret"]}
+	artifacts: {
+		requiredRefs: ["hermes-workload-bundle", _architectureV2HermesTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "hermes-workload-bundle"
+			unitRef:     "hermes"
+			outputRef:   "workloads/hermes/bundle.json"
+		}, _architectureV2HermesTerramateStack.binding]
+		contracts: [{
+			id:       "hermes-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "hermes"
+			outputRef: "workloads/hermes/bundle.json"
+		}, _architectureV2HermesTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["hermes-selected-paas-runtime-contract"]
+}
+
 _architectureV2ComfyUISupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0"
 	scope:           "concrete"
@@ -4260,6 +4667,60 @@ _architectureV2ComfyUISupport: #ModuleRealizationSupportV2 & {
 		}, _architectureV2ComfyUITerramateStack.contract]
 	}
 	evidence: requiredRefs: ["comfyui-selected-paas-runtime-contract"]
+}
+
+_architectureV2OpenHandsSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["openhands-workload-bundle", _architectureV2OpenHandsTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "openhands-workload-bundle"
+			unitRef:     "openhands"
+			outputRef:   "workloads/openhands/bundle.json"
+		}, _architectureV2OpenHandsTerramateStack.binding]
+		contracts: [{
+			id:       "openhands-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "openhands"
+			outputRef: "workloads/openhands/bundle.json"
+		}, _architectureV2OpenHandsTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["openhands-selected-paas-runtime-contract"]
+}
+
+_architectureV2SpeechKitSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["server-token"]}
+	artifacts: {
+		requiredRefs: ["speechkit-workload-bundle", _architectureV2SpeechKitTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "speechkit-workload-bundle"
+			unitRef:     "speechkit"
+			outputRef:   "workloads/speechkit/bundle.json"
+		}, _architectureV2SpeechKitTerramateStack.binding]
+		contracts: [{
+			id:       "speechkit-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "speechkit"
+			outputRef: "workloads/speechkit/bundle.json"
+		}, _architectureV2SpeechKitTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["speechkit-selected-paas-runtime-contract"]
 }
 
 _architectureV2GiteaSupport: #ModuleRealizationSupportV2 & {
@@ -7838,6 +8299,8 @@ _architectureV2Modules: list.Concat([[
 					{workloadRef: "ai-documents", alternativeRef: "docling", environment: {CONTENT_EXTRACTION_ENGINE: "docling", DOCLING_SERVER_URL: "http://docling:5001"}},
 					{workloadRef: "ai-documents", alternativeRef: "tika", environment: {CONTENT_EXTRACTION_ENGINE: "tika", TIKA_SERVER_URL: "http://tika:9998", TIKA_SERVER_VERSION: "4"}},
 					{workloadRef: "ai-search", alternativeRef: "searxng", environment: {ENABLE_WEB_SEARCH: "true", WEB_SEARCH_ENGINE: "searxng", SEARXNG_QUERY_URL: "http://searxng:8080/search"}},
+					// The assistant talks to Ollama itself; Open WebUI gets no variable.
+					{workloadRef: "ai-assistant", alternativeRef: "hermes", environment: {}},
 					// Image generation through ComfyUI with the FLUX.1 schnell preset
 					// (stackkit setup ai-image-video); the workflow is ComfyUI API format.
 					{workloadRef: "ai-image-video", alternativeRef: "comfyui", environment: {
@@ -7850,6 +8313,24 @@ _architectureV2Modules: list.Concat([[
 						COMFYUI_WORKFLOW:        #"{"3":{"class_type":"KSampler","inputs":{"cfg":1,"denoise":1,"latent_image":["5",0],"model":["4",0],"negative":["7",0],"positive":["6",0],"sampler_name":"euler","scheduler":"simple","seed":0,"steps":4}},"4":{"class_type":"CheckpointLoaderSimple","inputs":{"ckpt_name":"flux1-schnell-fp8.safetensors"}},"5":{"class_type":"EmptySD3LatentImage","inputs":{"batch_size":1,"height":1024,"width":1024}},"6":{"class_type":"CLIPTextEncode","inputs":{"clip":["4",1],"text":""}},"7":{"class_type":"CLIPTextEncode","inputs":{"clip":["4",1],"text":""}},"8":{"class_type":"VAEDecode","inputs":{"samples":["3",0],"vae":["4",2]}},"9":{"class_type":"SaveImage","inputs":{"filename_prefix":"open-webui/image","images":["8",0]}}}"#
 						COMFYUI_WORKFLOW_NODES:  #"[{"type":"model","key":"ckpt_name","node_ids":["4"]},{"type":"prompt","key":"text","node_ids":["6"]},{"type":"width","key":"width","node_ids":["5"]},{"type":"height","key":"height","node_ids":["5"]},{"type":"n","key":"batch_size","node_ids":["5"]},{"type":"steps","key":"steps","node_ids":["3"]},{"type":"seed","key":"seed","node_ids":["3"]}]"#
 					}},
+					// The agent harness joins the private AI network to reach
+					// Ollama; Open WebUI needs nothing from it.
+					{workloadRef: "ai-harness", alternativeRef: "openhands", environment: {}},
+					// Speech through SpeechKit's OpenAI-compatible audio routes (Open
+					// WebUI v0.11.3 sends model and language for STT; model, input and
+					// voice for TTS). The bearer token (AUDIO_*_OPENAI_API_KEY) is a
+					// custody secret of the ai-speech workload; companion wiring
+					// carries no secret, so the key stays a documented gap
+					// (docs/USE_CASE_PACKAGES.md "Speech").
+					{workloadRef: "ai-speech", alternativeRef: "speechkit", environment: {
+						AUDIO_STT_ENGINE:              "openai"
+						AUDIO_STT_OPENAI_API_BASE_URL: "http://speechkit:8080/v1"
+						AUDIO_STT_MODEL:               "whisper-1"
+						AUDIO_TTS_ENGINE:              "openai"
+						AUDIO_TTS_OPENAI_API_BASE_URL: "http://speechkit:8080/v1"
+						AUDIO_TTS_MODEL:               "tts-1"
+						AUDIO_TTS_VOICE:               "af_bella"
+					}},
 				]
 				volumes: [{id: "data", target: "/app/backend/data", class: "persistent", backup: true}]
 				health: {kind: "http", path: "/health", port: 8080}
@@ -7859,10 +8340,33 @@ _architectureV2Modules: list.Concat([[
 				image: {ref: "docker.io/ollama/ollama:0.34.0", digest: "sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba"}
 				dependsOn: []
 				networkRefs: ["private-ai-internal"]
-				environment: {OLLAMA_KEEP_ALIVE: "5m"}
+				// Ollama's OpenAI-compatible API takes no per-request context size;
+				// 8192 tokens also serves the kombify AI endpoint (decision record
+				// 2026-09-27 §3.10).
+				environment: {OLLAMA_KEEP_ALIVE: "5m", OLLAMA_CONTEXT_LENGTH: "8192"}
 				volumes: [{id: "models", target: "/root/.ollama", class: "persistent", backup: false}]
 				health: {kind: "command", command: ["ollama", "list"]}
 				resources: {memoryLimit: "6g", memoryReservation: "1g"}
+			}, {
+				// Optional outbound connector that serves this Ollama as a model
+				// endpoint of the owner's kombify AI (decision record 2026-09-27 §4):
+				// a remotely managed Cloudflare Tunnel whose kombify-managed ingress
+				// forwards only the model-list and chat paths to http://ollama:11434.
+				// It renders only while the kombify-connector setting is on, which
+				// `stackkit setup ai-connect` sets after it custodied the connector
+				// token. It publishes no port, adds no route and keeps its metrics
+				// on loopback; Ollama stays unpublished. A connector that cannot
+				// reach kombify degrades the workload instead of blocking local chat.
+				id: "kombify-ai-connector", role: "application", lifecycle: "daemon", egress: true
+				healthFailure:    "degraded"
+				enabledBySetting: "kombify-connector"
+				image: {ref: "docker.io/cloudflare/cloudflared:2026.9.3", digest: "sha256:072c067d25ccbe61d46e18f0d0723255f2bb5304f7317caa95b27031520ff92c"}
+				dependsOn: ["ollama"]
+				networkRefs: ["private-ai-internal"]
+				command: ["tunnel", "--no-autoupdate", "--metrics", "127.0.0.1:20241", "run", "--token-file", "/run/secrets/kombify-ai-connector-token"]
+				secretFiles: [{slot: "kombify-ai-connector-token", target: "/run/secrets/kombify-ai-connector-token", pathEnvironment: "TUNNEL_TOKEN_FILE", uid: 65532, gid: 65532}]
+				health: {kind: "command", command: ["cloudflared", "tunnel", "--metrics", "127.0.0.1:20241", "ready"]}
+				resources: {memoryLimit: "256m"}
 			}]
 		}
 		renderUnits: [{
@@ -7872,8 +8376,8 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/private-ai/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:3480951e70e98341a0f03a30d1c30da35b5768417c2b055a8fcff5cebe6e5159"
-			publicInputRefs: ["delivery-route", "companions"]
+			contractHash: "sha256:890f584ddd683d03fc3d424e75b79979a406efd4726ea89d0c569d028f39a360"
+			publicInputRefs: ["delivery-route", "companions", "kombify-connector"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
 				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
@@ -7909,19 +8413,19 @@ _architectureV2Modules: list.Concat([[
 				id:           "compose", target: "compose", rendererRef: "stackkit"
 				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
 				unitRefs: ["private-ai"], artifactRefs: ["private-ai-workload-bundle"]
-				publicInputRefs: ["delivery-route", "companions"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
+				publicInputRefs: ["delivery-route", "companions", "kombify-connector"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
 				unitRefs: ["private-ai"], artifactRefs: ["private-ai-workload-bundle"]
-				publicInputRefs: ["delivery-route", "companions"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
+				publicInputRefs: ["delivery-route", "companions", "kombify-connector"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
 				contractHash: _architectureV2TerramateStackHashes.workload
 				unitRefs: ["private-ai", "terramate-stack"], artifactRefs: ["private-ai-workload-bundle", _architectureV2PrivateAITerramateStack.contract.id]
-				publicInputRefs: ["delivery-route", "companions"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
+				publicInputRefs: ["delivery-route", "companions", "kombify-connector"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
 			},
 		]
 		realizationSupport: _architectureV2PrivateAISupport
@@ -7935,6 +8439,169 @@ _architectureV2Modules: list.Concat([[
 			expectedStatuses: [200]
 		}]
 		evidence: ["private-ai-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-anythingllm-runtime"
+			version:     "1.0.0"
+			description: "Private AI chat with AnythingLLM (workspaces, built-in RAG, agents) and CPU inference through the same pinned Ollama as Private AI, on one selected node with persistent models and owner data."
+		}
+		role:        "workload"
+		providerRef: "stackkits-anythingllm"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2AnythingLLMComputeProfiles
+		defaultComputeProfile: "standard"
+		acceleratorProfiles:   _architectureV2AnythingLLMAcceleratorProfiles
+		runtime: {
+			kind:              "container"
+			delivery:          "application-adapter"
+			engine:            "docker"
+			image:             _architectureV2AnythingLLMImage
+			entryComponentRef: "anythingllm"
+			components: [{
+				id:    "anythingllm", role: "application", lifecycle: "daemon"
+				image: _architectureV2AnythingLLMImage
+				dependsOn: ["ollama"]
+				networkRefs: ["private-ai-internal"]
+				// AnythingLLM 1.16.2 persists UI-made settings by rewriting
+				// server/.env (dumpENV), which lives outside the storage volume.
+				// The governed entrypoint links that file into the storage
+				// volume before the upstream entrypoint runs, so the owner's
+				// model choice and the self-assigned SIG_KEY/SIG_SALT survive
+				// a container replacement. Container environment still wins
+				// over the file (dotenv never overrides), so the variables
+				// below stay pinned: local Ollama only, LanceDB, no telemetry.
+				entrypoint: ["/bin/bash", "-ec", "touch /app/server/storage/.env && ln -sfn /app/server/storage/.env /app/server/.env && exec /usr/local/bin/docker-entrypoint.sh"]
+				environment: {SERVER_PORT: "3001", STORAGE_DIR: "/app/server/storage", LLM_PROVIDER: "ollama", OLLAMA_BASE_PATH: "http://ollama:11434", EMBEDDING_ENGINE: "ollama", EMBEDDING_BASE_PATH: "http://ollama:11434", VECTOR_DB: "lancedb", DISABLE_TELEMETRY: "true"}
+				// Single-user password mode: the owner password from custody is
+				// the instance password (AUTH_TOKEN); JWT_SECRET signs sessions.
+				// Multi-user mode is enabled by the owner after first sign-in.
+				secretEnvironment: {AUTH_TOKEN: "owner-password", JWT_SECRET: "session-key"}
+				// Wiring to the Private AI add-ons (workloads.companions). Variable
+				// names follow AnythingLLM 1.16.2 server/utils/agents/aibitat/plugins/web-browsing.js.
+				// ComfyUI coexists on its own route: AnythingLLM has no image
+				// generation, so its entry wires nothing. Document parsing
+				// (Tika, Docling) has no wiring: AnythingLLM uses its own
+				// collector, and authoring refuses that combination.
+				companionEnvironment: [
+					{workloadRef: "ai-search", alternativeRef: "searxng", environment: {AGENT_SEARXNG_API_URL: "http://searxng:8080/search"}},
+					{workloadRef: "ai-image-video", alternativeRef: "comfyui", environment: {}},
+					// The assistant talks to Ollama itself; AnythingLLM gets no variable.
+					{workloadRef: "ai-assistant", alternativeRef: "hermes", environment: {}},
+					// The agent harness reaches Ollama on this network; AnythingLLM
+					// needs nothing from it.
+					{workloadRef: "ai-harness", alternativeRef: "openhands", environment: {}},
+					// Speech through SpeechKit's OpenAI-compatible audio routes
+					// (AnythingLLM 1.16.2 server/utils/SpeechToText/openAiGeneric,
+					// TextToSpeech/openAiGeneric and the collector's
+					// GenericOpenAiWhisper for uploaded audio). The bearer token
+					// (*_KEY) is a custody secret of the ai-speech workload that the
+					// owner enters once in Settings; see docs/USE_CASE_PACKAGES.md "Speech".
+					{workloadRef: "ai-speech", alternativeRef: "speechkit", environment: {
+						STT_PROVIDER:                       "generic-openai"
+						STT_OPEN_AI_COMPATIBLE_ENDPOINT:    "http://speechkit:8080/v1"
+						STT_OPEN_AI_COMPATIBLE_MODEL:       "whisper-1"
+						WHISPER_PROVIDER:                   "generic-openai"
+						WHISPER_GENERIC_OPEN_AI_BASE_URL:   "http://speechkit:8080/v1"
+						WHISPER_GENERIC_OPEN_AI_MODEL:      "whisper-1"
+						TTS_PROVIDER:                       "generic-openai"
+						TTS_OPEN_AI_COMPATIBLE_ENDPOINT:    "http://speechkit:8080/v1"
+						TTS_OPEN_AI_COMPATIBLE_MODEL:       "tts-1"
+						TTS_OPEN_AI_COMPATIBLE_VOICE_MODEL: "af_bella"
+					}},
+				]
+				volumes: [{id: "storage", target: "/app/server/storage", class: "persistent", backup: true}]
+				health: {kind: "http", path: "/api/ping", port: 3001}
+				resources: {memoryLimit: "2g", memoryReservation: "512m"}
+				// The entrypoint shell as PID 1 has no signal handlers (docker stop
+				// waited for SIGKILL); under init it stops at once (measured 2026-09-28).
+				init: true
+			}, {
+				id: "ollama", role: "application", lifecycle: "daemon", egress: true
+				image: {ref: "docker.io/ollama/ollama:0.34.0", digest: "sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba"}
+				dependsOn: []
+				networkRefs: ["private-ai-internal"]
+				environment: {OLLAMA_KEEP_ALIVE: "5m"}
+				volumes: [{id: "models", target: "/root/.ollama", class: "persistent", backup: false}]
+				health: {kind: "command", command: ["ollama", "list"]}
+				resources: {memoryLimit: "6g", memoryReservation: "1g"}
+			}]
+		}
+		renderUnits: [{
+			id:          "anythingllm"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/anythingllm/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:8de5006702e467bebf282b2246021bff6f225466df715df0edc1f1f25d029cbf"
+			publicInputRefs: ["delivery-route", "companions"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}, {
+				targetRef: "companions", sourceRef:                   "workloads.companions"
+				valueType: "workload-companion-list-v1", cardinality: "list", required: false, defaultValue: []
+			}]
+			secretInputRefs: ["owner-password", "session-key"]
+			outputs: ["workloads/anythingllm/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:        "ai"
+				upstreamProtocol:  "http"
+				targetPort:        3001
+				requiredPrivilege: "user"
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["http", "https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "anythingllm-http"
+				data: {
+					bindingRef:      _architectureV2AnythingLLMInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2AnythingLLMInfrastructure.dataBinding.classes
+					locality:        _architectureV2AnythingLLMInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2AnythingLLMTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["anythingllm"], artifactRefs: ["anythingllm-workload-bundle"]
+				publicInputRefs: ["delivery-route", "companions"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["anythingllm"], artifactRefs: ["anythingllm-workload-bundle"]
+				publicInputRefs: ["delivery-route", "companions"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["anythingllm", "terramate-stack"], artifactRefs: ["anythingllm-workload-bundle", _architectureV2AnythingLLMTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route", "companions"], secretInputRefs: ["owner-password", "session-key"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2AnythingLLMSupport
+		health: [{
+			id:             "anythingllm-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/api/ping"
+			port:           3001
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["anythingllm-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {
@@ -7968,6 +8635,9 @@ _architectureV2Modules: list.Concat([[
 				peerNetworks: [{workloadRef: "ai", networkRef: "private-ai-internal"}]
 				// Only owner-approved model downloads (stackkit setup) use egress.
 				egress: true
+				// python main.py as PID 1 ignores SIGTERM (docker stop waited for
+				// SIGKILL) and stops cleanly on SIGINT in ~2 s (measured 2026-09-28).
+				stopSignal: "SIGINT"
 				// Custom nodes run arbitrary Python and ComfyUI-Manager can install
 				// them remotely: neither is ever loaded. API nodes (paid external
 				// services) are off, which also keeps the frontend offline.
@@ -7986,7 +8656,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/comfyui/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:ee2b5f0f8ecc6c2f2cda5947667987b44455e132bafaf2c9da8e3e681a8ed129"
+			contractHash: "sha256:ecbb3806a921159493d8d7d5386cfce4b9abd69bd266b3fd8b0d0ec9436b63af"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -8048,6 +8718,387 @@ _architectureV2Modules: list.Concat([[
 			expectedStatuses: [200]
 		}]
 		evidence: ["comfyui-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-hermes-runtime"
+			version:     "1.0.0"
+			description: "Hermes Agent personal assistant on the node's local Ollama model with persistent memory and skills. StackKits pins its policy as Hermes managed scope (local inference, local terminal backend, dangerous commands ask, no anonymous web endpoints) and seeds the owner's settings once with every grant off: messaging, web search through the node's SearXNG, schedules and external writes are toolsets the owner adds. No host Docker socket, owner home or StackKits credential reaches it; its dashboard is reached only on a private route behind the kit's login and its own password."
+		}
+		role:        "workload"
+		providerRef: "stackkits-hermes"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2HermesComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "hermes"
+			components: [{
+				id: "hermes", role: "application", lifecycle: "daemon"
+				image: _architectureV2HermesImage
+				dependsOn: []
+				networkRefs: ["hermes-internal"]
+				// Ollama and SearXNG are reached on the private AI network. Egress
+				// serves the grants (messaging platforms, web pages); the seeded
+				// toolsets do not use it.
+				peerNetworks: [{workloadRef: "ai", networkRef: "private-ai-internal"}]
+				egress: true
+				// The governed start script installs the StackKits policy as Hermes
+				// managed scope (/etc/hermes, root-owned), seeds the owner's settings
+				// once, pauses schedules after a restore, then hands over to the
+				// upstream s6 entrypoint, which runs Hermes as UID 10000.
+				entrypoint: ["/bin/sh", "/opt/stackkit/start.sh"]
+				command: ["gateway", "run"]
+				environment: {
+					HERMES_DASHBOARD:                     "1"
+					HERMES_DASHBOARD_HOST:                "0.0.0.0"
+					HERMES_DASHBOARD_PORT:                "9119"
+					HERMES_DASHBOARD_BASIC_AUTH_USERNAME: "owner"
+					// Resolves only while the web-search module runs on this node.
+					SEARXNG_URL: "http://searxng:8080"
+				}
+				secretEnvironment: {
+					HERMES_DASHBOARD_BASIC_AUTH_PASSWORD: "dashboard-password"
+					HERMES_DASHBOARD_BASIC_AUTH_SECRET:   "dashboard-session-secret"
+				}
+				restoreActivationEnvironment: STACKKIT_HERMES_RESTORE_ACTIVATION: "restore-activation"
+				volumes: [for allocation in _architectureV2HermesInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+				}]
+				health: {kind: "http", path: "/api/status", port: 9119}
+				resources: {memoryLimit: "3g", memoryReservation: "512m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "hermes"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/hermes/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:8d970983e433a9f06a6ee4461fd61cddce41ff9f3d25e18febc7e8828f6f5666"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["dashboard-password", "dashboard-session-secret"]
+			outputs: ["workloads/hermes/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			// The dashboard stores the owner's keys and runs the agent: only a
+			// private route behind the kit's login, never public.
+			serviceEndpoints: [{
+				serviceRef:        "ai-assistant"
+				upstreamProtocol:  "http"
+				targetPort:        9119
+				requiredPrivilege: "user"
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private"]
+				originSelector: "control-authority-site"
+				healthRef:      "hermes-http"
+				data: {
+					bindingRef:      _architectureV2HermesInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2HermesInfrastructure.dataBinding.classes
+					locality:        _architectureV2HermesInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2HermesTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["hermes"], artifactRefs: ["hermes-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["dashboard-password", "dashboard-session-secret"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["hermes"], artifactRefs: ["hermes-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["dashboard-password", "dashboard-session-secret"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["hermes", "terramate-stack"], artifactRefs: ["hermes-workload-bundle", _architectureV2HermesTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["dashboard-password", "dashboard-session-secret"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2HermesSupport
+		health: [{
+			id:             "hermes-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/api/status"
+			port:           9119
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["hermes-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-openhands-runtime"
+			version:     "1.0.0"
+			description: "OpenHands Agent Canvas: a task and coding agent whose shell, editor and automations run inside this one container. The node runs it under the gVisor runtime (runsc) with its own settings and workspace volumes, no host Docker socket, no owner home and the node's Ollama as its model endpoint; it is reached only on a private route behind the kit's login."
+		}
+		role:        "workload"
+		providerRef: "stackkits-openhands"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2OpenHandsComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "openhands"
+			components: [{
+				id: "openhands", role: "application", lifecycle: "daemon"
+				image: _architectureV2OpenHandsImage
+				dependsOn: []
+				networkRefs: ["openhands-internal"]
+				// The agent reaches Ollama by name on the private AI network.
+				peerNetworks: [{workloadRef: "ai", networkRef: "private-ai-internal"}]
+				// The agent clones repositories and installs packages.
+				egress: true
+				// The agent's shell runs in this container: gVisor is the sandbox.
+				sandboxRuntime: "runsc"
+				// The first start seeds the agent's LLM settings with the node's
+				// Ollama endpoint (governed read-only seed file); later changes
+				// through the OpenHands settings stay in the settings volume.
+				entrypoint: ["/bin/sh", "-ec", _architectureV2OpenHandsEntrypointScript]
+				// No product analytics: DO_NOT_TRACK stops the agent server's
+				// PostHog exporter, VITE_DO_NOT_TRACK the frontend's and the
+				// automation backend's.
+				environment: {DO_NOT_TRACK: "1", VITE_DO_NOT_TRACK: "1"}
+				volumes: [for allocation in _architectureV2OpenHandsInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+				}]
+				health: {kind: "http", path: "/alive", port: 8000}
+				resources: {memoryLimit: "6g", memoryReservation: "1g", cpus: 2}
+			}]
+		}
+		renderUnits: [{
+			id:          "openhands"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/openhands/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:33d92ec600037275032b17d0f03182d15a8d81c250263247fc3369c1832c9f67"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: []
+			outputs: ["workloads/openhands/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			// The web UI signs its own browser session in with the container's
+			// session key, so only a private route behind the kit's login,
+			// never public.
+			serviceEndpoints: [{
+				serviceRef:        "ai-harness"
+				upstreamProtocol:  "http"
+				targetPort:        8000
+				requiredPrivilege: "user"
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private"]
+				originSelector: "control-authority-site"
+				healthRef:      "openhands-http"
+				data: {
+					bindingRef:      _architectureV2OpenHandsInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2OpenHandsInfrastructure.dataBinding.classes
+					locality:        _architectureV2OpenHandsInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2OpenHandsTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["openhands"], artifactRefs: ["openhands-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["openhands"], artifactRefs: ["openhands-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["openhands", "terramate-stack"], artifactRefs: ["openhands-workload-bundle", _architectureV2OpenHandsTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2OpenHandsSupport
+		health: [{
+			id:             "openhands-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/alive"
+			port:           8000
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["openhands-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-speechkit-runtime"
+			version:     "1.0.0"
+			description: "kombify SpeechKit server (Dictation, Assist, Voice Agent and the OpenAI-compatible /v1/audio routes) with local providers only: a whisper.cpp whisper-server sidecar for speech-to-text, a Kokoro-FastAPI sidecar for text-to-speech and the node's Ollama for Assist. StackKits renders the local-only server profile (every cloud provider off, bearer auth) and the bearer token comes from custody. Only the server joins the private AI network; the sidecars stay on the workload network."
+		}
+		role:        "workload"
+		providerRef: "stackkits-speechkit"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2SpeechKitComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "speechkit"
+			components: [{
+				id: "speechkit", role: "application", lifecycle: "daemon"
+				image: _architectureV2SpeechKitServerImage
+				dependsOn: ["speechkit-tts", "speechkit-whisper"]
+				networkRefs: ["speechkit-internal"]
+				// Ollama (Assist) and the chat module are reached on the private AI
+				// network. No egress: every provider is local.
+				peerNetworks: [{workloadRef: "ai", networkRef: "private-ai-internal"}]
+				// The governed server profile is rendered into the config volume
+				// at /etc/speechkit/config.toml, the path the image's CMD names.
+				// The server has no token-file mode (SpeechKit origin/main), so the
+				// bearer token is delivered through its documented variable.
+				secretEnvironment: {SPEECHKIT_SERVER_TOKEN: "server-token"}
+				volumes: [for allocation in _architectureV2SpeechKitInfrastructure.storageAllocation.allocations if allocation.componentRef == "speechkit" {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+				}]
+				health: {kind: "http", path: "/healthz", port: 8080}
+				resources: {memoryLimit: "1g", memoryReservation: "256m"}
+			}, {
+				id: "speechkit-whisper", role: "machine-learning", lifecycle: "daemon"
+				image: _architectureV2SpeechKitWhisperImage
+				dependsOn: []
+				networkRefs: ["speechkit-internal"]
+				// Egress serves one download: the MIT-licensed ggml-small model
+				// (488 MB) from the whisper.cpp Hugging Face repository, verified
+				// by SHA-256 and kept in the models cache volume.
+				egress: true
+				entrypoint: ["/bin/sh", "-ec", "mkdir -p /models/whisper; test -s /models/whisper/ggml-small.bin || { curl -fsSL --retry 5 -o /models/whisper/ggml-small.bin.part https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin && echo '1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b  /models/whisper/ggml-small.bin.part' | sha256sum -c - && mv /models/whisper/ggml-small.bin.part /models/whisper/ggml-small.bin; }; exec /app/build/bin/whisper-server --host 0.0.0.0 --port 8080 --model /models/whisper/ggml-small.bin --inference-path /v1/audio/transcriptions"]
+				volumes: [for allocation in _architectureV2SpeechKitInfrastructure.storageAllocation.allocations if allocation.componentRef == "speechkit-whisper" {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+				}]
+				health: {kind: "http", path: "/", port: 8080}
+				resources: {memoryLimit: "3g", memoryReservation: "1g"}
+			}, {
+				id: "speechkit-tts", role: "machine-learning", lifecycle: "daemon"
+				image: _architectureV2SpeechKitTTSImage
+				dependsOn: []
+				networkRefs: ["speechkit-internal"]
+				health: {kind: "http", path: "/health", port: 8880}
+				resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "speechkit"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/speechkit/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:92fa34b8a326bc36d296f9585aab41d46d66ff66731058b04e270448b75a62fb"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["server-token"]
+			outputs: ["workloads/speechkit/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			// Reached by the chat module only; an owner route may be local or
+			// remote-private, never public.
+			serviceEndpoints: [{
+				serviceRef:        "ai-speech"
+				upstreamProtocol:  "http"
+				targetPort:        8080
+				requiredPrivilege: "user"
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private"]
+				originSelector: "control-authority-site"
+				healthRef:      "speechkit-http"
+				data: {
+					bindingRef:      _architectureV2SpeechKitInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2SpeechKitInfrastructure.dataBinding.classes
+					locality:        _architectureV2SpeechKitInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2SpeechKitTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["speechkit"], artifactRefs: ["speechkit-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["server-token"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["speechkit"], artifactRefs: ["speechkit-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["server-token"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["speechkit", "terramate-stack"], artifactRefs: ["speechkit-workload-bundle", _architectureV2SpeechKitTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["server-token"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2SpeechKitSupport
+		health: [{
+			id:             "speechkit-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/healthz"
+			port:           8080
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["speechkit-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {
@@ -10825,7 +11876,7 @@ _architectureV2InternalHomeWorkloadRefs: *[] | [...string]
 // ArchitectureV2RoutelessAddOnWorkloadRefs are optional add-on workloads that
 // only their primary application reaches over its internal network; kits give
 // them no initial route.
-ArchitectureV2RoutelessAddOnWorkloadRefs: ["ai-search", "ai-documents"]
+ArchitectureV2RoutelessAddOnWorkloadRefs: ["ai-search", "ai-documents", "ai-speech"]
 
 // ArchitectureV2InternalHomeWorkloadRefs lets the home kits offer the optional
 // internal-only workloads without naming them in public sources.

@@ -1,0 +1,151 @@
+# kombify SpeechKit server profile rendered by StackKits for the Private AI
+# speech module (workload ai-speech, alternative speechkit). Derived from
+# SpeechKit deploy/config/server.local-only.toml (Apache-2.0).
+#
+# Every provider is a container of this workload or of the node's Private AI
+# workload; no cloud provider is enabled and no cloud key is present:
+#   STT     whisper.cpp whisper-server sidecar      speechkit-whisper:8080
+#   TTS     Kokoro-FastAPI sidecar                  speechkit-tts:8880
+#   Assist  the node's Ollama (Private AI workload)  ollama:11434
+# Every /v1 route, including the OpenAI-compatible /v1/audio/transcriptions
+# and /v1/audio/speech, requires Authorization: Bearer $SPEECHKIT_SERVER_TOKEN,
+# which StackKits delivers from owner custody (slot server-token).
+
+[general]
+language = "en"
+
+[privacy]
+network_scope = "local_network"
+allow_setup_traffic = false
+
+[server]
+listen_addr      = ":8080"
+modes            = ["dictation", "assist", "voiceagent"]
+auth_mode        = "bearer"
+bearer_token_env = "SPEECHKIT_SERVER_TOKEN"
+cors_allowed_origins = []
+rate_limit_rps   = 10.0
+rate_limit_burst = 20
+max_upload_mb    = 25
+model_dir        = "/var/lib/speechkit/models"
+log_format       = "json"
+log_level        = "info"
+
+[server.features]
+catalog         = true
+storage_reads   = true
+vocabulary      = true
+tts_direct      = true
+wakeword_models = false
+
+[server.wyoming]
+enabled = false
+
+[store]
+backend     = "sqlite"
+sqlite_path = "/var/lib/speechkit/data/speechkit.db"
+
+# STT: the whisper.cpp sidecar over HTTP. "cloud-only" names the routing
+# strategy that selects the self-hosted network client; it enables no cloud
+# provider.
+[vps]
+enabled     = true
+url         = "http://speechkit-whisper:8080"
+model       = "whisper-1"
+api_key_env = "SPEECHKIT_SELFHOSTED_STT_API_KEY"
+
+[routing]
+strategy = "cloud-only"
+
+[local]
+enabled = false
+
+# Assist / Voice Agent LLM: the node's Ollama. The owner pulls the model in
+# the chat module; the tag below must match a pulled model.
+[local_llm]
+enabled       = true
+base_url      = "http://ollama:11434/v1"
+model         = "gemma3:4b"
+utility_model = "gemma3:4b"
+assist_model  = "gemma3:4b"
+agent_model   = "gemma3:4b"
+
+# TTS: Kokoro-FastAPI (Apache-2.0 code and Kokoro-82M weights). Kokoro has no
+# German voice; Speaches (MIT) with Piper voices serves the same API and is
+# the recorded alternative for German.
+[tts]
+enabled  = true
+strategy = "local-only"
+format   = "mp3"
+speed    = 1.0
+
+[tts.local]
+enabled = true
+url     = "http://speechkit-tts:8880"
+model   = "kokoro"
+voice   = "af_bella"
+
+[model_selection.tts]
+primary_profile_id = "tts.openedai.kokoro"
+
+[tts.openai]
+enabled = false
+
+[tts.google]
+enabled = false
+
+[tts.deepgram]
+enabled = false
+
+[tts.huggingface]
+enabled = false
+
+[tts.foundry]
+enabled = false
+
+[huggingface]
+enabled = false
+
+[providers.openai]
+enabled = false
+
+[providers.groq]
+enabled = false
+
+[providers.deepgram]
+enabled = false
+
+[providers.assemblyai]
+enabled = false
+
+[providers.google]
+enabled = false
+
+[providers.openrouter]
+enabled = false
+
+[providers.foundry]
+enabled = false
+
+[voice_agent]
+enabled  = true
+provider = "cascaded"
+
+[[personas]]
+id           = "default"
+display_name = "Default Assistant"
+description  = "Concise general-purpose local assistant."
+voice        = "af_bella"
+locale       = "en"
+default_role = "default-role"
+tags         = ["default", "local"]
+
+[[roles]]
+id            = "default-role"
+display_name  = "Default Behavior"
+system_prompt = "You are a helpful voice assistant. Be concise and answer in the user's language."
+locale        = "en"
+temperature   = 0.6
+automatic_activity_detection = true
+vad_start_sensitivity = "medium"
+vad_end_sensitivity   = "medium"

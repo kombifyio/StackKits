@@ -32,6 +32,9 @@ const (
 	SelectedPaaSApplicationImmichPublicProxy SelectedPaaSApplication = "immich-public-proxy"
 	SelectedPaaSApplicationImmichKiosk       SelectedPaaSApplication = "immich-kiosk"
 	SelectedPaaSApplicationComfyUI           SelectedPaaSApplication = "comfyui"
+	SelectedPaaSApplicationOpenHands         SelectedPaaSApplication = "openhands"
+	SelectedPaaSApplicationHermes            SelectedPaaSApplication = "hermes"
+	SelectedPaaSApplicationSpeechKit         SelectedPaaSApplication = "speechkit"
 	SelectedPaaSApplicationImmichPowerTools  SelectedPaaSApplication = "immich-power-tools"
 	SelectedPaaSApplicationSearxng           SelectedPaaSApplication = "searxng"
 	SelectedPaaSApplicationTika              SelectedPaaSApplication = "tika"
@@ -42,6 +45,7 @@ const (
 	SelectedPaaSApplicationStalwart          SelectedPaaSApplication = "stalwart"
 	SelectedPaaSApplicationJellyfin          SelectedPaaSApplication = "jellyfin"
 	SelectedPaaSApplicationHomeAssistant     SelectedPaaSApplication = "home-assistant"
+	SelectedPaaSApplicationAnythingLLM       SelectedPaaSApplication = "anythingllm"
 )
 
 const (
@@ -222,6 +226,39 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
 			},
 		}, true
+	case SelectedPaaSApplicationHermes:
+		return selectedPaaSApplicationSpec{
+			name: "Hermes", providerRef: "stackkits-hermes", moduleRef: "stackkits-hermes-runtime",
+			unitRef: "hermes", workloadRef: "ai-assistant", artifactRef: "hermes-workload-bundle",
+			outputRef: "workloads/hermes/bundle.json", healthRef: "hermes-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.HermesWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseHermesWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationOpenHands:
+		return selectedPaaSApplicationSpec{
+			name: "OpenHands", providerRef: "stackkits-openhands", moduleRef: "stackkits-openhands-runtime",
+			unitRef: "openhands", workloadRef: "ai-harness", artifactRef: "openhands-workload-bundle",
+			outputRef: "workloads/openhands/bundle.json", healthRef: "openhands-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.OpenHandsWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseOpenHandsWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationSpeechKit:
+		return selectedPaaSApplicationSpec{
+			name: "SpeechKit", providerRef: "stackkits-speechkit", moduleRef: "stackkits-speechkit-runtime",
+			unitRef: "speechkit", workloadRef: "ai-speech", artifactRef: "speechkit-workload-bundle",
+			outputRef: "workloads/speechkit/bundle.json", healthRef: "speechkit-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.SpeechKitWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseSpeechKitWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
 	case SelectedPaaSApplicationImmichKiosk:
 		return selectedPaaSApplicationSpec{
 			name: "ImmichKiosk", providerRef: "stackkits-immich-kiosk", moduleRef: "stackkits-immich-kiosk-runtime",
@@ -347,6 +384,17 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 					workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef,
 					siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef,
 				}, err
+			},
+		}, true
+	case SelectedPaaSApplicationAnythingLLM:
+		return selectedPaaSApplicationSpec{
+			name: "AnythingLLM", providerRef: "stackkits-anythingllm", moduleRef: "stackkits-anythingllm-runtime",
+			unitRef: "anythingllm", workloadRef: "ai", artifactRef: "anythingllm-workload-bundle",
+			outputRef: "workloads/anythingllm/bundle.json", healthRef: "anythingllm-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.AnythingLLMWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseAnythingLLMWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
 			},
 		}, true
 	case SelectedPaaSApplicationHomeAssistant:

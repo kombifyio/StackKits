@@ -82,8 +82,13 @@ type architectureV2StatusResult struct {
 	// Outcomes is the per-unit account of the last Apply. Without it a caller
 	// can only learn that an Apply happened, not which of its units are
 	// actually running.
-	Outcomes        *applyledger.Ledger       `json:"outcomes,omitempty"`
-	ActionableError *actionableerror.Contract `json:"actionableError,omitempty"`
+	Outcomes *applyledger.Ledger `json:"outcomes,omitempty"`
+	// Backup reports whether the local backup configuration and the
+	// Owner-approved schedule still bind the current Apply; a re-apply or CLI
+	// upgrade re-signs the Apply and would otherwise pause scheduled
+	// snapshots without a word.
+	Backup          *architectureV2BackupStatus `json:"backup,omitempty"`
+	ActionableError *actionableerror.Contract   `json:"actionableError,omitempty"`
 }
 
 func runStatus(cmd *cobra.Command, args []string) (retErr error) {
@@ -313,6 +318,7 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 	if setupErr != nil {
 		err = errors.Join(err, fmt.Errorf("verify native application setup evidence: %w", setupErr))
 	}
+	output.Backup = readArchitectureV2BackupStatus(ctx, wd)
 	applications, experienceErr := buildArchitectureV2ApplicationExperiences(
 		wd, verified, output.ApplicationLifecycles, output.Observations,
 		output.applicationAccess, setupRuns,
@@ -350,6 +356,12 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Runtime observation unavailable: %s\n", output.ActionableError.Message)
 		for _, guidance := range output.ActionableError.UserGuidance {
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", guidance)
+		}
+	}
+	if backup := output.Backup; backup != nil {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Backup: configuration %s, schedule %s\n", backup.Configuration, backup.Schedule)
+		for _, attention := range backup.Attention {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", attention)
 		}
 	}
 	fleetStatus := "not-started"

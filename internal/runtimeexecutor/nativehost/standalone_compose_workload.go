@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
+	"github.com/kombifyio/stackkits/internal/backupexec"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/localowner"
@@ -489,8 +490,11 @@ type standaloneComposeServiceSecret struct {
 }
 
 type standaloneComposeService struct {
-	Image       string                                 `yaml:"image"`
-	Restart     string                                 `yaml:"restart,omitempty"`
+	Image   string `yaml:"image"`
+	Restart string `yaml:"restart,omitempty"`
+	// Runtime names a registered OCI runtime other than the daemon default
+	// (gVisor's runsc for the governed agent harness).
+	Runtime     string                                 `yaml:"runtime,omitempty"`
 	Logging     *standaloneComposeLogging              `yaml:"logging,omitempty"`
 	OOMScoreAdj *int                                   `yaml:"oom_score_adj,omitempty"`
 	Deploy      *standaloneComposeDeploy               `yaml:"deploy,omitempty"`
@@ -504,6 +508,7 @@ type standaloneComposeService struct {
 	Devices     []string                               `yaml:"devices,omitempty"`
 	ExtraHosts  []string                               `yaml:"extra_hosts,omitempty"`
 	StopSignal  string                                 `yaml:"stop_signal,omitempty"`
+	Init        *bool                                  `yaml:"init,omitempty"`
 	Labels      map[string]string                      `yaml:"labels,omitempty"`
 	Healthcheck *standaloneComposeHealthcheck          `yaml:"healthcheck,omitempty"`
 	Secrets     []standaloneComposeServiceSecret       `yaml:"secrets,omitempty"`
@@ -910,6 +915,18 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 				map[string]any{"type": "bind", "source": filepath.Join(dockerRoot, "containers"), "target": filepath.Join(dockerRoot, "containers"), "read_only": true, "bind": map[string]any{"create_host_path": false}},
 			)
 		}
+		if component.StopSignal != "" {
+			// The bundle parser admits only the governed declaration; the
+			// quiesce owner must be able to stop the container with it.
+			if !backupexec.SupportedStopSignal(component.StopSignal) {
+				return nil, nil, nil, fmt.Errorf("component %s declares stop signal %q, which the backup quiesce owner does not admit", component.ID, component.StopSignal)
+			}
+			service.StopSignal = component.StopSignal
+		}
+		if component.Init {
+			enabled := true
+			service.Init = &enabled
+		}
 		if bundle.ModuleRef == "stackkits-roundcube-runtime" && component.ID == "roundcube" {
 			// The Apache image declares SIGWINCH (graceful drain), which the
 			// backup quiesce owner does not admit; SIGTERM stops Apache at once
@@ -965,6 +982,9 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 		if err := applyComponentAccelerator(component.Accelerator, &service); err != nil {
 			return nil, nil, nil, err
 		}
+		// The bundle parser admits the sandbox runtime only for its governed
+		// component; Compose fails closed when the host has not registered it.
+		service.Runtime = component.SandboxRuntime
 		// A governed add-on joins its primary workload's internal network on
 		// this node; Compose fails closed when that workload is not applied.
 		if err := applyJellyfinSSOPlugin(component.JellyfinSSOPlugin, &service, configFiles); err != nil {
@@ -1177,7 +1197,10 @@ func standaloneComposeArgs(project standaloneComposeProject, operation string) [
 	}
 	switch operation {
 	case "up":
-		args := append(prefix, "up", "-d")
+		// The adapter owns the project: a component the bundle no longer
+		// declares (an optional component the owner turned off, such as the
+		// kombify AI connector) is removed, never left running.
+		args := append(prefix, "up", "-d", "--remove-orphans")
 		for _, component := range project.bundle.Components {
 			if component.HealthFailure == "degraded" {
 				return args

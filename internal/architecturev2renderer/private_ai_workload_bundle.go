@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"reflect"
 )
 
 const (
@@ -15,7 +16,29 @@ const (
 	privateAIWorkloadOutputRef   = "workloads/private-ai/bundle.json"
 )
 
-const privateAIWorkloadRendererSchema = `stackkit.workload-bundle/v2|PrivateAIWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:privateAI|release:` + privateAIRelease + `|secret-material:not-included|companions:ai-search,ai-documents,ai-image-video`
+const privateAIWorkloadRendererSchema = `stackkit.workload-bundle/v2|PrivateAIWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:privateAI|release:` + privateAIRelease + `|secret-material:not-included|companions:ai-search,ai-documents,ai-image-video,ai-assistant,ai-harness,ai-speech|optional:kombify-ai-connector:kombify-connector-setting:issued-token-file`
+
+// The optional kombify AI connector (decision record 2026-09-27 §4). Its
+// token is issued by the owner's kombify AI, never minted: `stackkit setup
+// ai-connect` custodies it under PrivateAIConnectorTokenRef and turns on
+// PrivateAIConnectorSetting. Plan secret inputs are always required and
+// minted, so the token is not one; the renderer binds the fixed workload
+// reference only while the connector is on, and Apply fails closed when the
+// custody is absent.
+const (
+	PrivateAIConnectorComponent = "kombify-ai-connector"
+	PrivateAIConnectorSetting   = "kombify-connector"
+	PrivateAIConnectorTokenSlot = "kombify-ai-connector-token"
+	PrivateAIConnectorTokenRef  = "secret://workloads/ai/kombify-ai-connector-token"
+	privateAIConnectorTokenFile = "/run/secrets/kombify-ai-connector-token"
+	privateAIConnectorMetrics   = "127.0.0.1:20241"
+)
+
+var (
+	privateAIConnectorCommand     = []string{"tunnel", "--no-autoupdate", "--metrics", privateAIConnectorMetrics, "run", "--token-file", privateAIConnectorTokenFile}
+	privateAIConnectorHealth      = []string{"cloudflared", "tunnel", "--metrics", privateAIConnectorMetrics, "ready"}
+	privateAIConnectorSecretFiles = []selectedPaaSSecretFile{{Slot: PrivateAIConnectorTokenSlot, Target: privateAIConnectorTokenFile, PathEnvironment: "TUNNEL_TOKEN_FILE", UID: 65532, GID: 65532}}
+)
 
 // PrivateAIWorkloadBundleDescriptor is the closed, credential-free runtime
 // artifact accepted by the selected-PaaS executor. OwnerPasswordRef is opaque.
@@ -77,8 +100,8 @@ func ParsePrivateAIWorkloadBundle(data []byte) (PrivateAIWorkloadBundleDescripto
 		bundle.Ownership.ProviderLifecycle != "not-owned" || bundle.Ownership.Credentials != "opaque-references-only" {
 		return PrivateAIWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed PrivateAI image contract")
 	}
-	if !validPrivateAISecretRefs(bundle.SecretRefs) {
-		return PrivateAIWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "requires opaque owner-password and session-key references")
+	if !validPrivateAISecretRefs(bundle.SecretRefs, privateAIConnectorEnabled(bundle.Components)) {
+		return PrivateAIWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "requires opaque owner-password and session-key references, plus the connector token reference exactly while the connector runs")
 	}
 	if len(bundle.ConfigFiles) != 0 {
 		return PrivateAIWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".configFiles", "AI runtime accepts no startup configuration overrides")
@@ -147,7 +170,7 @@ func validatePrivateAIWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	if hasDaemonRef || hasDaemonInstance || hasDaemonEngine || hasDaemonSocket {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".instances", "selected-PaaS workload receives no daemon or socket authority")
 	}
-	deliveryRoute, companions, err := validateApplicationDeliveryInputsWithCompanions(unit, privateAIWorkloadModuleID, "ai", 8080, path+".inputs")
+	deliveryRoute, companions, settings, err := validateApplicationDeliveryInputsWithCompanions(unit, privateAIWorkloadModuleID, "ai", 8080, []string{PrivateAIConnectorSetting}, path+".inputs")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
@@ -156,7 +179,7 @@ func validatePrivateAIWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	}
 	secretRefs := map[string]string{}
 	if err := decodeStrict(unit.SecretRefsJSON(), &secretRefs); err != nil ||
-		!validPrivateAISecretRefs(secretRefs) {
+		!validPrivateAISecretRefs(secretRefs, false) {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".secretRefs", "requires opaque owner-password and session-key references and no secret material")
 	}
 	if !emptyJSONArray(unit.ProvidedInterfacesJSON()) || !emptyJSONArray(unit.RequiredInterfacesJSON()) ||
@@ -177,6 +200,13 @@ func validatePrivateAIWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	var components []selectedPaaSRuntimeComponent
 	if err := decodeStrict(unit.RuntimeComponentsJSON(), &components); err != nil {
 		return selectedPaaSWorkloadBundle{}, wrap(ErrInvalidPlan, path+".runtime.components", "decode closed component graph", err)
+	}
+	components, connector, err := materializePrivateAIConnector(components, settings, path+".runtime.components")
+	if err != nil {
+		return selectedPaaSWorkloadBundle{}, err
+	}
+	if connector {
+		secretRefs[PrivateAIConnectorTokenSlot] = PrivateAIConnectorTokenRef
 	}
 	// Open WebUI is wired to the selected search and document add-ons only
 	// while they are selected on this node.
@@ -220,13 +250,16 @@ func validatePrivateAIWorkloadUnit(unit RenderUnit, contract RendererContract) (
 }
 
 func validatePrivateAIRuntimeComponents(components []selectedPaaSRuntimeComponent, path string) ([]selectedPaaSRuntimeComponent, error) {
-	if len(components) != 2 {
-		return nil, fail(ErrInvalidPlan, path, "requires Ollama and Open WebUI")
+	if len(components) != 2 && (len(components) != 3 || !privateAIConnectorEnabled(components)) {
+		return nil, fail(ErrInvalidPlan, path, "requires Ollama and Open WebUI, and optionally the kombify AI connector")
 	}
 	seen := map[string]bool{}
 	for _, c := range components {
-		if seen[c.ID] || c.Role != "application" || c.Lifecycle != "daemon" || len(c.Command) != 0 || len(c.Entrypoint) != 0 || !exactStringList(c.NetworkRefs, []string{"private-ai-internal"}) {
+		if seen[c.ID] || c.Role != "application" || c.Lifecycle != "daemon" || len(c.Entrypoint) != 0 || c.EnabledBySetting != "" || !exactStringList(c.NetworkRefs, []string{"private-ai-internal"}) {
 			return nil, fail(ErrInvalidPlan, path, "AI runtime identity or network differs")
+		}
+		if c.ID != PrivateAIConnectorComponent && (len(c.Command) != 0 || c.HealthFailure != "" || len(c.SecretFiles) != 0) {
+			return nil, fail(ErrInvalidPlan, path, "AI runtime identity differs")
 		}
 		seen[c.ID] = true
 		switch c.ID {
@@ -254,7 +287,7 @@ func validatePrivateAIRuntimeComponents(components []selectedPaaSRuntimeComponen
 			if !c.Egress || len(c.CompanionEnvironment) != 0 {
 				return nil, fail(ErrInvalidPlan, path, "explicit model downloads require Ollama egress")
 			}
-			if len(c.DependsOn) != 0 || len(c.SecretEnvironment) != 0 || len(c.OwnerEnvironment) != 0 || c.Health.Kind != "command" || !exactStringList(c.Health.Command, []string{"ollama", "list"}) || len(c.Environment) != 1 || c.Environment["OLLAMA_KEEP_ALIVE"] != "5m" {
+			if len(c.DependsOn) != 0 || len(c.SecretEnvironment) != 0 || len(c.OwnerEnvironment) != 0 || c.Health.Kind != "command" || !exactStringList(c.Health.Command, []string{"ollama", "list"}) || len(c.Environment) != 2 || c.Environment["OLLAMA_KEEP_ALIVE"] != "5m" || c.Environment["OLLAMA_CONTEXT_LENGTH"] != "8192" {
 				return nil, fail(ErrInvalidPlan, path, "Ollama must retain its private serving configuration")
 			}
 			if !validPrivateAIOllamaImage(c) || len(c.Command) != 0 || len(c.Entrypoint) != 0 {
@@ -263,11 +296,109 @@ func validatePrivateAIRuntimeComponents(components []selectedPaaSRuntimeComponen
 			if len(c.Volumes) != 1 || c.Volumes[0].ID != "models" || c.Volumes[0].Target != "/root/.ollama" || c.Volumes[0].Class != "persistent" || c.Volumes[0].ReadOnly || c.Volumes[0].HostPath != "" {
 				return nil, fail(ErrInvalidPlan, path, "models must persist")
 			}
+		case PrivateAIConnectorComponent:
+			if err := validatePrivateAIConnector(c, path); err != nil {
+				return nil, err
+			}
 		default:
 			return nil, fail(ErrInvalidPlan, path, "unknown AI component")
 		}
 	}
+	if !seen["open-webui"] || !seen["ollama"] {
+		return nil, fail(ErrInvalidPlan, path, "requires Ollama and Open WebUI")
+	}
 	return components, nil
+}
+
+// materializePrivateAIConnector checks the catalog declaration of the optional
+// connector and keeps it only while the owner turned its boolean setting on.
+// Every other component is unconditional.
+func materializePrivateAIConnector(components []selectedPaaSRuntimeComponent, settings map[string]json.RawMessage, path string) ([]selectedPaaSRuntimeComponent, bool, error) {
+	enabled := false
+	if raw, set := settings[PrivateAIConnectorSetting]; set {
+		if err := json.Unmarshal(raw, &enabled); err != nil {
+			return nil, false, fail(ErrInvalidPlan, path+"."+PrivateAIConnectorSetting, "must be a boolean")
+		}
+	}
+	result := make([]selectedPaaSRuntimeComponent, 0, len(components))
+	declared := false
+	for _, component := range components {
+		if component.ID != PrivateAIConnectorComponent {
+			if component.EnabledBySetting != "" {
+				return nil, false, fail(ErrInvalidPlan, path, "only the kombify AI connector is optional")
+			}
+			result = append(result, component)
+			continue
+		}
+		if declared || component.EnabledBySetting != PrivateAIConnectorSetting {
+			return nil, false, fail(ErrInvalidPlan, path, "the kombify AI connector must be declared once and gated by its setting")
+		}
+		declared = true
+		if enabled {
+			component.EnabledBySetting = ""
+			result = append(result, component)
+		}
+	}
+	if enabled && !declared {
+		return nil, false, fail(ErrInvalidPlan, path, "the kombify AI connector setting is on but the catalog declares no connector")
+	}
+	return result, enabled, nil
+}
+
+func privateAIConnectorEnabled(components []selectedPaaSRuntimeComponent) bool {
+	for _, component := range components {
+		if component.ID == PrivateAIConnectorComponent {
+			return true
+		}
+	}
+	return false
+}
+
+// validatePrivateAIConnector admits only the outbound-only connector: the
+// pinned cloudflared image on the internal network next to Ollama, reading its
+// token from a read-only file, with egress, no port, no volume, no route and
+// no other credential.
+func validatePrivateAIConnector(c selectedPaaSRuntimeComponent, path string) error {
+	if c.Image.Ref != kombifyAIConnectorImageRef || c.Image.Digest != kombifyAIConnectorImageDigest ||
+		!validPrivateAIConnectorCommand(c.Command) ||
+		!c.Egress || c.HealthFailure != "degraded" || !exactStringList(c.DependsOn, []string{"ollama"}) ||
+		len(c.Environment) != 0 || len(c.SecretEnvironment) != 0 || len(c.OwnerEnvironment) != 0 || len(c.CompanionEnvironment) != 0 ||
+		!reflect.DeepEqual(c.SecretFiles, privateAIConnectorSecretFiles) || len(c.RestoreActivationEnvironment) != 0 ||
+		len(c.Volumes) != 0 || c.Accelerator != nil || c.Health.Kind != "command" || !exactStringList(c.Health.Command, privateAIConnectorHealth) ||
+		c.Resources == nil || c.Resources.MemoryLimit != "256m" || c.Resources.MemoryReservation != "" || c.Resources.CPUs != 0 {
+		return fail(ErrInvalidPlan, path, "the kombify AI connector must stay the pinned outbound-only tunnel with its token file")
+	}
+	if len(c.PublishedPorts) != 0 || len(c.LANListeners) != 0 || c.DevicePassthrough != nil || len(c.Devices) != 0 ||
+		len(c.PeerNetworks) != 0 || c.RouteHostLoopback || c.DockerLifecycleOwner != nil || len(c.RouteHostEnvironment) != 0 || c.AcmeTLSALPNPort != 0 ||
+		c.HomeIdentityAccess != nil || c.PocketIDClient != nil || c.JellyfinSSOPlugin != nil || c.HomeAssistantOIDC != nil {
+		return fail(ErrInvalidPlan, path, "the kombify AI connector receives no inbound, host or identity right")
+	}
+	return nil
+}
+
+// validPrivateAIConnectorCommand requires the governed command, which the
+// catalog projects as kombifyAIConnectorCommandJSON: the token only from its
+// file and metrics only on loopback.
+func validPrivateAIConnectorCommand(command []string) bool {
+	var catalog []string
+	return json.Unmarshal([]byte(kombifyAIConnectorCommandJSON), &catalog) == nil &&
+		exactStringList(catalog, privateAIConnectorCommand) && exactStringList(command, privateAIConnectorCommand)
+}
+
+func init() {
+	governedCustodyNodeRights[privateAIWorkloadModuleID] = parsePrivateAIConnectorNodeFields
+}
+
+// parsePrivateAIConnectorNodeFields admits the connector token file only for
+// the governed connector component.
+func parsePrivateAIConnectorNodeFields(component selectedPaaSRuntimeComponent, secretRefs map[string]string, path string) ([]ApplicationDeliverySecretFile, []string, error) {
+	if component.ID != PrivateAIConnectorComponent || len(component.RestoreActivationEnvironment) != 0 ||
+		!reflect.DeepEqual(component.SecretFiles, privateAIConnectorSecretFiles) ||
+		secretRefs[PrivateAIConnectorTokenSlot] != PrivateAIConnectorTokenRef {
+		return nil, nil, fail(ErrInvalidPlan, path, "a custody file is admitted only for the kombify AI connector token")
+	}
+	file := component.SecretFiles[0]
+	return []ApplicationDeliverySecretFile{{Slot: file.Slot, Target: file.Target, PathEnvironment: file.PathEnvironment, UID: file.UID, GID: file.GID}}, nil, nil
 }
 
 func validatePrivateAIServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path string) error {
@@ -282,7 +413,11 @@ func validatePrivateAIServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path
 	return nil
 }
 
-func validPrivateAISecretRefs(refs map[string]string) bool {
+func validPrivateAISecretRefs(refs map[string]string, connector bool) bool {
+	if connector {
+		return len(refs) == 3 && validSecretReference(refs["owner-password"]) && validSecretReference(refs["session-key"]) &&
+			refs[PrivateAIConnectorTokenSlot] == PrivateAIConnectorTokenRef
+	}
 	return len(refs) == 2 && validSecretReference(refs["owner-password"]) && validSecretReference(refs["session-key"])
 }
 
