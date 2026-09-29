@@ -666,16 +666,51 @@ const standaloneComposeGameNodeModuleRef = "stackkits-pterodactyl-runtime"
 // route host as the mail host name and a TLS-ALPN-01 router passthrough.
 const standaloneComposeMailNodeModuleRef = "stackkits-stalwart-runtime"
 
-// standaloneComposeMailNode applies the ADR-0046 mail-node rights to the
-// entry component. It refuses them anywhere else, so every other workload
-// keeps publishing nothing beyond its loopback health port.
-func standaloneComposeMailNode(
+// standaloneComposeControlPlaneModuleRef is the only workload admitted to the
+// route-host binding on a private route: Paperclip's hostname guard must know
+// the route host, and Paperclip is never published.
+const standaloneComposeControlPlaneModuleRef = "stackkits-paperclip-runtime"
+
+// standaloneComposeControlPlaneRouteHost binds the private route host to the
+// Paperclip entry component's declared variable. Without a route nothing is
+// bound and Paperclip answers only loopback.
+func standaloneComposeControlPlaneRouteHost(
+	bundle architecturev2renderer.ApplicationDeliveryBundleDescriptor,
+	component architecturev2renderer.ApplicationDeliveryComponentDescriptor,
+	service *standaloneComposeService,
+) error {
+	if component.ID != bundle.EntryComponent || len(component.PublishedTCPPorts) != 0 || component.ACMETLSALPNPort != 0 {
+		return errors.New("the control plane binds only its route host")
+	}
+	if bundle.Route.Exposure == "public" {
+		return errors.New("the control plane is never published")
+	}
+	if bundle.Route.ID == "" || bundle.Route.Host == "" {
+		return nil
+	}
+	for _, name := range component.RouteHostEnvironment {
+		if _, conflict := service.Environment[name]; conflict {
+			return errors.New("control plane route-host binding conflicts with a declared variable")
+		}
+		service.Environment[name] = strings.ReplaceAll(bundle.Route.Host, "$", "$$")
+	}
+	return nil
+}
+
+// standaloneComposeHostBindings applies the ADR-0046 mail-node rights and the
+// Paperclip route-host binding to their entry components. It refuses them
+// anywhere else, so every other workload keeps publishing nothing beyond its
+// loopback health port.
+func standaloneComposeHostBindings(
 	bundle architecturev2renderer.ApplicationDeliveryBundleDescriptor,
 	component architecturev2renderer.ApplicationDeliveryComponentDescriptor,
 	service *standaloneComposeService,
 ) error {
 	if len(component.PublishedTCPPorts) == 0 && len(component.RouteHostEnvironment) == 0 && component.ACMETLSALPNPort == 0 {
 		return nil
+	}
+	if bundle.ModuleRef == standaloneComposeControlPlaneModuleRef {
+		return standaloneComposeControlPlaneRouteHost(bundle, component, service)
 	}
 	if bundle.ModuleRef != standaloneComposeMailNodeModuleRef || component.ID != bundle.EntryComponent ||
 		bundle.Route.ID == "" || bundle.Route.Host == "" || bundle.Route.Exposure != "public" {
@@ -968,7 +1003,7 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 				service.Networks = append(service.Networks, standaloneComposeHealthNetwork)
 			}
 		}
-		if err := standaloneComposeMailNode(bundle, component, &service); err != nil {
+		if err := standaloneComposeHostBindings(bundle, component, &service); err != nil {
 			return nil, nil, nil, err
 		}
 		// Owner-enabled LAN rights, already validated against the governed
@@ -1390,6 +1425,9 @@ func standaloneComposeContainerIdentities(
 	statuses map[string]standaloneComposePS,
 	requireIDs bool,
 ) (map[string]string, error) {
+	if missing := standaloneComposeMissingComponents(components, statuses); missing != "" {
+		return nil, fmt.Errorf("standalone Compose components %s have no container in the project", missing)
+	}
 	if len(statuses) != len(components) {
 		return nil, errors.New("standalone Compose service set differs from the authorized component graph")
 	}

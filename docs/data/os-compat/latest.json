@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
-  "stackkitsVersion": "v0.47.4",
-  "generatedAt": "2026-09-27T09:45:13Z",
+  "stackkitsVersion": "v0.48.0",
+  "generatedAt": "2026-09-28T10:43:33Z",
   "results": [
     {
       "os": {
@@ -23,7 +23,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.47.4"
+      "lastVerifiedRelease": "v0.48.0"
     },
     {
       "os": {
@@ -45,7 +45,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.47.4"
+      "lastVerifiedRelease": "v0.48.0"
     },
     {
       "os": {
@@ -67,7 +67,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.47.4"
+      "lastVerifiedRelease": "v0.48.0"
     },
     {
       "os": {
@@ -180,7 +180,7 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.47.4"
+      "lastVerifiedRelease": "v0.48.0"
     },
     {
       "kit": "basement-kit",

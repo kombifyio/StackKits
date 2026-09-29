@@ -16,7 +16,7 @@ const (
 	privateAIWorkloadOutputRef   = "workloads/private-ai/bundle.json"
 )
 
-const privateAIWorkloadRendererSchema = `stackkit.workload-bundle/v2|PrivateAIWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:privateAI|release:` + privateAIRelease + `|secret-material:not-included|companions:ai-search,ai-documents,ai-image-video,ai-assistant,ai-harness,ai-speech|optional:kombify-ai-connector:kombify-connector-setting:issued-token-file`
+const privateAIWorkloadRendererSchema = `stackkit.workload-bundle/v2|PrivateAIWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:privateAI|release:` + privateAIRelease + `|secret-material:not-included|companions:ai-search,ai-documents,ai-image-video,ai-assistant,ai-harness,ai-control-plane,ai-speech|optional:kombify-ai-connector:kombify-connector-setting:issued-token-file`
 
 // The optional kombify AI connector (decision record 2026-09-27 §4). Its
 // token is issued by the owner's kombify AI, never minted: `stackkit setup
@@ -100,8 +100,9 @@ func ParsePrivateAIWorkloadBundle(data []byte) (PrivateAIWorkloadBundleDescripto
 		bundle.Ownership.ProviderLifecycle != "not-owned" || bundle.Ownership.Credentials != "opaque-references-only" {
 		return PrivateAIWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed PrivateAI image contract")
 	}
-	if !validPrivateAISecretRefs(bundle.SecretRefs, privateAIConnectorEnabled(bundle.Components)) {
-		return PrivateAIWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "requires opaque owner-password and session-key references, plus the connector token reference exactly while the connector runs")
+	companionSlots, err := companionSecretSlotsOf(privateAIWorkloadModuleID, bundle.Components)
+	if err != nil || !validPrivateAISecretRefs(bundle.SecretRefs, privateAIConnectorEnabled(bundle.Components), companionSlots) {
+		return PrivateAIWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "requires opaque owner-password and session-key references, plus the connector token reference exactly while the connector runs and a companion secret reference exactly while its add-on is wired")
 	}
 	if len(bundle.ConfigFiles) != 0 {
 		return PrivateAIWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".configFiles", "AI runtime accepts no startup configuration overrides")
@@ -179,7 +180,7 @@ func validatePrivateAIWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	}
 	secretRefs := map[string]string{}
 	if err := decodeStrict(unit.SecretRefsJSON(), &secretRefs); err != nil ||
-		!validPrivateAISecretRefs(secretRefs, false) {
+		!validPrivateAISecretRefs(secretRefs, false, nil) {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".secretRefs", "requires opaque owner-password and session-key references and no secret material")
 	}
 	if !emptyJSONArray(unit.ProvidedInterfacesJSON()) || !emptyJSONArray(unit.RequiredInterfacesJSON()) ||
@@ -208,10 +209,14 @@ func validatePrivateAIWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	if connector {
 		secretRefs[PrivateAIConnectorTokenSlot] = PrivateAIConnectorTokenRef
 	}
-	// Open WebUI is wired to the selected search and document add-ons only
-	// while they are selected on this node.
+	// Open WebUI is wired to the selected add-ons only while they are selected
+	// on this node; a selected add-on's custody secret travels as an opaque
+	// reference under its own companion slot.
 	for index := range components {
 		if err := materializeCompanionEnvironment(privateAIWorkloadModuleID, &components[index], companions, path+".runtime.components"); err != nil {
+			return selectedPaaSWorkloadBundle{}, err
+		}
+		if err := materializeCompanionSecretEnvironment(privateAIWorkloadModuleID, &components[index], companions, secretRefs, path+".runtime.components"); err != nil {
 			return selectedPaaSWorkloadBundle{}, err
 		}
 	}
@@ -267,24 +272,28 @@ func validatePrivateAIRuntimeComponents(components []selectedPaaSRuntimeComponen
 			if c.Accelerator != nil {
 				return nil, fail(ErrInvalidPlan, path, "Open WebUI runs on the CPU")
 			}
-			if c.Egress || len(c.CompanionEnvironment) != 0 {
+			if c.Egress || len(c.CompanionEnvironment) != 0 || len(c.CompanionSecretEnvironment) != 0 {
 				return nil, fail(ErrInvalidPlan, path, "only the model-serving component requests egress")
 			}
 			environment, err := splitCompanionEnvironment(privateAIWorkloadModuleID, c.ID, c.Environment)
 			if err != nil {
 				return nil, fail(ErrInvalidPlan, path, "Open WebUI companion wiring differs from the governed search and document add-ons")
 			}
-			if !exactStringList(c.DependsOn, []string{"ollama"}) || len(c.SecretEnvironment) != 2 || c.Health.Kind != "http" || c.Health.Path != "/health" || c.Health.Port != 8080 || environment["ENABLE_PERSISTENT_CONFIG"] != "false" || environment["ENABLE_OPENAI_API"] != "false" || environment["RAG_EMBEDDING_MODEL_AUTO_UPDATE"] != "false" || environment["WHISPER_MODEL_AUTO_UPDATE"] != "false" || environment["OFFLINE_MODE"] != "true" || environment["HF_HUB_OFFLINE"] != "1" || len(environment) != 8 {
+			secretEnvironment, _, err := splitCompanionSecretEnvironment(privateAIWorkloadModuleID, c.ID, c.SecretEnvironment)
+			if err != nil {
+				return nil, fail(ErrInvalidPlan, path, "Open WebUI companion secret wiring differs from the governed speech add-on")
+			}
+			if !exactStringList(c.DependsOn, []string{"ollama"}) || len(secretEnvironment) != 2 || c.Health.Kind != "http" || c.Health.Path != "/health" || c.Health.Port != 8080 || environment["ENABLE_PERSISTENT_CONFIG"] != "false" || environment["ENABLE_OPENAI_API"] != "false" || environment["RAG_EMBEDDING_MODEL_AUTO_UPDATE"] != "false" || environment["WHISPER_MODEL_AUTO_UPDATE"] != "false" || environment["OFFLINE_MODE"] != "true" || environment["HF_HUB_OFFLINE"] != "1" || len(environment) != 8 {
 				return nil, fail(ErrInvalidPlan, path, "Open WebUI must retain its private configuration")
 			}
-			if c.Image.Ref != privateAIImageRef || c.Image.Digest != privateAIImageDigest || environment["OLLAMA_BASE_URL"] != "http://ollama:11434" || environment["ENABLE_SIGNUP"] != "false" || c.SecretEnvironment["WEBUI_ADMIN_PASSWORD"] != "owner-password" || c.OwnerEnvironment["WEBUI_ADMIN_EMAIL"] != "email" || len(c.OwnerEnvironment) != 1 || c.SecretEnvironment["WEBUI_SECRET_KEY"] != "session-key" {
+			if c.Image.Ref != privateAIImageRef || c.Image.Digest != privateAIImageDigest || environment["OLLAMA_BASE_URL"] != "http://ollama:11434" || environment["ENABLE_SIGNUP"] != "false" || secretEnvironment["WEBUI_ADMIN_PASSWORD"] != "owner-password" || c.OwnerEnvironment["WEBUI_ADMIN_EMAIL"] != "email" || len(c.OwnerEnvironment) != 1 || secretEnvironment["WEBUI_SECRET_KEY"] != "session-key" {
 				return nil, fail(ErrInvalidPlan, path, "Open WebUI owner and inference boundary differs")
 			}
 			if len(c.Volumes) != 1 || c.Volumes[0].ID != "data" || c.Volumes[0].Target != "/app/backend/data" || c.Volumes[0].Class != "persistent" || !c.Volumes[0].Backup || c.Volumes[0].ReadOnly || c.Volumes[0].HostPath != "" {
 				return nil, fail(ErrInvalidPlan, path, "chat and owner data must persist")
 			}
 		case "ollama":
-			if !c.Egress || len(c.CompanionEnvironment) != 0 {
+			if !c.Egress || len(c.CompanionEnvironment) != 0 || len(c.CompanionSecretEnvironment) != 0 {
 				return nil, fail(ErrInvalidPlan, path, "explicit model downloads require Ollama egress")
 			}
 			if len(c.DependsOn) != 0 || len(c.SecretEnvironment) != 0 || len(c.OwnerEnvironment) != 0 || c.Health.Kind != "command" || !exactStringList(c.Health.Command, []string{"ollama", "list"}) || len(c.Environment) != 2 || c.Environment["OLLAMA_KEEP_ALIVE"] != "5m" || c.Environment["OLLAMA_CONTEXT_LENGTH"] != "8192" {
@@ -362,7 +371,7 @@ func validatePrivateAIConnector(c selectedPaaSRuntimeComponent, path string) err
 	if c.Image.Ref != kombifyAIConnectorImageRef || c.Image.Digest != kombifyAIConnectorImageDigest ||
 		!validPrivateAIConnectorCommand(c.Command) ||
 		!c.Egress || c.HealthFailure != "degraded" || !exactStringList(c.DependsOn, []string{"ollama"}) ||
-		len(c.Environment) != 0 || len(c.SecretEnvironment) != 0 || len(c.OwnerEnvironment) != 0 || len(c.CompanionEnvironment) != 0 ||
+		len(c.Environment) != 0 || len(c.SecretEnvironment) != 0 || len(c.OwnerEnvironment) != 0 || len(c.CompanionEnvironment) != 0 || len(c.CompanionSecretEnvironment) != 0 ||
 		!reflect.DeepEqual(c.SecretFiles, privateAIConnectorSecretFiles) || len(c.RestoreActivationEnvironment) != 0 ||
 		len(c.Volumes) != 0 || c.Accelerator != nil || c.Health.Kind != "command" || !exactStringList(c.Health.Command, privateAIConnectorHealth) ||
 		c.Resources == nil || c.Resources.MemoryLimit != "256m" || c.Resources.MemoryReservation != "" || c.Resources.CPUs != 0 {
@@ -413,12 +422,24 @@ func validatePrivateAIServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path
 	return nil
 }
 
-func validPrivateAISecretRefs(refs map[string]string, connector bool) bool {
+// validPrivateAISecretRefs requires exactly the owner-password and
+// session-key references, the connector token reference while the connector
+// runs, and one opaque reference per companion secret slot the governed
+// component uses; nothing else.
+func validPrivateAISecretRefs(refs map[string]string, connector bool, companionSlots []string) bool {
+	expected := 2 + len(companionSlots)
 	if connector {
-		return len(refs) == 3 && validSecretReference(refs["owner-password"]) && validSecretReference(refs["session-key"]) &&
-			refs[PrivateAIConnectorTokenSlot] == PrivateAIConnectorTokenRef
+		expected++
+		if refs[PrivateAIConnectorTokenSlot] != PrivateAIConnectorTokenRef {
+			return false
+		}
 	}
-	return len(refs) == 2 && validSecretReference(refs["owner-password"]) && validSecretReference(refs["session-key"])
+	for _, slot := range companionSlots {
+		if !validSecretReference(refs[slot]) {
+			return false
+		}
+	}
+	return len(refs) == expected && validSecretReference(refs["owner-password"]) && validSecretReference(refs["session-key"])
 }
 
 // privateAIOllamaROCmImageRef is the only image variant Private AI admits: the

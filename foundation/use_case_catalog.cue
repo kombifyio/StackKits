@@ -699,9 +699,16 @@ UseCaseCatalog: #UseCaseCatalog & {
 					id:   "agent-control-plane"
 					name: "Agent control plane"
 					help: "Organizes agents, their budgets and approvals."
-					requires: ["inference", "agent-harness"]
-					default: {id: "paperclip", name: "Paperclip", realization: "recorded"}
-					alternative: {id: "langflow", name: "Langflow", note: "Visual agent and flow builder", realization: "recorded"}
+					// Paperclip installs as the add-on workload ai-control-plane
+					// with its own PostgreSQL in a gVisor-isolated container (the
+					// host needs the runsc runtime). It drives the installed Hermes
+					// through its hermes_gateway adapter; Paperclip ships no
+					// OpenHands adapter, so the harness is not a dependency.
+					// Langflow stays recorded: its custom Python components run
+					// in-process before any sandbox and it needs its own module.
+					requires: ["inference"]
+					default: {id: "paperclip", name: "Paperclip", note: "Runs in a gVisor sandbox; the host needs the runsc runtime", realization: "install", workloadRef: "ai-control-plane", alternativeRef: "paperclip"}
+					alternative: {id: "langflow", name: "Langflow", note: "Visual agent and flow builder; runs flow code in-process", realization: "recorded"}
 				},
 				{
 					id:   "observability"

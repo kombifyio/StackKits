@@ -252,31 +252,40 @@ func validateStalwartRuntimeComponents(components []selectedPaaSRuntimeComponent
 	return nil
 }
 
-type mailNodeComponentFields struct {
+// componentHostBindings are the host-facing rights of a workload's entry
+// component: published TCP ports, route-host variables and the ACME TLS-ALPN
+// passthrough. Only the Stalwart mail node and the Paperclip route host hold any.
+type componentHostBindings struct {
 	PublishedTCPPorts    []int
 	RouteHostEnvironment []string
 	ACMETLSALPNPort      int
 }
 
-// parseMailNodeComponentFields admits the ADR-0046 mail-node fields only for
+// parseComponentHostBindings admits the ADR-0046 mail-node fields only for
 // the Stalwart entry component with its exact port set and a public route
-// host. Every other workload keeps the loopback-only publication rule.
-func parseMailNodeComponentFields(component selectedPaaSRuntimeComponent, moduleRef string, route *applicationDeliveryRoute, path string) (mailNodeComponentFields, error) {
+// host, and the private route-host binding only for the Paperclip entry
+// component. Every other workload keeps the loopback-only publication rule.
+func parseComponentHostBindings(component selectedPaaSRuntimeComponent, moduleRef string, route *applicationDeliveryRoute, path string) (componentHostBindings, error) {
 	if len(component.PublishedPorts) == 0 && len(component.RouteHostEnvironment) == 0 && component.AcmeTLSALPNPort == 0 {
-		return mailNodeComponentFields{}, nil
+		return componentHostBindings{}, nil
+	}
+	// The Paperclip entry component binds the route host alone (its private
+	// hostname guard), never a port or the ACME passthrough.
+	if moduleRef == paperclipWorkloadModuleID {
+		return parsePaperclipRouteHostFields(component, route, path)
 	}
 	if moduleRef != stalwartWorkloadModuleID || component.ID != stalwartWorkloadUnitID {
-		return mailNodeComponentFields{}, fail(ErrInvalidPlan, path, "published mail ports, route-host binding and ACME passthrough are admitted only for the governed mail node")
+		return componentHostBindings{}, fail(ErrInvalidPlan, path, "published mail ports, route-host binding and ACME passthrough are admitted only for the governed mail node")
 	}
 	if !reflect.DeepEqual(component.PublishedPorts, stalwartPublishedPorts()) ||
 		!reflect.DeepEqual(component.RouteHostEnvironment, map[string]string{StalwartHostnameEnv: "route-host"}) ||
 		component.AcmeTLSALPNPort != StalwartACMETLSALPNPort {
-		return mailNodeComponentFields{}, fail(ErrInvalidPlan, path, "mail-node ports, host binding or ACME passthrough differ from the closed Stalwart contract")
+		return componentHostBindings{}, fail(ErrInvalidPlan, path, "mail-node ports, host binding or ACME passthrough differ from the closed Stalwart contract")
 	}
 	if err := validateStalwartMailRoute(route, path); err != nil {
-		return mailNodeComponentFields{}, err
+		return componentHostBindings{}, err
 	}
-	return mailNodeComponentFields{
+	return componentHostBindings{
 		PublishedTCPPorts:    slices.Clone(StalwartPublishedPorts),
 		RouteHostEnvironment: []string{StalwartHostnameEnv},
 		ACMETLSALPNPort:      StalwartACMETLSALPNPort,

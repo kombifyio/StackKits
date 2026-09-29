@@ -378,7 +378,8 @@
         "photos-tools",
         "ai-image-video",
         "ai-assistant",
-        "ai-harness"
+        "ai-harness",
+        "ai-control-plane"
       ]
     },
     "standaloneOwner": {
@@ -1222,7 +1223,8 @@
       "ai-image-video",
       "ai-assistant",
       "ai-speech",
-      "ai-harness"
+      "ai-harness",
+      "ai-control-plane"
     ],
     "required": [
       "basement-core"

@@ -25,10 +25,13 @@ const (
 	openHandsWorkloadOutputRef   = "workloads/openhands/bundle.json"
 	openHandsPort                = 8000
 
-	// OpenHandsSettingsSeedPath is the governed read-only seed the container's
-	// entrypoint copies to the agent server's settings file on the first start
-	// only: the node's Ollama endpoint as the agent's model.
-	OpenHandsSettingsSeedPath = "/home/openhands/.openhands/stackkit/settings.seed.json"
+	// OpenHandsSettingsSeedEnv carries the governed settings seed the
+	// container's entrypoint writes to the agent server's settings file on the
+	// first start only: the node's Ollama endpoint as the agent's model. An
+	// environment value, not a mounted file: governed files are root-owned
+	// 0600 and the image runs as uid 10001, which could not read them
+	// (measured 2026-09-28; the seed was never applied).
+	OpenHandsSettingsSeedEnv = "STACKKIT_OPENHANDS_SETTINGS_SEED"
 	// OpenHandsDefaultModel is the LiteLLM model reference of the seed: the
 	// plan's general-assistant preset served by the node's Ollama through the
 	// tool-calling ollama_chat provider. The owner pulls it in Open WebUI.
@@ -37,25 +40,14 @@ const (
 )
 
 // openHandsSettingsSeed is agent-server PersistedSettings v3 with agent
-// settings v6: only the LLM model and endpoint; no secret.
-var openHandsSettingsSeed = `{"schema_version":3,"agent_settings":{"schema_version":6,"agent_kind":"openhands","llm":{"model":"` +
-	OpenHandsDefaultModel + `","base_url":"` + openHandsOllamaURL + `"}}}` + "\n"
-
-func openHandsConfigFiles() []selectedPaaSConfigFile {
-	return []selectedPaaSConfigFile{{Path: OpenHandsSettingsSeedPath, Body: openHandsSettingsSeed}}
-}
-
-func openHandsAssetsDigest() string {
-	digest := sha256.New()
-	for _, file := range openHandsConfigFiles() {
-		digest.Write([]byte(file.Path + "\x00" + file.Body + "\x00"))
-	}
-	return hex.EncodeToString(digest.Sum(nil))
-}
+// settings v6: only the LLM model and endpoint; no secret. The catalog
+// declares the same value as the component's seed variable.
+const openHandsSettingsSeed = `{"schema_version":3,"agent_settings":{"schema_version":6,"agent_kind":"openhands","llm":{"model":"` +
+	OpenHandsDefaultModel + `","base_url":"` + openHandsOllamaURL + `"}}}`
 
 func openHandsWorkloadRendererSchema() string {
-	return `stackkit.workload-bundle/v2|OpenHandsWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:openhands|sandbox-runtime:runsc|docker-socket:none|egress:agent|volumes:settings,workspace|governed-files:sha256:` +
-		openHandsAssetsDigest() + `|entrypoint:` + openhandsEntrypointJSON + `|release:` + openhandsRelease + `|secret-material:not-included|peer:ai/private-ai-internal`
+	return `stackkit.workload-bundle/v2|OpenHandsWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:openhands|sandbox-runtime:runsc|docker-socket:none|egress:agent|volumes:settings,workspace|settings-seed:env:` +
+		OpenHandsSettingsSeedEnv + `|entrypoint:` + openhandsEntrypointJSON + `|release:` + openhandsRelease + `|secret-material:not-included|peer:ai/private-ai-internal`
 }
 
 // OpenHandsWorkloadBundleDescriptor is the closed, credential-free runtime
@@ -119,8 +111,8 @@ func ParseOpenHandsWorkloadBundle(data []byte) (OpenHandsWorkloadBundleDescripto
 	if len(bundle.SecretRefs) != 0 {
 		return OpenHandsWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "OpenHands receives no secret from StackKits")
 	}
-	if !reflect.DeepEqual(bundle.ConfigFiles, openHandsConfigFiles()) {
-		return OpenHandsWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".configFiles", "OpenHands settings seed differs from the governed renderer output")
+	if len(bundle.ConfigFiles) != 0 {
+		return OpenHandsWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".configFiles", "OpenHands receives no mounted file; its settings seed is an environment value")
 	}
 	if err := validateOpenHandsRuntimeComponents(bundle.Components, path+".components"); err != nil {
 		return OpenHandsWorkloadBundleDescriptor{}, err
@@ -227,7 +219,6 @@ func validateOpenHandsWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	bundle := selectedPaaSWorkloadBundle{
 		APIVersion: "stackkit.workload-bundle/v2", Kind: "OpenHandsWorkloadBundle",
 		SecretRefs: map[string]string{}, Components: components, Route: endpoints[0], DeliveryRoute: deliveryRoute,
-		ConfigFiles: openHandsConfigFiles(),
 	}
 	bundle.Workload.Ref, bundle.Workload.AlternativeRef = openHandsWorkloadRef, "openhands"
 	bundle.Workload.ModuleRef, bundle.Workload.Release = openHandsWorkloadModuleID, openhandsRelease
@@ -253,7 +244,7 @@ func openHandsComponent() (selectedPaaSRuntimeComponent, error) {
 		Image:          selectedPaaSRuntimeImage{Ref: openhandsImageRef, Digest: openhandsImageDigest},
 		DependsOn:      []string{}, NetworkRefs: []string{"openhands-internal"},
 		Entrypoint:  entrypoint,
-		Environment: map[string]string{"DO_NOT_TRACK": "1", "VITE_DO_NOT_TRACK": "1"},
+		Environment: map[string]string{"DO_NOT_TRACK": "1", "VITE_DO_NOT_TRACK": "1", OpenHandsSettingsSeedEnv: openHandsSettingsSeed},
 		Volumes: []selectedPaaSRuntimeVolume{
 			{ID: "settings", Target: "/home/openhands/.openhands", Class: "persistent", Backup: true},
 			{ID: "workspace", Target: "/projects", Class: "persistent", Backup: true},

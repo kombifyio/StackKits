@@ -21,6 +21,8 @@ var governedPeerNetworks = map[string]struct {
 	comfyUIWorkloadModuleID: {component: "comfyui", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}}},
 	// OpenHands joins the private AI network to reach Ollama.
 	openHandsWorkloadModuleID: {component: "openhands", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}}},
+	// Paperclip joins the private AI network to reach Hermes (hermes_gateway) and Ollama.
+	paperclipWorkloadModuleID: {component: "paperclip", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}}},
 	// Hermes reaches Ollama and, when selected, SearXNG on the private AI network.
 	hermesWorkloadModuleID: {component: "hermes", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}}},
 	// Only the SpeechKit server joins the private AI network (Ollama for

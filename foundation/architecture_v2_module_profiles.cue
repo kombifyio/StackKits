@@ -8,11 +8,33 @@ package foundation
 // host minimum or a recommendation. These absolute host floors aggregate by
 // maximum; application data capacity is separately governed by DataBinding.
 // Equal high/standard profiles do not imply a measured performance benefit.
+//
+// Every declared resource block carries #ResourceProvenanceV1. No value in the
+// catalog is measured yet: floors, recommendations, reservations and GPU
+// envelopes are labelled policy, except the Immich CPU/RAM floor, which cites
+// the upstream requirement. A value becomes measured only with a receipt ref.
+_architectureV2PolicyFloorProvenance: #ResourceProvenanceV1 & {source: "policy", ref: "Kombify host floor support policy"}
+_architectureV2PolicyRecommendedProvenance: #ResourceProvenanceV1 & {source: "policy", ref: "Kombify recommended sizing policy"}
+_architectureV2ComponentReservationProvenance: #ResourceProvenanceV1 & {source: "policy", ref: "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"}
+_architectureV2PolicyReservationProvenance: #ResourceProvenanceV1 & {source: "policy", ref: "Kombify reservation policy; declared, not a sum of component limits"}
+_architectureV2AcceleratorEnvelopeProvenance: #ResourceProvenanceV1 & {source: "policy", ref: "Kombify GPU runtime support envelope"}
+_architectureV2ImmichUpstreamFloorProvenance: #ResourceProvenanceV1 & {source: "upstream", ref: "Immich v2.7.0 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor"}
+
 _architectureV2CoreComputeProfile: #ModuleComputeProfileV2 & {
 	maturity:           "supported", executable: true, realization: "apply-ready"
 	platformManagement: "selected-provider"
 	hostFloor: {minCpuCores: 2, minRamGB: 4, minStorageGB: 20}
 	recommended: {cpuCores: 4, ramGB: 4, storageGB: 20}
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		recommended: _architectureV2PolicyRecommendedProvenance
+	}
+}
+
+// Application profiles that reuse a core floor reuse its provenance with it.
+_architectureV2CoreHostFloor: {
+	hostFloor: _architectureV2CoreComputeProfile.hostFloor
+	provenance: hostFloor: _architectureV2CoreComputeProfile.provenance.hostFloor
 }
 
 _architectureV2CloudCoreComputeProfile: _architectureV2CoreComputeProfile & {
@@ -32,6 +54,10 @@ _architectureV2CloudStandaloneCoreComputeProfile: #ModuleComputeProfileV2 & {
 	recommended:        _architectureV2CoreComputeProfile.recommended
 	components: ["router", "socket-proxy", "pocketid", "tinyauth", "hub", "stackkit-server", "kopia-agent"]
 	degradations: ["paas-management-omitted"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		recommended: _architectureV2PolicyRecommendedProvenance
+	}
 }
 _architectureV2CloudStandaloneCoreComputeProfiles: {
 	standard: _architectureV2CloudStandaloneCoreComputeProfile
@@ -55,6 +81,10 @@ _architectureV2BasementStandaloneCoreComputeProfile: #ModuleComputeProfileV2 & {
 	recommended: {cpuCores: 2, ramGB: 2, storageGB: 10}
 	components: ["router", "socket-proxy", "pocketid", "tinyauth", "step-ca", "lan-dns", "kopia-agent", "hub", "stackkit-server"]
 	degradations: ["paas-management-omitted"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		recommended: _architectureV2PolicyRecommendedProvenance
+	}
 }
 
 // All profiles retain the same complete standalone service graph. The module
@@ -64,6 +94,10 @@ _architectureV2BasementCoreLiteComputeProfiles: {
 	low:      _architectureV2BasementStandaloneCoreComputeProfile
 	standard: _architectureV2BasementStandaloneCoreComputeProfile
 	high:     _architectureV2BasementStandaloneCoreComputeProfile
+}
+_architectureV2CoreLiteHostFloor: {
+	hostFloor: _architectureV2BasementCoreLiteComputeProfiles.low.hostFloor
+	provenance: hostFloor: _architectureV2BasementCoreLiteComputeProfiles.low.provenance.hostFloor
 }
 
 _architectureV2ImmichStorageFilesystemRequirement: #StorageFilesystemRequirementV2 & {
@@ -88,6 +122,10 @@ _architectureV2ImmichComputeProfile: #ModuleComputeProfileV2 & {
 	// 512 + 512 + 256 + 64 MiB = 1344 MiB; one-shot init has no reservation.
 	reservation: ramGB: 1.3125
 	components: ["immich-server", "immich-machine-learning", "immich-postgres", "immich-postgres-init", "immich-valkey"]
+	provenance: {
+		hostFloor:   _architectureV2ImmichUpstreamFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2ImmichComputeProfiles: {
 	standard: _architectureV2ImmichComputeProfile
@@ -107,6 +145,10 @@ _architectureV2ImmichLiteComputeProfiles: low: #ModuleComputeProfileV2 & {
 	reservation: ramGB: 0.8125
 	components: ["immich-server", "immich-postgres", "immich-postgres-init", "immich-valkey"]
 	degradations: ["machine-learning-disabled"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 
 _architectureV2CloudreveComputeProfile: #ModuleComputeProfileV2 & {
@@ -114,11 +156,12 @@ _architectureV2CloudreveComputeProfile: #ModuleComputeProfileV2 & {
 	maturity:    "supported", executable: true, realization: "apply-ready"
 	reservation: ramGB: 0.125 // Existing 128 MiB component reservation.
 	components: ["cloudreve"]
+	provenance: reservation: _architectureV2ComponentReservationProvenance
 }
 _architectureV2CloudreveComputeProfiles: {
-	low: _architectureV2CloudreveComputeProfile & {hostFloor: _architectureV2BasementCoreLiteComputeProfiles.low.hostFloor}
-	standard: _architectureV2CloudreveComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
-	high: _architectureV2CloudreveComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+	low:      _architectureV2CloudreveComputeProfile & _architectureV2CoreLiteHostFloor
+	standard: _architectureV2CloudreveComputeProfile & _architectureV2CoreHostFloor
+	high:     _architectureV2CloudreveComputeProfile & _architectureV2CoreHostFloor
 }
 
 _architectureV2NextcloudComputeProfile: #ModuleComputeProfileV2 & {
@@ -127,6 +170,10 @@ _architectureV2NextcloudComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.75
 	components: ["nextcloud", "nextcloud-postgres", "nextcloud-valkey"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2PolicyReservationProvenance
+	}
 }
 _architectureV2NextcloudComputeProfiles: {standard: _architectureV2NextcloudComputeProfile, high: _architectureV2NextcloudComputeProfile}
 
@@ -135,11 +182,12 @@ _architectureV2VaultwardenComputeProfile: #ModuleComputeProfileV2 & {
 	maturity:    "supported", executable: true, realization: "apply-ready"
 	reservation: ramGB: 0.0625 // Existing 64 MiB component reservation.
 	components: ["vaultwarden"]
+	provenance: reservation: _architectureV2ComponentReservationProvenance
 }
 _architectureV2VaultwardenComputeProfiles: {
-	low: _architectureV2VaultwardenComputeProfile & {hostFloor: _architectureV2BasementCoreLiteComputeProfiles.low.hostFloor}
-	standard: _architectureV2VaultwardenComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
-	high: _architectureV2VaultwardenComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+	low:      _architectureV2VaultwardenComputeProfile & _architectureV2CoreLiteHostFloor
+	standard: _architectureV2VaultwardenComputeProfile & _architectureV2CoreHostFloor
+	high:     _architectureV2VaultwardenComputeProfile & _architectureV2CoreHostFloor
 }
 
 _architectureV2PassboltComputeProfile: #ModuleComputeProfileV2 & {
@@ -148,6 +196,10 @@ _architectureV2PassboltComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.5
 	components: ["passbolt", "passbolt-mariadb"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2PassboltComputeProfiles: {standard: _architectureV2PassboltComputeProfile, high: _architectureV2PassboltComputeProfile}
 
@@ -158,6 +210,10 @@ _architectureV2JellyfinComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor: _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.5 // Existing 512 MiB component reservation.
 	components: ["jellyfin"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2JellyfinComputeProfiles: {
 	standard: _architectureV2JellyfinComputeProfile
@@ -170,6 +226,10 @@ _architectureV2ImmichPowerToolsComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.125
 	components: ["immich-power-tools"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2ImmichPowerToolsComputeProfiles: {standard: _architectureV2ImmichPowerToolsComputeProfile, high: _architectureV2ImmichPowerToolsComputeProfile}
 
@@ -179,6 +239,10 @@ _architectureV2ImmichKioskComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.0625
 	components: ["immich-kiosk"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2ImmichKioskComputeProfiles: {standard: _architectureV2ImmichKioskComputeProfile, high: _architectureV2ImmichKioskComputeProfile}
 
@@ -188,6 +252,10 @@ _architectureV2ImmichPublicProxyComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.0625
 	components: ["immich-public-proxy"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2ImmichPublicProxyComputeProfiles: {standard: _architectureV2ImmichPublicProxyComputeProfile, high: _architectureV2ImmichPublicProxyComputeProfile}
 
@@ -197,6 +265,10 @@ _architectureV2Zigbee2mqttComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.125
 	components: ["zigbee2mqtt"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2Zigbee2mqttComputeProfiles: {standard: _architectureV2Zigbee2mqttComputeProfile, high: _architectureV2Zigbee2mqttComputeProfile}
 
@@ -206,6 +278,10 @@ _architectureV2MosquittoComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.03125
 	components: ["mosquitto"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2MosquittoComputeProfiles: {standard: _architectureV2MosquittoComputeProfile, high: _architectureV2MosquittoComputeProfile}
 
@@ -215,6 +291,10 @@ _architectureV2EuroofficeComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 2
 	components: ["euro-office"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2EuroofficeComputeProfiles: {standard: _architectureV2EuroofficeComputeProfile, high: _architectureV2EuroofficeComputeProfile}
 
@@ -224,6 +304,10 @@ _architectureV2ESPHomeComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.25
 	components: ["esphome"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2ESPHomeComputeProfiles: {standard: _architectureV2ESPHomeComputeProfile, high: _architectureV2ESPHomeComputeProfile}
 
@@ -233,6 +317,10 @@ _architectureV2AudiobookshelfComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.125
 	components: ["audiobookshelf"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2AudiobookshelfComputeProfiles: {standard: _architectureV2AudiobookshelfComputeProfile, high: _architectureV2AudiobookshelfComputeProfile}
 
@@ -242,6 +330,10 @@ _architectureV2NavidromeComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.125
 	components: ["navidrome"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2NavidromeComputeProfiles: {standard: _architectureV2NavidromeComputeProfile, high: _architectureV2NavidromeComputeProfile}
 
@@ -251,6 +343,10 @@ _architectureV2EmbyComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.5
 	components: ["emby"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2EmbyComputeProfiles: {
 	standard: _architectureV2EmbyComputeProfile
@@ -262,11 +358,12 @@ _architectureV2HomeAssistantComputeProfile: #ModuleComputeProfileV2 & {
 	maturity:    "supported", executable: true, realization: "apply-ready"
 	reservation: ramGB: 0.5 // Existing 512 MiB component reservation.
 	components: ["home-assistant"]
+	provenance: reservation: _architectureV2ComponentReservationProvenance
 }
 _architectureV2HomeAssistantComputeProfiles: {
-	low: _architectureV2HomeAssistantComputeProfile & {hostFloor: _architectureV2BasementCoreLiteComputeProfiles.low.hostFloor}
-	standard: _architectureV2HomeAssistantComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
-	high: _architectureV2HomeAssistantComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+	low:      _architectureV2HomeAssistantComputeProfile & _architectureV2CoreLiteHostFloor
+	standard: _architectureV2HomeAssistantComputeProfile & _architectureV2CoreHostFloor
+	high:     _architectureV2HomeAssistantComputeProfile & _architectureV2CoreHostFloor
 }
 
 _architectureV2PrivateAIComputeProfiles: {
@@ -279,6 +376,11 @@ _architectureV2PrivateAIComputeProfiles: {
 		// adds no reservation while it is off.
 		reservation: ramGB: 1.5
 		components: ["open-webui", "ollama", "kombify-ai-connector"]
+		provenance: {
+			hostFloor:   _architectureV2PolicyFloorProvenance
+			recommended: _architectureV2PolicyRecommendedProvenance
+			reservation: _architectureV2ComponentReservationProvenance
+		}
 	}
 	high: standard
 }
@@ -293,6 +395,11 @@ _architectureV2AnythingLLMComputeProfiles: {
 		recommended: {cpuCores: 8, ramGB: 16, storageGB: 80}
 		reservation: ramGB: 1.5
 		components: ["anythingllm", "ollama"]
+		provenance: {
+			hostFloor:   _architectureV2PolicyFloorProvenance
+			recommended: _architectureV2PolicyRecommendedProvenance
+			reservation: _architectureV2ComponentReservationProvenance
+		}
 	}
 	high: standard
 }
@@ -310,6 +417,7 @@ _architectureV2PrivateAIAcceleratorProfiles: {
 		reservation: {cpuCores: 1, ramGB: 1, storageGB: 1}
 		components: ["ollama"]
 		accelerator: {vendor: "nvidia", access: "cdi", minDriverMajor: 550}
+		provenance: reservation: _architectureV2AcceleratorEnvelopeProvenance
 	}
 	amd: #ModuleAxisProfileV2 & {
 		description: "Ollama inference on AMD GPUs with ROCm through /dev/kfd and /dev/dri, using the Ollama ROCm image (amd64 only). Needs a ROCm-capable card with the amdgpu kernel driver. Open WebUI stays on the CPU."
@@ -321,6 +429,7 @@ _architectureV2PrivateAIAcceleratorProfiles: {
 			vendor: "amd", access: "rocm-device-nodes"
 			images: ollama: {ref: "docker.io/ollama/ollama:0.34.0-rocm", digest: "sha256:36a99c0aaa4d28d0fc84969124bcf2f3d1ba8ab89181e2bd33bbc12f6ac2c4ce"}
 		}
+		provenance: reservation: _architectureV2AcceleratorEnvelopeProvenance
 	}
 }
 
@@ -334,6 +443,7 @@ _architectureV2AnythingLLMAcceleratorProfiles: {
 		reservation: {cpuCores: 1, ramGB: 1, storageGB: 1}
 		components: ["ollama"]
 		accelerator: {vendor: "nvidia", access: "cdi", minDriverMajor: 550}
+		provenance: reservation: _architectureV2AcceleratorEnvelopeProvenance
 	}
 	amd: #ModuleAxisProfileV2 & {
 		description: "Ollama inference on AMD GPUs with ROCm through /dev/kfd and /dev/dri, using the Ollama ROCm image (amd64 only). Needs a ROCm-capable card with the amdgpu kernel driver. AnythingLLM stays on the CPU."
@@ -345,6 +455,7 @@ _architectureV2AnythingLLMAcceleratorProfiles: {
 			vendor: "amd", access: "rocm-device-nodes"
 			images: ollama: {ref: "docker.io/ollama/ollama:0.34.0-rocm", digest: "sha256:36a99c0aaa4d28d0fc84969124bcf2f3d1ba8ab89181e2bd33bbc12f6ac2c4ce"}
 		}
+		provenance: reservation: _architectureV2AcceleratorEnvelopeProvenance
 	}
 }
 
@@ -355,6 +466,10 @@ _architectureV2SearxngComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.125
 	components: ["searxng"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2SearxngComputeProfiles: {standard: _architectureV2SearxngComputeProfile, high: _architectureV2SearxngComputeProfile}
 
@@ -364,6 +479,10 @@ _architectureV2TikaComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.5
 	components: ["tika"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2TikaComputeProfiles: {standard: _architectureV2TikaComputeProfile, high: _architectureV2TikaComputeProfile}
 
@@ -373,6 +492,10 @@ _architectureV2DoclingComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor: {minCpuCores: 4, minRamGB: 8, minStorageGB: 20}
 	reservation: ramGB: 1
 	components: ["docling"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2DoclingComputeProfiles: {standard: _architectureV2DoclingComputeProfile, high: _architectureV2DoclingComputeProfile}
 
@@ -388,6 +511,11 @@ _architectureV2ComfyUIComputeProfile: #ModuleComputeProfileV2 & {
 	recommended: {cpuCores: 8, ramGB: 32, storageGB: 150}
 	reservation: ramGB: 2
 	components: ["comfyui"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		recommended: _architectureV2PolicyRecommendedProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2ComfyUIComputeProfiles: {standard: _architectureV2ComfyUIComputeProfile, high: _architectureV2ComfyUIComputeProfile}
 
@@ -402,8 +530,32 @@ _architectureV2OpenHandsComputeProfile: #ModuleComputeProfileV2 & {
 	recommended: {cpuCores: 8, ramGB: 16, storageGB: 100}
 	reservation: ramGB: 1
 	components: ["openhands"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		recommended: _architectureV2PolicyRecommendedProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2OpenHandsComputeProfiles: {standard: _architectureV2OpenHandsComputeProfile, high: _architectureV2OpenHandsComputeProfile}
+
+// Private AI agent control plane (Paperclip). Inference happens in Ollama or
+// the installed Hermes; this bundle holds the Node.js server with the UI, its
+// PostgreSQL and the agent CLIs Paperclip starts as child processes. The
+// gVisor runtime adds memory for its sentry.
+_architectureV2PaperclipComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Paperclip agent control plane in one gVisor-isolated bundle: Node.js server and UI, PostgreSQL and the agent processes it starts. Models run in Ollama or the installed Hermes."
+	maturity:    "experimental", executable: true, realization: "apply-ready"
+	hostFloor: {minCpuCores: 4, minRamGB: 8, minStorageGB: 20}
+	recommended: {cpuCores: 8, ramGB: 16, storageGB: 60}
+	reservation: ramGB: 1
+	components: ["paperclip", "paperclip-postgres"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		recommended: _architectureV2PolicyRecommendedProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
+}
+_architectureV2PaperclipComputeProfiles: {standard: _architectureV2PaperclipComputeProfile, high: _architectureV2PaperclipComputeProfile}
 
 // The image templates need 8 GiB of VRAM; the Wan 2.2 video template needs
 // 16 GiB, which the model download refuses to fetch on a smaller GPU.
@@ -415,6 +567,7 @@ _architectureV2ComfyUIAcceleratorProfiles: {
 		reservation: {cpuCores: 1, ramGB: 2, storageGB: 1}
 		components: ["comfyui"]
 		accelerator: {vendor: "nvidia", access: "cdi", minDriverMajor: 580, minVramGiB: 8}
+		provenance: reservation: _architectureV2AcceleratorEnvelopeProvenance
 	}
 }
 
@@ -427,6 +580,10 @@ _architectureV2HermesComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.5
 	components: ["hermes"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2HermesComputeProfiles: {standard: _architectureV2HermesComputeProfile, high: _architectureV2HermesComputeProfile}
 
@@ -440,6 +597,10 @@ _architectureV2SpeechKitComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 2
 	components: ["speechkit", "speechkit-whisper", "speechkit-tts"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2PolicyReservationProvenance
+	}
 }
 _architectureV2SpeechKitComputeProfiles: {standard: _architectureV2SpeechKitComputeProfile, high: _architectureV2SpeechKitComputeProfile}
 
@@ -449,6 +610,10 @@ _architectureV2GiteaComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.25
 	components: ["gitea"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2GiteaComputeProfiles: {standard: _architectureV2GiteaComputeProfile, high: _architectureV2GiteaComputeProfile}
 
@@ -458,6 +623,10 @@ _architectureV2ForgejoComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.25
 	components: ["forgejo"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2ForgejoComputeProfiles: {standard: _architectureV2ForgejoComputeProfile, high: _architectureV2ForgejoComputeProfile}
 
@@ -467,6 +636,10 @@ _architectureV2PaperlessComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 1.25
 	components: ["paperless", "paperless-postgres", "paperless-valkey"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
 }
 _architectureV2PaperlessComputeProfiles: {standard: _architectureV2PaperlessComputeProfile, high: _architectureV2PaperlessComputeProfile}
 
@@ -476,6 +649,10 @@ _architectureV2PterodactylComputeProfile: #ModuleComputeProfileV2 & {
 	hostFloor: {minCpuCores: 2, minRamGB: 4, minStorageGB: _architectureV2CoreComputeProfile.hostFloor.minStorageGB}
 	reservation: ramGB: 1.25
 	components: ["panel", "panel-database", "panel-cache", "panel-bootstrap", "wings"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2PolicyReservationProvenance
+	}
 }
 _architectureV2PterodactylComputeProfiles: {standard: _architectureV2PterodactylComputeProfile, high: _architectureV2PterodactylComputeProfile}
 
@@ -484,11 +661,12 @@ _architectureV2RoundcubeComputeProfile: #ModuleComputeProfileV2 & {
 	maturity:    "beta", executable: true, realization: "apply-ready"
 	reservation: ramGB: 0.125 // 128 MiB component reservation.
 	components: ["roundcube"]
+	provenance: reservation: _architectureV2ComponentReservationProvenance
 }
 _architectureV2RoundcubeComputeProfiles: {
-	low: _architectureV2RoundcubeComputeProfile & {hostFloor: _architectureV2BasementCoreLiteComputeProfiles.low.hostFloor}
-	standard: _architectureV2RoundcubeComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
-	high: _architectureV2RoundcubeComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+	low:      _architectureV2RoundcubeComputeProfile & _architectureV2CoreLiteHostFloor
+	standard: _architectureV2RoundcubeComputeProfile & _architectureV2CoreHostFloor
+	high:     _architectureV2RoundcubeComputeProfile & _architectureV2CoreHostFloor
 }
 
 // ADR-0046: Stalwart is light; the reservation covers RocksDB caches, the
@@ -498,9 +676,10 @@ _architectureV2StalwartComputeProfile: #ModuleComputeProfileV2 & {
 	maturity:    "experimental", executable: true, realization: "apply-ready"
 	reservation: ramGB: 0.5 // 512 MiB component reservation.
 	components: ["stalwart"]
+	provenance: reservation: _architectureV2ComponentReservationProvenance
 }
 _architectureV2StalwartComputeProfiles: {
-	low: _architectureV2StalwartComputeProfile & {hostFloor: _architectureV2BasementCoreLiteComputeProfiles.low.hostFloor}
-	standard: _architectureV2StalwartComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
-	high: _architectureV2StalwartComputeProfile & {hostFloor: _architectureV2CoreComputeProfile.hostFloor}
+	low:      _architectureV2StalwartComputeProfile & _architectureV2CoreLiteHostFloor
+	standard: _architectureV2StalwartComputeProfile & _architectureV2CoreHostFloor
+	high:     _architectureV2StalwartComputeProfile & _architectureV2CoreHostFloor
 }

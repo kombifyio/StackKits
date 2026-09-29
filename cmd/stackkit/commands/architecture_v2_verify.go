@@ -178,14 +178,68 @@ type architectureV2MemberVerifySummary struct {
 	CertificateValidUntil string                     `json:"certificateValidUntil"`
 }
 
+// architectureV2RuntimeVerifySummary counts the core project and every
+// applied standalone Compose workload of the local host together; ProjectRef
+// names the core project and Workloads carry the add-on projects.
 type architectureV2RuntimeVerifySummary struct {
-	ExecutionMode string `json:"executionMode"`
-	Live          bool   `json:"live"`
-	ProjectRef    string `json:"projectRef,omitempty"`
-	Status        string `json:"status"`
-	ServiceCount  int    `json:"serviceCount"`
-	ProbeCount    int    `json:"probeCount"`
+	ExecutionMode string                                `json:"executionMode"`
+	Live          bool                                  `json:"live"`
+	ProjectRef    string                                `json:"projectRef,omitempty"`
+	Status        string                                `json:"status"`
+	ServiceCount  int                                   `json:"serviceCount"`
+	ProbeCount    int                                   `json:"probeCount"`
+	Workloads     []architectureV2WorkloadVerifySummary `json:"workloads,omitempty"`
 	cloud         *nativehost.CloudCoreVerifyObservation
+}
+
+// architectureV2WorkloadVerifySummary is one applied add-on workload running
+// as its own Compose project beside the core. Its one probe is the entry
+// component's route health check.
+type architectureV2WorkloadVerifySummary struct {
+	WorkloadRef  string                                        `json:"workloadRef"`
+	ProjectRef   string                                        `json:"projectRef"`
+	Status       string                                        `json:"status"`
+	ServiceCount int                                           `json:"serviceCount"`
+	ProbeCount   int                                           `json:"probeCount"`
+	Components   []nativehost.SelectedPaaSComponentObservation `json:"components"`
+}
+
+// verifyArchitectureV2AppliedWorkloads observes every standalone Compose
+// workload the applied request placed on this host and folds it into the
+// runtime summary. A workload whose container is missing, stopped or unhealthy
+// fails the verification naming the workload, project and component.
+func verifyArchitectureV2AppliedWorkloads(
+	ctx context.Context,
+	workspaceRoot string,
+	appliedRequest runtimeexecutor.ExecutionRequest,
+	localBinding localevidence.LocalBinding,
+	runtime *architectureV2RuntimeVerifySummary,
+) error {
+	if len(appliedRequest.RuntimeTargets) == 0 {
+		return nil
+	}
+	binding := nativehost.LocalTargetBinding{
+		SiteRef: localBinding.SiteRef, NodeRef: localBinding.NodeRef, ExecutionChannelRef: localBinding.ChannelRef,
+	}
+	// The same standalone Compose owner Apply used observes the projects.
+	operations, err := nativehost.NewOSStandaloneComposeWorkloadOperations(workspaceRoot)
+	if err != nil {
+		return err
+	}
+	observations, err := nativehost.VerifyAppliedStandaloneComposeWorkloads(ctx, appliedRequest, binding, operations)
+	if err != nil {
+		return err
+	}
+	for _, observation := range observations {
+		runtime.Workloads = append(runtime.Workloads, architectureV2WorkloadVerifySummary{
+			WorkloadRef: observation.WorkloadRef, ProjectRef: observation.ProjectRef, Status: observation.Status,
+			ServiceCount: len(observation.Components), ProbeCount: 1,
+			Components: append([]nativehost.SelectedPaaSComponentObservation(nil), observation.Components...),
+		})
+		runtime.ServiceCount += len(observation.Components)
+		runtime.ProbeCount++
+	}
+	return nil
 }
 
 func verifyArchitectureV2OpenTofuState(
@@ -334,11 +388,15 @@ func verifyArchitectureV2LocalState(
 		observation.OwnerBindingDigest != ownerSummary.OwnerBindingDigest {
 		return architectureV2OwnerVerifySummary{}, nil, errors.New("live Basement owner observation differs from signed local binding")
 	}
-	return ownerSummary, &architectureV2RuntimeVerifySummary{
+	runtime := &architectureV2RuntimeVerifySummary{
 		ExecutionMode: "local-runtime", Live: true,
 		ProjectRef: observation.ProjectRef, Status: observation.Status,
 		ServiceCount: len(observation.Services), ProbeCount: len(observation.Probes),
-	}, nil
+	}
+	if err := verifyArchitectureV2AppliedWorkloads(ctx, workspaceRoot, appliedRequest, localBinding, runtime); err != nil {
+		return ownerSummary, nil, fmt.Errorf("verify live Basement workloads: %w", err)
+	}
+	return ownerSummary, runtime, nil
 }
 
 func architectureV2LocalVerifyIdentity(plan generationartifact.VerifiedPlan) (string, localevidence.IdentityRuntimeAddress, error) {
@@ -423,12 +481,16 @@ func verifyArchitectureV2LocalCloudState(
 		observation.OwnerBindingDigest != ownerSummary.OwnerBindingDigest {
 		return architectureV2OwnerVerifySummary{}, nil, errors.New("live Cloud owner observation differs from signed local binding")
 	}
-	return ownerSummary, &architectureV2RuntimeVerifySummary{
+	runtime := &architectureV2RuntimeVerifySummary{
 		ExecutionMode: "local-runtime", Live: true,
 		ProjectRef: observation.ProjectRef, Status: observation.Status,
 		ServiceCount: len(observation.Services), ProbeCount: len(observation.Probes),
 		cloud: &observation,
-	}, nil
+	}
+	if err := verifyArchitectureV2AppliedWorkloads(ctx, workspaceRoot, appliedRequest, localBinding, runtime); err != nil {
+		return ownerSummary, nil, fmt.Errorf("verify live Cloud workloads: %w", err)
+	}
+	return ownerSummary, runtime, nil
 }
 
 // verifyArchitectureV2CloudCoreOpenTofuRoot checks the installed Core
@@ -831,10 +893,26 @@ func printArchitectureV2VerifyReport(w io.Writer, report architectureV2VerifyRep
 		_, err := fmt.Fprintln(w, "Runtime probes: skipped (offline)")
 		return err
 	}
-	if report.Runtime != nil {
-		_, err := fmt.Fprintf(w, "Runtime: %s (%d services, %d probes)\n",
-			report.Runtime.Status, report.Runtime.ServiceCount, report.Runtime.ProbeCount)
+	if report.Runtime == nil {
+		return nil
+	}
+	if _, err := fmt.Fprintf(w, "Runtime: %s (%d services, %d probes)\n",
+		report.Runtime.Status, report.Runtime.ServiceCount, report.Runtime.ProbeCount); err != nil {
 		return err
+	}
+	for _, workload := range report.Runtime.Workloads {
+		if _, err := fmt.Fprintf(w, "Workload %s: %s (%s, %d services, %d probes)\n",
+			workload.WorkloadRef, workload.Status, workload.ProjectRef, workload.ServiceCount, workload.ProbeCount); err != nil {
+			return err
+		}
+		for _, component := range workload.Components {
+			if component.Reason == "" {
+				continue
+			}
+			if _, err := fmt.Fprintf(w, "  %s: %s (%s)\n", component.ID, component.Status, component.Reason); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

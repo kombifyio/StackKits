@@ -361,8 +361,11 @@ maybe_link_sk
 # Kits are stored in ~/.stackkits/<kit-name>/ so the CLI can find them.
 # Shared directories sit alongside them at ~/.stackkits/.
 
-if [ -n "$INSTALL_KITS" ]; then
-  STACKKITS_DIR="$TARGET_HOME/.stackkits"
+# install_kit_definitions <stackkits-dir> <owner> installs the shared schemas,
+# module catalog and selected kits into one ~/.stackkits directory and hands
+# it to its owner.
+install_kit_definitions() {
+  STACKKITS_DIR="$1"
   mkdir -p "$STACKKITS_DIR"
 
   # Shared CUE schemas — needed inside each kit dir for module resolution.
@@ -394,10 +397,21 @@ if [ -n "$INSTALL_KITS" ]; then
     fi
   done
 
-  # Under `curl | sudo sh` the copies above are root-owned inside the invoking
+  # Under `curl | sudo sh` the copies are root-owned inside the invoking
   # user's home — hand them back so `stackkit init` works without sudo.
-  if [ "$(id -u)" -eq 0 ] && [ "$TARGET_USER" != "root" ]; then
-    chown -R "$TARGET_USER" "$STACKKITS_DIR" 2>/dev/null || true
+  if [ "$(id -u)" -eq 0 ] && [ "$2" != "root" ]; then
+    chown -R "$2" "$STACKKITS_DIR" 2>/dev/null || true
+  fi
+}
+
+if [ -n "$INSTALL_KITS" ]; then
+  install_kit_definitions "$TARGET_HOME/.stackkits" "$TARGET_USER"
+  # A root-run workspace (the Cloud Kit host installer runs as root) reads
+  # root's own ~/.stackkits. When sudo sent the kits to the invoking user,
+  # refresh an existing root copy too instead of leaving it on the previous
+  # release.
+  if [ "$TARGET_HOME" != "$HOME" ] && [ -d "$HOME/.stackkits" ]; then
+    install_kit_definitions "$HOME/.stackkits" "$(id -un)"
   fi
 fi
 fi

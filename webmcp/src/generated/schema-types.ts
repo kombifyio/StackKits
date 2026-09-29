@@ -411,6 +411,7 @@ export interface ComputeProfile {
   reservation?: ResourceVector;
   headroom?: ResourceVector;
   recommended?: ResourceVector;
+  provenance?: ProfileResourceProvenance;
   architectures: ("amd64" | "arm64")[];
   virtualization: string[];
   components: ContractId[];
@@ -435,6 +436,16 @@ export interface ProfileStorageFilesystemRequirement {
   allowed_filesystem_types: ContractId[];
   require_ownership: true;
 }
+export interface ProfileResourceProvenance {
+  host_floor?: ResourceProvenance;
+  reservation?: ResourceProvenance;
+  headroom?: ResourceProvenance;
+  recommended?: ResourceProvenance;
+}
+export interface ResourceProvenance {
+  source: "measured" | "upstream" | "policy";
+  ref?: string;
+}
 export interface AxisProfile {
   id: ProfileId;
   profile_sha256: Sha64;
@@ -443,6 +454,7 @@ export interface AxisProfile {
   realization: string;
   description?: string;
   reservation?: ResourceVector;
+  provenance?: ProfileResourceProvenance;
   accelerator?: AcceleratorRequirement;
   components: ContractId[];
   capabilities: ContractId[];

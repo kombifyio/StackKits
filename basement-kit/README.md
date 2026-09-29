@@ -46,13 +46,30 @@ If Docker Hub rate-limits anonymous image pulls, the VM smoke is externally inco
 
 ## Requirements
 
-| | Minimum | Recommended |
-|--|---------|-------------|
-| CPU | 2 cores | 4+ cores |
-| RAM | 2 GB | 4+ GB |
-| Disk | 10 GB | 20+ GB |
-| OS | Ubuntu 22.04+ | Ubuntu 24.04 LTS |
-| Runtime | Docker 24+ | Docker 29 tested locally |
+| | Low profile floor | Standard floor | Recommended |
+|--|-------------------|----------------|-------------|
+| CPU | 2 cores | 2 cores | 4 cores |
+| RAM | 2 GB | 4 GB | 4 GB |
+| Disk | 10 GB | 20 GB | 20 GB |
+| OS | Ubuntu 22.04+ | Ubuntu 22.04+ | Ubuntu 24.04 LTS |
+| Runtime | Docker 24+ | Docker 24+ | Docker 29 tested locally |
+
+The standard floor is the kit floor in `stackfile.cue` (`hostRequirements`).
+The low profile is the smaller `low` compute graph: the standalone core
+without PaaS management, with Photos as Immich Lite (no machine learning). The
+`requirements.minimum` block in `stackkit.yaml` describes that low profile. The
+figures cover the platform only; photo, file and vault data need their own
+disk.
+
+### Hardware
+
+The kit floor above comes from the CUE contract; each selected application adds
+its own module-local profile (`low`, `standard` or `high`) with a host floor and
+a memory reservation, for example 6 GB of RAM for full Photos (Immich). Host
+floors combine by maximum and reservations add up; the total is computed at
+admission against the attested host inventory (see the
+[profile table](../docs/ARCHITECTURE.md#catalog-owned-module-placement-and-hardware-eligibility)).
+These values are declared policy and upstream minima, not measurements.
 
 OpenTofu is invoked by the `stackkit` CLI. Users should not edit generated `.tf` files.
 

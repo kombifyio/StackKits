@@ -211,6 +211,8 @@ var rendererWorkloadImages = []rendererWorkloadImage{
 	{moduleID: "stackkits-immich-kiosk-runtime", goPrefix: "immichKiosk"},
 	{moduleID: "stackkits-comfyui-runtime", goPrefix: "comfyui"},
 	{moduleID: "stackkits-openhands-runtime", goPrefix: "openhands", entrypoint: true},
+	{moduleID: "stackkits-paperclip-runtime", goPrefix: "paperclip", entrypoint: true},
+	{moduleID: "stackkits-paperclip-runtime", goPrefix: "paperclipPostgres", componentRef: "paperclip-postgres"},
 	{moduleID: "stackkits-hermes-runtime", goPrefix: "hermes"},
 	{moduleID: "stackkits-speechkit-runtime", goPrefix: "speechkit"},
 	{moduleID: "stackkits-speechkit-runtime", goPrefix: "speechkitWhisper", componentRef: "speechkit-whisper"},
@@ -550,6 +552,13 @@ func generateBundleProjection(repoRoot, staging string, source sourceManifest, p
 	}
 	result.DocumentHashes[catalogPath] = contentHash(catalogBytes)
 	if _, err := decodeResolvedPlanCatalog(catalog); err != nil {
+		return err
+	}
+	provenanceFindings, err := profileProvenanceFindings(catalog)
+	if err != nil {
+		return err
+	}
+	if err := applyProvenanceGate(provenanceFindings, measuredProvenanceEnforced, os.Stderr); err != nil {
 		return err
 	}
 	for index, profile := range profiles {

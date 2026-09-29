@@ -15,6 +15,9 @@ var governedSandboxRuntimeComponents = map[string]struct {
 	runtime   string
 }{
 	openHandsWorkloadModuleID: {component: "openhands", runtime: SandboxRuntimeRunsc},
+	// Paperclip starts the agent CLIs of its local adapters and the process
+	// adapter's commands as child processes of its own container.
+	paperclipWorkloadModuleID: {component: "paperclip", runtime: SandboxRuntimeRunsc},
 }
 
 // validateSandboxRuntime accepts a component's sandbox runtime only when it is
@@ -27,7 +30,7 @@ func validateSandboxRuntime(moduleRef string, component selectedPaaSRuntimeCompo
 	case component.SandboxRuntime == "" && !governed:
 		return nil
 	case !governed:
-		return fail(ErrInvalidPlan, path+".sandboxRuntime", "the sandbox runtime is admitted only for the governed agent-harness component")
+		return fail(ErrInvalidPlan, path+".sandboxRuntime", "the sandbox runtime is admitted only for the governed agent-executing component")
 	case component.SandboxRuntime != rights.runtime:
 		return fail(ErrInvalidPlan, path+".sandboxRuntime", "%s runs only under the %s runtime; it never shares the host kernel with the agent's shell", component.ID, rights.runtime)
 	}

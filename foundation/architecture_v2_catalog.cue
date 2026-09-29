@@ -39,6 +39,16 @@ _architectureV2HermesImage: {ref: "docker.io/nousresearch/hermes-agent:v2026.9.2
 // and never hands it a Docker socket.
 _architectureV2OpenHandsImage: {ref: "ghcr.io/openhands/agent-canvas:1.24.0", digest: "sha256:ad0829a7082a71ddfd2d16c1fae5a2172e4ca5a34eba7f03b69bd5b9b1bc54d7"}
 
+// Paperclip (MIT) publishes one image with the server and the UI. The release
+// tag is the calver release (GitHub release v2026.916.1, commit d554c47); the
+// digest is the multi-arch image index. Paperclip starts the agent CLIs of its
+// local adapters as child processes of this container, so the container runs
+// under gVisor and never sees a Docker socket. PostgreSQL follows the major
+// version of the upstream docker/docker-compose.yml (17) and is pinned
+// independently.
+_architectureV2PaperclipImage: {ref: "ghcr.io/paperclipai/paperclip:2026.916.1", digest: "sha256:a02ac35ac41df911af477422ea0e781cf41d2b2c600c66f0a5ac9d8c63f52c2c"}
+_architectureV2PaperclipPostgresImage: {ref: "docker.io/library/postgres:17-alpine", digest: "sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24"}
+
 // kombify SpeechKit (Apache-2.0) is the speech module of Private AI (owner
 // decision 2026-09-27: on-device speech plus speechkit-server with local
 // providers only). SpeechKit #638 added the OpenAI-compatible
@@ -451,6 +461,23 @@ _architectureV2OpenHandsInfrastructure: #WorkloadInfrastructureV1 & {
 	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
 		{componentRef: "openhands", volumeRef: "settings", target: "/home/openhands/.openhands", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai-harness"},
 		{componentRef: "openhands", volumeRef: "workspace", target: "/projects", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai-harness"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Private AI agent control plane (Paperclip): the Paperclip home (instance
+// config, secrets master key, uploaded files, agent workspaces and the CLI
+// homes of its local adapters) and its PostgreSQL are owner data and backup
+// sources in one bundle; the workload is quiesced before both are captured.
+// npm and CLI caches live inside the home volume and are not separable.
+_architectureV2PaperclipInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "ai-control-plane", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "paperclip", volumeRef: "home", target: "/paperclip", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai-control-plane"},
+		{componentRef: "paperclip-postgres", volumeRef: "database", target: "/var/lib/postgresql/data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai-control-plane"},
 	]}
 	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
 	snapshot: moduleRef: "stackkits-snapshot"
@@ -1316,6 +1343,48 @@ _architectureV2WorkloadContracts: [
 			infrastructure: _architectureV2OpenHandsInfrastructure
 		}]
 	},
+	// Private AI agent control plane (docs/use-case-expansion/ai-agents.md),
+	// selected through the agent-control-plane capability module. Paperclip
+	// runs the agents of its local adapters as child processes, so its
+	// container runs under the gVisor runtime like the agent harness; a node
+	// without that runtime is refused before install.
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "ai-control-plane"
+			version:     "1.0.0"
+			description: "Paperclip agent control plane (org chart of agents, budgets, approvals, tasks) with its own PostgreSQL in one gVisor-isolated bundle, selected with the Private AI agent-control-plane module. Budgets default to zero and no provider key is configured; the installed Hermes is reachable on the private AI network. Reached only on a private route behind the kit's login and Paperclip's own login."
+		}
+		kind:       "application"
+		useCaseRef: "ai"
+		functionalCapabilities: ["agent-control-plane"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "paperclip"
+		alternatives: [{
+			id:          "paperclip"
+			providerRef: "stackkits-paperclip"
+			moduleRef:   "stackkits-paperclip-runtime"
+			route: {serviceRef: "ai-control-plane", healthRef: "paperclip-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// The owner signs up in Paperclip (first account is the instance
+			// admin) and creates the company and agents there.
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: ["database-password", "session-secret"], requiredRefs: ["database-password", "session-secret"]}
+			}
+			infrastructure: _architectureV2PaperclipInfrastructure
+		}]
+	},
 	// Private AI speech (docs/use-case-expansion/ai-agents.md): kombify
 	// SpeechKit server with local providers only, selected with the speech
 	// capability module. Reached by the chat module over the private AI
@@ -2141,6 +2210,7 @@ _architectureV2ApplicationLifecycleContracts: [
 	#ApplicationLifecycleContractV1 & {metadata: {id: "smart-home-mqtt", version: "1.0.0", description: "MQTT broker add-on of the smart-home use case."}, workloadRef: "smart-home-mqtt", useCaseRef: "smart-home", packageRef: "smart-home", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-image-video", version: "1.0.0", description: "Image and video add-on of the Private AI use case."}, workloadRef: "ai-image-video", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-harness", version: "1.0.0", description: "Agent harness add-on of the Private AI use case."}, workloadRef: "ai-harness", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-control-plane", version: "1.0.0", description: "Agent control-plane add-on of the Private AI use case."}, workloadRef: "ai-control-plane", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-speech", version: "1.0.0", description: "Speech add-on of the Private AI use case."}, workloadRef: "ai-speech", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-assistant", version: "1.0.0", description: "Personal assistant add-on of the Private AI use case."}, workloadRef: "ai-assistant", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "smart-home-zigbee", version: "1.0.0", description: "Zigbee bridge add-on of the smart-home use case."}, workloadRef: "smart-home-zigbee", useCaseRef: "smart-home", packageRef: "smart-home", lifecycle: #StandardUseCaseLifecycle},
@@ -3064,6 +3134,26 @@ _architectureV2Providers: list.Concat([[
 			}
 		}
 		evidence: ["openhands-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-paperclip", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["ai-control-plane"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-paperclip-runtime"]
+			}
+		}
+		evidence: ["paperclip-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {id: "stackkits-speechkit", version: "1.0.0"}
@@ -4232,10 +4322,23 @@ _architectureV2AnythingLLMTerramateStack: _architectureV2WorkloadTerramateStack 
 _architectureV2ComfyUITerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "comfyui", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2HermesTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "hermes", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 // The OpenHands container seeds its agent settings once from the governed
-// read-only seed file (the node's Ollama endpoint), then hands over to the
-// image entrypoint. An existing settings file is never touched.
-_architectureV2OpenHandsEntrypointScript: "s=/home/openhands/.openhands/settings.json; if [ ! -e \"$s\" ]; then cp /home/openhands/.openhands/stackkit/settings.seed.json \"$s\" && chmod 600 \"$s\"; fi; exec tini -- /opt/agent-canvas/entrypoint.sh"
+// seed variable (the node's Ollama endpoint), then hands over to the image
+// entrypoint. An existing settings file is never touched; a failed write
+// stops the container instead of starting without its model. The image runs
+// as uid 10001, which cannot read the root-owned governed files, so the seed
+// is an environment value rather than a mounted file.
+_architectureV2OpenHandsEntrypointScript: "s=/home/openhands/.openhands/settings.json; if [ ! -e \"$s\" ]; then printf '%s\\n' \"$STACKKIT_OPENHANDS_SETTINGS_SEED\" > \"$s\"; chmod 600 \"$s\"; fi; unset STACKKIT_OPENHANDS_SETTINGS_SEED; exec tini -- /opt/agent-canvas/entrypoint.sh"
+// Agent-server PersistedSettings v3, agent settings v6: the model and the
+// node's Ollama endpoint only, no secret (same value as the renderer's seed).
+_architectureV2OpenHandsSettingsSeed: "{\"schema_version\":3,\"agent_settings\":{\"schema_version\":6,\"agent_kind\":\"openhands\",\"llm\":{\"model\":\"ollama_chat/qwen3.5:9b\",\"base_url\":\"http://ollama:11434\"}}}"
 _architectureV2OpenHandsTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "openhands", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+// Paperclip reads its database only from DATABASE_URL (unset means embedded
+// PGlite). The wrapper composes that URL from the custody database password
+// with Node's URL encoder, drops the raw variable and hands over to the image
+// entrypoint (tini, then docker-entrypoint.sh, which chowns the home volume
+// and drops to the unprivileged node user).
+_architectureV2PaperclipEntrypointScript: "export DATABASE_URL=\"$(node -e 'const u = new URL(\"postgres://paperclip@paperclip-postgres:5432/paperclip\"); u.password = process.env.STACKKIT_PAPERCLIP_DB_PASSWORD; process.stdout.write(u.href);')\"; unset STACKKIT_PAPERCLIP_DB_PASSWORD; exec /usr/bin/tini -- docker-entrypoint.sh node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js"
+_architectureV2PaperclipTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "paperclip", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2SpeechKitTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "speechkit", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2SearxngTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "searxng", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2TikaTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "tika", _placement: {scope: "node-local", cardinality: "one-per-node"}}
@@ -4694,6 +4797,33 @@ _architectureV2OpenHandsSupport: #ModuleRealizationSupportV2 & {
 		}, _architectureV2OpenHandsTerramateStack.contract]
 	}
 	evidence: requiredRefs: ["openhands-selected-paas-runtime-contract"]
+}
+
+_architectureV2PaperclipSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["database-password", "session-secret"]}
+	artifacts: {
+		requiredRefs: ["paperclip-workload-bundle", _architectureV2PaperclipTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "paperclip-workload-bundle"
+			unitRef:     "paperclip"
+			outputRef:   "workloads/paperclip/bundle.json"
+		}, _architectureV2PaperclipTerramateStack.binding]
+		contracts: [{
+			id:       "paperclip-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "paperclip"
+			outputRef: "workloads/paperclip/bundle.json"
+		}, _architectureV2PaperclipTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["paperclip-selected-paas-runtime-contract"]
 }
 
 _architectureV2SpeechKitSupport: #ModuleRealizationSupportV2 & {
@@ -8316,12 +8446,14 @@ _architectureV2Modules: list.Concat([[
 					// The agent harness joins the private AI network to reach
 					// Ollama; Open WebUI needs nothing from it.
 					{workloadRef: "ai-harness", alternativeRef: "openhands", environment: {}},
+					// The control plane reaches Hermes and Ollama on this network
+					// itself; the chat module needs nothing from it.
+					{workloadRef: "ai-control-plane", alternativeRef: "paperclip", environment: {}},
 					// Speech through SpeechKit's OpenAI-compatible audio routes (Open
 					// WebUI v0.11.3 sends model and language for STT; model, input and
-					// voice for TTS). The bearer token (AUDIO_*_OPENAI_API_KEY) is a
-					// custody secret of the ai-speech workload; companion wiring
-					// carries no secret, so the key stays a documented gap
-					// (docs/USE_CASE_PACKAGES.md "Speech").
+					// voice for TTS). The bearer token (AUDIO_*_OPENAI_API_KEY) is the
+					// ai-speech workload's server-token custody secret, bound below
+					// through companionSecretEnvironment.
 					{workloadRef: "ai-speech", alternativeRef: "speechkit", environment: {
 						AUDIO_STT_ENGINE:              "openai"
 						AUDIO_STT_OPENAI_API_BASE_URL: "http://speechkit:8080/v1"
@@ -8331,6 +8463,14 @@ _architectureV2Modules: list.Concat([[
 						AUDIO_TTS_MODEL:               "tts-1"
 						AUDIO_TTS_VOICE:               "af_bella"
 					}},
+				]
+				// The SpeechKit bearer token (Open WebUI v0.11.3 config.py
+				// AUDIO_STT_OPENAI_API_KEY, AUDIO_TTS_OPENAI_API_KEY) is the
+				// ai-speech workload's server-token slot: rendered as an opaque
+				// reference only while ai-speech is selected on this node, the
+				// value only in the executor's private secret environment.
+				companionSecretEnvironment: [
+					{workloadRef: "ai-speech", alternativeRef: "speechkit", secretEnvironment: {AUDIO_STT_OPENAI_API_KEY: "server-token", AUDIO_TTS_OPENAI_API_KEY: "server-token"}},
 				]
 				volumes: [{id: "data", target: "/app/backend/data", class: "persistent", backup: true}]
 				health: {kind: "http", path: "/health", port: 8080}
@@ -8346,7 +8486,11 @@ _architectureV2Modules: list.Concat([[
 				environment: {OLLAMA_KEEP_ALIVE: "5m", OLLAMA_CONTEXT_LENGTH: "8192"}
 				volumes: [{id: "models", target: "/root/.ollama", class: "persistent", backup: false}]
 				health: {kind: "command", command: ["ollama", "list"]}
-				resources: {memoryLimit: "6g", memoryReservation: "1g"}
+				// The cap fits the plan's general-assistant model qwen3.5:9b
+				// (6.6 GB weights plus context), which Hermes and OpenHands use
+				// by default; at 6g the kernel killed it while loading (measured
+				// 2026-09-28 on a 16 GB CPU host). It is a limit, not a reservation.
+				resources: {memoryLimit: "10g", memoryReservation: "1g"}
 			}, {
 				// Optional outbound connector that serves this Ollama as a model
 				// endpoint of the owner's kombify AI (decision record 2026-09-27 §4):
@@ -8376,7 +8520,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/private-ai/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:890f584ddd683d03fc3d424e75b79979a406efd4726ea89d0c569d028f39a360"
+			contractHash: "sha256:d223e07b016c095daf6dbce99d30735f54f0cd1d51587140725776650d68941d"
 			publicInputRefs: ["delivery-route", "companions", "kombify-connector"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -8496,12 +8640,15 @@ _architectureV2Modules: list.Concat([[
 					// The agent harness reaches Ollama on this network; AnythingLLM
 					// needs nothing from it.
 					{workloadRef: "ai-harness", alternativeRef: "openhands", environment: {}},
+					// The control plane reaches Hermes and Ollama on this network
+					// itself; the chat module needs nothing from it.
+					{workloadRef: "ai-control-plane", alternativeRef: "paperclip", environment: {}},
 					// Speech through SpeechKit's OpenAI-compatible audio routes
 					// (AnythingLLM 1.16.2 server/utils/SpeechToText/openAiGeneric,
 					// TextToSpeech/openAiGeneric and the collector's
 					// GenericOpenAiWhisper for uploaded audio). The bearer token
-					// (*_KEY) is a custody secret of the ai-speech workload that the
-					// owner enters once in Settings; see docs/USE_CASE_PACKAGES.md "Speech".
+					// (*_KEY) is the ai-speech workload's server-token custody
+					// secret, bound below through companionSecretEnvironment.
 					{workloadRef: "ai-speech", alternativeRef: "speechkit", environment: {
 						STT_PROVIDER:                       "generic-openai"
 						STT_OPEN_AI_COMPATIBLE_ENDPOINT:    "http://speechkit:8080/v1"
@@ -8514,6 +8661,14 @@ _architectureV2Modules: list.Concat([[
 						TTS_OPEN_AI_COMPATIBLE_MODEL:       "tts-1"
 						TTS_OPEN_AI_COMPATIBLE_VOICE_MODEL: "af_bella"
 					}},
+				]
+				// The SpeechKit bearer token for AnythingLLM 1.16.2's generic-openai
+				// providers (server/.env.example: STT_OPEN_AI_COMPATIBLE_KEY,
+				// TTS_OPEN_AI_COMPATIBLE_KEY, WHISPER_GENERIC_OPEN_AI_API_KEY) is the
+				// ai-speech workload's server-token slot, rendered only while
+				// ai-speech is selected on this node.
+				companionSecretEnvironment: [
+					{workloadRef: "ai-speech", alternativeRef: "speechkit", secretEnvironment: {STT_OPEN_AI_COMPATIBLE_KEY: "server-token", TTS_OPEN_AI_COMPATIBLE_KEY: "server-token", WHISPER_GENERIC_OPEN_AI_API_KEY: "server-token"}},
 				]
 				volumes: [{id: "storage", target: "/app/server/storage", class: "persistent", backup: true}]
 				health: {kind: "http", path: "/api/ping", port: 3001}
@@ -8529,7 +8684,8 @@ _architectureV2Modules: list.Concat([[
 				environment: {OLLAMA_KEEP_ALIVE: "5m"}
 				volumes: [{id: "models", target: "/root/.ollama", class: "persistent", backup: false}]
 				health: {kind: "command", command: ["ollama", "list"]}
-				resources: {memoryLimit: "6g", memoryReservation: "1g"}
+				// Same cap as the Open WebUI alternative: fits qwen3.5:9b.
+				resources: {memoryLimit: "10g", memoryReservation: "1g"}
 			}]
 		}
 		renderUnits: [{
@@ -8539,7 +8695,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/anythingllm/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:8de5006702e467bebf282b2246021bff6f225466df715df0edc1f1f25d029cbf"
+			contractHash: "sha256:93b50dfcd05f0dbec0031f9cad4d5375218afc8fb67d93a029aea132fe678f02"
 			publicInputRefs: ["delivery-route", "companions"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -8881,13 +9037,13 @@ _architectureV2Modules: list.Concat([[
 				// The agent's shell runs in this container: gVisor is the sandbox.
 				sandboxRuntime: "runsc"
 				// The first start seeds the agent's LLM settings with the node's
-				// Ollama endpoint (governed read-only seed file); later changes
+				// Ollama endpoint (governed seed variable); later changes
 				// through the OpenHands settings stay in the settings volume.
 				entrypoint: ["/bin/sh", "-ec", _architectureV2OpenHandsEntrypointScript]
 				// No product analytics: DO_NOT_TRACK stops the agent server's
 				// PostHog exporter, VITE_DO_NOT_TRACK the frontend's and the
 				// automation backend's.
-				environment: {DO_NOT_TRACK: "1", VITE_DO_NOT_TRACK: "1"}
+				environment: {DO_NOT_TRACK: "1", VITE_DO_NOT_TRACK: "1", STACKKIT_OPENHANDS_SETTINGS_SEED: _architectureV2OpenHandsSettingsSeed}
 				volumes: [for allocation in _architectureV2OpenHandsInfrastructure.storageAllocation.allocations {
 					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
 				}]
@@ -8902,7 +9058,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/openhands/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:33d92ec600037275032b17d0f03182d15a8d81c250263247fc3369c1832c9f67"
+			contractHash: "sha256:715869a280dc8abcc6faaea1f0c0ca65730a1c9f3b8e9195693e7bc766a3f471"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -8965,6 +9121,156 @@ _architectureV2Modules: list.Concat([[
 			expectedStatuses: [200]
 		}]
 		evidence: ["openhands-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-paperclip-runtime"
+			version:     "1.0.0"
+			description: "Paperclip agent control plane: org chart of agents, budgets, approvals and tasks, with its own PostgreSQL in one bundle. Paperclip starts the agents of its local adapters as child processes, so the node runs the container under the gVisor runtime (runsc) with no host Docker socket, no owner home, no egress and no StackKits credential; budgets default to zero and no provider key is configured. The installed Hermes assistant is reachable on the private AI network. Reached only on a private route behind the kit's login and Paperclip's own login (authenticated, private)."
+		}
+		role:        "workload"
+		providerRef: "stackkits-paperclip"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2PaperclipComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "paperclip"
+			components: [
+				{
+					id: "paperclip", role: "application", lifecycle: "daemon"
+					image: _architectureV2PaperclipImage
+					dependsOn: ["paperclip-postgres"]
+					networkRefs: ["paperclip-internal"]
+					// Hermes (hermes_gateway adapter) and Ollama are reached by name
+					// on the private AI network.
+					peerNetworks: [{workloadRef: "ai", networkRef: "private-ai-internal"}]
+					// Local only: no cloud provider, no npm plugin install, no
+					// feedback upload. The cloud-provider adapters stay unusable
+					// until a later explicit opt-in.
+					egress: false
+					// Agent CLIs and the process adapter run in this container:
+					// gVisor is the sandbox.
+					sandboxRuntime: "runsc"
+					entrypoint: ["/bin/sh", "-ec", _architectureV2PaperclipEntrypointScript]
+					environment: {
+						HOST:                          "0.0.0.0"
+						PORT:                          "3100"
+						SERVE_UI:                      "true"
+						PAPERCLIP_HOME:                "/paperclip"
+						PAPERCLIP_INSTANCE_ID:         "default"
+						PAPERCLIP_DEPLOYMENT_MODE:     "authenticated"
+						PAPERCLIP_DEPLOYMENT_EXPOSURE: "private"
+						// Feedback votes stay on the node; the sharing control is
+						// hidden and floored.
+						PAPERCLIP_SETTING_DEFAULTS: "{\"feedbackDataSharingPreference\":\"not_allowed\"}"
+						PAPERCLIP_HIDDEN_SETTINGS:  "instance.general.feedbackDataSharingPreference"
+					}
+					secretEnvironment: {
+						STACKKIT_PAPERCLIP_DB_PASSWORD: "database-password"
+						BETTER_AUTH_SECRET:             "session-secret"
+					}
+					// Paperclip's private-mode hostname guard admits only allowed
+					// hosts; the route host is bound at apply time.
+					routeHostEnvironment: PAPERCLIP_ALLOWED_HOSTNAMES: "route-host"
+					volumes: [for allocation in _architectureV2PaperclipInfrastructure.storageAllocation.allocations if allocation.componentRef == "paperclip" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "http", path: "/api/health", port: 3100}
+					resources: {memoryLimit: "4g", memoryReservation: "512m", cpus: 2}
+				},
+				{
+					id: "paperclip-postgres", role: "database", lifecycle: "daemon"
+					image: _architectureV2PaperclipPostgresImage
+					dependsOn: [], networkRefs: ["paperclip-internal"]
+					environment: {POSTGRES_DB: "paperclip", POSTGRES_USER: "paperclip"}
+					secretEnvironment: POSTGRES_PASSWORD: "database-password"
+					volumes: [for allocation in _architectureV2PaperclipInfrastructure.storageAllocation.allocations if allocation.componentRef == "paperclip-postgres" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "command", command: ["pg_isready", "-U", "paperclip", "-d", "paperclip"]}
+					resources: {memoryLimit: "1g", memoryReservation: "256m"}
+				},
+			]
+		}
+		renderUnits: [{
+			id:          "paperclip"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/paperclip/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:aa576e46286af91e77de7bdc1485606c24fe2cb16dd4e9a668672b9998cf51fa"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["database-password", "session-secret"]
+			outputs: ["workloads/paperclip/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			// Paperclip's own login (Better Auth; the first sign-up is the
+			// instance admin) behind the kit's login on a private route only,
+			// never public.
+			serviceEndpoints: [{
+				serviceRef:        "ai-control-plane"
+				upstreamProtocol:  "http"
+				targetPort:        3100
+				requiredPrivilege: "user"
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private"]
+				originSelector: "control-authority-site"
+				healthRef:      "paperclip-http"
+				data: {
+					bindingRef:      _architectureV2PaperclipInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2PaperclipInfrastructure.dataBinding.classes
+					locality:        _architectureV2PaperclipInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2PaperclipTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["paperclip"], artifactRefs: ["paperclip-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "session-secret"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["paperclip"], artifactRefs: ["paperclip-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "session-secret"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["paperclip", "terramate-stack"], artifactRefs: ["paperclip-workload-bundle", _architectureV2PaperclipTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "session-secret"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2PaperclipSupport
+		health: [{
+			id:             "paperclip-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/api/health"
+			port:           3100
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["paperclip-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {

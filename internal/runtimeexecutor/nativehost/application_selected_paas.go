@@ -33,6 +33,7 @@ const (
 	SelectedPaaSApplicationImmichKiosk       SelectedPaaSApplication = "immich-kiosk"
 	SelectedPaaSApplicationComfyUI           SelectedPaaSApplication = "comfyui"
 	SelectedPaaSApplicationOpenHands         SelectedPaaSApplication = "openhands"
+	SelectedPaaSApplicationPaperclip         SelectedPaaSApplication = "paperclip"
 	SelectedPaaSApplicationHermes            SelectedPaaSApplication = "hermes"
 	SelectedPaaSApplicationSpeechKit         SelectedPaaSApplication = "speechkit"
 	SelectedPaaSApplicationImmichPowerTools  SelectedPaaSApplication = "immich-power-tools"
@@ -256,6 +257,17 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 			rendererContract: architecturev2renderer.SpeechKitWorkloadBundleRendererContract,
 			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
 				descriptor, err := architecturev2renderer.ParseSpeechKitWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationPaperclip:
+		return selectedPaaSApplicationSpec{
+			name: "Paperclip", providerRef: "stackkits-paperclip", moduleRef: "stackkits-paperclip-runtime",
+			unitRef: "paperclip", workloadRef: "ai-control-plane", artifactRef: "paperclip-workload-bundle",
+			outputRef: "workloads/paperclip/bundle.json", healthRef: "paperclip-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.PaperclipWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParsePaperclipWorkloadBundle(content)
 				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
 			},
 		}, true

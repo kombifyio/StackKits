@@ -219,6 +219,7 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (Resu
 	if err := cleanupRollbackVolumes(bounded, service.runtime, authority); err != nil {
 		return Result{}, err
 	}
+	removeActivatedStaging(bounded, service.runtime, authority)
 	if err := input.FinalizeResult(bounded, result, nil); err != nil {
 		return Result{}, fmt.Errorf("restoreactivation: finalize activated result: %w", err)
 	}
@@ -289,6 +290,7 @@ func (service *Service) Recover(ctx context.Context, input RecoverInput) (Result
 		if err := cleanupRollbackVolumes(bounded, service.runtime, authority); err != nil {
 			return Result{}, err
 		}
+		removeActivatedStaging(bounded, service.runtime, authority)
 		if err := input.FinalizeResult(bounded, result, nil); err != nil {
 			return Result{}, fmt.Errorf("restoreactivation: finalize recovered activation commit: %w", err)
 		}
@@ -826,6 +828,24 @@ func cleanupRollbackVolumes(ctx context.Context, runtime Runtime, authority Auth
 		}
 	}
 	return result
+}
+
+// removeActivatedStaging deletes the staged restore tree once its data is the
+// live state, so repeated restores do not grow the staging volume. It runs
+// only after an activation committed, never after a rollback: a recovered
+// activation keeps its staging for another attempt. The activation already
+// succeeded, so a failed removal leaves the tree behind rather than turning
+// the restore into a failure.
+func removeActivatedStaging(ctx context.Context, runtime Runtime, authority Authority) {
+	remover, ok := runtime.(StagedRestoreRemover)
+	if !ok {
+		return
+	}
+	_ = remover.RemoveStagedRestore(ctx, RuntimeRecoveryGraph{
+		OperationID: authority.OperationID, PlanHash: authority.PlanHash,
+		ComposeProject: authority.ComposeProject, StagingVolume: authority.StagingVolume,
+		KopiaHelperImage: authority.KopiaHelperImage,
+	}, authority.StagingPath)
 }
 
 func boundedContext(parent context.Context) (context.Context, context.CancelFunc) {

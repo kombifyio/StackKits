@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://kombify.io/schemas/architecture-snapshot-3.0.0.json",
+  "$id": "https://kombify.io/schemas/architecture-snapshot-3.1.0.json",
   "title": "StackKits facts-only architecture snapshot v3",
-  "description": "Closed downstream contract containing only StackKits-owned kit, topology, capability, placement, module, add-on, and support-maturity facts.",
+  "description": "Closed downstream contract containing only StackKits-owned kit, topology, capability, placement, module, declared module compute footprint, add-on, and support-maturity facts.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -14,11 +14,12 @@
     "stackkits",
     "mode_matrix",
     "modules",
+    "module_profiles",
     "addons"
   ],
   "properties": {
     "$comment": {"type": "string"},
-    "schema_version": {"const": "3.0.0"},
+    "schema_version": {"const": "3.1.0"},
     "generated_at": {"type": "string", "format": "date-time"},
     "source": {
       "type": "object",
@@ -40,12 +41,86 @@
       "type": "array",
       "items": {"$ref": "#/$defs/catalogEntry"}
     },
+    "module_profiles": {
+      "description": "Declared compute and accelerator footprints per Architecture v2 module contract. Undeclared axes are absent, never zero (ADR-0039). Techstack owns recommendation over them.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/moduleProfiles"}
+    },
     "addons": {
       "type": "array",
       "items": {"$ref": "#/$defs/catalogEntry"}
     }
   },
   "$defs": {
+    "moduleProfiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["module_id", "compute_profiles"],
+      "properties": {
+        "module_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]+$"},
+        "compute_profiles": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"$ref": "#/$defs/computeProfileFacts"}
+        },
+        "accelerator_profiles": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"$ref": "#/$defs/acceleratorProfileFacts"}
+        }
+      }
+    },
+    "resourceBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "cpuCores": {"type": "number", "exclusiveMinimum": 0},
+        "ramGB": {"type": "number", "exclusiveMinimum": 0},
+        "storageGB": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "computeProfileFacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maturity", "executable"],
+      "properties": {
+        "maturity": {"enum": ["experimental", "beta", "supported", "deprecated"]},
+        "executable": {"type": "boolean"},
+        "realization": {"enum": ["contract-only", "generation-ready", "apply-ready"]},
+        "hostFloor": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "minCpuCores": {"type": "number", "exclusiveMinimum": 0},
+            "minRamGB": {"type": "number", "exclusiveMinimum": 0},
+            "minStorageGB": {"type": "number", "exclusiveMinimum": 0},
+            "minAMD64MicroarchitectureLevel": {"type": "integer", "minimum": 1, "maximum": 4},
+            "allowedArchitectures": {"type": "array", "minItems": 1, "items": {"enum": ["amd64", "arm64"]}}
+          }
+        },
+        "reservation": {"$ref": "#/$defs/resourceBudget"},
+        "recommended": {"$ref": "#/$defs/resourceBudget"},
+        "headroom": {"$ref": "#/$defs/resourceBudget"},
+        "architectures": {"type": "array", "minItems": 1, "items": {"enum": ["amd64", "arm64"]}},
+        "provenance": {"description": "Declared provenance of the numbers, carried verbatim when the module profile declares it."},
+        "measuredRef": {"type": "string", "minLength": 1}
+      }
+    },
+    "acceleratorProfileFacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vendor", "access", "maturity"],
+      "properties": {
+        "vendor": {"enum": ["nvidia", "amd"]},
+        "access": {"enum": ["cdi", "rocm-device-nodes"]},
+        "minVramGiB": {"type": "number", "minimum": 1},
+        "minDriverMajor": {"type": "number", "minimum": 1},
+        "maturity": {"enum": ["experimental", "beta", "supported", "deprecated"]},
+        "reservation": {"$ref": "#/$defs/resourceBudget"}
+      }
+    },
     "placementModel": {
       "type": "object",
       "additionalProperties": false,
@@ -107,7 +182,7 @@
         "install": {"type": "object"},
         "context": {"type": "object"},
         "paas": {"type": "object"},
-        "evidence": {"type": "array", "items": {"type": "string"}}
+        "evidence": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}}
       }
     },
     "catalogEntry": {
@@ -117,6 +192,7 @@
       "properties": {
         "slug": {"type": "string"},
         "display_name": {"type": "string"},
+        "version": {"type": "string"},
         "layer": {"type": "string"},
         "description": {"type": "string"},
         "source_path": {"type": "string"},

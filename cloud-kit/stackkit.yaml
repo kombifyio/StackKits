@@ -29,12 +29,13 @@ supportedOS:
   - ubuntu-22
   - debian-12
 
-# Resource requirements
+# Resource requirements: the kit floor and recommendation from stackfile.cue
+# (hostRequirements). Cloud Kit has no smaller low compute graph.
 requirements:
   minimum:
     cpu: 2
-    memory: 2
-    disk: 10
+    memory: 4
+    disk: 20
   recommended:
     cpu: 4
     memory: 4

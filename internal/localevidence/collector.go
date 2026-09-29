@@ -154,7 +154,7 @@ func (c *OwnerCollector) CollectApplyEvidence(ctx context.Context, collection ap
 		case "host":
 			stage = "observe host"
 		case "secret":
-			stage = "observe local secret custody"
+			stage = "observe local secret custody (establish it for the current StackSpec with: stackkit secrets materialize)"
 		}
 		facts, err := observer.Observe(ctx, expectation)
 		if err != nil {

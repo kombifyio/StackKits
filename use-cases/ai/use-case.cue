@@ -118,6 +118,12 @@ Package: foundation.#UseCasePackage & {
 			rationale:  "Agent-harness capability module: OpenHands runs its shell, editor and automations inside one gVisor-isolated container with its own workspace volume, no host Docker socket and the node's Ollama as model endpoint; a private route behind the kit's login. The host needs the runsc runtime."
 			capabilities: ["agent-harness"]
 		}
+		paperclip: {
+			moduleSlug: "paperclip"
+			role:       "supporting"
+			rationale:  "Agent-control-plane capability module (experimental): Paperclip organizes agents, budgets, approvals and tasks with its own PostgreSQL in one gVisor-isolated bundle, no host Docker socket, no egress and no provider key; budgets default to zero. The installed Hermes is reachable on the private AI network. A private route behind the kit's login and Paperclip's own login. The host needs the runsc runtime."
+			capabilities: ["agent-control-plane"]
+		}
 	}
 	setup: {
 		defaultPolicy: "on_demand"

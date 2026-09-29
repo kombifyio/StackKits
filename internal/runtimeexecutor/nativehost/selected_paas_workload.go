@@ -246,6 +246,8 @@ func ValidateSelectedPaaSWorkloadObservation(
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationComfyUI, deployment, observation)
 	case "stackkits-openhands-runtime":
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationOpenHands, deployment, observation)
+	case "stackkits-paperclip-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationPaperclip, deployment, observation)
 	case "stackkits-hermes-runtime":
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationHermes, deployment, observation)
 	case "stackkits-speechkit-runtime":

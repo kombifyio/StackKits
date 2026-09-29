@@ -142,6 +142,55 @@ type MainUseCase struct {
 type AuthoringModule struct {
 	ID              string   `json:"id"`
 	ComputeProfiles []string `json:"computeProfiles"`
+	// ComputeProfileFacts carries the declared numeric footprint of each
+	// profile in ComputeProfiles, keyed by profile ID, so Techstack can size a
+	// selection without evaluating CUE. Recommendation stays with Techstack.
+	ComputeProfileFacts map[string]ComputeProfileFacts `json:"computeProfileFacts,omitempty"`
+	// AcceleratorProfileFacts is the device demand of each accelerator
+	// profile the module declares; absent when it declares none.
+	AcceleratorProfileFacts map[string]AcceleratorProfileFacts `json:"acceleratorProfileFacts,omitempty"`
+}
+
+// ResourceBudget is a declared resource envelope. Undeclared axes stay absent,
+// never zero (ADR-0039).
+type ResourceBudget struct {
+	CPUCores  *float64 `json:"cpuCores,omitempty"`
+	RAMGB     *float64 `json:"ramGB,omitempty"`
+	StorageGB *float64 `json:"storageGB,omitempty"`
+}
+
+// HostFloor is the minimum a node must attest before the profile applies.
+type HostFloor struct {
+	MinCPUCores                    *float64 `json:"minCpuCores,omitempty"`
+	MinRAMGB                       *float64 `json:"minRamGB,omitempty"`
+	MinStorageGB                   *float64 `json:"minStorageGB,omitempty"`
+	MinAMD64MicroarchitectureLevel *float64 `json:"minAMD64MicroarchitectureLevel,omitempty"`
+	AllowedArchitectures           []string `json:"allowedArchitectures,omitempty"`
+}
+
+// ComputeProfileFacts projects one module compute profile's declared facts.
+// Provenance is carried verbatim when the source declares it.
+type ComputeProfileFacts struct {
+	Maturity      string          `json:"maturity"`
+	Executable    bool            `json:"executable"`
+	Realization   string          `json:"realization,omitempty"`
+	HostFloor     *HostFloor      `json:"hostFloor,omitempty"`
+	Reservation   *ResourceBudget `json:"reservation,omitempty"`
+	Recommended   *ResourceBudget `json:"recommended,omitempty"`
+	Headroom      *ResourceBudget `json:"headroom,omitempty"`
+	Architectures []string        `json:"architectures,omitempty"`
+	Provenance    json.RawMessage `json:"provenance,omitempty"`
+	MeasuredRef   string          `json:"measuredRef,omitempty"`
+}
+
+// AcceleratorProfileFacts projects one accelerator profile's device demand.
+type AcceleratorProfileFacts struct {
+	Vendor         string          `json:"vendor"`
+	Access         string          `json:"access"`
+	MinVramGiB     *float64        `json:"minVramGiB,omitempty"`
+	MinDriverMajor *float64        `json:"minDriverMajor,omitempty"`
+	Maturity       string          `json:"maturity"`
+	Reservation    *ResourceBudget `json:"reservation,omitempty"`
 }
 
 type AuthoringAlternative struct {
@@ -1012,6 +1061,7 @@ func attachPackageComputeTiers(source *sourceCatalog) error {
 
 func attachAuthoringVocabulary(source *sourceCatalog, workloads, modules []map[string]any) error {
 	profiles := map[string][]string{}
+	projected := map[string]AuthoringModule{}
 	for _, module := range modules {
 		id := metadataID(module)
 		if id == "" {
@@ -1022,6 +1072,11 @@ func attachAuthoringVocabulary(source *sourceCatalog, workloads, modules []map[s
 			continue
 		}
 		profiles[id] = keys
+		authoringModule, err := authoringModuleFromCatalog(id, keys, module)
+		if err != nil {
+			return err
+		}
+		projected[id] = authoringModule
 	}
 	source.moduleProfiles = profiles
 	for index, useCase := range source.UseCases {
@@ -1030,7 +1085,7 @@ func attachAuthoringVocabulary(source *sourceCatalog, workloads, modules []map[s
 			annotateAlternativeRealization(&source.UseCases[index], AuthoringWorkload{})
 			continue
 		}
-		authoring, err := authoringWorkloadFromCatalog(workload, profiles)
+		authoring, err := authoringWorkloadFromCatalog(workload, projected)
 		if err != nil {
 			return err
 		}
@@ -1041,7 +1096,7 @@ func attachAuthoringVocabulary(source *sourceCatalog, workloads, modules []map[s
 	for index, useCase := range source.UseCases {
 		addOns := make([]AuthoringWorkload, 0, len(source.AddOnWorkloads[useCase.ID]))
 		for _, workload := range source.AddOnWorkloads[useCase.ID] {
-			authoring, err := authoringWorkloadFromCatalog(workload, profiles)
+			authoring, err := authoringWorkloadFromCatalog(workload, projected)
 			if err != nil {
 				return err
 			}
@@ -1064,7 +1119,7 @@ func attachAuthoringVocabulary(source *sourceCatalog, workloads, modules []map[s
 		if stringField(workload, "kind") != "service" {
 			continue
 		}
-		authoring, err := authoringWorkloadFromCatalog(workload, profiles)
+		authoring, err := authoringWorkloadFromCatalog(workload, projected)
 		if err != nil {
 			return err
 		}
@@ -1096,7 +1151,7 @@ func annotateAlternativeRealization(useCase *UseCase, authoring AuthoringWorkloa
 	}
 }
 
-func authoringWorkloadFromCatalog(workload map[string]any, profiles map[string][]string) (AuthoringWorkload, error) {
+func authoringWorkloadFromCatalog(workload map[string]any, modules map[string]AuthoringModule) (AuthoringWorkload, error) {
 	id := metadataID(workload)
 	defaultAlternative := stringField(workload, "defaultAlternative")
 	rawAlternatives, _ := workload["alternatives"].([]any)
@@ -1116,13 +1171,14 @@ func authoringWorkloadFromCatalog(workload map[string]any, profiles map[string][
 			return AuthoringWorkload{}, fmt.Errorf("workload %s declares alternative %q twice", id, alternativeID)
 		}
 		seen[alternativeID] = true
-		keys := profiles[moduleRef]
-		if len(keys) == 0 {
+		module, ok := modules[moduleRef]
+		if !ok || len(module.ComputeProfiles) == 0 {
 			return AuthoringWorkload{}, fmt.Errorf("workload %s alternative %s references module %s without compute profiles", id, alternativeID, moduleRef)
 		}
+		module.ComputeProfiles = append([]string(nil), module.ComputeProfiles...)
 		authoring.Alternatives = append(authoring.Alternatives, AuthoringAlternative{
 			ID: alternativeID, Name: alternativeID,
-			Modules: []AuthoringModule{{ID: moduleRef, ComputeProfiles: append([]string(nil), keys...)}},
+			Modules: []AuthoringModule{module},
 		})
 	}
 	if !seen[defaultAlternative] {
@@ -1130,6 +1186,52 @@ func authoringWorkloadFromCatalog(workload map[string]any, profiles map[string][
 	}
 	sort.Slice(authoring.Alternatives, func(i, j int) bool { return authoring.Alternatives[i].ID < authoring.Alternatives[j].ID })
 	return authoring, nil
+}
+
+// authoringModuleFromCatalog projects a module's declared compute and
+// accelerator profile facts. It copies declared values only; an axis the
+// module does not declare stays absent.
+func authoringModuleFromCatalog(id string, keys []string, module map[string]any) (AuthoringModule, error) {
+	projected := AuthoringModule{ID: id, ComputeProfiles: keys}
+	var declared struct {
+		ComputeProfiles     map[string]ComputeProfileFacts `json:"computeProfiles"`
+		AcceleratorProfiles map[string]struct {
+			Maturity    string          `json:"maturity"`
+			Reservation *ResourceBudget `json:"reservation"`
+			Accelerator struct {
+				Vendor         string   `json:"vendor"`
+				Access         string   `json:"access"`
+				MinVramGiB     *float64 `json:"minVramGiB"`
+				MinDriverMajor *float64 `json:"minDriverMajor"`
+			} `json:"accelerator"`
+		} `json:"acceleratorProfiles"`
+	}
+	raw, err := json.Marshal(map[string]any{"computeProfiles": module["computeProfiles"], "acceleratorProfiles": module["acceleratorProfiles"]})
+	if err != nil {
+		return AuthoringModule{}, err
+	}
+	if err := json.Unmarshal(raw, &declared); err != nil {
+		return AuthoringModule{}, fmt.Errorf("module %s profile facts: %w", id, err)
+	}
+	projected.ComputeProfileFacts = map[string]ComputeProfileFacts{}
+	for _, key := range keys {
+		facts := declared.ComputeProfiles[key]
+		if floor := facts.HostFloor; floor != nil && floor.MinCPUCores == nil && floor.MinRAMGB == nil && floor.MinStorageGB == nil && floor.MinAMD64MicroarchitectureLevel == nil && len(floor.AllowedArchitectures) == 0 {
+			facts.HostFloor = nil
+		}
+		projected.ComputeProfileFacts[key] = facts
+	}
+	for key, profile := range declared.AcceleratorProfiles {
+		if projected.AcceleratorProfileFacts == nil {
+			projected.AcceleratorProfileFacts = map[string]AcceleratorProfileFacts{}
+		}
+		projected.AcceleratorProfileFacts[key] = AcceleratorProfileFacts{
+			Vendor: profile.Accelerator.Vendor, Access: profile.Accelerator.Access,
+			MinVramGiB: profile.Accelerator.MinVramGiB, MinDriverMajor: profile.Accelerator.MinDriverMajor,
+			Maturity: profile.Maturity, Reservation: profile.Reservation,
+		}
+	}
+	return projected, nil
 }
 
 func computeProfileIDs(module map[string]any) []string {

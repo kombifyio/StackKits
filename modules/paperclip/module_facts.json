@@ -1,0 +1,60 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "paperclip",
+  "displayName": "Paperclip",
+  "description": "Paperclip agent control plane (org chart of agents, budgets, approvals, tasks) with its own PostgreSQL in one gVisor-isolated bundle; no host Docker socket, no egress, no provider key, private route behind the kit login and Paperclip's own login.",
+  "rationale": "Private AI agent-control-plane capability module (default).",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "512m"
+    }
+  },
+  "services": [
+    {
+      "name": "paperclip",
+      "type": "application",
+      "required": false,
+      "networks": [
+        "private-ai-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`ai-control-plane.{{.domain}}`)",
+        "port": 3100
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "self-auth",
+        "reason": "Paperclip runs in authenticated mode (Better Auth); the first sign-up behind the gateway login becomes the instance admin."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/api/health",
+        "port": 3100
+      },
+      "resources": {
+        "memory": "512m",
+        "memoryMax": "4g"
+      },
+      "upstream": {
+        "github": "paperclipai/paperclip",
+        "registryImage": "ghcr.io/paperclipai/paperclip"
+      },
+      "imageSource": {
+        "moduleRef": "stackkits-paperclip-runtime",
+        "componentRef": "paperclip"
+      },
+      "environment": {
+        "HOST": "0.0.0.0",
+        "PORT": "3100",
+        "SERVE_UI": "true",
+        "PAPERCLIP_HOME": "/paperclip",
+        "PAPERCLIP_DEPLOYMENT_MODE": "authenticated",
+        "PAPERCLIP_DEPLOYMENT_EXPOSURE": "private"
+      }
+    }
+  ]
+}

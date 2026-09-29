@@ -196,11 +196,12 @@ func compactKey(key string) string {
 	return compactKeyReplacer.Replace(strings.ToLower(key))
 }
 
-// Secret input declarations and component secretEnvironment and secretFiles
-// declarations contain governed slot/source identifiers, not secret material.
+// Secret input declarations and component secretEnvironment,
+// companionSecretEnvironment and secretFiles declarations contain governed
+// slot/source identifiers, not secret material.
 func isSecretDeclarationKey(key string) bool {
 	switch compactKey(key) {
-	case "secretinputs", "secretinputrefs", "secretinputbindings", "secretenvironment", "secretfiles":
+	case "secretinputs", "secretinputrefs", "secretinputbindings", "secretenvironment", "companionsecretenvironment", "secretfiles":
 		return true
 	default:
 		return false

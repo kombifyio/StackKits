@@ -190,7 +190,70 @@
           "type": "array",
           "minItems": 1,
           "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" }
+        },
+        "computeProfileFacts": {
+          "description": "Declared footprint of each compute profile, keyed by profile ID. Undeclared axes are absent, never zero (ADR-0039).",
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-z][a-z0-9-]+$" },
+          "additionalProperties": { "$ref": "#/$defs/computeProfileFacts" }
+        },
+        "acceleratorProfileFacts": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-z][a-z0-9-]+$" },
+          "additionalProperties": { "$ref": "#/$defs/acceleratorProfileFacts" }
         }
+      }
+    },
+    "resourceBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "cpuCores": { "type": "number", "exclusiveMinimum": 0 },
+        "ramGB": { "type": "number", "exclusiveMinimum": 0 },
+        "storageGB": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "hostFloor": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "minCpuCores": { "type": "number", "exclusiveMinimum": 0 },
+        "minRamGB": { "type": "number", "exclusiveMinimum": 0 },
+        "minStorageGB": { "type": "number", "exclusiveMinimum": 0 },
+        "minAMD64MicroarchitectureLevel": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "allowedArchitectures": { "type": "array", "minItems": 1, "items": { "enum": ["amd64", "arm64"] } }
+      }
+    },
+    "computeProfileFacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maturity", "executable"],
+      "properties": {
+        "maturity": { "enum": ["experimental", "beta", "supported", "deprecated"] },
+        "executable": { "type": "boolean" },
+        "realization": { "enum": ["contract-only", "generation-ready", "apply-ready"] },
+        "hostFloor": { "$ref": "#/$defs/hostFloor" },
+        "reservation": { "$ref": "#/$defs/resourceBudget" },
+        "recommended": { "$ref": "#/$defs/resourceBudget" },
+        "headroom": { "$ref": "#/$defs/resourceBudget" },
+        "architectures": { "type": "array", "minItems": 1, "items": { "enum": ["amd64", "arm64"] } },
+        "provenance": { "description": "Declared provenance of the numbers (for example policy, upstream or measured), carried verbatim from the module profile when declared." },
+        "measuredRef": { "type": "string", "minLength": 1 }
+      }
+    },
+    "acceleratorProfileFacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vendor", "access", "maturity"],
+      "properties": {
+        "vendor": { "enum": ["nvidia", "amd"] },
+        "access": { "enum": ["cdi", "rocm-device-nodes"] },
+        "minVramGiB": { "type": "number", "minimum": 1 },
+        "minDriverMajor": { "type": "number", "minimum": 1 },
+        "maturity": { "enum": ["experimental", "beta", "supported", "deprecated"] },
+        "reservation": { "$ref": "#/$defs/resourceBudget" }
       }
     },
     "authoringAlternative": {

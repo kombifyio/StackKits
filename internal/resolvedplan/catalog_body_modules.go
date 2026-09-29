@@ -119,7 +119,18 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 		if err := requireCatalogOptionalField(module, contract, path, "planOnly"); err != nil {
 			return err
 		}
-		if err := requireCatalogObjectField(module, contract, path, "runtime"); err != nil {
+		boundRuntime, err := objectField(contract, "catalog.modules."+id, "runtime")
+		if err != nil {
+			return err
+		}
+		expectedRuntime, err := cloneObject(boundRuntime, true)
+		if err != nil {
+			return err
+		}
+		if err := projectPrivateBoundModuleRuntime(plan, id, expectedRuntime); err != nil {
+			return err
+		}
+		if err := requireCatalogObjectField(module, map[string]any{"runtime": expectedRuntime}, path, "runtime"); err != nil {
 			return err
 		}
 		if err := validateResolvedServiceControls(module, contract, id, path); err != nil {

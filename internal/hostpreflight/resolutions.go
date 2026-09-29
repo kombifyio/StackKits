@@ -5,6 +5,8 @@ import (
 	"os"
 	"slices"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/hostconformance"
 )
 
 // Host resolutions are the fixes for what preflight found.
@@ -215,14 +217,14 @@ func Resolutions() []Resolution {
 		{
 			ID: "gvisor-runsc", Title: "Register the gVisor sandbox runtime",
 			AppliesTo: CheckSandboxRuntime, Mode: ModeApply,
-			Summary:       "The selected agent harness runs its container under gVisor (runsc), which Docker on this host has not registered.",
+			Summary:       "A selected agent-executing component (agent harness or control plane) runs its container under gVisor (runsc), which Docker on this host has not registered with the container network namespace.",
 			Distributions: debianFamily,
 			Files: []FileChange{
 				{Path: gvisorKeyring, Mode: 0o644, Content: gvisorArchiveKey},
 				{Path: gvisorSourceList, Mode: 0o644, Content: "deb [signed-by=" + gvisorKeyring + "] https://storage.googleapis.com/gvisor/releases release main\n"},
 				{
 					Path: "/etc/docker/daemon.json", Mode: 0o644, Backup: true,
-					Merge: map[string]any{"runtimes": map[string]any{"runsc": map[string]any{"path": gvisorRunscPath}}},
+					Merge: map[string]any{"runtimes": map[string]any{"runsc": map[string]any{"path": gvisorRunscPath, "runtimeArgs": []any{hostconformance.GvisorRunscNetworkArg}}}},
 				},
 			},
 			Commands: [][]string{
@@ -231,7 +233,8 @@ func Resolutions() []Resolution {
 				{"systemctl", "restart", "docker"},
 			},
 			Guidance: []string{
-				"Debian and Ubuntu hosts only; on other distributions install runsc from https://gvisor.dev/docs/user_guide/install/, add {\"runtimes\":{\"runsc\":{\"path\":\"/usr/bin/runsc\"}}} to /etc/docker/daemon.json and restart Docker.",
+				"Debian and Ubuntu hosts only; on other distributions install runsc from https://gvisor.dev/docs/user_guide/install/, add {\"runtimes\":{\"runsc\":{\"path\":\"/usr/bin/runsc\",\"runtimeArgs\":[\"--network=host\"]}}} to /etc/docker/daemon.json and restart Docker.",
+				"--network=host runs gVisor on the network namespace Docker created for the container, not on the host's: the container keeps its Docker networks and no egress, and Docker's embedded DNS resolves its services.",
 				"The apt source is signed by the pinned gVisor Authors key (6F1D F85E 3A71 C249 18E7 27D5 6FC6 D554 E32B D943); nothing is downloaded to decide what to trust.",
 				"daemon.json keeps every other setting, including other runtimes and CDI; the previous file is kept beside it as daemon.json.stackkit-backup.",
 				"Restarting the Docker daemon restarts every running container, so run this before an Apply rather than during one.",

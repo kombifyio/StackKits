@@ -2,7 +2,6 @@ package stackkitmcp
 
 import (
 	"context"
-	_ "embed"
 	"encoding/json"
 	"log/slog"
 	"net"
@@ -16,9 +15,6 @@ import (
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/kombifyio/stackkits/internal/standaloneoperations"
 )
-
-//go:embed assets/state-console.html
-var stateConsoleHTML string
 
 const stateConsoleResourceURI = "ui://stackkits/state-console.html"
 

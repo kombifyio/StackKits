@@ -114,6 +114,10 @@ type selectedPaaSRuntimeComponent struct {
 	// CompanionEnvironment is the catalog-declared wiring to selected add-ons;
 	// rendered bundles carry only the materialized environment.
 	CompanionEnvironment []selectedPaaSCompanionEnvironment `json:"companionEnvironment,omitempty"`
+	// CompanionSecretEnvironment is the catalog-declared binding of variables
+	// to selected add-ons' custody secret slots; rendered bundles carry only
+	// the materialized secretEnvironment entries and their companion slots.
+	CompanionSecretEnvironment []selectedPaaSCompanionSecretEnvironment `json:"companionSecretEnvironment,omitempty"`
 	// Home identity rights: server-side reach of Pocket ID and its client.
 	HomeIdentityAccess *selectedPaaSHomeIdentityAccess `json:"homeIdentityAccess,omitempty"`
 	PocketIDClient     *selectedPaaSPocketIDClient     `json:"pocketIDClient,omitempty"`

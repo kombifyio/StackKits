@@ -1573,6 +1573,197 @@
         }
       },
       "metadata": {
+        "description": "Agent control-plane add-on of the Private AI use case.",
+        "id": "ai-control-plane",
+        "version": "1.0.0"
+      },
+      "packageRef": "ai",
+      "useCaseRef": "ai",
+      "workloadRef": "ai-control-plane"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
         "description": "Speech add-on of the Private AI use case.",
         "id": "ai-speech",
         "version": "1.0.0"
@@ -7669,6 +7860,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-paperclip-runtime"
+        ],
+        "matches": [
+          "stackkits-paperclip"
+        ],
+        "module": "stackkits-paperclip-runtime",
+        "provider": "stackkits-paperclip"
+      },
+      {
+        "governanceMatches": [
           "stackkits-speechkit-runtime"
         ],
         "matches": [
@@ -8706,6 +8907,12 @@
         },
         {
           "contracts": [
+            "ai-control-plane"
+          ],
+          "providerID": "stackkits-paperclip"
+        },
+        {
+          "contracts": [
             "ai-speech"
           ],
           "providerID": "stackkits-speechkit"
@@ -9725,6 +9932,13 @@
         ],
         "module": "stackkits-openhands-runtime",
         "provider": "stackkits-openhands"
+      },
+      {
+        "matches": [
+          "stackkits-paperclip-runtime"
+        ],
+        "module": "stackkits-paperclip-runtime",
+        "provider": "stackkits-paperclip"
       },
       {
         "matches": [
@@ -10819,6 +11033,34 @@
           "backup-core"
         ],
         "provider": "stackkits-openhands"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-paperclip"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-paperclip"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-paperclip"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-paperclip"
       },
       {
         "capability": "runtime-paas",
@@ -12084,6 +12326,12 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-openhands"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-paperclip"
         },
         {
           "capabilityBindings": [],
@@ -13741,6 +13989,106 @@
             }
           ],
           "workloadID": "ai-harness"
+        },
+        {
+          "alternativeID": "paperclip",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-paperclip-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "paperclip"
+                  ],
+                  "ref": "database-password"
+                },
+                {
+                  "matches": [
+                    "paperclip"
+                  ],
+                  "ref": "session-secret"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "ai-control-plane",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "paperclip",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-paperclip",
+              "workloadOwnership": [
+                "ai-control-plane"
+              ]
+            }
+          ],
+          "workloadID": "ai-control-plane"
         },
         {
           "alternativeID": "speechkit",
@@ -19883,6 +20231,16 @@
           },
           "maturity": "supported",
           "platformManagement": "selected-provider",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "recommended": {
             "cpuCores": 4,
@@ -19912,6 +20270,16 @@
           },
           "maturity": "supported",
           "platformManagement": "selected-provider",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "recommended": {
             "cpuCores": 4,
@@ -21193,6 +21561,16 @@
           },
           "maturity": "supported",
           "platformManagement": "standalone",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "recommended": {
             "cpuCores": 4,
@@ -21222,6 +21600,16 @@
           },
           "maturity": "supported",
           "platformManagement": "standalone",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "recommended": {
             "cpuCores": 4,
@@ -22422,6 +22810,16 @@
           },
           "maturity": "supported",
           "platformManagement": "selected-provider",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "recommended": {
             "cpuCores": 4,
@@ -22454,6 +22852,16 @@
           },
           "maturity": "supported",
           "platformManagement": "selected-provider",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "recommended": {
             "cpuCores": 4,
@@ -24074,6 +24482,16 @@
           },
           "maturity": "supported",
           "platformManagement": "standalone",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "recommended": {
             "cpuCores": 2,
@@ -24105,6 +24523,16 @@
           },
           "maturity": "supported",
           "platformManagement": "standalone",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "recommended": {
             "cpuCores": 2,
@@ -24136,6 +24564,16 @@
           },
           "maturity": "supported",
           "platformManagement": "standalone",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "recommended": {
             "cpuCores": 2,
@@ -25493,6 +25931,16 @@
             }
           },
           "maturity": "supported",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Immich v2.7.0 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor",
+              "source": "upstream"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 1.3125
@@ -25528,6 +25976,16 @@
             }
           },
           "maturity": "supported",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Immich v2.7.0 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor",
+              "source": "upstream"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 1.3125
@@ -26138,6 +26596,16 @@
             }
           },
           "maturity": "supported",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.8125
@@ -26609,6 +27077,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.75
@@ -26628,6 +27106,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.75
@@ -27054,6 +27542,16 @@
             "minStorageGB": 20
           },
           "maturity": "supported",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.125
@@ -27071,6 +27569,16 @@
             "minStorageGB": 10
           },
           "maturity": "supported",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.125
@@ -27088,6 +27596,16 @@
             "minStorageGB": 20
           },
           "maturity": "supported",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.125
@@ -27409,6 +27927,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.5
@@ -27427,6 +27955,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.5
@@ -27827,6 +28365,16 @@
             "minStorageGB": 20
           },
           "maturity": "supported",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.0625
@@ -27844,6 +28392,16 @@
             "minStorageGB": 10
           },
           "maturity": "supported",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.0625
@@ -27861,6 +28419,16 @@
             "minStorageGB": 20
           },
           "maturity": "supported",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.0625
@@ -28224,6 +28792,12 @@
           ],
           "description": "Ollama inference on AMD GPUs with ROCm through /dev/kfd and /dev/dri, using the Ollama ROCm image (amd64 only). Needs a ROCm-capable card with the amdgpu kernel driver. Open WebUI stays on the CPU.",
           "maturity": "experimental",
+          "provenance": {
+            "reservation": {
+              "ref": "Kombify GPU runtime support envelope",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "cpuCores": 1,
@@ -28242,6 +28816,12 @@
           ],
           "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. Open WebUI stays on the CPU.",
           "maturity": "experimental",
+          "provenance": {
+            "reservation": {
+              "ref": "Kombify GPU runtime support envelope",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "cpuCores": 1,
@@ -28265,6 +28845,20 @@
             "minStorageGB": 40
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "recommended": {
             "cpuCores": 8,
@@ -28289,6 +28883,20 @@
             "minStorageGB": 40
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "recommended": {
             "cpuCores": 8,
@@ -28407,7 +29015,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:890f584ddd683d03fc3d424e75b79979a406efd4726ea89d0c569d028f39a360",
+          "contractHash": "sha256:d223e07b016c095daf6dbce99d30735f54f0cd1d51587140725776650d68941d",
           "id": "private-ai",
           "inputBindings": [
             {
@@ -28636,6 +29244,11 @@
                 "workloadRef": "ai-harness"
               },
               {
+                "alternativeRef": "paperclip",
+                "environment": {},
+                "workloadRef": "ai-control-plane"
+              },
+              {
                 "alternativeRef": "speechkit",
                 "environment": {
                   "AUDIO_STT_ENGINE": "openai",
@@ -28645,6 +29258,16 @@
                   "AUDIO_TTS_MODEL": "tts-1",
                   "AUDIO_TTS_OPENAI_API_BASE_URL": "http://speechkit:8080/v1",
                   "AUDIO_TTS_VOICE": "af_bella"
+                },
+                "workloadRef": "ai-speech"
+              }
+            ],
+            "companionSecretEnvironment": [
+              {
+                "alternativeRef": "speechkit",
+                "secretEnvironment": {
+                  "AUDIO_STT_OPENAI_API_KEY": "server-token",
+                  "AUDIO_TTS_OPENAI_API_KEY": "server-token"
                 },
                 "workloadRef": "ai-speech"
               }
@@ -28721,7 +29344,7 @@
               "private-ai-internal"
             ],
             "resources": {
-              "memoryLimit": "6g",
+              "memoryLimit": "10g",
               "memoryReservation": "1g"
             },
             "role": "application",
@@ -28818,6 +29441,12 @@
           ],
           "description": "Ollama inference on AMD GPUs with ROCm through /dev/kfd and /dev/dri, using the Ollama ROCm image (amd64 only). Needs a ROCm-capable card with the amdgpu kernel driver. AnythingLLM stays on the CPU.",
           "maturity": "experimental",
+          "provenance": {
+            "reservation": {
+              "ref": "Kombify GPU runtime support envelope",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "cpuCores": 1,
@@ -28836,6 +29465,12 @@
           ],
           "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. AnythingLLM stays on the CPU.",
           "maturity": "experimental",
+          "provenance": {
+            "reservation": {
+              "ref": "Kombify GPU runtime support envelope",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "cpuCores": 1,
@@ -28858,6 +29493,20 @@
             "minStorageGB": 40
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "recommended": {
             "cpuCores": 8,
@@ -28881,6 +29530,20 @@
             "minStorageGB": 40
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "recommended": {
             "cpuCores": 8,
@@ -28999,7 +29662,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:8de5006702e467bebf282b2246021bff6f225466df715df0edc1f1f25d029cbf",
+          "contractHash": "sha256:93b50dfcd05f0dbec0031f9cad4d5375218afc8fb67d93a029aea132fe678f02",
           "id": "anythingllm",
           "inputBindings": [
             {
@@ -29196,6 +29859,11 @@
                 "workloadRef": "ai-harness"
               },
               {
+                "alternativeRef": "paperclip",
+                "environment": {},
+                "workloadRef": "ai-control-plane"
+              },
+              {
                 "alternativeRef": "speechkit",
                 "environment": {
                   "STT_OPEN_AI_COMPATIBLE_ENDPOINT": "http://speechkit:8080/v1",
@@ -29208,6 +29876,17 @@
                   "WHISPER_GENERIC_OPEN_AI_BASE_URL": "http://speechkit:8080/v1",
                   "WHISPER_GENERIC_OPEN_AI_MODEL": "whisper-1",
                   "WHISPER_PROVIDER": "generic-openai"
+                },
+                "workloadRef": "ai-speech"
+              }
+            ],
+            "companionSecretEnvironment": [
+              {
+                "alternativeRef": "speechkit",
+                "secretEnvironment": {
+                  "STT_OPEN_AI_COMPATIBLE_KEY": "server-token",
+                  "TTS_OPEN_AI_COMPATIBLE_KEY": "server-token",
+                  "WHISPER_GENERIC_OPEN_AI_API_KEY": "server-token"
                 },
                 "workloadRef": "ai-speech"
               }
@@ -29286,7 +29965,7 @@
               "private-ai-internal"
             ],
             "resources": {
-              "memoryLimit": "6g",
+              "memoryLimit": "10g",
               "memoryReservation": "1g"
             },
             "role": "application",
@@ -29330,6 +30009,12 @@
           ],
           "description": "ComfyUI on NVIDIA GPUs through the Container Device Interface (all GPUs of the node), with at least 8 GiB of VRAM (Turing or newer). Needs the NVIDIA driver 580 or newer for the CUDA 13.0 image, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers.",
           "maturity": "experimental",
+          "provenance": {
+            "reservation": {
+              "ref": "Kombify GPU runtime support envelope",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "cpuCores": 1,
@@ -29351,6 +30036,20 @@
             "minStorageGB": 40
           },
           "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "recommended": {
             "cpuCores": 8,
@@ -29373,6 +30072,20 @@
             "minStorageGB": 40
           },
           "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "recommended": {
             "cpuCores": 8,
@@ -29731,6 +30444,16 @@
             "minStorageGB": 20
           },
           "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.5
@@ -29748,6 +30471,16 @@
             "minStorageGB": 20
           },
           "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.5
@@ -30115,6 +30848,20 @@
             "minStorageGB": 40
           },
           "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "recommended": {
             "cpuCores": 8,
@@ -30137,6 +30884,20 @@
             "minStorageGB": 40
           },
           "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "recommended": {
             "cpuCores": 8,
@@ -30252,7 +31013,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:33d92ec600037275032b17d0f03182d15a8d81c250263247fc3369c1832c9f67",
+          "contractHash": "sha256:715869a280dc8abcc6faaea1f0c0ca65730a1c9f3b8e9195693e7bc766a3f471",
           "id": "openhands",
           "inputBindings": [
             {
@@ -30404,10 +31165,11 @@
             "entrypoint": [
               "/bin/sh",
               "-ec",
-              "s=/home/openhands/.openhands/settings.json; if [ ! -e \"$s\" ]; then cp /home/openhands/.openhands/stackkit/settings.seed.json \"$s\" \u0026\u0026 chmod 600 \"$s\"; fi; exec tini -- /opt/agent-canvas/entrypoint.sh"
+              "s=/home/openhands/.openhands/settings.json; if [ ! -e \"$s\" ]; then printf '%s\\n' \"$STACKKIT_OPENHANDS_SETTINGS_SEED\" \u003e \"$s\"; chmod 600 \"$s\"; fi; unset STACKKIT_OPENHANDS_SETTINGS_SEED; exec tini -- /opt/agent-canvas/entrypoint.sh"
             ],
             "environment": {
               "DO_NOT_TRACK": "1",
+              "STACKKIT_OPENHANDS_SETTINGS_SEED": "{\"schema_version\":3,\"agent_settings\":{\"schema_version\":6,\"agent_kind\":\"openhands\",\"llm\":{\"model\":\"ollama_chat/qwen3.5:9b\",\"base_url\":\"http://ollama:11434\"}}}",
               "VITE_DO_NOT_TRACK": "1"
             },
             "health": {
@@ -30473,6 +31235,471 @@
       "computeProfiles": {
         "high": {
           "components": [
+            "paperclip",
+            "paperclip-postgres"
+          ],
+          "description": "Paperclip agent control plane in one gVisor-isolated bundle: Node.js server and UI, PostgreSQL and the agent processes it starts. Models run in Ollama or the installed Hermes.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 4,
+            "minRamGB": 8,
+            "minStorageGB": 20
+          },
+          "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 8,
+            "ramGB": 16,
+            "storageGB": 60
+          },
+          "reservation": {
+            "ramGB": 1
+          }
+        },
+        "standard": {
+          "components": [
+            "paperclip",
+            "paperclip-postgres"
+          ],
+          "description": "Paperclip agent control plane in one gVisor-isolated bundle: Node.js server and UI, PostgreSQL and the agent processes it starts. Models run in Ollama or the installed Hermes.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 4,
+            "minRamGB": 8,
+            "minStorageGB": 20
+          },
+          "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 8,
+            "ramGB": 16,
+            "storageGB": 60
+          },
+          "reservation": {
+            "ramGB": 1
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "paperclip-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "paperclip-http",
+          "kind": "http",
+          "path": "/api/health",
+          "phase": "continuous",
+          "port": 3100,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Paperclip agent control plane: org chart of agents, budgets, approvals and tasks, with its own PostgreSQL in one bundle. Paperclip starts the agents of its local adapters as child processes, so the node runs the container under the gVisor runtime (runsc) with no host Docker socket, no owner home, no egress and no StackKits credential; budgets default to zero and no provider key is configured. The installed Hermes assistant is reachable on the private AI network. Reached only on a private route behind the kit's login and Paperclip's own login (authenticated, private).",
+        "id": "stackkits-paperclip-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-paperclip",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "paperclip-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/paperclip/bundle.json",
+              "required": true,
+              "unitRef": "paperclip"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "paperclip-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/paperclip/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "paperclip-workload-bundle",
+              "outputRef": "workloads/paperclip/bundle.json",
+              "unitRef": "paperclip"
+            },
+            {
+              "artifactRef": "paperclip-terramate-stack",
+              "outputRef": "platform/applications/paperclip/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "paperclip-workload-bundle",
+            "paperclip-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "paperclip-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "database-password",
+            "session-secret"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:aa576e46286af91e77de7bdc1485606c24fe2cb16dd4e9a668672b9998cf51fa",
+          "id": "paperclip",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/paperclip/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "database-password",
+            "session-secret"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "ai-control-plane",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "paperclip-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "ai-control-plane",
+              "targetPort": 3100,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/paperclip/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/paperclip/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "paperclip-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "session-secret"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "paperclip"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "paperclip-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "session-secret"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "paperclip"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "paperclip-workload-bundle",
+            "paperclip-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "session-secret"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "paperclip",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [
+              "paperclip-postgres"
+            ],
+            "egress": false,
+            "entrypoint": [
+              "/bin/sh",
+              "-ec",
+              "export DATABASE_URL=\"$(node -e 'const u = new URL(\"postgres://paperclip@paperclip-postgres:5432/paperclip\"); u.password = process.env.STACKKIT_PAPERCLIP_DB_PASSWORD; process.stdout.write(u.href);')\"; unset STACKKIT_PAPERCLIP_DB_PASSWORD; exec /usr/bin/tini -- docker-entrypoint.sh node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js"
+            ],
+            "environment": {
+              "HOST": "0.0.0.0",
+              "PAPERCLIP_DEPLOYMENT_EXPOSURE": "private",
+              "PAPERCLIP_DEPLOYMENT_MODE": "authenticated",
+              "PAPERCLIP_HIDDEN_SETTINGS": "instance.general.feedbackDataSharingPreference",
+              "PAPERCLIP_HOME": "/paperclip",
+              "PAPERCLIP_INSTANCE_ID": "default",
+              "PAPERCLIP_SETTING_DEFAULTS": "{\"feedbackDataSharingPreference\":\"not_allowed\"}",
+              "PORT": "3100",
+              "SERVE_UI": "true"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/api/health",
+              "port": 3100
+            },
+            "id": "paperclip",
+            "image": {
+              "digest": "sha256:a02ac35ac41df911af477422ea0e781cf41d2b2c600c66f0a5ac9d8c63f52c2c",
+              "ref": "ghcr.io/paperclipai/paperclip:2026.916.1"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "paperclip-internal"
+            ],
+            "peerNetworks": [
+              {
+                "networkRef": "private-ai-internal",
+                "workloadRef": "ai"
+              }
+            ],
+            "resources": {
+              "cpus": 2,
+              "memoryLimit": "4g",
+              "memoryReservation": "512m"
+            },
+            "role": "application",
+            "routeHostEnvironment": {
+              "PAPERCLIP_ALLOWED_HOSTNAMES": "route-host"
+            },
+            "sandboxRuntime": "runsc",
+            "secretEnvironment": {
+              "BETTER_AUTH_SECRET": "session-secret",
+              "STACKKIT_PAPERCLIP_DB_PASSWORD": "database-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "home",
+                "target": "/paperclip"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "environment": {
+              "POSTGRES_DB": "paperclip",
+              "POSTGRES_USER": "paperclip"
+            },
+            "health": {
+              "command": [
+                "pg_isready",
+                "-U",
+                "paperclip",
+                "-d",
+                "paperclip"
+              ],
+              "kind": "command"
+            },
+            "id": "paperclip-postgres",
+            "image": {
+              "digest": "sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24",
+              "ref": "docker.io/library/postgres:17-alpine"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "paperclip-internal"
+            ],
+            "resources": {
+              "memoryLimit": "1g",
+              "memoryReservation": "256m"
+            },
+            "role": "database",
+            "secretEnvironment": {
+              "POSTGRES_PASSWORD": "database-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "database",
+                "target": "/var/lib/postgresql/data"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "paperclip",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:a02ac35ac41df911af477422ea0e781cf41d2b2c600c66f0a5ac9d8c63f52c2c",
+          "ref": "ghcr.io/paperclipai/paperclip:2026.916.1"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
             "speechkit",
             "speechkit-whisper",
             "speechkit-tts"
@@ -30485,6 +31712,16 @@
             "minStorageGB": 20
           },
           "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 2
@@ -30504,6 +31741,16 @@
             "minStorageGB": 20
           },
           "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 2
@@ -30907,6 +32154,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.125
@@ -30924,6 +32181,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.125
@@ -31255,6 +32522,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.5
@@ -31272,6 +32549,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.5
@@ -31580,6 +32867,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 1
@@ -31597,6 +32894,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 1
@@ -31910,6 +33217,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.25
@@ -31927,6 +33244,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.25
@@ -32284,6 +33611,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.25
@@ -32301,6 +33638,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.25
@@ -32654,6 +34001,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 1.25
@@ -32673,6 +34030,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 1.25
@@ -33144,6 +34511,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.125
@@ -33161,6 +34538,16 @@
             "minStorageGB": 10
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.125
@@ -33178,6 +34565,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.125
@@ -33476,6 +34873,16 @@
             "minStorageGB": 20
           },
           "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.5
@@ -33493,6 +34900,16 @@
             "minStorageGB": 10
           },
           "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.5
@@ -33510,6 +34927,16 @@
             "minStorageGB": 20
           },
           "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.5
@@ -33813,6 +35240,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 1.25
@@ -33834,6 +35271,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 1.25
@@ -34461,6 +35908,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.5
@@ -34478,6 +35935,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.5
@@ -34817,6 +36284,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.125
@@ -34834,6 +36311,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.125
@@ -35177,6 +36664,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.125
@@ -35194,6 +36691,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.125
@@ -35539,6 +37046,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.25
@@ -35556,6 +37073,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.25
@@ -35874,6 +37401,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 2
@@ -35891,6 +37428,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 2
@@ -36225,6 +37772,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.03125
@@ -36242,6 +37799,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.03125
@@ -36589,6 +38156,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.125
@@ -36606,6 +38183,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.125
@@ -36962,6 +38549,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.0625
@@ -36979,6 +38576,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.0625
@@ -37291,6 +38898,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.0625
@@ -37308,6 +38925,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.0625
@@ -37648,6 +39275,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.125
@@ -37665,6 +39302,16 @@
             "minStorageGB": 20
           },
           "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.125
@@ -38015,6 +39662,16 @@
             "minStorageGB": 20
           },
           "maturity": "supported",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.5
@@ -38032,6 +39689,16 @@
             "minStorageGB": 20
           },
           "maturity": "supported",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.5
@@ -38397,6 +40064,16 @@
             "minStorageGB": 20
           },
           "maturity": "supported",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.5
@@ -38414,6 +40091,16 @@
             "minStorageGB": 10
           },
           "maturity": "supported",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.5
@@ -38431,6 +40118,16 @@
             "minStorageGB": 20
           },
           "maturity": "supported",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready",
           "reservation": {
             "ramGB": 0.5
@@ -44695,6 +46392,54 @@
     {
       "certificateIssuers": [],
       "evidence": [
+        "paperclip-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-paperclip",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-paperclip-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "ai-control-plane"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
         "speechkit-selected-paas-runtime-contract"
       ],
       "metadata": {
@@ -49293,6 +51038,148 @@
       "metadata": {
         "description": "OpenHands task and coding agent whose shell, editor and automations run inside one gVisor-isolated container with its own workspace volume and the node's Ollama as model endpoint, selected with the Private AI agent-harness module. Reached only on a private route behind the kit's login.",
         "id": "ai-harness",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "ai"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "paperclip",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "paperclip",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "home"
+                },
+                {
+                  "componentRef": "paperclip-postgres",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "database"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "ai-control-plane",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "paperclip",
+                  "dataBindingRef": "ai-control-plane",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/paperclip",
+                  "volumeRef": "home"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "paperclip-postgres",
+                  "dataBindingRef": "ai-control-plane",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/var/lib/postgresql/data",
+                  "volumeRef": "database"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "database-password",
+                "session-secret"
+              ],
+              "requiredRefs": [
+                "database-password",
+                "session-secret"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-paperclip-runtime",
+          "providerRef": "stackkits-paperclip",
+          "route": {
+            "healthRef": "paperclip-http",
+            "serviceRef": "ai-control-plane"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "paperclip",
+      "functionalCapabilities": [
+        "agent-control-plane"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Paperclip agent control plane (org chart of agents, budgets, approvals, tasks) with its own PostgreSQL in one gVisor-isolated bundle, selected with the Private AI agent-control-plane module. Budgets default to zero and no provider key is configured; the installed Hermes is reachable on the private AI network. Reached only on a private route behind the kit's login and Paperclip's own login.",
+        "id": "ai-control-plane",
         "version": "1.0.0"
       },
       "supportedSiteKinds": [

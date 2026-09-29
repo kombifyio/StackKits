@@ -3226,7 +3226,8 @@ _servicePublicationShape: {
 	// (runsc) instead of runc, for a component that executes code an agent
 	// writes. The host must have registered the runtime; admission refuses a
 	// node whose inventory does not record it. Renderers admit it only for
-	// their governed agent-harness component, never as a generic right.
+	// their governed agent-executing component (the agent harness, the agent
+	// control plane), never as a generic right.
 	sandboxRuntime?: "runsc"
 	// Bind existing local owner identity without fabricating a credential.
 	ownerEnvironment?: [string]: "email"
@@ -3242,6 +3243,8 @@ _servicePublicationShape: {
 	// publishedPorts binds each TCP port on every host address.
 	publishedPorts?: [...{port: int & >=1 & <=65535, protocol: "tcp"}] & list.MinItems(1)
 	// routeHostEnvironment binds the workload's own route host to a variable.
+	// Also admitted, alone and on a private route, for the Paperclip entry
+	// component, whose hostname guard must know the route host.
 	routeHostEnvironment?: [string]: "route-host"
 	// acmeTlsAlpnPort receives TLS-ALPN-01 challenges for the route host
 	// through a router passthrough; all other TLS stays with the router.
@@ -3265,6 +3268,20 @@ _servicePublicationShape: {
 		workloadRef:    #WorkloadID
 		alternativeRef: #ContractID
 		environment: [string & =~"^[A-Z][A-Z0-9_]*$"]: string
+	}] & list.MinItems(1)
+	// companionSecretEnvironment binds a variable of a primary component to a
+	// custody secret slot of a selected add-on workload (the add-on's own
+	// secretRefs slot, such as a server token). The compiler projects the
+	// add-on's opaque reference into workloads.companions only for the
+	// declared slots, the renderer binds the variable only while that add-on
+	// alternative is selected on the node, and the value exists only in the
+	// executor's private secret environment. Renderers admit each only for
+	// their governed component; the add-on entry must also appear in
+	// companionEnvironment.
+	companionSecretEnvironment?: [...{
+		workloadRef:    #WorkloadID
+		alternativeRef: #ContractID
+		secretEnvironment: [string & =~"^[A-Z][A-Z0-9_]*$"]: #ContractID
 	}] & list.MinItems(1)
 	// homeIdentityAccess lets a governed application reach the home identity
 	// provider server-side: the provider host resolves to the node's router
@@ -3472,6 +3489,29 @@ _servicePublicationShape: {
 	storageGB?: number & >0
 } & struct.MinFields(1)
 
+// #ResourceProvenanceV1 says where one declared resource value comes from.
+// measured: observed by a StackKits evidence run; ref names the receipt run ID
+// or evidence path. upstream: published by the upstream project; ref cites the
+// document and version. policy: a Kombify support policy or a declared
+// container limit, not an observation; ref optionally names its source. A
+// policy value is never presented as a measurement.
+#ResourceProvenanceV1: {
+	source: "measured" | "upstream" | "policy"
+	ref?:   string & !="" & strings.MaxRunes(300)
+
+	_refRequired: [if source != "policy" if ref == _|_ {"ref"}] & list.MaxItems(0)
+}
+
+// #ModuleResourceProvenanceV1 carries one provenance entry per declared
+// resource block of a profile. Every declared block needs its entry and every
+// entry needs its block; missing provenance fails closed.
+#ModuleResourceProvenanceV1: {
+	hostFloor?:   #ResourceProvenanceV1
+	reservation?: #ResourceProvenanceV1
+	recommended?: #ResourceProvenanceV1
+	headroom?:    #ResourceProvenanceV1
+} & struct.MinFields(1)
+
 // #ModuleComputeProfileV2 is the module-local compute authority. A profile is
 // selected by its map key (low|standard|high), while the body remains hashable
 // and independently describes realization, capabilities and resources.
@@ -3490,6 +3530,10 @@ _servicePublicationShape: {
 	reservation?:        #ModuleResourceBudgetV2
 	recommended?:        #ModuleResourceBudgetV2
 	headroom?:           #ModuleResourceBudgetV2
+	// Provenance is part of the hashed profile body: profileHash covers every
+	// field except profileHash itself, so relabelling where a number comes
+	// from (for example policy to measured) changes the bound profile.
+	provenance?: #ModuleResourceProvenanceV1
 	architectures?: [...("amd64" | "arm64")] | *[]
 	virtualization?: [...#RuntimeVirtualizationV2] | *[]
 	components?: [...#ContractID] | *[]
@@ -3501,6 +3545,19 @@ _servicePublicationShape: {
 	_componentsUnique:     list.UniqueItems(components) & true
 	_capabilitiesUnique:   list.UniqueItems(capabilities) & true
 	_degradationsUnique:   list.UniqueItems(degradations) & true
+
+	_resourcesWithoutProvenance: [
+		if hostFloor != _|_ if provenance.hostFloor == _|_ {"hostFloor"},
+		if reservation != _|_ if provenance.reservation == _|_ {"reservation"},
+		if recommended != _|_ if provenance.recommended == _|_ {"recommended"},
+		if headroom != _|_ if provenance.headroom == _|_ {"headroom"},
+	] & list.MaxItems(0)
+	_provenanceWithoutResource: [
+		if provenance.hostFloor != _|_ if hostFloor == _|_ {"hostFloor"},
+		if provenance.reservation != _|_ if reservation == _|_ {"reservation"},
+		if provenance.recommended != _|_ if recommended == _|_ {"recommended"},
+		if provenance.headroom != _|_ if headroom == _|_ {"headroom"},
+	] & list.MaxItems(0)
 }
 
 // Storage and accelerator profiles are optional orthogonal axes. They carry
@@ -3511,6 +3568,12 @@ _servicePublicationShape: {
 	maturity:     "experimental" | "beta" | "supported" | "deprecated"
 	realization?: "contract-only" | "generation-ready" | "apply-ready"
 	reservation?: #ModuleResourceBudgetV2
+	// Same provenance rule and hash semantics as #ModuleComputeProfileV2.
+	provenance?: #ModuleResourceProvenanceV1 & {
+		hostFloor?:   _|_
+		recommended?: _|_
+		headroom?:    _|_
+	}
 	// Only accelerator profiles carry a device requirement; see
 	// #ModuleContractV2.acceleratorProfiles.
 	accelerator?: #AcceleratorRequirementV1
@@ -3521,6 +3584,9 @@ _servicePublicationShape: {
 	_componentsUnique:   list.UniqueItems(components) & true
 	_capabilitiesUnique: list.UniqueItems(capabilities) & true
 	_degradationsUnique: list.UniqueItems(degradations) & true
+
+	_resourcesWithoutProvenance: [if reservation != _|_ if provenance.reservation == _|_ {"reservation"}] & list.MaxItems(0)
+	_provenanceWithoutResource: [if provenance.reservation != _|_ if reservation == _|_ {"reservation"}] & list.MaxItems(0)
 }
 
 // #AcceleratorRequirementV1 is the device demand of one accelerator profile.
@@ -4607,6 +4673,12 @@ _servicePublicationShape: {
 #ModulePublicWorkloadCompanionV1: close({
 	workloadRef:    #WorkloadID
 	alternativeRef: #ContractID
+	// custody carries the add-on's opaque secret references for exactly the
+	// slots a component of the bound module names in
+	// companionSecretEnvironment for this alternative, sorted by slot; absent
+	// otherwise. It is a list because public plan values admit no
+	// secret-shaped key, and a slot name such as server-token is one.
+	custody?: [...{slot: #ContractID, ref: #SecretReference}] & list.MinItems(1)
 })
 
 // #ModuleSecretInputBindingV2 is the closed compiler-owned seam from a

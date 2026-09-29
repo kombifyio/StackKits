@@ -1,10 +1,10 @@
 {
   "documentHashes": {
-    "catalog.json": "sha256:4c07f52257c75ef9b82d95b2b742728b008b61b4e10f1266ac79c7e1afded4a7",
-    "compute-tier-fits.json": "sha256:34e29e7d0f138ea6694ef2f030df5f3c122cddc773d3db62eec06b92954b4a77",
-    "definitions/basement-kit.json": "sha256:b1db41df34d7c324b8f5f147581e64bd6037f5b53c06f7c0b77c27f1c70c9edb",
-    "definitions/cloud-kit.json": "sha256:fdc2a13d3f3b660edeee390526d61a2c6e149fb6209083244ee47ed7b926538b",
-    "definitions/modern-homelab.json": "sha256:856a7df8c89313eda3268244e645bac8e04f49cea4e5f6f7e1dfbc490da806ca",
+    "catalog.json": "sha256:59a29ba95640b48513732dc7b86350c89e5ca884cd40c64408ffb0062296fe78",
+    "compute-tier-fits.json": "sha256:6fc861c4ea891e4daab3008258f518699dc6fe09eeeff1302eaa0db559ccb2b2",
+    "definitions/basement-kit.json": "sha256:e5ebdb554bb2defbcf1b70d693e137441c994863d7f9013278315bc2a1eb1cb0",
+    "definitions/cloud-kit.json": "sha256:1c6b4aca9481901650f7a0bde9ab41fe08c8394bb01b83fef0ace8f7d097c32b",
+    "definitions/modern-homelab.json": "sha256:66f24b4c1b349c9024e238cfcb66dd42385f06b8745b60a7f4318cf48a77e0e9",
     "operations.json": "sha256:172704d28c162c5078b95db6811fc9824d2dfed1379261ccc5d8716bd2161001"
   },
   "documents": {
@@ -23,13 +23,13 @@
   "sourceHashes": {
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee",
     "foundation/application_lifecycle.cue": "sha256:7befc7549306375ef5434a852ad31940fe4924698900db1ccff0c766c0e70cdd",
-    "foundation/architecture_v2.cue": "sha256:0d428447ed2c1b3ef9bd0ce9e93dbff1e7c50d593ae2253c1a5db51de151484a",
+    "foundation/architecture_v2.cue": "sha256:f0743690aa9a1eb53c4d9df0289894f703ba2cb55a1b7ce58422f5ae4cbe3433",
     "foundation/architecture_v2_backup.cue": "sha256:750b23662d20956156394cf61ad1466e651372a18aa06075883a2a70199c93e0",
-    "foundation/architecture_v2_catalog.cue": "sha256:b5b6c9d1d7599e83efee17b62fef1dd27bc557abc0726a2317187f185e2d1000",
+    "foundation/architecture_v2_catalog.cue": "sha256:6afed6db1f43e1c6a6641a69dc5bd320aefca2251c28636ab2cb8716af1dca91",
     "foundation/architecture_v2_cloud_core.cue": "sha256:e62ffb36ef1305078274022932bf41bf7e0737b0402254fcdbe8c1f3f1e5500a",
     "foundation/architecture_v2_definition_binding.cue": "sha256:a3bd59ab840c4d2775dfa1ca9703a76b22a836a38ca363d089c1322453cf947b",
     "foundation/architecture_v2_federation.cue": "sha256:7c4c80cdd0aef6f5dc4369b4a95e09e3e01be91b4116bf4dd80dc3006b11ff81",
-    "foundation/architecture_v2_module_profiles.cue": "sha256:7546ca845e681d643ff2761696149a6613624f17f1ed866fd1383377fcf5416d",
+    "foundation/architecture_v2_module_profiles.cue": "sha256:931cc22a3a43a00aea9aafc34e76672a357e34d25b406ad0eb2f243cf1e4515c",
     "foundation/architecture_v2_profiles.cue": "sha256:1b80546a4156f4aeba80f8149f5847fbd2315f2269ed8128fe3cb8b36e7128f3",
     "foundation/architecture_v2_smart_home.cue": "sha256:3b570fb719b18d9d1f14d8123e3494279c3baa491906eb606c0851e1065e3fa8",
     "foundation/architecture_v2_storage.cue": "sha256:339e153f31cf2b98bb1782b23b50012f32cea007b18138276d8ee50fc8fd6559",

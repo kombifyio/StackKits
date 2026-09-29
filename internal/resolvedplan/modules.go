@@ -1017,6 +1017,9 @@ func resolveModuleRuntimeContracts(moduleID string, contract map[string]any, raw
 	if err != nil {
 		return nil, nil, nil, nil, "", err
 	}
+	if err := projectPrivateModuleRuntime(moduleID, rawIntent, resolvedRuntime); err != nil {
+		return nil, nil, nil, nil, "", err
+	}
 	renderTarget, err := resolveModuleGenerationTarget(moduleID, contract, generationTarget)
 	if err != nil {
 		return nil, nil, nil, nil, "", err
@@ -1041,6 +1044,16 @@ func resolveModuleRuntimeContracts(moduleID string, contract map[string]any, raw
 	}
 	return resolvedRuntime, resolvedRenderUnits, resolvedSupport, resolvedVariant, renderTarget, nil
 }
+
+// Private catalog sources can narrow an explicitly declared owner setting
+// before the resolved runtime is fingerprinted. The public export has no
+// private projector or private workload declaration.
+var projectPrivateModuleRuntime = func(string, any, map[string]any) error { return nil }
+
+// The verifier reconstructs the same selected runtime from the bound workload
+// input, so a valid owner pin remains acceptable without weakening catalog
+// body validation for unrelated modules.
+var projectPrivateBoundModuleRuntime = func(ResolvedPlan, string, map[string]any) error { return nil }
 
 // resolveModuleGenerationTarget is the single orchestration alias seam.
 // Terramate is not a fourth provider renderer: modules that own an explicit

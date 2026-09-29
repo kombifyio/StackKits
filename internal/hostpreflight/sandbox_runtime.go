@@ -73,11 +73,11 @@ func CheckSandboxRuntimeRegistered(registered []string, requirements []SandboxRu
 		if slices.Contains(registered, requirement.Runtime) {
 			continue
 		}
-		problems = append(problems, fmt.Sprintf("%s (%s) runs only under the %s runtime, which Docker has not registered", requirement.ModuleRef, requirement.ComponentRef, requirement.Runtime))
+		problems = append(problems, fmt.Sprintf("%s (%s) runs only under the %s runtime, which Docker has not registered for container networking", requirement.ModuleRef, requirement.ComponentRef, requirement.Runtime))
 		if requirement.Runtime == "runsc" {
 			remediation = append(remediation,
-				"Install gVisor and register its runsc runtime with Docker: sudo stackkit host remediate --apply gvisor-runsc --yes (Debian and Ubuntu), or follow https://gvisor.dev/docs/user_guide/install/ and add runsc to the runtimes of /etc/docker/daemon.json, then restart Docker.",
-				"Or turn the agent-harness module off: re-author with --use-case-capability ai.agent-harness=off.")
+				"Install gVisor and register its runsc runtime with Docker: sudo stackkit host remediate --apply gvisor-runsc --yes (Debian and Ubuntu), or follow https://gvisor.dev/docs/user_guide/install/ and add runsc with runtimeArgs [\"--network=host\"] to the runtimes of /etc/docker/daemon.json, then restart Docker.",
+				"Or turn the module off: re-author with --use-case-capability ai.agent-harness=off or ai.agent-control-plane=off.")
 		}
 	}
 	if len(problems) == 0 {

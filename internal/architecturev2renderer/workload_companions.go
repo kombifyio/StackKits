@@ -15,10 +15,30 @@ const (
 )
 
 // workloadCompanion is one selected add-on workload alternative that joined
-// the primary workload's internal network on the same node.
+// the primary workload's internal network on the same node. Custody lists
+// the add-on's opaque references for exactly the slots the primary's catalog
+// component binds through companionSecretEnvironment, sorted by slot; absent
+// otherwise.
 type workloadCompanion struct {
-	WorkloadRef    string `json:"workloadRef"`
-	AlternativeRef string `json:"alternativeRef"`
+	WorkloadRef    string                     `json:"workloadRef"`
+	AlternativeRef string                     `json:"alternativeRef"`
+	Custody        []workloadCompanionCustody `json:"custody,omitempty"`
+}
+
+// workloadCompanionCustody is one add-on secret slot and its opaque reference.
+type workloadCompanionCustody struct {
+	Slot string `json:"slot"`
+	Ref  string `json:"ref"`
+}
+
+// custodyRef returns the companion's opaque reference for a slot.
+func (c workloadCompanion) custodyRef(slot string) (string, bool) {
+	for _, entry := range c.Custody {
+		if entry.Slot == slot {
+			return entry.Ref, true
+		}
+	}
+	return "", false
 }
 
 // selectedPaaSCompanionEnvironment is one catalog-declared wiring of a
@@ -27,6 +47,17 @@ type selectedPaaSCompanionEnvironment struct {
 	WorkloadRef    string            `json:"workloadRef"`
 	AlternativeRef string            `json:"alternativeRef"`
 	Environment    map[string]string `json:"environment"`
+}
+
+// selectedPaaSCompanionSecretEnvironment binds variables of a primary
+// component to custody secret slots of a selected add-on alternative. The
+// renderer turns each binding into an ordinary secretEnvironment entry whose
+// bundle slot (companionSecretSlot) references the add-on's own secret, so
+// the value exists only in the executor's private secret environment.
+type selectedPaaSCompanionSecretEnvironment struct {
+	WorkloadRef       string            `json:"workloadRef"`
+	AlternativeRef    string            `json:"alternativeRef"`
+	SecretEnvironment map[string]string `json:"secretEnvironment"`
 }
 
 // openWebUIComfyUIWorkflow is the FLUX.1 schnell text-to-image graph in
@@ -59,6 +90,8 @@ var governedCompanionEnvironments = map[string]struct {
 		{WorkloadRef: "ai-assistant", AlternativeRef: "hermes", Environment: map[string]string{}},
 		// The agent harness reaches Ollama on this network and needs no variable.
 		{WorkloadRef: "ai-harness", AlternativeRef: "openhands", Environment: map[string]string{}},
+		// The control plane reaches Hermes and Ollama on this network itself and needs no variable.
+		{WorkloadRef: "ai-control-plane", AlternativeRef: "paperclip", Environment: map[string]string{}},
 		// Open WebUI v0.11.3 speech through SpeechKit's OpenAI-compatible audio
 		// routes (backend/open_webui/config.py AUDIO_*). The bearer token is a
 		// custody secret of the ai-speech workload; companion wiring carries
@@ -90,6 +123,8 @@ var governedCompanionEnvironments = map[string]struct {
 		{WorkloadRef: "ai-assistant", AlternativeRef: "hermes", Environment: map[string]string{}},
 		// The agent harness reaches Ollama on this network and needs no variable.
 		{WorkloadRef: "ai-harness", AlternativeRef: "openhands", Environment: map[string]string{}},
+		// The control plane reaches Hermes and Ollama on this network itself and needs no variable.
+		{WorkloadRef: "ai-control-plane", AlternativeRef: "paperclip", Environment: map[string]string{}},
 		// AnythingLLM 1.16.2 speech through SpeechKit's OpenAI-compatible audio
 		// routes: server/utils/SpeechToText/openAiGeneric (STT_*),
 		// TextToSpeech/openAiGeneric (TTS_*) and the collector's
@@ -103,6 +138,39 @@ var governedCompanionEnvironments = map[string]struct {
 	}},
 }
 
+// governedCompanionSecretEnvironments lists the only primary components that
+// may receive a selected add-on's custody secret, and exactly which slot
+// reaches which variable. The catalog declares the binding; the renderer
+// materializes it only while the add-on is selected on the node and its
+// reference travels with the companion, so an unselected add-on leaves no
+// slot, no reference and no variable behind.
+var governedCompanionSecretEnvironments = map[string]struct {
+	component string
+	entries   []selectedPaaSCompanionSecretEnvironment
+}{
+	// Open WebUI v0.11.3 (backend/open_webui/config.py) authenticates its
+	// OpenAI-compatible audio routes with AUDIO_*_OPENAI_API_KEY.
+	privateAIWorkloadModuleID: {component: "open-webui", entries: []selectedPaaSCompanionSecretEnvironment{
+		{WorkloadRef: "ai-speech", AlternativeRef: "speechkit", SecretEnvironment: map[string]string{
+			"AUDIO_STT_OPENAI_API_KEY": "server-token", "AUDIO_TTS_OPENAI_API_KEY": "server-token",
+		}},
+	}},
+	// AnythingLLM 1.16.2 (server/.env.example) generic-openai providers read
+	// *_OPEN_AI_COMPATIBLE_KEY and WHISPER_GENERIC_OPEN_AI_API_KEY.
+	anythingLLMWorkloadModuleID: {component: "anythingllm", entries: []selectedPaaSCompanionSecretEnvironment{
+		{WorkloadRef: "ai-speech", AlternativeRef: "speechkit", SecretEnvironment: map[string]string{
+			"STT_OPEN_AI_COMPATIBLE_KEY": "server-token", "TTS_OPEN_AI_COMPATIBLE_KEY": "server-token", "WHISPER_GENERIC_OPEN_AI_API_KEY": "server-token",
+		}},
+	}},
+}
+
+// companionSecretSlot is the bundle secret slot that carries an add-on's
+// secret in the primary's bundle; it names the add-on so it can never collide
+// with, or be mistaken for, one of the primary's own slots.
+func companionSecretSlot(workloadRef, slot string) string {
+	return workloadRef + "-" + slot
+}
+
 func decodeWorkloadCompanions(raw []byte, path string) ([]workloadCompanion, error) {
 	var companions []workloadCompanion
 	if err := decodeStrict(raw, &companions); err != nil || companions == nil {
@@ -112,6 +180,12 @@ func decodeWorkloadCompanions(raw []byte, path string) ([]workloadCompanion, err
 		if !contractIDPattern.MatchString(companion.WorkloadRef) || !contractIDPattern.MatchString(companion.AlternativeRef) ||
 			(index > 0 && companions[index-1].WorkloadRef >= companion.WorkloadRef) {
 			return nil, fail(ErrInvalidPlan, path, "workload companions must be unique and sorted by workload")
+		}
+		for entryIndex, entry := range companion.Custody {
+			if !contractIDPattern.MatchString(entry.Slot) || !validSecretReference(entry.Ref) ||
+				(entryIndex > 0 && companion.Custody[entryIndex-1].Slot >= entry.Slot) {
+				return nil, fail(ErrInvalidPlan, path, "workload companion %s carries an invalid or unsorted custody reference", companion.WorkloadRef)
+			}
 		}
 	}
 	return companions, nil
@@ -256,6 +330,138 @@ func splitCompanionEnvironment(moduleRef, componentID string, environment map[st
 		}
 	}
 	return base, nil
+}
+
+// materializeCompanionSecretEnvironment checks the catalog declaration of a
+// component against its governed companion secret bindings and, for every
+// selected companion with such a binding, adds its variables to the
+// component's secretEnvironment under a companion slot whose reference in
+// secretRefs is the companion's own opaque secret reference. It fails when
+// the declaration is not the governed one, when a selected companion lacks a
+// governed plain wiring, when the companion does not carry the referenced
+// slot, or when a variable is already bound.
+func materializeCompanionSecretEnvironment(moduleRef string, component *selectedPaaSRuntimeComponent, companions []workloadCompanion, secretRefs map[string]string, path string) error {
+	declared := component.CompanionSecretEnvironment
+	component.CompanionSecretEnvironment = nil
+	if len(declared) == 0 {
+		return nil
+	}
+	rights, governed := governedCompanionSecretEnvironments[moduleRef]
+	plain, plainGoverned := governedCompanionEnvironments[moduleRef]
+	if !governed || !plainGoverned || rights.component != component.ID || !sameCompanionSecretEnvironments(declared, rights.entries) {
+		return fail(ErrInvalidPlan, path+".companionSecretEnvironment", "companion secret wiring is admitted only for its governed component")
+	}
+	for _, companion := range companions {
+		entry, ok := companionSecretEntry(rights.entries, companion)
+		if !ok {
+			continue
+		}
+		if _, wired := companionEntry(plain.entries, companion); !wired {
+			return fail(ErrInvalidPlan, path+".companionSecretEnvironment", "selected companion %s=%s receives a secret without a governed wiring", companion.WorkloadRef, companion.AlternativeRef)
+		}
+		if component.SecretEnvironment == nil {
+			component.SecretEnvironment = map[string]string{}
+		}
+		for _, key := range slices.Sorted(maps.Keys(entry.SecretEnvironment)) {
+			slot := entry.SecretEnvironment[key]
+			ref, carried := companion.custodyRef(slot)
+			if !carried {
+				return fail(ErrInvalidPlan, path+".companionSecretEnvironment", "selected companion %s does not carry secret slot %s", companion.WorkloadRef, slot)
+			}
+			_, plainBound := component.Environment[key]
+			_, secretBound := component.SecretEnvironment[key]
+			if plainBound || secretBound {
+				return fail(ErrInvalidPlan, path+".companionSecretEnvironment", "companion secret wiring overrides %s", key)
+			}
+			bundleSlot := companionSecretSlot(companion.WorkloadRef, slot)
+			if existing, exists := secretRefs[bundleSlot]; exists && existing != ref {
+				return fail(ErrInvalidPlan, path+".companionSecretEnvironment", "companion secret slot %s is already bound", bundleSlot)
+			}
+			secretRefs[bundleSlot] = ref
+			component.SecretEnvironment[key] = bundleSlot
+		}
+	}
+	return nil
+}
+
+// splitCompanionSecretEnvironment separates a rendered secretEnvironment into
+// the component's own slots and the governed companion secret bindings it
+// carries, returning the companion bundle slots in use. It fails unless every
+// companion binding is present completely or not at all, and every variable
+// of a binding names that binding's companion slot.
+func splitCompanionSecretEnvironment(moduleRef, componentID string, secretEnvironment map[string]string) (map[string]string, []string, error) {
+	rights, governed := governedCompanionSecretEnvironments[moduleRef]
+	base := maps.Clone(secretEnvironment)
+	if !governed || rights.component != componentID {
+		return base, nil, nil
+	}
+	var slots []string
+	for _, entry := range rights.entries {
+		present := 0
+		for key, slot := range entry.SecretEnvironment {
+			if base[key] == companionSecretSlot(entry.WorkloadRef, slot) {
+				present++
+			}
+		}
+		if present == 0 {
+			continue
+		}
+		if present != len(entry.SecretEnvironment) {
+			return nil, nil, fail(ErrInvalidPlan, "secretEnvironment", "carries a partial companion secret wiring")
+		}
+		for key, slot := range entry.SecretEnvironment {
+			delete(base, key)
+			bundleSlot := companionSecretSlot(entry.WorkloadRef, slot)
+			if !slices.Contains(slots, bundleSlot) {
+				slots = append(slots, bundleSlot)
+			}
+		}
+	}
+	for _, entry := range rights.entries {
+		for key := range entry.SecretEnvironment {
+			if _, leftover := base[key]; leftover {
+				return nil, nil, fail(ErrInvalidPlan, "secretEnvironment", "carries a conflicting companion secret wiring")
+			}
+		}
+	}
+	slices.Sort(slots)
+	return base, slots, nil
+}
+
+// companionSecretSlotsOf returns the companion bundle slots the governed
+// component of a rendered bundle uses, so an exact secretRefs validator can
+// require them and nothing else.
+func companionSecretSlotsOf(moduleRef string, components []selectedPaaSRuntimeComponent) ([]string, error) {
+	for _, component := range components {
+		_, slots, err := splitCompanionSecretEnvironment(moduleRef, component.ID, component.SecretEnvironment)
+		if err != nil {
+			return nil, err
+		}
+		if len(slots) > 0 {
+			return slots, nil
+		}
+	}
+	return nil, nil
+}
+
+func companionSecretEntry(entries []selectedPaaSCompanionSecretEnvironment, companion workloadCompanion) (selectedPaaSCompanionSecretEnvironment, bool) {
+	for _, entry := range entries {
+		if entry.WorkloadRef == companion.WorkloadRef && entry.AlternativeRef == companion.AlternativeRef {
+			return entry, true
+		}
+	}
+	return selectedPaaSCompanionSecretEnvironment{}, false
+}
+
+func sameCompanionSecretEnvironments(left, right []selectedPaaSCompanionSecretEnvironment) bool {
+	key := func(entry selectedPaaSCompanionSecretEnvironment) string {
+		return entry.WorkloadRef + "/" + entry.AlternativeRef
+	}
+	sortedLeft := slices.SortedFunc(slices.Values(left), func(a, b selectedPaaSCompanionSecretEnvironment) int { return compareStrings(key(a), key(b)) })
+	sortedRight := slices.SortedFunc(slices.Values(right), func(a, b selectedPaaSCompanionSecretEnvironment) int { return compareStrings(key(a), key(b)) })
+	return slices.EqualFunc(sortedLeft, sortedRight, func(a, b selectedPaaSCompanionSecretEnvironment) bool {
+		return key(a) == key(b) && maps.Equal(a.SecretEnvironment, b.SecretEnvironment)
+	})
 }
 
 func companionEntry(entries []selectedPaaSCompanionEnvironment, companion workloadCompanion) (selectedPaaSCompanionEnvironment, bool) {

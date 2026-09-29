@@ -35,6 +35,26 @@
         "storage_gb": { "type": "number", "exclusiveMinimum": 0 }
       }
     },
+    "resourceProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source"],
+      "properties": {
+        "source": { "type": "string", "enum": ["measured", "upstream", "policy"] },
+        "ref": { "type": "string", "minLength": 1, "maxLength": 300 }
+      }
+    },
+    "profileResourceProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "host_floor": { "$ref": "#/$defs/resourceProvenance" },
+        "reservation": { "$ref": "#/$defs/resourceProvenance" },
+        "headroom": { "$ref": "#/$defs/resourceProvenance" },
+        "recommended": { "$ref": "#/$defs/resourceProvenance" }
+      }
+    },
     "profileStorageFilesystemRequirement": {
       "type": "object",
       "additionalProperties": false,
@@ -85,6 +105,7 @@
         "reservation": { "$ref": "#/$defs/resourceVector" },
         "headroom": { "$ref": "#/$defs/resourceVector" },
         "recommended": { "$ref": "#/$defs/resourceVector" },
+        "provenance": { "$ref": "#/$defs/profileResourceProvenance" },
         "architectures": {
           "type": "array",
           "uniqueItems": true,
@@ -149,6 +170,7 @@
         "realization": { "type": "string", "maxLength": 80 },
         "description": { "type": "string", "minLength": 1, "maxLength": 500 },
         "reservation": { "$ref": "#/$defs/resourceVector" },
+        "provenance": { "$ref": "#/$defs/profileResourceProvenance" },
         "accelerator": { "$ref": "#/$defs/acceleratorRequirement" },
         "components": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/contractId" } },
         "capabilities": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/contractId" } },

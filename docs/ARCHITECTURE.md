@@ -1017,6 +1017,30 @@ capacity must still satisfy the aggregate reservations. No profile promises
 transcoding concurrency or photo-import throughput. Immich's 8 GiB whole-host
 recommendation is not encoded as an additive app recommendation.
 
+**Resource evidence.** Every profile resource block carries `provenance`
+(`measured | upstream | policy`, `#ResourceProvenanceV1`). Measured values come
+only from lifecycle receipts: a producer lane samples per-container memory and
+CPU after named phases and writes a `resources` object
+(`schemas/stackkits-resource-sample-v1.schema.json`) into the cell receipt;
+cells that only measure carry `evidenceScope: "resource-measurement"` and never
+grade OS support. Every import validates `resources` and drops a malformed
+object with a warning. `scripts/compat/resource-evidence.mjs` maps each
+container to the planned module profile whose workload owns its Compose project
+(`stackkit-<workloadRef>[-<nodeRef>]`) and whose `components` list its Compose
+service, reports every other container as unmatched in
+`docs/data/resource-evidence/index.json`, and writes per-profile observations
+and a summary to `docs/data/resource-evidence/<moduleId>/<profile>.json`.
+`mise run compat:resource-proposals` refreshes that evidence and proposes
+measured `reservation` and `recommended` budgets in
+`docs/data/resource-evidence/proposals.json` (rule in
+`scripts/compat/bind-resource-evidence.mjs`), printing the CUE lines to apply;
+it never edits CUE. `mise run compat:check` fails when the committed evidence
+or proposals are stale. The bundlegen provenance gate requires a supported
+application profile to back `reservation` and `recommended` with `measured` or
+`upstream` provenance; `hostFloor` stays the Kombify support floor and may be
+`policy`. The gate warns until the measured values are bound, then it fails
+the bundle.
+
 Admission also needs the applicable CPU instruction-set and filesystem
 requirements; numeric floors alone do not establish runtime compatibility.
 For Full Immich on amd64, every observed CPU must provide x86-64-v2. Linux

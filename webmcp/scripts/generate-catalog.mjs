@@ -157,7 +157,7 @@ function profileOrder(left, right) {
 async function projectNativeComputeProfile(id, source, path) {
   rejectUnknownKeys(source, `${path}.${id}`, new Set([
     "profileHash", "profile_sha256", "capacityDeclaration", "capacity_declaration", "maturity", "executable", "realization",
-    "platformManagement", "platform_management", "description", "hostFloor", "reservation", "recommended", "headroom", "architectures", "virtualization", "components", "capabilities", "degradations",
+    "platformManagement", "platform_management", "description", "hostFloor", "reservation", "recommended", "headroom", "provenance", "architectures", "virtualization", "components", "capabilities", "degradations",
   ]));
   const hostFloor = isObject(source.hostFloor) ? source.hostFloor : undefined;
   const projected = {
@@ -178,12 +178,13 @@ async function projectNativeComputeProfile(id, source, path) {
     capabilities: publicIdArray(source.capabilities ?? [], `${path}.${id}.capabilities`),
     degradations: publicIdArray(source.degradations ?? [], `${path}.${id}.degradations`),
   };
+  Object.assign(projected, resourceProvenance(source, projected, `${path}.${id}`));
   return { ...projected, profile_sha256: profileHash(source, projected) };
 }
 
 async function projectNativeAxisProfile(id, source, path) {
   rejectUnknownKeys(source, `${path}.${id}`, new Set([
-    "profileHash", "profile_sha256", "capacityDeclaration", "capacity_declaration", "maturity", "realization", "description", "reservation", "accelerator", "components", "capabilities", "degradations",
+    "profileHash", "profile_sha256", "capacityDeclaration", "capacity_declaration", "maturity", "realization", "description", "reservation", "provenance", "accelerator", "components", "capabilities", "degradations",
   ]));
   const projected = {
     id: publicId(id, `${path}.${id}`),
@@ -197,7 +198,31 @@ async function projectNativeAxisProfile(id, source, path) {
     capabilities: publicIdArray(source.capabilities ?? [], `${path}.${id}.capabilities`),
     ...(source.degradations === undefined ? {} : { degradations: publicIdArray(source.degradations, `${path}.${id}.degradations`) }),
   };
+  Object.assign(projected, resourceProvenance(source, projected, `${path}.${id}`));
   return { ...projected, profile_sha256: profileHash(source, projected) };
+}
+
+// Where each projected resource value comes from (#ResourceProvenanceV1):
+// measured, upstream or policy. Data only; the catalog gate owns the policy.
+function resourceProvenance(source, projected, path) {
+  if (source.provenance === undefined) return {};
+  if (!isObject(source.provenance)) fail(`${path}.provenance must be an object`);
+  const blocks = [["hostFloor", "host_floor"], ["reservation", "reservation"], ["recommended", "recommended"], ["headroom", "headroom"]];
+  rejectUnknownKeys(source.provenance, `${path}.provenance`, new Set(blocks.map(([key]) => key)));
+  const result = {};
+  for (const [input, output] of blocks) {
+    const entry = source.provenance[input];
+    if (entry === undefined || projected[output] === undefined) continue;
+    if (!isObject(entry)) fail(`${path}.provenance.${input} must be an object`);
+    rejectUnknownKeys(entry, `${path}.provenance.${input}`, new Set(["source", "ref"]));
+    if (!["measured", "upstream", "policy"].includes(entry.source)) fail(`${path}.provenance.${input}.source is unsupported`);
+    if (entry.source !== "policy" && entry.ref === undefined) fail(`${path}.provenance.${input} needs a ref`);
+    result[output] = {
+      source: entry.source,
+      ...(entry.ref === undefined ? {} : { ref: publicString(entry.ref, `${path}.provenance.${input}.ref`) }),
+    };
+  }
+  return Object.keys(result).length === 0 ? {} : { provenance: result };
 }
 
 function profileHash(source, projected) {

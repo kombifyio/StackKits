@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>StackKits State Console</title>
+  <title data-i18n="doc.title">StackKits State Console</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -86,6 +86,32 @@
       max-width: 680px;
     }
 
+    .chrome {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .lang {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+    }
+
+    .lang select {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--muted);
+      padding: 0 10px;
+      box-shadow: var(--shadow);
+    }
+
+    #output, #spec_preview, input, .panel code { unicode-bidi: plaintext; }
+
     .mode {
       display: inline-flex;
       align-items: center;
@@ -124,7 +150,7 @@
       background: var(--panel);
       color: var(--muted);
       cursor: pointer;
-      text-align: left;
+      text-align: start;
       padding: 7px 9px;
       box-shadow: var(--shadow);
     }
@@ -143,11 +169,11 @@
     }
 
     .step-button.done strong::after {
-      content: " done";
+      content: " " attr(data-done);
       color: var(--ok);
       font-size: 11px;
       font-weight: 600;
-      margin-left: 5px;
+      margin-inline-start: 5px;
     }
 
     .layout {
@@ -224,7 +250,7 @@
     }
     .application-status-failure strong { display: block; font-size: 13px; }
     .application-status-failure p { margin: 5px 0 0; font-size: 13px; }
-    .application-status-failure ul { margin: 8px 0 0; padding-left: 20px; font-size: 13px; }
+    .application-status-failure ul { margin: 8px 0 0; padding-inline-start: 20px; font-size: 13px; }
 
     .panel h3 {
       margin: 16px 0 8px;
@@ -520,165 +546,224 @@
   <main>
     <header>
       <div>
-        <h1>StackKits State Console</h1>
-        <p class="sub">Local state review, Inventory-bound planning, operation approval, and Owner evidence.</p>
+        <h1 data-i18n="header.title">StackKits State Console</h1>
+        <p class="sub" data-i18n="header.subtitle">Local state review, Inventory-bound planning, operation approval, and Owner evidence.</p>
       </div>
-      <div class="mode" aria-live="polite">
-        <span id="writeDot" class="dot"></span>
-        <span id="writeStatus">Checking connector</span>
+      <div class="chrome">
+        <label class="lang">
+          <select id="locale" aria-label="Language" data-i18n-aria-label="language.label"></select>
+        </label>
+        <div class="mode" aria-live="polite">
+          <span id="writeDot" class="dot"></span>
+          <span id="writeStatus" data-i18n="connector.checking">Checking connector</span>
+        </div>
       </div>
     </header>
 
-    <nav class="steps" aria-label="State review progress">
-      <button class="step-button" type="button" data-step="0"><strong>Workspace</strong><span>Local state</span></button>
-      <button class="step-button" type="button" data-step="1"><strong>StackKit</strong><span>Explicit profile</span></button>
-      <button class="step-button" type="button" data-step="2"><strong>Inventory</strong><span>Resolve</span></button>
-      <button class="step-button" type="button" data-step="3"><strong>Review</strong><span>Plan</span></button>
-      <button class="step-button" type="button" data-step="4"><strong>Rollout</strong><span>Evidence</span></button>
+    <nav class="steps" aria-label="State review progress" data-i18n-aria-label="steps.aria">
+      <button class="step-button" type="button" data-step="0"><strong data-i18n="step.workspace.title">Workspace</strong><span data-i18n="step.workspace.hint">Local state</span></button>
+      <button class="step-button" type="button" data-step="1"><strong data-i18n="step.kit.title">StackKit</strong><span data-i18n="step.kit.hint">Explicit profile</span></button>
+      <button class="step-button" type="button" data-step="2"><strong data-i18n="step.inventory.title">Inventory</strong><span data-i18n="step.inventory.hint">Resolve</span></button>
+      <button class="step-button" type="button" data-step="3"><strong data-i18n="step.review.title">Review</strong><span data-i18n="step.review.hint">Plan</span></button>
+      <button class="step-button" type="button" data-step="4"><strong data-i18n="step.rollout.title">Rollout</strong><span data-i18n="step.rollout.hint">Evidence</span></button>
     </nav>
 
     <div class="layout">
       <section class="panel" id="panel-contact">
-        <h2>Workspace and Stack Identity</h2>
+        <h2 data-i18n="workspace.heading">Workspace and Stack Identity</h2>
         <div class="fields">
           <label class="field">
-            <span>Stack name</span>
+            <span data-i18n="workspace.stackName">Stack name</span>
             <input id="name" name="name" autocomplete="off" placeholder="my-homelab">
           </label>
           <label class="field">
-            <span>Workspace</span>
+            <span data-i18n="workspace.workspace">Workspace</span>
             <input id="base_dir" name="base_dir" autocomplete="off" spellcheck="false">
           </label>
           <label class="field">
-            <span>Spec path</span>
+            <span data-i18n="workspace.specPath">Spec path</span>
             <input id="spec_path" name="spec_path" autocomplete="off" spellcheck="false">
           </label>
         </div>
         <div class="actions">
-          <button type="button" id="loadConfig">Read Spec</button>
-          <button type="button" id="selfCheck">Host Check</button>
-          <button type="button" id="status">Refresh Application Status</button>
+          <button type="button" id="loadConfig" data-i18n="workspace.readSpec">Read Spec</button>
+          <button type="button" id="selfCheck" data-i18n="workspace.hostCheck">Host Check</button>
+          <button type="button" id="status" data-i18n="workspace.refreshStatus">Refresh Application Status</button>
         </div>
         <div id="applicationStatus" aria-live="polite">
-          <h3>Your applications</h3>
-          <p>Refresh status to see the applications selected for this workspace.</p>
+          <h3 data-i18n="apps.heading">Your applications</h3>
+          <p data-i18n="apps.refreshPrompt">Refresh status to see the applications selected for this workspace.</p>
         </div>
       </section>
 
       <section class="panel hidden" id="panel-kit">
-        <h2>Explicit StackKit Configuration</h2>
+        <h2 data-i18n="kit.heading">Explicit StackKit Configuration</h2>
         <div class="fields">
           <label class="field full">
-            <span>StackKit</span>
+            <span data-i18n="kit.label">StackKit</span>
             <select id="stackkit" name="stackkit">
-              <option value="basement-kit">Basement Kit (Home Site)</option>
-              <option value="cloud-kit">Cloud Kit (Cloud Site)</option>
-              <option value="modern-homelab">Modern Homelab (Home + Cloud Sites)</option>
+              <option value="basement-kit" data-i18n="kit.option.basement">Basement Kit (Home Site)</option>
+              <option value="cloud-kit" data-i18n="kit.option.cloud">Cloud Kit (Cloud Site)</option>
+              <option value="modern-homelab" data-i18n="kit.option.modern">Modern Homelab (Home + Cloud Sites)</option>
             </select>
           </label>
-          <p class="field full">This preset editor uses the explicit v2alpha1 compatibility contract. For native module-local profiles, prepare and review your configuration in the <a href="https://stackkit.cc/planner" target="_blank" rel="noopener noreferrer">StackKits Planner</a>, then load its authored StackSpec here. The State Console does not recommend or select a Kit.</p>
+          <p class="field full"><span data-i18n="kit.note.before">This preset editor uses the explicit v2alpha1 compatibility contract. For native module-local profiles, prepare and review your configuration in the </span><a href="https://stackkit.cc/planner" target="_blank" rel="noopener noreferrer" data-i18n="kit.note.link">StackKits Planner</a><span data-i18n="kit.note.after">, then load its authored StackSpec here. The State Console does not recommend or select a Kit.</span></p>
         </div>
       </section>
 
       <section class="panel hidden" id="panel-domain">
-        <h2>Governed Override and Observed Inventory</h2>
+        <h2 data-i18n="domain.heading">Governed Override and Observed Inventory</h2>
         <div class="fields" style="margin-top: 12px;">
           <label class="field">
-            <span>Domain base override</span>
+            <span data-i18n="domain.baseOverride">Domain base override</span>
             <input id="domain_base" name="domain_base" inputmode="url" autocomplete="off" spellcheck="false" placeholder="apps.example.com">
           </label>
           <label class="field">
-            <span>Observed Inventory path</span>
+            <span data-i18n="domain.inventoryPath">Observed Inventory path</span>
             <input id="inventory_path" name="inventory_path" autocomplete="off" spellcheck="false" placeholder="inventory.json">
           </label>
-          <p class="field full">ResolvedPlan is persisted at the canonical <code>deploy/.stackkit/resolved-plan.json</code> path used by every later stage.</p>
-          <p class="field full">Inventory is externally observed. Do not enter provider credentials, lifecycle, SSH transport, or management addresses into StackSpec.</p>
+          <p class="field full"><span data-i18n="domain.note.plan.before">ResolvedPlan is persisted at the canonical </span><code>deploy/.stackkit/resolved-plan.json</code><span data-i18n="domain.note.plan.after"> path used by every later stage.</span></p>
+          <p class="field full" data-i18n="domain.note.inventory">Inventory is externally observed. Do not enter provider credentials, lifecycle, SSH transport, or management addresses into StackSpec.</p>
         </div>
       </section>
 
       <section class="panel hidden" id="panel-review">
-        <h2>Review and Plan</h2>
+        <h2 data-i18n="review.heading">Review and Plan</h2>
         <div class="fields">
           <label class="field">
-            <span>Domain override</span>
+            <span data-i18n="review.domainOverride">Domain override</span>
             <input id="resolved_domain" readonly>
           </label>
           <label class="field">
-            <span>Validation scope</span>
+            <span data-i18n="review.validationScope">Validation scope</span>
             <input id="network_mode" readonly>
           </label>
-          <p class="field full">Initial authoring is no-replace. Replacing existing v2 intent requires its exact CUE-normalized expected spec hash.</p>
+          <p class="field full" data-i18n="review.noReplace">Initial authoring is no-replace. Replacing existing v2 intent requires its exact CUE-normalized expected spec hash.</p>
           <label class="check field full">
             <input id="owner_mutations_approved" name="owner_mutations_approved" type="checkbox">
-            <span>I approve the explicitly named local Init, Resolve, and Generate operations shown in this flow.</span>
+            <span data-i18n="review.approveMutations">I approve the explicitly named local Init, Resolve, and Generate operations shown in this flow.</span>
           </label>
         </div>
-        <h3>Initial configuration request</h3>
-        <textarea id="spec_preview" spellcheck="false" aria-label="Spec preview"></textarea>
+        <h3 data-i18n="review.initialRequest">Initial configuration request</h3>
+        <textarea id="spec_preview" spellcheck="false" dir="ltr" aria-label="Spec preview" data-i18n-aria-label="review.specPreviewAria"></textarea>
         <div class="actions">
-          <button type="button" class="primary" id="createSpec">Create Spec</button>
-          <button type="button" id="validateSpec">Validate</button>
-          <button type="button" id="generatePreview">Preview</button>
-          <button type="button" id="planFlow">Resolve and Plan</button>
+          <button type="button" class="primary" id="createSpec" data-i18n="review.createSpec">Create Spec</button>
+          <button type="button" id="validateSpec" data-i18n="review.validate">Validate</button>
+          <button type="button" id="generatePreview" data-i18n="review.preview">Preview</button>
+          <button type="button" id="planFlow" data-i18n="review.resolveAndPlan">Resolve and Plan</button>
         </div>
       </section>
 
       <section class="panel hidden" id="panel-rollout">
-        <h2>Operation Approval and Evidence</h2>
+        <h2 data-i18n="rollout.heading">Operation Approval and Evidence</h2>
         <ul class="run-list" id="runList" aria-live="polite"></ul>
         <div class="checks">
           <label class="check">
             <input id="apply_reviewed" name="apply_reviewed" type="checkbox">
-            <span>I reviewed the current plan and want the agent to request Apply approval</span>
+            <span data-i18n="rollout.applyReviewed">I reviewed the current plan and want the agent to request Apply approval</span>
           </label>
           <label class="check">
             <input id="verify_http" name="verify_http" type="checkbox" disabled>
-            <span>Runtime HTTP evidence is separate from plan verification</span>
+            <span data-i18n="rollout.verifyHttp">Runtime HTTP evidence is separate from plan verification</span>
           </label>
         </div>
         <div class="actions">
-          <button type="button" class="primary" id="runRollout">Request Apply Approval</button>
-          <button type="button" id="verify">Verify Plan</button>
-          <button type="button" id="logs">Logs</button>
+          <button type="button" class="primary" id="runRollout" data-i18n="rollout.requestApply">Request Apply Approval</button>
+          <button type="button" id="verify" data-i18n="rollout.verifyPlan">Verify Plan</button>
+          <button type="button" id="logs" data-i18n="rollout.logs">Logs</button>
         </div>
       </section>
 
       <aside class="side">
-        <h2>Current Selection</h2>
+        <h2 data-i18n="side.currentSelection">Current Selection</h2>
         <div class="summary">
-          <div class="summary-row"><span>Workspace</span><span data-summary="workspace"></span></div>
-          <div class="summary-row"><span>StackKit</span><span data-summary="stackkit"></span></div>
-          <div class="summary-row"><span>Domain override</span><span data-summary="domain"></span></div>
-          <div class="summary-row"><span>Inventory</span><span data-summary="inventory"></span></div>
+          <div class="summary-row"><span data-i18n="side.workspace">Workspace</span><span data-summary="workspace"></span></div>
+          <div class="summary-row"><span data-i18n="side.stackkit">StackKit</span><span data-summary="stackkit"></span></div>
+          <div class="summary-row"><span data-i18n="side.domainOverride">Domain override</span><span data-summary="domain"></span></div>
+          <div class="summary-row"><span data-i18n="side.inventory">Inventory</span><span data-summary="inventory"></span></div>
         </div>
-        <h2>Tool Output</h2>
-        <pre id="output">Ready.</pre>
+        <h2 data-i18n="side.toolOutput">Tool Output</h2>
+        <pre id="output" dir="ltr">Ready.</pre>
         <div class="actions">
-          <button type="button" id="back">Back</button>
-          <button type="button" class="primary" id="next">Next</button>
+          <button type="button" id="back" data-i18n="side.back">Back</button>
+          <button type="button" class="primary" id="next" data-i18n="side.next">Next</button>
         </div>
       </aside>
     </div>
   </main>
 
+  <script type="application/json" id="i18n-data">{{STATE_CONSOLE_I18N}}</script>
   <script>
     const panels = ["contact", "kit", "domain", "review", "rollout"];
     const runSteps = [
-      ["stackkit_init", "Init"],
-      ["stackkit_validate", "Validate"],
-      ["stackkit_resolve", "Resolve"],
-      ["stackkit_generate", "Generate"],
-      ["stackkit_plan", "Plan"],
-      ["apply_approval", "Apply approval"],
-      ["stackkit_verify", "Verify"]
+      ["stackkit_init", "run.init"],
+      ["stackkit_validate", "run.validate"],
+      ["stackkit_resolve", "run.resolve"],
+      ["stackkit_generate", "run.generate"],
+      ["stackkit_plan", "run.plan"],
+      ["apply_approval", "run.apply_approval"],
+      ["stackkit_verify", "run.verify"]
     ];
+
+    // Message catalogs are injected by the Go server from
+    // assets/state-console-i18n/*.json. English is the fallback.
+    let catalogs = {};
+    try { catalogs = JSON.parse(document.getElementById("i18n-data").textContent) || {}; } catch { catalogs = {}; }
+    const locales = [["en", "English"], ["de", "Deutsch"], ["es", "Español"], ["zh-Hans", "简体中文"], ["hi", "हिन्दी"], ["ar", "العربية"]];
+    const rtlLocales = ["ar"];
+    const localeStorageKey = "stackkits.stateConsole.locale";
+    let locale = "en";
+
+    function matchLocale(tag) {
+      const lower = String(tag || "").toLowerCase();
+      if (!lower) return null;
+      if (lower === "zh" || lower.startsWith("zh-")) return "zh-Hans";
+      const base = lower.split(/[-_]/)[0];
+      return locales.find(([code]) => code.toLowerCase() === base)?.[0] || null;
+    }
+
+    function storedLocale() {
+      try { return matchLocale(window.localStorage.getItem(localeStorageKey)); } catch { return null; }
+    }
+
+    function browserLocale() {
+      const tags = [window.openai?.locale, ...(navigator.languages || []), navigator.language];
+      for (const tag of tags) {
+        const match = matchLocale(tag);
+        if (match) return match;
+      }
+      return null;
+    }
+
+    // Explicit choice (persisted) -> browser -> English.
+    function resolveLocale(explicit) {
+      return matchLocale(explicit) || storedLocale() || browserLocale() || "en";
+    }
+
+    function t(key, params) {
+      let text = catalogs[locale]?.[key] ?? catalogs.en?.[key] ?? key;
+      if (params) {
+        text = text.replace(/\{(\w+)\}/g, (whole, name) => (name in params ? String(params[name]) : whole));
+      }
+      return text;
+    }
+
+    function formatDate(date) {
+      try { return date.toLocaleString(locale); } catch { return date.toLocaleString(); }
+    }
+
+    function formatList(items) {
+      try { return new Intl.ListFormat(locale, { type: "conjunction", style: "long" }).format(items); } catch { return items.join(", "); }
+    }
 
     const defaults = {
       step: 0,
       completed: {},
       runState: {},
       specReady: false,
-      lastOutput: "Ready.",
+      locale: "",
+      lastOutput: "",
+      lastOutputKey: "",
       form: {
         name: "my-homelab",
         base_dir: ".",
@@ -694,6 +779,7 @@
 
     let state = mergeState(defaults, window.openai?.widgetState || {});
     let busy = false;
+    let writeStatusKey = "connector.checking";
     // This is a transient projection of CLI evidence, never a persisted
     // readiness decision. A different workspace must fetch its own status.
     let applicationSnapshot = null;
@@ -724,6 +810,33 @@
 
     function clean(value) {
       return String(value || "").trim();
+    }
+
+    function applyLocale() {
+      locale = resolveLocale(state.locale);
+      const root = document.documentElement;
+      root.lang = locale;
+      root.dir = rtlLocales.includes(locale) ? "rtl" : "ltr";
+      document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
+      document.querySelectorAll("[data-i18n-aria-label]").forEach((el) => { el.setAttribute("aria-label", t(el.dataset.i18nAriaLabel)); });
+      document.querySelectorAll(".step-button strong").forEach((el) => { el.dataset.done = t("steps.done"); });
+      writeStatus.textContent = t(writeStatusKey);
+      const picker = document.getElementById("locale");
+      if (!picker.options.length) {
+        for (const [code, name] of locales) {
+          const option = document.createElement("option");
+          option.value = code;
+          option.textContent = name;
+          option.lang = code;
+          picker.append(option);
+        }
+      }
+      picker.value = locale;
+    }
+
+    function setWriteStatus(key) {
+      writeStatusKey = key;
+      writeStatus.textContent = t(key);
     }
 
     function setBusy(nextBusy) {
@@ -801,7 +914,7 @@
       }
       setOutput({
         blocked: true,
-        error: "Explicit local Owner approval is required before requesting Init, Resolve, or Generate."
+        error: t("output.approvalRequired")
       });
       return false;
     }
@@ -830,16 +943,17 @@
       }, null, 2);
     }
 
-    function setOutput(value) {
+    function setOutput(value, messageKey) {
       const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
       state.lastOutput = text;
+      state.lastOutputKey = messageKey || "";
       output.textContent = text;
       persist();
     }
 
     async function callTool(name, args = {}) {
       if (!window.openai || typeof window.openai.callTool !== "function") {
-        setOutput("This host does not expose Apps SDK tool calls in the widget context.");
+        setOutput(t("output.noToolCalls"), "output.noToolCalls");
         return null;
       }
       setBusy(true);
@@ -847,7 +961,7 @@
       if (name === "stackkit_status") {
         applicationSnapshot = null;
         applicationStatusFailure = null;
-        renderApplicationStatus("Checking the selected workspace…");
+        renderApplicationStatus("apps.checking");
       }
       const requestScopeVersion = applicationScopeVersion;
       try {
@@ -857,7 +971,7 @@
         const status = data?.structured_output || data;
         const failure = name === "stackkit_status" ? statusFailure(data, status) : null;
         markRun(name, success && !failure ? "ok" : "error");
-        setOutput(result ?? { tool: name, error: "The connector returned no result." });
+        setOutput(result ?? { tool: name, error: t("output.noResult") });
         if (name === "stackkit_status") {
           if (requestScopeVersion === applicationScopeVersion) {
             applicationStatusFailure = failure;
@@ -867,8 +981,8 @@
             applicationSnapshot = { scope: JSON.stringify(args), data: status };
           }
           renderApplicationStatus(success && data && !data.structured_output && data.apiVersion !== "stackkit.status/v2"
-            ? "This server connector provides legacy status. Connect the current local StackKits CLI to view application evidence; server diagnostics remain available below."
-            : "Application status is unavailable. See the diagnostic output and refresh the selected workspace.");
+            ? "apps.legacyStatus"
+            : "apps.unavailable");
         }
         return result;
       } catch (error) {
@@ -876,7 +990,7 @@
         setOutput({ tool: name, error: error?.message || String(error) });
         if (name === "stackkit_status" && requestScopeVersion === applicationScopeVersion) {
           applicationStatusFailure = { message: clean(error?.message || String(error)), guidance: [] };
-          renderApplicationStatus("The status request failed. Check the connector and retry.");
+          renderApplicationStatus("apps.requestFailed");
         }
         return null;
       } finally {
@@ -935,7 +1049,7 @@
           migration_required: true,
           source_version: data.source_version,
           migration_report: data.migration_report,
-          message: "StackSpec v1 is migration input only and was not loaded into the v2 editor."
+          message: t("output.migrationMessage")
         });
         return;
       }
@@ -954,7 +1068,7 @@
 
     async function runPlanFlow() {
       if (!state.specReady) {
-        setOutput({ blocked: true, error: "Create or load a canonical StackSpec v2 before resolving and planning." });
+        setOutput({ blocked: true, error: t("output.needSpecPlan") });
         return;
       }
       if (!requireMutationApproval()) {
@@ -974,7 +1088,7 @@
           setOutput({
             halted: true,
             failed_tool: tool,
-            message: "Plan flow stopped after the first failed MCP step.",
+            message: t("output.planHalted"),
             result: result || null
           });
           return;
@@ -984,11 +1098,11 @@
 
     async function runRollout() {
       if (!state.specReady) {
-        setOutput({ blocked: true, error: "Create or load a canonical StackSpec v2 before running the governed flow." });
+        setOutput({ blocked: true, error: t("output.needSpecRollout") });
         return;
       }
       if (!state.form.apply_reviewed) {
-        setOutput({ blocked: true, error: "Review the current plan before requesting Apply approval." });
+        setOutput({ blocked: true, error: t("output.reviewPlanFirst") });
         return;
       }
       if (!requireMutationApproval()) {
@@ -1018,7 +1132,7 @@
           operation_confirmation: "stackkit.apply",
           owner_approved: true
         },
-        message: "The State Console never invokes Apply directly. Ask the connected agent to present the registered StackKits Apply operation for operation-specific confirmation and Owner approval."
+        message: t("output.applyNever")
       });
     }
 
@@ -1036,17 +1150,18 @@
     function renderRunList() {
       const list = document.getElementById("runList");
       list.innerHTML = "";
-      for (const [tool, label] of runSteps) {
+      for (const [tool, labelKey] of runSteps) {
         const stateClass = state.runState[tool] ? `state-${state.runState[tool]}` : "";
         const li = document.createElement("li");
         li.className = stateClass;
         const mark = document.createElement("span");
         mark.className = "status-mark";
         const text = document.createElement("span");
-        text.textContent = label;
+        text.textContent = t(labelKey);
         const tag = document.createElement("span");
         tag.className = `tag ${state.runState[tool] || ""}`;
-        tag.textContent = state.runState[tool] || "pending";
+        const runStatus = state.runState[tool] || "pending";
+        tag.textContent = t("run.state." + runStatus);
         li.append(mark, text, tag);
         list.appendChild(li);
       }
@@ -1079,21 +1194,21 @@
           operation_confirmation: "",
           owner_approved: false
         },
-        message: "The State Console does not invoke setup directly. Prepare the private credential file, then ask the connected agent to present this registered setup operation for confirmation."
+        message: t("output.setupNever")
       });
     }
 
-    function renderApplicationStatus(emptyMessage) {
+    function renderApplicationStatus(emptyKey) {
       const container = document.getElementById("applicationStatus");
       container.replaceChildren();
       const heading = document.createElement("h3");
-      heading.textContent = "Your applications";
+      heading.textContent = t("apps.heading");
       container.append(heading);
       if (applicationStatusFailure) {
         const failure = document.createElement("section");
         failure.className = "application-status-failure";
         const title = document.createElement("strong");
-        title.textContent = "Status refresh needs attention";
+        title.textContent = t("apps.failureTitle");
         failure.append(title);
         if (applicationStatusFailure.message) {
           const message = document.createElement("p");
@@ -1114,23 +1229,23 @@
       const status = applicationSnapshot?.scope === JSON.stringify(baseArgs()) ? applicationSnapshot.data : null;
       if (!status) {
         const message = document.createElement("p");
-        message.textContent = emptyMessage || "Refresh status to see the applications selected for this workspace.";
+        message.textContent = t(emptyKey || "apps.refreshPrompt");
         container.append(message);
         return;
       }
       if (!status.applications.length) {
         const message = document.createElement("p");
-        message.textContent = "This plan has no selected application workloads.";
+        message.textContent = t("apps.none");
         container.append(message);
         return;
       }
-      const labels = { verified: "Verified", unverified: "Not verified", required: "Action required", blocked: "Blocked", absent: "Not installed", "not-required": "Not required" };
-      const axes = [["installed", "Installation"], ["reachable", "Client access"], ["setup", "Initial setup"], ["usable", "Ready to use"], ["recoverable", "Recovery"]];
+      const statusKeys = ["verified", "unverified", "required", "blocked", "absent", "not-required"];
+      const axes = ["installed", "reachable", "setup", "usable", "recoverable"];
       for (const application of status.applications) {
         const card = document.createElement("article");
         card.className = "application-card";
         const title = document.createElement("h4");
-        title.textContent = clean(application.workloadRef) || "Application";
+        title.textContent = clean(application.workloadRef) || t("apps.fallbackName");
         card.append(title);
         try {
           const url = new URL(application.url);
@@ -1140,20 +1255,20 @@
             link.target = "_blank";
             link.rel = "noopener noreferrer";
             link.textContent = url.host + (url.pathname === "/" ? "" : url.pathname);
-            link.setAttribute("aria-label", "Open " + title.textContent);
+            link.setAttribute("aria-label", t("apps.open", { name: title.textContent }));
             card.append(link);
           }
         } catch { /* Missing or unsafe URLs are not actionable links. */ }
         const list = document.createElement("dl");
-        for (const [key, label] of axes) {
+        for (const key of axes) {
           const axis = application[key] || {};
           const term = document.createElement("dt");
-          term.textContent = label;
+          term.textContent = t("apps.axis." + key);
           const detail = document.createElement("dd");
           const badge = document.createElement("strong");
           badge.className = "application-axis";
-          badge.dataset.state = Object.hasOwn(labels, axis.status) ? axis.status : "unverified";
-          badge.textContent = labels[badge.dataset.state];
+          badge.dataset.state = statusKeys.includes(axis.status) ? axis.status : "unverified";
+          badge.textContent = t("apps.status." + badge.dataset.state);
           detail.append(badge);
           if (axis.reason) {
             const reason = document.createElement("span");
@@ -1163,8 +1278,8 @@
           if (axis.freshness === "historical" || axis.freshness === "live") {
             const age = document.createElement("small");
             const observed = new Date(axis.observedAt);
-            age.textContent = (axis.freshness === "historical" ? "Earlier evidence" : "Current observation") +
-              (Number.isFinite(observed.getTime()) ? " · " + observed.toLocaleString() : "");
+            age.textContent = t("apps.freshness." + axis.freshness) +
+              (Number.isFinite(observed.getTime()) ? " · " + formatDate(observed) : "");
             detail.append(age);
           }
           list.append(term, detail);
@@ -1175,11 +1290,14 @@
           const setup = document.createElement("div");
           setup.className = "application-setup";
           const setupTitle = document.createElement("strong");
-          setupTitle.textContent = clean(setupAction.title) || "Owner setup";
+          setupTitle.textContent = clean(setupAction.title) || t("apps.setup.defaultTitle");
           setup.append(setupTitle);
           const setupHelp = document.createElement("p");
           const credentialFields = Array.isArray(setupAction.credentialFields) ? setupAction.credentialFields.map(clean).filter(Boolean) : [];
-          setupHelp.append(document.createTextNode("Prepare " + clean(setupAction.credentialsFile) + (credentialFields.length ? " with " + credentialFields.join(", ") : " using the setup guide") + ". Keep the file private; this console never receives its contents. "));
+          const credentialsFile = clean(setupAction.credentialsFile);
+          setupHelp.append(document.createTextNode(credentialFields.length
+            ? t("apps.setup.prepareWith", { file: credentialsFile, fields: formatList(credentialFields) })
+            : t("apps.setup.prepareGuide", { file: credentialsFile })));
           try {
             const guideURL = new URL(setupAction.guideUrl);
             if (["https:", "http:"].includes(guideURL.protocol) && !guideURL.username && !guideURL.password) {
@@ -1187,7 +1305,7 @@
               guide.href = guideURL.href;
               guide.target = "_blank";
               guide.rel = "noopener noreferrer";
-              guide.textContent = "Open the setup guide";
+              guide.textContent = t("apps.setup.openGuide");
               setupHelp.append(guide);
             }
           } catch { /* Missing or unsafe guide URLs are not actionable. */ }
@@ -1197,7 +1315,7 @@
           const setupButton = document.createElement("button");
           setupButton.type = "button";
           setupButton.className = "primary";
-          setupButton.textContent = "Request owner setup";
+          setupButton.textContent = t("apps.setup.request");
           setupButton.addEventListener("click", () => requestSetupApproval(application));
           setupActions.append(setupButton);
           setup.append(setupActions);
@@ -1205,13 +1323,13 @@
         } else if (["required", "blocked", "unverified"].includes(application.setup?.status)) {
           const manual = document.createElement("p");
           manual.className = "application-setup-help";
-          manual.textContent = "Setup remains manual for this application; follow its product onboarding guide.";
+          manual.textContent = t("apps.setup.manual");
           card.append(manual);
         }
         if (Array.isArray(application.nextActions) && application.nextActions.length) {
           const next = document.createElement("details");
           const summary = document.createElement("summary");
-          summary.textContent = "Next steps";
+          summary.textContent = t("apps.nextSteps");
           next.append(summary);
           const actions = document.createElement("ul");
           for (const action of application.nextActions) {
@@ -1227,6 +1345,7 @@
     }
 
     function render() {
+      applyLocale();
       renderApplicationStatus();
       panels.forEach((panel, index) => {
         document.getElementById(`panel-${panel}`).classList.toggle("hidden", index !== state.step);
@@ -1257,15 +1376,15 @@
 
       document.querySelector('[data-summary="workspace"]').textContent = `${state.form.base_dir}/${state.form.spec_path}`;
       document.querySelector('[data-summary="stackkit"]').textContent = state.form.stackkit;
-      document.querySelector('[data-summary="domain"]').textContent = selectedDomain() || "Definition default";
-      document.querySelector('[data-summary="inventory"]').textContent = clean(state.form.inventory_path) || "required";
+      document.querySelector('[data-summary="domain"]').textContent = selectedDomain() || t("side.domainDefault");
+      document.querySelector('[data-summary="inventory"]').textContent = clean(state.form.inventory_path) || t("side.inventoryRequired");
 
-      output.textContent = state.lastOutput;
+      output.textContent = state.lastOutputKey ? t(state.lastOutputKey) : (state.lastOutput && state.lastOutput !== "Ready." ? state.lastOutput : t("output.ready"));
       renderRunList();
       setBusy(busy);
     }
 
-    document.querySelectorAll("input, select, textarea").forEach((el) => {
+    document.querySelectorAll("input, select:not(#locale), textarea").forEach((el) => {
       el.addEventListener("input", () => {
         if (el.id === "spec_preview") {
           return;
@@ -1291,6 +1410,14 @@
       button.addEventListener("click", () => setStep(Number(button.dataset.step)));
     });
 
+    document.getElementById("locale").addEventListener("change", (event) => {
+      const chosen = matchLocale(event.target.value);
+      state.locale = chosen || "";
+      try { if (chosen) window.localStorage.setItem(localeStorageKey, chosen); } catch { /* Storage is optional in sandboxed hosts. */ }
+      persist();
+      render();
+    });
+
     document.getElementById("back").addEventListener("click", () => setStep(state.step - 1));
     document.getElementById("next").addEventListener("click", () => setStep(state.step + 1));
     document.getElementById("loadConfig").addEventListener("click", async () => hydrateFromConfig(await callTool("stackkit_config_get", baseArgs())));
@@ -1312,12 +1439,12 @@
       state.writeEnabled = !!meta?.cli_actions_enabled && !!meta?.config_write_enabled;
       writeDot.classList.toggle("ok", state.writeEnabled);
       writeDot.classList.toggle("error", !window.openai?.callTool);
-      writeStatus.textContent = state.writeEnabled ? "Write tools enabled" : "Read-only connector";
+      setWriteStatus(state.writeEnabled ? "connector.writeEnabled" : "connector.readOnly");
       persist();
       render();
     }).catch(() => {
       state.writeEnabled = false;
-      writeStatus.textContent = "Read-only connector";
+      setWriteStatus("connector.readOnly");
       render();
     });
 

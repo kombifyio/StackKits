@@ -2,6 +2,7 @@ package resolvedplan
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 )
 
@@ -10,9 +11,12 @@ import (
 // moduleID (a runtime component declares peerNetworks naming that workload)
 // and share at least one node with it. It is the closed view a primary
 // application needs to wire its selected add-ons; nothing else about the
-// other workloads is projected.
+// other workloads is projected, except the add-on's opaque secret references
+// for exactly the slots a component of moduleID names in
+// companionSecretEnvironment for that alternative.
 func workloadCompanionsForModule(workloads, modules []any, moduleID string) ([]any, error) {
 	own := map[string][]string{}
+	secretSlots := map[string][]string{}
 	for index, raw := range workloads {
 		path := fmt.Sprintf("workloads[%d]", index)
 		workload, err := asObject(raw, path)
@@ -63,6 +67,26 @@ func workloadCompanionsForModule(workloads, modules []any, moduleID string) ([]a
 			component, ok := rawComponent.(map[string]any)
 			if !ok {
 				continue
+			}
+			if id == moduleID {
+				entries, _ := component["companionSecretEnvironment"].([]any)
+				for _, rawEntry := range entries {
+					entry, ok := rawEntry.(map[string]any)
+					if !ok {
+						return nil, fmt.Errorf("%s companion secret environment entry is not an object", path)
+					}
+					key, _ := entry["workloadRef"].(string)
+					key += "/"
+					alternativeRef, _ := entry["alternativeRef"].(string)
+					key += alternativeRef
+					bindings, _ := entry["secretEnvironment"].(map[string]any)
+					for _, rawSlot := range bindings {
+						slot, _ := rawSlot.(string)
+						if slot != "" && !slices.Contains(secretSlots[key], slot) {
+							secretSlots[key] = append(secretSlots[key], slot)
+						}
+					}
+				}
 			}
 			peers, _ := component["peerNetworks"].([]any)
 			for _, rawPeer := range peers {
@@ -117,7 +141,21 @@ func workloadCompanionsForModule(workloads, modules []any, moduleID string) ([]a
 		if err != nil {
 			return nil, err
 		}
-		companions = append(companions, map[string]any{"workloadRef": id, "alternativeRef": alternativeID})
+		companion := map[string]any{"workloadRef": id, "alternativeRef": alternativeID}
+		if slots := secretSlots[id+"/"+alternativeID]; len(slots) > 0 {
+			declared, _ := workload["secretRefs"].(map[string]any)
+			sort.Strings(slots)
+			custody := make([]any, 0, len(slots))
+			for _, slot := range slots {
+				ref, _ := declared[slot].(string)
+				if ref == "" {
+					return nil, fmt.Errorf("%s does not declare secret slot %q that module %q binds as a companion secret", path, slot, moduleID)
+				}
+				custody = append(custody, map[string]any{"slot": slot, "ref": ref})
+			}
+			companion["custody"] = custody
+		}
+		companions = append(companions, companion)
 	}
 	sort.Slice(companions, func(i, j int) bool {
 		return companions[i]["workloadRef"].(string) < companions[j]["workloadRef"].(string)

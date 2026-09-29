@@ -30,16 +30,29 @@ for the shared platform, security, and PaaS details.
 
 ## Requirements
 
-| | Minimum | Recommended |
-|--|---------|-------------|
-| CPU | 4 cores | 4+ cores |
-| RAM | 8 GB | 8+ GB |
-| Disk | 80 GB | 80+ GB |
-| OS | Ubuntu 22.04+ | Ubuntu 24.04 LTS |
-| Network | Public IP + domain | Public IP + own/custom domain |
+| | Kit floor | Recommended | Managed VPS size (Techstack) |
+|--|-----------|-------------|------------------------------|
+| CPU | 2 cores | 4 cores | 4 cores |
+| RAM | 4 GB | 4 GB | 8 GB |
+| Disk | 20 GB | 20 GB | 80 GB |
+| OS | Ubuntu 22.04+ | Ubuntu 24.04 LTS | Ubuntu 24.04 LTS |
+| Network | Public IP + domain | Public IP + own/custom domain | Public IP + own/custom domain |
 
-Kombify-operated and Techstack-managed Cloud Kit VPS must meet this floor.
+The kit floor and recommendation come from `stackfile.cue`
+(`hostRequirements`); Cloud Kit has no smaller `low` profile. The managed VPS
+size is a Techstack sizing policy, not the kit floor: Kombify-operated and
+Techstack-managed Cloud Kit VPS use at least 4 cores, 8 GB RAM and 80 GB disk.
 See Techstack `docs/ARCHITECTURE.md` (Managed Cloud Kit VPS size).
+
+### Hardware
+
+The kit floor above comes from the CUE contract; each selected application adds
+its own module-local profile (`standard` or `high`, some modules also `low`)
+with a host floor and a memory reservation. Host floors combine by maximum and
+reservations add up; the total is computed at admission against the attested
+host inventory (see the
+[profile table](../docs/ARCHITECTURE.md#catalog-owned-module-placement-and-hardware-eligibility)).
+These values are declared policy and upstream minima, not measurements.
 
 ## Quick Start
 

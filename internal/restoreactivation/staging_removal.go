@@ -21,7 +21,8 @@ var stagedRestoreLeafPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 // StagedRestoreRemover removes one operation's staged restore tree from the
 // governed staging volume. It is implemented by the Docker runtime and is
 // used by the Advanced restore drill, which must leave no staged data behind
-// and must never mount or modify a live application volume.
+// and must never mount or modify a live application volume, and after a
+// committed restore activation, whose staged data is then the live state.
 type StagedRestoreRemover interface {
 	RemoveStagedRestore(ctx context.Context, graph RuntimeRecoveryGraph, stagingPath string) error
 }

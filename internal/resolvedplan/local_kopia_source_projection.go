@@ -234,12 +234,22 @@ func localKopiaRuntimeComponents(module map[string]any, path string) ([]localbac
 	if err != nil {
 		return nil, fmt.Errorf("%s.runtime.components is required for a selected backup graph: %w", path, err)
 	}
-	components := make([]localbackuppolicy.ApplicationRuntimeComponent, len(rawComponents))
+	components := make([]localbackuppolicy.ApplicationRuntimeComponent, 0, len(rawComponents))
 	for index, raw := range rawComponents {
 		componentPath := fmt.Sprintf("%s.runtime.components[%d]", path, index)
 		component, err := asObject(raw, componentPath)
 		if err != nil {
 			return nil, err
+		}
+		// An optional component renders only while its owner setting is
+		// true (the kombify AI connector); the backup graph must name exactly
+		// the rendered components, or every backup refuses the workload.
+		setting, gated, err := optionalStringField(component, componentPath, "enabledBySetting")
+		if err != nil {
+			return nil, err
+		}
+		if gated && !localKopiaModuleSettingOn(module, setting) {
+			continue
 		}
 		id, err := stringField(component, componentPath, "id")
 		if err != nil {
@@ -273,13 +283,28 @@ func localKopiaRuntimeComponents(module map[string]any, path string) ([]localbac
 		if err != nil {
 			return nil, err
 		}
-		components[index] = localbackuppolicy.ApplicationRuntimeComponent{
+		components = append(components, localbackuppolicy.ApplicationRuntimeComponent{
 			ComponentRef: id, Role: role, Lifecycle: lifecycle, HealthFailure: healthFailure,
 			ImageRef: imageRef, ImageDigest: imageDigest,
 			DependsOn: append([]string(nil), dependsOn...),
-		}
+		})
 	}
 	return components, nil
+}
+
+// localKopiaModuleSettingOn reports whether a render unit of the module sets
+// the owner setting to true, the value the workload renderer gates on; an
+// absent setting is off.
+func localKopiaModuleSettingOn(module map[string]any, setting string) bool {
+	units, _ := module["renderUnits"].([]any)
+	for _, raw := range units {
+		unit, _ := raw.(map[string]any)
+		values, _ := unit["values"].(map[string]any)
+		if enabled, _ := values[setting].(bool); enabled {
+			return true
+		}
+	}
+	return false
 }
 
 type localKopiaBackupAllocation struct {

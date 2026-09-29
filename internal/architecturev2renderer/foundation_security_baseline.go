@@ -198,6 +198,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(openHandsWorkload.contract, openHandsWorkload); err != nil {
 		return nil, err
 	}
+	paperclipWorkload := newPaperclipWorkloadBundleRenderer()
+	if err := registry.Register(paperclipWorkload.contract, paperclipWorkload); err != nil {
+		return nil, err
+	}
 	hermesWorkload := newHermesWorkloadBundleRenderer()
 	if err := registry.Register(hermesWorkload.contract, hermesWorkload); err != nil {
 		return nil, err

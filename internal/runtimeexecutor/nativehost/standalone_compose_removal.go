@@ -23,7 +23,6 @@ import (
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/localorigin"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/kombifyio/stackkits/pkg/workloadremoval"
 )
 
@@ -350,56 +349,18 @@ func appliedStandaloneArtifactDigest(request workloadremoval.Request) string {
 }
 
 func standaloneComposeDeploymentFromRemovalRequest(request workloadremoval.Request) (SelectedPaaSWorkloadDeployment, error) {
-	target := request.Applied.RuntimeTargets[0]
-	if target.RuntimeAdapter == nil || target.RuntimeAdapter.ID != standaloneComposeAdapterRef ||
-		target.RuntimeAdapter.ModuleRef != standaloneComposeModuleRef {
-		return SelectedPaaSWorkloadDeployment{}, errors.New("applied workload is not bound to the standalone Compose adapter")
+	deployment, err := standaloneComposeDeploymentFromApplied(request.Applied.RuntimeTargets[0], request.Applied.Artifacts)
+	if err != nil {
+		return SelectedPaaSWorkloadDeployment{}, err
 	}
-	if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 {
-		return SelectedPaaSWorkloadDeployment{}, errors.New("standalone Compose removal requires one exact Site and node")
-	}
-	if len(target.ArtifactRefs) != 1 {
-		return SelectedPaaSWorkloadDeployment{}, errors.New("standalone Compose removal requires exactly one applied workload artifact")
-	}
-	var artifactContent []byte
-	var artifactID, artifactDigest string
-	var adapterArtifacts []runtimeexecutor.Artifact
-	for _, artifact := range request.Applied.Artifacts {
-		if artifact.ID == target.ArtifactRefs[0] {
-			artifactContent = append([]byte(nil), artifact.Content...)
-			artifactID, artifactDigest = artifact.ID, artifact.Digest
-			continue
-		}
-		adapterArtifacts = append(adapterArtifacts, artifact)
-		if slicesContainsString(target.RuntimeAdapter.ArtifactRefs, artifact.ID) {
+	for _, artifact := range deployment.AdapterArtifacts {
+		if slicesContainsString(deployment.RuntimeAdapter.ArtifactRefs, artifact.ID) {
 			if err := requireStandaloneComposeRemovalAdmission(artifact.Content); err != nil {
 				return SelectedPaaSWorkloadDeployment{}, err
 			}
 		}
 	}
-	if len(artifactContent) == 0 || artifactDigest == "" {
-		return SelectedPaaSWorkloadDeployment{}, errors.New("applied standalone Compose workload artifact is absent")
-	}
-	sum := sha256.Sum256(artifactContent)
-	if artifactDigest != "sha256:"+hex.EncodeToString(sum[:]) {
-		return SelectedPaaSWorkloadDeployment{}, errors.New("applied standalone Compose workload artifact digest does not match its content")
-	}
-	bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(artifactContent)
-	if err != nil {
-		return SelectedPaaSWorkloadDeployment{}, fmt.Errorf("validate applied standalone workload bundle: %w", err)
-	}
-	if bundle.WorkloadRef != target.WorkloadRef || bundle.ModuleRef != target.ModuleRef ||
-		bundle.InstanceRef != target.InstanceRef || bundle.SiteRef != target.SiteRefs[0] ||
-		bundle.NodeRef != target.NodeRefs[0] {
-		return SelectedPaaSWorkloadDeployment{}, errors.New("applied standalone workload bundle differs from the sealed target")
-	}
-	return SelectedPaaSWorkloadDeployment{
-		WorkloadRef: bundle.WorkloadRef, ModuleRef: bundle.ModuleRef, UnitRef: target.UnitRef,
-		Release: bundle.Release, SiteRef: bundle.SiteRef, NodeRef: bundle.NodeRef,
-		InstanceRef: bundle.InstanceRef, ExecutionChannelRef: target.ExecutionChannelRef,
-		ArtifactRef: artifactID, ArtifactDigest: artifactDigest, Bundle: artifactContent,
-		Route: bundle.Route, RuntimeAdapter: *target.RuntimeAdapter, AdapterArtifacts: adapterArtifacts,
-	}, nil
+	return deployment, nil
 }
 
 func requireStandaloneComposeRemovalAdmission(raw []byte) error {

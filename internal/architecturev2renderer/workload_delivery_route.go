@@ -346,7 +346,7 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		if err := validateSandboxRuntime(bundle.Workload.ModuleRef, component, componentPath); err != nil {
 			return ApplicationDeliveryBundleDescriptor{}, err
 		}
-		if len(component.CompanionEnvironment) != 0 {
+		if len(component.CompanionEnvironment) != 0 || len(component.CompanionSecretEnvironment) != 0 {
 			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".companionEnvironment", "rendered bundles carry only materialized companion wiring")
 		}
 		if err := validateHomeIdentityRights(bundle.Workload.ModuleRef, component, componentPath); err != nil {
@@ -356,7 +356,7 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".pocketIDClient", "a Pocket ID client needs the declared HTTPS route for its callback")
 		}
 		homeIdentityAccess, pocketIDClient := homeIdentityDescriptors(component)
-		mailNode, err := parseMailNodeComponentFields(component, bundle.Workload.ModuleRef, bundle.DeliveryRoute, componentPath)
+		hostBindings, err := parseComponentHostBindings(component, bundle.Workload.ModuleRef, bundle.DeliveryRoute, componentPath)
 		if err != nil {
 			return ApplicationDeliveryBundleDescriptor{}, err
 		}
@@ -387,9 +387,9 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 			Resources:                    resourcesDescriptor(component.Resources),
 			RouteHostLoopback:            component.RouteHostLoopback,
 			DockerLifecycleOwner:         component.DockerLifecycleOwner != nil,
-			PublishedTCPPorts:            mailNode.PublishedTCPPorts,
-			RouteHostEnvironment:         mailNode.RouteHostEnvironment,
-			ACMETLSALPNPort:              mailNode.ACMETLSALPNPort,
+			PublishedTCPPorts:            hostBindings.PublishedTCPPorts,
+			RouteHostEnvironment:         hostBindings.RouteHostEnvironment,
+			ACMETLSALPNPort:              hostBindings.ACMETLSALPNPort,
 			LANListeners:                 lanListeners,
 			Devices:                      devices,
 			Accelerator:                  accelerator,

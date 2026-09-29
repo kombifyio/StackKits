@@ -284,7 +284,7 @@ func hermesComponent() selectedPaaSRuntimeComponent {
 			"HERMES_DASHBOARD_BASIC_AUTH_PASSWORD": "dashboard-password",
 			"HERMES_DASHBOARD_BASIC_AUTH_SECRET":   "dashboard-session-secret",
 		},
-		RestoreActivationEnvironment: map[string]string{"STACKKIT_HERMES_RESTORE_ACTIVATION": "restore-activation"},
+		RestoreActivationEnvironment: maps.Clone(hermesRestoreActivationEnvironment),
 		Volumes: []selectedPaaSRuntimeVolume{
 			{ID: "data", Target: "/opt/data", Class: "persistent", Backup: true},
 			{ID: "policy", Target: hermesPolicyDir, Class: "cache"},
@@ -293,6 +293,24 @@ func hermesComponent() selectedPaaSRuntimeComponent {
 		Resources:    &selectedPaaSRuntimeLimits{MemoryLimit: "3g", MemoryReservation: "512m"},
 		PeerNetworks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}},
 	}
+}
+
+// hermesRestoreActivationEnvironment keeps a restored Hermes from resuming
+// its gateway schedules until the owner has checked the restored state.
+var hermesRestoreActivationEnvironment = map[string]string{"STACKKIT_HERMES_RESTORE_ACTIVATION": "restore-activation"}
+
+func init() {
+	governedCustodyNodeRights[hermesWorkloadModuleID] = parseHermesNodeFields
+}
+
+// parseHermesNodeFields admits the restore-activation variable only for the
+// governed Hermes component; Hermes receives no custody file.
+func parseHermesNodeFields(component selectedPaaSRuntimeComponent, _ map[string]string, path string) ([]ApplicationDeliverySecretFile, []string, error) {
+	if component.ID != hermesWorkloadUnitID || len(component.SecretFiles) != 0 ||
+		!reflect.DeepEqual(component.RestoreActivationEnvironment, hermesRestoreActivationEnvironment) {
+		return nil, nil, fail(ErrInvalidPlan, path, "a restore activation variable is admitted only for the governed Hermes component")
+	}
+	return nil, slices.Sorted(maps.Keys(hermesRestoreActivationEnvironment)), nil
 }
 
 // validateHermesRuntimeComponents admits exactly the governed component:

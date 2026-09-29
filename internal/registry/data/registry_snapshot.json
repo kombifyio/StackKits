@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-09-28T07:12:02Z",
+  "generated_at": "2026-09-29T11:13:46Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -1232,6 +1232,19 @@
       ]
     },
     {
+      "slug": "paperclip",
+      "display_name": "Paperclip",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Paperclip agent control plane (org chart of agents, budgets, approvals, tasks) with its own PostgreSQL in one gVisor-isolated bundle; no host Docker socket, no egress, no provider key, private route behind the kit login and Paperclip's own login.",
+      "contract_hash": "579092b0eb9e25ccfc0cc0caf6c6f8743475afe31a3984e98690d25aa0435ceb",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
       "slug": "paperless-ngx",
       "display_name": "Paperless-ngx",
       "version": "0.1.0",
@@ -1681,7 +1694,7 @@
           "slug": "default",
           "kind": "default",
           "is_default": true,
-          "kit_definition_hash": "5cc58fb1441119b5a0b38e1d2a0c9ca98da8850b36d9c756b6896847c9ba5f95"
+          "kit_definition_hash": "63330c62e2a34e9fc4dd412afc9fa062430522762aedafc1bbb9ade8e02c0ab3"
         }
       ]
     },

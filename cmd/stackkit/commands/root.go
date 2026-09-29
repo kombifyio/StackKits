@@ -5,8 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -384,6 +387,7 @@ func rolloutEvent(phase, status, message string, attrs map[string]string) {
 		Attributes: attrs,
 	}
 	emitRolloutProgress(event)
+	mirrorRolloutEventToDeployLog(event)
 	recordRolloutSpanEvent(phase, status, message, attrs, nil)
 	if rolloutRecorder == nil {
 		return
@@ -409,6 +413,7 @@ func rolloutFailure(phase string, err error) {
 		}
 	}
 	emitRolloutProgress(event)
+	mirrorRolloutEventToDeployLog(event)
 	if rolloutRecorder == nil {
 		return
 	}
@@ -419,6 +424,32 @@ func rolloutFailure(phase string, err error) {
 		"failure_class": event.FailureClass,
 	}, err)
 	rolloutRecorder.Event(event)
+}
+
+// mirrorRolloutEventToDeployLog writes a rollout event into the run's
+// structured deploy log, which `stackkit logs` reads. Architecture v2 Apply
+// reports only through rollout events, so without the mirror its log run
+// stayed empty even for a failed Apply. The logger redacts message and values.
+func mirrorRolloutEventToDeployLog(event rollout.Event) {
+	if deployLog == nil {
+		return
+	}
+	attrs := []slog.Attr{slog.String("phase", event.Phase), slog.String("status", event.Status)}
+	if event.Message != "" {
+		attrs = append(attrs, slog.String("message", event.Message))
+	}
+	if event.FailureClass != "" {
+		attrs = append(attrs, slog.String("failure_class", event.FailureClass))
+	}
+	for _, key := range slices.Sorted(maps.Keys(event.Attributes)) {
+		attrs = append(attrs, slog.String(key, event.Attributes[key]))
+	}
+	msg := "rollout." + event.Phase
+	if event.Status == "failed" {
+		deployLog.Error(msg, attrs...)
+		return
+	}
+	deployLog.Event(msg, attrs...)
 }
 
 func emitRolloutProgress(event rollout.Event) {

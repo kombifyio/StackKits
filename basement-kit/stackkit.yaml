@@ -29,7 +29,9 @@ supportedOS:
   - ubuntu-22
   - debian-12
 
-# Resource requirements
+# Resource requirements: minimum is the low compute graph in stackfile.cue
+# (standalone core, Photos Lite); the standard kit floor is 2 CPU / 4 GB /
+# 20 GB. Recommended matches the stackfile recommendation.
 requirements:
   minimum:
     cpu: 2

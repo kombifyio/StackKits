@@ -58,14 +58,14 @@ func nativeBackupApplicationDeployments(authority nativeV2BackupAuthority) (map[
 			return nil, err
 		}
 		if bundle.SiteRef != graph.SiteRef || bundle.NodeRef != graph.NodeRef || len(bundle.Components) != len(graph.Components) {
-			return nil, errors.New("backup graph differs from its signed workload placement or component set")
+			return nil, fmt.Errorf("backup graph of workload %s differs from its signed workload placement or component set", graph.WorkloadRef)
 		}
 		for _, component := range graph.Components {
 			index := slices.IndexFunc(bundle.Components, func(candidate architecturev2renderer.ApplicationDeliveryComponentDescriptor) bool {
 				return candidate.ID == component.ComponentRef
 			})
 			if index < 0 {
-				return nil, errors.New("backup graph component is absent from the signed workload")
+				return nil, fmt.Errorf("backup graph component %s is absent from the signed workload %s", component.ComponentRef, graph.WorkloadRef)
 			}
 			selected := bundle.Components[index]
 			dependencies := slices.Clone(selected.DependsOn)

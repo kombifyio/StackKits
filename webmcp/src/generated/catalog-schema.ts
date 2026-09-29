@@ -77,6 +77,47 @@ export const WEBMCP_CATALOG_SCHEMA = {
         }
       }
     },
+    "resourceProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "measured",
+            "upstream",
+            "policy"
+          ]
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      }
+    },
+    "profileResourceProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "host_floor": {
+          "$ref": "#/$defs/resourceProvenance"
+        },
+        "reservation": {
+          "$ref": "#/$defs/resourceProvenance"
+        },
+        "headroom": {
+          "$ref": "#/$defs/resourceProvenance"
+        },
+        "recommended": {
+          "$ref": "#/$defs/resourceProvenance"
+        }
+      }
+    },
     "profileStorageFilesystemRequirement": {
       "type": "object",
       "additionalProperties": false,
@@ -190,6 +231,9 @@ export const WEBMCP_CATALOG_SCHEMA = {
         },
         "recommended": {
           "$ref": "#/$defs/resourceVector"
+        },
+        "provenance": {
+          "$ref": "#/$defs/profileResourceProvenance"
         },
         "architectures": {
           "type": "array",
@@ -339,6 +383,9 @@ export const WEBMCP_CATALOG_SCHEMA = {
         },
         "reservation": {
           "$ref": "#/$defs/resourceVector"
+        },
+        "provenance": {
+          "$ref": "#/$defs/profileResourceProvenance"
         },
         "accelerator": {
           "$ref": "#/$defs/acceleratorRequirement"

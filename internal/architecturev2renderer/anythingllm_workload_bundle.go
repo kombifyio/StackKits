@@ -26,7 +26,7 @@ const (
 	anythingLLMPort                = 3001
 )
 
-const anythingLLMWorkloadRendererSchema = `stackkit.workload-bundle/v2|AnythingLLMWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:anythingllm,ollama|entrypoint:governed-env-link-v1|release:` + anythingLLMRelease + `|secret-material:not-included|companions:ai-search,ai-image-video,ai-harness,ai-speech|init:true`
+const anythingLLMWorkloadRendererSchema = `stackkit.workload-bundle/v2|AnythingLLMWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:anythingllm,ollama|entrypoint:governed-env-link-v1|release:` + anythingLLMRelease + `|secret-material:not-included|companions:ai-search,ai-image-video,ai-harness,ai-control-plane,ai-speech|init:true`
 
 // AnythingLLMWorkloadBundleDescriptor is the closed, credential-free runtime
 // artifact accepted by the selected-PaaS executor.
@@ -85,7 +85,7 @@ func anythingLLMExpectedComponents() []selectedPaaSRuntimeComponent {
 		Environment: map[string]string{"OLLAMA_KEEP_ALIVE": "5m"},
 		Volumes:     []selectedPaaSRuntimeVolume{{ID: "models", Target: "/root/.ollama", Class: "persistent", Backup: false}},
 		Health:      selectedPaaSRuntimeHealth{Kind: "command", Command: []string{"ollama", "list"}},
-		Resources:   &selectedPaaSRuntimeLimits{MemoryLimit: "6g", MemoryReservation: "1g"},
+		Resources:   &selectedPaaSRuntimeLimits{MemoryLimit: "10g", MemoryReservation: "1g"},
 	}}
 }
 
@@ -126,8 +126,9 @@ func ParseAnythingLLMWorkloadBundle(data []byte) (AnythingLLMWorkloadBundleDescr
 		bundle.Ownership.ProviderLifecycle != "not-owned" || bundle.Ownership.Credentials != "opaque-references-only" {
 		return AnythingLLMWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed AnythingLLM "+anythingLLMRelease+" contract")
 	}
-	if !validPrivateAISecretRefs(bundle.SecretRefs, false) {
-		return AnythingLLMWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "requires opaque owner-password and session-key references")
+	companionSlots, err := companionSecretSlotsOf(anythingLLMWorkloadModuleID, bundle.Components)
+	if err != nil || !validPrivateAISecretRefs(bundle.SecretRefs, false, companionSlots) {
+		return AnythingLLMWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "requires opaque owner-password and session-key references and a companion secret reference exactly while its add-on is wired")
 	}
 	if len(bundle.ConfigFiles) != 0 {
 		return AnythingLLMWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".configFiles", "AnythingLLM accepts no startup configuration overrides")
@@ -205,7 +206,7 @@ func validateAnythingLLMWorkloadUnit(unit RenderUnit, contract RendererContract)
 	}
 	secretRefs := map[string]string{}
 	if err := decodeStrict(unit.SecretRefsJSON(), &secretRefs); err != nil ||
-		!validPrivateAISecretRefs(secretRefs, false) {
+		!validPrivateAISecretRefs(secretRefs, false, nil) {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".secretRefs", "requires opaque owner-password and session-key references and no secret material")
 	}
 	if !emptyJSONArray(unit.ProvidedInterfacesJSON()) || !emptyJSONArray(unit.RequiredInterfacesJSON()) ||
@@ -231,6 +232,9 @@ func validateAnythingLLMWorkloadUnit(unit RenderUnit, contract RendererContract)
 	// selected on this node; ComfyUI coexists without wiring.
 	for index := range components {
 		if err := materializeCompanionEnvironment(anythingLLMWorkloadModuleID, &components[index], companions, path+".runtime.components"); err != nil {
+			return selectedPaaSWorkloadBundle{}, err
+		}
+		if err := materializeCompanionSecretEnvironment(anythingLLMWorkloadModuleID, &components[index], companions, secretRefs, path+".runtime.components"); err != nil {
 			return selectedPaaSWorkloadBundle{}, err
 		}
 	}
@@ -281,7 +285,7 @@ func validateAnythingLLMRuntimeComponents(components []selectedPaaSRuntimeCompon
 		if actual.ID != want.ID {
 			return fail(ErrInvalidPlan, path, "AI runtime component order differs from the closed AnythingLLM contract")
 		}
-		if len(actual.CompanionEnvironment) != 0 {
+		if len(actual.CompanionEnvironment) != 0 || len(actual.CompanionSecretEnvironment) != 0 {
 			return fail(ErrInvalidPlan, path, "rendered components carry only materialized companion wiring")
 		}
 		switch actual.ID {
@@ -296,7 +300,12 @@ func validateAnythingLLMRuntimeComponents(components []selectedPaaSRuntimeCompon
 			if !sameEnvironment(environment, want.Environment) {
 				return fail(ErrInvalidPlan, path, "AnythingLLM must retain its private Ollama, LanceDB and telemetry configuration")
 			}
+			secretEnvironment, _, err := splitCompanionSecretEnvironment(anythingLLMWorkloadModuleID, actual.ID, actual.SecretEnvironment)
+			if err != nil || !sameEnvironment(secretEnvironment, want.SecretEnvironment) {
+				return fail(ErrInvalidPlan, path, "AnythingLLM companion secret wiring differs from the governed speech add-on")
+			}
 			actual.Environment = maps.Clone(want.Environment)
+			actual.SecretEnvironment = maps.Clone(want.SecretEnvironment)
 		case "ollama":
 			if !validPrivateAIOllamaImage(actual) {
 				return fail(ErrInvalidPlan, path, "Ollama runtime must not implicitly download models")
