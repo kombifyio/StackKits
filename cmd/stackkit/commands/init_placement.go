@@ -8,10 +8,10 @@ import (
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
-func defaultArchitectureV2InitDomain(kit, domain string) (string, bool) {
+func defaultArchitectureV2InitDomain(kit, domain string) (string, bool, error) {
 	domain = strings.TrimSpace(domain)
 	if kit != "cloud-kit" {
-		return domain, false
+		return domain, false, nil
 	}
 	return netenv.SelectPublicCloudDomain(domain)
 }

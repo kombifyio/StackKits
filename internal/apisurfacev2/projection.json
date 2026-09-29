@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "stackkits.apisurface-projection/v1",
+  "source": "kombify-go-common/apisurface",
+  "sourceVersion": "v0.7.6",
+  "sourceCommit": "dc58fc9e06da5a7afc91736778bc7f0b758a0edb",
+  "sourceSum": "h1:KyiYybayx/uDKFY+eSjiv+x+C/K4l+fKJ37F4FtRjW0=",
+  "sourceFiles": [
+    "README.md",
+    "catalog.go",
+    "doc.go",
+    "generate.go",
+    "generate_test.go",
+    "names.go",
+    "publicopenapi.go",
+    "schema.go",
+    "spec.go",
+    "surface.go",
+    "toolmanifest.go",
+    "validate.go"
+  ],
+  "projectedFiles": [
+    "catalog.go",
+    "doc.go",
+    "generate.go",
+    "names.go",
+    "publicopenapi.go",
+    "schema.go",
+    "spec.go",
+    "surface.go",
+    "toolmanifest.go",
+    "validate.go"
+  ]
+}

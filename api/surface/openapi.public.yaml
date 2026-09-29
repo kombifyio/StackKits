@@ -16,23 +16,10 @@ servers:
     description: Local development
   - url: https://api.kombify.io/stackkits
     description: Production (via Cloudflare Edge)
-# Agent-native surface (API-FIRST-STANDARD §9). `mise run api:surface`
-# generates api/surface/ from this contract; never edit those files by hand.
-x-kombify-surface:
-  product: stackkits
-  capability: stackkit.status
-  envelope: data
-  cli:
-    command: stackkit
-  mcp:
-    transport: streamable-http
-    endpoint: /mcp
-    protocolVersion: "2026-07-28"
 paths:
   /api/v1/identity/step-up:
     post:
       operationId: requestLocalOwnerStepUp
-      x-kombify-cli: {command: "identity step-up request"}
       summary: Prepare an exact-action local PocketID Owner approval
       description: |
         Requires configured HTTPS Owner step-up origin and API key. Returns a
@@ -95,8 +82,6 @@ paths:
   /api/v1/identity/step-up/review:
     get:
       operationId: reviewLocalOwnerStepUp
-      x-kombify-cli: {command: "identity step-up review"}
-      x-kombify-mcp: false
       summary: Show exact action and target to the human Owner
       security: []
       parameters:
@@ -112,8 +97,6 @@ paths:
           description: Invalid or expired flow.
     post:
       operationId: confirmLocalOwnerStepUp
-      x-kombify-cli: {command: "identity step-up confirm"}
-      x-kombify-mcp: false
       summary: Confirm the review and redirect to local PocketID
       description: Requires the exact reviewing browser cookie, same origin and CSRF form value.
       security: []
@@ -125,8 +108,6 @@ paths:
   /api/v1/identity/step-up/callback:
     get:
       operationId: completeLocalOwnerStepUp
-      x-kombify-cli: {command: "identity step-up complete"}
-      x-kombify-mcp: false
       summary: Exchange an exact browser-bound authorization code
       description: |
         Requires the pending one-time state, browser cookie and exact PocketID
@@ -141,8 +122,6 @@ paths:
   /api/v1/identity/workload-peers:
     post:
       operationId: applyOwnerWorkloadPeerOperation
-      x-kombify-cli: {command: "identity workload-peers apply"}
-      x-kombify-confirmation: "This operation admits or revokes a workload peer certificate for later requests to the Home origin."
       summary: Admit or revoke an exact owner-approved workload peer
       description: |
         Home-loopback management only. Requires both the API credential and a
@@ -216,7 +195,6 @@ paths:
   /health:
     get:
       operationId: healthRoot
-      x-kombify-mcp: false
       summary: Root health check
       tags: [Health]
       responses:
@@ -225,7 +203,6 @@ paths:
   /api/v1/health:
     get:
       operationId: health
-      x-kombify-mcp: false
       summary: Service health check
       tags: [Health]
       responses:
@@ -246,7 +223,6 @@ paths:
   /api/v1/openapi.yaml:
     get:
       operationId: getOpenAPISpec
-      x-kombify-mcp: false
       summary: Get OpenAPI 3.1 specification
       tags: [Discovery]
       responses:
@@ -598,10 +574,6 @@ paths:
   /api/v1/status:
     get:
       operationId: getManagementStatus
-      x-kombify-mcp:
-        toolName: stackkit_status
-        requiredCapability: stackkit.status
-        annotations: {readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false}
       summary: Read node-local StackKit rollout status
       description: >-
         Read-only status. Native v0.7 validates the local StackSpec v2 and reports spec-only/resolve-required state without claiming operational readiness. Exact v0.6 retains legacy rollout status fields.
@@ -713,10 +685,6 @@ paths:
   /api/v1/logs:
     get:
       operationId: listLogs
-      x-kombify-mcp:
-        toolName: stackkit_logs_list
-        requiredCapability: stackkit.logs
-        annotations: {readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false}
       summary: List all deploy log runs
       description: Returns a paginated list of deploy log runs sorted by timestamp.
       tags: [Logs]
@@ -775,10 +743,6 @@ paths:
   /api/v1/logs/{runID}:
     get:
       operationId: getLog
-      x-kombify-mcp:
-        toolName: stackkit_log_get
-        requiredCapability: stackkit.logs.read
-        annotations: {readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false}
       summary: Get deploy log by run ID
       description: |
         Returns events from a specific deploy log run.
@@ -806,7 +770,6 @@ paths:
   /api/v1/logs/{runID}/stream:
     get:
       operationId: streamLog
-      x-kombify-mcp: false
       summary: Stream live deploy log events (SSE)
       description: |
         Server-Sent Events stream for real-time deploy progress.
@@ -832,7 +795,6 @@ paths:
                 description: Server-Sent Events stream
         "400":
           $ref: "#/components/responses/BadRequest"
-  # ── Node-local setup actions ────────────────────────────────────
   /api/v1/setup/base-hub/protection:
     get:
       operationId: getBaseHubProtection
@@ -921,8 +883,6 @@ paths:
   /api/v1/setup/initial-access/reveal:
     post:
       operationId: revealInitialAccess
-      x-kombify-confirmation: "This operation reveals the technical bootstrap credentials once; they cannot be revealed again."
-      x-kombify-mcp: false
       summary: Reveal technical bootstrap credentials once
       description: |
         Reveals generated TinyAuth/PaaS/service bootstrap credentials one time
@@ -1005,11 +965,9 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "501":
           $ref: "#/components/responses/OperationalUnavailable"
-  # ── Registry (Direct Connect) ───────────────────────────────────
   /api/v1/registry/instances:
     post:
       operationId: registerInstance
-      x-kombify-mcp: false
       summary: Register a stackkit-server instance for Direct Connect
       description: |
         Exact-v0.6 in-memory compatibility registry only. It does not publish
@@ -1041,8 +999,6 @@ paths:
   /api/v1/registry/instances/{instanceId}:
     delete:
       operationId: deregisterInstance
-      x-kombify-confirmation: "This operation removes the instance from the compatibility registry."
-      x-kombify-mcp: false
       summary: Remove an instance from the registry
       description: Exact-v0.6 in-memory compatibility operation. Native v0.7 returns 501.
       tags: [Registry]
@@ -1058,7 +1014,6 @@ paths:
   /api/v1/registry/instances/{instanceId}/heartbeat:
     put:
       operationId: heartbeat
-      x-kombify-mcp: false
       summary: Send a heartbeat for a registered instance
       description: |
         Exact-v0.6 in-memory compatibility heartbeat only. It has no external
@@ -1077,7 +1032,6 @@ paths:
               properties:
                 instance_id:
                   type: string
-                  x-kombify-name: body_instance_id
                 status:
                   type: string
                   enum: [running, degraded, stopped]
@@ -1088,359 +1042,6 @@ paths:
           $ref: "#/components/responses/NotFound"
         "501":
           $ref: "#/components/responses/OperationalUnavailable"
-  # BEGIN GENERATED: stackaction paths
-  /api/v1/internal/stack-actions/stackkit-rollout:
-    post:
-      operationId: stackActionStackKitRollout
-      summary: "Run or dry-run StackKits rollout for TechStack"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
-      x-kombify-internal: true
-      tags: [StackAction]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: "#/components/schemas/StackActionRequest"
-                - type: object
-                  properties:
-                    action:
-                      const: "stackkit_rollout"
-      responses:
-        "200":
-          description: StackAction accepted
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/SuccessEnvelope"
-                  - properties:
-                      data:
-                        $ref: "#/components/schemas/StackActionResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
-  /api/v1/internal/stack-actions/stackkit-verify:
-    post:
-      operationId: stackActionStackKitVerify
-      summary: "Verify StackKits rollout state for TechStack"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
-      x-kombify-internal: true
-      tags: [StackAction]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: "#/components/schemas/StackActionRequest"
-                - type: object
-                  properties:
-                    action:
-                      const: "verify_rollout"
-      responses:
-        "200":
-          description: StackAction accepted
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/SuccessEnvelope"
-                  - properties:
-                      data:
-                        $ref: "#/components/schemas/StackActionResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
-  /api/v1/internal/stack-actions/restore-drill:
-    post:
-      operationId: stackActionRestoreDrill
-      summary: "Run or dry-run StackKits restore drill for TechStack"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
-      x-kombify-internal: true
-      tags: [StackAction]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: "#/components/schemas/StackActionRequest"
-                - type: object
-                  properties:
-                    action:
-                      const: "restore_drill"
-      responses:
-        "200":
-          description: StackAction accepted
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/SuccessEnvelope"
-                  - properties:
-                      data:
-                        $ref: "#/components/schemas/StackActionResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
-  /api/v1/internal/stack-actions/backup-run:
-    post:
-      operationId: stackActionBackupRun
-      summary: "Start a StackKits backup run"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
-      x-kombify-internal: true
-      tags: [StackAction]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: "#/components/schemas/StackActionRequest"
-                - type: object
-                  properties:
-                    action:
-                      const: "backup_run"
-      responses:
-        "200":
-          description: StackAction accepted
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/SuccessEnvelope"
-                  - properties:
-                      data:
-                        $ref: "#/components/schemas/StackActionResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
-  /api/v1/internal/stack-actions/backup-status:
-    post:
-      operationId: stackActionBackupStatus
-      summary: "Inspect StackKits backup status"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
-      x-kombify-internal: true
-      tags: [StackAction]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: "#/components/schemas/StackActionRequest"
-                - type: object
-                  properties:
-                    action:
-                      const: "backup_status"
-      responses:
-        "200":
-          description: StackAction accepted
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/SuccessEnvelope"
-                  - properties:
-                      data:
-                        $ref: "#/components/schemas/StackActionResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
-  /api/v1/internal/stack-actions/backup-restore:
-    post:
-      operationId: stackActionBackupRestore
-      summary: "Restore a StackKits backup snapshot"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
-      x-kombify-internal: true
-      tags: [StackAction]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: "#/components/schemas/StackActionRequest"
-                - type: object
-                  properties:
-                    action:
-                      const: "backup_restore"
-      responses:
-        "200":
-          description: StackAction accepted
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/SuccessEnvelope"
-                  - properties:
-                      data:
-                        $ref: "#/components/schemas/StackActionResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
-  /api/v1/internal/stack-actions/backup-wipe:
-    post:
-      operationId: stackActionBackupWipe
-      summary: "Wipe the configured StackKits backup repository"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
-      x-kombify-internal: true
-      tags: [StackAction]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: "#/components/schemas/StackActionRequest"
-                - type: object
-                  properties:
-                    action:
-                      const: "backup_wipe"
-      responses:
-        "200":
-          description: StackAction accepted
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/SuccessEnvelope"
-                  - properties:
-                      data:
-                        $ref: "#/components/schemas/StackActionResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
-  /api/v1/internal/stack-actions/service-start:
-    post:
-      operationId: stackActionServiceStart
-      summary: "Start one StackKits-managed service"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
-      x-kombify-internal: true
-      tags: [StackAction]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: "#/components/schemas/StackActionRequest"
-                - type: object
-                  properties:
-                    action:
-                      const: "service_start"
-      responses:
-        "200":
-          description: StackAction accepted
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/SuccessEnvelope"
-                  - properties:
-                      data:
-                        $ref: "#/components/schemas/StackActionResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
-  /api/v1/internal/stack-actions/service-stop:
-    post:
-      operationId: stackActionServiceStop
-      summary: "Stop one non-critical StackKits-managed service"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
-      x-kombify-internal: true
-      tags: [StackAction]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: "#/components/schemas/StackActionRequest"
-                - type: object
-                  properties:
-                    action:
-                      const: "service_stop"
-      responses:
-        "200":
-          description: StackAction accepted
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/SuccessEnvelope"
-                  - properties:
-                      data:
-                        $ref: "#/components/schemas/StackActionResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
-  /api/v1/internal/stack-actions/service-restart:
-    post:
-      operationId: stackActionServiceRestart
-      summary: "Restart one StackKits-managed service"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
-      x-kombify-internal: true
-      tags: [StackAction]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: "#/components/schemas/StackActionRequest"
-                - type: object
-                  properties:
-                    action:
-                      const: "service_restart"
-      responses:
-        "200":
-          description: StackAction accepted
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/SuccessEnvelope"
-                  - properties:
-                      data:
-                        $ref: "#/components/schemas/StackActionResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-
-  /api/v1/internal/stack-actions/service-logs:
-    post:
-      operationId: stackActionServiceLogs
-      summary: "Read bounded redacted logs for one StackKits-managed service"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
-      x-kombify-internal: true
-      tags: [StackAction]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: "#/components/schemas/StackActionRequest"
-                - type: object
-                  properties:
-                    action:
-                      const: "service_logs"
-      responses:
-        "200":
-          description: StackAction accepted
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/SuccessEnvelope"
-                  - properties:
-                      data:
-                        $ref: "#/components/schemas/StackActionResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-  # END GENERATED: stackaction paths
 components:
   securitySchemes:
     StackKitsAPIKey:
@@ -3525,11 +3126,6 @@ components:
           $ref: "#/components/schemas/ArchitectureV2RestoreModuleContract"
         recoveryContract:
           $ref: "#/components/schemas/ArchitectureV2RecoveryModuleContract"
-    # Plan-only module contracts (foundation/architecture_v2_backup.cue plus the
-    # storage and data-binding contracts). They bind the shared Application
-    # Lifecycle to exact workload storage facts in ResolvedPlan; they never
-    # create repositories, schedule jobs, hold credentials, choose targets, or
-    # execute provider lifecycle, which is why the ownership flags are fixed.
     ArchitectureV2StorageAllocationModuleContract:
       type: object
       additionalProperties: false
@@ -4345,9 +3941,6 @@ components:
             - type: array
               items:
                 $ref: "#/components/schemas/ArchitectureV2ModulePublicWorkloadCompanion"
-            # network.moduleRoute resolves to a single authority-bound module
-            # route; when the binding is optional the CUE authority defaults it
-            # to null rather than an empty object.
             - type: "null"
       allOf:
         - if:
@@ -8361,7 +7954,6 @@ components:
           type: string
         version:
           type: string
-    # BEGIN GENERATED: stackaction schemas
     StackActionScopedReference:
       type: object
       description: "Opaque versioned reference whose scope and expiry are revalidated by internal custody."
@@ -9245,7 +8837,6 @@ components:
             - "completed_degraded"
             - "failed"
             - "blocked"
-    # END GENERATED: stackaction schemas
   responses:
     HealthResponse:
       description: Service is healthy

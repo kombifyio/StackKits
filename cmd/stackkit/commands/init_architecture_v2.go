@@ -59,7 +59,10 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		}
 	} else {
 		requestedDomain := strings.TrimSpace(initDomain)
-		domain, usedFallback := defaultArchitectureV2InitDomain(stackkitName, requestedDomain)
+		domain, usedFallback, err := defaultArchitectureV2InitDomain(stackkitName, requestedDomain)
+		if err != nil {
+			return err
+		}
 		if stackkitName == "cloud-kit" && requestedDomain == "" {
 			printInfo("No custom domain given; using kombify.me for public access")
 		} else if usedFallback {

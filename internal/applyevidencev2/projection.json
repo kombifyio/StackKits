@@ -1,9 +1,9 @@
 {
   "schemaVersion": "stackkits.applyevidence-projection/v1",
   "source": "kombify-go-common/applyevidence",
-  "sourceVersion": "v0.7.1",
-  "sourceCommit": "1cc6672bfaabbfcaa769d7738a1d2d29def8c431",
-  "sourceSum": "h1:sW+db7gb1LQk+raHY0SNGEgTQUP+uHILHFLBRoaY78Q=",
+  "sourceVersion": "v0.7.6",
+  "sourceCommit": "dc58fc9e06da5a7afc91736778bc7f0b758a0edb",
+  "sourceSum": "h1:KyiYybayx/uDKFY+eSjiv+x+C/K4l+fKJ37F4FtRjW0=",
   "sourceFiles": [
     "README.md",
     "applyevidence_test.go",

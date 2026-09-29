@@ -1,0 +1,4475 @@
+{
+  "schemaVersion": "kombify.api-surface/v1",
+  "product": "stackkits",
+  "source": {
+    "path": "api/openapi/stackkits-v1.yaml",
+    "sha256": "c4702a09ec235a4de4eb2a5416d37b4782b357152601d32796332023be5c23e6"
+  },
+  "envelope": "data",
+  "cli": {
+    "command": "stackkit"
+  },
+  "capability": "stackkit.status",
+  "mcp": {
+    "transport": "streamable-http",
+    "endpoint": "/mcp",
+    "protocolVersion": "2026-07-28"
+  },
+  "operations": [
+    {
+      "operationId": "getCapabilities",
+      "method": "GET",
+      "path": "/api/v1/capabilities",
+      "summary": "List all API capabilities (AI agent discovery)",
+      "tags": [
+        "Discovery"
+      ],
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "discovery",
+          "get-capabilities"
+        ]
+      }
+    },
+    {
+      "operationId": "runManagementDoctor",
+      "method": "POST",
+      "path": "/api/v1/doctor",
+      "summary": "Run read-only node-local diagnostics",
+      "description": "Exact-v0.6 compatibility diagnostics. Native v0.7 returns 501 instead of interpreting legacy deployment files as Architecture v2 readiness.",
+      "tags": [
+        "Management"
+      ],
+      "deprecated": true,
+      "mutating": true,
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "management",
+          "run-management-doctor"
+        ]
+      }
+    },
+    {
+      "operationId": "generatePreview",
+      "method": "POST",
+      "path": "/api/v1/generate/preview",
+      "summary": "Preview generated infrastructure without writing files",
+      "description": "Exact-v0.6 compatibility endpoint only. Native v0.7 does not advertise this capability and never treats spec-only input as generation-ready.",
+      "tags": [
+        "Generation"
+      ],
+      "deprecated": true,
+      "mutating": true,
+      "arguments": [
+        {
+          "name": "output_dir",
+          "in": "body",
+          "wireName": "outputDir",
+          "description": "Custom output directory (server-side only)",
+          "schema": {
+            "description": "Custom output directory (server-side only)",
+            "type": "string"
+          }
+        },
+        {
+          "name": "spec",
+          "in": "body",
+          "wireName": "spec",
+          "required": true,
+          "schema": {
+            "properties": {
+              "adminEmail": {
+                "format": "email",
+                "type": "string"
+              },
+              "compute": {
+                "properties": {
+                  "tier": {
+                    "enum": [
+                      "low",
+                      "standard",
+                      "high"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "context": {
+                "enum": [
+                  "local",
+                  "cloud",
+                  "pi"
+                ],
+                "type": "string"
+              },
+              "domain": {
+                "type": "string"
+              },
+              "email": {
+                "format": "email",
+                "type": "string"
+              },
+              "environment": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              "mode": {
+                "enum": [
+                  "simple",
+                  "advanced"
+                ],
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "network": {
+                "properties": {
+                  "gateway": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "enum": [
+                      "local",
+                      "public",
+                      "hybrid"
+                    ],
+                    "type": "string"
+                  },
+                  "subnet": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "nodes": {
+                "items": {
+                  "properties": {
+                    "ip": {
+                      "format": "ipv4",
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "enum": [
+                        "main",
+                        "worker",
+                        "storage",
+                        "control-plane",
+                        "standalone"
+                      ],
+                      "type": "string"
+                    },
+                    "services": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "owner": {
+                "description": "Lane-aware Owner bootstrap contract. `auto` is for TechStack/kombify\nCloud handoff and must not require public owner email or username.\n`custom` is explicit self-hosted local Owner bootstrap. `none` skips\nOwner bootstrap. Plaintext recovery passphrases are never accepted.\n",
+                "properties": {
+                  "bootstrapMode": {
+                    "enum": [
+                      "auto",
+                      "custom",
+                      "none"
+                    ],
+                    "type": "string"
+                  },
+                  "cloudOidcClientId": {
+                    "type": "string"
+                  },
+                  "cloudOidcClientSecretRef": {
+                    "type": "string"
+                  },
+                  "cloudOidcForeignSubject": {
+                    "type": "string"
+                  },
+                  "cloudOidcIssuer": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "displayName": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "description": "Required only for bootstrapMode=custom.",
+                    "format": "email",
+                    "type": "string"
+                  },
+                  "recoveryMaterialRef": {
+                    "description": "TechStack or secret-store reference to generated recovery material.",
+                    "pattern": "^(techstack|secret|doppler|vault)://.+|^(env|file):.+",
+                    "type": "string"
+                  },
+                  "recoveryPassphraseHash": {
+                    "description": "Argon2id PHC hash only; never plaintext.",
+                    "pattern": "^\\$argon2id\\$",
+                    "type": "string"
+                  },
+                  "source": {
+                    "enum": [
+                      "local",
+                      "cloud"
+                    ],
+                    "type": "string"
+                  },
+                  "username": {
+                    "description": "Required only for bootstrapMode=custom.",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "paas": {
+                "enum": [
+                  "dokploy",
+                  "coolify"
+                ],
+                "type": "string"
+              },
+              "services": {
+                "type": "object"
+              },
+              "ssh": {
+                "properties": {
+                  "keyPath": {
+                    "type": "string"
+                  },
+                  "port": {
+                    "type": "integer"
+                  },
+                  "user": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "stackkit": {
+                "type": "string"
+              },
+              "subdomainPrefix": {
+                "type": "string"
+              },
+              "tls": {
+                "properties": {
+                  "challenge": {
+                    "enum": [
+                      "tls",
+                      "dns"
+                    ],
+                    "type": "string"
+                  },
+                  "provider": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "stackkit"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "body": {
+        "contentType": "application/json",
+        "required": true,
+        "mode": "properties"
+      },
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "generation",
+          "generate-preview"
+        ]
+      }
+    },
+    {
+      "operationId": "generateTFVars",
+      "method": "POST",
+      "path": "/api/v1/generate/tfvars",
+      "summary": "Generate terraform.tfvars from a validated spec",
+      "description": "Exact-v0.6 compatibility endpoint only. Native v0.7 does not advertise this capability and returns a typed migration/not-supported error before composition. Architecture v2 generation consumes an Inventory-bound ResolvedPlan through the governed CLI/executor path.",
+      "tags": [
+        "Generation"
+      ],
+      "deprecated": true,
+      "mutating": true,
+      "arguments": [
+        {
+          "name": "output_dir",
+          "in": "body",
+          "wireName": "outputDir",
+          "description": "Custom output directory (server-side only)",
+          "schema": {
+            "description": "Custom output directory (server-side only)",
+            "type": "string"
+          }
+        },
+        {
+          "name": "spec",
+          "in": "body",
+          "wireName": "spec",
+          "required": true,
+          "schema": {
+            "properties": {
+              "adminEmail": {
+                "format": "email",
+                "type": "string"
+              },
+              "compute": {
+                "properties": {
+                  "tier": {
+                    "enum": [
+                      "low",
+                      "standard",
+                      "high"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "context": {
+                "enum": [
+                  "local",
+                  "cloud",
+                  "pi"
+                ],
+                "type": "string"
+              },
+              "domain": {
+                "type": "string"
+              },
+              "email": {
+                "format": "email",
+                "type": "string"
+              },
+              "environment": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              "mode": {
+                "enum": [
+                  "simple",
+                  "advanced"
+                ],
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "network": {
+                "properties": {
+                  "gateway": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "enum": [
+                      "local",
+                      "public",
+                      "hybrid"
+                    ],
+                    "type": "string"
+                  },
+                  "subnet": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "nodes": {
+                "items": {
+                  "properties": {
+                    "ip": {
+                      "format": "ipv4",
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "enum": [
+                        "main",
+                        "worker",
+                        "storage",
+                        "control-plane",
+                        "standalone"
+                      ],
+                      "type": "string"
+                    },
+                    "services": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "owner": {
+                "description": "Lane-aware Owner bootstrap contract. `auto` is for TechStack/kombify\nCloud handoff and must not require public owner email or username.\n`custom` is explicit self-hosted local Owner bootstrap. `none` skips\nOwner bootstrap. Plaintext recovery passphrases are never accepted.\n",
+                "properties": {
+                  "bootstrapMode": {
+                    "enum": [
+                      "auto",
+                      "custom",
+                      "none"
+                    ],
+                    "type": "string"
+                  },
+                  "cloudOidcClientId": {
+                    "type": "string"
+                  },
+                  "cloudOidcClientSecretRef": {
+                    "type": "string"
+                  },
+                  "cloudOidcForeignSubject": {
+                    "type": "string"
+                  },
+                  "cloudOidcIssuer": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "displayName": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "description": "Required only for bootstrapMode=custom.",
+                    "format": "email",
+                    "type": "string"
+                  },
+                  "recoveryMaterialRef": {
+                    "description": "TechStack or secret-store reference to generated recovery material.",
+                    "pattern": "^(techstack|secret|doppler|vault)://.+|^(env|file):.+",
+                    "type": "string"
+                  },
+                  "recoveryPassphraseHash": {
+                    "description": "Argon2id PHC hash only; never plaintext.",
+                    "pattern": "^\\$argon2id\\$",
+                    "type": "string"
+                  },
+                  "source": {
+                    "enum": [
+                      "local",
+                      "cloud"
+                    ],
+                    "type": "string"
+                  },
+                  "username": {
+                    "description": "Required only for bootstrapMode=custom.",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "paas": {
+                "enum": [
+                  "dokploy",
+                  "coolify"
+                ],
+                "type": "string"
+              },
+              "services": {
+                "type": "object"
+              },
+              "ssh": {
+                "properties": {
+                  "keyPath": {
+                    "type": "string"
+                  },
+                  "port": {
+                    "type": "integer"
+                  },
+                  "user": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "stackkit": {
+                "type": "string"
+              },
+              "subdomainPrefix": {
+                "type": "string"
+              },
+              "tls": {
+                "properties": {
+                  "challenge": {
+                    "enum": [
+                      "tls",
+                      "dns"
+                    ],
+                    "type": "string"
+                  },
+                  "provider": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "stackkit"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "body": {
+        "contentType": "application/json",
+        "required": true,
+        "mode": "properties"
+      },
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "generation",
+          "generate-tf-vars"
+        ]
+      }
+    },
+    {
+      "operationId": "health",
+      "method": "GET",
+      "path": "/api/v1/health",
+      "summary": "Service health check",
+      "tags": [
+        "Health"
+      ],
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "health",
+          "health"
+        ]
+      },
+      "mcpExcluded": true
+    },
+    {
+      "operationId": "requestLocalOwnerStepUp",
+      "method": "POST",
+      "path": "/api/v1/identity/step-up",
+      "summary": "Prepare an exact-action local PocketID Owner approval",
+      "description": "Requires configured HTTPS Owner step-up origin and API key. Returns a\nhuman review URL; never executes an action. Home PocketID and established\nOwner custody are required. apply TTL is at most 60 seconds; destroy TTL\nis at most 30 seconds. Machine credentials cannot complete human approval.",
+      "mutating": true,
+      "arguments": [
+        {
+          "name": "action",
+          "in": "body",
+          "wireName": "action",
+          "required": true,
+          "schema": {
+            "enum": [
+              "apply",
+              "destroy"
+            ]
+          }
+        },
+        {
+          "name": "action_digest",
+          "in": "body",
+          "wireName": "actionDigest",
+          "required": true,
+          "description": "SHA-256 of unsigned admitted action, excluding approval and signature.",
+          "schema": {
+            "description": "SHA-256 of unsigned admitted action, excluding approval and signature.",
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        {
+          "name": "expires_at",
+          "in": "body",
+          "wireName": "expiresAt",
+          "required": true,
+          "schema": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        {
+          "name": "home_site_ref",
+          "in": "body",
+          "wireName": "homeSiteRef",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "issued_at",
+          "in": "body",
+          "wireName": "issuedAt",
+          "required": true,
+          "schema": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        {
+          "name": "owner_ref",
+          "in": "body",
+          "wireName": "ownerRef",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "plan_hash",
+          "in": "body",
+          "wireName": "planHash",
+          "required": true,
+          "schema": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        {
+          "name": "target_node_ref",
+          "in": "body",
+          "wireName": "targetNodeRef",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "target_site_ref",
+          "in": "body",
+          "wireName": "targetSiteRef",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "body": {
+        "contentType": "application/json",
+        "required": true,
+        "mode": "properties"
+      },
+      "output": {
+        "contentType": "application/json",
+        "schema": {
+          "properties": {
+            "approvalUrl": {
+              "format": "uri",
+              "type": "string"
+            },
+            "expiresAt": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          "required": [
+            "approvalUrl",
+            "expiresAt"
+          ],
+          "type": "object"
+        }
+      },
+      "cli": {
+        "command": [
+          "identity",
+          "step-up",
+          "request"
+        ]
+      }
+    },
+    {
+      "operationId": "completeLocalOwnerStepUp",
+      "method": "GET",
+      "path": "/api/v1/identity/step-up/callback",
+      "summary": "Exchange an exact browser-bound authorization code",
+      "description": "Requires the pending one-time state, browser cookie and exact PocketID\nresponse issuer. Downloads a credential-bearing approval; no action is\nexecuted. The receiving executor must revalidate and consume it.",
+      "cli": {
+        "command": [
+          "identity",
+          "step-up",
+          "complete"
+        ]
+      },
+      "mcpExcluded": true
+    },
+    {
+      "operationId": "reviewLocalOwnerStepUp",
+      "method": "GET",
+      "path": "/api/v1/identity/step-up/review",
+      "summary": "Show exact action and target to the human Owner",
+      "arguments": [
+        {
+          "name": "state",
+          "in": "query",
+          "wireName": "state",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "cli": {
+        "command": [
+          "identity",
+          "step-up",
+          "review"
+        ]
+      },
+      "mcpExcluded": true
+    },
+    {
+      "operationId": "confirmLocalOwnerStepUp",
+      "method": "POST",
+      "path": "/api/v1/identity/step-up/review",
+      "summary": "Confirm the review and redirect to local PocketID",
+      "description": "Requires the exact reviewing browser cookie, same origin and CSRF form value.",
+      "mutating": true,
+      "cli": {
+        "command": [
+          "identity",
+          "step-up",
+          "confirm"
+        ]
+      },
+      "mcpExcluded": true
+    },
+    {
+      "operationId": "applyOwnerWorkloadPeerOperation",
+      "method": "POST",
+      "path": "/api/v1/identity/workload-peers",
+      "summary": "Admit or revoke an exact owner-approved workload peer",
+      "description": "Home-loopback management only. Requires both the API credential and a\nfresh local Owner custody signature over the exact operation. The API\ndoes not generate owner approvals, issue certificates, or claim passkey\nstep-up. Admission accepts only a Home-CA-issued client-only certificate.\nRevocation applies to subsequent origin requests on existing TLS sessions.",
+      "confirmation": "This operation admits or revokes a workload peer certificate for later requests to the Home origin.",
+      "mutating": true,
+      "arguments": [
+        {
+          "name": "admission",
+          "in": "body",
+          "wireName": "admission",
+          "schema": {
+            "additionalProperties": false,
+            "properties": {
+              "audience": {
+                "maxLength": 512,
+                "type": "string"
+              },
+              "certificatePEM": {
+                "maxLength": 65536,
+                "type": "string"
+              },
+              "edgeSiteRef": {
+                "maxLength": 255,
+                "type": "string"
+              },
+              "peerRef": {
+                "maxLength": 255,
+                "type": "string"
+              },
+              "serviceRef": {
+                "maxLength": 255,
+                "type": "string"
+              },
+              "validUntil": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "peerRef",
+              "serviceRef",
+              "edgeSiteRef",
+              "audience",
+              "certificatePEM",
+              "validUntil"
+            ],
+            "type": "object"
+          }
+        },
+        {
+          "name": "expires_at",
+          "in": "body",
+          "wireName": "expiresAt",
+          "required": true,
+          "description": "At most five minutes after issuedAt.",
+          "schema": {
+            "description": "At most five minutes after issuedAt.",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        {
+          "name": "issued_at",
+          "in": "body",
+          "wireName": "issuedAt",
+          "required": true,
+          "schema": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        {
+          "name": "operation",
+          "in": "body",
+          "wireName": "operation",
+          "required": true,
+          "schema": {
+            "enum": [
+              "admit",
+              "revoke"
+            ]
+          }
+        },
+        {
+          "name": "peer_ref",
+          "in": "body",
+          "wireName": "peerRef",
+          "schema": {
+            "maxLength": 255,
+            "type": "string"
+          }
+        },
+        {
+          "name": "previous_state",
+          "in": "body",
+          "wireName": "previousState",
+          "required": true,
+          "description": "Owner-signed commitment to the current peer revision; empty only for first admission.",
+          "schema": {
+            "description": "Owner-signed commitment to the current peer revision; empty only for first admission.",
+            "type": "string"
+          }
+        },
+        {
+          "name": "signature",
+          "in": "body",
+          "wireName": "signature",
+          "required": true,
+          "schema": {
+            "additionalProperties": false,
+            "properties": {
+              "keyId": {
+                "type": "string"
+              },
+              "ownerRef": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "ownerRef",
+              "keyId",
+              "value"
+            ],
+            "type": "object"
+          }
+        }
+      ],
+      "body": {
+        "contentType": "application/json",
+        "required": true,
+        "mode": "properties"
+      },
+      "cli": {
+        "command": [
+          "identity",
+          "workload-peers",
+          "apply"
+        ]
+      }
+    },
+    {
+      "operationId": "listLogs",
+      "method": "GET",
+      "path": "/api/v1/logs",
+      "summary": "List all deploy log runs",
+      "description": "Returns a paginated list of deploy log runs sorted by timestamp.",
+      "tags": [
+        "Logs"
+      ],
+      "arguments": [
+        {
+          "name": "limit",
+          "in": "query",
+          "wireName": "limit",
+          "description": "Maximum number of results",
+          "schema": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        {
+          "name": "offset",
+          "in": "query",
+          "wireName": "offset",
+          "description": "Number of results to skip",
+          "schema": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        }
+      ],
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "logs",
+          "list-logs"
+        ]
+      },
+      "mcp": {
+        "toolName": "stackkit_logs_list",
+        "requiredCapability": "stackkit.logs",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      }
+    },
+    {
+      "operationId": "getLatestLog",
+      "method": "GET",
+      "path": "/api/v1/logs/latest",
+      "summary": "Get the most recent deploy log",
+      "description": "Returns all events from the latest deploy log run.",
+      "tags": [
+        "Logs"
+      ],
+      "arguments": [
+        {
+          "name": "level",
+          "in": "query",
+          "wireName": "level",
+          "description": "Filter events by log level",
+          "schema": {
+            "enum": [
+              "INFO",
+              "WARN",
+              "ERROR",
+              "DEBUG"
+            ],
+            "type": "string"
+          }
+        },
+        {
+          "name": "prefix",
+          "in": "query",
+          "wireName": "prefix",
+          "description": "Filter events by message prefix (e.g., apply., decision., tofu.)",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "logs",
+          "get-latest-log"
+        ]
+      }
+    },
+    {
+      "operationId": "getLog",
+      "method": "GET",
+      "path": "/api/v1/logs/{runID}",
+      "summary": "Get deploy log by run ID",
+      "description": "Returns events from a specific deploy log run.\nUse query parameters to filter by level or event prefix.",
+      "tags": [
+        "Logs"
+      ],
+      "arguments": [
+        {
+          "name": "run_id",
+          "in": "path",
+          "wireName": "runID",
+          "required": true,
+          "description": "Deploy run ID (format: YYYYMMDD-HHMMSS)",
+          "schema": {
+            "pattern": "^\\d{8}-\\d{6}$",
+            "type": "string"
+          }
+        },
+        {
+          "name": "level",
+          "in": "query",
+          "wireName": "level",
+          "description": "Filter events by log level",
+          "schema": {
+            "enum": [
+              "INFO",
+              "WARN",
+              "ERROR",
+              "DEBUG"
+            ],
+            "type": "string"
+          }
+        },
+        {
+          "name": "prefix",
+          "in": "query",
+          "wireName": "prefix",
+          "description": "Filter events by message prefix (e.g., apply., decision., tofu.)",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "logs",
+          "get-log"
+        ]
+      },
+      "mcp": {
+        "toolName": "stackkit_log_get",
+        "requiredCapability": "stackkit.logs.read",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      }
+    },
+    {
+      "operationId": "streamLog",
+      "method": "GET",
+      "path": "/api/v1/logs/{runID}/stream",
+      "summary": "Stream live deploy log events (SSE)",
+      "description": "Server-Sent Events stream for real-time deploy progress.\nEvents are sent as `data:` lines with JSON payloads.\nA final `event: done` is sent when the deploy completes.\n\n**Client usage:**\n```javascript\nconst es = new EventSource('/api/v1/logs/20260311-104539/stream');\nes.onmessage = (e) => console.log(JSON.parse(e.data));\nes.addEventListener('done', (e) => { es.close(); });\n```",
+      "tags": [
+        "Logs"
+      ],
+      "arguments": [
+        {
+          "name": "run_id",
+          "in": "path",
+          "wireName": "runID",
+          "required": true,
+          "description": "Deploy run ID (format: YYYYMMDD-HHMMSS)",
+          "schema": {
+            "pattern": "^\\d{8}-\\d{6}$",
+            "type": "string"
+          }
+        }
+      ],
+      "cli": {
+        "command": [
+          "logs",
+          "stream-log"
+        ]
+      },
+      "mcpExcluded": true
+    },
+    {
+      "operationId": "getOpenAPISpec",
+      "method": "GET",
+      "path": "/api/v1/openapi.yaml",
+      "summary": "Get OpenAPI 3.1 specification",
+      "tags": [
+        "Discovery"
+      ],
+      "cli": {
+        "command": [
+          "discovery",
+          "get-open-api-spec"
+        ]
+      },
+      "mcpExcluded": true
+    },
+    {
+      "operationId": "runManagementPlan",
+      "method": "POST",
+      "path": "/api/v1/plan",
+      "summary": "Preview local rollout readiness without mutation",
+      "description": "Exact-v0.6 compatibility preview. Native v0.7 returns 501 because plan readiness belongs to the exact verified ResolvedPlan, not Terraform file presence.",
+      "tags": [
+        "Management"
+      ],
+      "deprecated": true,
+      "mutating": true,
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "management",
+          "run-management-plan"
+        ]
+      }
+    },
+    {
+      "operationId": "registerInstance",
+      "method": "POST",
+      "path": "/api/v1/registry/instances",
+      "summary": "Register a stackkit-server instance for Direct Connect",
+      "description": "Exact-v0.6 in-memory compatibility registry only. It does not publish\nto Kombify, Cloudflare, TechStack, or another central authority and\ncannot prove Direct Connect registration. Native v0.7 returns 501\nbefore payload decode or map mutation.",
+      "tags": [
+        "Registry"
+      ],
+      "mutating": true,
+      "arguments": [
+        {
+          "name": "api_port",
+          "in": "body",
+          "wireName": "api_port",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "endpoint_url",
+          "in": "body",
+          "wireName": "endpoint_url",
+          "required": true,
+          "description": "Public URL where stackkit-server is reachable",
+          "schema": {
+            "description": "Public URL where stackkit-server is reachable",
+            "format": "uri",
+            "type": "string"
+          }
+        },
+        {
+          "name": "instance_id",
+          "in": "body",
+          "wireName": "instance_id",
+          "required": true,
+          "description": "Unique instance identifier (device fingerprint + stackkit name)",
+          "schema": {
+            "description": "Unique instance identifier (device fingerprint + stackkit name)",
+            "type": "string"
+          }
+        },
+        {
+          "name": "last_seen",
+          "in": "body",
+          "wireName": "last_seen",
+          "schema": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        {
+          "name": "services",
+          "in": "body",
+          "wireName": "services",
+          "required": true,
+          "schema": {
+            "items": {
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "running",
+                    "stopped",
+                    "error"
+                  ],
+                  "type": "string"
+                },
+                "url": {
+                  "format": "uri",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "status"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        {
+          "name": "stackkit",
+          "in": "body",
+          "wireName": "stackkit",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "status",
+          "in": "body",
+          "wireName": "status",
+          "required": true,
+          "schema": {
+            "enum": [
+              "running",
+              "degraded",
+              "stopped"
+            ],
+            "type": "string"
+          }
+        },
+        {
+          "name": "version",
+          "in": "body",
+          "wireName": "version",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "body": {
+        "contentType": "application/json",
+        "required": true,
+        "mode": "properties"
+      },
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "registry",
+          "register-instance"
+        ]
+      },
+      "mcpExcluded": true
+    },
+    {
+      "operationId": "deregisterInstance",
+      "method": "DELETE",
+      "path": "/api/v1/registry/instances/{instanceId}",
+      "summary": "Remove an instance from the registry",
+      "description": "Exact-v0.6 in-memory compatibility operation. Native v0.7 returns 501.",
+      "tags": [
+        "Registry"
+      ],
+      "confirmation": "This operation removes the instance from the compatibility registry.",
+      "mutating": true,
+      "arguments": [
+        {
+          "name": "instance_id",
+          "in": "path",
+          "wireName": "instanceId",
+          "required": true,
+          "description": "Unique instance identifier",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "cli": {
+        "command": [
+          "registry",
+          "deregister-instance"
+        ]
+      },
+      "mcpExcluded": true
+    },
+    {
+      "operationId": "heartbeat",
+      "method": "PUT",
+      "path": "/api/v1/registry/instances/{instanceId}/heartbeat",
+      "summary": "Send a heartbeat for a registered instance",
+      "description": "Exact-v0.6 in-memory compatibility heartbeat only. It has no external\nedge-registry effect. Native v0.7 returns 501 before payload decode or\nmap mutation.",
+      "tags": [
+        "Registry"
+      ],
+      "mutating": true,
+      "arguments": [
+        {
+          "name": "instance_id",
+          "in": "path",
+          "wireName": "instanceId",
+          "required": true,
+          "description": "Unique instance identifier",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "body_instance_id",
+          "in": "body",
+          "wireName": "instance_id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "status",
+          "in": "body",
+          "wireName": "status",
+          "required": true,
+          "schema": {
+            "enum": [
+              "running",
+              "degraded",
+              "stopped"
+            ],
+            "type": "string"
+          }
+        }
+      ],
+      "body": {
+        "contentType": "application/json",
+        "required": true,
+        "mode": "properties"
+      },
+      "cli": {
+        "command": [
+          "registry",
+          "heartbeat"
+        ]
+      },
+      "mcpExcluded": true
+    },
+    {
+      "operationId": "getRunEvidence",
+      "method": "GET",
+      "path": "/api/v1/runs/{runID}/evidence",
+      "summary": "Read rollout evidence by run ID",
+      "tags": [
+        "Management"
+      ],
+      "arguments": [
+        {
+          "name": "run_id",
+          "in": "path",
+          "wireName": "runID",
+          "required": true,
+          "description": "Deploy run ID (format: YYYYMMDD-HHMMSS)",
+          "schema": {
+            "pattern": "^\\d{8}-\\d{6}$",
+            "type": "string"
+          }
+        }
+      ],
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "management",
+          "get-run-evidence"
+        ]
+      }
+    },
+    {
+      "operationId": "getBaseHubProtection",
+      "method": "GET",
+      "path": "/api/v1/setup/base-hub/protection",
+      "summary": "Read Base Hub protection state",
+      "description": "Exact-v0.6 Node Hub compatibility state. Native v0.7 returns 501 before legacy artifact reads.",
+      "tags": [
+        "Setup"
+      ],
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "setup",
+          "get-base-hub-protection"
+        ]
+      }
+    },
+    {
+      "operationId": "protectBaseHub",
+      "method": "POST",
+      "path": "/api/v1/setup/base-hub/protection",
+      "summary": "Protect Base Hub and the node-local API with TinyAuth",
+      "description": "Used by the Node Hub `Protect Base Hub` action after owner setup.\nThe action persists the protection setting and updates the local Traefik\ndynamic middleware so Base Hub and its node-local API are protected\nwithout requiring the user to edit variables or run OpenTofu manually.\nThis is exact-v0.6 compatibility behavior. Native v0.7 returns 501\nbefore reading or writing legacy tfvars, state, or Traefik artifacts.",
+      "tags": [
+        "Setup"
+      ],
+      "mutating": true,
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "setup",
+          "protect-base-hub"
+        ]
+      }
+    },
+    {
+      "operationId": "getInitialAccess",
+      "method": "GET",
+      "path": "/api/v1/setup/initial-access",
+      "summary": "Read one-time technical bootstrap credential reveal state",
+      "description": "Used by the Node Hub after Base Hub protection. The response never\nincludes the plaintext password, but it labels the credential boundary\nso clients do not confuse technical bootstrap admin material with the\nPocketID Owner/passkey login.\nThis is exact-v0.6 compatibility state; native v0.7 returns 501.",
+      "tags": [
+        "Setup"
+      ],
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "setup",
+          "get-initial-access"
+        ]
+      }
+    },
+    {
+      "operationId": "revealInitialAccess",
+      "method": "POST",
+      "path": "/api/v1/setup/initial-access/reveal",
+      "summary": "Reveal technical bootstrap credentials once",
+      "description": "Reveals generated TinyAuth/PaaS/service bootstrap credentials one time\nafter Base Hub is protected. The Owner login remains PocketID passkey.\nThe persisted marker records role and boundary metadata, never the\nplaintext password.\nThis is exact-v0.6 compatibility behavior; native v0.7 returns 501\nbefore credential-state access.",
+      "tags": [
+        "Setup"
+      ],
+      "confirmation": "This operation reveals the technical bootstrap credentials once; they cannot be revealed again.",
+      "mutating": true,
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "setup",
+          "reveal-initial-access"
+        ]
+      },
+      "mcpExcluded": true
+    },
+    {
+      "operationId": "runServiceSetup",
+      "method": "POST",
+      "path": "/api/v1/setup/services/{service}/run",
+      "summary": "Run or validate an on-demand service setup drop",
+      "description": "Used by the StackKits Node Hub `Do the setup for me` action. L1/L2\nplatform services report that setup is already automatic; L3 services\nwith `setupPolicy: automatic` or `setupPolicy: on_demand` are matched\nagainst the generated platform-app manifest and executed only when\nstackkit-server is running with `STACKKITS_SETUP_ACTION_MODE=apply`.\nEvery runner attempt persists a `SetupRun` with phase logs,\nmachine-readable evidence, failure class, retry timestamps, and\nrollback notes in `.stackkit/state.yaml`.\nThis is exact-v0.6 compatibility behavior. Native v0.7 returns 501\nbefore manifest reads, external service calls, or state writes.",
+      "tags": [
+        "Setup"
+      ],
+      "mutating": true,
+      "arguments": [
+        {
+          "name": "service",
+          "in": "path",
+          "wireName": "service",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "setup",
+          "run-service-setup"
+        ]
+      }
+    },
+    {
+      "operationId": "listStackKits",
+      "method": "GET",
+      "path": "/api/v1/stackkits",
+      "summary": "List all available StackKits",
+      "tags": [
+        "Catalog"
+      ],
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "catalog",
+          "list-stack-kits"
+        ]
+      }
+    },
+    {
+      "operationId": "getStackKit",
+      "method": "GET",
+      "path": "/api/v1/stackkits/{name}",
+      "summary": "Get full StackKit details",
+      "tags": [
+        "Catalog"
+      ],
+      "arguments": [
+        {
+          "name": "name",
+          "in": "path",
+          "wireName": "name",
+          "required": true,
+          "description": "StackKit name (e.g., basement-kit)",
+          "schema": {
+            "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+            "type": "string"
+          }
+        }
+      ],
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "catalog",
+          "get-stack-kit"
+        ]
+      }
+    },
+    {
+      "operationId": "getStackKitDefaults",
+      "method": "GET",
+      "path": "/api/v1/stackkits/{name}/defaults",
+      "summary": "Read versioned initial StackSpec authoring data for a StackKit",
+      "description": "Exact v0.6 servers return the legacy StackSpec defaults. Native v0.7 servers return CUE-governed Architecture v2 authoring metadata and include a canonical initial StackSpec only when no user override is required. The v2 response is spec-only evidence and never asserts inventory, plan, generation, or execution readiness.",
+      "tags": [
+        "Catalog"
+      ],
+      "arguments": [
+        {
+          "name": "name",
+          "in": "path",
+          "wireName": "name",
+          "required": true,
+          "description": "StackKit name (e.g., basement-kit)",
+          "schema": {
+            "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+            "type": "string"
+          }
+        }
+      ],
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "catalog",
+          "get-stack-kit-defaults"
+        ]
+      }
+    },
+    {
+      "operationId": "getStackKitSchema",
+      "method": "GET",
+      "path": "/api/v1/stackkits/{name}/schema",
+      "summary": "Get raw CUE schema for a StackKit",
+      "tags": [
+        "Catalog"
+      ],
+      "arguments": [
+        {
+          "name": "name",
+          "in": "path",
+          "wireName": "name",
+          "required": true,
+          "description": "StackKit name (e.g., basement-kit)",
+          "schema": {
+            "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+            "type": "string"
+          }
+        }
+      ],
+      "cli": {
+        "command": [
+          "catalog",
+          "get-stack-kit-schema"
+        ]
+      }
+    },
+    {
+      "operationId": "getManagementStatus",
+      "method": "GET",
+      "path": "/api/v1/status",
+      "summary": "Read node-local StackKit rollout status",
+      "description": "Read-only status. Native v0.7 validates the local StackSpec v2 and reports spec-only/resolve-required state without claiming operational readiness. Exact v0.6 retains legacy rollout status fields.",
+      "tags": [
+        "Management"
+      ],
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "management",
+          "get-management-status"
+        ]
+      },
+      "mcp": {
+        "toolName": "stackkit_status",
+        "requiredCapability": "stackkit.status",
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      }
+    },
+    {
+      "operationId": "validateSpec",
+      "method": "POST",
+      "path": "/api/v1/validate",
+      "summary": "Validate a stack-spec against its StackKit schema",
+      "description": "Canonical StackSpec v2 is validated against the embedded CUE authority and produces spec-only evidence. On native v0.7, StackSpec v1 remains accepted only for read-only validation and migration diagnostics; it is never operationally admitted.",
+      "tags": [
+        "Validation"
+      ],
+      "mutating": true,
+      "arguments": [
+        {
+          "name": "body",
+          "in": "body",
+          "required": true,
+          "schema": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "apiVersion": {
+                          "const": "stackkit/v2alpha2"
+                        }
+                      },
+                      "required": [
+                        "apiVersion"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "install": {
+                          "not": {
+                            "required": [
+                              "computeTier"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                ],
+                "description": "Canonical StackSpec v2 intent. Unknown top-level fields are rejected;\nthe embedded CUE authority remains authoritative for all deeper\ncross-field constraints and defaults.\n",
+                "properties": {
+                  "access": {
+                    "additionalProperties": {
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "addons": {
+                    "additionalProperties": {
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "apiVersion": {
+                    "enum": [
+                      "stackkit/v2alpha1",
+                      "stackkit/v2alpha2"
+                    ],
+                    "type": "string"
+                  },
+                  "availability": {
+                    "type": "object"
+                  },
+                  "backupPolicy": {
+                    "additionalProperties": false,
+                    "description": "Closed provider-free backup intent. Runtime target custody and job, repository, retention, and restore execution remain separate governed authorities. The grant is a ceiling from the subscription; coverage selects the data classes within it and never exceeds it.",
+                    "properties": {
+                      "apiVersion": {
+                        "const": "stackkit.backup-policy/v1",
+                        "type": "string"
+                      },
+                      "coverage": {
+                        "description": "Nested coverage group: config, content (config plus the data a stack produces) or media (content plus photo and large-media libraries).",
+                        "enum": [
+                          "config",
+                          "content",
+                          "media"
+                        ],
+                        "type": "string"
+                      },
+                      "dataClasses": {
+                        "items": {
+                          "enum": [
+                            "config",
+                            "secret-material",
+                            "platform-state",
+                            "database",
+                            "user-content",
+                            "documents",
+                            "photos",
+                            "large-media",
+                            "telemetry-timeseries",
+                            "serverless-config"
+                          ],
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array",
+                        "uniqueItems": true
+                      },
+                      "grant": {
+                        "additionalProperties": false,
+                        "description": "Ceiling one subscription grants one stack for coverage, cadence and retention. Every field defaults to the contract maximum; a tier's default values are never restated here.",
+                        "properties": {
+                          "cadences": {
+                            "items": {
+                              "enum": [
+                                "daily",
+                                "hourly",
+                                "weekly"
+                              ],
+                              "type": "string"
+                            },
+                            "minItems": 1,
+                            "type": "array",
+                            "uniqueItems": true
+                          },
+                          "coverage": {
+                            "description": "Nested coverage group: config, content (config plus the data a stack produces) or media (content plus photo and large-media libraries).",
+                            "enum": [
+                              "config",
+                              "content",
+                              "media"
+                            ],
+                            "type": "string"
+                          },
+                          "retention": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "keepDaily": {
+                                "maximum": 365,
+                                "minimum": 1,
+                                "type": "integer"
+                              },
+                              "keepMonthly": {
+                                "maximum": 60,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "keepWeekly": {
+                                "maximum": 104,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "keepYearly": {
+                                "maximum": 10,
+                                "minimum": 0,
+                                "type": "integer"
+                              }
+                            },
+                            "type": "object"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "kind": {
+                        "const": "BackupPolicy",
+                        "type": "string"
+                      },
+                      "restoreVerification": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "cadence": {
+                            "enum": [
+                              "monthly",
+                              "weekly"
+                            ],
+                            "type": "string"
+                          },
+                          "evidenceRef": {
+                            "const": "backup-restore-verification",
+                            "type": "string"
+                          },
+                          "maxEvidenceAgeDays": {
+                            "maximum": 92,
+                            "minimum": 1,
+                            "type": "integer"
+                          },
+                          "required": {
+                            "const": true,
+                            "type": "boolean"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "retention": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "keepDaily": {
+                            "maximum": 365,
+                            "minimum": 1,
+                            "type": "integer"
+                          },
+                          "keepMonthly": {
+                            "maximum": 60,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "keepWeekly": {
+                            "maximum": 104,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "keepYearly": {
+                            "maximum": 10,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "schedule": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "cadence": {
+                            "enum": [
+                              "daily",
+                              "hourly",
+                              "weekly"
+                            ],
+                            "type": "string"
+                          },
+                          "hourUTC": {
+                            "maximum": 23,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "jitterSeconds": {
+                            "maximum": 1800,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "minuteUTC": {
+                            "maximum": 59,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "weekdayUTC": {
+                            "enum": [
+                              "sunday",
+                              "monday",
+                              "tuesday",
+                              "wednesday",
+                              "thursday",
+                              "friday",
+                              "saturday"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "bridge": {
+                    "type": "object"
+                  },
+                  "capabilities": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "config": {
+                        "additionalProperties": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "providerRef": {
+                              "pattern": "^[a-z][a-z0-9-]*$",
+                              "type": "string"
+                            },
+                            "secretRefs": {
+                              "additionalProperties": {
+                                "pattern": "^(secret|vault|doppler|techstack)://[^\\s]+$",
+                                "type": "string"
+                              },
+                              "type": "object"
+                            },
+                            "settings": {
+                              "additionalProperties": true,
+                              "type": "object"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "type": "object"
+                      },
+                      "disable": {
+                        "items": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "enable": {
+                        "items": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "enable",
+                      "disable"
+                    ],
+                    "type": "object"
+                  },
+                  "container": {
+                    "type": "object"
+                  },
+                  "controlPlane": {
+                    "type": "object"
+                  },
+                  "data": {
+                    "type": "object"
+                  },
+                  "deviceEnrollment": {
+                    "type": "object"
+                  },
+                  "driftPolicy": {
+                    "additionalProperties": false,
+                    "description": "Closed provider-free drift observation intent. It grants no read channel, executor, reconciliation, provider, endpoint, credential, command, or host authority.",
+                    "properties": {
+                      "apiVersion": {
+                        "const": "stackkit.drift-policy/v1",
+                        "type": "string"
+                      },
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "evidence": {
+                        "additionalProperties": false,
+                        "description": "Evidence is required exactly when drift observation is enabled.",
+                        "properties": {
+                          "evidenceRef": {
+                            "const": "drift-observation",
+                            "type": "string"
+                          },
+                          "maxEvidenceAgeMinutes": {
+                            "maximum": 10080,
+                            "minimum": 15,
+                            "type": "integer"
+                          },
+                          "onMissing": {
+                            "const": "unknown",
+                            "type": "string"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "kind": {
+                        "const": "DriftPolicy",
+                        "type": "string"
+                      },
+                      "response": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "differenceAction": {
+                            "const": "report-only",
+                            "type": "string"
+                          },
+                          "reconcileApproval": {
+                            "const": "required",
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "schedule": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "cadence": {
+                            "enum": [
+                              "daily",
+                              "hourly",
+                              "weekly"
+                            ],
+                            "type": "string"
+                          },
+                          "hourUTC": {
+                            "maximum": 23,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "jitterSeconds": {
+                            "maximum": 900,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "minuteUTC": {
+                            "maximum": 59,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "weekdayUTC": {
+                            "enum": [
+                              "sunday",
+                              "monday",
+                              "tuesday",
+                              "wednesday",
+                              "thursday",
+                              "friday",
+                              "saturday"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "subjects": {
+                        "items": {
+                          "enum": [
+                            "resolved-plan",
+                            "generated-artifacts",
+                            "runtime-configuration"
+                          ],
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array",
+                        "uniqueItems": true
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "generation": {
+                    "type": "object"
+                  },
+                  "install": {
+                    "properties": {
+                      "computeTier": {
+                        "default": "standard",
+                        "description": "Declared kit module graph. Not install.mode, placement.mode, hardware.profile, or legacy context. Default standard is the current kit graph; low and high fail closed until the kit declares them. Init and Unifier write this; Apply does not select it; inventory does not rewrite it.",
+                        "enum": [
+                          "low",
+                          "standard",
+                          "high"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "kind": {
+                    "const": "StackSpec",
+                    "type": "string"
+                  },
+                  "kit": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "slug": {
+                        "enum": [
+                          "basement-kit",
+                          "cloud-kit",
+                          "modern-homelab"
+                        ],
+                        "type": "string"
+                      },
+                      "version": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "slug"
+                    ],
+                    "type": "object"
+                  },
+                  "lanDiscovery": {
+                    "additionalProperties": false,
+                    "description": "Explicit allowlist of local Home routes that may be advertised on the LAN. An absent or empty list never infers advertisements from routes.",
+                    "properties": {
+                      "advertiseRouteRefs": {
+                        "items": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": true
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "metadata": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "fleetRef": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      },
+                      "name": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      },
+                      "stackId": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  },
+                  "modules": {
+                    "additionalProperties": {
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "network": {
+                    "type": "object"
+                  },
+                  "nodes": {
+                    "items": {
+                      "additionalProperties": false,
+                      "description": "Provider-neutral logical node intent. Host identity, connection details, addresses, and server lifecycle are supplied only through an opaque ExternalHostBinding after the intent is normalized.",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "failureDomain": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "hardware": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "arch": {
+                              "enum": [
+                                "amd64",
+                                "arm64"
+                              ],
+                              "type": "string"
+                            },
+                            "cpuCores": {
+                              "minimum": 1,
+                              "type": "integer"
+                            },
+                            "profile": {
+                              "enum": [
+                                "standard",
+                                "pi",
+                                "gpu",
+                                "storage"
+                              ],
+                              "type": "string"
+                            },
+                            "ramGB": {
+                              "minimum": 1,
+                              "type": "integer"
+                            },
+                            "storageGB": {
+                              "minimum": 1,
+                              "type": "integer"
+                            },
+                            "virtualization": {
+                              "enum": [
+                                "bare-metal",
+                                "kvm",
+                                "openvz",
+                                "lxc",
+                                "vmware",
+                                "hyperv",
+                                "xen",
+                                "oracle",
+                                "microsoft",
+                                "none"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "id": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        },
+                        "labels": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object"
+                        },
+                        "roles": {
+                          "items": {
+                            "enum": [
+                              "controller",
+                              "worker",
+                              "storage",
+                              "edge"
+                            ],
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array",
+                          "uniqueItems": true
+                        },
+                        "siteRef": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "siteRef",
+                        "roles",
+                        "hardware",
+                        "failureDomain"
+                      ],
+                      "type": "object"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "observability": {
+                    "additionalProperties": false,
+                    "description": "Per-node OTLP collection intent only. Backend selection, retention, dashboards, credentials, headers, and CA material are deliberately excluded.",
+                    "properties": {
+                      "collector": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "endpoint": {
+                            "minLength": 1,
+                            "pattern": "^\\\\S+$",
+                            "type": "string"
+                          },
+                          "protocol": {
+                            "enum": [
+                              "grpc",
+                              "http/protobuf"
+                            ],
+                            "type": "string"
+                          },
+                          "tls": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "insecure": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "insecure"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "enabled",
+                          "endpoint",
+                          "protocol",
+                          "tls"
+                        ],
+                        "type": "object"
+                      },
+                      "signals": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "logs": {
+                            "type": "boolean"
+                          },
+                          "metrics": {
+                            "type": "boolean"
+                          },
+                          "traces": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "metrics",
+                          "logs",
+                          "traces"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "signals",
+                      "collector"
+                    ],
+                    "type": "object"
+                  },
+                  "partitionPolicy": {
+                    "type": "object"
+                  },
+                  "routes": {
+                    "additionalProperties": {
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "sites": {
+                    "items": {
+                      "additionalProperties": false,
+                      "description": "Provider-neutral placement intent. A site identifies trust and failure domains; it never identifies a server provider, account, region, datacenter, native resource, credential, or management address.",
+                      "properties": {
+                        "failureDomain": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "id": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        },
+                        "kind": {
+                          "enum": [
+                            "home",
+                            "cloud"
+                          ],
+                          "type": "string"
+                        },
+                        "labels": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "network": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "serviceCIDRs": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "storageCIDRs": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "kind",
+                        "failureDomain"
+                      ],
+                      "type": "object"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "source": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "kind": {
+                        "enum": [
+                          "native-v2",
+                          "migrated-v1",
+                          "registry"
+                        ],
+                        "type": "string"
+                      },
+                      "migration": {
+                        "additionalProperties": true,
+                        "type": "object"
+                      },
+                      "ref": {
+                        "pattern": "^[^\\s]+$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "type": "object"
+                  },
+                  "storage": {
+                    "type": "object"
+                  },
+                  "system": {
+                    "type": "object"
+                  },
+                  "workloads": {
+                    "additionalProperties": {
+                      "type": "object"
+                    },
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "apiVersion",
+                  "kind",
+                  "metadata",
+                  "kit",
+                  "install",
+                  "generation",
+                  "network",
+                  "sites",
+                  "nodes",
+                  "controlPlane",
+                  "capabilities",
+                  "availability",
+                  "partitionPolicy"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": true,
+                "description": "Lossless legacy StackSpec v1 input accepted only to produce migration\ndiagnostics. Fields are deliberately not projected or discarded at the\nHTTP boundary, and this branch can never match a StackSpec v2 header.\n",
+                "oneOf": [
+                  {
+                    "properties": {
+                      "apiVersion": {
+                        "const": "stackkit/v1",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "apiVersion"
+                    ]
+                  },
+                  {
+                    "not": {
+                      "required": [
+                        "apiVersion"
+                      ]
+                    }
+                  }
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        }
+      ],
+      "body": {
+        "contentType": "application/json",
+        "required": true,
+        "mode": "json"
+      },
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "validation",
+          "validate-spec"
+        ]
+      }
+    },
+    {
+      "operationId": "validatePartial",
+      "method": "POST",
+      "path": "/api/v1/validate/partial",
+      "summary": "Validate versioned initial StackSpec authoring input",
+      "description": "Exact v0.6 servers retain legacy partial StackSpec validation. Native v0.7 servers accept only the governed Architecture v2 initial-authoring request and materialize a complete CUE-valid StackSpec. Arbitrary partial StackSpec overlays are not accepted on the v0.7 line.",
+      "tags": [
+        "Validation"
+      ],
+      "mutating": true,
+      "arguments": [
+        {
+          "name": "body",
+          "in": "body",
+          "required": true,
+          "schema": {
+            "oneOf": [
+              {
+                "description": "Legacy v0.6 partial StackSpec fields without an Architecture v2 discriminator.",
+                "not": {
+                  "required": [
+                    "apiVersion"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Versioned initial StackSpec materialization request. Native v2alpha2 requires explicit workload alternatives and module-local profiles. v2alpha1 remains the explicit legacy adapter. Overrides are deliberately limited to the paths governed by the embedded Definition authoring contract; this is not an arbitrary partial-spec overlay.",
+                "properties": {
+                  "apiVersion": {
+                    "enum": [
+                      "stackkit/v2alpha1",
+                      "stackkit/v2alpha2"
+                    ],
+                    "type": "string"
+                  },
+                  "kind": {
+                    "const": "InitialStackSpecAuthoring",
+                    "type": "string"
+                  },
+                  "kitProfile": {
+                    "enum": [
+                      "basement-kit",
+                      "cloud-kit",
+                      "modern-homelab"
+                    ],
+                    "type": "string"
+                  },
+                  "moduleProfiles": {
+                    "additionalProperties": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "acceleratorProfile": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        },
+                        "computeProfile": {
+                          "enum": [
+                            "low",
+                            "standard",
+                            "high"
+                          ],
+                          "type": "string"
+                        },
+                        "storageProfile": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "computeProfile"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "overrides": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "metadata.name": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      },
+                      "network.domain.base": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "platform": {
+                    "pattern": "^[a-z][a-z0-9-]*$",
+                    "type": "string"
+                  },
+                  "useCaseAlternatives": {
+                    "additionalProperties": {
+                      "pattern": "^[a-z][a-z0-9-]*$",
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "useCases": {
+                    "items": {
+                      "pattern": "^[a-z][a-z0-9-]*$",
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  }
+                },
+                "required": [
+                  "apiVersion",
+                  "kind",
+                  "kitProfile"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        }
+      ],
+      "body": {
+        "contentType": "application/json",
+        "required": true,
+        "mode": "json"
+      },
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "validation",
+          "validate-partial"
+        ]
+      }
+    },
+    {
+      "operationId": "runManagementVerify",
+      "method": "POST",
+      "path": "/api/v1/verify",
+      "summary": "Run node-local StackKit verification",
+      "description": "Exact-v0.6 compatibility verifier. Native v0.7 returns 501 until this endpoint consumes the exact verified ResolvedPlan and execution evidence; use the Architecture v2 CLI/executor verification path meanwhile.",
+      "tags": [
+        "Management"
+      ],
+      "deprecated": true,
+      "mutating": true,
+      "arguments": [
+        {
+          "name": "http",
+          "in": "body",
+          "wireName": "http",
+          "description": "Verify generated service URLs.",
+          "schema": {
+            "description": "Verify generated service URLs.",
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "strict",
+          "in": "body",
+          "wireName": "strict",
+          "description": "Treat warnings as failures.",
+          "schema": {
+            "description": "Treat warnings as failures.",
+            "type": "boolean"
+          }
+        }
+      ],
+      "body": {
+        "contentType": "application/json",
+        "mode": "properties"
+      },
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "management",
+          "run-management-verify"
+        ]
+      }
+    },
+    {
+      "operationId": "resolveArchitectureV2",
+      "method": "POST",
+      "path": "/api/v2/resolve",
+      "summary": "Resolve canonical Architecture v2 intent",
+      "description": "Resolves a canonical StackSpec v2 and optional observed inventory through\nthe embedded governed CUE authority. The successful response is the raw,\ncanonical ResolvedPlan document; it is not wrapped in a success envelope.\nStackSpec v1 input is never compiled implicitly and instead returns a\nmachine-readable migration report. Production deployments require the\nX-API-Key security scheme; explicitly unauthenticated local-development\ndeployments may use the anonymous alternative. Requests are bounded to\n64 JSON nesting levels, 65,536 JSON tokens, and 4,096 entries per\nindividual object or array before governed CUE resolution begins.",
+      "tags": [
+        "Architecture"
+      ],
+      "mutating": true,
+      "arguments": [
+        {
+          "name": "inventory",
+          "in": "body",
+          "wireName": "inventory",
+          "schema": {
+            "additionalProperties": false,
+            "properties": {
+              "externalBackupTargetBindings": {
+                "additionalProperties": {
+                  "additionalProperties": {
+                    "additionalProperties": false,
+                    "description": "Opaque, time-bound external custody attestation for one exact backup target requirement; provider, endpoint, bucket, credential, and lease fields are structurally excluded.",
+                    "properties": {
+                      "apiVersion": {
+                        "const": "stackkit.external-backup-target-binding/v1",
+                        "type": "string"
+                      },
+                      "backupTargetRef": {
+                        "pattern": "^backup-target://sha256/[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "bindingHash": {
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "bindingRef": {
+                        "pattern": "^backup-target-binding://sha256/[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "candidateDigest": {
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "capabilityContractHash": {
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "capabilityRef": {
+                        "const": "offsite-object-backup",
+                        "type": "string"
+                      },
+                      "contractOwnerRef": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      },
+                      "custodyAttestationRef": {
+                        "pattern": "^backup-custody-attestation://sha256/[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "issuedAt": {
+                        "format": "date-time",
+                        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+                        "type": "string"
+                      },
+                      "kind": {
+                        "const": "ExternalBackupTargetBinding",
+                        "type": "string"
+                      },
+                      "requirementsHash": {
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "siteRef": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      },
+                      "specHash": {
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "stackId": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      },
+                      "stackkitsVersion": {
+                        "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$",
+                        "type": "string"
+                      },
+                      "validUntil": {
+                        "description": "Must be after issuedAt and no more than 24 hours later.",
+                        "format": "date-time",
+                        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "apiVersion",
+                      "kind",
+                      "bindingRef",
+                      "backupTargetRef",
+                      "custodyAttestationRef",
+                      "stackId",
+                      "siteRef",
+                      "capabilityRef",
+                      "contractOwnerRef",
+                      "capabilityContractHash",
+                      "requirementsHash",
+                      "stackkitsVersion",
+                      "candidateDigest",
+                      "specHash",
+                      "issuedAt",
+                      "validUntil",
+                      "bindingHash"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "object"
+                },
+                "description": "Optional externally issued Cloud backup target bindings, keyed by Cloud Site and offsite-object-backup capability.",
+                "type": "object"
+              },
+              "externalFederationLinkBindings": {
+                "additionalProperties": {
+                  "additionalProperties": false,
+                  "description": "Opaque, time-bound attestation for one exact Federation link requirement; operational fabric details are excluded.",
+                  "properties": {
+                    "apiVersion": {
+                      "const": "stackkit.external-federation-link-binding/v1",
+                      "type": "string"
+                    },
+                    "bindingHash": {
+                      "pattern": "^sha256:[a-f0-9]{64}$",
+                      "type": "string"
+                    },
+                    "bindingRef": {
+                      "pattern": "^federation-link-binding://sha256/[a-f0-9]{64}$",
+                      "type": "string"
+                    },
+                    "bridgeContractHash": {
+                      "pattern": "^sha256:[a-f0-9]{64}$",
+                      "type": "string"
+                    },
+                    "candidateDigest": {
+                      "pattern": "^sha256:[a-f0-9]{64}$",
+                      "type": "string"
+                    },
+                    "capabilityContractHash": {
+                      "pattern": "^sha256:[a-f0-9]{64}$",
+                      "type": "string"
+                    },
+                    "capabilityRef": {
+                      "const": "inter-site-link",
+                      "type": "string"
+                    },
+                    "cloudSiteRefs": {
+                      "items": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array",
+                      "uniqueItems": true
+                    },
+                    "contractOwnerRef": {
+                      "pattern": "^[a-z][a-z0-9-]*$",
+                      "type": "string"
+                    },
+                    "custodyAttestationRef": {
+                      "pattern": "^federation-link-custody-attestation://sha256/[a-f0-9]{64}$",
+                      "type": "string"
+                    },
+                    "fabricRef": {
+                      "pattern": "^federation-link-fabric://sha256/[a-f0-9]{64}$",
+                      "type": "string"
+                    },
+                    "homeSiteRefs": {
+                      "items": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array",
+                      "uniqueItems": true
+                    },
+                    "issuedAt": {
+                      "format": "date-time",
+                      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+                      "type": "string"
+                    },
+                    "kind": {
+                      "const": "ExternalFederationLinkBinding",
+                      "type": "string"
+                    },
+                    "requirementsHash": {
+                      "pattern": "^sha256:[a-f0-9]{64}$",
+                      "type": "string"
+                    },
+                    "specHash": {
+                      "pattern": "^sha256:[a-f0-9]{64}$",
+                      "type": "string"
+                    },
+                    "stackId": {
+                      "pattern": "^[a-z][a-z0-9-]*$",
+                      "type": "string"
+                    },
+                    "stackkitsVersion": {
+                      "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$",
+                      "type": "string"
+                    },
+                    "targetNodes": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "nodeRef": {
+                            "pattern": "^[a-z][a-z0-9-]*$",
+                            "type": "string"
+                          },
+                          "siteRef": {
+                            "pattern": "^[a-z][a-z0-9-]*$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "siteRef",
+                          "nodeRef"
+                        ],
+                        "type": "object"
+                      },
+                      "minItems": 1,
+                      "type": "array",
+                      "uniqueItems": true
+                    },
+                    "validUntil": {
+                      "description": "Must be after issuedAt and no more than 24 hours later.",
+                      "format": "date-time",
+                      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "apiVersion",
+                    "kind",
+                    "bindingRef",
+                    "fabricRef",
+                    "custodyAttestationRef",
+                    "stackId",
+                    "capabilityRef",
+                    "contractOwnerRef",
+                    "capabilityContractHash",
+                    "homeSiteRefs",
+                    "cloudSiteRefs",
+                    "targetNodes",
+                    "bridgeContractHash",
+                    "requirementsHash",
+                    "stackkitsVersion",
+                    "candidateDigest",
+                    "specHash",
+                    "issuedAt",
+                    "validUntil",
+                    "bindingHash"
+                  ],
+                  "type": "object"
+                },
+                "description": "Optional opaque Modern Federation link bindings keyed by inter-site-link.",
+                "type": "object"
+              },
+              "externalHomeAccessBindings": {
+                "additionalProperties": {
+                  "additionalProperties": {
+                    "additionalProperties": false,
+                    "description": "Opaque external realization of one exact HomeAccessRequirement. The contract intentionally excludes transport, endpoint, address, secret, provider-resource, account, region, and lifecycle fields.",
+                    "properties": {
+                      "accessFabricRef": {
+                        "pattern": "^home-access-fabric://sha256/[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "apiVersion": {
+                        "const": "stackkit.external-home-access-binding/v1",
+                        "type": "string"
+                      },
+                      "bindingHash": {
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "bindingRef": {
+                        "pattern": "^home-access-binding://sha256/[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "candidateDigest": {
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "capabilityContractHash": {
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "capabilityRef": {
+                        "enum": [
+                          "private-remote-access",
+                          "public-publish-egress"
+                        ],
+                        "type": "string"
+                      },
+                      "contractOwnerRef": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      },
+                      "issuedAt": {
+                        "format": "date-time",
+                        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+                        "type": "string"
+                      },
+                      "kind": {
+                        "const": "ExternalHomeAccessBinding",
+                        "type": "string"
+                      },
+                      "requirementsHash": {
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "siteRef": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      },
+                      "specHash": {
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "stackId": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      },
+                      "stackkitsVersion": {
+                        "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$",
+                        "type": "string"
+                      },
+                      "validUntil": {
+                        "format": "date-time",
+                        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "apiVersion",
+                      "kind",
+                      "bindingRef",
+                      "stackId",
+                      "siteRef",
+                      "capabilityRef",
+                      "contractOwnerRef",
+                      "capabilityContractHash",
+                      "requirementsHash",
+                      "accessFabricRef",
+                      "stackkitsVersion",
+                      "candidateDigest",
+                      "specHash",
+                      "issuedAt",
+                      "validUntil",
+                      "bindingHash"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "object"
+                },
+                "description": "Optional externally issued Home access bindings, keyed first by Home Site and then by the exact access capability.",
+                "type": "object"
+              },
+              "externalHomeBackupTargetBindings": {
+                "additionalProperties": {
+                  "additionalProperties": {
+                    "additionalProperties": false,
+                    "description": "Opaque maximum-24-hour external custody attestation for one exact Home backup requirement. Provider, target topology, endpoint, credential, resource, lease, lifecycle, transport, address, and discovery fields are structurally excluded.",
+                    "properties": {
+                      "apiVersion": {
+                        "const": "stackkit.external-home-backup-target-binding/v1",
+                        "type": "string"
+                      },
+                      "backupTargetRef": {
+                        "pattern": "^home-backup-target://sha256/[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "bindingHash": {
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "bindingRef": {
+                        "pattern": "^home-backup-target-binding://sha256/[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "candidateDigest": {
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "capabilityContractHash": {
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "capabilityRef": {
+                        "const": "encrypted-offsite-backup",
+                        "type": "string"
+                      },
+                      "contractOwnerRef": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      },
+                      "custodyAttestationRef": {
+                        "pattern": "^home-backup-custody-attestation://sha256/[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "issuedAt": {
+                        "format": "date-time",
+                        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+                        "type": "string"
+                      },
+                      "kind": {
+                        "const": "ExternalHomeBackupTargetBinding",
+                        "type": "string"
+                      },
+                      "requirementsHash": {
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "siteRef": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      },
+                      "specHash": {
+                        "pattern": "^sha256:[a-f0-9]{64}$",
+                        "type": "string"
+                      },
+                      "stackId": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      },
+                      "stackkitsVersion": {
+                        "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$",
+                        "type": "string"
+                      },
+                      "validUntil": {
+                        "description": "Must be after issuedAt and no more than 24 hours later.",
+                        "format": "date-time",
+                        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "apiVersion",
+                      "kind",
+                      "bindingRef",
+                      "backupTargetRef",
+                      "custodyAttestationRef",
+                      "stackId",
+                      "siteRef",
+                      "capabilityRef",
+                      "contractOwnerRef",
+                      "capabilityContractHash",
+                      "requirementsHash",
+                      "stackkitsVersion",
+                      "candidateDigest",
+                      "specHash",
+                      "issuedAt",
+                      "validUntil",
+                      "bindingHash"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "object"
+                },
+                "description": "Optional opaque Home encrypted-backup target bindings, keyed by Home Site and encrypted-offsite-backup capability.",
+                "type": "object"
+              },
+              "nodes": {
+                "additionalProperties": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "arch": {
+                      "enum": [
+                        "amd64",
+                        "arm64"
+                      ],
+                      "type": "string"
+                    },
+                    "cpuCores": {
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "externalHostBinding": {
+                      "additionalProperties": false,
+                      "description": "Opaque, hash-bound handoff for an already supplied host. This contract grants an execution channel but no authority to provision, resize, snapshot, delete, or otherwise manage a server-provider resource.",
+                      "properties": {
+                        "apiVersion": {
+                          "const": "stackkit.external-host-binding/v1",
+                          "type": "string"
+                        },
+                        "bindingHash": {
+                          "pattern": "^sha256:[a-f0-9]{64}$",
+                          "type": "string"
+                        },
+                        "bindingRef": {
+                          "pattern": "^host-binding://sha256/[a-f0-9]{64}$",
+                          "type": "string"
+                        },
+                        "candidateDigest": {
+                          "pattern": "^sha256:[a-f0-9]{64}$",
+                          "type": "string"
+                        },
+                        "executionChannelRef": {
+                          "pattern": "^execution-channel://sha256/[a-f0-9]{64}$",
+                          "type": "string"
+                        },
+                        "hostRef": {
+                          "pattern": "^host://sha256/[a-f0-9]{64}$",
+                          "type": "string"
+                        },
+                        "hostRequirementsHash": {
+                          "pattern": "^sha256:[a-f0-9]{64}$",
+                          "type": "string"
+                        },
+                        "inventoryHash": {
+                          "pattern": "^sha256:[a-f0-9]{64}$",
+                          "type": "string"
+                        },
+                        "inventoryRef": {
+                          "pattern": "^host-inventory://sha256/[a-f0-9]{64}$",
+                          "type": "string"
+                        },
+                        "issuedAt": {
+                          "format": "date-time",
+                          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+                          "type": "string"
+                        },
+                        "kind": {
+                          "const": "ExternalHostBinding",
+                          "type": "string"
+                        },
+                        "nodeRef": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        },
+                        "secretRefs": {
+                          "additionalProperties": {
+                            "pattern": "^(secret|vault|doppler|techstack)://[^\\s]+$",
+                            "type": "string"
+                          },
+                          "type": "object"
+                        },
+                        "specHash": {
+                          "pattern": "^sha256:[a-f0-9]{64}$",
+                          "type": "string"
+                        },
+                        "stackId": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        },
+                        "stackkitsVersion": {
+                          "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$",
+                          "type": "string"
+                        },
+                        "validUntil": {
+                          "description": "Must be after issuedAt and no more than 24 hours later.",
+                          "format": "date-time",
+                          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "apiVersion",
+                        "kind",
+                        "bindingRef",
+                        "stackId",
+                        "nodeRef",
+                        "hostRef",
+                        "inventoryRef",
+                        "executionChannelRef",
+                        "secretRefs",
+                        "stackkitsVersion",
+                        "candidateDigest",
+                        "specHash",
+                        "hostRequirementsHash",
+                        "inventoryHash",
+                        "issuedAt",
+                        "validUntil",
+                        "bindingHash"
+                      ],
+                      "type": "object"
+                    },
+                    "hostConformanceReceipt": {
+                      "additionalProperties": false,
+                      "description": "StackKits-owned, hash-bound evidence for one ExternalHostBinding. It records OS support and host diagnostics, never provider compatibility or infrastructure lifecycle state.",
+                      "properties": {
+                        "apiVersion": {
+                          "const": "stackkit.host-conformance-receipt/v1",
+                          "type": "string"
+                        },
+                        "bindingHash": {
+                          "pattern": "^sha256:[a-f0-9]{64}$",
+                          "type": "string"
+                        },
+                        "bindingRef": {
+                          "pattern": "^host-binding://sha256/[a-f0-9]{64}$",
+                          "type": "string"
+                        },
+                        "candidateDigest": {
+                          "pattern": "^sha256:[a-f0-9]{64}$",
+                          "type": "string"
+                        },
+                        "checks": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "category": {
+                                "enum": [
+                                  "os-compatibility",
+                                  "host-diagnostic"
+                                ],
+                                "type": "string"
+                              },
+                              "id": {
+                                "pattern": "^[a-z][a-z0-9-]*$",
+                                "type": "string"
+                              },
+                              "status": {
+                                "enum": [
+                                  "pass",
+                                  "warning",
+                                  "fail",
+                                  "unverified"
+                                ],
+                                "type": "string"
+                              },
+                              "summary": {
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "category",
+                              "status",
+                              "summary"
+                            ],
+                            "type": "object"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        },
+                        "facts": {
+                          "additionalProperties": false,
+                          "description": "OS compatibility facts plus provider-neutral host diagnostics. Only the OS tuple is a StackKits compatibility claim.",
+                          "properties": {
+                            "architecture": {
+                              "enum": [
+                                "amd64",
+                                "arm64"
+                              ],
+                              "type": "string"
+                            },
+                            "kernel": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "release": {
+                                  "pattern": "^\\S+$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "release"
+                              ],
+                              "type": "object"
+                            },
+                            "os": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "distribution": {
+                                  "pattern": "^[a-z][a-z0-9-]*$",
+                                  "type": "string"
+                                },
+                                "family": {
+                                  "const": "linux",
+                                  "type": "string"
+                                },
+                                "version": {
+                                  "pattern": "^\\S+$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "family",
+                                "distribution",
+                                "version"
+                              ],
+                              "type": "object"
+                            },
+                            "runtime": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "engine": {
+                                  "enum": [
+                                    "docker",
+                                    "podman",
+                                    "containerd",
+                                    "none"
+                                  ],
+                                  "type": "string"
+                                },
+                                "version": {
+                                  "pattern": "^\\S+$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "engine",
+                                "version"
+                              ],
+                              "type": "object"
+                            },
+                            "virtualization": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "class": {
+                                  "enum": [
+                                    "bare-metal",
+                                    "kvm",
+                                    "openvz",
+                                    "lxc",
+                                    "vmware",
+                                    "hyperv",
+                                    "xen",
+                                    "oracle",
+                                    "microsoft",
+                                    "none"
+                                  ],
+                                  "type": "string"
+                                },
+                                "nested": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "class",
+                                "nested"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "os",
+                            "architecture",
+                            "kernel",
+                            "runtime",
+                            "virtualization"
+                          ],
+                          "type": "object"
+                        },
+                        "kind": {
+                          "const": "HostConformanceReceipt",
+                          "type": "string"
+                        },
+                        "nodeRef": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        },
+                        "observedAt": {
+                          "format": "date-time",
+                          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+                          "type": "string"
+                        },
+                        "receiptDigest": {
+                          "pattern": "^sha256:[a-f0-9]{64}$",
+                          "type": "string"
+                        },
+                        "receiptRef": {
+                          "pattern": "^host-conformance://sha256/[a-f0-9]{64}$",
+                          "type": "string"
+                        },
+                        "result": {
+                          "enum": [
+                            "conformant",
+                            "degraded",
+                            "incompatible",
+                            "unverified"
+                          ],
+                          "type": "string"
+                        },
+                        "stackId": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        },
+                        "stackkitsVersion": {
+                          "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$",
+                          "type": "string"
+                        },
+                        "validUntil": {
+                          "format": "date-time",
+                          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "apiVersion",
+                        "kind",
+                        "receiptRef",
+                        "bindingRef",
+                        "bindingHash",
+                        "stackId",
+                        "nodeRef",
+                        "stackkitsVersion",
+                        "candidateDigest",
+                        "observedAt",
+                        "validUntil",
+                        "facts",
+                        "checks",
+                        "result",
+                        "receiptDigest"
+                      ],
+                      "type": "object"
+                    },
+                    "observedSiteKind": {
+                      "enum": [
+                        "home",
+                        "cloud"
+                      ],
+                      "type": "string"
+                    },
+                    "ramGB": {
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "runtimeDaemons": {
+                      "additionalProperties": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "engine": {
+                            "const": "docker",
+                            "type": "string"
+                          },
+                          "instanceRef": {
+                            "pattern": "^[a-z][a-z0-9-]*$",
+                            "type": "string"
+                          },
+                          "socketPath": {
+                            "description": "Canonical absolute Unix-domain socket path using portable ASCII path segments and a .sock suffix. Empty, dot, dot-dot, repeated, backslash, whitespace, control-character, and trailing-slash segments are forbidden. The 107-character bound is also the exact UTF-8 byte bound because the pattern is ASCII-only, leaving Linux sockaddr_un space for the NUL byte.",
+                            "maxLength": 107,
+                            "not": {
+                              "pattern": "(^|/)\\.\\.?(/|$)"
+                            },
+                            "pattern": "^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*\\.sock$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "instanceRef",
+                          "engine",
+                          "socketPath"
+                        ],
+                        "type": "object"
+                      },
+                      "description": "Observed node-scoped runtime daemons keyed by stable daemonRef. CUE additionally requires instanceRef and socketPath uniqueness per node.",
+                      "type": "object"
+                    },
+                    "storageGB": {
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "virtualization": {
+                      "enum": [
+                        "bare-metal",
+                        "kvm",
+                        "openvz",
+                        "lxc",
+                        "vmware",
+                        "hyperv",
+                        "xen",
+                        "oracle",
+                        "microsoft",
+                        "none"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "type": "object"
+              },
+              "schemaVersion": {
+                "const": "stackkit.inventory/v1",
+                "type": "string"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "nodes"
+            ],
+            "type": "object"
+          }
+        },
+        {
+          "name": "stack_spec",
+          "in": "body",
+          "wireName": "stackSpec",
+          "required": true,
+          "schema": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "apiVersion": {
+                          "const": "stackkit/v2alpha2"
+                        }
+                      },
+                      "required": [
+                        "apiVersion"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "install": {
+                          "not": {
+                            "required": [
+                              "computeTier"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                ],
+                "description": "Canonical StackSpec v2 intent. Unknown top-level fields are rejected;\nthe embedded CUE authority remains authoritative for all deeper\ncross-field constraints and defaults.\n",
+                "properties": {
+                  "access": {
+                    "additionalProperties": {
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "addons": {
+                    "additionalProperties": {
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "apiVersion": {
+                    "enum": [
+                      "stackkit/v2alpha1",
+                      "stackkit/v2alpha2"
+                    ],
+                    "type": "string"
+                  },
+                  "availability": {
+                    "type": "object"
+                  },
+                  "backupPolicy": {
+                    "additionalProperties": false,
+                    "description": "Closed provider-free backup intent. Runtime target custody and job, repository, retention, and restore execution remain separate governed authorities. The grant is a ceiling from the subscription; coverage selects the data classes within it and never exceeds it.",
+                    "properties": {
+                      "apiVersion": {
+                        "const": "stackkit.backup-policy/v1",
+                        "type": "string"
+                      },
+                      "coverage": {
+                        "description": "Nested coverage group: config, content (config plus the data a stack produces) or media (content plus photo and large-media libraries).",
+                        "enum": [
+                          "config",
+                          "content",
+                          "media"
+                        ],
+                        "type": "string"
+                      },
+                      "dataClasses": {
+                        "items": {
+                          "enum": [
+                            "config",
+                            "secret-material",
+                            "platform-state",
+                            "database",
+                            "user-content",
+                            "documents",
+                            "photos",
+                            "large-media",
+                            "telemetry-timeseries",
+                            "serverless-config"
+                          ],
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array",
+                        "uniqueItems": true
+                      },
+                      "grant": {
+                        "additionalProperties": false,
+                        "description": "Ceiling one subscription grants one stack for coverage, cadence and retention. Every field defaults to the contract maximum; a tier's default values are never restated here.",
+                        "properties": {
+                          "cadences": {
+                            "items": {
+                              "enum": [
+                                "daily",
+                                "hourly",
+                                "weekly"
+                              ],
+                              "type": "string"
+                            },
+                            "minItems": 1,
+                            "type": "array",
+                            "uniqueItems": true
+                          },
+                          "coverage": {
+                            "description": "Nested coverage group: config, content (config plus the data a stack produces) or media (content plus photo and large-media libraries).",
+                            "enum": [
+                              "config",
+                              "content",
+                              "media"
+                            ],
+                            "type": "string"
+                          },
+                          "retention": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "keepDaily": {
+                                "maximum": 365,
+                                "minimum": 1,
+                                "type": "integer"
+                              },
+                              "keepMonthly": {
+                                "maximum": 60,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "keepWeekly": {
+                                "maximum": 104,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "keepYearly": {
+                                "maximum": 10,
+                                "minimum": 0,
+                                "type": "integer"
+                              }
+                            },
+                            "type": "object"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "kind": {
+                        "const": "BackupPolicy",
+                        "type": "string"
+                      },
+                      "restoreVerification": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "cadence": {
+                            "enum": [
+                              "monthly",
+                              "weekly"
+                            ],
+                            "type": "string"
+                          },
+                          "evidenceRef": {
+                            "const": "backup-restore-verification",
+                            "type": "string"
+                          },
+                          "maxEvidenceAgeDays": {
+                            "maximum": 92,
+                            "minimum": 1,
+                            "type": "integer"
+                          },
+                          "required": {
+                            "const": true,
+                            "type": "boolean"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "retention": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "keepDaily": {
+                            "maximum": 365,
+                            "minimum": 1,
+                            "type": "integer"
+                          },
+                          "keepMonthly": {
+                            "maximum": 60,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "keepWeekly": {
+                            "maximum": 104,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "keepYearly": {
+                            "maximum": 10,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "schedule": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "cadence": {
+                            "enum": [
+                              "daily",
+                              "hourly",
+                              "weekly"
+                            ],
+                            "type": "string"
+                          },
+                          "hourUTC": {
+                            "maximum": 23,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "jitterSeconds": {
+                            "maximum": 1800,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "minuteUTC": {
+                            "maximum": 59,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "weekdayUTC": {
+                            "enum": [
+                              "sunday",
+                              "monday",
+                              "tuesday",
+                              "wednesday",
+                              "thursday",
+                              "friday",
+                              "saturday"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "bridge": {
+                    "type": "object"
+                  },
+                  "capabilities": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "config": {
+                        "additionalProperties": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "providerRef": {
+                              "pattern": "^[a-z][a-z0-9-]*$",
+                              "type": "string"
+                            },
+                            "secretRefs": {
+                              "additionalProperties": {
+                                "pattern": "^(secret|vault|doppler|techstack)://[^\\s]+$",
+                                "type": "string"
+                              },
+                              "type": "object"
+                            },
+                            "settings": {
+                              "additionalProperties": true,
+                              "type": "object"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "type": "object"
+                      },
+                      "disable": {
+                        "items": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "enable": {
+                        "items": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "enable",
+                      "disable"
+                    ],
+                    "type": "object"
+                  },
+                  "container": {
+                    "type": "object"
+                  },
+                  "controlPlane": {
+                    "type": "object"
+                  },
+                  "data": {
+                    "type": "object"
+                  },
+                  "deviceEnrollment": {
+                    "type": "object"
+                  },
+                  "driftPolicy": {
+                    "additionalProperties": false,
+                    "description": "Closed provider-free drift observation intent. It grants no read channel, executor, reconciliation, provider, endpoint, credential, command, or host authority.",
+                    "properties": {
+                      "apiVersion": {
+                        "const": "stackkit.drift-policy/v1",
+                        "type": "string"
+                      },
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "evidence": {
+                        "additionalProperties": false,
+                        "description": "Evidence is required exactly when drift observation is enabled.",
+                        "properties": {
+                          "evidenceRef": {
+                            "const": "drift-observation",
+                            "type": "string"
+                          },
+                          "maxEvidenceAgeMinutes": {
+                            "maximum": 10080,
+                            "minimum": 15,
+                            "type": "integer"
+                          },
+                          "onMissing": {
+                            "const": "unknown",
+                            "type": "string"
+                          },
+                          "required": {
+                            "type": "boolean"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "kind": {
+                        "const": "DriftPolicy",
+                        "type": "string"
+                      },
+                      "response": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "differenceAction": {
+                            "const": "report-only",
+                            "type": "string"
+                          },
+                          "reconcileApproval": {
+                            "const": "required",
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "schedule": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "cadence": {
+                            "enum": [
+                              "daily",
+                              "hourly",
+                              "weekly"
+                            ],
+                            "type": "string"
+                          },
+                          "hourUTC": {
+                            "maximum": 23,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "jitterSeconds": {
+                            "maximum": 900,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "minuteUTC": {
+                            "maximum": 59,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "weekdayUTC": {
+                            "enum": [
+                              "sunday",
+                              "monday",
+                              "tuesday",
+                              "wednesday",
+                              "thursday",
+                              "friday",
+                              "saturday"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "subjects": {
+                        "items": {
+                          "enum": [
+                            "resolved-plan",
+                            "generated-artifacts",
+                            "runtime-configuration"
+                          ],
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array",
+                        "uniqueItems": true
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "generation": {
+                    "type": "object"
+                  },
+                  "install": {
+                    "properties": {
+                      "computeTier": {
+                        "default": "standard",
+                        "description": "Declared kit module graph. Not install.mode, placement.mode, hardware.profile, or legacy context. Default standard is the current kit graph; low and high fail closed until the kit declares them. Init and Unifier write this; Apply does not select it; inventory does not rewrite it.",
+                        "enum": [
+                          "low",
+                          "standard",
+                          "high"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "kind": {
+                    "const": "StackSpec",
+                    "type": "string"
+                  },
+                  "kit": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "slug": {
+                        "enum": [
+                          "basement-kit",
+                          "cloud-kit",
+                          "modern-homelab"
+                        ],
+                        "type": "string"
+                      },
+                      "version": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "slug"
+                    ],
+                    "type": "object"
+                  },
+                  "lanDiscovery": {
+                    "additionalProperties": false,
+                    "description": "Explicit allowlist of local Home routes that may be advertised on the LAN. An absent or empty list never infers advertisements from routes.",
+                    "properties": {
+                      "advertiseRouteRefs": {
+                        "items": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": true
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "metadata": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "fleetRef": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      },
+                      "name": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      },
+                      "stackId": {
+                        "pattern": "^[a-z][a-z0-9-]*$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  },
+                  "modules": {
+                    "additionalProperties": {
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "network": {
+                    "type": "object"
+                  },
+                  "nodes": {
+                    "items": {
+                      "additionalProperties": false,
+                      "description": "Provider-neutral logical node intent. Host identity, connection details, addresses, and server lifecycle are supplied only through an opaque ExternalHostBinding after the intent is normalized.",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "failureDomain": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "hardware": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "arch": {
+                              "enum": [
+                                "amd64",
+                                "arm64"
+                              ],
+                              "type": "string"
+                            },
+                            "cpuCores": {
+                              "minimum": 1,
+                              "type": "integer"
+                            },
+                            "profile": {
+                              "enum": [
+                                "standard",
+                                "pi",
+                                "gpu",
+                                "storage"
+                              ],
+                              "type": "string"
+                            },
+                            "ramGB": {
+                              "minimum": 1,
+                              "type": "integer"
+                            },
+                            "storageGB": {
+                              "minimum": 1,
+                              "type": "integer"
+                            },
+                            "virtualization": {
+                              "enum": [
+                                "bare-metal",
+                                "kvm",
+                                "openvz",
+                                "lxc",
+                                "vmware",
+                                "hyperv",
+                                "xen",
+                                "oracle",
+                                "microsoft",
+                                "none"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "id": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        },
+                        "labels": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object"
+                        },
+                        "roles": {
+                          "items": {
+                            "enum": [
+                              "controller",
+                              "worker",
+                              "storage",
+                              "edge"
+                            ],
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array",
+                          "uniqueItems": true
+                        },
+                        "siteRef": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "siteRef",
+                        "roles",
+                        "hardware",
+                        "failureDomain"
+                      ],
+                      "type": "object"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "observability": {
+                    "additionalProperties": false,
+                    "description": "Per-node OTLP collection intent only. Backend selection, retention, dashboards, credentials, headers, and CA material are deliberately excluded.",
+                    "properties": {
+                      "collector": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "endpoint": {
+                            "minLength": 1,
+                            "pattern": "^\\\\S+$",
+                            "type": "string"
+                          },
+                          "protocol": {
+                            "enum": [
+                              "grpc",
+                              "http/protobuf"
+                            ],
+                            "type": "string"
+                          },
+                          "tls": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "insecure": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "insecure"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "enabled",
+                          "endpoint",
+                          "protocol",
+                          "tls"
+                        ],
+                        "type": "object"
+                      },
+                      "signals": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "logs": {
+                            "type": "boolean"
+                          },
+                          "metrics": {
+                            "type": "boolean"
+                          },
+                          "traces": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "metrics",
+                          "logs",
+                          "traces"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "signals",
+                      "collector"
+                    ],
+                    "type": "object"
+                  },
+                  "partitionPolicy": {
+                    "type": "object"
+                  },
+                  "routes": {
+                    "additionalProperties": {
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "sites": {
+                    "items": {
+                      "additionalProperties": false,
+                      "description": "Provider-neutral placement intent. A site identifies trust and failure domains; it never identifies a server provider, account, region, datacenter, native resource, credential, or management address.",
+                      "properties": {
+                        "failureDomain": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "id": {
+                          "pattern": "^[a-z][a-z0-9-]*$",
+                          "type": "string"
+                        },
+                        "kind": {
+                          "enum": [
+                            "home",
+                            "cloud"
+                          ],
+                          "type": "string"
+                        },
+                        "labels": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "network": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "serviceCIDRs": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "storageCIDRs": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "kind",
+                        "failureDomain"
+                      ],
+                      "type": "object"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "source": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "kind": {
+                        "enum": [
+                          "native-v2",
+                          "migrated-v1",
+                          "registry"
+                        ],
+                        "type": "string"
+                      },
+                      "migration": {
+                        "additionalProperties": true,
+                        "type": "object"
+                      },
+                      "ref": {
+                        "pattern": "^[^\\s]+$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "type": "object"
+                  },
+                  "storage": {
+                    "type": "object"
+                  },
+                  "system": {
+                    "type": "object"
+                  },
+                  "workloads": {
+                    "additionalProperties": {
+                      "type": "object"
+                    },
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "apiVersion",
+                  "kind",
+                  "metadata",
+                  "kit",
+                  "install",
+                  "generation",
+                  "network",
+                  "sites",
+                  "nodes",
+                  "controlPlane",
+                  "capabilities",
+                  "availability",
+                  "partitionPolicy"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": true,
+                "description": "Lossless legacy StackSpec v1 input accepted only to produce migration\ndiagnostics. Fields are deliberately not projected or discarded at the\nHTTP boundary, and this branch can never match a StackSpec v2 header.\n",
+                "oneOf": [
+                  {
+                    "properties": {
+                      "apiVersion": {
+                        "const": "stackkit/v1",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "apiVersion"
+                    ]
+                  },
+                  {
+                    "not": {
+                      "required": [
+                        "apiVersion"
+                      ]
+                    }
+                  }
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        }
+      ],
+      "body": {
+        "contentType": "application/json",
+        "required": true,
+        "mode": "properties"
+      },
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data",
+        "schema": {
+          "type": "object"
+        }
+      },
+      "cli": {
+        "command": [
+          "architecture",
+          "resolve-architecture-v2"
+        ]
+      }
+    },
+    {
+      "operationId": "healthRoot",
+      "method": "GET",
+      "path": "/health",
+      "summary": "Root health check",
+      "tags": [
+        "Health"
+      ],
+      "output": {
+        "contentType": "application/json",
+        "envelope": "data"
+      },
+      "cli": {
+        "command": [
+          "health",
+          "health-root"
+        ]
+      },
+      "mcpExcluded": true
+    }
+  ]
+}

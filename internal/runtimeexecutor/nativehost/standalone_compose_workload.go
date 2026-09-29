@@ -1102,8 +1102,8 @@ func standaloneComposeRouteLabels(route architecturev2renderer.ApplicationDelive
 		entrypoint = "websecure"
 	}
 	labels := map[string]string{
-		"traefik.enable":         "true",
-		"traefik.docker.network": routingNetwork,
+		"traefik.enable":                                                  "true",
+		"traefik.docker.network":                                          routingNetwork,
 		"traefik.http.routers." + router + ".entrypoints":                 entrypoint,
 		"traefik.http.routers." + router + ".rule":                        rule,
 		"traefik.http.services." + router + ".loadbalancer.server.port":   strconv.Itoa(route.TargetPort),

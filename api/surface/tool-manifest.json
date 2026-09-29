@@ -1,0 +1,112 @@
+{
+  "schema_version": "kombify.tool-manifest/v1",
+  "product": "stackkits",
+  "capability": "stackkit.status",
+  "mcp": {
+    "transport": "streamable-http",
+    "endpoint": "/mcp",
+    "protocol_version": "2026-07-28"
+  },
+  "tools": [
+    {
+      "name": "stackkit_log_get",
+      "title": "Get deploy log by run ID",
+      "description": "Returns events from a specific deploy log run. Use query parameters to filter by level or event prefix.",
+      "requiredCapability": "stackkit.logs.read",
+      "operationId": "getLog",
+      "http": {
+        "method": "GET",
+        "path": "/api/v1/logs/{runID}"
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "level": {
+            "description": "Filter events by log level",
+            "enum": [
+              "INFO",
+              "WARN",
+              "ERROR",
+              "DEBUG"
+            ],
+            "type": "string"
+          },
+          "prefix": {
+            "description": "Filter events by message prefix (e.g., apply., decision., tofu.)",
+            "type": "string"
+          },
+          "run_id": {
+            "description": "Deploy run ID (format: YYYYMMDD-HHMMSS)",
+            "pattern": "^\\d{8}-\\d{6}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "stackkit_logs_list",
+      "title": "List all deploy log runs",
+      "description": "Returns a paginated list of deploy log runs sorted by timestamp.",
+      "requiredCapability": "stackkit.logs",
+      "operationId": "listLogs",
+      "http": {
+        "method": "GET",
+        "path": "/api/v1/logs"
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "description": "Maximum number of results",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Number of results to skip",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "stackkit_status",
+      "title": "Read node-local StackKit rollout status",
+      "description": "Read-only status. Native v0.7 validates the local StackSpec v2 and reports spec-only/resolve-required state without claiming operational readiness. Exact v0.6 retains legacy rollout status fields.",
+      "requiredCapability": "stackkit.status",
+      "operationId": "getManagementStatus",
+      "http": {
+        "method": "GET",
+        "path": "/api/v1/status"
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    }
+  ]
+}

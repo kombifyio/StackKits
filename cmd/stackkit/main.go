@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"os"
 
 	"github.com/kombifyio/stackkits/cmd/stackkit/commands"
@@ -16,6 +17,10 @@ var (
 
 func main() {
 	commands.SetVersionInfo(Version, GitCommit, BuildDate)
+
+	if isAPIMode(os.Args) {
+		os.Exit(runAPIMode(context.Background(), os.Args[2:]))
+	}
 
 	if err := commands.Execute(); err != nil {
 		// A host refused by preflight exits distinctly, so an installer or

@@ -547,7 +547,7 @@ func buildPlan(input plannerInput) testPlan {
 			Kind:   "contract",
 			Scope:  "stackaction-generated-openapi",
 			Argv:   []string{"go", "run", "./internal/contractgen/stackactiongen/cmd", "-repo-root", ".", "-check"},
-			Reason: "verify canonical and website OpenAPI projections without installing unrelated website tooling",
+			Reason: "verify the CUE-owned StackAction regions of the canonical OpenAPI contract",
 		})
 	}
 	if classes.AdvancedContract {
@@ -781,7 +781,7 @@ func classifyFiles(files []string) classification {
 			result.AdvancedContract = true
 			known = true
 		}
-		if file == "api/openapi/stackkits-v1.yaml" || file == "website/public/api/openapi.v1.yaml" {
+		if file == "api/openapi/stackkits-v1.yaml" {
 			result.OpenAPIProjection = true
 			known = true
 		} else if file == "install.sh" || file == "base-install.sh" || file == "cloud-install.sh" || file == "install-host-bootstrap.sh" {

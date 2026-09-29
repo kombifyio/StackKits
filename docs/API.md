@@ -1,6 +1,6 @@
 # StackKits API
 
-> Last verified: 2026-08-02
+> Last verified: 2026-09-29
 
 This document summarizes the local and compatibility StackKits HTTP API. The
 general contract source is [api/openapi/stackkits-v1.yaml](../api/openapi/stackkits-v1.yaml);
@@ -24,6 +24,16 @@ This describes the target contract. Agent execution-channel admission is Slice
 2 and is not claimed as Slice 1 delivery evidence. The internal service-auth
 routes below are compatibility surfaces and cannot mint local Owner evidence,
 reinterpret the ResolvedPlan, or become a prerequisite for Standard Mode.
+
+Agent-native surface: `api/surface/` is generated from the
+contract's `x-kombify-*` annotations and never edited by hand:
+`api-surface.json`, the MCP `tool-manifest.json` and the public
+`openapi.public.yaml` without internal operations. `stackkit api <group>
+<command>` calls every published operation against the local stackkit-server
+(`STACKKITS_SERVER_URL`, default `http://localhost:8082`; `STACKKITS_API_KEY`
+is sent as `X-API-Key`), and `stackkit api agent-context` prints the command
+reference for agents. StackAction routes are internal and appear on no
+generated surface.
 
 Implementation note: `internal/api/server.go` registers health, capabilities,
 catalog, validation, generation, node-local management, log, node-local setup,

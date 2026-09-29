@@ -21,15 +21,14 @@ import (
 const (
 	GeneratorVersion = "stackactiongen/v1"
 
-	contractSource       = "foundation/stack_action.cue"
-	localGoOutput        = "internal/stackaction/wire_gen.go"
-	openAPIOutput        = "api/openapi/stackkits-v1.yaml"
-	websiteOpenAPIOutput = "website/public/api/openapi.v1.yaml"
-	bundleOutput         = "contracts/stackaction/v1"
-	bundleIRFile         = "contract.ir.json"
-	bundleOpenAPIFile    = "openapi.yaml"
-	bundleGoFile         = "stackaction_gen.go"
-	bundleManifestFile   = "manifest.json"
+	contractSource     = "foundation/stack_action.cue"
+	localGoOutput      = "internal/stackaction/wire_gen.go"
+	openAPIOutput      = "api/openapi/stackkits-v1.yaml"
+	bundleOutput       = "contracts/stackaction/v1"
+	bundleIRFile       = "contract.ir.json"
+	bundleOpenAPIFile  = "openapi.yaml"
+	bundleGoFile       = "stackaction_gen.go"
+	bundleManifestFile = "manifest.json"
 
 	pathsBegin   = "  # BEGIN GENERATED: stackaction paths"
 	pathsEnd     = "  # END GENERATED: stackaction paths"
@@ -178,11 +177,10 @@ func Run(options Options) error {
 		{path: filepath.Join(root, filepath.FromSlash(localGoOutput)), data: goOutput},
 		{path: openAPIPath, data: openAPI},
 	}
-	// The website and the neutral contract bundle are private trees that never
-	// reach the public export; their projections exist only where the tree does.
-	if privateTreePresent(root, "website") {
-		outputs = append(outputs, output{path: filepath.Join(root, filepath.FromSlash(websiteOpenAPIOutput)), data: openAPI})
-	}
+	// The neutral contract bundle is a private tree that never reaches the
+	// public export; its projection exists only where the tree does. The
+	// website's OpenAPI mirror is the public projection written by
+	// `mise run api:surface`, not a copy of this document.
 	if privateTreePresent(root, "contracts") {
 		outputs = append(outputs, bundle.outputs(filepath.Join(root, filepath.FromSlash(bundleOutput)))...)
 	}
@@ -596,7 +594,9 @@ func renderOpenAPIPaths(spec generationSpec) string {
 		fmt.Fprintf(&b, "  %s%s:\n", spec.PathPrefix, path.Suffix)
 		b.WriteString("    post:\n")
 		fmt.Fprintf(&b, "      operationId: %s\n      summary: %s\n", path.OperationID, yamlString(path.Summary))
-		b.WriteString("      description: Requires X-Kombify-Service-Auth from caller techstack.\n      tags: [StackAction]\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              allOf:\n                - $ref: ")
+		// Service-to-service only: excluded from every generated agent surface
+		// (API-FIRST-STANDARD §9.2); routing and authorization stay unchanged.
+		b.WriteString("      description: Requires X-Kombify-Service-Auth from caller techstack.\n      x-kombify-internal: true\n      tags: [StackAction]\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              allOf:\n                - $ref: ")
 		b.WriteString(yamlString("#/components/schemas/" + requestSchema))
 		b.WriteString("\n                - type: object\n                  properties:\n                    action:\n                      const: ")
 		b.WriteString(yamlString(path.Action))
