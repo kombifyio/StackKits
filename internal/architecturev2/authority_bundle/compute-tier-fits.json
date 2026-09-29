@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:4e772385a4af119a367b5544b1e63634d5b9845de28c36456442c5e48fa81f5b",
+  "contentDigest": "sha256:a60f1309253616e4ed12cea12fc0c84499c87c5499eb50a2a931c0750b3c0466",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -1627,13 +1627,22 @@
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
                     },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json",
+                      "source": "measured"
+                    },
                     "reservation": {
-                      "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.25,
+                    "ramGB": 0.25
+                  },
                   "reservation": {
+                    "cpuCores": 0.05,
                     "ramGB": 0.125
                   }
                 },
@@ -1650,13 +1659,22 @@
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
                     },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json",
+                      "source": "measured"
+                    },
                     "reservation": {
-                      "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.25,
+                    "ramGB": 0.25
+                  },
                   "reservation": {
+                    "cpuCores": 0.05,
                     "ramGB": 0.125
                   }
                 },
@@ -1673,13 +1691,22 @@
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
                     },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json",
+                      "source": "measured"
+                    },
                     "reservation": {
-                      "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.25,
+                    "ramGB": 0.25
+                  },
                   "reservation": {
+                    "cpuCores": 0.05,
                     "ramGB": 0.125
                   }
                 }
@@ -2642,14 +2669,23 @@
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
                     },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-jellyfin-runtime/standard.json",
+                      "source": "measured"
+                    },
                     "reservation": {
-                      "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-jellyfin-runtime/standard.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.25,
+                    "ramGB": 0.375
+                  },
                   "reservation": {
-                    "ramGB": 0.5
+                    "cpuCores": 0.05,
+                    "ramGB": 0.3125
                   }
                 },
                 "standard": {
@@ -2665,14 +2701,23 @@
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
                     },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-jellyfin-runtime/standard.json",
+                      "source": "measured"
+                    },
                     "reservation": {
-                      "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-jellyfin-runtime/standard.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.25,
+                    "ramGB": 0.375
+                  },
                   "reservation": {
-                    "ramGB": 0.5
+                    "cpuCores": 0.05,
+                    "ramGB": 0.3125
                   }
                 }
               },
@@ -3058,14 +3103,23 @@
                       "ref": "Immich v2.7.0 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor",
                       "source": "upstream"
                     },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-immich-runtime/standard.json",
+                      "source": "measured"
+                    },
                     "reservation": {
-                      "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-immich-runtime/standard.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.75,
+                    "ramGB": 3
+                  },
                   "reservation": {
-                    "ramGB": 1.3125
+                    "cpuCores": 0.1,
+                    "ramGB": 2.3125
                   }
                 },
                 "standard": {
@@ -3082,14 +3136,23 @@
                       "ref": "Immich v2.7.0 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor",
                       "source": "upstream"
                     },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-immich-runtime/standard.json",
+                      "source": "measured"
+                    },
                     "reservation": {
-                      "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-immich-runtime/standard.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.75,
+                    "ramGB": 3
+                  },
                   "reservation": {
-                    "ramGB": 1.3125
+                    "cpuCores": 0.1,
+                    "ramGB": 2.3125
                   }
                 }
               },
@@ -3567,14 +3630,23 @@
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
                     },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json",
+                      "source": "measured"
+                    },
                     "reservation": {
-                      "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.25,
+                    "ramGB": 0.625
+                  },
                   "reservation": {
-                    "ramGB": 0.5
+                    "cpuCores": 0.05,
+                    "ramGB": 0.4375
                   }
                 },
                 "low": {
@@ -3590,14 +3662,23 @@
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
                     },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json",
+                      "source": "measured"
+                    },
                     "reservation": {
-                      "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.25,
+                    "ramGB": 0.625
+                  },
                   "reservation": {
-                    "ramGB": 0.5
+                    "cpuCores": 0.05,
+                    "ramGB": 0.4375
                   }
                 },
                 "standard": {
@@ -3613,14 +3694,23 @@
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
                     },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json",
+                      "source": "measured"
+                    },
                     "reservation": {
-                      "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.25,
+                    "ramGB": 0.625
+                  },
                   "reservation": {
-                    "ramGB": 0.5
+                    "cpuCores": 0.05,
+                    "ramGB": 0.4375
                   }
                 }
               },
@@ -3958,13 +4048,22 @@
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
                     },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json",
+                      "source": "measured"
+                    },
                     "reservation": {
-                      "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.25,
+                    "ramGB": 0.125
+                  },
                   "reservation": {
+                    "cpuCores": 0.05,
                     "ramGB": 0.0625
                   }
                 },
@@ -3981,13 +4080,22 @@
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
                     },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json",
+                      "source": "measured"
+                    },
                     "reservation": {
-                      "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.25,
+                    "ramGB": 0.125
+                  },
                   "reservation": {
+                    "cpuCores": 0.05,
                     "ramGB": 0.0625
                   }
                 },
@@ -4004,13 +4112,22 @@
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
                     },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json",
+                      "source": "measured"
+                    },
                     "reservation": {
-                      "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.25,
+                    "ramGB": 0.125
+                  },
                   "reservation": {
+                    "cpuCores": 0.05,
                     "ramGB": 0.0625
                   }
                 }

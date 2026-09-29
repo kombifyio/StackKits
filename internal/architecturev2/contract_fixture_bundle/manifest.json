@@ -17,7 +17,7 @@
     "foundation/architecture_v2_catalog.cue": "sha256:6afed6db1f43e1c6a6641a69dc5bd320aefca2251c28636ab2cb8716af1dca91",
     "foundation/architecture_v2_cloud_core.cue": "sha256:e62ffb36ef1305078274022932bf41bf7e0737b0402254fcdbe8c1f3f1e5500a",
     "foundation/architecture_v2_definition_binding.cue": "sha256:a3bd59ab840c4d2775dfa1ca9703a76b22a836a38ca363d089c1322453cf947b",
-    "foundation/architecture_v2_module_profiles.cue": "sha256:931cc22a3a43a00aea9aafc34e76672a357e34d25b406ad0eb2f243cf1e4515c",
+    "foundation/architecture_v2_module_profiles.cue": "sha256:04cad24ddc468a6d1fc20dceab2d29eef6f0f304f029fa329e33239e02f34c03",
     "foundation/architecture_v2_profiles.cue": "sha256:1b80546a4156f4aeba80f8149f5847fbd2315f2269ed8128fe3cb8b36e7128f3",
     "foundation/architecture_v2_smart_home.cue": "sha256:3b570fb719b18d9d1f14d8123e3494279c3baa491906eb606c0851e1065e3fa8",
     "foundation/architecture_v2_storage.cue": "sha256:339e153f31cf2b98bb1782b23b50012f32cea007b18138276d8ee50fc8fd6559",

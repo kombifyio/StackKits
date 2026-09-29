@@ -26,6 +26,30 @@ const (
 	immichWorkloadImageRef       = "ghcr.io/immich-app/immich-server:v2.7.0"
 	immichWorkloadImageDigest    = "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"
 	immichWorkloadMaxBytes       = 512 << 10
+
+	immichLiteWorkloadProviderRef    = "stackkits-immich-lite"
+	immichLiteWorkloadArtifactPrefix = "immich-lite-workload-bundle-instance-"
+	immichLiteWorkloadOutputRef      = "workloads/immich-lite/bundle.json"
+	immichLiteWorkloadHealthID       = "module-stackkits-immich-lite-runtime-immich-http"
+)
+
+// immichWorkloadVariant is the exact catalog identity of one Photos Immich
+// alternative. Standard and Lite share the Immich v2.7.0 server image, unit,
+// route probe, and bundle schema; they differ only in their catalog provider,
+// module, generated artifact, and module Health identities.
+type immichWorkloadVariant struct {
+	providerRef, moduleRef, artifactPrefix, outputRef, healthID string
+}
+
+var (
+	immichStandardWorkloadVariant = immichWorkloadVariant{
+		providerRef: immichWorkloadProviderRef, moduleRef: immichWorkloadModuleRef,
+		artifactPrefix: immichWorkloadArtifactPrefix, outputRef: immichWorkloadOutputRef, healthID: immichWorkloadHealthID,
+	}
+	immichLiteWorkloadVariant = immichWorkloadVariant{
+		providerRef: immichLiteWorkloadProviderRef, moduleRef: immichLiteWorkloadModuleRef,
+		artifactPrefix: immichLiteWorkloadArtifactPrefix, outputRef: immichLiteWorkloadOutputRef, healthID: immichLiteWorkloadHealthID,
+	}
 )
 
 // ImmichWorkloadAuthority remains a source-compatible product alias while the
@@ -41,8 +65,22 @@ type ImmichSelectedPaaSExecutor struct {
 }
 
 func NewImmichSelectedPaaSExecutor(identity runtimeexecutor.ExecutorIdentity, binding LocalTargetBinding, authority ImmichWorkloadAuthority, operations SelectedPaaSWorkloadOperations) *ImmichSelectedPaaSExecutor {
+	return newImmichVariantSelectedPaaSExecutor(immichStandardWorkloadVariant, identity, binding, authority, operations)
+}
+
+// NewImmichLiteSelectedPaaSExecutor consumes only the exact generated Immich
+// Lite bundle (the machine-learning-free Photos alternative) under the same
+// selected-PaaS custody as the standard Immich executor.
+func NewImmichLiteSelectedPaaSExecutor(identity runtimeexecutor.ExecutorIdentity, binding LocalTargetBinding, authority ImmichWorkloadAuthority, operations SelectedPaaSWorkloadOperations) *ImmichSelectedPaaSExecutor {
+	return newImmichVariantSelectedPaaSExecutor(immichLiteWorkloadVariant, identity, binding, authority, operations)
+}
+
+func newImmichVariantSelectedPaaSExecutor(variant immichWorkloadVariant, identity runtimeexecutor.ExecutorIdentity, binding LocalTargetBinding, authority ImmichWorkloadAuthority, operations SelectedPaaSWorkloadOperations) *ImmichSelectedPaaSExecutor {
+	validate := func(request runtimeexecutor.ExecutionRequest, binding LocalTargetBinding, authority SelectedPaaSWorkloadAuthority) (selectedPaaSValidatedRequest, error) {
+		return validateImmichSelectedPaaSCoreRequest(variant, request, binding, authority)
+	}
 	return &ImmichSelectedPaaSExecutor{core: newSelectedPaaSWorkloadExecutor(
-		"Immich", identity, binding, authority, operations, validateImmichSelectedPaaSCoreRequest,
+		"Immich", identity, binding, authority, operations, validate,
 	)}
 }
 
@@ -61,12 +99,13 @@ func (e *ImmichSelectedPaaSExecutor) Execute(ctx context.Context, request runtim
 }
 
 func validateImmichSelectedPaaSCoreRequest(
+	variant immichWorkloadVariant,
 	request runtimeexecutor.ExecutionRequest,
 	binding LocalTargetBinding,
 	authority SelectedPaaSWorkloadAuthority,
 ) (selectedPaaSValidatedRequest, error) {
 	target, health, deployment, descriptor, err := validateImmichSelectedPaaSRequest(
-		request, binding, authority,
+		variant, request, binding, authority,
 	)
 	if err != nil {
 		return selectedPaaSValidatedRequest{}, err
@@ -79,7 +118,7 @@ func validateImmichSelectedPaaSCoreRequest(
 	}, nil
 }
 
-func validateImmichSelectedPaaSRequest(request runtimeexecutor.ExecutionRequest, binding LocalTargetBinding, authority ImmichWorkloadAuthority) (runtimeexecutor.RuntimeTarget, []runtimeexecutor.HealthTarget, SelectedPaaSWorkloadDeployment, architecturev2renderer.ImmichWorkloadBundleDescriptor, error) {
+func validateImmichSelectedPaaSRequest(variant immichWorkloadVariant, request runtimeexecutor.ExecutionRequest, binding LocalTargetBinding, authority ImmichWorkloadAuthority) (runtimeexecutor.RuntimeTarget, []runtimeexecutor.HealthTarget, SelectedPaaSWorkloadDeployment, architecturev2renderer.ImmichWorkloadBundleDescriptor, error) {
 	emptyTarget, emptyHealth := runtimeexecutor.RuntimeTarget{}, []runtimeexecutor.HealthTarget(nil)
 	emptyDeployment, emptyDescriptor := SelectedPaaSWorkloadDeployment{}, architecturev2renderer.ImmichWorkloadBundleDescriptor{}
 	if len(request.RuntimeTargets) != 1 || len(request.HealthTargets) == 0 || len(request.AccessBindings) != 0 {
@@ -90,9 +129,9 @@ func validateImmichSelectedPaaSRequest(request runtimeexecutor.ExecutionRequest,
 	if !exists {
 		return emptyTarget, emptyHealth, emptyDeployment, emptyDescriptor, errors.New("Immich selected-PaaS workload artifact is absent")
 	}
-	if target.OwnerKind != "module" || target.OwnerRef != immichWorkloadModuleRef || target.OwnerContractHash != authority.ModuleContractHash ||
-		target.ProviderRef != immichWorkloadProviderRef || target.ProviderContractHash != authority.ProviderContractHash ||
-		target.ModuleRef != immichWorkloadModuleRef || target.ModuleContractHash != authority.ModuleContractHash || target.UnitRef != immichWorkloadUnitRef || target.UnitContractHash != authority.UnitContractHash ||
+	if target.OwnerKind != "module" || target.OwnerRef != variant.moduleRef || target.OwnerContractHash != authority.ModuleContractHash ||
+		target.ProviderRef != variant.providerRef || target.ProviderContractHash != authority.ProviderContractHash ||
+		target.ModuleRef != variant.moduleRef || target.ModuleContractHash != authority.ModuleContractHash || target.UnitRef != immichWorkloadUnitRef || target.UnitContractHash != authority.UnitContractHash ||
 		target.RuntimeKind != "container" || target.RuntimeDelivery != "selected-paas" || target.RuntimeEngine != "docker" ||
 		target.WorkloadRef != immichWorkloadRef || target.ImageRef != immichWorkloadImageRef || target.ImageDigest != immichWorkloadImageDigest ||
 		target.InstanceRef != immichWorkloadInstancePrefix+binding.NodeRef || target.ExecutionChannelRef != binding.ExecutionChannelRef ||
@@ -103,15 +142,15 @@ func validateImmichSelectedPaaSRequest(request runtimeexecutor.ExecutionRequest,
 	moduleHealthIndex := -1
 	for index, health := range request.HealthTargets {
 		if health.TargetKind == "module" {
-			if moduleHealthIndex >= 0 || health.RequirementID != immichWorkloadHealthID || health.RuntimeRequirementID != "" || health.SourceRef != immichWorkloadHealthRef || health.ContractHash != authority.HealthContractHash ||
-				health.Phase != "continuous" || health.Kind != "http" || health.TargetRef != immichWorkloadModuleRef || health.Probe != nil ||
+			if moduleHealthIndex >= 0 || health.RequirementID != variant.healthID || health.RuntimeRequirementID != "" || health.SourceRef != immichWorkloadHealthRef || health.ContractHash != authority.HealthContractHash ||
+				health.Phase != "continuous" || health.Kind != "http" || health.TargetRef != variant.moduleRef || health.Probe != nil ||
 				health.RouteRef != "" || health.BackendPoolRef != "" || !slices.Equal(health.SiteRefs, target.SiteRefs) || !slices.Equal(health.NodeRefs, target.NodeRefs) {
 				return emptyTarget, emptyHealth, emptyDeployment, emptyDescriptor, errors.New("health target is not the exact Immich HTTP postcondition")
 			}
 			moduleHealthIndex = index
 			continue
 		}
-		if err := validateImmichRouteHealthTarget(health, target); err != nil {
+		if err := validateImmichRouteHealthTarget(variant, health, target); err != nil {
 			return emptyTarget, emptyHealth, emptyDeployment, emptyDescriptor, err
 		}
 	}
@@ -122,10 +161,10 @@ func validateImmichSelectedPaaSRequest(request runtimeexecutor.ExecutionRequest,
 	if err != nil {
 		return emptyTarget, emptyHealth, emptyDeployment, emptyDescriptor, err
 	}
-	if artifact.ID != immichWorkloadArtifactPrefix+target.InstanceRef || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" ||
+	if artifact.ID != variant.artifactPrefix+target.InstanceRef || artifact.Kind != "native-config" || artifact.Format != "json" || artifact.Mode != "0640" ||
 		artifact.OwnerKind != "render-instance" || artifact.OwnerRef != target.InstanceRef || artifact.OwnerContractHash != authority.UnitContractHash ||
-		artifact.ProviderRef != immichWorkloadProviderRef || artifact.ProviderContractHash != authority.ProviderContractHash || artifact.ModuleRef != immichWorkloadModuleRef || artifact.ModuleContractHash != authority.ModuleContractHash ||
-		artifact.UnitRef != immichWorkloadUnitRef || artifact.UnitContractHash != authority.UnitContractHash || artifact.InstanceRef != target.InstanceRef || artifact.OutputRef != immichWorkloadOutputRef ||
+		artifact.ProviderRef != variant.providerRef || artifact.ProviderContractHash != authority.ProviderContractHash || artifact.ModuleRef != variant.moduleRef || artifact.ModuleContractHash != authority.ModuleContractHash ||
+		artifact.UnitRef != immichWorkloadUnitRef || artifact.UnitContractHash != authority.UnitContractHash || artifact.InstanceRef != target.InstanceRef || artifact.OutputRef != variant.outputRef ||
 		!slices.Equal(artifact.SiteRefs, target.SiteRefs) || !slices.Equal(artifact.NodeRefs, target.NodeRefs) || len(artifact.Content) == 0 || len(artifact.Content) > immichWorkloadMaxBytes {
 		return emptyTarget, emptyHealth, emptyDeployment, emptyDescriptor, errors.New("artifact is not the exact target-bound Immich workload bundle")
 	}
@@ -150,10 +189,10 @@ func validateImmichSelectedPaaSRequest(request runtimeexecutor.ExecutionRequest,
 	return target, append([]runtimeexecutor.HealthTarget(nil), request.HealthTargets...), deployment, descriptor, nil
 }
 
-func validateImmichRouteHealthTarget(health runtimeexecutor.HealthTarget, target runtimeexecutor.RuntimeTarget) error {
+func validateImmichRouteHealthTarget(variant immichWorkloadVariant, health runtimeexecutor.HealthTarget, target runtimeexecutor.RuntimeTarget) error {
 	probe := health.Probe
 	if health.TargetKind != "route" || health.RuntimeRequirementID != target.RequirementID || health.TargetRef == "" || health.RouteRef != health.TargetRef || health.BackendPoolRef == "" ||
-		health.SourceRef != immichWorkloadHealthID || health.Phase != "post-apply" || health.Kind != "http" || probe == nil ||
+		health.SourceRef != variant.healthID || health.Phase != "post-apply" || health.Kind != "http" || probe == nil ||
 		probe.Protocol != "http" || probe.Port != 2283 || probe.TimeoutSeconds != 10 || probe.Method != "GET" || probe.FollowRedirects || probe.Path != "/api/server/ping" ||
 		!slices.Equal(probe.ExpectedStatuses, []int{200}) || !slices.Equal(health.SiteRefs, target.SiteRefs) || !slices.Equal(health.NodeRefs, target.NodeRefs) {
 		return errors.New("route health target is not the exact runtime-owned Immich backend probe")

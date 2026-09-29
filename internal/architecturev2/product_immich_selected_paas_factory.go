@@ -2,15 +2,41 @@ package architecturev2
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
-const productImmichSelectedPaaSAdapterID = "stackkits-immich-selected-paas"
+const (
+	productImmichSelectedPaaSAdapterID     = "stackkits-immich-selected-paas"
+	productImmichLiteSelectedPaaSAdapterID = "stackkits-immich-lite-selected-paas"
+)
+
+// productImmichVariant names one catalog Photos Immich alternative. Each
+// variant keeps its own exact selector and executor contract, so neither
+// owner can prepare the other's generated workload.
+type productImmichVariant struct {
+	name, adapterID, providerRef, moduleRef string
+	executor                                func(runtimeexecutor.ExecutorIdentity, nativehost.LocalTargetBinding, nativehost.ImmichWorkloadAuthority, nativehost.SelectedPaaSWorkloadOperations) *nativehost.ImmichSelectedPaaSExecutor
+}
+
+var (
+	productImmichStandardVariant = productImmichVariant{
+		name: "Immich", adapterID: productImmichSelectedPaaSAdapterID,
+		providerRef: "stackkits-immich", moduleRef: "stackkits-immich-runtime",
+		executor: nativehost.NewImmichSelectedPaaSExecutor,
+	}
+	productImmichLiteVariant = productImmichVariant{
+		name: "Immich Lite", adapterID: productImmichLiteSelectedPaaSAdapterID,
+		providerRef: "stackkits-immich-lite", moduleRef: "stackkits-immich-lite-runtime",
+		executor: nativehost.NewImmichLiteSelectedPaaSExecutor,
+	}
+)
 
 type productImmichSelectedPaaSFactory struct {
+	variant                 productImmichVariant
 	runtimeVersion          string
 	runtimeAdapterRef       string
 	runtimeAdapterModuleRef string
@@ -27,50 +53,73 @@ func NewProductImmichSelectedPaaSRegistration(
 	runtimeAdapterModuleRef string,
 	operations nativehost.SelectedPaaSWorkloadOperations,
 ) (ProductRuntimeOwnerRegistration, error) {
+	return newProductImmichVariantSelectedPaaSRegistration(productImmichStandardVariant, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations)
+}
+
+// NewProductImmichLiteSelectedPaaSRegistration binds the governed Immich Lite
+// Photos alternative (machine learning omitted) to one explicitly selected
+// PaaS adapter implementation with the same exact-contract custody as the
+// standard Immich owner.
+func NewProductImmichLiteSelectedPaaSRegistration(
+	runtimeVersion string,
+	runtimeAdapterRef string,
+	runtimeAdapterModuleRef string,
+	operations nativehost.SelectedPaaSWorkloadOperations,
+) (ProductRuntimeOwnerRegistration, error) {
+	return newProductImmichVariantSelectedPaaSRegistration(productImmichLiteVariant, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations)
+}
+
+func newProductImmichVariantSelectedPaaSRegistration(
+	variant productImmichVariant,
+	runtimeVersion string,
+	runtimeAdapterRef string,
+	runtimeAdapterModuleRef string,
+	operations nativehost.SelectedPaaSWorkloadOperations,
+) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) ||
 		runtimeAdapterRef == "" || runtimeAdapterRef != strings.TrimSpace(runtimeAdapterRef) ||
 		runtimeAdapterModuleRef == "" || runtimeAdapterModuleRef != strings.TrimSpace(runtimeAdapterModuleRef) ||
 		nilProductRuntimeOwnerValue(operations) {
-		return ProductRuntimeOwnerRegistration{}, errors.New("Immich selected-PaaS product registration requires runtime version, exact adapter identity, and operations owner")
+		return ProductRuntimeOwnerRegistration{}, fmt.Errorf("%s selected-PaaS product registration requires runtime version, exact adapter identity, and operations owner", variant.name)
 	}
 	return ProductRuntimeOwnerRegistration{
-		Selector: productImmichSelectedPaaSSelector(runtimeAdapterRef, runtimeAdapterModuleRef),
+		Selector: productImmichVariantSelectedPaaSSelector(variant, runtimeAdapterRef, runtimeAdapterModuleRef),
 		Factory: &productImmichSelectedPaaSFactory{
-			runtimeVersion: runtimeVersion, runtimeAdapterRef: runtimeAdapterRef,
+			variant: variant, runtimeVersion: runtimeVersion, runtimeAdapterRef: runtimeAdapterRef,
 			runtimeAdapterModuleRef: runtimeAdapterModuleRef, operations: operations,
 		},
 	}, nil
 }
 
 func (f *productImmichSelectedPaaSFactory) PrepareRuntimeOwner(request ProductRuntimeOwnerRequest) (runtimeexecutor.Executor, error) {
-	if f == nil || strings.TrimSpace(f.runtimeVersion) == "" || strings.TrimSpace(f.runtimeAdapterRef) == "" ||
+	if f == nil || f.variant.executor == nil || strings.TrimSpace(f.runtimeVersion) == "" || strings.TrimSpace(f.runtimeAdapterRef) == "" ||
 		strings.TrimSpace(f.runtimeAdapterModuleRef) == "" || nilProductRuntimeOwnerValue(f.operations) {
 		return nil, errors.New("Immich selected-PaaS product factory is not initialized")
 	}
 	target := cloneProductRuntimeTarget(request.Target)
 	health := cloneProductHealthTargets(request.HealthTargets)
-	selector := productImmichSelectedPaaSSelector(f.runtimeAdapterRef, f.runtimeAdapterModuleRef)
+	selector := productImmichVariantSelectedPaaSSelector(f.variant, f.runtimeAdapterRef, f.runtimeAdapterModuleRef)
 	if productRuntimeOwnerSelectorForTarget(target) != selector || target.RuntimeAdapter == nil ||
 		len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 || strings.TrimSpace(target.ExecutionChannelRef) == "" ||
 		len(health) == 0 {
-		return nil, errors.New("Immich selected-PaaS product factory requires one exact channel-bound workload, adapter, and health contract")
+		return nil, fmt.Errorf("%s selected-PaaS product factory requires one exact channel-bound workload, adapter, and health contract", f.variant.name)
 	}
 	moduleHealthIndex := -1
 	for index, requirement := range health {
 		if !productHealthTargetsRuntime(requirement, target) {
-			return nil, errors.New("Immich selected-PaaS product factory received Health outside its exact runtime authority")
+			return nil, fmt.Errorf("%s selected-PaaS product factory received Health outside its exact runtime authority", f.variant.name)
 		}
 		if requirement.TargetKind == "module" {
 			if moduleHealthIndex >= 0 {
-				return nil, errors.New("Immich selected-PaaS product factory received more than one module Health contract")
+				return nil, fmt.Errorf("%s selected-PaaS product factory received more than one module Health contract", f.variant.name)
 			}
 			moduleHealthIndex = index
 		}
 	}
 	if moduleHealthIndex < 0 {
-		return nil, errors.New("Immich selected-PaaS product factory requires its exact module Health contract")
+		return nil, fmt.Errorf("%s selected-PaaS product factory requires its exact module Health contract", f.variant.name)
 	}
-	identity, err := productRuntimeOwnerAdapterIdentity(productImmichSelectedPaaSAdapterID, f.runtimeVersion, target, health)
+	identity, err := productRuntimeOwnerAdapterIdentity(f.variant.adapterID, f.runtimeVersion, target, health)
 	if err != nil {
 		return nil, err
 	}
@@ -81,15 +130,19 @@ func (f *productImmichSelectedPaaSFactory) PrepareRuntimeOwner(request ProductRu
 		HealthContractHash:   health[moduleHealthIndex].ContractHash,
 		RuntimeAdapter:       selectedPaaSRuntimeAdapterAuthority(*target.RuntimeAdapter),
 	}
-	return nativehost.NewImmichSelectedPaaSExecutor(identity, nativehost.LocalTargetBinding{
+	return f.variant.executor(identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
 	}, authority, f.operations), nil
 }
 
 func productImmichSelectedPaaSSelector(runtimeAdapterRef, runtimeAdapterModuleRef string) ProductRuntimeOwnerSelector {
+	return productImmichVariantSelectedPaaSSelector(productImmichStandardVariant, runtimeAdapterRef, runtimeAdapterModuleRef)
+}
+
+func productImmichVariantSelectedPaaSSelector(variant productImmichVariant, runtimeAdapterRef, runtimeAdapterModuleRef string) ProductRuntimeOwnerSelector {
 	return ProductRuntimeOwnerSelector{
-		OwnerKind: "module", OwnerRef: "stackkits-immich-runtime",
-		ProviderRef: "stackkits-immich", ModuleRef: "stackkits-immich-runtime", UnitRef: "immich-server",
+		OwnerKind: "module", OwnerRef: variant.moduleRef,
+		ProviderRef: variant.providerRef, ModuleRef: variant.moduleRef, UnitRef: "immich-server",
 		RuntimeKind: "container", RuntimeDelivery: sharedApplicationAdapterRuntimeDelivery, RuntimeEngine: "docker", WorkloadRef: "photos",
 		RuntimeAdapterRef: runtimeAdapterRef, RuntimeAdapterModuleRef: runtimeAdapterModuleRef,
 	}
