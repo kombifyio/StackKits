@@ -167,6 +167,12 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		Authority:        service,
 	})
 	if err != nil {
+		var storeErr *stackspecintent.Error
+		if errors.As(err, &storeErr) && storeErr.CurrentSpecHash != "" &&
+			(storeErr.Code == stackspecintent.ErrCASRequired || storeErr.Code == stackspecintent.ErrCASConflict) {
+			return fmt.Errorf("persist canonical Architecture v2 StackSpec: %w; current spec hash: %s. Review the current intent, then retry with --expected-spec-hash %s",
+				err, storeErr.CurrentSpecHash, storeErr.CurrentSpecHash)
+		}
 		return fmt.Errorf("persist canonical Architecture v2 StackSpec: %w", err)
 	}
 

@@ -32,7 +32,6 @@ import (
 )
 
 const (
-	maxArchitectureV2ApplyResults     = 256
 	ownerApplyResultReceiptAPIVersion = "stackkit.apply-result-receipt/v1"
 	ownerApplyResultReceiptKind       = "OwnerSignedApplyResultReceipt"
 	architectureV2ApplyEvidenceRoot   = ".stackkit/evidence/apply"
@@ -985,9 +984,11 @@ func readCurrentArchitectureV2ApplyResult(
 	if err != nil {
 		return architecturev2.VerifiedApplyResult{}, fmt.Errorf("read Architecture v2 Apply results: %w", err)
 	}
-	if len(entries) < 2 || len(entries)-1 > maxArchitectureV2ApplyResults {
-		return architecturev2.VerifiedApplyResult{}, fmt.Errorf("Architecture v2 verification requires 1-%d persisted Apply results", maxArchitectureV2ApplyResults)
+	if len(entries) < 2 {
+		return architecturev2.VerifiedApplyResult{}, errors.New("Architecture v2 verification requires at least one persisted Apply result")
 	}
+	// Retained results are authoritative lifecycle/checkpoint evidence. Selection
+	// scans that history linearly rather than rejecting a long-lived workspace.
 	var (
 		selected   architecturev2.VerifiedApplyResult
 		selectedAt time.Time

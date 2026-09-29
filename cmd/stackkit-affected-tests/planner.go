@@ -575,6 +575,14 @@ func buildPlan(input plannerInput) testPlan {
 			Reason: "fixture-only source binding and draft resume plan; live uploads stay in Publish OSS",
 		})
 	}
+	if anyPathUnder(files, "scripts/release/render-exact-sha-deploy.mjs", "scripts/release/render-exact-sha-deploy.test.mjs") {
+		commands = append(commands, testCommand{
+			Kind:   "node",
+			Scope:  "website-exact-source-retry",
+			Argv:   []string{"node", "--test", "scripts/release/render-exact-sha-deploy.test.mjs"},
+			Reason: "provider HTTP fixture verifies exact-live deployment reuse without duplicate activation",
+		})
+	}
 	statusSurfacesChanged := anyPathUnder(files,
 		"scripts/derive-status-surfaces.mjs",
 		"scripts/derive-status-surfaces.test.mjs",

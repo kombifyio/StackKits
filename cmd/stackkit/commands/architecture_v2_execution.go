@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -1610,13 +1611,13 @@ func persistArchitectureV2ApplyResult(
 	if len(hash) != 64 {
 		return architectureV2PersistedApplyResult{}, fmt.Errorf("persist Architecture v2 Apply result: invalid result hash")
 	}
-	directory := filepath.Join(".stackkit", "evidence", "apply", "results")
+	directory := path.Join(architectureV2ApplyEvidenceRoot, "results")
 	if err := transaction.MkdirAll(directory, 0o700); err != nil {
 		return architectureV2PersistedApplyResult{}, fmt.Errorf("create Architecture v2 Apply result directory: %w", err)
 	}
-	path := filepath.Join(directory, hash+".json")
-	if err := transaction.WriteFileExclusive(path, canonical, 0o600); err != nil {
-		existing, info, readErr := transaction.ReadStable(path)
+	resultPath := path.Join(directory, hash+".json")
+	if err := transaction.WriteFileExclusive(resultPath, canonical, 0o600); err != nil {
+		existing, info, readErr := transaction.ReadStable(resultPath)
 		if readErr != nil || !info.Mode().IsRegular() || !bytes.Equal(existing, canonical) {
 			return architectureV2PersistedApplyResult{}, fmt.Errorf("persist content-addressed Architecture v2 Apply result: %w", err)
 		}
@@ -1630,11 +1631,11 @@ func persistArchitectureV2ApplyResult(
 	if err != nil {
 		return architectureV2PersistedApplyResult{}, err
 	}
-	receiptDirectory := filepath.Join(".stackkit", "evidence", "apply", "receipts")
+	receiptDirectory := path.Join(architectureV2ApplyEvidenceRoot, "receipts")
 	if err := transaction.MkdirAll(receiptDirectory, 0o700); err != nil {
 		return architectureV2PersistedApplyResult{}, fmt.Errorf("create owner-signed Architecture v2 Apply result receipt directory: %w", err)
 	}
-	receiptPath := filepath.Join(receiptDirectory, hash+".json")
+	receiptPath := path.Join(receiptDirectory, hash+".json")
 	if err := transaction.WriteFileExclusive(receiptPath, canonicalReceipt, 0o600); err != nil {
 		existing, info, readErr := transaction.ReadStable(receiptPath)
 		if readErr != nil || !info.Mode().IsRegular() || !bytes.Equal(existing, canonicalReceipt) {
@@ -1642,7 +1643,7 @@ func persistArchitectureV2ApplyResult(
 		}
 	}
 	return architectureV2PersistedApplyResult{
-		ResultPath: filepath.ToSlash(path), OwnerReceiptPath: filepath.ToSlash(receiptPath),
+		ResultPath: resultPath, OwnerReceiptPath: receiptPath,
 		OwnerReceiptDigest: architectureV2ApplicationLifecycleDigest(canonicalReceipt),
 	}, nil
 }
