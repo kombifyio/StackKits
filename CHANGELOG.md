@@ -104,6 +104,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## [0.48.8](https://github.com/kombifyio/StackKits/compare/v0.48.7...v0.48.8) (2026-09-30)
+
+
+### Fixed
+
+* **ci:** check and update MCP authoring dependencies
+
 ## [0.48.7](https://github.com/kombifyio/StackKits/compare/v0.48.6...v0.48.7) (2026-09-30)
 
 
