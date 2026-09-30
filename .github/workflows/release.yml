@@ -39,7 +39,6 @@ permissions:
   packages: read
 
 env:
-  GO_VERSION: "1.26.8"
   GH_CLI_VERSION: "2.92.0"
   GH_CLI_LINUX_AMD64_SHA256: "b57848131bdf0c229cd35e1f2a51aa718199858b2e728410b37e89a428943ec4"
 
@@ -97,7 +96,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
           cache: true
 
       - name: Setup Node
@@ -802,7 +801,7 @@ jobs:
           fetch-depth: 1
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
           cache: true
       - name: Download exact trust set
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -857,7 +856,7 @@ jobs:
           fetch-depth: 1
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
           cache: true
       - name: Download exact trust set
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
