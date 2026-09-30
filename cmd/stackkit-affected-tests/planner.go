@@ -583,6 +583,14 @@ func buildPlan(input plannerInput) testPlan {
 			Reason: "provider HTTP fixture verifies exact-live deployment reuse without duplicate activation",
 		})
 	}
+	if anyPathUnder(files, "scripts/release/website-delivery-phase.mjs", "scripts/release/website-delivery-phase.test.mjs", "scripts/release/dispatch-website-installer-smoke.mjs", ".github/workflows/website-live-installer-smoke.yml", ".github/workflows/publish-oss.yml") {
+		commands = append(commands, testCommand{
+			Kind:   "node",
+			Scope:  "website-delivery-phase-authority",
+			Argv:   []string{"node", "--test", "scripts/release/website-delivery-phase.test.mjs"},
+			Reason: "phase decisions retain full legacy smoke and refuse splits without an authenticated fast combined selection",
+		})
+	}
 	statusSurfacesChanged := anyPathUnder(files,
 		"scripts/derive-status-surfaces.mjs",
 		"scripts/derive-status-surfaces.test.mjs",
