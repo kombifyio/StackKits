@@ -287,6 +287,10 @@ func (e V2Engine) RepositoryStatus(ctx context.Context, password []byte) (Reposi
 		}
 		return RepositoryStatus{}, fmt.Errorf("read kopia repository status: %w", err)
 	}
+	return parseRepositoryStatusJSON(out)
+}
+
+func parseRepositoryStatusJSON(out string) (RepositoryStatus, error) {
 	var row struct {
 		Configured bool            `json:"configured"`
 		ConfigFile string          `json:"configFile"`
@@ -893,11 +897,21 @@ func (e Engine) EnsureFilesystemRepository(ctx context.Context, path string) (st
 }
 
 // EnsureS3Repository connects to (or first creates) the S3-compatible
-// repository. It mirrors the filesystem sequence the CLI uses: create, and
-// when the repository already exists, connect instead.
+// repository. An already connected repository must prove the requested target
+// before reuse; checking identity never disconnects or switches repositories.
 func (e Engine) EnsureS3Repository(ctx context.Context, repo S3Repository, password string) (string, error) {
 	out, err := e.RepositoryStatusJSON(ctx)
-	if err == nil && StatusConfigured(out) {
+	if err == nil {
+		status, parseErr := parseRepositoryStatusJSON(out)
+		if parseErr != nil {
+			return "", errors.New("cannot verify the configured Kopia repository identity; inspect repository status and explicitly configure the intended S3 target before retrying")
+		}
+		if !status.Configured || status.Storage != "s3" || status.InsecureTLS ||
+			status.S3Endpoint == "" || status.S3Bucket == "" ||
+			status.S3Endpoint != repo.Endpoint || status.S3Bucket != repo.Bucket || status.S3Prefix != repo.Prefix ||
+			(repo.Region != "" && status.S3Region != repo.Region) {
+			return "", errors.New("configured Kopia repository identity is missing or differs from the requested S3 target; inspect repository status and explicitly configure the intended target before retrying")
+		}
 		return out, nil
 	}
 	if err != nil && !OutputLooksNotConfigured(out, err) {
