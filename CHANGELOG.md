@@ -26,6 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+* **remove:** machine-readable removal requires explicit `--auto-approve` and returns a structured refusal instead of reporting success when closed input cancels an unapproved removal.
+
 * **host updates:** planning refuses while an existing StackKits update unit is running, so maintenance callers can wait without reissuing apply. A failed unit query also stops planning before package operations.
 
 * **media:** Apply checks the owner-managed media directory before changing identity or runtime state and returns actionable guidance when the source is missing, unreadable, or not a directory.
@@ -105,6 +107,59 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.49.0] (2026-09-30)
+
+### Highlights
+
+This release brings together the maintenance, recovery and application reliability improvements made throughout the 0.48 release line.
+
+- **Safer maintenance and automation:** host update plans report an already running update before package operations. Machine-readable removal now requires explicit approval and returns a structured refusal when approval is missing.
+- **Clearer recovery:** Apply evidence remains verifiable on Windows and long-lived installations, and guarded initialization retries report the current StackSpec hash. Completed restore activation also cleans up its staging directory.
+- **Earlier configuration feedback:** Cloud Kit rejects local-only domains, and Media checks the owner-managed library before changing runtime state.
+- **More reliable Private AI:** fixes cover default-model startup, sandbox service discovery, OpenHands configuration and backups when the optional AI connector is disabled.
+
+For removal automation, review the selected workload and data-retention options before supplying `--auto-approve` together with `--json` or `--terminal-evidence-json`.
+
+
+
+### Added
+
+* **ai:** agent-control-plane module installs Paperclip with PostgreSQL under gVisor
+* **ai:** governed companion secret delivers the SpeechKit token to the chat module
+* **api:** generate the agent-native API surface and stackkit api commands from the OpenAPI contract
+* **catalog:** project declared module footprints for Techstack sizing (C0c)
+* **compat:** resource evidence pipeline and C1 provenance gate (C1)
+* **profiles:** bind measured resources for supported application profiles (C1)
+* **profiles:** resource provenance on module compute profiles (C0a)
+* **state-console:** six-locale State Console
+
+
+### Fixed
+
+* **ai:** gVisor components resolve their services and Hermes applies
+* **ai:** Ollama fits the default agent model and OpenHands gets its seed
+* **ai:** Private AI backups without the connector and logs for v2 Apply
+* **backup,install:** clean activated restore staging and refresh root kits
+* **ci:** check and update MCP authoring dependencies
+* **ci:** derive public Go toolchains from release source
+* **ci:** derive release Go toolchain from admitted source
+* **cli:** preserve verifiable Apply evidence on Windows and long-lived installs
+* **cli:** show current spec hash for guarded init retry
+* **delivery:** activate authenticated installer phase ordering
+* **delivery:** retire prepared-push publication workaround
+* **deps:** update internal products
+* **deps:** update internal products
+* **dev:** derive architecture-v2 helper cache inputs from go list
+* **host:** refuse update planning while an update runs
+* **init:** reject explicit local Cloud Kit domains
+* **media:** preflight owner library before workload mutation
+* **release:** derive docs toolchain from immutable source
+* **release:** reuse verified live website deployments
+* **release:** verify installers after public publication
+* **remove:** require explicit approval for machine output
+* **runtime:** register Immich Lite selected-PaaS runtime owner
+* **verify:** observe every applied standalone Compose workload
 
 ## [0.48.9](https://github.com/kombifyio/StackKits/compare/v0.48.8...v0.48.9) (2026-09-30)
 

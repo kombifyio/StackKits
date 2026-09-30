@@ -77,6 +77,10 @@ func init() {
 }
 
 func runRemove(cmd *cobra.Command, args []string) error {
+	if commandRequestsMachineOutput(cmd) && !removeAutoApprove {
+		return machineAwareCommandError(cmd, errors.New("removal approval required for machine output"),
+			"Review the removal scope and data retention options, then re-run with --auto-approve to explicitly approve removal.")
+	}
 	ctx := cmd.Context()
 	if ctx == nil {
 		ctx = context.Background()
