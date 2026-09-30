@@ -84,6 +84,13 @@ func (e Engine) Plan(ctx context.Context) (Result, error) {
 	if err := e.admitPackageHost(&result, false); err != nil {
 		return result, err
 	}
+	if unit, err := e.activeUnit(ctx, UpdateUnitPrefix+"*", "service"); err != nil {
+		return result, fail(&result, FailureHostProbe, err.Error())
+	} else if unit != "" {
+		return result, refuse(&result, CodePackageManagerBusy,
+			"another host update is running in "+unit,
+			"Wait for the running update to finish, then plan again.")
+	}
 	problems, err := e.dpkgAudit(ctx)
 	if err != nil {
 		return result, fail(&result, FailureHostProbe, err.Error())
