@@ -430,8 +430,9 @@ verbs, whoever runs this entrypoint is carried to a running homelab):
    skips init, prepares the host, resolves the plan again for the host as
    it is now (`stackkit generate`), and resumes `stackkit apply`
    (journal). The re-run works from any directory. Pick another
-   `HOMELAB_DIR` for a second deployment; `stackkit remove` still
-   resets the current one.
+   `HOMELAB_DIR` for a second deployment. Whole-install `stackkit remove`
+   deletes all StackKits Compose projects on the host, including other
+   deployments and their application volumes; it is not workspace-scoped.
 4. Downloads and runs the shared CLI installer from
    `https://install.stackkit.cc` (binaries, packaged OpenTofu, kit
    definitions — SUDO_USER-safe).
@@ -461,7 +462,8 @@ verbs, whoever runs this entrypoint is carried to a running homelab):
    applications, so there is no separate platform-app stage to sequence
    from the installer.
 9. Prints the access summary: service URLs, initial admin credentials,
-   the machine-readable access summary path, and the project directory.
+   the machine-readable access summary path, the project directory, and
+   shell-quoted whole-install removal commands with their deletion scope.
    A refused host exits 3 without mutating anything; a failed rollout
    exits non-zero and names how to inspect and re-apply.
 
@@ -506,6 +508,42 @@ Do not use when:
 - the operator wants to drive each lifecycle verb explicitly — install the
   CLI (`https://install.stackkit.cc`) and run the P2 chain instead;
 - the desired intent is outside the published Basement Kit scope.
+
+### Standalone removal and data retention
+
+The Basement and Cloud installer summaries print a copyable command using the
+actual `HOMELAB_DIR`, safely quoted for the shell, including spaces and shell
+metacharacters. Whole-install removal needs no workload or placement flags:
+
+```bash
+(cd -- "$HOMELAB_DIR" && stackkit remove)
+```
+
+This removes **all `stackkit-*` Compose projects on the host**, their containers,
+networks and application volumes, including other StackKits deployments. Back
+up needed data first; the directory selects local file cleanup, not the runtime
+removal scope. The command asks for confirmation. Only after reviewing and
+explicitly consenting to that deletion, use this unattended equivalent:
+
+```bash
+(cd -- "$HOMELAB_DIR" && stackkit remove --auto-approve)
+```
+
+Whole-install removal does not support `--json` or `--terminal-evidence-json`.
+For a single applied Architecture v2 workload, use its exact workload, Site,
+node and execution-channel refs from the applied plan, in its workspace:
+
+```bash
+stackkit remove --workload "$WORKLOAD_REF" \
+  --local-site "$SITE_REF" --local-node "$NODE_REF" \
+  --local-execution-channel "$CHANNEL_REF" --auto-approve --json
+```
+
+Here `--auto-approve` explicitly consents to removing that workload. This
+targeted path retains application volumes by default; add `--delete-data` only
+to explicitly delete data volumes owned by that exact applied workload. It
+requires the existing applied plan/generation/Apply authority and does not
+grant permission to remove unrelated workloads or provisioned servers.
 
 ## P2: Shared CLI Installer Plus Direct CLI
 
