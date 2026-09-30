@@ -433,6 +433,9 @@ func (s *Server) runBackupStatusStackAction(ctx context.Context, resp stackActio
 	}
 
 	resp.Status = stackaction.StatusVerified
+	if result.Phase == backupPhaseFailedStackAction {
+		resp.Status = stackaction.StatusFailed
+	}
 	resp.Backup = result
 	return resp, http.StatusOK, nil
 }
