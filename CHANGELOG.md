@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+* **media:** Apply checks the owner-managed media directory before changing identity or runtime state and returns actionable guidance when the source is missing, unreadable, or not a directory.
 * **backup:** a committed `stackkit backup restore activate` removes the staged restore tree it activated, so repeated restores no longer fill the staging volume. A rolled-back activation keeps its staging for another attempt; a failed removal never fails the committed restore.
 * **install:** running the installer through `sudo` still gives the kit definitions to the invoking user and now also refreshes an existing `/root/.stackkits`, which root-run Cloud Kit workspaces read and which previously stayed on the older release.
 * **ai:** Hermes and OpenHands can use their default model. Ollama was capped at 6 GB, so the plan's general-assistant model `qwen3.5:9b` (6.6 GB) was killed while loading; both chat variants now cap Ollama at 10 GB (a limit, not a reservation). On a 16 GB CPU host the model loads in 34 s and generates about 23 tokens/s; Hermes completed a file task in 216 s.
@@ -102,6 +103,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.48.7](https://github.com/kombifyio/StackKits/compare/v0.48.6...v0.48.7) (2026-09-30)
+
+
+### Fixed
+
+* **media:** preflight owner library before workload mutation
 
 ## [0.48.6](https://github.com/kombifyio/StackKits/compare/v0.48.5...v0.48.6) (2026-09-30)
 

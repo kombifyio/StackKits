@@ -77,6 +77,7 @@ type osStandaloneComposeWorkloadOperations struct {
 	// ensureOIDCClient registers an application's Pocket ID client; nil uses
 	// the local owner service.
 	ensureOIDCClient func(context.Context, string, localowner.ApplicationOIDCClientRequest) error
+	mediaRootProbe   func(string) error
 }
 
 // NewOSStandaloneComposeWorkloadOperations constructs the local no-PaaS
@@ -429,6 +430,9 @@ func (o *osStandaloneComposeWorkloadOperations) prepareWithIdentityMutation(
 		return standaloneComposeProject{}, errors.New("standalone workload entry component has no exact HTTP health contract")
 	}
 	if ensureIdentity {
+		if err := o.requireMediaLibrarySource(ctx, bundle); err != nil {
+			return standaloneComposeProject{}, err
+		}
 		// This guard precedes every mutating step. In particular, a refused
 		// Jellyfin major transition must not register a new Pocket ID client,
 		// replace runtime files, or reach Compose up.
