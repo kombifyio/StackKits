@@ -1,5 +1,7 @@
 # Changelog
 
+- Fix: published container images stamp both the CLI and server with the exact release version, public source commit and UTC build date, so CLI identity and health no longer report development defaults.
+
 - Fix: Basement and Cloud installer summaries print shell-quoted removal commands for the actual workspace and explain whole-host StackKits application-volume deletion and explicit unattended consent. The installation guide documents the data-retaining targeted workload alternative.
 
 - Fix: `stackkit user owner activate --owner-approve` now mints a fresh one-time passkey activation link on every approved call and retires the previously issued link first. An owner who opened the earlier link without registering a passkey is no longer handed the consumed code until the 24-hour enrollment expires, and at most one owner activation link stays redeemable.
@@ -109,6 +111,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.49.2](https://github.com/kombifyio/StackKits/compare/v0.49.1...v0.49.2) (2026-09-30)
+
+
+### Fixed
+
+* **container:** stamp release identity in both binaries
 
 ## [0.49.1](https://github.com/kombifyio/StackKits/compare/v0.49.0...v0.49.1) (2026-09-30)
 

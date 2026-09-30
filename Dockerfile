@@ -37,11 +37,15 @@ RUN --mount=type=secret,id=GITHUB_TOKEN,required=false \
 # Copy source code
 COPY . .
 
+ARG VERSION=dev
+ARG GIT_COMMIT=unknown
+ARG BUILD_DATE=unknown
+
 # Build the CLI
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /build/stackkit ./cmd/stackkit
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s -X main.Version=${VERSION} -X main.GitCommit=${GIT_COMMIT} -X main.BuildDate=${BUILD_DATE}" -o /build/stackkit ./cmd/stackkit
 
 # Build the HTTP API server
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /build/stackkit-server ./cmd/stackkit-server
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s -X main.Version=${VERSION} -X main.GitCommit=${GIT_COMMIT} -X main.BuildDate=${BUILD_DATE}" -o /build/stackkit-server ./cmd/stackkit-server
 
 # -----------------------------------------------------------------------------
 # Stage 2: Install OpenTofu (pinned version, no piped shell script)

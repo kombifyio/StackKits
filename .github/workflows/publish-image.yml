@@ -54,10 +54,16 @@ jobs:
           IMAGE: ghcr.io/kombifyio/stackkits
         run: |
           set -euo pipefail
+          version="${TAG#v}"
+          commit="$(git rev-parse HEAD)"
+          build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           stable_args=()
           if [[ "$TAG" != *-* ]]; then stable_args+=(--tag "${IMAGE}:latest"); fi
           docker buildx build \
             --push \
+            --build-arg "VERSION=${version}" \
+            --build-arg "GIT_COMMIT=${commit}" \
+            --build-arg "BUILD_DATE=${build_date}" \
             --tag "${IMAGE}:${TAG}" \
             "${stable_args[@]}" \
             .
