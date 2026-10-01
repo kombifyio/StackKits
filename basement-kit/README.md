@@ -51,8 +51,11 @@ If Docker Hub rate-limits anonymous image pulls, the VM smoke is externally inco
 | CPU | 2 cores | 2 cores | 4 cores |
 | RAM | 2 GB | 4 GB | 4 GB |
 | Disk | 10 GB | 20 GB | 20 GB |
-| OS | Ubuntu 22.04+ | Ubuntu 22.04+ | Ubuntu 24.04 LTS |
+| OS | Ubuntu 22.04+ | Ubuntu 22.04+ | Ubuntu 26.04 LTS |
 | Runtime | Docker 24+ | Docker 24+ | Docker 29 tested locally |
+
+Ubuntu 26.04 LTS is the default for new targets; Ubuntu 24.04 LTS remains
+supported. Compatibility evidence is published in [OS Compatibility](../docs/OS_COMPATIBILITY.md).
 
 The standard floor is the kit floor in `stackfile.cue` (`hostRequirements`).
 The low profile is the smaller `low` compute graph: the standalone core

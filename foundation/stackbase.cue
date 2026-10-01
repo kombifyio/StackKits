@@ -212,7 +212,7 @@ import (
 #OSConfig: {
 	family:  *"debian" | "rhel"
 	distro:  *"ubuntu" | "debian" | "rocky" | "alma"
-	version: string | *"24.04"
+	version: string | *"26.04"
 }
 
 // =============================================================================

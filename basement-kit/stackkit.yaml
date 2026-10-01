@@ -25,6 +25,7 @@ metadata:
 
 # Supported operating systems
 supportedOS:
+  - ubuntu-26
   - ubuntu-24
   - ubuntu-22
   - debian-12

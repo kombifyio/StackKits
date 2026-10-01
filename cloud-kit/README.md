@@ -35,8 +35,11 @@ for the shared platform, security, and PaaS details.
 | CPU | 2 cores | 4 cores | 4 cores |
 | RAM | 4 GB | 4 GB | 8 GB |
 | Disk | 20 GB | 20 GB | 80 GB |
-| OS | Ubuntu 22.04+ | Ubuntu 24.04 LTS | Ubuntu 24.04 LTS |
+| OS | Ubuntu 22.04+ | Ubuntu 26.04 LTS | Ubuntu 26.04 LTS |
 | Network | Public IP + domain | Public IP + own/custom domain | Public IP + own/custom domain |
+
+Ubuntu 26.04 LTS is the default for new targets; Ubuntu 24.04 LTS remains
+supported. Compatibility evidence is published in [OS Compatibility](../docs/OS_COMPATIBILITY.md).
 
 The kit floor and recommendation come from `stackfile.cue`
 (`hostRequirements`); Cloud Kit has no smaller `low` profile. The managed VPS

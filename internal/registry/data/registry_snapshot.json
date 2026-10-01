@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-10-01T12:28:09Z",
+  "generated_at": "2026-10-01T14:28:36Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -1677,7 +1677,7 @@
           "kind": "default",
           "is_default": true,
           "spec_hash": "23424987f6fd7dc188d7f5e8e834b4ffe3c8d05751b72b8fecd4ee2cce1a79c6",
-          "kit_definition_hash": "065afe868c0e72268a486064f45cc9294077f07d8db2b26c10f1682e8b9bd68c",
+          "kit_definition_hash": "545dadb675cd205b485b2ecd0ea35755e73b37fe1b5f89d597df79813fa83a64",
           "module_contract_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
         }
       ]
@@ -1694,7 +1694,7 @@
           "slug": "default",
           "kind": "default",
           "is_default": true,
-          "kit_definition_hash": "69c100cd813e18fcd6a0abd2513a76c90b4a66208fa10af70668ba23bbe072a5"
+          "kit_definition_hash": "2884c00e827e08eaf001d90ab490d4277c04e27921fb2aa476bf02b7ad379542"
         }
       ]
     },
@@ -1710,7 +1710,7 @@
           "slug": "default",
           "kind": "default",
           "is_default": true,
-          "kit_definition_hash": "fa5cfe28a29eaaff0b45e5f757613b28a8aa7194106556d0d808cee57d716c31"
+          "kit_definition_hash": "d99b947e97f636c3f5b2ecad7fc351dc4e0be2fd2ea053210cdbb556e7591b95"
         }
       ]
     }

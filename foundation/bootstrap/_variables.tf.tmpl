@@ -31,12 +31,12 @@ variable "ssh_private_key_path" {
 
 variable "os_type" {
   type        = string
-  default     = "ubuntu-24"
-  description = "Operating system type (ubuntu-24, ubuntu-22, debian-12)"
+  default     = "ubuntu-26"
+  description = "Operating system type (ubuntu-26, ubuntu-24, ubuntu-22, debian-12)"
   
   validation {
-    condition     = contains(["ubuntu-24", "ubuntu-22", "debian-12"], var.os_type)
-    error_message = "Supported OS types: ubuntu-24, ubuntu-22, debian-12"
+    condition     = contains(["ubuntu-26", "ubuntu-24", "ubuntu-22", "debian-12"], var.os_type)
+    error_message = "Supported OS types: ubuntu-26, ubuntu-24, ubuntu-22, debian-12"
   }
 }
 

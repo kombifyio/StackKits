@@ -486,7 +486,7 @@ stop_on_hypervisor_host() {
   [ -d /etc/pve ] || command -v pveversion >/dev/null 2>&1 || return 0
   [ "${STACKKIT_ALLOW_HYPERVISOR_HOST:-}" = "1" ] && return 0
   printf '\033[1;31m==> %s\033[0m\n' "This host is a Proxmox VE hypervisor. StackKits install into a guest VM, not onto the hypervisor host." >&2
-  echo "  Create an Ubuntu 24.04 VM on this host (or let kombify Techstack create it) and run the installer inside that VM:" >&2
+  echo "  Create an Ubuntu 26.04 LTS VM on this host (or let kombify Techstack create it) and run the installer inside that VM (Ubuntu 24.04 LTS remains supported):" >&2
   echo "    curl -sSL https://install.stackkit.cc | sh" >&2
   echo "  To install on the hypervisor host anyway, rerun with STACKKIT_ALLOW_HYPERVISOR_HOST=1." >&2
   exit 1

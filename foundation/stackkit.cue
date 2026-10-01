@@ -430,7 +430,7 @@ package foundation
 }
 
 // #SupportedOS lists supported operating systems
-#SupportedOS: "ubuntu-24" | "ubuntu-22" | "debian-12" | "debian-11" |
+#SupportedOS: *"ubuntu-26" | "ubuntu-24" | "ubuntu-22" | "debian-12" | "debian-11" |
 	"rocky-9" | "alma-9" | "raspbian-12"
 
 // #SSHConfig defines SSH connection parameters
