@@ -110,6 +110,7 @@ Definition: foundation.#ProductKitDefinition & {
 			"offline-autonomy",
 			"local-backup-target",
 			"local-backup-runtime",
+			"home-host-security",
 		]])
 		defaults: []
 		optional: [

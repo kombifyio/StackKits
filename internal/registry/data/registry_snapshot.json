@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-09-30T05:02:46Z",
+  "generated_at": "2026-10-01T00:06:43Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -1341,8 +1341,8 @@
       "display_name": "Security Baseline",
       "version": "0.1.1",
       "layer": "L1-foundation",
-      "description": "Host-level hardening: UFW, fail2ban, SSH hardening, unattended-upgrades, sysctl. Foundation layer, mandatory for the BaseKit public beta.",
-      "contract_hash": "bf52241c641db8f08e16db2781372e494ee347b4efe0ce8fc9701f854ae31d8c",
+      "description": "Universal host-level hardening: security-only unattended upgrades and managed kernel parameters on every node. Firewall, ssh and fail2ban belong to the Home and Cloud host-security owners. Foundation layer.",
+      "contract_hash": "36bae191d68957e912c844a785a73773f72882debd81771c5222431e7f30b985",
       "supported_contexts": [
         "local",
         "cloud",
@@ -1677,7 +1677,7 @@
           "kind": "default",
           "is_default": true,
           "spec_hash": "23424987f6fd7dc188d7f5e8e834b4ffe3c8d05751b72b8fecd4ee2cce1a79c6",
-          "kit_definition_hash": "49a589b887b93a9b60102865e7c1cba40043c5b788a9b2990d175d881eb51388",
+          "kit_definition_hash": "065afe868c0e72268a486064f45cc9294077f07d8db2b26c10f1682e8b9bd68c",
           "module_contract_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
         }
       ]
@@ -1694,7 +1694,7 @@
           "slug": "default",
           "kind": "default",
           "is_default": true,
-          "kit_definition_hash": "63330c62e2a34e9fc4dd412afc9fa062430522762aedafc1bbb9ade8e02c0ab3"
+          "kit_definition_hash": "69c100cd813e18fcd6a0abd2513a76c90b4a66208fa10af70668ba23bbe072a5"
         }
       ]
     },

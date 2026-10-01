@@ -370,7 +370,7 @@ foundation:
   security-baseline:
     role: default
     alternatives: []
-    description: "UFW, fail2ban, SSH hardening, unattended-upgrades, sysctl. Public beta mandatory."
+    description: "Unattended security updates and kernel parameters on every node; on cloud sites default-deny firewall, key-only sshd and fail2ban. Observed by stackkit host security verify."
   admin-bootstrap:
     role: optional
     alternatives: []

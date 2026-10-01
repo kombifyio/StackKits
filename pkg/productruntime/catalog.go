@@ -25,6 +25,7 @@ const (
 	OwnerBasementIdentityTrust  = architecturev2.ProductRuntimeOwnerBasementIdentityTrust
 	OwnerCloudIdentityTrust     = architecturev2.ProductRuntimeOwnerCloudIdentityTrust
 	OwnerCloudHostSecurity      = architecturev2.ProductRuntimeOwnerCloudHostSecurity
+	OwnerHomeHostSecurity       = architecturev2.ProductRuntimeOwnerHomeHostSecurity
 	OwnerCloudPublicEdge        = architecturev2.ProductRuntimeOwnerCloudPublicEdge
 	OwnerCloudOffsiteBackup     = architecturev2.ProductRuntimeOwnerCloudOffsiteBackup
 	OwnerPublicTLS              = architecturev2.ProductRuntimeOwnerPublicTLS

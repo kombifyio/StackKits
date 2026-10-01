@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "804c3592d1b3a4b7f3218691e4b3064a503dd86c",
-  "authority_bundle_sha256": "f49e594a125240324a18fe510624146e7e553d76572d1c42c1925284b79e6fa2",
+  "source_sha": "ca507da23f41192b2244eb2a59f45ee476aef347",
+  "authority_bundle_sha256": "ede60c197db584d20a24d63bf11498638bf2277de84be353c48b05b799f789cc",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -539,7 +539,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
+              "description": "File storage and sharing through Cloudreve. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -547,7 +547,7 @@
               },
               "reservation": {
                 "cpu_cores": 0.05,
-                "ram_gb": 0.125
+                "ram_gb": 0.1875
               },
               "recommended": {
                 "cpu_cores": 0.25,
@@ -567,14 +567,14 @@
                 },
                 "reservation": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/low.json"
                 },
                 "recommended": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/low.json"
                 }
               },
-              "profile_sha256": "c3428702da2f517b003bb92cd0001aa015b1ddf174d3f2e1c859318153a12fc6"
+              "profile_sha256": "218a5bc1e2c1c0552fc986ee2366ea9646d0ed68bcd7e9d13f5acb7d8d676e94"
             },
             {
               "id": "standard",
@@ -582,7 +582,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
+              "description": "File storage and sharing through Cloudreve. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -617,7 +617,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json"
                 }
               },
-              "profile_sha256": "dc97f70a541b02fc5bf96cbe15000c82d1774261cdc4d35a4d1e471d32a40484"
+              "profile_sha256": "e51e1574b5a63ecde4f9a600dd85a98133f5322e48a099cf70a9fd7bfea84326"
             },
             {
               "id": "high",
@@ -625,7 +625,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
+              "description": "File storage and sharing through Cloudreve. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -660,7 +660,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json"
                 }
               },
-              "profile_sha256": "a292cb2507c4e1fa5a4b6f9ae1b82fda6114a3e81aa09805e99f2898123f3c89"
+              "profile_sha256": "4619f0bb5247828ad410d2cfe59cd0eb18180c55d1f95d9f4d873ae942a2c604"
             }
           ],
           "storage_profiles": [],
@@ -1483,7 +1483,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -1511,14 +1511,14 @@
                 },
                 "reservation": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/low.json"
                 },
                 "recommended": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/low.json"
                 }
               },
-              "profile_sha256": "2442a0e8766e2ffbdf495d4819eb8a29957b9a3b7fd3dc883831f69b55662b3d"
+              "profile_sha256": "8bc16258f5fc37085068eb4c7551e9feafd673c5290f5be162429cc8c40c9c32"
             },
             {
               "id": "standard",
@@ -1526,7 +1526,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1561,7 +1561,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json"
                 }
               },
-              "profile_sha256": "8abea5ae2bcdbc7031fa4e9a0fa5805ac9b2f227c13aea9df446bd1f2e7147f8"
+              "profile_sha256": "c77cda5d847939c6456cc861b28c3a596d6536467033bb1f2d284410e56e897b"
             },
             {
               "id": "high",
@@ -1569,7 +1569,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1604,7 +1604,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json"
                 }
               },
-              "profile_sha256": "b5dde8e90eef03f8530d0ba161743413adb190ed20e13c23e83ce5b7708de752"
+              "profile_sha256": "d826c9dea57f211f3a7bab0f22f7ff63b8a8676957d10d01e5077ebcda530fa4"
             }
           ],
           "storage_profiles": [],
@@ -1727,7 +1727,12 @@
                 "storage_gb": 10
               },
               "reservation": {
-                "ram_gb": 0.8125
+                "cpu_cores": 0.05,
+                "ram_gb": 1.125
+              },
+              "recommended": {
+                "cpu_cores": 0.25,
+                "ram_gb": 1.375
               },
               "host_requirements": {
                 "storage_filesystem": {
@@ -1762,11 +1767,15 @@
                   "ref": "Kombify host floor support policy"
                 },
                 "reservation": {
-                  "source": "policy",
-                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                  "source": "measured",
+                  "ref": "docs/data/resource-evidence/stackkits-immich-lite-runtime/low.json"
+                },
+                "recommended": {
+                  "source": "measured",
+                  "ref": "docs/data/resource-evidence/stackkits-immich-lite-runtime/low.json"
                 }
               },
-              "profile_sha256": "3f7d9bcbeade16d92ee07ee7d646799b9f8f96c1b5ad68f092e9e794e56fdad5"
+              "profile_sha256": "c40ec4438a49af28a0c0fc68864baea882e22bb2bd81f24d3764f4164bde3c62"
             }
           ],
           "storage_profiles": [],
@@ -1960,11 +1969,11 @@
               },
               "reservation": {
                 "cpu_cores": 0.1,
-                "ram_gb": 2.3125
+                "ram_gb": 2.375
               },
               "recommended": {
-                "cpu_cores": 0.75,
-                "ram_gb": 3
+                "cpu_cores": 1,
+                "ram_gb": 3.625
               },
               "host_requirements": {
                 "min_amd64_microarchitecture_level": 2,
@@ -2007,7 +2016,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-immich-runtime/standard.json"
                 }
               },
-              "profile_sha256": "f2137123ea389ebc9321730a4ac746526f31f0bf8784fed7d4b850f8f2872bb0"
+              "profile_sha256": "32caba55e2a6ec3c749f99d45a3e7676a2e54411eb226452cdbc54a805715b77"
             },
             {
               "id": "high",
@@ -2023,11 +2032,11 @@
               },
               "reservation": {
                 "cpu_cores": 0.1,
-                "ram_gb": 2.3125
+                "ram_gb": 2.375
               },
               "recommended": {
-                "cpu_cores": 0.75,
-                "ram_gb": 3
+                "cpu_cores": 1,
+                "ram_gb": 3.625
               },
               "host_requirements": {
                 "min_amd64_microarchitecture_level": 2,
@@ -2070,7 +2079,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-immich-runtime/standard.json"
                 }
               },
-              "profile_sha256": "bad124477a728c8b1cd9a1ca28f65e41f746fff2376e9711b2cfb148da18d4a1"
+              "profile_sha256": "1946609320da88fb4308da5de8da9d50a4c5dbfb03def3c942b8ccbff8cc2ba3"
             }
           ],
           "storage_profiles": [],
@@ -3436,7 +3445,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -3464,14 +3473,14 @@
                 },
                 "reservation": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/low.json"
                 },
                 "recommended": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/low.json"
                 }
               },
-              "profile_sha256": "165cc852024763cd0ef140cb608ccaf72c98baa1e1724780ebccd729fb79b655"
+              "profile_sha256": "7365fe215d9a5badd7c7526c331aa6555ef02d7e5f455a1d58c437a8bd21e0fb"
             },
             {
               "id": "standard",
@@ -3479,7 +3488,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -3514,7 +3523,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json"
                 }
               },
-              "profile_sha256": "6e71b3e77228a1d43dc7de716db6baf24f277aeb472ba6aa2da53648f74d0c35"
+              "profile_sha256": "756487fd50cb9b944bd1eed46bc0f037ddf7d11ca1f805d509fb13e234768eee"
             },
             {
               "id": "high",
@@ -3522,7 +3531,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -3557,7 +3566,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json"
                 }
               },
-              "profile_sha256": "15564152130b0521e280ca121964365df0a83d6bfe5acf6259087e7a54fe0586"
+              "profile_sha256": "682d24ebd0cc3dc10af25cc45711d65a2ee43bf715a49a5dfa5417cda1dffa6c"
             }
           ],
           "storage_profiles": [],
@@ -4983,7 +4992,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
+              "description": "File storage and sharing through Cloudreve. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -4991,7 +5000,7 @@
               },
               "reservation": {
                 "cpu_cores": 0.05,
-                "ram_gb": 0.125
+                "ram_gb": 0.1875
               },
               "recommended": {
                 "cpu_cores": 0.25,
@@ -5011,14 +5020,14 @@
                 },
                 "reservation": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/low.json"
                 },
                 "recommended": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/low.json"
                 }
               },
-              "profile_sha256": "c3428702da2f517b003bb92cd0001aa015b1ddf174d3f2e1c859318153a12fc6"
+              "profile_sha256": "218a5bc1e2c1c0552fc986ee2366ea9646d0ed68bcd7e9d13f5acb7d8d676e94"
             },
             {
               "id": "standard",
@@ -5026,7 +5035,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
+              "description": "File storage and sharing through Cloudreve. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -5061,7 +5070,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json"
                 }
               },
-              "profile_sha256": "dc97f70a541b02fc5bf96cbe15000c82d1774261cdc4d35a4d1e471d32a40484"
+              "profile_sha256": "e51e1574b5a63ecde4f9a600dd85a98133f5322e48a099cf70a9fd7bfea84326"
             },
             {
               "id": "high",
@@ -5069,7 +5078,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
+              "description": "File storage and sharing through Cloudreve. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -5104,7 +5113,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json"
                 }
               },
-              "profile_sha256": "a292cb2507c4e1fa5a4b6f9ae1b82fda6114a3e81aa09805e99f2898123f3c89"
+              "profile_sha256": "4619f0bb5247828ad410d2cfe59cd0eb18180c55d1f95d9f4d873ae942a2c604"
             }
           ],
           "storage_profiles": [],
@@ -5927,7 +5936,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -5955,14 +5964,14 @@
                 },
                 "reservation": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/low.json"
                 },
                 "recommended": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/low.json"
                 }
               },
-              "profile_sha256": "2442a0e8766e2ffbdf495d4819eb8a29957b9a3b7fd3dc883831f69b55662b3d"
+              "profile_sha256": "8bc16258f5fc37085068eb4c7551e9feafd673c5290f5be162429cc8c40c9c32"
             },
             {
               "id": "standard",
@@ -5970,7 +5979,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -6005,7 +6014,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json"
                 }
               },
-              "profile_sha256": "8abea5ae2bcdbc7031fa4e9a0fa5805ac9b2f227c13aea9df446bd1f2e7147f8"
+              "profile_sha256": "c77cda5d847939c6456cc861b28c3a596d6536467033bb1f2d284410e56e897b"
             },
             {
               "id": "high",
@@ -6013,7 +6022,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -6048,7 +6057,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json"
                 }
               },
-              "profile_sha256": "b5dde8e90eef03f8530d0ba161743413adb190ed20e13c23e83ce5b7708de752"
+              "profile_sha256": "d826c9dea57f211f3a7bab0f22f7ff63b8a8676957d10d01e5077ebcda530fa4"
             }
           ],
           "storage_profiles": [],
@@ -6159,7 +6168,12 @@
                 "storage_gb": 10
               },
               "reservation": {
-                "ram_gb": 0.8125
+                "cpu_cores": 0.05,
+                "ram_gb": 1.125
+              },
+              "recommended": {
+                "cpu_cores": 0.25,
+                "ram_gb": 1.375
               },
               "host_requirements": {
                 "storage_filesystem": {
@@ -6194,11 +6208,15 @@
                   "ref": "Kombify host floor support policy"
                 },
                 "reservation": {
-                  "source": "policy",
-                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                  "source": "measured",
+                  "ref": "docs/data/resource-evidence/stackkits-immich-lite-runtime/low.json"
+                },
+                "recommended": {
+                  "source": "measured",
+                  "ref": "docs/data/resource-evidence/stackkits-immich-lite-runtime/low.json"
                 }
               },
-              "profile_sha256": "3f7d9bcbeade16d92ee07ee7d646799b9f8f96c1b5ad68f092e9e794e56fdad5"
+              "profile_sha256": "c40ec4438a49af28a0c0fc68864baea882e22bb2bd81f24d3764f4164bde3c62"
             }
           ],
           "storage_profiles": [],
@@ -6392,11 +6410,11 @@
               },
               "reservation": {
                 "cpu_cores": 0.1,
-                "ram_gb": 2.3125
+                "ram_gb": 2.375
               },
               "recommended": {
-                "cpu_cores": 0.75,
-                "ram_gb": 3
+                "cpu_cores": 1,
+                "ram_gb": 3.625
               },
               "host_requirements": {
                 "min_amd64_microarchitecture_level": 2,
@@ -6439,7 +6457,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-immich-runtime/standard.json"
                 }
               },
-              "profile_sha256": "f2137123ea389ebc9321730a4ac746526f31f0bf8784fed7d4b850f8f2872bb0"
+              "profile_sha256": "32caba55e2a6ec3c749f99d45a3e7676a2e54411eb226452cdbc54a805715b77"
             },
             {
               "id": "high",
@@ -6455,11 +6473,11 @@
               },
               "reservation": {
                 "cpu_cores": 0.1,
-                "ram_gb": 2.3125
+                "ram_gb": 2.375
               },
               "recommended": {
-                "cpu_cores": 0.75,
-                "ram_gb": 3
+                "cpu_cores": 1,
+                "ram_gb": 3.625
               },
               "host_requirements": {
                 "min_amd64_microarchitecture_level": 2,
@@ -6502,7 +6520,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-immich-runtime/standard.json"
                 }
               },
-              "profile_sha256": "bad124477a728c8b1cd9a1ca28f65e41f746fff2376e9711b2cfb148da18d4a1"
+              "profile_sha256": "1946609320da88fb4308da5de8da9d50a4c5dbfb03def3c942b8ccbff8cc2ba3"
             }
           ],
           "storage_profiles": [],
@@ -7996,7 +8014,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -8024,14 +8042,14 @@
                 },
                 "reservation": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/low.json"
                 },
                 "recommended": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/low.json"
                 }
               },
-              "profile_sha256": "165cc852024763cd0ef140cb608ccaf72c98baa1e1724780ebccd729fb79b655"
+              "profile_sha256": "7365fe215d9a5badd7c7526c331aa6555ef02d7e5f455a1d58c437a8bd21e0fb"
             },
             {
               "id": "standard",
@@ -8039,7 +8057,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -8074,7 +8092,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json"
                 }
               },
-              "profile_sha256": "6e71b3e77228a1d43dc7de716db6baf24f277aeb472ba6aa2da53648f74d0c35"
+              "profile_sha256": "756487fd50cb9b944bd1eed46bc0f037ddf7d11ca1f805d509fb13e234768eee"
             },
             {
               "id": "high",
@@ -8082,7 +8100,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -8117,7 +8135,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json"
                 }
               },
-              "profile_sha256": "15564152130b0521e280ca121964365df0a83d6bfe5acf6259087e7a54fe0586"
+              "profile_sha256": "682d24ebd0cc3dc10af25cc45711d65a2ee43bf715a49a5dfa5417cda1dffa6c"
             }
           ],
           "storage_profiles": [],
@@ -9571,7 +9589,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
+              "description": "File storage and sharing through Cloudreve. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -9579,7 +9597,7 @@
               },
               "reservation": {
                 "cpu_cores": 0.05,
-                "ram_gb": 0.125
+                "ram_gb": 0.1875
               },
               "recommended": {
                 "cpu_cores": 0.25,
@@ -9599,14 +9617,14 @@
                 },
                 "reservation": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/low.json"
                 },
                 "recommended": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/low.json"
                 }
               },
-              "profile_sha256": "c3428702da2f517b003bb92cd0001aa015b1ddf174d3f2e1c859318153a12fc6"
+              "profile_sha256": "218a5bc1e2c1c0552fc986ee2366ea9646d0ed68bcd7e9d13f5acb7d8d676e94"
             },
             {
               "id": "standard",
@@ -9614,7 +9632,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
+              "description": "File storage and sharing through Cloudreve. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -9649,7 +9667,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json"
                 }
               },
-              "profile_sha256": "dc97f70a541b02fc5bf96cbe15000c82d1774261cdc4d35a4d1e471d32a40484"
+              "profile_sha256": "e51e1574b5a63ecde4f9a600dd85a98133f5322e48a099cf70a9fd7bfea84326"
             },
             {
               "id": "high",
@@ -9657,7 +9675,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
+              "description": "File storage and sharing through Cloudreve. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -9692,7 +9710,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json"
                 }
               },
-              "profile_sha256": "a292cb2507c4e1fa5a4b6f9ae1b82fda6114a3e81aa09805e99f2898123f3c89"
+              "profile_sha256": "4619f0bb5247828ad410d2cfe59cd0eb18180c55d1f95d9f4d873ae942a2c604"
             }
           ],
           "storage_profiles": [],
@@ -10515,7 +10533,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -10543,14 +10561,14 @@
                 },
                 "reservation": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/low.json"
                 },
                 "recommended": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/low.json"
                 }
               },
-              "profile_sha256": "2442a0e8766e2ffbdf495d4819eb8a29957b9a3b7fd3dc883831f69b55662b3d"
+              "profile_sha256": "8bc16258f5fc37085068eb4c7551e9feafd673c5290f5be162429cc8c40c9c32"
             },
             {
               "id": "standard",
@@ -10558,7 +10576,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -10593,7 +10611,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json"
                 }
               },
-              "profile_sha256": "8abea5ae2bcdbc7031fa4e9a0fa5805ac9b2f227c13aea9df446bd1f2e7147f8"
+              "profile_sha256": "c77cda5d847939c6456cc861b28c3a596d6536467033bb1f2d284410e56e897b"
             },
             {
               "id": "high",
@@ -10601,7 +10619,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
+              "description": "Home Assistant Container for automation and its native product interfaces. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -10636,7 +10654,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json"
                 }
               },
-              "profile_sha256": "b5dde8e90eef03f8530d0ba161743413adb190ed20e13c23e83ce5b7708de752"
+              "profile_sha256": "d826c9dea57f211f3a7bab0f22f7ff63b8a8676957d10d01e5077ebcda530fa4"
             }
           ],
           "storage_profiles": [],
@@ -10759,7 +10777,12 @@
                 "storage_gb": 10
               },
               "reservation": {
-                "ram_gb": 0.8125
+                "cpu_cores": 0.05,
+                "ram_gb": 1.125
+              },
+              "recommended": {
+                "cpu_cores": 0.25,
+                "ram_gb": 1.375
               },
               "host_requirements": {
                 "storage_filesystem": {
@@ -10794,11 +10817,15 @@
                   "ref": "Kombify host floor support policy"
                 },
                 "reservation": {
-                  "source": "policy",
-                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                  "source": "measured",
+                  "ref": "docs/data/resource-evidence/stackkits-immich-lite-runtime/low.json"
+                },
+                "recommended": {
+                  "source": "measured",
+                  "ref": "docs/data/resource-evidence/stackkits-immich-lite-runtime/low.json"
                 }
               },
-              "profile_sha256": "3f7d9bcbeade16d92ee07ee7d646799b9f8f96c1b5ad68f092e9e794e56fdad5"
+              "profile_sha256": "c40ec4438a49af28a0c0fc68864baea882e22bb2bd81f24d3764f4164bde3c62"
             }
           ],
           "storage_profiles": [],
@@ -10992,11 +11019,11 @@
               },
               "reservation": {
                 "cpu_cores": 0.1,
-                "ram_gb": 2.3125
+                "ram_gb": 2.375
               },
               "recommended": {
-                "cpu_cores": 0.75,
-                "ram_gb": 3
+                "cpu_cores": 1,
+                "ram_gb": 3.625
               },
               "host_requirements": {
                 "min_amd64_microarchitecture_level": 2,
@@ -11039,7 +11066,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-immich-runtime/standard.json"
                 }
               },
-              "profile_sha256": "f2137123ea389ebc9321730a4ac746526f31f0bf8784fed7d4b850f8f2872bb0"
+              "profile_sha256": "32caba55e2a6ec3c749f99d45a3e7676a2e54411eb226452cdbc54a805715b77"
             },
             {
               "id": "high",
@@ -11055,11 +11082,11 @@
               },
               "reservation": {
                 "cpu_cores": 0.1,
-                "ram_gb": 2.3125
+                "ram_gb": 2.375
               },
               "recommended": {
-                "cpu_cores": 0.75,
-                "ram_gb": 3
+                "cpu_cores": 1,
+                "ram_gb": 3.625
               },
               "host_requirements": {
                 "min_amd64_microarchitecture_level": 2,
@@ -11102,7 +11129,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-immich-runtime/standard.json"
                 }
               },
-              "profile_sha256": "bad124477a728c8b1cd9a1ca28f65e41f746fff2376e9711b2cfb148da18d4a1"
+              "profile_sha256": "1946609320da88fb4308da5de8da9d50a4c5dbfb03def3c942b8ccbff8cc2ba3"
             }
           ],
           "storage_profiles": [],
@@ -12468,7 +12495,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 2,
@@ -12496,14 +12523,14 @@
                 },
                 "reservation": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/low.json"
                 },
                 "recommended": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/low.json"
                 }
               },
-              "profile_sha256": "165cc852024763cd0ef140cb608ccaf72c98baa1e1724780ebccd729fb79b655"
+              "profile_sha256": "7365fe215d9a5badd7c7526c331aa6555ef02d7e5f455a1d58c437a8bd21e0fb"
             },
             {
               "id": "standard",
@@ -12511,7 +12538,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -12546,7 +12573,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json"
                 }
               },
-              "profile_sha256": "6e71b3e77228a1d43dc7de716db6baf24f277aeb472ba6aa2da53648f74d0c35"
+              "profile_sha256": "756487fd50cb9b944bd1eed46bc0f037ddf7d11ca1f805d509fb13e234768eee"
             },
             {
               "id": "high",
@@ -12554,7 +12581,7 @@
               "maturity": "supported",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
+              "description": "Password vault and secure notes through Vaultwarden. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -12589,7 +12616,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json"
                 }
               },
-              "profile_sha256": "15564152130b0521e280ca121964365df0a83d6bfe5acf6259087e7a54fe0586"
+              "profile_sha256": "682d24ebd0cc3dc10af25cc45711d65a2ee43bf715a49a5dfa5417cda1dffa6c"
             }
           ],
           "storage_profiles": [],
@@ -14802,5 +14829,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "3187aba5c902fbfaf59f0f130de5e55047dbd01c347f00561f0c672ffab79dd4"
+  "catalog_sha256": "cfb27735c28521389b8cdb0a7f389a7ace753111e7b1c353ab81c21d26e3990d"
 }

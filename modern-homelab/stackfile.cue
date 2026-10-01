@@ -110,6 +110,7 @@ Definition: foundation.#ProductKitDefinition & {
 			"local-backup-runtime",
 			"lan-access-policy",
 			"offline-autonomy",
+			"home-host-security",
 			"cross-site-placement",
 			"data-residency",
 			"split-horizon-naming",

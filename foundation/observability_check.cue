@@ -8,7 +8,7 @@ _monitoringBaselineOnlyCheck: #MonitoringConfig & {
 			endpoint: "techstack:4317"
 			protocol: "grpc"
 			auth: {mode: "none"}
-			tls:  {insecure: true}
+			tls:  {insecure: false}
 		}
 	}
 }

@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/netip"
 	"net/url"
 	"strings"
 )
@@ -245,6 +247,9 @@ func validateMonitoringAgentObservability(intent monitoringAgentObservability, p
 	if err := validateMonitoringAgentEndpoint(intent.Collector.Endpoint, path+".collector.endpoint"); err != nil {
 		return err
 	}
+	if intent.Collector.TLS.Insecure && !monitoringAgentLoopbackEndpoint(intent.Collector.Endpoint) {
+		return fail(ErrInvalidPlan, path+".collector.tls", "plaintext OTLP is admitted only toward a loopback endpoint; every other endpoint uses verified TLS")
+	}
 	if intent.OptionalSignals == nil {
 		return nil
 	}
@@ -283,6 +288,28 @@ func monitoringAgentOptionalBudgetFor(profile string, traces bool) monitoringAge
 		budget.MaxRetentionDays = 0
 	}
 	return budget
+}
+
+// monitoringAgentLoopbackEndpoint reports whether an OTLP endpoint (host:port
+// or URL) addresses this host's loopback interface.
+func monitoringAgentLoopbackEndpoint(endpoint string) bool {
+	host := endpoint
+	if strings.Contains(endpoint, "://") {
+		parsed, err := url.Parse(endpoint)
+		if err != nil {
+			return false
+		}
+		host = parsed.Host
+	}
+	if split, _, err := net.SplitHostPort(host); err == nil {
+		host = split
+	}
+	host = strings.Trim(host, "[]")
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	address, err := netip.ParseAddr(host)
+	return err == nil && address.IsLoopback()
 }
 
 func validateMonitoringAgentEndpoint(endpoint, path string) error {

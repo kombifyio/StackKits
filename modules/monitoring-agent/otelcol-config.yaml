@@ -6,7 +6,22 @@
 #
 # Environment variables respected:
 #   GOMEMLIMIT      — Go runtime memory ceiling (set in Docker env)
-#   OTEL_ENDPOINT   — Override OTLP/gRPC target (default: techstack:4317)
+#   OTEL_ENDPOINT   — OTLP/gRPC target (default: techstack:4317). Configurable so
+#                     the local telemetry sink (127.0.0.1:4317) can replace it.
+#   KOMBIFY_OTEL_TLS_INSECURE
+#                   — "true" sends plaintext OTLP. Allowed ONLY when OTEL_ENDPOINT
+#                     is on loopback (the local telemetry sink); default "false".
+#   KOMBIFY_OTEL_TLS_CA_FILE
+#                   — CA bundle that verifies a private-CA OTLP endpoint (for
+#                     example the StackKits step-ca root); empty uses system CAs.
+#   KOMBIFY_OTEL_OTLP_BIND
+#                   — Address the local OTLP receiver binds (default 127.0.0.1).
+#                     Set it to the collector's internal network address to accept
+#                     traces from other containers; never to 0.0.0.0.
+#
+# Posture: no listener is bound to a public interface. The OTLP receivers and the
+# health endpoint bind to loopback, and the exporter verifies TLS unless its
+# endpoint is on loopback.
 
 receivers:
   hostmetrics:
@@ -51,9 +66,9 @@ receivers:
   otlp:
     protocols:
       grpc:
-        endpoint: 0.0.0.0:4317
+        endpoint: ${env:KOMBIFY_OTEL_OTLP_BIND:-127.0.0.1}:4317
       http:
-        endpoint: 0.0.0.0:4318
+        endpoint: ${env:KOMBIFY_OTEL_OTLP_BIND:-127.0.0.1}:4318
 
 processors:
   # memory_limiter MUST be first in the pipeline.
@@ -82,8 +97,10 @@ exporters:
   # Swap endpoint for "monitoring-gateway:4317" when monitoring-core is deployed.
   otlp/techstack:
     endpoint: "${env:OTEL_ENDPOINT:-techstack:4317}"
+    # Verified TLS unless the endpoint is on loopback (see KOMBIFY_OTEL_TLS_INSECURE).
     tls:
-      insecure: true
+      insecure: ${env:KOMBIFY_OTEL_TLS_INSECURE:-false}
+      ca_file: ${env:KOMBIFY_OTEL_TLS_CA_FILE:-}
     # Retry on transient errors (network hiccups on Pi WiFi)
     retry_on_failure:
       enabled: true
@@ -103,12 +120,12 @@ exporters:
 extensions:
   # Health check endpoint — used by Docker healthcheck
   health_check:
-    endpoint: 0.0.0.0:8888
+    endpoint: 127.0.0.1:8888
     path: /metrics
 
   # Pprof profiling endpoint — for diagnosing memory issues (disabled by default)
   # pprof:
-  #   endpoint: 0.0.0.0:1777
+  #   endpoint: 127.0.0.1:1777
 
 service:
   extensions: [health_check]

@@ -197,3 +197,13 @@ func isLockContention(text string) bool {
 	}
 	return false
 }
+
+// SimulationCounts reads the stdout of `apt-get -s upgrade` and reports how
+// many packages apply would install and how many of those come from a
+// security archive. Held container-runtime packages are not counted, exactly
+// as in a plan. Host security evidence uses it so a verification and an update
+// plan never disagree about what is pending.
+func SimulationCounts(stdout string) (pending, security int) {
+	sim := parseSimulation(stdout)
+	return len(sim.Apply), securityCount(sim.Apply)
+}

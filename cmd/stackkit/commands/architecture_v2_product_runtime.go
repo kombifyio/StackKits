@@ -10,6 +10,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/hostsecurity"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
@@ -346,6 +347,17 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 				return architecturev2.ProductRuntimeOwnerRegistration{}, err
 			}
 			return architecturev2.NewProductCloudHostSecurityRegistration(runtimeVersion, operations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			mode := hostsecurity.ModeStandard
+			if architectureV2DispatchedLocalChannel(options) {
+				mode = hostsecurity.ModeAdvanced
+			}
+			operations, err := nativehost.NewOSHomeHostSecurityOperations(workspaceRoot, mode)
+			if err != nil {
+				return architecturev2.ProductRuntimeOwnerRegistration{}, err
+			}
+			return architecturev2.NewProductHomeHostSecurityRegistration(runtimeVersion, operations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			operations, err := nativehost.NewOSCloudPublicEdgeOperations(workspaceRoot)

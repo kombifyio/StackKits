@@ -57,6 +57,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(contract, securityBaselineHostPolicyRenderer{policy: append([]byte(nil), policy...), contract: contract}); err != nil {
 		return nil, err
 	}
+	homeHostSecurity := newHomeHostSecurityRenderer()
+	if err := registry.Register(homeHostSecurity.contract, homeHostSecurity); err != nil {
+		return nil, err
+	}
 	coreHostBootstrap := newCoreHostBootstrapRenderer()
 	if err := registry.Register(coreHostBootstrap.contract, coreHostBootstrap); err != nil {
 		return nil, err

@@ -5226,6 +5226,11 @@ _servicePublicationShape: {
 	budget: #ModuleOTLPOptionalSignalBudgetV1 & {maxRetentionDays: 0}
 })
 
+// #OtelLoopbackEndpoint matches an OTLP endpoint on this host's loopback
+// interface, with or without a scheme and port: 127.0.0.1:4317, localhost:4317,
+// [::1]:4317.
+#OtelLoopbackEndpoint: =~"^([a-z]+://)?(127\\.[0-9]+\\.[0-9]+\\.[0-9]+|localhost|\\[::1\\])(:[0-9]+)?(/.*)?$"
+
 // #ModuleOTLPBaselineV1 is the only observability projection a product
 // renderer may receive before an explicit backend owner is selected. It is
 // intentionally limited to per-node collection intent and transport posture:
@@ -5247,6 +5252,12 @@ _servicePublicationShape: {
 		tls: close({
 			insecure: bool
 		})
+		// Plaintext OTLP is admitted only toward this host's loopback, where
+		// the local telemetry sink listens; every other endpoint uses
+		// verified TLS.
+		if tls.insecure {
+			endpoint: #OtelLoopbackEndpoint
+		}
 	})
 	let logsEnabled = signals.logs
 	let tracesEnabled = signals.traces

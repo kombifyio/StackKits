@@ -24,7 +24,10 @@
         "stackkit drift reconcile",
         "stackkit host updates plan",
         "stackkit host updates apply",
-        "stackkit host reboot"
+        "stackkit host reboot",
+        "stackkit host security verify",
+        "stackkit host security status",
+        "stackkit host security repair"
       ]
     },
     "status": {
@@ -33,6 +36,20 @@
     "data": {}
   },
   "allOf": [
+    {
+      "if": {
+        "required": ["command"],
+        "properties": { "command": { "enum": ["stackkit host security verify", "stackkit host security status"] } }
+      },
+      "then": { "properties": { "data": { "$ref": "stackkit-host-security-evidence-v1.schema.json" } } }
+    },
+    {
+      "if": {
+        "required": ["command"],
+        "properties": { "command": { "const": "stackkit host security repair" } }
+      },
+      "then": { "properties": { "data": { "$ref": "stackkit-host-security-repair-v1.schema.json" } } }
+    },
     {
       "if": {
         "required": ["command"],

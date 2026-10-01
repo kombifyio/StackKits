@@ -1,14 +1,28 @@
-// Package security_baseline — Host-level security hardening for StackKits.
+// Package security_baseline — Universal host-level hardening for StackKits.
 //
-// Ships UFW (deny-all-incoming, allow SSH/80/443), fail2ban (SSH jail),
-// unattended-upgrades, SSH hardening (key-only, no password auth),
-// and sysctl hardening.
+// What this module really applies, on every managed node: security-only
+// unattended upgrades (apt) or the daily apk upgrade job, and a fixed set of
+// kernel parameters (net.ipv4.tcp_syncookies, kernel.kptr_restrict,
+// kernel.dmesg_restrict, fs.protected_hardlinks/symlinks/fifos/regular).
+//
+// It does NOT install or configure a firewall, sshd hardening or fail2ban.
+// Those need site-kind inputs this input-free Foundation unit does not have, so
+// its evidence records them as "delegated" to the site-kind owners:
+//   - Home sites: stackkits-home-host-security-runtime (nftables default-drop
+//     inbound that admits the LAN, overlay interfaces and container bridges,
+//     key-only sshd, fail2ban; never cuts the management path).
+//   - Cloud sites: stackkits-cloud-host-security-runtime (nftables default-deny
+//     with declared-service ingress, key-only sshd, fail2ban).
 //
 // This is a Foundation-layer module. It configures the HOST, not a container.
-// The public beta implementation is applied by `stackkit apply` on apt-based
-// Ubuntu hosts and writes `.stackkit/security-baseline.json` evidence. For CUE
-// contract purposes, this module declares host capabilities and ships no Docker
-// service or container-based provisioner.
+// `stackkit apply` runs the exact CUE-owned host policy
+// (internal/securitybaseline, Architecture v2) and writes
+// `.stackkit/security-baseline.json` (stackkit.security-baseline/v2).
+// `stackkit host security verify` observes every control again, including the
+// delegated ones, as expiring stackkit.host-security-evidence/v1. The UFW-based
+// legacy-v1 script has no live applier. For CUE contract purposes, this module
+// declares host capabilities and ships no Docker service or container-based
+// provisioner.
 package security_baseline
 
 import "github.com/kombifyio/stackkits/foundation"
@@ -19,7 +33,7 @@ Contract: foundation.#ModuleContract & {
 		displayName: "Security Baseline"
 		version:     "0.1.1"
 		layer:       "L1-foundation"
-		description: "Host-level hardening: UFW, fail2ban, SSH hardening, unattended-upgrades, sysctl. Foundation layer, mandatory for the BaseKit public beta."
+		description: "Universal host-level hardening: security-only unattended upgrades and managed kernel parameters on every node. Firewall, ssh and fail2ban belong to the Home and Cloud host-security owners. Foundation layer."
 		maturity:    "default"
 		testScenarios: ["SK-S1", "SK-S2", "SK-S3"]
 	}
@@ -34,14 +48,18 @@ Contract: foundation.#ModuleContract & {
 
 	provides: {
 		capabilities: {
-			"firewall":               true
-			"brute-force-protection": true
+			// Firewall, brute-force protection and ssh hardening are provided
+			// by the Home and Cloud host-security owners, not by this module.
+			"firewall":               false
+			"brute-force-protection": false
 			"auto-updates":           true
-			"ssh-hardening":          true
+			"ssh-hardening":          false
 			"kernel-hardening":       true
 		}
 	}
 
+	// Legacy v1 settings (UFW, ports, fail2ban): nothing in the Architecture v2
+	// path reads them.
 	settings: {
 		perma: {
 			// Default UFW policies — rarely changed.

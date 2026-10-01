@@ -145,12 +145,27 @@ const CANONICAL_SCENARIOS = [
   },
 ];
 const SECURITY_BASELINE_SCENARIOS = new Set(['SK-S1', 'SK-S2', 'SK-S3']);
-const SECURITY_BASELINE_SCHEMA_VERSION = 'stackkit.security-baseline/v1';
-const SECURITY_BASELINE_MODE = 'public-beta';
+const SECURITY_BASELINE_SCHEMA_VERSION = 'stackkit.security-baseline/v2';
+const SECURITY_BASELINE_MODE = 'architecture-v2-foundation';
+const HOST_SECURITY_SCHEMA_VERSION = 'stackkit.host-security-evidence/v1';
+const HOST_SECURITY_ENFORCED_CONTROLS = [
+  'firewall.default_inbound',
+  'ssh.password_authentication',
+  'ssh.root_login',
+  'ssh.port',
+  'bruteforce.fail2ban',
+  'updates.unattended_upgrades',
+  'kernel.sysctl',
+];
+// The universal Architecture v2 host policy applies unattended security
+// updates and kernel parameters; firewall, ssh and fail2ban are delegated to
+// the Home and Cloud host-security owners (see hostSecurity evidence).
 const REQUIRED_SECURITY_BASELINE_CONTROLS = new Map([
-  ['firewall', 'enabled'],
-  ['sshPasswordAuthentication', 'disabled'],
-  ['fail2ban', 'enabled'],
+  ['firewall', 'delegated'],
+  ['sshPasswordAuthentication', 'delegated'],
+  ['sshRootLogin', 'delegated'],
+  ['sshPort', 'delegated'],
+  ['fail2ban', 'delegated'],
   ['unattendedUpgrades', 'security'],
   ['sysctl', 'applied'],
 ]);
@@ -392,6 +407,7 @@ async function loadScenarioArtifactEvidence(artifactPath) {
     }
   }
   issues.push(...scenarioSecurityBaselineIssues(scenarioId, artifact.securityBaseline));
+  issues.push(...scenarioHostSecurityIssues(artifact.hostSecurity));
 
   const passed = status === 'pass' && issues.length === 0;
   const securityBaselineSummary = SECURITY_BASELINE_SCENARIOS.has(scenarioId) ? ', and security baseline evidence' : '';
@@ -435,9 +451,28 @@ function scenarioSecurityBaselineIssues(scenarioId, securityBaseline) {
       issues.push(`securityBaseline.controls.${key}=${got || 'missing'}`);
     }
   }
-  const rootLogin = String(controls.sshRootLogin || '').trim();
-  if (rootLogin !== 'key-only' && rootLogin !== 'disabled') {
-    issues.push(`securityBaseline.controls.sshRootLogin=${rootLogin || 'missing'}`);
+  return issues;
+}
+
+// hostSecurity is optional evidence (stackkit.host-security-evidence/v1 from
+// `stackkit host security verify`); when attached it must prove every enforced
+// control compliant or an approved exception. Unknown never counts.
+function scenarioHostSecurityIssues(hostSecurity) {
+  if (hostSecurity === undefined || hostSecurity === null) return [];
+  if (typeof hostSecurity !== 'object' || Array.isArray(hostSecurity)) return ['hostSecurity is not an object'];
+  if (String(hostSecurity.schema_version || '').trim() !== HOST_SECURITY_SCHEMA_VERSION) {
+    return [`hostSecurity.schema_version=${hostSecurity.schema_version || 'missing'}`];
+  }
+  const issues = [];
+  const observed = Date.parse(String(hostSecurity.observed_at || '').trim());
+  const expires = Date.parse(String(hostSecurity.expires_at || '').trim());
+  if (!Number.isFinite(observed) || !Number.isFinite(expires) || expires <= observed) {
+    issues.push('hostSecurity.observed_at/expires_at are missing or invalid');
+  }
+  const states = new Map((Array.isArray(hostSecurity.controls) ? hostSecurity.controls : []).map((control) => [control?.id, control?.state]));
+  for (const id of HOST_SECURITY_ENFORCED_CONTROLS) {
+    const state = states.get(id);
+    if (state !== 'compliant' && state !== 'exception') issues.push(`hostSecurity.controls[${id}]=${state || 'missing'}`);
   }
   return issues;
 }
@@ -673,7 +708,7 @@ function securityBaselineReleaseCheck(scenarioEvidence) {
   return {
     status: 'pass',
     summary:
-      'SK-S1, SK-S2, and SK-S3 released-content artifacts include measured public-beta host security baseline evidence.',
+      'SK-S1, SK-S2, and SK-S3 released-content artifacts include measured host security baseline evidence.',
   };
 }
 

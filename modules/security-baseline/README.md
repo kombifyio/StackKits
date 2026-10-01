@@ -1,49 +1,37 @@
 # Module: security-baseline
 
-Host-level security hardening for StackKits. **Foundation layer, mandatory for the BaseKit public beta.**
+Universal host-level hardening for StackKits. **Foundation layer, applied to every managed node.**
 
 ## What it does
 
-Configures the host OS (Ubuntu 22.04+/24.04) with a safe-by-default baseline:
+`stackkit apply` runs the exact CUE-owned Architecture v2 host policy (`internal/securitybaseline`) on the node:
 
-| Area | Default | Notes |
-|------|---------|-------|
-| **UFW firewall** | deny all incoming, allow SSH/80/443 | SSH port follows the StackSpec |
-| **fail2ban** | SSH jail, 1h bantime, 5 max retries | systemd journal on servers, polling fallback for Fresh VM tests |
-| **unattended-upgrades** | security updates only (not full upgrades) | reboot-on-security-update disabled |
-| **SSH hardening** | no password auth, key-only root transport for lease servers | full `PermitRootLogin no` is safe only after a non-root transport exists |
-| **sysctl** | SYN cookies, rp_filter, redirects/source routing disabled, kernel pointers hidden | `/etc/sysctl.d/99-stackkit-hardening.conf` |
+| Area | What is applied | Notes |
+|------|-----------------|-------|
+| **unattended-upgrades** | security updates only (not full upgrades), automatic reboot disabled | apt hosts; Alpine gets a daily `apk upgrade` job |
+| **sysctl** | `net.ipv4.tcp_syncookies`, `kernel.kptr_restrict`, `kernel.dmesg_restrict`, `fs.protected_hardlinks`/`symlinks`/`fifos`/`regular` | `/etc/sysctl.d/99-stackkit-foundation-hardening.conf`; routing and reverse-path filtering are deliberately absent because their safe values depend on the topology |
 
-## Why mandatory
+It does **not** install or configure a firewall, sshd hardening or fail2ban. Those need site-kind inputs this input-free unit does not have, so the evidence records them as `delegated`:
 
-The public BaseKit beta targets bare Ubuntu test servers. Defaults must be safe. A BaseKit deployment without UFW, fail2ban, unattended security updates, SSH password disablement, and kernel/network hardening is not release-ready. Making this optional would put the safe path behind documentation that beta users may not read.
+| Area | Owner |
+|------|-------|
+| Home sites | `stackkits-home-host-security-runtime`: nftables default-drop inbound admitting the LAN, overlay interfaces and container bridges; key-only sshd; fail2ban sshd jail; never cuts the management path |
+| Cloud sites | `stackkits-cloud-host-security-runtime`: nftables default-deny with declared-service ingress; key-only sshd without root login; fail2ban |
 
-`stackkit apply` writes machine-readable evidence to `.stackkit/security-baseline.json`. Canonical SK-S1, SK-S2, and SK-S3 release artifacts must include that evidence or release validation fails.
+The earlier UFW-based script (`ModeLegacyV1`) has no live applier.
 
-See [docs/SECURITY.md](../../docs/SECURITY.md) and [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) for the platform-level rationale.
+## Evidence
+
+`stackkit apply` writes `.stackkit/security-baseline.json` (`stackkit.security-baseline/v2`). It is written once, at apply time, and does not expire.
+
+`stackkit host security verify` observes every control again (the delegated ones included), at any time, as `stackkit.host-security-evidence/v1` with an explicit freshness budget; `stackkit host security repair` restores drift. See [docs/SECURITY.md](../../docs/SECURITY.md).
 
 ## Settings
 
-See `module.cue` `settings:` block.
-
-| Setting | Type | Default | Kind |
-|---------|------|---------|------|
-| `defaultIncomingPolicy` | `"deny"\|"reject"` | `deny` | perma |
-| `defaultOutgoingPolicy` | `"allow"\|"deny"` | `allow` | perma |
-| `sshPort` | int | `22` | flexible |
-| `extraAllowedPorts` | []int | `[]` | flexible |
-| `fail2banBanTime` | int seconds | `3600` | flexible |
-| `fail2banMaxRetry` | int | `5` | flexible |
-| `securityUpdatesOnly` | bool | `true` | flexible |
-| `sshPasswordAuth` | bool | `false` | flexible |
-| `sshPermitRoot` | bool | `false` | flexible |
-
-## Status
-
-**Beta implementation active** for the official BaseKit apply/installer path on apt-based Ubuntu hosts. Evidence is validated by production tests and release evidence import. Terraform fragment parity remains a later follow-up; public beta release evidence is based on the CLI apply path.
+`module.cue` still carries the legacy v1 `settings:` block (UFW policies, ports, fail2ban values). Nothing in the Architecture v2 path reads it.
 
 ## Non-Goals
 
 - AppArmor / SELinux profiles (post-V6)
-- Full CIS Benchmark compliance (post-V6 — this module covers the high-impact subset)
+- Full CIS Benchmark compliance (post-V6 - this module covers the high-impact subset)
 - Per-user SSH key provisioning (handled by provider lease bootstrap or the user, not this module)

@@ -9,11 +9,10 @@ import (
 	"strings"
 )
 
-// measuredProvenanceEnforced switches the C1 provenance gate from a warning to
-// a bundlegen error. It stays false until the follow-up that binds measured
-// reservation/recommended values (scripts/compat/bind-resource-evidence.mjs)
-// lands; that follow-up flips this one line (plan 18, owner decision 4).
-const measuredProvenanceEnforced = false
+// measuredProvenanceEnforced makes the C1 provenance gate a bundlegen error:
+// every supported application profile binds measured or upstream
+// reservation/recommended values (plan 18, owner decision 4).
+const measuredProvenanceEnforced = true
 
 // measuredResourceBlocks are the profile resource blocks a supported
 // application profile must back with a measurement or an upstream citation.

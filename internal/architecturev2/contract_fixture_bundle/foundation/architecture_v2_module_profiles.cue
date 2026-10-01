@@ -15,8 +15,8 @@ package foundation
 // reservations and recommendations marked measured are bound from Depot
 // lifecycle receipts (docs/data/resource-evidence, rule in
 // scripts/compat/bind-resource-evidence.mjs). Container footprints do not
-// depend on the guest size, so a profile that keeps the same components and
-// configuration across low/standard/high shares one measured value.
+// depend on the guest size, but each profile binds the evidence
+// of the cell that ran it; high reuses the standard evidence.
 _architectureV2PolicyFloorProvenance: #ResourceProvenanceV1 & {source: "policy", ref: "Kombify host floor support policy"}
 _architectureV2PolicyRecommendedProvenance: #ResourceProvenanceV1 & {source: "policy", ref: "Kombify recommended sizing policy"}
 _architectureV2ComponentReservationProvenance: #ResourceProvenanceV1 & {source: "policy", ref: "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"}
@@ -125,8 +125,8 @@ _architectureV2ImmichComputeProfile: #ModuleComputeProfileV2 & {
 	}
 	// Measured idle p95 after apply and after the photo seed; recommended
 	// covers the observed peak during the seed with 25% margin.
-	reservation: {ramGB: 2.3125, cpuCores: 0.1}
-	recommended: {ramGB: 3, cpuCores: 0.75}
+	reservation: {ramGB: 2.375, cpuCores: 0.1}
+	recommended: {ramGB: 3.625, cpuCores: 1}
 	components: ["immich-server", "immich-machine-learning", "immich-postgres", "immich-postgres-init", "immich-valkey"]
 	provenance: {
 		hostFloor: _architectureV2ImmichUpstreamFloorProvenance
@@ -148,31 +148,43 @@ _architectureV2ImmichLiteComputeProfiles: low: #ModuleComputeProfileV2 & {
 		minStorageGB:      _architectureV2BasementCoreLiteComputeProfiles.low.hostFloor.minStorageGB
 		storageFilesystem: _architectureV2ImmichStorageFilesystemRequirement
 	}
-	// 512 + 256 + 64 MiB = 832 MiB; no machine-learning worker is selected.
-	reservation: ramGB: 0.8125
+	// Measured without the machine-learning worker, including the photo seed.
+	reservation: {ramGB: 1.125, cpuCores: 0.05}
+	recommended: {ramGB: 1.375, cpuCores: 0.25}
 	components: ["immich-server", "immich-postgres", "immich-postgres-init", "immich-valkey"]
 	degradations: ["machine-learning-disabled"]
 	provenance: {
-		hostFloor:   _architectureV2PolicyFloorProvenance
-		reservation: _architectureV2ComponentReservationProvenance
+		hostFloor: _architectureV2PolicyFloorProvenance
+		reservation: {source: "measured", ref: "docs/data/resource-evidence/stackkits-immich-lite-runtime/low.json"}
+		recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-immich-lite-runtime/low.json"}
 	}
 }
 
 _architectureV2CloudreveComputeProfile: #ModuleComputeProfileV2 & {
-	description: "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget."
+	description: "File storage and sharing through Cloudreve. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget."
 	maturity:    "supported", executable: true, realization: "apply-ready"
+	components: ["cloudreve"]
+}
+_architectureV2CloudreveLowMeasured: {
+	reservation: {ramGB: 0.1875, cpuCores: 0.05}
+	recommended: {ramGB: 0.25, cpuCores: 0.25}
+	provenance: {
+		reservation: {source: "measured", ref: "docs/data/resource-evidence/stackkits-cloudreve-runtime/low.json"}
+		recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-cloudreve-runtime/low.json"}
+	}
+}
+_architectureV2CloudreveStandardMeasured: {
 	reservation: {ramGB: 0.125, cpuCores: 0.05}
 	recommended: {ramGB: 0.25, cpuCores: 0.25}
-	components: ["cloudreve"]
 	provenance: {
 		reservation: {source: "measured", ref: "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json"}
 		recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json"}
 	}
 }
 _architectureV2CloudreveComputeProfiles: {
-	low:      _architectureV2CloudreveComputeProfile & _architectureV2CoreLiteHostFloor
-	standard: _architectureV2CloudreveComputeProfile & _architectureV2CoreHostFloor
-	high:     _architectureV2CloudreveComputeProfile & _architectureV2CoreHostFloor
+	low:      _architectureV2CloudreveComputeProfile & _architectureV2CoreLiteHostFloor & _architectureV2CloudreveLowMeasured
+	standard: _architectureV2CloudreveComputeProfile & _architectureV2CoreHostFloor & _architectureV2CloudreveStandardMeasured
+	high:     _architectureV2CloudreveComputeProfile & _architectureV2CoreHostFloor & _architectureV2CloudreveStandardMeasured
 }
 
 _architectureV2NextcloudComputeProfile: #ModuleComputeProfileV2 & {
@@ -189,20 +201,30 @@ _architectureV2NextcloudComputeProfile: #ModuleComputeProfileV2 & {
 _architectureV2NextcloudComputeProfiles: {standard: _architectureV2NextcloudComputeProfile, high: _architectureV2NextcloudComputeProfile}
 
 _architectureV2VaultwardenComputeProfile: #ModuleComputeProfileV2 & {
-	description: "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password."
+	description: "Password vault and secure notes through Vaultwarden. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. The owner creates the encrypted account and retains the master password."
 	maturity:    "supported", executable: true, realization: "apply-ready"
+	components: ["vaultwarden"]
+}
+_architectureV2VaultwardenLowMeasured: {
 	reservation: {ramGB: 0.0625, cpuCores: 0.05}
 	recommended: {ramGB: 0.125, cpuCores: 0.25}
-	components: ["vaultwarden"]
+	provenance: {
+		reservation: {source: "measured", ref: "docs/data/resource-evidence/stackkits-vaultwarden-runtime/low.json"}
+		recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-vaultwarden-runtime/low.json"}
+	}
+}
+_architectureV2VaultwardenStandardMeasured: {
+	reservation: {ramGB: 0.0625, cpuCores: 0.05}
+	recommended: {ramGB: 0.125, cpuCores: 0.25}
 	provenance: {
 		reservation: {source: "measured", ref: "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json"}
 		recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json"}
 	}
 }
 _architectureV2VaultwardenComputeProfiles: {
-	low:      _architectureV2VaultwardenComputeProfile & _architectureV2CoreLiteHostFloor
-	standard: _architectureV2VaultwardenComputeProfile & _architectureV2CoreHostFloor
-	high:     _architectureV2VaultwardenComputeProfile & _architectureV2CoreHostFloor
+	low:      _architectureV2VaultwardenComputeProfile & _architectureV2CoreLiteHostFloor & _architectureV2VaultwardenLowMeasured
+	standard: _architectureV2VaultwardenComputeProfile & _architectureV2CoreHostFloor & _architectureV2VaultwardenStandardMeasured
+	high:     _architectureV2VaultwardenComputeProfile & _architectureV2CoreHostFloor & _architectureV2VaultwardenStandardMeasured
 }
 
 _architectureV2PassboltComputeProfile: #ModuleComputeProfileV2 & {
@@ -371,20 +393,30 @@ _architectureV2EmbyComputeProfiles: {
 }
 
 _architectureV2HomeAssistantComputeProfile: #ModuleComputeProfileV2 & {
-	description: "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included."
+	description: "Home Assistant Container for automation and its native product interfaces. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included."
 	maturity:    "supported", executable: true, realization: "apply-ready"
+	components: ["home-assistant"]
+}
+_architectureV2HomeAssistantLowMeasured: {
 	reservation: {ramGB: 0.4375, cpuCores: 0.05}
 	recommended: {ramGB: 0.625, cpuCores: 0.25}
-	components: ["home-assistant"]
+	provenance: {
+		reservation: {source: "measured", ref: "docs/data/resource-evidence/stackkits-home-assistant-runtime/low.json"}
+		recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-home-assistant-runtime/low.json"}
+	}
+}
+_architectureV2HomeAssistantStandardMeasured: {
+	reservation: {ramGB: 0.4375, cpuCores: 0.05}
+	recommended: {ramGB: 0.625, cpuCores: 0.25}
 	provenance: {
 		reservation: {source: "measured", ref: "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json"}
 		recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json"}
 	}
 }
 _architectureV2HomeAssistantComputeProfiles: {
-	low:      _architectureV2HomeAssistantComputeProfile & _architectureV2CoreLiteHostFloor
-	standard: _architectureV2HomeAssistantComputeProfile & _architectureV2CoreHostFloor
-	high:     _architectureV2HomeAssistantComputeProfile & _architectureV2CoreHostFloor
+	low:      _architectureV2HomeAssistantComputeProfile & _architectureV2CoreLiteHostFloor & _architectureV2HomeAssistantLowMeasured
+	standard: _architectureV2HomeAssistantComputeProfile & _architectureV2CoreHostFloor & _architectureV2HomeAssistantStandardMeasured
+	high:     _architectureV2HomeAssistantComputeProfile & _architectureV2CoreHostFloor & _architectureV2HomeAssistantStandardMeasured
 }
 
 _architectureV2PrivateAIComputeProfiles: {

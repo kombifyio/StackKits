@@ -270,9 +270,13 @@ package foundation
 	headers?: [string]: string
 }
 
-// #OtelCollectorTLSConfig defines outbound OTLP TLS behavior.
+// #OtelCollectorTLSConfig defines outbound OTLP TLS behavior. Transport is
+// verified TLS unless the endpoint is on loopback: plaintext OTLP over any
+// other path would carry host telemetry in the clear, so #OtelCollectorConfig
+// admits insecure: true only toward a loopback endpoint (for example the
+// local telemetry sink).
 #OtelCollectorTLSConfig: {
-	insecure: bool | *true
+	insecure: bool | *false
 	caFile?:  string
 }
 
@@ -286,6 +290,11 @@ package foundation
 	tls:      #OtelCollectorTLSConfig
 	resource?: [string]: string
 	processing: #OtelAgentProcessingConfig
+
+	// insecure transport is admitted only toward a loopback endpoint.
+	if tls.insecure {
+		endpoint: #OtelLoopbackEndpoint
+	}
 }
 
 // #VictoriaMetricsConfig configures the optional retention backend.

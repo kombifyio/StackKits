@@ -2714,6 +2714,7 @@
         "stackkit host prepare",
         "stackkit host reboot",
         "stackkit host remediate",
+        "stackkit host security",
         "stackkit host updates"
       ]
     },
@@ -2976,6 +2977,259 @@
           "name": "yes",
           "type": "bool",
           "description": "Confirm that the named resolution may change this host",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit host security",
+      "name": "security",
+      "parent": "stackkit host",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host security [flags]",
+      "short": "Verify and repair the host security baseline with versioned evidence",
+      "description": "Observe this node against the StackKits host security baseline, and restore what\ndrifted without cutting the management path.\n\n'verify' never changes the host. It produces stackkit.host-security-evidence/v1\nfor the firewall, sshd, brute-force protection, automatic and pending security\nupdates, reboot state, kernel parameters, exposed listeners and certificate\nexpiry. Every control is compliant, drifted, unknown or an owner-approved\nexception, and the evidence expires: a stale observation is unknown, and an\nunknown control never counts as compliant.\n\nIt works on its own (Standard Mode, no account) and through the pinned CLI when\nTechstack manages the deployment (--mode advanced).",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit host security repair",
+        "stackkit host security status",
+        "stackkit host security verify"
+      ]
+    },
+    {
+      "path": "stackkit host security repair",
+      "name": "repair",
+      "parent": "stackkit host security",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host security repair [flags]",
+      "short": "Restore drifted baseline controls without cutting the management path",
+      "description": "Plan, or with --apply carry out, the restoration of drifted controls.\n\nWithout --apply nothing is changed: the command measures the host and prints\nwhat each repair would do. With --apply only the named (--control) or drifted\ncontrols are touched, and every change is checked first:\n\n  - the firewall always keeps admitting the ssh sessions in use and every\n    --management-source on every sshd port, and a policy that would not is\n    refused before it is loaded;\n  - password logins are disabled only when an account holds an authorized key;\n    without one they stay on, the step is refused with reason no_authorized_key\n    and the rest of the baseline is still repaired. The previous sshd and\n    firewall configuration is restored if the new one does not validate or does\n    not take effect;\n  - fail2ban never bans the management path.\n\nA control that cannot be observed, or that the owner approved an exception for,\nis not touched. A Cloud site's firewall and root login are restored by 'stackkit\napply'. Each step records the control before and after, and a repeated repair\nof a compliant control changes nothing.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "sudo stackkit host security repair --site-kind home",
+          "description": "See what would be repaired"
+        },
+        {
+          "command": "sudo stackkit host security repair --apply --control firewall.default_inbound --management-source 198.51.100.0/24",
+          "description": "Restore only the firewall, keeping a jump host reachable"
+        }
+      ],
+      "flags": [
+        {
+          "name": "apply",
+          "type": "bool",
+          "description": "Carry out the repair; without it the command only plans",
+          "required": false
+        },
+        {
+          "name": "control",
+          "type": "stringArray",
+          "description": "Restrict the repair to this control ID (repeatable)",
+          "required": false
+        },
+        {
+          "name": "declared-port",
+          "type": "stringArray",
+          "description": "Declared service port as tcp/443 or udp/5353 (repeatable)",
+          "required": false
+        },
+        {
+          "name": "exceptions",
+          "type": "string",
+          "default": "/etc/stackkit/host-security/exceptions.json",
+          "description": "Owner-controlled exceptions file (each exception needs an owner and an expiry)",
+          "required": false
+        },
+        {
+          "name": "freshness",
+          "type": "duration",
+          "default": "15m0s",
+          "description": "How long the evidence may be relied on before it expires (1m to 24h)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the result as machine-readable JSON",
+          "required": false
+        },
+        {
+          "name": "kit",
+          "type": "string",
+          "description": "Kit slug to record (default: the kit of the workspace StackSpec)",
+          "required": false
+        },
+        {
+          "name": "local-node",
+          "type": "string",
+          "description": "Exact local Node in the supplied ResolvedPlan",
+          "required": false
+        },
+        {
+          "name": "management-source",
+          "type": "stringArray",
+          "description": "Network that must always reach ssh, as a CIDR (repeatable)",
+          "required": false
+        },
+        {
+          "name": "mode",
+          "type": "string",
+          "default": "standard",
+          "description": "Lifecycle mode to record: standard, or advanced when Techstack manages this deployment",
+          "required": false
+        },
+        {
+          "name": "no-record",
+          "type": "bool",
+          "description": "Do not write the post-repair evidence under .stackkit/",
+          "required": false
+        },
+        {
+          "name": "resolved-plan",
+          "type": "string",
+          "description": "Verified canonical ResolvedPlan whose declared listeners to judge exposure against",
+          "required": false
+        },
+        {
+          "name": "site-kind",
+          "type": "string",
+          "description": "Site kind of this host: home or cloud (default: inferred from the kit; modern-homelab needs it)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit host security status",
+      "name": "status",
+      "parent": "stackkit host security",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host security status [flags]",
+      "short": "Read the stored evidence as it stands now, without observing the host",
+      "description": "Read the evidence 'verify' last recorded in this workspace and judge it at the\ncurrent time. Evidence past its freshness budget is unknown: an old observation\nproves nothing about the host now.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "fail-on-drift",
+          "type": "bool",
+          "description": "Exit 5 when the host is drifted and 6 when its state is unknown",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the evidence as machine-readable JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit host security verify",
+      "name": "verify",
+      "parent": "stackkit host security",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host security verify [flags]",
+      "short": "Observe the host security baseline and write versioned evidence",
+      "description": "Observe every baseline control on this node and produce\nstackkit.host-security-evidence/v1. Nothing on the host is changed.\n\nMost controls need root to be observed; one that cannot be observed is reported\nunknown with the reason, not as a failure. The evidence is written to\n.stackkit/host-security-evidence.json in the workspace unless --no-record is\ngiven, and it expires after --freshness.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "sudo stackkit host security verify",
+          "description": "Verify this host and record the evidence"
+        },
+        {
+          "command": "sudo stackkit host security verify --mode advanced --json --fail-on-drift",
+          "description": "What Techstack runs: machine-readable, advanced mode, exit non-zero on drift"
+        },
+        {
+          "command": "sudo stackkit host security verify --resolved-plan plan.json --local-node node-1",
+          "description": "Judge exposure against the ports the verified plan declares"
+        }
+      ],
+      "flags": [
+        {
+          "name": "declared-port",
+          "type": "stringArray",
+          "description": "Declared service port as tcp/443 or udp/5353 (repeatable)",
+          "required": false
+        },
+        {
+          "name": "exceptions",
+          "type": "string",
+          "default": "/etc/stackkit/host-security/exceptions.json",
+          "description": "Owner-controlled exceptions file (each exception needs an owner and an expiry)",
+          "required": false
+        },
+        {
+          "name": "fail-on-drift",
+          "type": "bool",
+          "description": "Exit 5 when the host is drifted and 6 when its state is unknown",
+          "required": false
+        },
+        {
+          "name": "freshness",
+          "type": "duration",
+          "default": "15m0s",
+          "description": "How long the evidence may be relied on before it expires (1m to 24h)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the result as machine-readable JSON",
+          "required": false
+        },
+        {
+          "name": "kit",
+          "type": "string",
+          "description": "Kit slug to record (default: the kit of the workspace StackSpec)",
+          "required": false
+        },
+        {
+          "name": "local-node",
+          "type": "string",
+          "description": "Exact local Node in the supplied ResolvedPlan",
+          "required": false
+        },
+        {
+          "name": "management-source",
+          "type": "stringArray",
+          "description": "Network that must always reach ssh, as a CIDR (repeatable)",
+          "required": false
+        },
+        {
+          "name": "mode",
+          "type": "string",
+          "default": "standard",
+          "description": "Lifecycle mode to record: standard, or advanced when Techstack manages this deployment",
+          "required": false
+        },
+        {
+          "name": "no-record",
+          "type": "bool",
+          "description": "Do not write the evidence under .stackkit/",
+          "required": false
+        },
+        {
+          "name": "resolved-plan",
+          "type": "string",
+          "description": "Verified canonical ResolvedPlan whose declared listeners to judge exposure against",
+          "required": false
+        },
+        {
+          "name": "site-kind",
+          "type": "string",
+          "description": "Site kind of this host: home or cloud (default: inferred from the kit; modern-homelab needs it)",
           "required": false
         }
       ],

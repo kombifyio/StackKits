@@ -931,6 +931,60 @@ install: the finding it targets was a warning, and refusing to install because
 an optional improvement did not take is the failure this admission exists to
 remove.
 
+### `stackkit host security`
+
+Continuous, versioned evidence of the host security baseline, and a repair that
+never cuts the management path. It works on its own (Standard Mode, no account)
+and is what Techstack runs through the pinned CLI (`--mode advanced`). The
+baseline itself is described in [SECURITY.md](SECURITY.md#host-security-baseline).
+
+- `host security verify [--json] [--mode standard|advanced] [--site-kind home|cloud] [--freshness 15m] [--exceptions <file>] [--resolved-plan <plan> --local-node <node>] [--declared-port tcp/443] [--management-source <cidr>] [--fail-on-drift] [--no-record]`
+  observes every control and never changes the host. Each control reports
+  `state` (`compliant`, `drifted`, `unknown`, `exception`), `expected`,
+  `observed`, `observed_at` and `remediation.capability`. The controls are
+  `firewall.default_inbound`, `ssh.password_authentication`, `ssh.root_login`,
+  `ssh.port` (from `sshd -T`), `bruteforce.fail2ban`,
+  `updates.unattended_upgrades` (enabled and last run), `updates.pending_security`,
+  `updates.reboot_required`, `kernel.sysctl`, `exposure.listeners` (socket
+  listeners beyond loopback against the declared services),
+  `exposure.published_ports` (container-published ports beyond loopback; an
+  undeclared one is `drifted` with `reason_code` `exposed_published_port`,
+  because the input firewall does not filter Docker-published ports) and, where
+  discoverable,
+  `tls.certificate_expiry` (step-ca custody, Traefik ACME). The envelope carries
+  `kit`, `mode`, `site_kind`, `baseline_version`, `observed_at`, `expires_at`
+  (the `--freshness` budget) and `overall`. `unknown` never counts as compliant,
+  and a control that cannot be observed (no root, a missing tool) is `unknown`
+  with its reason rather than a failure. Declared services come from
+  `--resolved-plan` and `--declared-port`; without either, undeclared listeners
+  are `unknown`, not compliant. The evidence is also written to
+  `.stackkit/host-security-evidence.json`. `--fail-on-drift` exits `5` for
+  `drifted` and `6` for `unknown`; without it a verification that produced
+  evidence exits `0`.
+- `host security status [--json]` reads the stored evidence and judges it now:
+  evidence past `expires_at` is `unknown`.
+- `host security repair [--apply] [--control <id>]... [--management-source <cidr>]...`
+  plans by default and changes the host only with `--apply`. It restores the
+  named or drifted controls that can be restored automatically, records each
+  control before and after, and is idempotent. It refuses, before making the
+  change, a firewall that would cut an ssh session in use or a
+  `--management-source` on any sshd port, and disabling password logins when no
+  account holds an authorized key (the step is `blocked` with `reason_code`
+  `no_authorized_key`, password logins stay on and the remaining controls are
+  still repaired); a new sshd or firewall configuration that does
+  not validate or take effect is rolled back to the previous one. fail2ban
+  ignores the management path. A control that cannot be observed, or that has an
+  approved exception, is not touched. A Cloud site's firewall and root login are
+  restored by `stackkit apply`. Refusals exit `3`.
+
+Exceptions come from an owner-controlled file
+(`/etc/stackkit/host-security/exceptions.json`, `stackkit.host-security-exceptions/v1`,
+ignored when group- or world-writable): each needs `control`, `owner`, `reason`
+and an `expires_at`, and an expired one stops applying. `--json` returns
+`stackkit.host-security-evidence/v1` or `stackkit.host-security-repair/v1` inside
+`stackkit.command-result/v1` (`schemas/stackkit-host-security-evidence-v1.schema.json`,
+`schemas/stackkit-host-security-repair-v1.schema.json`).
+
 ### `stackkit host updates` and `stackkit host reboot`
 
 Operating-system maintenance for one Debian or Ubuntu node with apt and

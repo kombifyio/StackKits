@@ -31,7 +31,15 @@ ContractFixtureDefinition: foundation.#KitDefinition & {
 	}
 	topology:     basement.Definition.topology
 	availability: basement.Definition.availability
-	capabilities: basement.Definition.capabilities
+	// The isolated contract proof carries Basement's capability semantics minus
+	// the product host-security owner: it has no host-policy module of its own,
+	// and product readiness is derived only from ArchitectureV2Catalog.
+	capabilities: {
+		required: [for capability in basement.Definition.capabilities.required if capability != "home-host-security" {capability}]
+		defaults:  basement.Definition.capabilities.defaults
+		optional:  basement.Definition.capabilities.optional
+		forbidden: basement.Definition.capabilities.forbidden
+	}
 	workloads: {
 		required: []
 		defaults: []

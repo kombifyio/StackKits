@@ -30,7 +30,7 @@ As of 2026-06-10 the release default is the slice exercised by the fresh Ubuntu 
 | Password vault | `vaultwarden` | enabled default |
 | Photos | `immich` | server, ML, Postgres, and Redis-compatible cache enabled |
 | Files | `cloudreve` | enabled native file-storage and sharing workload; no native alternative is admitted |
-| Host security baseline | UFW, fail2ban, unattended-upgrades, SSH/sysctl hardening | applied by `stackkit apply` on Ubuntu and recorded in `.stackkit/security-baseline.json` |
+| Host security baseline | unattended security updates and kernel parameters on every node; default-drop inbound nftables (LAN, overlay and container bridges admitted), key-only sshd and fail2ban on the home site | applied by `stackkit apply`, recorded in `.stackkit/security-baseline.json`, observed continuously by `stackkit host security verify` |
 
 PocketID is no longer optional in the Basement Kit default: until another passkey-capable identity provider exists, TinyAuth is generated with a PocketID OIDC provider and PocketID is provisioned as the local IdP. `admin-bootstrap`, Smart Home, and AI remain planned or opt-in until their modules can create a working first user and pass the same smoke path.
 
@@ -230,7 +230,7 @@ Coolify proxy as the router (accepted adapter exception).
 
 Security defaults currently covered by generated resources:
 
-- `stackkit apply` configures the Ubuntu host baseline: UFW denies incoming traffic except SSH/80/443, fail2ban protects SSH, unattended-upgrades applies security updates, SSH password authentication is disabled, root transport remains key-only for provider leases, and sysctl network/kernel hardening is applied.
+- `stackkit apply` configures the host baseline: unattended security updates and kernel hardening (universal), and on the home site an nftables table that drops inbound traffic except loopback, established traffic, the LAN, overlay interfaces and container bridges, key-only sshd (root login limited to keys) and a fail2ban sshd jail. It never closes the ssh session in use or a configured management network, and refuses to disable password logins when no account holds an authorized key. `stackkit host security verify` re-observes all of it as expiring evidence.
 - Docker socket access goes through `tecnativa/docker-socket-proxy`.
 - Traefik uses Docker discovery through the socket proxy.
 - Service routes are label-driven from CUE module contracts.

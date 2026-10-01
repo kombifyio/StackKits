@@ -664,14 +664,33 @@ package foundation
 
 // #SecurityBaseline is the Foundation-layer invariant that EVERY StackKit server
 // host carries a measured host security baseline, regardless of kit. Basement,
-// Cloud, and Modern Homelab all inherit it — it is NOT basement-kit-specific.
+// Cloud, and Modern Homelab all inherit it - it is NOT basement-kit-specific.
 //
-// The live applier is cmd/stackkit/commands/security_baseline.go
-// (applyPublicBetaSecurityBaseline): it enforces UFW default-deny-incoming with
-// the SSH/HTTP/HTTPS ports allowed (#FirewallPolicy / #SSHHardening above), a
-// fail2ban sshd jail, security-only unattended upgrades, sshd hardening, and
-// sysctl controls, then writes evidence to .stackkit/security-baseline.json.
-// Non-apt / non-Linux hosts record status "skipped" with a reason.
+// What is universal and what is owned per site kind:
+//
+//   - Universal (Architecture v2 module security-baseline, renderer
+//     internal/securitybaseline, executor
+//     internal/runtimeexecutor/nativehost/security_baseline.go): security-only
+//     unattended upgrades and the managed kernel parameters. It is
+//     target-neutral and input-free, so it records firewall, sshd and fail2ban
+//     as "delegated" to the site-kind owners below. Evidence:
+//     .stackkit/security-baseline.json (schema stackkit.security-baseline/v2).
+//   - Home sites (module stackkits-home-host-security-runtime): default-drop
+//     inbound nftables that admits the LAN, overlay interfaces and container
+//     bridges, key-only sshd, and a fail2ban sshd jail, never cutting the
+//     management path.
+//   - Cloud sites (module stackkits-cloud-host-security-runtime): default-deny
+//     nftables with declared-service ingress only, key-only sshd without root
+//     login, fail2ban and automatic security updates.
+//
+// The legacy-v1 UFW script (securitybaseline.ModeLegacyV1) has no live applier:
+// nothing in the CLI calls it.
+//
+// Continuous evidence is separate from enforcement: `stackkit host security
+// verify` (internal/hostsecurity) observes every control again at any time and
+// writes stackkit.host-security-evidence/v1 with its own freshness budget, so a
+// host that drifted after apply is reported as drifted, and one that was not
+// observed recently as unknown.
 #SecurityBaseline: {
 	// universal: the baseline applies to all kits, not a single kit.
 	universal: true | *true
@@ -679,6 +698,7 @@ package foundation
 	// evidencePath is where the applier writes measured-control evidence.
 	evidencePath: string | *".stackkit/security-baseline.json"
 
-	// schemaVersion of the evidence document.
-	schemaVersion: string | *"stackkit.security-baseline/v1"
+	// schemaVersion of the apply-time evidence document written by the
+	// Architecture v2 security-baseline executor.
+	schemaVersion: string | *"stackkit.security-baseline/v2"
 }

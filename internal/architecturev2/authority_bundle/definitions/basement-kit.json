@@ -402,7 +402,8 @@
       "local-control-authority",
       "offline-autonomy",
       "local-backup-target",
-      "local-backup-runtime"
+      "local-backup-runtime",
+      "home-host-security"
     ]
   },
   "computeTierGraphs": {

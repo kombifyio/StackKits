@@ -5862,6 +5862,20 @@
     },
     {
       "evidence": [
+        "SK-S1"
+      ],
+      "metadata": {
+        "description": "Home-site Architecture v2 contract for home-host-security.",
+        "id": "home-host-security",
+        "layer": "platform",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home"
+      ]
+    },
+    {
+      "evidence": [
         "basement-compose-contract-governance"
       ],
       "metadata": {
@@ -6728,6 +6742,18 @@
         "siteKind": "cloud"
       },
       {
+        "capability": "home-host-security",
+        "matches": [
+          "stackkits-home-host-security"
+        ],
+        "siteKind": "home"
+      },
+      {
+        "capability": "home-host-security",
+        "matches": [],
+        "siteKind": "cloud"
+      },
+      {
         "capability": "basement-compose-runtime",
         "matches": [],
         "siteKind": "home"
@@ -7217,6 +7243,13 @@
         "module": "stackkits-cloud-host-security-runtime"
       },
       {
+        "capability": "home-host-security",
+        "matches": [
+          "home-host-security"
+        ],
+        "module": "stackkits-home-host-security-runtime"
+      },
+      {
         "capability": "public-edge",
         "matches": [
           "public-edge"
@@ -7637,6 +7670,16 @@
         ],
         "module": "stackkits-cloud-host-security-runtime",
         "provider": "stackkits-cloud-host-security"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-home-host-security-runtime"
+        ],
+        "matches": [
+          "stackkits-home-host-security"
+        ],
+        "module": "stackkits-home-host-security-runtime",
+        "provider": "stackkits-home-host-security"
       },
       {
         "governanceMatches": [
@@ -8431,6 +8474,20 @@
       },
       {
         "matches": [
+          "stackkits-core-host-bootstrap"
+        ],
+        "module": "stackkits-home-host-security-runtime",
+        "requires": "stackkits-core-host-bootstrap"
+      },
+      {
+        "matches": [
+          "security-baseline"
+        ],
+        "module": "stackkits-home-host-security-runtime",
+        "requires": "security-baseline"
+      },
+      {
+        "matches": [
           "stackkits-cloud-host-security-runtime"
         ],
         "module": "stackkits-cloud-public-edge-runtime",
@@ -8788,6 +8845,12 @@
             "internet-host-hardening"
           ],
           "providerID": "stackkits-cloud-host-security"
+        },
+        {
+          "contracts": [
+            "home-host-security"
+          ],
+          "providerID": "stackkits-home-host-security"
         },
         {
           "contracts": [
@@ -9435,6 +9498,13 @@
         "provider": "stackkits-cloud-host-security"
       },
       {
+        "capability": "home-host-security",
+        "matches": [
+          "home-host-security"
+        ],
+        "provider": "stackkits-home-host-security"
+      },
+      {
         "capability": "public-dns",
         "matches": [
           "public-dns"
@@ -9785,6 +9855,13 @@
         ],
         "module": "stackkits-cloud-host-security-runtime",
         "provider": "stackkits-cloud-host-security"
+      },
+      {
+        "matches": [
+          "stackkits-home-host-security-runtime"
+        ],
+        "module": "stackkits-home-host-security-runtime",
+        "provider": "stackkits-home-host-security"
       },
       {
         "matches": [
@@ -10564,6 +10641,27 @@
           "security-baseline"
         ],
         "provider": "stackkits-cloud-host-security"
+      },
+      {
+        "capability": "site-local",
+        "matches": [
+          "site-local"
+        ],
+        "provider": "stackkits-home-host-security"
+      },
+      {
+        "capability": "host-bootstrap",
+        "matches": [
+          "host-bootstrap"
+        ],
+        "provider": "stackkits-home-host-security"
+      },
+      {
+        "capability": "security-baseline",
+        "matches": [
+          "security-baseline"
+        ],
+        "provider": "stackkits-home-host-security"
       },
       {
         "capability": "site-cloud",
@@ -12191,6 +12289,12 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-cloud-host-security"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-home-host-security"
         },
         {
           "capabilityBindings": [],
@@ -19050,6 +19154,141 @@
       "serviceControls": [],
       "supportedSiteKinds": [
         "cloud"
+      ]
+    },
+    {
+      "enforcementRequirement": {
+        "operations": [
+          "enforce-home-host-firewall",
+          "enforce-home-host-ssh",
+          "enforce-home-host-brute-force-protection",
+          "verify-home-host-security",
+          "commit-home-host-security-evidence"
+        ],
+        "ownerRef": "stackkits-home-host-security-executor",
+        "policyArtifactRefs": [
+          "home-host-security-executor-contract"
+        ],
+        "requiredEvidenceRef": "home-host-security-evidence",
+        "requiredHealthRef": "home-host-security-health",
+        "status": "bound",
+        "targetScope": "home-sites"
+      },
+      "evidence": [
+        "home-host-security-evidence"
+      ],
+      "health": [
+        {
+          "id": "home-host-security-health",
+          "kind": "contract",
+          "phase": "post-apply",
+          "scope": "each-node",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Home-only node-local inbound firewall, ssh and brute-force enforcement: default-drop inbound that admits the LAN, overlay interfaces and container bridges, key-only ssh, and fail2ban, all preserving the management path. It owns no public edge, DNS, backup, mesh, or server-provider lifecycle.",
+        "id": "stackkits-home-host-security-runtime",
+        "version": "1.0.0"
+      },
+      "providerRef": "stackkits-home-host-security",
+      "provides": [
+        "home-host-security"
+      ],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "home-host-security-executor-contract",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "home/host-security/executor-contract.json",
+              "required": true,
+              "unitRef": "executor-contract"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "home-host-security-executor-contract",
+              "outputRef": "home/host-security/executor-contract.json",
+              "unitRef": "executor-contract"
+            }
+          ],
+          "requiredRefs": [
+            "home-host-security-executor-contract"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "home-host-security-evidence"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:7fe72e9c09b410551da1c43397324794f39b9f4083ddcedd775ebdef3bf74fbd",
+          "id": "executor-contract",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "home/host-security/executor-contract.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://home/host-security/executor-contract/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-core-host-bootstrap",
+        "security-baseline"
+      ],
+      "rilActionPrimitives": [],
+      "role": "platform",
+      "runtime": {
+        "delivery": "stackkit",
+        "execution": "executable",
+        "kind": "host"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home"
       ]
     },
     {
@@ -25947,12 +26186,12 @@
           },
           "realization": "apply-ready",
           "recommended": {
-            "cpuCores": 0.75,
-            "ramGB": 3
+            "cpuCores": 1,
+            "ramGB": 3.625
           },
           "reservation": {
             "cpuCores": 0.1,
-            "ramGB": 2.3125
+            "ramGB": 2.375
           }
         },
         "standard": {
@@ -26001,12 +26240,12 @@
           },
           "realization": "apply-ready",
           "recommended": {
-            "cpuCores": 0.75,
-            "ramGB": 3
+            "cpuCores": 1,
+            "ramGB": 3.625
           },
           "reservation": {
             "cpuCores": 0.1,
-            "ramGB": 2.3125
+            "ramGB": 2.375
           }
         }
       },
@@ -26619,14 +26858,23 @@
               "ref": "Kombify host floor support policy",
               "source": "policy"
             },
+            "recommended": {
+              "ref": "docs/data/resource-evidence/stackkits-immich-lite-runtime/low.json",
+              "source": "measured"
+            },
             "reservation": {
-              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
-              "source": "policy"
+              "ref": "docs/data/resource-evidence/stackkits-immich-lite-runtime/low.json",
+              "source": "measured"
             }
           },
           "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 0.25,
+            "ramGB": 1.375
+          },
           "reservation": {
-            "ramGB": 0.8125
+            "cpuCores": 0.05,
+            "ramGB": 1.125
           }
         }
       },
@@ -27552,7 +27800,7 @@
           "components": [
             "cloudreve"
           ],
-          "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
+          "description": "File storage and sharing through Cloudreve. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -27588,7 +27836,7 @@
           "components": [
             "cloudreve"
           ],
-          "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
+          "description": "File storage and sharing through Cloudreve. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -27602,11 +27850,11 @@
               "source": "policy"
             },
             "recommended": {
-              "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json",
+              "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/low.json",
               "source": "measured"
             },
             "reservation": {
-              "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json",
+              "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/low.json",
               "source": "measured"
             }
           },
@@ -27617,14 +27865,14 @@
           },
           "reservation": {
             "cpuCores": 0.05,
-            "ramGB": 0.125
+            "ramGB": 0.1875
           }
         },
         "standard": {
           "components": [
             "cloudreve"
           ],
-          "description": "File storage and sharing through Cloudreve. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
+          "description": "File storage and sharing through Cloudreve. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -28402,7 +28650,7 @@
           "components": [
             "vaultwarden"
           ],
-          "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
+          "description": "Password vault and secure notes through Vaultwarden. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -28438,7 +28686,7 @@
           "components": [
             "vaultwarden"
           ],
-          "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
+          "description": "Password vault and secure notes through Vaultwarden. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -28452,11 +28700,11 @@
               "source": "policy"
             },
             "recommended": {
-              "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json",
+              "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/low.json",
               "source": "measured"
             },
             "reservation": {
-              "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json",
+              "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/low.json",
               "source": "measured"
             }
           },
@@ -28474,7 +28722,7 @@
           "components": [
             "vaultwarden"
           ],
-          "description": "Password vault and secure notes through Vaultwarden. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
+          "description": "Password vault and secure notes through Vaultwarden. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. The owner creates the encrypted account and retains the master password.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -40146,7 +40394,7 @@
           "components": [
             "home-assistant"
           ],
-          "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
+          "description": "Home Assistant Container for automation and its native product interfaces. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -40182,7 +40430,7 @@
           "components": [
             "home-assistant"
           ],
-          "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
+          "description": "Home Assistant Container for automation and its native product interfaces. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -40196,11 +40444,11 @@
               "source": "policy"
             },
             "recommended": {
-              "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json",
+              "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/low.json",
               "source": "measured"
             },
             "reservation": {
-              "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json",
+              "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/low.json",
               "source": "measured"
             }
           },
@@ -40218,7 +40466,7 @@
           "components": [
             "home-assistant"
           ],
-          "description": "Home Assistant Container for automation and its native product interfaces. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
+          "description": "Home Assistant Container for automation and its native product interfaces. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Home Assistant OS, Supervisor, MQTT and radio-device provisioning are not included.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -45513,6 +45761,62 @@
       },
       "supportedSiteKinds": [
         "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "home-host-security-contract"
+      ],
+      "health": [
+        {
+          "id": "home-host-security-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-home-host-security",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [
+        "home-host-security"
+      ],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-home-host-security-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "site-local",
+          "optional": false
+        },
+        {
+          "id": "host-bootstrap",
+          "optional": false
+        },
+        {
+          "id": "security-baseline",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "selection": {
+        "defaultForSiteKinds": [
+          "home"
+        ]
+      },
+      "supportedSiteKinds": [
+        "home"
       ],
       "workloadRefs": []
     },

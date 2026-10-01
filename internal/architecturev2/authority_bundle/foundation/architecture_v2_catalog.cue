@@ -727,7 +727,10 @@ _architectureV2LocalCapabilities: [
 	"private-remote-access",
 	"public-publish-egress",
 	"encrypted-offsite-backup",
+	"home-host-security",
 ]
+
+_architectureV2HomeHostSecurityCapabilities: ["home-host-security"]
 
 _architectureV2LocalAutonomyCapabilities: ["offline-autonomy"]
 
@@ -2800,6 +2803,16 @@ _architectureV2Providers: list.Concat([[
 		evidence: ["cloud-host-security-contract"]
 	},
 	{
+		metadata: {id: "stackkits-home-host-security", version: "1.0.0"}
+		provides: _architectureV2HomeHostSecurityCapabilities
+		requires: [{id: "site-local"}, {id: "host-bootstrap"}, {id: "security-baseline"}]
+		supportedSiteKinds: ["home"]
+		realization: {kind: "modules", moduleRefs: {required: ["stackkits-home-host-security-runtime"], optional: []}}
+		selection: defaultForSiteKinds: ["home"]
+		health: [{id: "home-host-security-contract", kind: "contract"}]
+		evidence: ["home-host-security-contract"]
+	},
+	{
 		metadata: {id: "stackkits-cloud-public-dns-contract", version: "1.0.0"}
 		provides: _architectureV2CloudPublicDNSCapabilities
 		requires: [{id: "site-cloud"}]
@@ -3882,6 +3895,24 @@ _architectureV2CloudHostSecuritySupport: #ModuleRealizationSupportV2 & {
 		}]
 	}
 	evidence: requiredRefs: ["cloud-host-security-evidence"]
+}
+
+_architectureV2HomeHostSecuritySupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: []}
+	artifacts: {
+		requiredRefs: ["home-host-security-executor-contract"]
+		outputBindings: [{artifactRef: "home-host-security-executor-contract", unitRef: "executor-contract", outputRef: "home/host-security/executor-contract.json"}]
+		contracts: [{
+			id: "home-host-security-executor-contract", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef: "executor-contract", outputRef: "home/host-security/executor-contract.json"
+		}]
+	}
+	evidence: requiredRefs: ["home-host-security-evidence"]
 }
 
 _architectureV2CloudPublicEdgeSupport: #ModuleRealizationSupportV2 & {
@@ -6442,6 +6473,38 @@ _architectureV2Modules: list.Concat([[
 		realizationSupport: _architectureV2CloudHostSecuritySupport
 		health: [{id: "cloud-host-security-health", kind: "contract", scope: "each-node"}]
 		evidence: ["cloud-host-security-evidence"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-home-host-security-runtime"
+			version:     "1.0.0"
+			description: "Home-only node-local inbound firewall, ssh and brute-force enforcement: default-drop inbound that admits the LAN, overlay interfaces and container bridges, key-only ssh, and fail2ban, all preserving the management path. It owns no public edge, DNS, backup, mesh, or server-provider lifecycle."
+		}
+		role:        "platform"
+		providerRef: "stackkits-home-host-security"
+		provides:    _architectureV2HomeHostSecurityCapabilities
+		requires: ["stackkits-core-host-bootstrap", "security-baseline"]
+		supportedSiteKinds: ["home"]
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
+		enforcementRequirement: {
+			status:      "bound", ownerRef: "stackkits-home-host-security-executor"
+			targetScope: "home-sites"
+			operations: ["enforce-home-host-firewall", "enforce-home-host-ssh", "enforce-home-host-brute-force-protection", "verify-home-host-security", "commit-home-host-security-evidence"]
+			policyArtifactRefs: ["home-host-security-executor-contract"]
+			requiredHealthRef:   "home-host-security-health"
+			requiredEvidenceRef: "home-host-security-evidence"
+		}
+		renderUnits: [{
+			id:           "executor-contract", kind:                                         "native-config", rendererRef: "stackkit"
+			templateRef:  "builtin://home/host-security/executor-contract/v1.json", version: "1.0.0"
+			contractHash: "sha256:7fe72e9c09b410551da1c43397324794f39b9f4083ddcedd775ebdef3bf74fbd"
+			publicInputRefs: [], secretInputRefs: []
+			outputs: ["home/host-security/executor-contract.json"]
+			placement: {scope: "node-local", cardinality: "one-per-node"}
+		}]
+		realizationSupport: _architectureV2HomeHostSecuritySupport
+		health: [{id: "home-host-security-health", kind: "contract", scope: "each-node"}]
+		evidence: ["home-host-security-evidence"]
 	},
 	{
 		metadata: {

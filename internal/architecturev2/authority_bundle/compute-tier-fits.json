@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:a60f1309253616e4ed12cea12fc0c84499c87c5499eb50a2a931c0750b3c0466",
+  "contentDigest": "sha256:6e7b65a2454b51e07292aeec3078f33f9f4d745d9c60663d0a9f92f5297ab3d1",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -1660,11 +1660,11 @@
                       "source": "policy"
                     },
                     "recommended": {
-                      "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json",
+                      "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/low.json",
                       "source": "measured"
                     },
                     "reservation": {
-                      "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/standard.json",
+                      "ref": "docs/data/resource-evidence/stackkits-cloudreve-runtime/low.json",
                       "source": "measured"
                     }
                   },
@@ -1675,7 +1675,7 @@
                   },
                   "reservation": {
                     "cpuCores": 0.05,
-                    "ramGB": 0.125
+                    "ramGB": 0.1875
                   }
                 },
                 "standard": {
@@ -3114,12 +3114,12 @@
                   },
                   "realization": "apply-ready",
                   "recommended": {
-                    "cpuCores": 0.75,
-                    "ramGB": 3
+                    "cpuCores": 1,
+                    "ramGB": 3.625
                   },
                   "reservation": {
                     "cpuCores": 0.1,
-                    "ramGB": 2.3125
+                    "ramGB": 2.375
                   }
                 },
                 "standard": {
@@ -3147,12 +3147,12 @@
                   },
                   "realization": "apply-ready",
                   "recommended": {
-                    "cpuCores": 0.75,
-                    "ramGB": 3
+                    "cpuCores": 1,
+                    "ramGB": 3.625
                   },
                   "reservation": {
                     "cpuCores": 0.1,
-                    "ramGB": 2.3125
+                    "ramGB": 2.375
                   }
                 }
               },
@@ -3183,14 +3183,23 @@
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
                     },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-immich-lite-runtime/low.json",
+                      "source": "measured"
+                    },
                     "reservation": {
-                      "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-immich-lite-runtime/low.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.25,
+                    "ramGB": 1.375
+                  },
                   "reservation": {
-                    "ramGB": 0.8125
+                    "cpuCores": 0.05,
+                    "ramGB": 1.125
                   }
                 }
               },
@@ -3663,11 +3672,11 @@
                       "source": "policy"
                     },
                     "recommended": {
-                      "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json",
+                      "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/low.json",
                       "source": "measured"
                     },
                     "reservation": {
-                      "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/standard.json",
+                      "ref": "docs/data/resource-evidence/stackkits-home-assistant-runtime/low.json",
                       "source": "measured"
                     }
                   },
@@ -4081,11 +4090,11 @@
                       "source": "policy"
                     },
                     "recommended": {
-                      "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json",
+                      "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/low.json",
                       "source": "measured"
                     },
                     "reservation": {
-                      "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/standard.json",
+                      "ref": "docs/data/resource-evidence/stackkits-vaultwarden-runtime/low.json",
                       "source": "measured"
                     }
                   },

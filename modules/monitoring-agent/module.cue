@@ -119,8 +119,13 @@ Contract: foundation.#ModuleContract & {
 		environment: {
 			// Hard memory cap passed to the Go runtime alongside memory_limiter.
 			// Keeps GC pressure low on constrained devices.
-			GOMEMLIMIT:                          "{{.monitoring_agent_gomemlimit}}"
-			OTEL_ENDPOINT:                       "{{.monitoring_agent_otlp_endpoint}}"
+			GOMEMLIMIT:    "{{.monitoring_agent_gomemlimit}}"
+			OTEL_ENDPOINT: "{{.monitoring_agent_otlp_endpoint}}"
+			// Verified TLS unless the endpoint is on loopback (the local
+			// telemetry sink). The collector contract admits tls.insecure
+			// only toward a loopback endpoint.
+			KOMBIFY_OTEL_TLS_INSECURE:           "{{.monitoring_agent_tls_insecure}}"
+			KOMBIFY_OTEL_TLS_CA_FILE:            "{{.monitoring_agent_tls_ca_file}}"
 			KOMBIFY_OTEL_COLLECTION_INTERVAL:    "{{.monitoring_agent_collection_interval}}"
 			KOMBIFY_OTEL_BATCH_TIMEOUT:          "{{.monitoring_agent_batch_timeout}}"
 			KOMBIFY_OTEL_DOCKER_ENDPOINT:        "{{.monitoring_agent_docker_endpoint}}"

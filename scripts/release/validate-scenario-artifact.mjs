@@ -5,13 +5,30 @@ import { fileURLToPath } from 'node:url';
 
 const CANONICAL_RELEASE_SCENARIOS = new Set(['SK-S1', 'SK-S2', 'SK-S3', 'SK-S5']);
 const SECURITY_BASELINE_SCENARIOS = new Set(['SK-S1', 'SK-S2', 'SK-S3']);
-const SECURITY_BASELINE_SCHEMA_VERSION = 'stackkit.security-baseline/v1';
-const SECURITY_BASELINE_MODE = 'public-beta';
+const SECURITY_BASELINE_SCHEMA_VERSION = 'stackkit.security-baseline/v2';
+const SECURITY_BASELINE_MODE = 'architecture-v2-foundation';
+const HOST_SECURITY_SCHEMA_VERSION = 'stackkit.host-security-evidence/v1';
+// Controls the baseline itself enforces; an attached host-security evidence
+// document must prove each one compliant or an owner-approved exception.
+const HOST_SECURITY_ENFORCED_CONTROLS = [
+  'firewall.default_inbound',
+  'ssh.password_authentication',
+  'ssh.root_login',
+  'ssh.port',
+  'bruteforce.fail2ban',
+  'updates.unattended_upgrades',
+  'kernel.sysctl',
+];
 const VALID_ARTIFACT_STATUS = new Set(['pass', 'passed', 'success', 'succeeded']);
+// The universal Architecture v2 host policy applies unattended security
+// updates and kernel parameters; firewall, ssh and fail2ban are delegated to
+// the Home and Cloud host-security owners (see hostSecurity evidence).
 const REQUIRED_SECURITY_BASELINE_CONTROLS = new Map([
-  ['firewall', 'enabled'],
-  ['sshPasswordAuthentication', 'disabled'],
-  ['fail2ban', 'enabled'],
+  ['firewall', 'delegated'],
+  ['sshPasswordAuthentication', 'delegated'],
+  ['sshRootLogin', 'delegated'],
+  ['sshPort', 'delegated'],
+  ['fail2ban', 'delegated'],
   ['unattendedUpgrades', 'security'],
   ['sysctl', 'applied'],
 ]);
@@ -73,6 +90,7 @@ export function validateScenarioArtifact(errors, artifact, scenario) {
   validateReachability(errors, artifact, scenario);
   validatePlatformAppEvidence(errors, artifact, scenario);
   validateSecurityBaseline(errors, artifact.securityBaseline, scenarioId);
+  validateHostSecurity(errors, artifact.hostSecurity);
 }
 
 function validateProfile(errors, profile, expectedProfile, scenarioId) {
@@ -495,9 +513,33 @@ function validateSecurityBaseline(errors, securityBaseline, scenarioId) {
       errors.push(`securityBaseline.controls.${key} = ${got || '<missing>'}, want ${want}`);
     }
   }
-  const rootLogin = stringValue(controls.sshRootLogin);
-  if (rootLogin !== 'key-only' && rootLogin !== 'disabled') {
-    errors.push(`securityBaseline.controls.sshRootLogin = ${rootLogin || '<missing>'}, want key-only or disabled`);
+}
+
+// hostSecurity is optional evidence (stackkit.host-security-evidence/v1 from
+// `stackkit host security verify`). When attached it must be valid, fresh at
+// observation, and prove every enforced control compliant or an approved
+// exception: unknown never counts as compliant.
+function validateHostSecurity(errors, hostSecurity) {
+  if (hostSecurity === undefined || hostSecurity === null) return;
+  if (typeof hostSecurity !== 'object' || Array.isArray(hostSecurity)) {
+    errors.push('hostSecurity must be an object when present');
+    return;
+  }
+  if (stringValue(hostSecurity.schema_version) !== HOST_SECURITY_SCHEMA_VERSION) {
+    errors.push(`hostSecurity.schema_version = ${hostSecurity.schema_version || '<missing>'}, want ${HOST_SECURITY_SCHEMA_VERSION}`);
+    return;
+  }
+  const observed = Date.parse(stringValue(hostSecurity.observed_at));
+  const expires = Date.parse(stringValue(hostSecurity.expires_at));
+  if (!Number.isFinite(observed) || !Number.isFinite(expires) || expires <= observed) {
+    errors.push('hostSecurity.observed_at and expires_at must be RFC3339 with expires_at after observed_at');
+  }
+  const states = new Map((Array.isArray(hostSecurity.controls) ? hostSecurity.controls : []).map((control) => [control?.id, control?.state]));
+  for (const id of HOST_SECURITY_ENFORCED_CONTROLS) {
+    const state = states.get(id);
+    if (state !== 'compliant' && state !== 'exception') {
+      errors.push(`hostSecurity.controls[${id}] = ${state || '<missing>'}, want compliant or exception`);
+    }
   }
 }
 
