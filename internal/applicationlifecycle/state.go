@@ -40,7 +40,7 @@ var (
 		"install": {}, "manage": {}, "backup": {}, "upgrade": {},
 		"restore": {}, "drift": {}, "remove": {},
 	}
-	optionalStages = map[string]struct{}{"setup": {}}
+	optionalStages = map[string]struct{}{"setup": {}, "adopt": {}}
 )
 
 type StageContract struct {
@@ -71,13 +71,15 @@ type DeliveryContract struct {
 }
 
 type Contract struct {
-	WorkloadRef  string
-	PackageRef   string
-	Version      string
-	ContractHash string
-	PlanHash     string
-	Delivery     DeliveryContract
-	Stages       map[string]StageContract
+	WorkloadRef              string
+	PackageRef               string
+	Version                  string
+	ContractHash             string
+	PlanHash                 string
+	Delivery                 DeliveryContract
+	Stages                   map[string]StageContract
+	Adoption                 *AdoptionContract
+	AdoptionBaselinePlanHash string
 }
 
 type Authority struct {
@@ -111,6 +113,8 @@ type Operation struct {
 	RecoveryRef    string     `json:"recoveryRef,omitempty"`
 	PreviousDigest string     `json:"previousDigest,omitempty"`
 	Digest         string     `json:"digest"`
+	IntentDigest   string     `json:"intentDigest,omitempty"`
+	Dispatched     bool       `json:"dispatched,omitempty"`
 }
 
 type State struct {
@@ -124,6 +128,7 @@ type State struct {
 }
 
 type BeginRequest struct {
+	IntentDigest string
 	ID           string
 	Stage        string
 	OperationRef string
@@ -279,9 +284,20 @@ func decodeContract(object map[string]any, planHash string) (Contract, error) {
 	if !ok {
 		return Contract{}, errors.New("resolved application lifecycle body is invalid")
 	}
+	if raw, exists := lifecycle["adoption"]; exists {
+		body, err := json.Marshal(raw)
+		if err != nil {
+			return Contract{}, err
+		}
+		var adoption AdoptionContract
+		if err := json.Unmarshal(body, &adoption); err != nil || adoption.ProfileRef != AdoptionProfile || !digestPattern.MatchString(adoption.ImageDigest) {
+			return Contract{}, errors.New("resolved application adoption contract is invalid")
+		}
+		contract.Adoption = &adoption
+	}
 	stages, ok := lifecycle["stages"].(map[string]any)
 	if !ok || len(stages) < len(requiredStages) || len(stages) > len(requiredStages)+len(optionalStages) {
-		return Contract{}, errors.New("resolved application lifecycle must contain the seven standard stages and at most the optional setup stage")
+		return Contract{}, errors.New("resolved application lifecycle must contain the seven standard stages and only the admitted optional stages")
 	}
 	contract.Stages = make(map[string]StageContract, len(stages))
 	for name := range stages {
@@ -367,9 +383,21 @@ func (store Store) Load(contract Contract) (State, error) {
 }
 
 func (store Store) Begin(contract Contract, request BeginRequest) (State, error) {
+	if request.Stage != "adopt" && request.Stage != "manage" && request.Stage != "drift" {
+		_, bound, err := store.AdoptionBinding(contract.WorkloadRef)
+		if err != nil {
+			return State{}, err
+		}
+		if bound {
+			return State{}, errors.New("application_binding_preserved: fresh lifecycle mutation cannot replace an adopted runtime; release its binding first")
+		}
+	}
 	return store.mutate(contract, func(state *State) error {
 		if !operationIDPattern.MatchString(request.ID) {
 			return errors.New("application lifecycle operation ID is invalid")
+		}
+		if request.IntentDigest != "" && !digestPattern.MatchString(request.IntentDigest) {
+			return errors.New("application lifecycle intent digest is invalid")
 		}
 		stage, exists := contract.Stages[request.Stage]
 		if !exists || !contains(stage.Operations, request.OperationRef) {
@@ -391,7 +419,8 @@ func (store Store) Begin(contract Contract, request BeginRequest) (State, error)
 			previous = state.Operations[len(state.Operations)-1].Digest
 		}
 		operation := Operation{
-			ID: request.ID, Stage: request.Stage, OperationRef: request.OperationRef,
+			IntentDigest: request.IntentDigest,
+			ID:           request.ID, Stage: request.Stage, OperationRef: request.OperationRef,
 			Status: StatusRunning, Attempt: 1, StartedAt: now, UpdatedAt: now,
 			Authority: authorityFromContract(contract), Evidence: []Evidence{},
 			PreviousDigest: previous,

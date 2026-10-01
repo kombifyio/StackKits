@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
+
 	"github.com/kombifyio/stackkits/internal/servicecontrol"
 	"github.com/spf13/cobra"
 )
@@ -78,6 +80,15 @@ func newServiceCommand() *cobra.Command {
 }
 
 func runServiceMutation(cmd *cobra.Command, action, serviceKey string, ownerApproved, outputJSON bool) error {
+	if _, bound, err := (applicationlifecycle.Store{Workspace: getWorkDir()}).AdoptionBinding(serviceKey); err != nil {
+		return machineAwareCommandError(cmd, err)
+	} else if bound {
+		result, err := executeApplication(commandContext(cmd), getWorkDir(), serviceKey, "control", applicationOptions{action: action, approved: ownerApproved})
+		if err != nil {
+			return machineAwareCommandError(cmd, applicationCommandError(err))
+		}
+		return writeServiceJSON(cmd, result)
+	}
 	controller, err := serviceController()
 	if err != nil {
 		return machineAwareCommandError(cmd, err)
@@ -94,6 +105,11 @@ func runServiceMutation(cmd *cobra.Command, action, serviceKey string, ownerAppr
 }
 
 func runServiceLogs(cmd *cobra.Command, serviceKey string, tail int, cursor string, outputJSON bool) error {
+	if _, bound, err := (applicationlifecycle.Store{Workspace: getWorkDir()}).AdoptionBinding(serviceKey); err != nil {
+		return machineAwareCommandError(cmd, err)
+	} else if bound {
+		return machineAwareCommandError(cmd, fmt.Errorf("adopted lifecycle does not admit logs; use application verify for current source evidence"))
+	}
 	controller, err := serviceController()
 	if err != nil {
 		return machineAwareCommandError(cmd, err)

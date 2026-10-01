@@ -1,11 +1,11 @@
 {
   "documentHashes": {
-    "catalog.json": "sha256:e264e12890f60097174c5c7e38b57b5ce8f1d9c5dca9c51bbe9f7ab55e0d4b07",
+    "catalog.json": "sha256:01e798e77c2798e52f0a3548890d23514021acadc86a4f7197fcc45efdc5fb0f",
     "compute-tier-fits.json": "sha256:d1005a0d7b75cb3d740e1994a88ecb84fa5fbd58420adabfb03056cce1151b96",
     "definitions/basement-kit.json": "sha256:d4cdab37ce51e41e07fe6df678f206e42f81520b47cf589087e79bae19c6d4dc",
     "definitions/cloud-kit.json": "sha256:1c6b4aca9481901650f7a0bde9ab41fe08c8394bb01b83fef0ace8f7d097c32b",
     "definitions/modern-homelab.json": "sha256:39a20d68d9bf266a70b438b659caca33dc3b522f61c956080e4350d144122fef",
-    "operations.json": "sha256:172704d28c162c5078b95db6811fc9824d2dfed1379261ccc5d8716bd2161001"
+    "operations.json": "sha256:42277d336fbee519aef73a060be728c701be9815a3a77c76db5820a06e2666d0"
   },
   "documents": {
     "catalog": "catalog.json",
@@ -22,10 +22,10 @@
   "schemaVersion": "stackkit.architecture-authority-bundle/v2",
   "sourceHashes": {
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee",
-    "foundation/application_lifecycle.cue": "sha256:7befc7549306375ef5434a852ad31940fe4924698900db1ccff0c766c0e70cdd",
+    "foundation/application_lifecycle.cue": "sha256:accec124889a00e3ea7cc24ed2cbb6af2c5d8b86b2b104dc6da284a4739a468c",
     "foundation/architecture_v2.cue": "sha256:15cab2657b661fc0fe39f0660856130fcac5d49400f5fc7dc89c1e0b1cceae83",
     "foundation/architecture_v2_backup.cue": "sha256:750b23662d20956156394cf61ad1466e651372a18aa06075883a2a70199c93e0",
-    "foundation/architecture_v2_catalog.cue": "sha256:8d757f4207c30dbab87613746aac9d754b386db236ef434d5e4f310c1a10977f",
+    "foundation/architecture_v2_catalog.cue": "sha256:ce2970c1e85b9105e62e24ce9370953f2ae630b43eb78aa33aa73db2303f68f7",
     "foundation/architecture_v2_cloud_core.cue": "sha256:e62ffb36ef1305078274022932bf41bf7e0737b0402254fcdbe8c1f3f1e5500a",
     "foundation/architecture_v2_definition_binding.cue": "sha256:a3bd59ab840c4d2775dfa1ca9703a76b22a836a38ca363d089c1322453cf947b",
     "foundation/architecture_v2_federation.cue": "sha256:7c4c80cdd0aef6f5dc4369b4a95e09e3e01be91b4116bf4dd80dc3006b11ff81",

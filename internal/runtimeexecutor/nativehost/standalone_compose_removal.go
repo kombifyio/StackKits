@@ -1227,17 +1227,31 @@ func validateStandaloneComposeDockerArgs(args []string) error {
 		return errors.New("standalone Compose docker contract is empty")
 	}
 	switch args[0] {
-	case "inspect", "stop", "rm":
+	case "inspect", "start", "restart", "stop", "rm":
 		if len(args) != 2 || !validStandaloneComposeContainerID(args[1]) {
 			return errors.New("standalone Compose container identity is outside the closed contract")
 		}
 		return nil
 	case "ps":
+		if len(args) == 3 && args[1] == "-aq" && args[2] == "--no-trunc" {
+			return nil
+		}
+		if len(args) == 5 && args[1] == "-aq" && args[2] == "--no-trunc" && args[3] == "--filter" && strings.HasPrefix(args[4], "label=com.docker.compose.project=") && validStandaloneComposeVolumeName(strings.TrimPrefix(args[4], "label=com.docker.compose.project=")) {
+			return nil
+		}
 		if len(args) != 5 || args[1] != "-aq" || args[2] != "--no-trunc" || args[3] != "--filter" ||
 			!strings.HasPrefix(args[4], "id=") || !validStandaloneComposeContainerID(strings.TrimPrefix(args[4], "id=")) {
 			return errors.New("standalone Compose container listing is outside the closed contract")
 		}
 		return nil
+	case "image":
+		if len(args) == 3 && args[1] == "inspect" && strings.HasPrefix(args[2], "sha256:") && validStandaloneComposeContainerID(strings.TrimPrefix(args[2], "sha256:")) {
+			return nil
+		}
+	case "exec":
+		if len(args) == 7 && validStandaloneComposeContainerID(args[1]) && args[2] == "/usr/local/bin/python3" && args[3] == "-I" && args[4] == "-S" && args[5] == "-c" && args[6] == adoptionConfigProbe {
+			return nil
+		}
 	case "volume":
 		if len(args) >= 2 && args[1] == "ls" {
 			if len(args) != 6 || args[2] != "--filter" || args[4] != "--format" || args[5] != "{{.Name}}" {

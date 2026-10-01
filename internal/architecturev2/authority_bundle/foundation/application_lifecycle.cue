@@ -8,7 +8,30 @@ import "list"
 // The standalone operation registry remains the sole implementation.
 #StandardUseCaseLifecycle: {
 	referenceVertical: bool | *false
+	// Adoption owns only power control of the inspected immutable container.
+	// Native application accounts, settings and persistent data remain native-owned.
+	adoption?: {
+		profileRef: "home-assistant-container-in-place/v1"
+		mode: "adopt_in_place"
+		sourceRuntime: "docker-compose"
+		imageRef: string & =~"^ghcr.io/home-assistant/home-assistant:"
+		imageDigest: #ContentHash
+		version: string & =~"^.+$"
+		ownedFields: ["container.power-state"]
+		preservedFields: ["accounts", "configuration", "persistentData"]
+		operations: ["verify", "start", "stop", "restart", "release"]
+	}
 	stages: {
+		adopt?: {
+			name: "adopt"
+			operations: ["stackkit.application.adopt", "stackkit.application.release", "stackkit.application.control"]
+			phases: ["inspect", "authorize", "verify", "bind"]
+			surfaces: ["cli", "mcp", "state-console"]
+			evidence: ["adoption-result"]
+			mutation: true
+			destructive: false
+			ownerApproval: true
+		}
 		install: {
 			name: "install"
 			operations: ["stackkit.init", "stackkit.validate", "stackkit.resolve", "stackkit.generate", "stackkit.plan", "stackkit.apply", "stackkit.verify"]

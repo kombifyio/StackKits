@@ -32,6 +32,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Added
+
+* **application adoption:** `stackkit application inspect|adopt|verify|control|release` can bind an existing initialized Home Assistant 2026.7.2 Compose container to the resolved Smart Home lifecycle without recreating its container, accounts, configuration or data. Inspection requires the exact immutable image and container, an existing native Owner grant and an exclusive configuration mount. Signed Owner receipts use the existing lifecycle journal; start, stop and restart target only that binding, interrupted dispatch reconciles without repeating the action, and release retains the native application. Unsupported sources stay unstacked, and fresh generation, apply, setup and removal are refused while adoption custody is active.
+
 ### Fixed
 
 * **Guard preparation:** the legacy Techstack handoff verifies the already bootstrapped `techstack-agent.service` and its protected enrollment before recording verified evidence. It no longer installs a second shell daemon or claims a local installation after writing only a handoff file. Missing or mismatched enrollment returns Techstack bootstrap guidance; existing Guard identity, configuration, credentials and durable journals remain under Techstack lifecycle authority.
@@ -126,6 +130,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.49.8](https://github.com/kombifyio/StackKits/compare/v0.49.7...v0.49.8) (2026-10-01)
+
+
+### Added
+
+* **applications:** adopt existing Home Assistant without replacing native state
 
 ## [0.49.7](https://github.com/kombifyio/StackKits/compare/v0.49.6...v0.49.7) (2026-10-01)
 

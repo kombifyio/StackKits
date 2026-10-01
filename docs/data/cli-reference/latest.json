@@ -759,6 +759,266 @@
       "subcommands": []
     },
     {
+      "path": "stackkit application",
+      "name": "application",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit application [flags]",
+      "short": "Adopt supported existing applications without replacing their accounts or data",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit application adopt",
+        "stackkit application control",
+        "stackkit application inspect",
+        "stackkit application release",
+        "stackkit application verify"
+      ]
+    },
+    {
+      "path": "stackkit application adopt",
+      "name": "adopt",
+      "parent": "stackkit application",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit application adopt [workload] [flags]",
+      "short": "Bind the reviewed existing application to its declared lifecycle",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "container-id",
+          "type": "string",
+          "description": "Exact immutable 64-character Docker container ID",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the versioned secret-free application evidence",
+          "required": false
+        },
+        {
+          "name": "operation-id",
+          "type": "string",
+          "description": "Stable operation identifier for idempotent resume",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Approve this exact owner-bound application operation",
+          "required": false
+        },
+        {
+          "name": "owner-file",
+          "type": "string",
+          "default": ".stackkit/setup/home-assistant-owner.json",
+          "description": "Workspace-relative existing private owner grant file containing accessToken",
+          "required": false
+        },
+        {
+          "name": "plan-digest",
+          "type": "string",
+          "description": "Exact reviewed source-bound adoption plan digest",
+          "required": false
+        },
+        {
+          "name": "workload",
+          "type": "string",
+          "description": "Exact selected application workload (alternative to positional workload)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit application control",
+      "name": "control",
+      "parent": "stackkit application",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit application control [workload] [flags]",
+      "short": "Start, stop or restart the exact adopted container",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "action",
+          "type": "string",
+          "description": "Admitted power action: start, stop or restart",
+          "required": false
+        },
+        {
+          "name": "container-id",
+          "type": "string",
+          "description": "Exact immutable 64-character Docker container ID",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the versioned secret-free application evidence",
+          "required": false
+        },
+        {
+          "name": "operation-id",
+          "type": "string",
+          "description": "Stable operation identifier for idempotent resume",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Approve this exact owner-bound application operation",
+          "required": false
+        },
+        {
+          "name": "workload",
+          "type": "string",
+          "description": "Exact selected application workload (alternative to positional workload)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit application inspect",
+      "name": "inspect",
+      "parent": "stackkit application",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit application inspect [workload] [flags]",
+      "short": "Assess the exact existing application and current configuration",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "container-id",
+          "type": "string",
+          "description": "Exact immutable 64-character Docker container ID",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the versioned secret-free application evidence",
+          "required": false
+        },
+        {
+          "name": "owner-file",
+          "type": "string",
+          "default": ".stackkit/setup/home-assistant-owner.json",
+          "description": "Workspace-relative existing private owner grant file containing accessToken",
+          "required": false
+        },
+        {
+          "name": "workload",
+          "type": "string",
+          "description": "Exact selected application workload (alternative to positional workload)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit application release",
+      "name": "release",
+      "parent": "stackkit application",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit application release [workload] [flags]",
+      "short": "Release lifecycle custody while retaining the application",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "container-id",
+          "type": "string",
+          "description": "Exact immutable 64-character Docker container ID",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the versioned secret-free application evidence",
+          "required": false
+        },
+        {
+          "name": "operation-id",
+          "type": "string",
+          "description": "Stable operation identifier for idempotent resume",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Approve this exact owner-bound application operation",
+          "required": false
+        },
+        {
+          "name": "workload",
+          "type": "string",
+          "description": "Exact selected application workload (alternative to positional workload)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit application verify",
+      "name": "verify",
+      "parent": "stackkit application",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit application verify [workload] [flags]",
+      "short": "Verify the signed adoption binding and current source",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "container-id",
+          "type": "string",
+          "description": "Exact immutable 64-character Docker container ID",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the versioned secret-free application evidence",
+          "required": false
+        },
+        {
+          "name": "operation-id",
+          "type": "string",
+          "description": "Read correlation identifier",
+          "required": false
+        },
+        {
+          "name": "owner-file",
+          "type": "string",
+          "default": ".stackkit/setup/home-assistant-owner.json",
+          "description": "Workspace-relative existing private owner grant file containing accessToken",
+          "required": false
+        },
+        {
+          "name": "workload",
+          "type": "string",
+          "description": "Exact selected application workload (alternative to positional workload)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit apply",
       "name": "apply",
       "parent": "stackkit",

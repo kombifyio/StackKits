@@ -13,7 +13,9 @@ package advancedcatalog
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
+	"slices"
 
 	"github.com/kombifyio/stackkits/internal/advancedcapability"
 	"github.com/kombifyio/stackkits/internal/advanceddrift"
@@ -243,7 +245,7 @@ var (
 
 // New returns the catalog. Entries are sorted by operation ID.
 func New() Catalog {
-	return Catalog{
+	catalog := Catalog{
 		SchemaVersion: SchemaVersion,
 		Program:       Program,
 		Description: "Advanced operations an orchestrator may dispatch to the stackkit CLI of the exact pinned release. " +
@@ -271,7 +273,7 @@ func New() Catalog {
 			{Argv: []string{"--correlation-id", "{correlationId}"}, Description: "Validated caller correlation ID recorded in local rollout evidence."},
 		},
 		Placeholders: placeholders(),
-		Operations: []Operation{
+		Operations: append([]Operation{
 			{
 				Operation: OperationTrustImport, Status: StatusAvailable, SinceRelease: "v0.15.8",
 				Summary:      "Import the exact pinned Techstack issuer trust bundle into local Owner custody; prerequisite of every capability-gated operation.",
@@ -404,8 +406,10 @@ func New() Catalog {
 				Events: []EventPhase{changeSetPrepareEvents},
 				Modes:  capabilityModes,
 			},
-		},
+		}, applicationOperations()...),
 	}
+	slices.SortFunc(catalog.Operations, func(a, b Operation) int { return cmp.Compare(a.Operation, b.Operation) })
+	return catalog
 }
 
 // Render returns the deterministic catalog bytes.
@@ -423,6 +427,11 @@ func Render() ([]byte, error) {
 func placeholders() []Placeholder {
 	sha := `^sha256:[0-9a-f]{64}$`
 	return []Placeholder{
+		{Name: "workloadRef", Description: "Exact selected application workload."},
+		{Name: "containerId", Description: "Exact immutable Docker container ID.", Pattern: `^[0-9a-f]{64}$`},
+		{Name: "planDigest", Description: "Reviewed source-bound application adoption digest.", Pattern: sha},
+		{Name: "applicationAction", Description: "Admitted adopted-container power action.", Pattern: `^(start|stop|restart)$`},
+		{Name: "ownerFile", Description: "Workspace-relative private native application Owner grant file."},
 		{Name: "anchorId", Description: "Existing snapshot-anchor ID in local custody."},
 		{Name: "bundleFile", Description: "Path to the canonical Advanced trust bundle file."},
 		{Name: "bundleSha256", Description: "Exact digest of the trust bundle bytes.", Pattern: sha},

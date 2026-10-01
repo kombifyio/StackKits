@@ -2300,7 +2300,14 @@ _architectureV2ApplicationLifecycleContracts: [
 		workloadRef: "smart-home"
 		useCaseRef:  "smart-home"
 		packageRef:  "smart-home"
-		lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
+		lifecycle: #StandardUseCaseLifecycle & {
+			stages: {setup: {}, adopt: {}}
+			adoption: {
+				imageRef: [for module in _architectureV2Modules if module.metadata.id == "stackkits-home-assistant-runtime" {module.runtime.image.ref}][0]
+				imageDigest: [for module in _architectureV2Modules if module.metadata.id == "stackkits-home-assistant-runtime" {module.runtime.image.digest}][0]
+				version: "2026.7.2"
+			}
+		}
 	},
 ]
 

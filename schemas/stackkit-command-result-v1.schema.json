@@ -37,6 +37,10 @@
   },
   "allOf": [
     {
+      "if":{"required":["command","status"],"properties":{"command":{"enum":["stackkit application inspect","stackkit application adopt","stackkit application verify","stackkit application release","stackkit application control"]},"status":{"const":"success"}}},
+      "then":{"properties":{"data":{"$ref":"stackkit-application-adoption-v1.schema.json"}}}
+    },
+    {
       "if": {
         "required": ["command"],
         "properties": { "command": { "enum": ["stackkit host security verify", "stackkit host security status"] } }
@@ -152,7 +156,12 @@
             "stackkit advanced restore-drill run",
             "stackkit advanced rollback run",
             "stackkit drift detect",
-            "stackkit drift reconcile"
+            "stackkit drift reconcile",
+            "stackkit application inspect",
+            "stackkit application adopt",
+            "stackkit application verify",
+            "stackkit application release",
+            "stackkit application control"
           ]
         }
       }

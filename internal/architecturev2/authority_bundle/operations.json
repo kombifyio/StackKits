@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:498457ae9b08d2cce8ee65d91b8e54c8d1575330858cd722ae6a4baac630fd4a",
+  "contentDigest": "sha256:2956c6261eedb4bdb43b8a3aa35ddc2894f886675bbae5a1fcd0bedb71694a54",
   "operations": [
     {
       "command": [
@@ -292,6 +292,196 @@
       "ownerApproval": false,
       "title": "Application compatibility",
       "toolName": "stackkit_app_compatibility"
+    },
+    {
+      "arguments": [
+        {
+          "description": "exact selected application workload",
+          "kind": "string",
+          "name": "workload",
+          "required": true
+        },
+        {
+          "description": "exact inspected immutable Docker container ID",
+          "flag": "--container-id",
+          "kind": "string",
+          "name": "container_id",
+          "required": true
+        },
+        {
+          "description": "reviewed source and authority adoption digest",
+          "flag": "--plan-digest",
+          "kind": "string",
+          "name": "plan_digest",
+          "required": true
+        },
+        {
+          "description": "stable adoption idempotency identifier",
+          "flag": "--operation-id",
+          "kind": "string",
+          "name": "operation_id",
+          "required": true
+        },
+        {
+          "description": "workspace-relative private existing native Owner grant file",
+          "flag": "--owner-file",
+          "kind": "string",
+          "name": "owner_file"
+        }
+      ],
+      "command": [
+        "application",
+        "adopt",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Owner-sign a reviewed source-bound lifecycle binding while retaining existing accounts, configuration and data.",
+      "destructive": false,
+      "id": "stackkit.application.adopt",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Adopt application",
+      "toolName": "stackkit_application_adopt"
+    },
+    {
+      "arguments": [
+        {
+          "description": "exact adopted application workload",
+          "kind": "string",
+          "name": "workload",
+          "required": true
+        },
+        {
+          "description": "start, stop or restart",
+          "flag": "--action",
+          "kind": "string",
+          "name": "action",
+          "required": true
+        },
+        {
+          "description": "stable power-control idempotency identifier",
+          "flag": "--operation-id",
+          "kind": "string",
+          "name": "operation_id",
+          "required": true
+        }
+      ],
+      "command": [
+        "application",
+        "control",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Control only the verified immutable adopted container without recreation or configuration changes.",
+      "destructive": true,
+      "id": "stackkit.application.control",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Control adopted application",
+      "toolName": "stackkit_application_control"
+    },
+    {
+      "arguments": [
+        {
+          "description": "exact selected application workload",
+          "kind": "string",
+          "name": "workload",
+          "required": true
+        },
+        {
+          "description": "exact immutable 64-character Docker container ID",
+          "flag": "--container-id",
+          "kind": "string",
+          "name": "container_id",
+          "required": true
+        },
+        {
+          "description": "workspace-relative private existing native Owner grant file",
+          "flag": "--owner-file",
+          "kind": "string",
+          "name": "owner_file"
+        }
+      ],
+      "command": [
+        "application",
+        "inspect",
+        "--json"
+      ],
+      "description": "Inspect a supported existing application, preservation facts and native Owner without changing it.",
+      "destructive": false,
+      "id": "stackkit.application.inspect",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Assess application adoption",
+      "toolName": "stackkit_application_inspect"
+    },
+    {
+      "arguments": [
+        {
+          "description": "exact adopted application workload",
+          "kind": "string",
+          "name": "workload",
+          "required": true
+        },
+        {
+          "description": "stable release idempotency identifier",
+          "flag": "--operation-id",
+          "kind": "string",
+          "name": "operation_id",
+          "required": true
+        }
+      ],
+      "command": [
+        "application",
+        "release",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Release lifecycle custody without stopping or deleting the retained application or its data.",
+      "destructive": false,
+      "id": "stackkit.application.release",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Release adopted application",
+      "toolName": "stackkit_application_release"
+    },
+    {
+      "arguments": [
+        {
+          "description": "exact adopted application workload",
+          "kind": "string",
+          "name": "workload",
+          "required": true
+        },
+        {
+          "description": "workspace-relative private existing native Owner grant file",
+          "flag": "--owner-file",
+          "kind": "string",
+          "name": "owner_file"
+        }
+      ],
+      "command": [
+        "application",
+        "verify",
+        "--json"
+      ],
+      "description": "Verify current source and existing Owner-signed lifecycle evidence.",
+      "destructive": false,
+      "id": "stackkit.application.verify",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Verify adopted application",
+      "toolName": "stackkit_application_verify"
     },
     {
       "command": [

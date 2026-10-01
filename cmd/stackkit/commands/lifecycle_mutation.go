@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 )
 
@@ -40,6 +41,11 @@ func admitLifecycleMutationBeforeObservability(
 	workspace, command string,
 	mutating bool,
 ) error {
+	if mutating && preservesAdoptedApplication(command) {
+		if err := (applicationlifecycle.Store{Workspace: workspace}).RequireNoAdoption(); err != nil {
+			return err
+		}
+	}
 	join, err := currentLifecycleMutationJoin(command)
 	if err != nil {
 		return err
@@ -57,11 +63,31 @@ func withLifecycleMutation(
 	workspace, command string,
 	execute func() error,
 ) error {
+	if preservesAdoptedApplication(command) {
+		if err := (applicationlifecycle.Store{Workspace: workspace}).RequireNoAdoption(); err != nil {
+			return err
+		}
+	}
 	join, err := currentLifecycleMutationJoin(command)
 	if err != nil {
 		return err
 	}
-	return lifecyclemutation.WithIdleMutation(workspace, join, execute)
+	return lifecyclemutation.WithIdleMutation(workspace, join, func() error {
+		if preservesAdoptedApplication(command) {
+			if err := (applicationlifecycle.Store{Workspace: workspace}).RequireNoAdoption(); err != nil {
+				return err
+			}
+		}
+		return execute()
+	})
+}
+
+func preservesAdoptedApplication(command string) bool {
+	switch command {
+	case "apply", "generate", "setup", "remove", "destroy", "upgrade":
+		return true
+	}
+	return false
 }
 
 func withLifecycleJoinIfPresent(
@@ -75,7 +101,14 @@ func withLifecycleJoinIfPresent(
 	if join.OperationID == "" && join.Phase == "" && join.Nonce == "" {
 		return execute()
 	}
-	return lifecyclemutation.WithIdleMutation(workspace, join, execute)
+	return lifecyclemutation.WithIdleMutation(workspace, join, func() error {
+		if preservesAdoptedApplication(command) {
+			if err := (applicationlifecycle.Store{Workspace: workspace}).RequireNoAdoption(); err != nil {
+				return err
+			}
+		}
+		return execute()
+	})
 }
 
 func lifecycleChildFlags(operationID, phase, nonce string) []string {

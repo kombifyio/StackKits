@@ -122,6 +122,29 @@
   ],
   "placeholders": [
     {
+      "name": "workloadRef",
+      "description": "Exact selected application workload."
+    },
+    {
+      "name": "containerId",
+      "description": "Exact immutable Docker container ID.",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    {
+      "name": "planDigest",
+      "description": "Reviewed source-bound application adoption digest.",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    {
+      "name": "applicationAction",
+      "description": "Admitted adopted-container power action.",
+      "pattern": "^(start|stop|restart)$"
+    },
+    {
+      "name": "ownerFile",
+      "description": "Workspace-relative private native application Owner grant file."
+    },
+    {
       "name": "anchorId",
       "description": "Existing snapshot-anchor ID in local custody."
     },
@@ -250,6 +273,238 @@
           "status": "success",
           "schemaVersion": "stackkit.local-advanced-trust/v1",
           "schema": "schemas/stackkit-local-advanced-trust-v1.schema.json"
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "application.adopt",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Source-bound supported application adopt through local Owner custody; no recreation or account bootstrap.",
+      "command": "stackkit application adopt",
+      "argv": [
+        "application",
+        "adopt",
+        "--workload",
+        "{workloadRef}",
+        "--container-id",
+        "{containerId}",
+        "--json",
+        "--operation-id",
+        "{operationId}",
+        "--owner-approve",
+        "--plan-digest",
+        "{planDigest}"
+      ],
+      "optionalArgs": [
+        {
+          "argv": [
+            "--owner-file",
+            "{ownerFile}"
+          ],
+          "description": "Private existing native Owner grant file; secret values never cross the dispatch contract."
+        }
+      ],
+      "mutates": true,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.application-adoption/v1",
+          "schema": "schemas/stackkit-application-adoption-v1.schema.json",
+          "description": "Source and authority-bound adoption evidence."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "application.control",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Source-bound supported application control through local Owner custody; no recreation or account bootstrap.",
+      "command": "stackkit application control",
+      "argv": [
+        "application",
+        "control",
+        "--workload",
+        "{workloadRef}",
+        "--container-id",
+        "{containerId}",
+        "--json",
+        "--operation-id",
+        "{operationId}",
+        "--owner-approve",
+        "--action",
+        "{applicationAction}"
+      ],
+      "optionalArgs": [],
+      "mutates": true,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.application-adoption/v1",
+          "schema": "schemas/stackkit-application-adoption-v1.schema.json",
+          "description": "Source and authority-bound adoption evidence."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "application.inspect",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Source-bound supported application inspect through local Owner custody; no recreation or account bootstrap.",
+      "command": "stackkit application inspect",
+      "argv": [
+        "application",
+        "inspect",
+        "--workload",
+        "{workloadRef}",
+        "--container-id",
+        "{containerId}",
+        "--json"
+      ],
+      "optionalArgs": [
+        {
+          "argv": [
+            "--owner-file",
+            "{ownerFile}"
+          ],
+          "description": "Private existing native Owner grant file; secret values never cross the dispatch contract."
+        }
+      ],
+      "mutates": false,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.application-adoption/v1",
+          "schema": "schemas/stackkit-application-adoption-v1.schema.json",
+          "description": "Source and authority-bound adoption evidence."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "application.release",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Source-bound supported application release through local Owner custody; no recreation or account bootstrap.",
+      "command": "stackkit application release",
+      "argv": [
+        "application",
+        "release",
+        "--workload",
+        "{workloadRef}",
+        "--container-id",
+        "{containerId}",
+        "--json",
+        "--operation-id",
+        "{operationId}",
+        "--owner-approve"
+      ],
+      "optionalArgs": [],
+      "mutates": true,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.application-adoption/v1",
+          "schema": "schemas/stackkit-application-adoption-v1.schema.json",
+          "description": "Source and authority-bound adoption evidence."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "application.verify",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Source-bound supported application verify through local Owner custody; no recreation or account bootstrap.",
+      "command": "stackkit application verify",
+      "argv": [
+        "application",
+        "verify",
+        "--workload",
+        "{workloadRef}",
+        "--container-id",
+        "{containerId}",
+        "--json"
+      ],
+      "optionalArgs": [
+        {
+          "argv": [
+            "--owner-file",
+            "{ownerFile}"
+          ],
+          "description": "Private existing native Owner grant file; secret values never cross the dispatch contract."
+        }
+      ],
+      "mutates": false,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.application-adoption/v1",
+          "schema": "schemas/stackkit-application-adoption-v1.schema.json",
+          "description": "Source and authority-bound adoption evidence."
         }
       ],
       "events": [],
