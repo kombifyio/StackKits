@@ -534,6 +534,7 @@ func generateBundleProjection(repoRoot, staging string, source sourceManifest, p
 	for _, profile := range profiles {
 		requests = append(requests, cueJSONRequest{Directory: profile.Package, Expression: "Definition"})
 	}
+	requests = append(requests, cueJSONRequest{Directory: "foundation", Expression: "NeutralImageProfiles"})
 	documents, err := loadCUEJSONDocuments(repoRoot, requests)
 	if err != nil {
 		return err
@@ -583,6 +584,17 @@ func generateBundleProjection(repoRoot, staging string, source sourceManifest, p
 			return err
 		}
 	}
+	neutralPath := "neutral-image-profiles.json"
+	neutral := documents[len(documents)-1]
+	if err := writeCanonicalJSON(stagingRoot, neutralPath, neutral); err != nil {
+		return err
+	}
+	neutralBytes, err := canonicalJSONBytes(neutral)
+	if err != nil {
+		return err
+	}
+	result.Documents["neutralImageProfiles"] = neutralPath
+	result.DocumentHashes[neutralPath] = contentHash(neutralBytes)
 	webMCPDocuments, err := generateWebMCPProjectionDocuments(repoRoot)
 	if err != nil {
 		return err

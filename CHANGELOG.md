@@ -131,6 +131,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## [0.50.0] (2026-10-01)
+
+### Highlights
+
+This release prepares StackKits for neutral golden images and brings together the maintenance improvements from the 0.49 release line.
+
+- **Prepare before registration:** `stackkit image plan`, `prepare` and `verify` cache the exact published toolchain and immutable core container images without creating an Owner or starting applications.
+- **Individual identity on first boot:** `stackkit init --preinstalled-manifest` verifies the cache before establishing new Owner keys, runtime custody and workload secrets for each installation.
+- **Ubuntu 26.04 by default:** the image profiles retain Ubuntu 24.04 compatibility and include the packaged OpenTofu provider mirror and Terramate for managed deployments.
+- **Consistent public catalogs:** website and public-release projection verify the new image-profile document alongside the existing authority bundle.
+
+The initial profiles cover Cloud and Basement core installations. Techstack remains responsible for VM construction, OS identity cleanup, per-clone Guard enrollment and provider image publication. Provider clone qualification is still pending; the cache does not promise an offline installation.
+
+
+
+### Added
+
+* **applications:** adopt existing Home Assistant without replacing native state
+* **host:** host security verify and repair, enforced home baseline and hardened OTel collector
+* **images:** prepare neutral caches for per-instance initialization
+* **monitoring:** bind the managed collector to the loopback Guard sink
+* **profiles:** bind Immich Lite and low measurements; enforce the provenance gate (C1)
+* **stackkits:** default new Ubuntu targets to 26.04 LTS
+
+
+### Fixed
+
+* **backup:** reject mismatched configured S3 targets
+* **backup:** report failed saved runs through status
+* **ci:** resolve the Go toolchain from go.mod instead of a stale pin
+* **container:** stamp release identity in both binaries
+* **deps:** update internal products
+* **guard:** verify canonical Guard during managed preparation
+* **installer:** explain standalone removal scope and approval
+* **release:** verify neutral image profiles in public projection
+
+## [0.49.9](https://github.com/kombifyio/StackKits/compare/v0.49.8...v0.49.9) (2026-10-01)
+
+
+### Added
+
+* **images:** prepare neutral caches for per-instance initialization
+
 ## [0.49.8](https://github.com/kombifyio/StackKits/compare/v0.49.7...v0.49.8) (2026-10-01)
 
 

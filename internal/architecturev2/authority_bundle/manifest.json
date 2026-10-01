@@ -5,11 +5,13 @@
     "definitions/basement-kit.json": "sha256:d4cdab37ce51e41e07fe6df678f206e42f81520b47cf589087e79bae19c6d4dc",
     "definitions/cloud-kit.json": "sha256:1c6b4aca9481901650f7a0bde9ab41fe08c8394bb01b83fef0ace8f7d097c32b",
     "definitions/modern-homelab.json": "sha256:39a20d68d9bf266a70b438b659caca33dc3b522f61c956080e4350d144122fef",
+    "neutral-image-profiles.json": "sha256:65a76fc6498a7a436c1e0f2064bb833d3e3ca3c4056a7c2e3755f748280e4b9f",
     "operations.json": "sha256:42277d336fbee519aef73a060be728c701be9815a3a77c76db5820a06e2666d0"
   },
   "documents": {
     "catalog": "catalog.json",
     "computeTierFits": "compute-tier-fits.json",
+    "neutralImageProfiles": "neutral-image-profiles.json",
     "operations": "operations.json"
   },
   "module": "github.com/kombifyio/stackkits",
@@ -33,6 +35,7 @@
     "foundation/architecture_v2_profiles.cue": "sha256:1b80546a4156f4aeba80f8149f5847fbd2315f2269ed8128fe3cb8b36e7128f3",
     "foundation/architecture_v2_smart_home.cue": "sha256:3b570fb719b18d9d1f14d8123e3494279c3baa491906eb606c0851e1065e3fa8",
     "foundation/architecture_v2_storage.cue": "sha256:339e153f31cf2b98bb1782b23b50012f32cea007b18138276d8ee50fc8fd6559",
+    "foundation/image_preparation.cue": "sha256:be793901dd9cb43db087813ee0ca52c9875c5951c5e7a7492c3d2bffd96c2648",
     "foundation/use_case_identity.cue": "sha256:69434bf7d383b41ae037fad46003b1196e219025895d81c603fd398cfc461b87"
   }
 }

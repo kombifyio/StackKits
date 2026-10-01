@@ -29,6 +29,11 @@ Techstack does not roll out or operate a StackKit in Standard Mode.
 
 StackKits turns CUE-defined infrastructure contracts into deployable homelab environments:
 
+Before per-clone initialization, [neutral image preparation](GOLDEN_IMAGE_PREPARATION.md)
+can cache the attested release, its existing provider closure and CUE-pinned core
+images. This cache has no Owner, runtime custody, journal or service volumes;
+first boot reuses the existing init/apply lifecycle after fresh local admission.
+
 ```text
 operator intent / optional Techstack-approved intent
         |

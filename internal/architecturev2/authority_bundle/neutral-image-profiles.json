@@ -1,0 +1,207 @@
+{
+  "basement-core-compose": {
+    "architectures": [
+      "amd64",
+      "arm64"
+    ],
+    "cacheScope": "core-container-images",
+    "compatibleOS": [
+      "ubuntu-26.04",
+      "ubuntu-24.04"
+    ],
+    "defaultOS": "ubuntu-26.04",
+    "id": "basement-core-compose",
+    "images": [
+      {
+        "component": "router",
+        "digest": "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8",
+        "ref": "ghcr.io/traefik/traefik:v3"
+      },
+      {
+        "component": "socket-proxy",
+        "digest": "sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476",
+        "ref": "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2"
+      },
+      {
+        "component": "pocketid",
+        "digest": "sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea",
+        "ref": "ghcr.io/pocket-id/pocket-id:v2.16.0"
+      },
+      {
+        "component": "tinyauth",
+        "digest": "sha256:910f84801dc9597398458d45f8d305eb232dc583d6927c87cc29626527947d35",
+        "ref": "ghcr.io/tinyauthapp/tinyauth:v5.1.2"
+      },
+      {
+        "component": "step-ca",
+        "digest": "sha256:a2b17872915c193259b75a5474c398326f41bd199f0842093e52cf4182bc8270",
+        "ref": "smallstep/step-ca:0.30.2"
+      },
+      {
+        "component": "lan-dns",
+        "digest": "sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90",
+        "ref": "docker.io/mvance/unbound:1.22.0"
+      },
+      {
+        "component": "coolify",
+        "digest": "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f",
+        "ref": "ghcr.io/coollabsio/coolify:4.1.2"
+      },
+      {
+        "component": "coolify-postgres",
+        "digest": "sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f",
+        "ref": "docker.io/library/postgres:15-alpine"
+      },
+      {
+        "component": "coolify-redis",
+        "digest": "sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99",
+        "ref": "docker.io/library/redis:7-alpine"
+      },
+      {
+        "component": "coolify-realtime",
+        "digest": "sha256:b5bb9d1c95d9b4ca59773b82d1e1a2bf4ccac5fbed33be19b9b3906574db3629",
+        "ref": "ghcr.io/coollabsio/coolify-realtime:1.0.16"
+      },
+      {
+        "component": "kopia-agent",
+        "digest": "sha256:b6cb1f09a5fa832a320ee06d7803e82cdd7f69ac6f61d76a0d55fbbf1495c043",
+        "ref": "docker.io/kopia/kopia:0.18.2"
+      },
+      {
+        "component": "hub",
+        "digest": "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752",
+        "ref": "docker.io/library/nginx:alpine"
+      },
+      {
+        "component": "stackkit-server",
+        "digest": "sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6",
+        "ref": "docker.io/library/alpine:3.24"
+      }
+    ],
+    "kit": "basement-kit",
+    "managedTarget": "terramate",
+    "module": "stackkits-basement-core-runtime",
+    "networkRequired": true,
+    "runtime": "compose"
+  },
+  "basement-core-lite-compose": {
+    "architectures": [
+      "amd64",
+      "arm64"
+    ],
+    "cacheScope": "core-container-images",
+    "compatibleOS": [
+      "ubuntu-26.04",
+      "ubuntu-24.04"
+    ],
+    "defaultOS": "ubuntu-26.04",
+    "id": "basement-core-lite-compose",
+    "images": [
+      {
+        "component": "router",
+        "digest": "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8",
+        "ref": "ghcr.io/traefik/traefik:v3"
+      },
+      {
+        "component": "socket-proxy",
+        "digest": "sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476",
+        "ref": "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2"
+      },
+      {
+        "component": "pocketid",
+        "digest": "sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea",
+        "ref": "ghcr.io/pocket-id/pocket-id:v2.16.0"
+      },
+      {
+        "component": "tinyauth",
+        "digest": "sha256:910f84801dc9597398458d45f8d305eb232dc583d6927c87cc29626527947d35",
+        "ref": "ghcr.io/tinyauthapp/tinyauth:v5.1.2"
+      },
+      {
+        "component": "step-ca",
+        "digest": "sha256:a2b17872915c193259b75a5474c398326f41bd199f0842093e52cf4182bc8270",
+        "ref": "smallstep/step-ca:0.30.2"
+      },
+      {
+        "component": "lan-dns",
+        "digest": "sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90",
+        "ref": "docker.io/mvance/unbound:1.22.0"
+      },
+      {
+        "component": "kopia-agent",
+        "digest": "sha256:b6cb1f09a5fa832a320ee06d7803e82cdd7f69ac6f61d76a0d55fbbf1495c043",
+        "ref": "docker.io/kopia/kopia:0.18.2"
+      },
+      {
+        "component": "hub",
+        "digest": "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752",
+        "ref": "docker.io/library/nginx:alpine"
+      },
+      {
+        "component": "stackkit-server",
+        "digest": "sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6",
+        "ref": "docker.io/library/alpine:3.24"
+      }
+    ],
+    "kit": "basement-kit",
+    "managedTarget": "terramate",
+    "module": "stackkits-basement-core-lite-runtime",
+    "networkRequired": true,
+    "runtime": "compose"
+  },
+  "cloud-core-compose": {
+    "architectures": [
+      "amd64",
+      "arm64"
+    ],
+    "cacheScope": "core-container-images",
+    "compatibleOS": [
+      "ubuntu-26.04",
+      "ubuntu-24.04"
+    ],
+    "defaultOS": "ubuntu-26.04",
+    "id": "cloud-core-compose",
+    "images": [
+      {
+        "component": "router",
+        "digest": "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8",
+        "ref": "ghcr.io/traefik/traefik:v3"
+      },
+      {
+        "component": "socket-proxy",
+        "digest": "sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476",
+        "ref": "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2"
+      },
+      {
+        "component": "pocketid",
+        "digest": "sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea",
+        "ref": "ghcr.io/pocket-id/pocket-id:v2.16.0"
+      },
+      {
+        "component": "tinyauth",
+        "digest": "sha256:910f84801dc9597398458d45f8d305eb232dc583d6927c87cc29626527947d35",
+        "ref": "ghcr.io/tinyauthapp/tinyauth:v5.1.2"
+      },
+      {
+        "component": "hub",
+        "digest": "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752",
+        "ref": "docker.io/library/nginx:alpine"
+      },
+      {
+        "component": "stackkit-server",
+        "digest": "sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6",
+        "ref": "docker.io/library/alpine:3.24"
+      },
+      {
+        "component": "kopia-agent",
+        "digest": "sha256:b6cb1f09a5fa832a320ee06d7803e82cdd7f69ac6f61d76a0d55fbbf1495c043",
+        "ref": "docker.io/kopia/kopia:0.18.2"
+      }
+    ],
+    "kit": "cloud-kit",
+    "managedTarget": "terramate",
+    "module": "stackkits-cloud-core-standalone-runtime",
+    "networkRequired": true,
+    "runtime": "compose"
+  }
+}

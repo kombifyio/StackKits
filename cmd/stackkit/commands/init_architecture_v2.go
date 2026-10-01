@@ -153,6 +153,9 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 			return fmt.Errorf("select local owner binding from canonical StackSpec: %w", err)
 		}
 	}
+	if err := admitPreinstalledInit(cmd, wd, stackkitName, validation.CanonicalStackSpec, service); err != nil {
+		return err
+	}
 	loader := config.NewLoader(wd)
 	specPath, displayPath, _, err := loader.ResolveStackSpecPathForRead(specFile)
 	if err != nil {

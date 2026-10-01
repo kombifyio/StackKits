@@ -4030,6 +4030,107 @@
       "subcommands": []
     },
     {
+      "path": "stackkit image",
+      "name": "image",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit image [flags]",
+      "short": "Prepare and admit an owner-neutral golden image cache",
+      "description": "Prepare immutable core container caches from the embedded CUE catalog.\nThis never initializes an Owner, starts services, creates volumes or prepares a\nprovider VM. Ubuntu 26.04 is the default target; Ubuntu 24.04 remains compatible.\nThe manifest is unsigned cache metadata, never host conformance or Apply authority.\nThe existing packaged OpenTofu provider closure is verified and reused. Network\naccess remains necessary for first-boot service integrations and optional\nworkloads. Techstack owns machine sysprep, VM images and enrollment.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit image plan",
+        "stackkit image prepare",
+        "stackkit image verify"
+      ]
+    },
+    {
+      "path": "stackkit image plan",
+      "name": "plan",
+      "parent": "stackkit image",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit image plan [flags]",
+      "short": "Print the authoritative neutral core cache profile",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "profile",
+          "type": "string",
+          "default": "cloud-core-compose",
+          "description": "CUE neutral profile (cloud-core-compose, basement-core-compose, basement-core-lite-compose)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit image prepare",
+      "name": "prepare",
+      "parent": "stackkit image",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit image prepare [flags]",
+      "short": "Cache the exact running attested release and pull core images only",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "cache-root",
+          "type": "string",
+          "description": "Separate neutral release/cache metadata directory",
+          "required": true
+        },
+        {
+          "name": "profile",
+          "type": "string",
+          "default": "cloud-core-compose",
+          "description": "CUE neutral core cache profile",
+          "required": false
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "description": "Empty future deployment directory; never an initialized stack",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit image verify",
+      "name": "verify",
+      "parent": "stackkit image",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit image verify [flags]",
+      "short": "Re-observe release bytes, empty target, host and exact core image cache",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "cache-root",
+          "type": "string",
+          "description": "Separate neutral release/cache metadata directory",
+          "required": true
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "description": "Empty future deployment directory; never an initialized stack",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit init",
       "name": "init",
       "parent": "stackkit",
@@ -4249,6 +4350,12 @@
           "name": "platform",
           "type": "string",
           "description": "Native v2 only: selected-provider platform adapter (install.platform.providerRef, e.g. coolify or komodo)",
+          "required": false
+        },
+        {
+          "name": "preinstalled-manifest",
+          "type": "string",
+          "description": "Reverify a neutral image cache before fresh per-clone initialization",
           "required": false
         },
         {

@@ -205,6 +205,7 @@ func init() {
 
 	// Add subcommands
 	rootCmd.AddCommand(initCmd)
+	rootCmd.AddCommand(newImageCommand())
 	rootCmd.AddCommand(prepareCmd)
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(planCmd)
@@ -231,6 +232,11 @@ func init() {
 }
 
 func commandDisablesDeployObservability(cmd *cobra.Command) bool {
+	// A fresh image admission must precede all writes, including the logger's
+	// .stackkit directory. Normal init keeps its existing observability.
+	if cmd == initCmd && strings.TrimSpace(initPreinstalledManifest) != "" {
+		return true
+	}
 	for current := cmd; current != nil; current = current.Parent() {
 		if current.Annotations[noDeployObservabilityAnnotation] == "true" {
 			return true

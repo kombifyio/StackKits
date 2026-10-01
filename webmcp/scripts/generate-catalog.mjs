@@ -556,7 +556,8 @@ async function requiredAuthorityFiles(root) {
   const catalog = join(root, "catalog.json");
   const computeTierFits = join(root, "compute-tier-fits.json");
   const operations = join(root, "operations.json");
-  for (const path of [manifest, catalog, computeTierFits, operations]) {
+  const neutralImageProfiles = join(root, "neutral-image-profiles.json");
+  for (const path of [manifest, catalog, computeTierFits, operations, neutralImageProfiles]) {
     try {
       const info = await stat(path);
       if (!info.isFile()) fail(`authority document is not a file: ${path}`);
@@ -571,7 +572,7 @@ async function requiredAuthorityFiles(root) {
   } catch {
     fail("authority definitions directory is missing");
   }
-  return { manifest, catalog, computeTierFits, operations };
+  return { manifest, catalog, computeTierFits, operations, neutralImageProfiles };
 }
 
 async function validateManifest(manifest, files, root) {
@@ -579,15 +580,16 @@ async function validateManifest(manifest, files, root) {
   const allowedManifestKeys = new Set(["documents", "documentHashes", "module", "profileScope", "profiles", "schemaVersion", "sourceHashes"]);
   for (const key of Object.keys(manifest)) if (!allowedManifestKeys.has(key)) fail(`authority manifest contains an unknown field: ${key}`);
   if (!isObject(manifest.documents)) fail("authority manifest documents are missing");
-  for (const key of Object.keys(manifest.documents)) if (!["catalog", "computeTierFits", "operations"].includes(key)) fail(`authority manifest contains an unknown document: ${key}`);
+  for (const key of Object.keys(manifest.documents)) if (!["catalog", "computeTierFits", "operations", "neutralImageProfiles"].includes(key)) fail(`authority manifest contains an unknown document: ${key}`);
   if (manifest.schemaVersion !== AUTHORITY_SCHEMA_VERSION) fail("unknown authority bundle schema version");
   if (manifest.module !== "github.com/kombifyio/stackkits") fail("authority bundle module is not the public StackKits module");
   if (manifest.profileScope !== "oss") fail("authority bundle is not an OSS profile");
   if (manifest.documents?.catalog !== basename(files.catalog)) fail("manifest catalog document does not match catalog.json");
   if (manifest.documents?.computeTierFits !== basename(files.computeTierFits)) fail("manifest compute-tier-fits document is missing or misnamed");
   if (manifest.documents?.operations !== basename(files.operations)) fail("manifest operations document is missing or misnamed");
+  if (manifest.documents?.neutralImageProfiles !== basename(files.neutralImageProfiles)) fail("manifest neutral-image-profiles document is missing or misnamed");
   if (!manifest.documentHashes || typeof manifest.documentHashes !== "object") fail("manifest document hashes are missing");
-  const expectedFiles = [["catalog", files.catalog], ["computeTierFits", files.computeTierFits], ["operations", files.operations]];
+  const expectedFiles = [["catalog", files.catalog], ["computeTierFits", files.computeTierFits], ["operations", files.operations], ["neutralImageProfiles", files.neutralImageProfiles]];
   for (const [key, path] of expectedFiles) {
     const expected = manifest.documentHashes[key] ?? manifest.documentHashes[basename(path)];
     if (typeof expected !== "string" || !/^sha256:[a-f0-9]{64}$/.test(expected)) fail(`manifest document hash is missing: ${key}`);

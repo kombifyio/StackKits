@@ -117,6 +117,7 @@ are accepted only by an explicitly versioned v0.6 binary.`,
 }
 
 func init() {
+	initCmd.Flags().StringVar(&initPreinstalledManifest, "preinstalled-manifest", "", "Reverify a neutral image cache before fresh per-clone initialization")
 	initCmd.Flags().StringVar(&initName, "name", "", "Deployment contract ID (defaults to a normalized working-directory name)")
 	initCmd.Flags().StringVar(&initAPIVersion, "api-version", stackspecmigration.APIVersionV2Alpha2, "StackSpec contract (stackkit/v2alpha2; explicit legacy adapter: stackkit/v2alpha1)")
 	initCmd.Flags().StringVar(&initComputeTier, "compute-tier", "", "Legacy v2alpha1 only: declared kit graph (low, standard, high)")
@@ -534,6 +535,9 @@ func gatherInitChoices(p *prompter, stackkit *models.StackKit, defaults initDefa
 
 func runInit(cmd *cobra.Command, args []string) error {
 	wd := getWorkDir()
+	if strings.TrimSpace(initPreinstalledManifest) != "" && !stackspecadmission.RejectOperationalV1(version) {
+		return fmt.Errorf("preinstalled image admission requires native Architecture v2")
+	}
 	if stackspecadmission.RejectOperationalV1(version) {
 		return runArchitectureV2Init(cmd, args, wd)
 	}

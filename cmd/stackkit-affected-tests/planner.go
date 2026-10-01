@@ -486,6 +486,14 @@ func buildPlan(input plannerInput) testPlan {
 		})
 	}
 
+	if !classes.WebMCP && input.WebsiteSource && anyPathUnder(files, "internal/architecturev2/authority_bundle/") {
+		commands = append(commands, testCommand{
+			Kind:   "contract",
+			Scope:  "webmcp-authority-projection",
+			Argv:   []string{"node", "--test", "webmcp/test/generator.test.mjs"},
+			Reason: "verify public catalog consumers when the embedded authority bundle changes",
+		})
+	}
 	if classes.Website && input.WebsiteSource {
 		commands = append(commands,
 			testCommand{

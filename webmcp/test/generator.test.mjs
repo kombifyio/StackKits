@@ -69,6 +69,16 @@ test('authority projection is deterministic and exposes explicit local profiles'
   assert.ok(initialWorkload.alternatives.some(({ alternative_id }) => alternative_id === 'immich'))
 })
 
+test('catalog projection rejects modified neutral image profiles', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'stackkits-webmcp-image-profiles-'))
+  context.after(() => rm(root, { recursive: true, force: true }))
+  await cp(authorityRoot, root, { recursive: true })
+  await projectAuthorityBundle(root, sourceSha)
+  const profilesPath = join(root, 'neutral-image-profiles.json')
+  await writeFile(profilesPath, '{}\n')
+  await assert.rejects(projectAuthorityBundle(root, sourceSha), /document hash does not match/)
+})
+
 test('unknown authority versions and sensitive public strings fail closed', async (context) => {
   const root = await mkdtemp(join(tmpdir(), 'stackkits-webmcp-authority-'))
   context.after(() => rm(root, { recursive: true, force: true }))
