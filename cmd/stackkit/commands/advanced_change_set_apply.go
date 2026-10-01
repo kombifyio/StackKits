@@ -403,6 +403,14 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	// The dispatcher stops waiting at the command deadline; admission,
+	// checkpoint, target and rollback all finish before it.
+	commandDeadline, err := advancedMutationCommandDeadline(time.Now())
+	if err != nil {
+		return result, err
+	}
+	ctx, cancelCommand := context.WithDeadline(lifecyclemutation.WithCommandDeadline(ctx, commandDeadline), commandDeadline)
+	defer cancelCommand()
 	workspace := getWorkDir()
 	now := time.Now().UTC().Truncate(time.Second)
 	absoluteCapability := resolvePathFromWorkDir(workspace, request.CapabilityPath)
@@ -928,7 +936,11 @@ func executeAdvancedMutation(
 			Status: "not-started", RecoverySnapshotID: checkpoint.ExecutorStateSnapshotID,
 		},
 	}
-	operationCtx, cancel := context.WithTimeout(ctx, backupLongOperationTimeout)
+	operationCtx, cancel, err := advancedTargetContext(ctx, time.Now(), backupLongOperationTimeout)
+	if err != nil {
+		result.Status = "failed"
+		return result, err
+	}
 	defer cancel()
 	err = withPublicUpgradeTransactionLock(workspace, func(control *confinedfs.Transaction) error {
 		snapshot, loadErr := loadPublicUpgradeRecoveryCheckpoint(

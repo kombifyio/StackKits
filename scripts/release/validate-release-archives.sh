@@ -86,6 +86,22 @@ check_legal_files() {
   done
 }
 
+# Every bundled provider is named in the notices with its pinned version. The
+# component list comes from the provider manifest the release bundles, so a
+# provider added there cannot ship without its notice row.
+mapfile -t bundled_providers < <(python3 -c '
+import json, sys
+for provider in json.load(open(sys.argv[1]))["providers"]:
+    binary = [p["filename"] for p in provider["platforms"] if (p["os"], p["arch"]) == ("linux", "amd64")]
+    print(provider["source"], provider["version"], *binary[:1])
+' "$source_dir/internal/tofu/provider_manifest.json")
+[ "${#bundled_providers[@]}" -gt 0 ] || fail "no providers in internal/tofu/provider_manifest.json"
+for provider in "${bundled_providers[@]}"; do
+  read -r provider_source provider_version _ <<<"$provider"
+  grep -Eq "^\| [^|]*\`${provider_source#*/}\` provider \| ${provider_version//./\\.} \|" "$source_dir/THIRD-PARTY-NOTICES.md" ||
+    fail "THIRD-PARTY-NOTICES.md has no row for bundled provider ${provider_source#*/} ${provider_version}"
+done
+
 for target in linux_amd64 linux_arm64 darwin_amd64 darwin_arm64 windows_amd64; do
   for kind in stackkits stackkits-basement-kit stackkits-cloud-kit stackkits-modern-homelab; do
     extension=tar.gz
@@ -125,8 +141,6 @@ check_archive_contents() {
     terramate \
     providers/stackkit-provider-manifest.json \
     providers/stackkit-provider-lock.hcl \
-    providers/registry.opentofu.org/hashicorp/local/2.5.3/linux_amd64/terraform-provider-local \
-    providers/registry.opentofu.org/sebastianfs82/komodo/0.12.0/linux_amd64/terraform-provider-komodo_v0.12.0 \
     README.md \
     LICENSING.md \
     LICENSE-APACHE \
@@ -178,6 +192,12 @@ check_archive_contents() {
     modules/tinyauth/module.cue \
     modules/pocketid/module.cue; do
     require_file "$list" "$p"
+  done
+  local provider provider_source provider_version provider_binary
+  for provider in "${bundled_providers[@]}"; do
+    read -r provider_source provider_version provider_binary <<<"$provider"
+    [ -n "$provider_binary" ] || fail "provider manifest has no linux/amd64 package for ${provider_source}"
+    require_file "$list" "providers/${provider_source}/${provider_version}/linux_amd64/${provider_binary}"
   done
   for p in "$@"; do
     require_file "$list" "$p"

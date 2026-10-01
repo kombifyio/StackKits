@@ -37,13 +37,13 @@ modeMatrix: foundation.#KitModeSupport & {
 		// bootstrapped path end-to-end on externally supplied fresh Ubuntu,
 		// but that run left no citable receipt in this repository.
 		bootstrapped: "scaffolding"
-		// Advanced is the Terramate Plus lifecycle contract, proven by the
-		// go-live gate run mvps_4061f9f196: a Techstack-dispatched Advanced
-		// run on a managed IONOS Cloud VPS (local Core, StackKits snapshot
-		// 80d57455) with every gate phase passed. Backups there are
-		// kombify-managed custody, so the drill is the managed rollout's own
-		// verified restore drill.
-		advanced: "supported"
+		// mvps_4061f9f196 (Techstack-dispatched Advanced on a managed IONOS
+		// VPS, StackKits snapshot 80d57455) passed the lifecycle phases but has
+		// no owner setup, application setup, household user or OIDC proof, so
+		// it no longer satisfies the install.advanced gate
+		// (12-bootstrap-parity.md). Scaffolding until a managed Cloud
+		// Advanced receipt with full bootstrap exists (go-live objective O1).
+		advanced: "scaffolding"
 	}
 
 	context: {
@@ -62,9 +62,5 @@ modeMatrix: foundation.#KitModeSupport & {
 		coolify: "draft"
 		komodo:  "draft"
 		dokploy: "draft"
-	}
-
-	evidence: {
-		"install.advanced": ["mvps_4061f9f196"]
 	}
 }

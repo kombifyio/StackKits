@@ -32,6 +32,7 @@ const (
 	ErrCASConflict      ErrorCode = "compare-and-swap-conflict"
 	ErrMissingTarget    ErrorCode = "compare-and-swap-missing-target"
 	ErrInvalidCurrent   ErrorCode = "invalid-current-intent"
+	ErrResumeRequired   ErrorCode = "already-applied-intent-required"
 )
 
 type Error struct {
@@ -65,6 +66,9 @@ type Request struct {
 	ExpectedSpecHash string
 	BuildVersion     string
 	Authority        *architecturev2.Service
+	// RequireAlreadyApplied admits only an unchanged existing canonical intent.
+	// It cannot create or replace intent, even with a matching expected hash.
+	RequireAlreadyApplied bool
 }
 
 type Result struct {
@@ -75,9 +79,9 @@ type Result struct {
 	Canonical        []byte
 }
 
-// Persist validates both candidate and current intent through the same
-// embedded CUE authority, then performs a non-blocking exact-hash CAS beneath
-// one held workspace root. It never accepts v1 as current or candidate intent.
+// Persist acquires the non-blocking intent writer lock before validating
+// candidate and current intent through the same embedded CUE authority. It
+// performs exact-hash CAS beneath one held workspace root and never accepts v1.
 func Persist(request Request) (result Result, returnErr error) {
 	err := lifecyclemutation.WithIdleMutation(
 		request.WorkspaceRoot,
@@ -92,30 +96,6 @@ func Persist(request Request) (result Result, returnErr error) {
 }
 
 func persist(request Request) (result Result, returnErr error) {
-	authority := request.Authority
-	if authority == nil {
-		service, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(request.BuildVersion))
-		if err != nil {
-			return result, fmt.Errorf("load embedded StackSpec v2 authority: %w", err)
-		}
-		authority = service
-	}
-	candidate, err := authority.ValidateStackSpec(request.Candidate)
-	if err != nil {
-		return result, &Error{Code: ErrInvalidCandidate, Cause: fmt.Errorf("validate candidate StackSpec v2: %w", err)}
-	}
-	result.KitProfile = candidate.KitProfile
-	result.SpecHash = candidate.SpecHash
-	result.Canonical = append([]byte(nil), candidate.CanonicalStackSpec...)
-
-	expected := strings.TrimSpace(request.ExpectedSpecHash)
-	if expected != "" && !IsCanonicalSHA256(expected) {
-		return result, &Error{
-			Code: ErrInvalidExpected, CandidateSpecHash: result.SpecHash,
-			Cause: fmt.Errorf("expected_spec_hash must be lowercase sha256:<64-hex>"),
-		}
-	}
-
 	absoluteRoot, err := filepath.Abs(request.WorkspaceRoot)
 	if err != nil {
 		return result, fmt.Errorf("resolve workspace root: %w", err)
@@ -156,6 +136,32 @@ func persist(request Request) (result Result, returnErr error) {
 		}
 	}()
 
+	// Contending writers must fail before CUE work. Validation stays beneath
+	// the held root and lock, before any intent directory or file is written.
+	authority := request.Authority
+	if authority == nil {
+		service, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(request.BuildVersion))
+		if err != nil {
+			return result, fmt.Errorf("load embedded StackSpec v2 authority: %w", err)
+		}
+		authority = service
+	}
+	candidate, err := authority.ValidateStackSpec(request.Candidate)
+	if err != nil {
+		return result, &Error{Code: ErrInvalidCandidate, Cause: fmt.Errorf("validate candidate StackSpec v2: %w", err)}
+	}
+	result.KitProfile = candidate.KitProfile
+	result.SpecHash = candidate.SpecHash
+	result.Canonical = append([]byte(nil), candidate.CanonicalStackSpec...)
+
+	expected := strings.TrimSpace(request.ExpectedSpecHash)
+	if expected != "" && !IsCanonicalSHA256(expected) {
+		return result, &Error{
+			Code: ErrInvalidExpected, CandidateSpecHash: result.SpecHash,
+			Cause: fmt.Errorf("expected_spec_hash must be lowercase sha256:<64-hex>"),
+		}
+	}
+
 	parent := filepath.ToSlash(filepath.Dir(relative))
 	parentExists := true
 	if parent != "." {
@@ -171,6 +177,10 @@ func persist(request Request) (result Result, returnErr error) {
 		}
 	}
 	if !parentExists {
+		if request.RequireAlreadyApplied {
+			return result, &Error{Code: ErrResumeRequired, CandidateSpecHash: result.SpecHash,
+				Cause: fmt.Errorf("resume requires an already-applied canonical StackSpec v2 intent")}
+		}
 		if err := transaction.MkdirAll(parent, 0o750); err != nil {
 			return result, err
 		}
@@ -185,6 +195,10 @@ func persist(request Request) (result Result, returnErr error) {
 		return result, err
 	}
 	if !exists {
+		if request.RequireAlreadyApplied {
+			return result, &Error{Code: ErrResumeRequired, CandidateSpecHash: result.SpecHash,
+				Cause: fmt.Errorf("resume requires an already-applied canonical StackSpec v2 intent")}
+		}
 		if expected != "" {
 			return result, &Error{
 				Code: ErrMissingTarget, CandidateSpecHash: result.SpecHash,
@@ -214,6 +228,9 @@ func persist(request Request) (result Result, returnErr error) {
 		switch {
 		case current.SpecHash == result.SpecHash:
 			result.Outcome = OutcomeAlreadyApplied
+		case request.RequireAlreadyApplied:
+			return result, &Error{Code: ErrResumeRequired, CurrentSpecHash: current.SpecHash, CandidateSpecHash: result.SpecHash,
+				Cause: fmt.Errorf("resume cannot replace existing canonical StackSpec v2 intent")}
 		case expected == "":
 			return result, &Error{
 				Code: ErrCASRequired, CurrentSpecHash: current.SpecHash, CandidateSpecHash: result.SpecHash,

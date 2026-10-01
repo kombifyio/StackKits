@@ -1,6 +1,6 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "0304b6e07d2dec62729409ef32225ae5b513e768",
+  "source_sha": "8c9125ff4ab3eb679566100b17b450cceebaae6b",
   "authority_bundle_sha256": "d35b8f6808e2f2a20eadf720234999d1ed39aebe3be10cfb164b5a0598e9f73b",
   "kits": [
     {
@@ -14907,5 +14907,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "4cec06252965955da721b02c28f71a9c7cbebac5c3d2423ade080c9d88646a90"
+  "catalog_sha256": "a42a40e4ab5fd3b81d3d65082c9363146b9a59f8c70e666f844de8edc6d87e53"
 }

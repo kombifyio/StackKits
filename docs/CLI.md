@@ -87,11 +87,12 @@ cat .stackkit/access.json
 ```
 
 `init` defaults to `basement-kit`. `prepare` remains an optional host-conformance
-step. `plan` is used only when the selected Product Apply executor is OpenTofu;
-the v0.8 Basement default executes Compose directly. The local Owner/admin is
-bootstrapped by the Basement one-liner without a kombify Cloud account. On the
-current public native-v2 line, the access summary and bounded logs are the first
-post-install evidence; `status` and HTTP `verify` remain follow-up runtime gaps.
+step. `plan` is used only when the selected Product Apply executor is OpenTofu:
+Basement Kit defaults to the `opentofu` target (ADR-0045), while Cloud Kit and
+Modern Homelab still default to `compose`, which executes Compose directly. The
+local Owner/admin is bootstrapped by the Basement one-liner without a kombify
+Cloud account. On the current public native-v2 line, the access summary and
+bounded logs are the first post-install evidence; `status` and HTTP `verify` remain follow-up runtime gaps.
 
 ## Top-Level Commands
 

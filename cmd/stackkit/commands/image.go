@@ -2,6 +2,7 @@ package commands
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/imagepreparation"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
+	"github.com/kombifyio/stackkits/internal/stackspecintent"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -89,8 +91,8 @@ func neutralImageOptions(root, target string) (imagepreparation.Options, func(),
 }
 
 // admitPreinstalledInit runs before any spec, Owner, runtime custody or secret
-// is written. After activation, the regular init/CAS lifecycle handles retries.
-func admitPreinstalledInit(cmd *cobra.Command, wd, kit string, canonical []byte, service *architecturev2.Service) error {
+// is written. A nonempty target must resume the same canonical intent under CAS.
+func admitPreinstalledInit(cmd *cobra.Command, wd, kit string, canonical []byte, service *architecturev2.Service, request *stackspecintent.Request) error {
 	if strings.TrimSpace(initPreinstalledManifest) == "" {
 		return nil
 	}
@@ -99,7 +101,13 @@ func admitPreinstalledInit(cmd *cobra.Command, wd, kit string, canonical []byte,
 		return err
 	}
 	defer cleanup()
-	manifest, err := imagepreparation.Verify(cmd.Context(), options, initPreinstalledManifest)
+	if err := imagepreparation.CleanTarget(wd); err != nil {
+		if !errors.Is(err, imagepreparation.ErrNotNeutral) {
+			return err
+		}
+		request.RequireAlreadyApplied = true
+	}
+	manifest, err := imagepreparation.VerifyCache(cmd.Context(), options, initPreinstalledManifest)
 	if err != nil {
 		return fmt.Errorf("preinstalled image admission: %w", err)
 	}
@@ -119,6 +127,14 @@ func admitPreinstalledInit(cmd *cobra.Command, wd, kit string, canonical []byte,
 	}
 	if techStackHandoffFromEnv().requested() && spec.Generation.Target != manifest.Profile.ManagedTarget {
 		return fmt.Errorf("Techstack managed first boot requires generation.target %s", manifest.Profile.ManagedTarget)
+	}
+	// Re-observe after release/cache verification as well. A target populated
+	// while admission ran must never become a fresh-create or replacement path.
+	if err := imagepreparation.CleanTarget(wd); err != nil {
+		if !errors.Is(err, imagepreparation.ErrNotNeutral) {
+			return err
+		}
+		request.RequireAlreadyApplied = true
 	}
 	return nil
 }

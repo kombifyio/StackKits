@@ -179,6 +179,13 @@ func SafePath(name string) error {
 }
 
 func validateOptions(options Options) (Platform, error) {
+	if err := CleanTarget(options.Target); err != nil {
+		return Platform{}, err
+	}
+	return validateCacheOptions(options)
+}
+
+func validateCacheOptions(options Options) (Platform, error) {
 	if options.ObserveHost == nil || options.Docker == nil || options.Installer.Attestations == nil {
 		return Platform{}, errors.New("trusted host observation, local container cache and release verifier are required")
 	}
@@ -191,7 +198,7 @@ func validateOptions(options Options) (Platform, error) {
 	if err := SafePath(options.CacheRoot); err != nil {
 		return Platform{}, err
 	}
-	if err := CleanTarget(options.Target); err != nil {
+	if err := SafePath(options.Target); err != nil {
 		return Platform{}, err
 	}
 	cacheRoot, err := filepath.Abs(options.CacheRoot)
@@ -620,7 +627,24 @@ func ReadManifest(name string) (Manifest, error) {
 // Verify re-observes the clone, release bytes and cache. An unsigned manifest's
 // asserted digests or its writer's previous host evidence authorize nothing.
 func Verify(ctx context.Context, options Options, manifestPath string) (Manifest, error) {
-	platform, err := validateOptions(options)
+	if err := CleanTarget(options.Target); err != nil {
+		return Manifest{}, err
+	}
+	manifest, err := VerifyCache(ctx, options, manifestPath)
+	if err != nil {
+		return Manifest{}, err
+	}
+	if err := CleanTarget(options.Target); err != nil {
+		return Manifest{}, err
+	}
+	return manifest, nil
+}
+
+// VerifyCache re-observes the host, attested release, packaged tools and exact
+// neutral container cache. It does not admit deployment contents: init must
+// separately require an empty target or an already-applied canonical intent.
+func VerifyCache(ctx context.Context, options Options, manifestPath string) (Manifest, error) {
+	platform, err := validateCacheOptions(options)
 	if err != nil {
 		return Manifest{}, err
 	}
@@ -657,9 +681,6 @@ func Verify(ctx context.Context, options Options, manifestPath string) (Manifest
 		return Manifest{}, err
 	}
 	if err := neutralContainerCache(ctx, options.Docker, profile, platform); err != nil {
-		return Manifest{}, err
-	}
-	if err := CleanTarget(options.Target); err != nil {
 		return Manifest{}, err
 	}
 	return expected, nil

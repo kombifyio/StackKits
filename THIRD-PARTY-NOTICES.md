@@ -10,6 +10,7 @@ code. Their MPL-2.0 license does not change the StackKits license choice in
 | Terramate CLI | 0.17.1 | MPL-2.0 | [Source](https://github.com/terramate-io/terramate/tree/v0.17.1), [LICENSE](https://github.com/terramate-io/terramate/blob/v0.17.1/LICENSE), [ThirdPartyNotice.txt](https://github.com/terramate-io/terramate/blob/v0.17.1/ThirdPartyNotice.txt) (reproduced below) |
 | OpenTofu CLI | 1.12.6 | MPL-2.0 | [Source](https://github.com/opentofu/opentofu/tree/v1.12.6), [LICENSE](https://github.com/opentofu/opentofu/blob/v1.12.6/LICENSE) |
 | OpenTofu `hashicorp/local` provider | 2.5.3 | MPL-2.0 | [Source](https://github.com/opentofu/terraform-provider-local/tree/v2.5.3), [LICENSE](https://github.com/opentofu/terraform-provider-local/blob/v2.5.3/LICENSE); upstream LICENSE is also present beside each bundled provider binary |
+| OpenTofu `sebastianfs82/komodo` provider | 0.12.0 | MPL-2.0 | [Source](https://github.com/sebastianfs82/terraform-provider-komodo/tree/v0.12.0), [LICENSE](https://github.com/sebastianfs82/terraform-provider-komodo/blob/v0.12.0/LICENSE); upstream LICENSE is also present beside each bundled provider binary |
 
 The pinned upstream LICENSE files carry these copyright notices:
 
@@ -20,13 +21,17 @@ Copyright (c) 2014 HashiCorp, Inc.
 
 OpenTofu hashicorp/local provider:
 Copyright (c) 2017 HashiCorp, Inc.
+
+OpenTofu sebastianfs82/komodo provider:
+Copyright (c) 2021 HashiCorp, Inc.
 ```
 
 The component versions match `scripts/release/fetch-terramate.sh`,
 `scripts/release/fetch-opentofu.sh`, and
-`scripts/release/fetch-opentofu-providers.sh`. Source remains available at the
-pinned upstream tags above. Terramate's upstream third-party notice follows
-verbatim.
+`scripts/release/fetch-opentofu-providers.sh`. The release archive check
+requires one provider row per entry in `internal/tofu/provider_manifest.json`.
+Source remains available at the pinned upstream tags above. Terramate's
+upstream third-party notice follows verbatim.
 
 ## Terramate v0.17.1 upstream ThirdPartyNotice.txt
 

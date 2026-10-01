@@ -26,11 +26,13 @@ modeMatrix: foundation.#KitModeSupport & {
 		bare: "scaffolding"
 		// Implemented; the current released-archive lifecycle is not yet proven.
 		bootstrapped: "scaffolding"
-		// Techstack-dispatched Advanced lifecycle on a real Proxmox VE host
-		// (managed lab run tsl_69112eecc9): apply, verify, per-stack drift
-		// detect, a change set adding the Files workload (owner set up by the
-		// change set), induced drift detected and reconciled, coordinated
-		// rollback to the change set's checkpoint, restore drill.
+		// Techstack-dispatched Advanced lifecycle with full bootstrap on a real
+		// Proxmox VE host from the published v0.47.7 archive (managed lab run
+		// tsl_339d8557e0, 35/35 phases): apply, verify, per-stack drift detect,
+		// owner setup, a change set adding Photos/Files/Vault with application
+		// setup, household user add, OIDC login proof, induced drift detected
+		// and reconciled, coordinated rollback, two restore drills, each
+		// followed by an owner and OIDC re-proof.
 		advanced: "supported"
 	}
 
@@ -54,5 +56,5 @@ modeMatrix: foundation.#KitModeSupport & {
 		dockge:  "experimental"
 	}
 
-	evidence: {"install.advanced": ["tsl_69112eecc9"]}
+	evidence: {"install.advanced": ["tsl_339d8557e0"]}
 }
