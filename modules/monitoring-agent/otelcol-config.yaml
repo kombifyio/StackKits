@@ -8,6 +8,11 @@
 #   GOMEMLIMIT      — Go runtime memory ceiling (set in Docker env)
 #   OTEL_ENDPOINT   — OTLP/gRPC target (default: techstack:4317). Configurable so
 #                     the local telemetry sink (127.0.0.1:4317) can replace it.
+#                     A host managed by Techstack (Advanced Mode) exports to the
+#                     kombify Guard sink instead: OTEL_ENDPOINT=127.0.0.1:14317 with
+#                     KOMBIFY_OTEL_TLS_INSECURE=true. The sink accepts metrics only
+#                     and keeps only the Guard telemetry contract's metrics; the
+#                     collector must share the host network namespace to reach it.
 #   KOMBIFY_OTEL_TLS_INSECURE
 #                   — "true" sends plaintext OTLP. Allowed ONLY when OTEL_ENDPOINT
 #                     is on loopback (the local telemetry sink); default "false".

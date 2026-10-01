@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -1219,7 +1218,8 @@ func (h techStackHandoff) requested() bool {
 func (h techStackHandoff) validateManaged() error {
 	missing := []string{}
 	for name, value := range map[string]string{
-		"TECHSTACK_LEASE_ID":         h.LeaseID,
+		"TECHSTACK_TENANT_ID":        h.TenantID,
+		"TECHSTACK_STACK_ID":         h.StackID,
 		"TECHSTACK_SERVER_URL":       h.ServerURL,
 		"TECHSTACK_SERVER_ID":        h.ServerID,
 		"TECHSTACK_RUNTIME_AGENT_ID": h.RuntimeAgentID,
@@ -1269,207 +1269,25 @@ func ensureTechStackGuard(ctx context.Context, spec *models.StackSpec, sshClient
 	if spec != nil {
 		attrs["mode"] = spec.EffectiveInstallMode()
 	}
-	rolloutEvent("techstack.guard", "started", "installing TechStack guard handoff", attrs)
+	rolloutEvent("techstack.guard", "started", "verifying canonical TechStack Guard", attrs)
 	if prepareDryRun {
-		rolloutEvent("techstack.guard", "skipped", "TechStack guard install skipped by dry-run", attrs)
+		rolloutEvent("techstack.guard", "skipped", "TechStack Guard verification skipped by dry-run", attrs)
 		return nil
 	}
+	target := "local"
+	probe := probeTechStackGuardLocal
 	if sshClient != nil {
-		if err := installTechStackGuardRemote(ctx, sshClient, handoff); err != nil {
-			return err
+		target = "remote"
+		probe = func(ctx context.Context) ([]byte, error) {
+			stdout, _, err := sshClient.RunWithSudo(ctx, techStackGuardObservationScript)
+			return []byte(stdout), err
 		}
-	} else if err := writeTechStackGuardLocalEvidence(handoff); err != nil {
+	}
+	if err := verifyTechStackGuard(ctx, handoff, target, probe); err != nil {
 		return err
 	}
-	rolloutEvent("techstack.guard", "succeeded", "TechStack guard handoff installed", attrs)
+	rolloutEvent("techstack.guard", "succeeded", "Canonical TechStack Guard service and enrollment verified", attrs)
 	return nil
-}
-
-func installTechStackGuardRemote(ctx context.Context, sshClient *ssh.Client, handoff techStackHandoff) error {
-	envContent := techStackGuardEnvFile(handoff)
-	scriptContent := techStackGuardScript()
-	unitContent := techStackGuardSystemdUnit()
-	if err := sshClient.WriteFile(ctx, "/tmp/techstack-guard.env", []byte(envContent), 0600); err != nil {
-		return fmt.Errorf("techstack guard env upload failed: %w", err)
-	}
-	if err := sshClient.WriteFile(ctx, "/tmp/kombify-techstack-guard", []byte(scriptContent), 0755); err != nil {
-		return fmt.Errorf("techstack guard script upload failed: %w", err)
-	}
-	if err := sshClient.WriteFile(ctx, "/tmp/kombify-techstack-guard.service", []byte(unitContent), 0644); err != nil {
-		return fmt.Errorf("techstack guard unit upload failed: %w", err)
-	}
-	cmd := strings.Join([]string{
-		"install -d -m 0750 /etc/kombify",
-		"install -m 0600 /tmp/techstack-guard.env /etc/kombify/techstack-guard.env",
-		"install -m 0755 /tmp/kombify-techstack-guard /usr/local/bin/kombify-techstack-guard",
-		"install -m 0644 /tmp/kombify-techstack-guard.service /etc/systemd/system/kombify-techstack-guard.service",
-		"rm -f /tmp/techstack-guard.env /tmp/kombify-techstack-guard /tmp/kombify-techstack-guard.service",
-		"if command -v systemctl >/dev/null 2>&1; then systemctl daemon-reload && systemctl enable --now kombify-techstack-guard.service; fi",
-	}, " && ")
-	if _, stderr, err := sshClient.RunWithSudo(ctx, cmd); err != nil {
-		return fmt.Errorf("techstack guard service install failed: %w: %s", err, strings.TrimSpace(stderr))
-	}
-	return nil
-}
-
-func writeTechStackGuardLocalEvidence(handoff techStackHandoff) error {
-	dir := filepath.Join(getWorkDir(), ".stackkit", "runs")
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return err
-	}
-	data, err := json.MarshalIndent(techStackGuardEvidence(handoff, "local"), "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(dir, "techstack-guard-evidence.json"), append(data, '\n'), 0600)
-}
-
-func techStackGuardEvidence(handoff techStackHandoff, target string) map[string]any {
-	return map[string]any{
-		"target":              target,
-		"server_url":          handoff.ServerURL,
-		"server_id":           handoff.ServerID,
-		"runtime_agent_id":    handoff.RuntimeAgentID,
-		"tenant_id":           handoff.TenantID,
-		"owner_id":            handoff.OwnerID,
-		"stack_id":            handoff.StackID,
-		"lease_id":            handoff.LeaseID,
-		"heartbeat_url":       handoff.HeartbeatURL,
-		"inventory_url":       handoff.InventoryURL,
-		"agent_token_present": handoff.AgentToken != "",
-		"installed_at":        time.Now().UTC().Format(time.RFC3339Nano),
-	}
-}
-
-func techStackGuardEnvFile(handoff techStackHandoff) string {
-	lines := []string{
-		"TECHSTACK_SERVER_URL=" + shellEnvQuote(handoff.ServerURL),
-		"TECHSTACK_SERVER_ID=" + shellEnvQuote(handoff.ServerID),
-		"TECHSTACK_RUNTIME_AGENT_ID=" + shellEnvQuote(handoff.RuntimeAgentID),
-		"TECHSTACK_AGENT_TOKEN=" + shellEnvQuote(handoff.AgentToken),
-		"TECHSTACK_TENANT_ID=" + shellEnvQuote(handoff.TenantID),
-		"TECHSTACK_OWNER_ID=" + shellEnvQuote(handoff.OwnerID),
-		"TECHSTACK_STACK_ID=" + shellEnvQuote(handoff.StackID),
-		"TECHSTACK_LEASE_ID=" + shellEnvQuote(handoff.LeaseID),
-		"TECHSTACK_HEARTBEAT_URL=" + shellEnvQuote(handoff.HeartbeatURL),
-		"TECHSTACK_INVENTORY_URL=" + shellEnvQuote(handoff.InventoryURL),
-		"TECHSTACK_CHANNEL_BOOTSTRAP=" + shellEnvQuote(handoff.ChannelBootstrap),
-	}
-	return strings.Join(lines, "\n") + "\n"
-}
-
-func techStackGuardSystemdUnit() string {
-	return `[Unit]
-Description=Kombify TechStack Guard
-After=network-online.target docker.service
-Wants=network-online.target
-
-[Service]
-Type=simple
-EnvironmentFile=/etc/kombify/techstack-guard.env
-ExecStart=/usr/local/bin/kombify-techstack-guard
-Restart=always
-RestartSec=15
-
-[Install]
-WantedBy=multi-user.target
-`
-}
-
-func techStackGuardScript() string {
-	return `#!/bin/sh
-set -eu
-interval="${TECHSTACK_GUARD_INTERVAL_SECONDS:-30}"
-json_escape() {
-  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
-}
-post_json() {
-  url="$1"
-  payload="$2"
-  [ -n "$url" ] || return 1
-  command -v curl >/dev/null 2>&1 || return 1
-  curl -fsS -m 20 -H "Authorization: Bearer ${TECHSTACK_AGENT_TOKEN}" -H "Content-Type: application/json" -d "$payload" "$url" >/dev/null
-}
-docker_services_json() {
-  if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
-    printf '[]'
-    return
-  fi
-  ids="$(docker ps -aq --filter label=stackkit.layer 2>/dev/null || true)"
-  first=1
-  printf '['
-  for container_id in $ids; do
-    record="$(docker inspect --format '{{.Id}}|{{.Name}}|{{.State.Status}}|{{if .State.Running}}true{{else}}false{{end}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container_id" 2>/dev/null || true)"
-    [ -n "$record" ] || continue
-    IFS='|' read -r observed_id name state running health <<EOF
-$record
-EOF
-    [ -n "$observed_id" ] || continue
-    name="${name#/}"
-    service_name="$name"
-    [ -n "$service_name" ] || service_name="$observed_id"
-    case "$running" in true|false) ;; *) running=false ;; esac
-    status=unknown
-    failure_class=""
-    case "$running:$health:$state" in
-      false:*:*|*:unhealthy:*|*:*:exited|*:*:dead|*:*:paused)
-        status=unhealthy
-        failure_class=container_not_healthy
-        ;;
-      *:starting:*|*:*:created|*:*:restarting)
-        status=starting
-        ;;
-      true:healthy:*)
-        status=healthy
-        ;;
-    esac
-    failure_json=""
-    if [ -n "$failure_class" ]; then
-      failure_json=",\"failure_class\":\"$(json_escape "$failure_class")\""
-    fi
-    if [ "$first" -ne 1 ]; then printf ','; fi
-    first=0
-    printf '{"id":"%s","service_id":"%s","key":"%s","name":"%s","status":"%s","owner_stack":"%s","target_server":"%s","container_id":"%s","health":{"source":"docker","observed_at":"%s","container_state":"%s","docker_health":"%s","running":%s%s}}' \
-      "$(json_escape "$observed_id")" \
-      "$(json_escape "$service_name")" \
-      "$(json_escape "$service_name")" \
-      "$(json_escape "$name")" \
-      "$(json_escape "$status")" \
-      "$(json_escape "${TECHSTACK_STACK_ID:-}")" \
-      "$(json_escape "$TECHSTACK_SERVER_ID")" \
-      "$(json_escape "$observed_id")" \
-      "$(json_escape "$observed_at")" \
-      "$(json_escape "$state")" \
-      "$(json_escape "$health")" \
-      "$running" \
-      "$failure_json"
-  done
-  printf ']'
-}
-while :; do
-  hostname="$(hostname 2>/dev/null || true)"
-  os="$(. /etc/os-release 2>/dev/null && printf '%s' "${ID:-linux}" || printf linux)"
-  arch="$(uname -m 2>/dev/null || true)"
-  cpu="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 0)"
-  mem_kb="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || printf 0)"
-  disk_kb="$(df -Pk / 2>/dev/null | awk 'NR==2 {print $2}' || printf 0)"
-  uptime_seconds="$(awk '{print int($1)}' /proc/uptime 2>/dev/null || printf 0)"
-  ram_mb=$((mem_kb / 1024))
-  disk_gb=$((disk_kb / 1024 / 1024))
-  observed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  docker_reachable=false
-  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then docker_reachable=true; fi
-  services="$(docker_services_json)"
-  payload="{\"server_id\":\"$(json_escape "$TECHSTACK_SERVER_ID")\",\"runtime_agent_id\":\"$(json_escape "$TECHSTACK_RUNTIME_AGENT_ID")\",\"tenant_id\":\"$(json_escape "${TECHSTACK_TENANT_ID:-}")\",\"owner_id\":\"$(json_escape "${TECHSTACK_OWNER_ID:-}")\",\"stack_id\":\"$(json_escape "${TECHSTACK_STACK_ID:-}")\",\"lease_id\":\"$(json_escape "$TECHSTACK_LEASE_ID")\",\"hostname\":\"$(json_escape "$hostname")\",\"observed_at\":\"$(json_escape "$observed_at")\",\"host\":{\"hostname\":\"$(json_escape "$hostname")\",\"os\":\"$(json_escape "$os")\",\"arch\":\"$(json_escape "$arch")\",\"cpu_cores\":$cpu,\"ram_mb\":$ram_mb,\"disk_gb\":$disk_gb,\"uptime_seconds\":$uptime_seconds,\"docker_reachable\":$docker_reachable},\"channels\":[{\"kind\":\"https\",\"url\":\"$(json_escape "${TECHSTACK_INVENTORY_URL:-}")\",\"status\":\"ok\",\"provenance\":\"stackkit-guard\"}],\"services\":$services}"
-  heartbeat_payload="{\"server_id\":\"$(json_escape "$TECHSTACK_SERVER_ID")\",\"runtime_agent_id\":\"$(json_escape "$TECHSTACK_RUNTIME_AGENT_ID")\",\"lease_id\":\"$(json_escape "$TECHSTACK_LEASE_ID")\",\"uptime_seconds\":$uptime_seconds}"
-  post_json "${TECHSTACK_INVENTORY_URL:-}" "$payload" || post_json "${TECHSTACK_HEARTBEAT_URL:-}" "$heartbeat_payload" || true
-  sleep "$interval"
-done
-`
-}
-
-func shellEnvQuote(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
 func truthyEnv(name string) bool {

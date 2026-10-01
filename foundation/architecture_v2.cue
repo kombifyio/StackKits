@@ -1227,6 +1227,13 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 	backupPolicy:      #BackupPolicyV1
 	driftPolicy: #DriftPolicyV1 | *{}
 	observability?: #ModuleOTLPBaselineV1
+	// A deployment managed by Techstack (Advanced Mode) exports metrics to the
+	// loopback Guard sink unless the spec names its own collector transport.
+	// Standard Mode has no such default: it stays account-free and names its
+	// own receiver.
+	if install.mode == "advanced" {
+		observability?: *_guardOTLPSinkIntentV1 | {}
+	}
 	workloads?: [#WorkloadID]: #WorkloadSelectionV2
 	modules?: [string]:        #ModuleIntentV2
 	routes?: [string]:         #ServiceRouteIntentV2
@@ -5230,6 +5237,30 @@ _servicePublicationShape: {
 // interface, with or without a scheme and port: 127.0.0.1:4317, localhost:4317,
 // [::1]:4317.
 #OtelLoopbackEndpoint: =~"^([a-z]+://)?(127\\.[0-9]+\\.[0-9]+\\.[0-9]+|localhost|\\[::1\\])(:[0-9]+)?(/.*)?$"
+
+// #GuardOTLPSinkEndpoint is the loopback OTLP/gRPC sink of kombify Guard, the
+// Techstack node agent. A deployment managed by Techstack runs in Advanced
+// Mode and has a Guard on every node; the Guard is that node's only telemetry
+// egress, so the collector exports to this sink instead of to the network
+// (SERVER-CONNECTION-STANDARD section 9). The Guard sink accepts OTLP metrics
+// only and forwards just the metric names and labels of the contract; the port
+// differs from the collector's own receivers (4317, 4318) so both share a host.
+#GuardOTLPSinkEndpoint: "127.0.0.1:14317"
+
+// _guardOTLPSinkIntentV1 is the intent an Advanced Mode StackSpec receives
+// when its `observability` block names no collector transport. It is a
+// default, never an override: an author who names an endpoint, a protocol, a
+// non-metric signal or a TLS posture keeps exactly what was written, still
+// bound to verified TLS unless the endpoint is on loopback. It is not a
+// definition because #ModuleOTLPBaselineV1 is closed over more fields.
+_guardOTLPSinkIntentV1: {
+	signals: {logs: false, traces: false}
+	collector: {
+		endpoint: #GuardOTLPSinkEndpoint
+		protocol: "grpc"
+		tls: insecure: true
+	}
+}
 
 // #ModuleOTLPBaselineV1 is the only observability projection a product
 // renderer may receive before an explicit backend owner is selected. It is
