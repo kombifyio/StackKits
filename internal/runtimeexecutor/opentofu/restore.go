@@ -35,6 +35,11 @@ func RestoreWorkloadRoot(ctx context.Context, workspaceRoot, runtimeRoot string,
 	if err != nil {
 		return nil, err
 	}
+	if marker, err := ReadRootMarker(filepath.Join(workspace, filepath.FromSlash(runtimeRoot))); err == nil && marker.Execution != "" {
+		// Re-rendering here would silently replace a native pilot root with
+		// the Compose wrapper (ADR-0045 Stage 2 plan S2.3).
+		return nil, fmt.Errorf("%s is a native pilot root; Advanced restore and rollback do not cover it yet", runtimeRoot)
+	}
 	descriptor, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(bundle)
 	if err != nil {
 		return nil, err

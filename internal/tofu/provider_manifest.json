@@ -49,6 +49,53 @@
       ]
     },
     {
+      "source": "registry.opentofu.org/kreuzwerker/docker",
+      "version": "4.6.0",
+      "constraints": "4.6.0",
+      "platforms": [
+        {
+          "os": "darwin",
+          "arch": "amd64",
+          "archive": "terraform-provider-docker_4.6.0_darwin_amd64.zip",
+          "filename": "terraform-provider-docker_v4.6.0",
+          "h1": "h1:q3mwfVVYLcYlniI59CoMhIuRBegmcY4tOiif8at9MZw=",
+          "zh": "zh:c14b8d122bd12cc84aed5eb62cc0a965b5a9807b5a2257a51be5460d2f69b437"
+        },
+        {
+          "os": "darwin",
+          "arch": "arm64",
+          "archive": "terraform-provider-docker_4.6.0_darwin_arm64.zip",
+          "filename": "terraform-provider-docker_v4.6.0",
+          "h1": "h1:kJn6TaGTDA7iIbPWth3hUFYEk2xtKkmq2aNKnt1mHEM=",
+          "zh": "zh:e4f8d82f2a5171dd5cb9d5813a49d7d7221d09c10482c2c819d6b2a899e30c5f"
+        },
+        {
+          "os": "linux",
+          "arch": "amd64",
+          "archive": "terraform-provider-docker_4.6.0_linux_amd64.zip",
+          "filename": "terraform-provider-docker_v4.6.0",
+          "h1": "h1:1jD5QVpeLkdxKEWWJpTzNdxtR0WNNFq28Po4yq9w+VM=",
+          "zh": "zh:866046fa4938ac1ed5cc58b3c4d36e27433dac1aae50256911e6f28184dcf82e"
+        },
+        {
+          "os": "linux",
+          "arch": "arm64",
+          "archive": "terraform-provider-docker_4.6.0_linux_arm64.zip",
+          "filename": "terraform-provider-docker_v4.6.0",
+          "h1": "h1:OrYslEQqlrStPyKh+BFZvY4kCoPrtTfJ3NQeT/PneBs=",
+          "zh": "zh:d60fc2d42da1d567f28b6267dde57af03d7333033d8246c6880944f24d641556"
+        },
+        {
+          "os": "windows",
+          "arch": "amd64",
+          "archive": "terraform-provider-docker_4.6.0_windows_amd64.zip",
+          "filename": "terraform-provider-docker_v4.6.0.exe",
+          "h1": "h1:ONpzcnBU5T4j9mySs6RJWXfcxeZsJGepXG3phH6mBX0=",
+          "zh": "zh:bad00d59d082dcad2be2582660aae6f7683ffb3bba226cc627fb910008f27411"
+        }
+      ]
+    },
+    {
       "source": "registry.opentofu.org/sebastianfs82/komodo",
       "version": "0.12.0",
       "constraints": "0.12.0",

@@ -1489,8 +1489,10 @@ Compose fallback behind the `compose` unit (S-F structure rule, see
 - **Offline providers.** Release archives ship a filesystem mirror in
   `providers/` beside `tofu` (`scripts/release/fetch-opentofu-providers.sh`;
   the Debian package installs it at `/usr/local/lib/stackkit/providers`). Its
-  canonical manifest pins `hashicorp/local` 2.5.3 for the five release
-  platforms, verifies each upstream archive `zh:` against the published
+  canonical manifest pins `hashicorp/local` 2.5.3, `sebastianfs82/komodo`
+  0.12.0 and `kreuzwerker/docker` 4.6.0 (used only by roots of modules opted
+  in to the ADR-0045 Stage 2 pilot through `STACKKIT_OPENTOFU_NATIVE_MODULES`)
+  for the five release platforms, verifies each upstream archive `zh:` against the published
   SHA256SUMS, and verifies the unpacked package's whole-directory `h1:`. The
   bundle carries a deterministic lock with all five `h1:` and `zh:` hashes.
   Before any root write or process, the executor validates the installed

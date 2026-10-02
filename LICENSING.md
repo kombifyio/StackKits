@@ -13,7 +13,8 @@ The webmcp/ package remains Apache-2.0-only; its complete text is in
 ## Bundled third-party software
 
 Release archives and Debian packages also contain unmodified Terramate 0.17.1,
-OpenTofu 1.12.6, and the OpenTofu `hashicorp/local` provider 2.5.3. Each is
+OpenTofu 1.12.6, the OpenTofu `hashicorp/local` provider 2.5.3 and the
+OpenTofu `kreuzwerker/docker` provider 4.6.0. Each is
 licensed under MPL-2.0. Their source links, upstream notices and exact versions
 are recorded in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md); the complete
 license text is in [LICENSE-MPL-2.0](LICENSE-MPL-2.0). These components retain

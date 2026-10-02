@@ -145,7 +145,7 @@ func runNativeV2BackupRequest(
 	}
 	var result any
 	execute := func() error {
-		return withArchitectureV2OutputLock(workspace, initial.OutputRoot, func(_ *confinedfs.Transaction, _ *confinedfs.OutputLock) error {
+		observe := func(_ *confinedfs.Transaction, _ *confinedfs.OutputLock) error {
 			current, inspectErr := inspectNativeV2BackupAuthorityForRequest(ctx, workspace, specFile)
 			if inspectErr != nil {
 				return fmt.Errorf("backup %s locked authority: %w", operation, inspectErr)
@@ -214,7 +214,15 @@ func runNativeV2BackupRequest(
 			return succeedArchitectureV2ApplicationLifecycles(
 				workspace, lifecycleRuns, evidence, time.Now().UTC(),
 			)
-		})
+		}
+		if operation == nativeV2BackupStatus {
+			// Status only reads the repository and authenticated receipts. It must
+			// never own the output transaction: periodic observations (Guard) run
+			// beside owner-triggered backups and applies and must not make them
+			// fail with a busy output.
+			return withArchitectureV2ReadOnlyOutput(workspace, initial.OutputRoot, func() error { return observe(nil, nil) })
+		}
+		return withArchitectureV2OutputLock(workspace, initial.OutputRoot, observe)
 	}
 	if operation == nativeV2BackupStatus {
 		err = execute()

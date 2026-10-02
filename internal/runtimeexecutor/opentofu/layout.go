@@ -61,6 +61,10 @@ const (
 	// or federation owner: .stackkit/runtime/modules/<moduleRef>/opentofu.
 	RootKindModule = "module"
 
+	// RootExecutionNativeDocker marks a workload root whose containers are
+	// native kreuzwerker/docker resources (ADR-0045 Stage 2 pilot).
+	RootExecutionNativeDocker = "native-docker"
+
 	// ApplicationsDir and ModulesDir are the runtime subtrees of the
 	// executor-materialized roots (terramatestackgraph runtime roots).
 	ApplicationsDir = "applications"
@@ -105,6 +109,9 @@ type RootMarker struct {
 	ComposeProject string `json:"composeProject"`
 	// Kind is empty for a Core root, else RootKindWorkload or RootKindModule.
 	Kind string `json:"kind,omitempty"`
+	// Execution is empty for the Stage 1 Compose wrapper, else
+	// RootExecutionNativeDocker for a Stage 2 pilot root.
+	Execution string `json:"execution,omitempty"`
 }
 
 // ReadRootMarker reads and validates the marker of one root directory.
@@ -121,7 +128,8 @@ func ReadRootMarker(rootDir string) (RootMarker, error) {
 	layout := marker.Kind == "" && parent == "runtime" ||
 		marker.Kind == RootKindWorkload && parent == ApplicationsDir ||
 		marker.Kind == RootKindModule && parent == ModulesDir
-	if marker.SchemaVersion != RootMarkerSchemaVersion || marker.ModuleRef == "" || marker.InstanceRef == "" || !layout ||
+	execution := marker.Execution == "" || marker.Execution == RootExecutionNativeDocker && marker.Kind == RootKindWorkload
+	if marker.SchemaVersion != RootMarkerSchemaVersion || marker.ModuleRef == "" || marker.InstanceRef == "" || !layout || !execution ||
 		!runtimeDirPattern.MatchString(marker.RuntimeDir) || filepath.Base(filepath.Dir(rootDir)) != marker.RuntimeDir {
 		return RootMarker{}, errors.New("OpenTofu root marker does not identify this root")
 	}

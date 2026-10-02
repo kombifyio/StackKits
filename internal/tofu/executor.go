@@ -197,6 +197,13 @@ func (e *Executor) Apply(ctx context.Context, planFile string) (*Result, error) 
 	return e.run(ctx, args...)
 }
 
+// ApplySuppressingForgetErrors applies a saved plan whose destroy forgets
+// resources kept by `lifecycle { destroy = false }` (data volumes). Without
+// the flag OpenTofu 1.12 exits 1 after an otherwise successful destroy.
+func (e *Executor) ApplySuppressingForgetErrors(ctx context.Context, planFile string) (*Result, error) {
+	return e.run(ctx, "apply", "-input=false", "-suppress-forget-errors", planFile)
+}
+
 // Destroy runs tofu destroy
 func (e *Executor) Destroy(ctx context.Context) (*Result, error) {
 	args := []string{"destroy", "-input=false"}
@@ -371,7 +378,7 @@ func ParsePlanOutput(output string) *PlanChanges {
 						changes.Add = num
 					case "change,", "change.":
 						changes.Change = num
-					case "destroy.", "destroy":
+					case "destroy.", "destroy", "destroy,": // "destroy," precedes "N to forget."
 						changes.Destroy = num
 					}
 				}

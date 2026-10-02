@@ -471,6 +471,22 @@ nfpms:
         dst: /usr/local/lib/stackkit/providers/registry.opentofu.org/sebastianfs82/komodo/0.12.0/linux_{{ .Arch }}/CHANGELOG.md
         file_info:
           mode: 0644
+      - src: ".dist-tools/opentofu-providers/linux_{{ .Arch }}/providers/registry.opentofu.org/kreuzwerker/docker/4.6.0/linux_{{ .Arch }}/terraform-provider-docker_v4.6.0"
+        dst: /usr/local/lib/stackkit/providers/registry.opentofu.org/kreuzwerker/docker/4.6.0/linux_{{ .Arch }}/terraform-provider-docker_v4.6.0
+        file_info:
+          mode: 0755
+      - src: ".dist-tools/opentofu-providers/linux_{{ .Arch }}/providers/registry.opentofu.org/kreuzwerker/docker/4.6.0/linux_{{ .Arch }}/LICENSE"
+        dst: /usr/local/lib/stackkit/providers/registry.opentofu.org/kreuzwerker/docker/4.6.0/linux_{{ .Arch }}/LICENSE
+        file_info:
+          mode: 0644
+      - src: ".dist-tools/opentofu-providers/linux_{{ .Arch }}/providers/registry.opentofu.org/kreuzwerker/docker/4.6.0/linux_{{ .Arch }}/README.md"
+        dst: /usr/local/lib/stackkit/providers/registry.opentofu.org/kreuzwerker/docker/4.6.0/linux_{{ .Arch }}/README.md
+        file_info:
+          mode: 0644
+      - src: ".dist-tools/opentofu-providers/linux_{{ .Arch }}/providers/registry.opentofu.org/kreuzwerker/docker/4.6.0/linux_{{ .Arch }}/CHANGELOG.md"
+        dst: /usr/local/lib/stackkit/providers/registry.opentofu.org/kreuzwerker/docker/4.6.0/linux_{{ .Arch }}/CHANGELOG.md
+        file_info:
+          mode: 0644
       - src: ".dist-tools/opentofu-providers/linux_{{ .Arch }}/providers/stackkit-provider-manifest.json"
         dst: /usr/local/lib/stackkit/providers/stackkit-provider-manifest.json
         file_info:

@@ -400,7 +400,25 @@ func (r Runtime) preflightStateCustody(ctx context.Context, root, binary, provid
 	return ctx.Err()
 }
 
+// runRootDestroy destroys every resource of root offline with its current
+// configuration: `plan -destroy` and, when it has changes, apply of that
+// saved plan. Resources kept by `lifecycle { destroy = false }` (native data
+// volumes) are forgotten, not deleted.
+func (r Runtime) runRootDestroy(ctx context.Context, portableRoot, root, binary string, environment []string) (tofuRun, error) {
+	var run tofuRun
+	err := r.withStateCustody(portableRoot, func(key []byte) error {
+		var err error
+		run, err = r.runRootWithKeyMode(ctx, root, binary, environment, key, true)
+		return err
+	})
+	return run, err
+}
+
 func (r Runtime) runRootWithKey(ctx context.Context, root, binary string, environment []string, key []byte) (tofuRun, error) {
+	return r.runRootWithKeyMode(ctx, root, binary, environment, key, false)
+}
+
+func (r Runtime) runRootWithKeyMode(ctx context.Context, root, binary string, environment []string, key []byte, destroy bool) (tofuRun, error) {
 	environment = withoutEnvironment(environment, "TF_ENCRYPTION")
 	commonEnvironment := append(append([]string(nil), environment...),
 		"TF_CLI_CONFIG_FILE="+filepath.Join(root, CLIConfigFile),
@@ -434,7 +452,7 @@ func (r Runtime) runRootWithKey(ctx context.Context, root, binary string, enviro
 	}
 	run.Init = stepRecord{ExitCode: initResult.ExitCode}
 	discardTofuOutput(initResult)
-	planResult, err := runner.Plan(ctx, PlanFile, false)
+	planResult, err := runner.Plan(ctx, PlanFile, destroy)
 	if err := requireTofuStep("plan", planResult, err); err != nil {
 		discardTofuOutput(planResult)
 		return tofuRun{}, err
@@ -446,7 +464,11 @@ func (r Runtime) runRootWithKey(ctx context.Context, root, binary string, enviro
 	run.Plan = planRecord{ExitCode: planResult.ExitCode, Add: changes.Add, Change: changes.Change, Destroy: changes.Destroy}
 	discardTofuOutput(planResult)
 	if planResult.ExitCode == 2 {
-		applyResult, err := runner.Apply(ctx, PlanFile)
+		apply := runner.Apply
+		if destroy {
+			apply = runner.ApplySuppressingForgetErrors
+		}
+		applyResult, err := apply(ctx, PlanFile)
 		if err := requireTofuStep("apply", applyResult, err); err != nil {
 			discardTofuOutput(applyResult)
 			return tofuRun{}, err

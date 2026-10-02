@@ -26,6 +26,7 @@ const (
 	ProviderRegistryHost          = "registry.opentofu.org"
 	PinnedLocalProviderVersion    = "2.5.3"
 	PinnedKomodoProviderVersion   = "0.12.0"
+	PinnedDockerProviderVersion   = "4.6.0"
 	ProviderManifestFile          = "stackkit-provider-manifest.json"
 	ProviderLockFile              = "stackkit-provider-lock.hcl"
 	providerManifestSchemaVersion = 1
@@ -261,7 +262,7 @@ func decodeProviderManifest(data []byte) (providerManifest, error) {
 			}
 		}
 	}
-	for _, source := range []string{ProviderRegistryHost + "/hashicorp/local", ProviderRegistryHost + "/sebastianfs82/komodo"} {
+	for _, source := range []string{ProviderRegistryHost + "/hashicorp/local", ProviderRegistryHost + "/sebastianfs82/komodo", ProviderRegistryHost + "/kreuzwerker/docker"} {
 		if _, ok := seenProviders[source]; !ok {
 			return providerManifest{}, fmt.Errorf("%w: %s is absent", ErrProviderClosureInvalid, source)
 		}
@@ -272,6 +273,9 @@ func decodeProviderManifest(data []byte) (providerManifest, error) {
 		}
 		if provider.Source == ProviderRegistryHost+"/sebastianfs82/komodo" && provider.Version != PinnedKomodoProviderVersion {
 			return providerManifest{}, fmt.Errorf("%w: sebastianfs82/komodo pin differs from %s", ErrProviderClosureInvalid, PinnedKomodoProviderVersion)
+		}
+		if provider.Source == ProviderRegistryHost+"/kreuzwerker/docker" && provider.Version != PinnedDockerProviderVersion {
+			return providerManifest{}, fmt.Errorf("%w: kreuzwerker/docker pin differs from %s", ErrProviderClosureInvalid, PinnedDockerProviderVersion)
 		}
 	}
 	return manifest, nil

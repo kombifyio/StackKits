@@ -1,5 +1,7 @@
 # Changelog
 
+- Fix: `backup status` no longer takes the exclusive output transaction lock. It only reads the repository and authenticated receipts, yet a periodic status observation (kombify Guard runs one beside owner operations) made a concurrent `backup run`, restore or apply fail with `output_transaction_busy`, reported as not retryable. Status now uses the same lock-free pending-transaction check as `plan` and `verify`; every mutation still owns the lock.
+
 - Fix: the StackKits CLI evaluates the embedded Architecture v2 authority once per process and no longer re-evaluates the governed catalog or its concrete catalog projections at start. A command that previously held 1.3-1.6 GB (and grew by about 0.7 GB for every additional internal service construction) now peaks near 0.2 GB, so `backup run`, `apply` and the Guard's status probes no longer exhaust a 3 GiB Core Lite host.
 
 - Fix: `init --preinstalled-manifest` re-verifies the packaged release and neutral cache on retries, then resumes only the same canonical StackSpec intent. Dirty targets without that intent and requested replacements remain refused before Owner custody is written.
@@ -134,6 +136,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.50.3](https://github.com/kombifyio/StackKits/compare/v0.50.2...v0.50.3) (2026-10-02)
+
+
+### Added
+
+* **opentofu:** Stage 2 pilot — Vaultwarden as native Docker-provider resources (opt-in)
+
+
+### Fixed
+
+* **backup:** observe backup status without owning the output transaction
 
 ## [0.50.2](https://github.com/kombifyio/StackKits/compare/v0.50.1...v0.50.2) (2026-10-01)
 
