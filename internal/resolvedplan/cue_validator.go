@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -260,7 +261,9 @@ func (v *CUEContractValidator) normalizeResolvedSystem(system map[string]any) (m
 	return DecodeDocument[map[string]any](data)
 }
 
-func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error) {
+// withCatalogDefaults replaces absent catalog sections with empty ones, the
+// shape the CUE contract and every consumer expect.
+func withCatalogDefaults(catalog Catalog) Catalog {
 	if catalog.Capabilities == nil {
 		catalog.Capabilities = []CapabilityContract{}
 	}
@@ -288,6 +291,26 @@ func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error
 	if catalog.RILActionExecutors == nil {
 		catalog.RILActionExecutors = []RILActionExecutorContract{}
 	}
+	return catalog
+}
+
+// VerifyNormalizedCatalog reports whether catalog is exactly what the governed
+// CUE #ArchitectureV2CatalogContract normalizes it to, so a trusted producer's
+// export can skip re-evaluating that contract. It runs the full CUE
+// normalization and is meant for generation and test gates, not for runtime.
+func (v *CUEContractValidator) VerifyNormalizedCatalog(catalog Catalog) error {
+	normalized, err := v.normalizeCatalog(catalog)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(normalized, withCatalogDefaults(catalog)) {
+		return fmt.Errorf("catalog differs from its CUE-normalized form")
+	}
+	return nil
+}
+
+func (v *CUEContractValidator) normalizeCatalog(catalog Catalog) (Catalog, error) {
+	catalog = withCatalogDefaults(catalog)
 	document := map[string]any{
 		"capabilities":                 catalog.Capabilities,
 		"providers":                    catalog.Providers,
@@ -583,7 +606,11 @@ func (v *CUEContractValidator) initializeAuthorityScope() error {
 			if _, ok := allowedFiles[filepath.Clean(name)]; !ok {
 				return nil, fmt.Errorf("CUE in-memory authority rejected host file %s", name)
 			}
-			return parser.ParseFile(name, src, config)
+			file, err := parser.ParseFile(name, src, config)
+			if err == nil && v.planAuthority.Class == "product" {
+				omitConcreteProjections(file)
+			}
+			return file, err
 		}
 	}
 	instances := load.Instances([]string{"./foundation"}, config)

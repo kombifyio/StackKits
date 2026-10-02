@@ -30,6 +30,9 @@ type cueAuthority struct {
 	// UseCaseCatalog capability modules, keyed by use case. Filesystem and
 	// contract-fixture authorities do not carry it.
 	useCaseCapabilities map[string][]usecasecatalog.Capability
+	// catalogIsNormalizedExport marks the embedded product bundle: its catalog
+	// is the hash-verified, CUE-exported document, not a caller value.
+	catalogIsNormalizedExport bool
 }
 
 func loadCUEAuthority(moduleRoot string) (*cueAuthority, error) {

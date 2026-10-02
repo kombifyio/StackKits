@@ -186,12 +186,19 @@ type Options struct {
 	// AuthorityDefinitions is the complete CUE-exported Definition set owned
 	// by the service constructing this compiler. When present, persisted-plan
 	// verification is bound to those exact normalized definition hashes.
-	AuthorityDefinitions    []KitDefinition
-	MinimumCLIVersion       string
-	MinimumRuntimeVersion   string
-	MinimumGeneratorVersion string
-	RendererID              string
-	RendererVersion         string
+	AuthorityDefinitions []KitDefinition
+	// CatalogIsNormalizedExport declares that Catalog is the verbatim CUE
+	// export of the governed catalog contract (the embedded product bundle:
+	// hash-verified and gated by VerifyNormalizedCatalog), so the compiler does
+	// not evaluate #ArchitectureV2CatalogContract over it again. That
+	// evaluation peaks near a gigabyte of heap; never set it for a catalog from
+	// any other source.
+	CatalogIsNormalizedExport bool
+	MinimumCLIVersion         string
+	MinimumRuntimeVersion     string
+	MinimumGeneratorVersion   string
+	RendererID                string
+	RendererVersion           string
 }
 
 // DecodeDocument decodes a CUE-exported JSON object into a typed document map.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
@@ -251,12 +252,55 @@ func NewFilesystemService(moduleRoot string, contract CompilerContract) (*Servic
 // NewEmbeddedService loads the generated, drift-tested authority bundled with
 // the binary. Resolution is therefore independent of repository checkout and
 // process working directory while CUE remains the validating schema authority.
+//
+// Evaluating the governed CUE contract keeps roughly half a gigabyte live and
+// peaks near a gigabyte and a half, so a process builds it once per compiler
+// contract. The authority, compiler and validator are immutable and safe for
+// concurrent use; every call still receives its own Service value with an
+// isolated generation coordinator, because generation authorization is
+// stateful.
 func NewEmbeddedService(contract CompilerContract) (*Service, error) {
+	shared, err := sharedEmbeddedService(contract)
+	if err != nil {
+		return nil, err
+	}
+	service := *shared
+	generation, err := newGenerationCoordinator()
+	if err != nil {
+		return nil, resolveError(ErrAuthorityLoad, "construct Architecture v2 generation coordinator: "+err.Error(), err)
+	}
+	service.generation = generation
+	return &service, nil
+}
+
+var embeddedServices struct {
+	mu         sync.Mutex
+	byContract map[CompilerContract]*Service
+}
+
+// sharedEmbeddedService returns the process-wide immutable service core for
+// contract. Construction runs under the lock so concurrent first callers wait
+// for one evaluation instead of each paying for their own; failures are not
+// cached, so a later call retries.
+func sharedEmbeddedService(contract CompilerContract) (*Service, error) {
+	embeddedServices.mu.Lock()
+	defer embeddedServices.mu.Unlock()
+	if shared := embeddedServices.byContract[contract]; shared != nil {
+		return shared, nil
+	}
 	authority, err := loadEmbeddedAuthority()
 	if err != nil {
 		return nil, resolveError(ErrAuthorityLoad, err.Error(), err)
 	}
-	return newServiceWithAuthority(authority, contract)
+	shared, err := newServiceWithAuthority(authority, contract)
+	if err != nil {
+		return nil, err
+	}
+	if embeddedServices.byContract == nil {
+		embeddedServices.byContract = make(map[CompilerContract]*Service)
+	}
+	embeddedServices.byContract[contract] = shared
+	return shared, nil
 }
 
 // NewFilesystemContractFixtureService loads the deliberately non-product
@@ -358,15 +402,16 @@ func newServiceWithValidatedAuthority(authority *cueAuthority, contract Compiler
 		return nil, resolveError(ErrAuthorityLoad, err.Error(), err)
 	}
 	compiler, err := resolvedplan.NewCompiler(authority.catalog, resolvedplan.Options{
-		CompilerVersion:         contract.CompilerVersion,
-		ContractValidator:       validator,
-		PlanAuthority:           authority.planAuthority,
-		AuthorityDefinitions:    authorityDefinitionSet(authority.definitions),
-		MinimumCLIVersion:       contract.MinimumCLIVersion,
-		MinimumRuntimeVersion:   contract.MinimumRuntimeVersion,
-		MinimumGeneratorVersion: contract.MinimumGeneratorVersion,
-		RendererID:              contract.RendererID,
-		RendererVersion:         contract.RendererVersion,
+		CompilerVersion:           contract.CompilerVersion,
+		ContractValidator:         validator,
+		PlanAuthority:             authority.planAuthority,
+		AuthorityDefinitions:      authorityDefinitionSet(authority.definitions),
+		CatalogIsNormalizedExport: authority.catalogIsNormalizedExport,
+		MinimumCLIVersion:         contract.MinimumCLIVersion,
+		MinimumRuntimeVersion:     contract.MinimumRuntimeVersion,
+		MinimumGeneratorVersion:   contract.MinimumGeneratorVersion,
+		RendererID:                contract.RendererID,
+		RendererVersion:           contract.RendererVersion,
 	})
 	if err != nil {
 		return nil, resolveError(ErrAuthorityLoad, "construct governed compiler: "+err.Error(), err)

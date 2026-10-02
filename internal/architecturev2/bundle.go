@@ -125,6 +125,10 @@ func loadEmbeddedAuthorityForRole(role embeddedAuthorityRole) (*cueAuthority, er
 		definitions:     make(map[stackspecmigration.KitProfile]resolvedplan.KitDefinition, len(manifest.Profiles)),
 		catalog:         catalog,
 		planAuthority:   role.planAuthority,
+		// The product catalog is the manifest-hashed bundlegen export of the
+		// CUE catalog; TestEmbeddedProductCatalogIsItsCUENormalization gates
+		// that it equals its own normalization.
+		catalogIsNormalizedExport: !role.fixture,
 	}
 	if path := manifest.Documents["computeTierFits"]; path != "" {
 		authority.useCaseCapabilities, err = readEmbeddedUseCaseCapabilities(role.root, path)

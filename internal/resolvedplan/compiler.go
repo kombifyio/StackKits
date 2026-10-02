@@ -21,9 +21,13 @@ func NewCompiler(catalog Catalog, options Options) (*Compiler, error) {
 	if err := validateExplicitImplementationInterfaceContracts(catalog); err != nil {
 		return nil, err
 	}
-	normalizedCatalog, err := options.ContractValidator.normalizeCatalog(catalog)
-	if err != nil {
-		return nil, fail(ErrContractValidation, "catalog", "CUE #ArchitectureV2CatalogContract rejected catalog: %v", err)
+	normalizedCatalog := withCatalogDefaults(catalog)
+	if !options.CatalogIsNormalizedExport {
+		var err error
+		normalizedCatalog, err = options.ContractValidator.normalizeCatalog(catalog)
+		if err != nil {
+			return nil, fail(ErrContractValidation, "catalog", "CUE #ArchitectureV2CatalogContract rejected catalog: %v", err)
+		}
 	}
 	if err := validateCatalogModuleProfileComponents(normalizedCatalog); err != nil {
 		return nil, err
