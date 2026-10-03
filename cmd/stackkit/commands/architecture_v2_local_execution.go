@@ -6,9 +6,12 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
+	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/advancedtrust"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/fleetmember"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
@@ -33,13 +36,40 @@ var architectureV2ProcessDispatchedOwners = []architecturev2.ProductRuntimeOwner
 	architecturev2.ProductRuntimeOwnerHAModernQuorum,
 }
 
-// architectureV2RemoteOwnedModules are the module refs of the process-dispatched
-// owners (an owner ID is its module ref). No host materializes their OpenTofu
-// roots, so per-stack Advanced convergence and drift tolerate only their
-// missing roots.
-func architectureV2RemoteOwnedModules() []string {
+// architectureV2AdvancedDispatched reports whether this process runs inside an
+// Advanced mutation an orchestrator dispatched: a joined lifecycle mutation in
+// a workspace that holds an Owner-signed Advanced trust bundle. A standalone
+// install has no such bundle, so it never reaches an Advanced-only owner.
+func architectureV2AdvancedDispatched(workspaceRoot string) bool {
+	if strings.TrimSpace(lifecycleJoinOperation) == "" {
+		return false
+	}
+	_, err := advancedtrust.Load(workspaceRoot)
+	return err == nil
+}
+
+// architectureV2NodeLocalAdvancedOwners are the process-dispatched owners that
+// have a node-local implementation. Inside an Advanced workspace they run on
+// their own node under Techstack dispatch (N5), so their stacks need their
+// OpenTofu roots there.
+var architectureV2NodeLocalAdvancedOwners = []architecturev2.ProductRuntimeOwnerID{
+	architecturev2.ProductRuntimeOwnerFederationControlAgent,
+	architecturev2.ProductRuntimeOwnerBridgePublication,
+}
+
+// architectureV2RemoteOwnedModules are the module refs whose owner no host of
+// this workspace runs. No host materializes their OpenTofu roots, so per-stack
+// Advanced convergence and drift tolerate only their missing roots. A
+// workspace holding an Owner-signed Advanced trust bundle runs the node-local
+// owners itself and tolerates nothing for them.
+func architectureV2RemoteOwnedModules(workspaceRoot string) []string {
+	_, trustErr := advancedtrust.Load(workspaceRoot)
+	dispatched := trustErr == nil
 	modules := make([]string, 0, len(architectureV2ProcessDispatchedOwners))
 	for _, owner := range architectureV2ProcessDispatchedOwners {
+		if dispatched && slices.Contains(architectureV2NodeLocalAdvancedOwners, owner) {
+			continue
+		}
 		modules = append(modules, string(owner))
 	}
 	return modules

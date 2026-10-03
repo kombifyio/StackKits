@@ -38,6 +38,10 @@ func nativeModuleProfileAuthoring(overrides AuthoringOverrides) (bool, error) {
 }
 
 func resolveNativeWorkloadSelections(profile stackspecmigration.KitProfile, definition resolvedplan.KitDefinition, catalog resolvedplan.Catalog, overrides AuthoringOverrides) (map[string]useCaseWorkloadSelection, error) {
+	return resolveNativeSelectedWorkloads(profile, definition, catalog, overrides, true)
+}
+
+func resolveNativeSelectedWorkloads(profile stackspecmigration.KitProfile, definition resolvedplan.KitDefinition, catalog resolvedplan.Catalog, overrides AuthoringOverrides, includeInitial bool) (map[string]useCaseWorkloadSelection, error) {
 	policy, _ := definition["workloads"].(map[string]any)
 	allowed, selected := map[string]bool{}, map[string]bool{}
 	for _, field := range []string{"required", "defaults", "optional"} {
@@ -45,12 +49,12 @@ func resolveNativeWorkloadSelections(profile stackspecmigration.KitProfile, defi
 		for _, raw := range values {
 			id, _ := raw.(string)
 			allowed[id] = true
-			if field != "optional" {
+			if includeInitial && field != "optional" {
 				selected[id] = true
 			}
 		}
 	}
-	if authoring, ok := definition["authoring"].(map[string]any); ok {
+	if authoring, ok := definition["authoring"].(map[string]any); ok && includeInitial {
 		if initial, ok := authoring["initialSpec"].(map[string]any); ok {
 			if workloads, ok := initial["workloads"].(map[string]any); ok {
 				for id := range workloads {

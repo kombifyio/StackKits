@@ -58,6 +58,16 @@ var filePublicTestBoundaries = map[string]struct {
 	Package string
 	Tests   []string
 }{
+	"internal/architecturev2/authoring_add.go": {
+		Package: "cmd/stackkit/commands", Tests: []string{"TestUseCasesAddPreservesInstalledIntentAndCustody"},
+	},
+	"internal/architecturev2/authoring_module_profiles.go": {
+		Package: "cmd/stackkit/commands", Tests: []string{"TestUseCasesAddPreservesInstalledIntentAndCustody"},
+	},
+	"internal/architecturev2/addons.go": {
+		Package: "cmd/stackkit/commands",
+		Tests:   []string{"TestArchitectureV2AddonListUsesEmbeddedCatalogWithoutSpec"},
+	},
 	"cmd/stackkit/commands/federation_control_runtime.go": {
 		Package: "cmd/stackkit/commands", Tests: []string{"TestFederationControlCLISignsExactHomeAction"},
 	},
@@ -96,6 +106,14 @@ var filePublicTestBoundaries = map[string]struct {
 // gate. Adding or renaming a test in one of these slices must update this
 // reviewable binding.
 var fileFocusedTests = map[string][]string{
+	"cmd/stackkit/commands/use_cases_add.go": {"TestUseCasesAddPreservesInstalledIntentAndCustody"},
+	"internal/architecturev2/addons.go": {
+		"TestListSupportedAddOnsUsesEmbeddedCatalogOutsideCheckout",
+		"TestSupportedAddOnCatalogEntriesFiltersAndSortsDeterministically",
+		"TestListSupportedAddOnsRejectsInvalidProfile",
+		"TestListSupportedAddOnsRejectsNonEmbeddedAuthority",
+		"TestSupportedAddOnCatalogEntriesRejectsMalformedAuthority",
+	},
 	"internal/backuplifecycle/snapshot_anchor_store.go": {
 		"TestNativeV2LocalBackupConfigureAndSnapshotAnchor",
 	},
@@ -168,6 +186,7 @@ var fileFocusedTests = map[string][]string{
 	},
 	"cmd/stackkit/commands/init_architecture_v2.go": {
 		"TestRunInitRoutesDevToEmbeddedV2BeforeLegacyDiscovery",
+		"TestRunArchitectureV2InitNormalizesWorkspaceNameAndHonorsExplicitName",
 	},
 	"cmd/stackkit/commands/wizard.go": {
 		"TestPublicCommandTreeExcludesPublisherOperations",
@@ -268,14 +287,8 @@ var fileFocusedTests = map[string][]string{
 		"TestOSBasementCoreVerifyProjectIsByteForByteReadOnly",
 		"TestOSCloudCoreApplyBindsPocketIDOwnerBeforeTinyAuthReconcile",
 	},
-	"internal/architecturev2/apply_result_verification.go": {
-		"TestExecuteProductApplyCollectsFreshEvidenceThroughConstructionOwnedRuntimeGraph",
-	},
 	"internal/backupexec/docker.go": {
 		"TestDockerV2Adapter",
-	},
-	"internal/resolvedplan/module_input_bindings.go": {
-		"TestHomeBackupBindingProjectsOnlyLocalBackupRoot",
 	},
 	"internal/releaseindex/installed.go": {
 		"TestInspectInstalledReturnsReverifiedCallbackScopedProof",
@@ -713,8 +726,8 @@ func focusedGoTests(files []string, changedTests map[string][]string) map[string
 
 func applyPublicTestBoundaries(files, inertFiles []string, selection *affectedGoSelection, focused map[string][]string) {
 	// A registered boundary covers only its mapped production file. Unmapped
-	// production in either package must keep its independent package coverage,
-	// even when the same diff also edits the public owner test.
+	// production must keep its independent package coverage, even when the same
+	// diff also edits a test and has no registered public boundary.
 	unmappedProduction := map[string]bool{}
 	inertFiles = sortedUnique(inertFiles)
 	for _, file := range files {
@@ -761,6 +774,9 @@ func applyPublicTestBoundaries(files, inertFiles []string, selection *affectedGo
 		selection.TestOnly = withoutString(selection.TestOnly, target)
 		selection.CompileOnly = withoutString(selection.CompileOnly, target)
 		selection.Reverse = withoutString(selection.Reverse, target)
+	}
+	for dir := range unmappedProduction {
+		fallBackToPackageSlice(dir, nil)
 	}
 }
 
@@ -991,9 +1007,19 @@ func affectedGoCommands(selection affectedGoSelection, changedTests, changedTest
 			dir = "."
 		}
 		selected, focused := changedTests[dir]
+		tags := sortedUnique(changedTestTags[dir])
+		if required, packageFallback := selection.Required[dir]; packageFallback {
+			*fallback = append(*fallback, pattern)
+			if len(tags) == 0 {
+				return
+			}
+			// The default package slice cannot execute publisher-tagged tests.
+			// Keep their dropped focus as well as the independent package slice.
+			selected, focused = required, true
+		}
 		tests := sortedUnique(selected)
 		if len(tests) == 0 {
-			if tags := sortedUnique(changedTestTags[dir]); len(tags) > 0 {
+			if len(tags) > 0 {
 				key := strings.Join(tags, ",")
 				taggedCompilePatterns[key] = append(taggedCompilePatterns[key], pattern)
 				return
@@ -1005,7 +1031,7 @@ func affectedGoCommands(selection affectedGoSelection, changedTests, changedTest
 			*fallback = append(*fallback, pattern)
 			return
 		}
-		focusedSelections = append(focusedSelections, focusedSelection{pattern: pattern, tests: tests, tags: sortedUnique(changedTestTags[dir])})
+		focusedSelections = append(focusedSelections, focusedSelection{pattern: pattern, tests: tests, tags: tags})
 	}
 	for _, pattern := range selection.Changed {
 		if overSliceBudget(pattern) {
@@ -1039,7 +1065,7 @@ func affectedGoCommands(selection affectedGoSelection, changedTests, changedTest
 		args := []string{"go", "test", "-count=1", goTestTimeoutArg}
 		commands = append(commands, testCommand{
 			Kind: "go", Scope: "changed-packages", Argv: append(args, fullPatterns...),
-			Reason: "run changed packages that have no changed test-function boundary",
+			Reason: "run changed packages whose production changes have no complete explicit test boundary",
 		})
 	}
 	for _, pattern := range budgetedPatterns {

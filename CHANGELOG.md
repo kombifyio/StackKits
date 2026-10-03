@@ -1,5 +1,9 @@
 # Changelog
 
+- Fix: a Cloud Apply that selects `offsite-object-backup` no longer fails on the router step. The nested runtime dispatcher invoked a child that carries only a backup-target binding at the wall clock instead of its sealed authorization instant, so go-common rejected it with `authorization_time: must equal the exact invocation instant` before any owner ran. The Cloud offsite-backup owner also accepts the resolved-plan metadata artifacts that both dispatcher layers deliver next to its own artifact, like every other node-local owner.
+
+- Add: `pkg/federationbinding`, the public producer contract for the external Federation link binding, mirroring `pkg/backupbinding`. An external fabric authority such as Techstack builds the opaque, unsigned binding for one compiler-derived `inter-site-link` requirement (`Build`, `Validate`, `OpaqueReference`); the local Owner signs and adopts it with `stackkit federation binding adopt`. It creates no fabric, key, interface or endpoint. A test proves the local authority decodes, signs and imports what it builds.
+
 - Docs: the compatibility matrix defines the Modern two-site target cell `modern-homelab-two-site-pve`, and `scripts/compat/import-managed-modern-evidence.mjs` imports Techstack Modern lane receipts. A phase blocked by an unbuilt owner is recorded as blocked and never counts as a pass. The Modern environment row stays unverified until a lane run is imported.
 
 - Fix: Verify waits up to 90 seconds for a running standalone Compose workload's pending health check after Start or Restart, using observation only. Stopped, unhealthy, foreign-image and transport failures still fail immediately; cancellation and deadlines never repeat a service action.
@@ -152,6 +156,67 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.51.0] (2026-10-03)
+
+### Highlights
+
+This release line runs more applications natively on OpenTofu, keeps their secrets out of environment variables and data volumes, and lets you add a use case to an installation you already run.
+
+- **More applications run natively on OpenTofu:** Paperless, Mosquitto, Stalwart, zigbee2mqtt, SearXNG, Roundcube, Euro-Office, Cloudreve, Navidrome, Audiobookshelf, ESPHome, Emby, Tika and Docling can now be applied without the Compose wrapper. Each one is opt-in and backed by a parity receipt; Compose stays the default execution.
+- **Secrets stay out of environments and data volumes:** native roots receive secrets as files (value, pgpass, dotenv or config file), and images that only read the environment start through a governed entrypoint. The zigbee2mqtt MQTT password and the Pterodactyl app key no longer land in a data volume.
+- **Add a use case to an existing installation:** `stackkit use-cases add <use case>`, for example `mail`, now adds the use case to the installation you already run. Existing workloads, module choices, routes, storage and custody stay as they are, and the same operation is available through the StackKits MCP server.
+
+Native execution remains an opt-in per application. Modern Homelab gained groundwork for Techstack-managed two-site operation; Modern Advanced is not supported yet.
+
+
+
+### Added
+
+* **cli:** add use cases to existing standalone installations
+* **compat:** Modern two-site target cell and lane receipt importer (N6, StackKits side)
+* **federationbinding:** public producer for the external Federation link binding
+* **modern:** bridge publication owner with signed default-closed route table (N5b)
+* **modern:** converge and drift require roots of node-local Modern owners (N5d)
+* **modern:** federation control agent owner (N5c)
+* **opentofu:** admit Mosquitto to native execution; fix broker restart
+* **opentofu:** admit seven wave 1 modules without secrets to native execution
+* **opentofu:** admit Stalwart to native execution; record zigbee2mqtt as fail-closed
+* **opentofu:** admit zigbee2mqtt, SearXNG, Roundcube and Euro-Office to native execution
+* **opentofu:** fixed-path secret readers for native roots (pgpass, value, dotenv, config file)
+* **opentofu:** governed entrypoint shim for images that read secrets only from the environment
+* **opentofu:** native renderer translates LAN listener ports and device nodes
+* **opentofu:** S2.1 native renderer on the typed workload model; Paperless opt-in
+* **opentofu:** S2.2 governed NAME_FILE secret delivery and per-image secret inventory
+* **opentofu:** S2.3 forget-safe destroy and Advanced rollback/reconcile of native roots
+* **opentofu:** Stage 2 pilot — Vaultwarden as native Docker-provider resources (opt-in)
+* **secrets:** governed entrypoints of Hermes, Paperclip and Pterodactyl read custody files
+* **terramate:** O1 host pre-step stack for Advanced Mode
+* **workloads:** governed commands read their credential from a custody file
+
+
+### Fixed
+
+* **advanced:** bound change-set target and rollback by the command deadline
+* **backup:** observe backup status without owning the output transaction
+* **cli:** evaluate the embedded Architecture v2 authority once per process, at a fraction of the memory
+* **compose:** keep the zigbee2mqtt MQTT password out of the data volume
+* **dev:** retain coverage for mixed production and test edits
+* **dev:** retire nonexistent focused-test bindings
+* **dev:** run add-on catalog behavior tests when their owner changes
+* **evidence:** Stage 1 compliance, citations, tests and docs (Phase B-I)
+* **images:** resume only identical canonical intent after image admission
+* **inventory:** publish canonical application service controls
+* **modern-homelab:** bind the initial target to the default target; record unprofiled Modern runtimes (N3)
+* **modern:** block Apply readiness without an execution channel; adopt into the generate Inventory (N2)
+* **nativehost:** report an edited standalone Compose file as typed drift
+* **paperless:** Pocket ID sign-in works; close native parity criteria 8-10
+* **renderer:** pin the Immich database health-check start interval
+* **runtime:** apply Cloud offsite-object-backup through the nested dispatchers
+* **runtime:** await pending service health during Verify
+* **storage:** reject unsupported NFS intent during validation
+* **terramate:** require edge and federation contract roots in Advanced convergence
+* **test-planner:** cover explicit initialization names
 
 ## [0.50.9](https://github.com/kombifyio/StackKits/compare/v0.50.8...v0.50.9) (2026-10-03)
 

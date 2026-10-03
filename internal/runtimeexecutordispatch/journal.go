@@ -302,7 +302,7 @@ func replayPrepared(
 }
 
 func invokePrepared(ctx context.Context, child preparedExecution) (runtimeexecutor.ExecutionResult, error) {
-	if len(child.request.AccessBindings) == 0 {
+	if len(child.request.AccessBindings) == 0 && len(child.request.BackupTargetBindings) == 0 {
 		return runtimeexecutor.Invoke(ctx, child.executor, child.request)
 	}
 	authorizationTime, err := time.Parse(time.RFC3339Nano, child.request.AuthorizationTime)

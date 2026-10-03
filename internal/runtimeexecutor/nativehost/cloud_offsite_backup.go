@@ -224,8 +224,8 @@ func validateCloudOffsiteBackupRequest(request runtimeexecutor.ExecutionRequest,
 	emptyTarget, emptyHealth := runtimeexecutor.RuntimeTarget{}, runtimeexecutor.HealthTarget{}
 	if !validCoreHostBootstrapDigest(request.RequestDigest) || len(request.RuntimeTargets) != 1 ||
 		len(request.HealthTargets) != 1 || len(request.AccessBindings) != 0 ||
-		len(request.BackupTargetBindings) != 1 || len(request.Artifacts) != 1 {
-		return emptyTarget, emptyHealth, CloudOffsiteBackupApplyPolicy{}, CloudOffsiteBackupExpectation{}, errors.New("Cloud offsite-backup executor requires exactly one runtime, health target, backup-target binding, and artifact")
+		len(request.BackupTargetBindings) != 1 || len(request.Artifacts) == 0 {
+		return emptyTarget, emptyHealth, CloudOffsiteBackupApplyPolicy{}, CloudOffsiteBackupExpectation{}, errors.New("Cloud offsite-backup executor requires exactly one runtime, health target, backup-target binding, and owned artifact")
 	}
 	target := request.RuntimeTargets[0]
 	contract := architecturev2renderer.CloudOffsiteBackupExecutorBundleRendererContract()
@@ -265,7 +265,10 @@ func validateCloudOffsiteBackupRequest(request runtimeexecutor.ExecutionRequest,
 		!slices.Equal(health.SiteRefs, target.SiteRefs) || !slices.Equal(health.NodeRefs, target.NodeRefs) {
 		return emptyTarget, emptyHealth, CloudOffsiteBackupApplyPolicy{}, CloudOffsiteBackupExpectation{}, errors.New("health target is not the exact Cloud offsite-backup postcondition")
 	}
-	artifact := request.Artifacts[0]
+	artifact, err := exactOwnedArtifactWithPlanMetadata(request.Artifacts, target.ArtifactRefs[0])
+	if err != nil {
+		return emptyTarget, emptyHealth, CloudOffsiteBackupApplyPolicy{}, CloudOffsiteBackupExpectation{}, err
+	}
 	if artifact.ID != wantArtifactID || artifact.Kind != "native-config" || artifact.Format != "json" ||
 		artifact.Mode != "0640" || artifact.OwnerKind != "render-instance" || artifact.OwnerRef != wantInstance ||
 		artifact.OwnerContractHash != target.UnitContractHash || artifact.ProviderRef != target.ProviderRef ||

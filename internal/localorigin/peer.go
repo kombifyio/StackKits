@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/localevidence"
@@ -176,6 +177,16 @@ func ProbePeer(ctx context.Context, root, peerRef, address string) (int, error) 
 // ProbePeerOrigin additionally pins the expected origin identity supplied by
 // an adopted external fabric. It reuses the same local credential custody.
 func ProbePeerOrigin(ctx context.Context, root, peerRef, address, serverName string) (int, error) {
+	return ProbePeerOriginRequest(ctx, root, peerRef, address, serverName, http.MethodGet, "/")
+}
+
+// ProbePeerOriginRequest is ProbePeerOrigin for one compiler-owned Health
+// probe request: the method and path come from the governed publication, the
+// destination and credential still come only from local custody.
+func ProbePeerOriginRequest(ctx context.Context, root, peerRef, address, serverName, method, path string) (int, error) {
+	if (method != http.MethodGet && method != http.MethodHead) || !strings.HasPrefix(path, "/") {
+		return 0, errors.New("localorigin: probe request must be a GET or HEAD of an absolute path")
+	}
 	if err := validateLoopbackAddress(address); err != nil {
 		return 0, err
 	}
@@ -203,8 +214,8 @@ func ProbePeerOrigin(ctx context.Context, root, peerRef, address, serverName str
 	}}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	endpoint := url.URL{Scheme: "https", Host: credential.ServerName, Path: "/"}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
+	endpoint := url.URL{Scheme: "https", Host: credential.ServerName, Path: path}
+	request, err := http.NewRequestWithContext(ctx, method, endpoint.String(), nil)
 	if err != nil {
 		return 0, err
 	}

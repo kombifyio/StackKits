@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:2956c6261eedb4bdb43b8a3aa35ddc2894f886675bbae5a1fcd0bedb71694a54",
+  "contentDigest": "sha256:eaab54116a5699c83c6523e419c9be2e41cdfd267450fdbee34c1b3b4ed554e7",
   "operations": [
     {
       "command": [
@@ -2362,6 +2362,35 @@
       "ownerApproval": true,
       "title": "Upgrade",
       "toolName": "stackkit_upgrade"
+    },
+    {
+      "arguments": [
+        {
+          "description": "use case declared by the installed kit",
+          "kind": "string",
+          "name": "slug",
+          "required": true
+        },
+        {
+          "description": "require this canonical current intent hash; omitted uses the hash read before authoring",
+          "flag": "--expected-spec-hash",
+          "kind": "string",
+          "name": "expected_spec_hash"
+        }
+      ],
+      "command": [
+        "use-cases",
+        "add"
+      ],
+      "description": "Add a CUE-catalog use case to existing native standalone intent by spec-hash CAS and materialize its local secret slots without deploying services.",
+      "destructive": false,
+      "id": "stackkit.use-cases.add",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Add use case",
+      "toolName": "stackkit_use_cases_add"
     },
     {
       "command": [

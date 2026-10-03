@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2"
+	"github.com/kombifyio/stackkits/internal/federationcontrol"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/hostsecurity"
 	"github.com/kombifyio/stackkits/internal/localevidence"
@@ -410,6 +411,31 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			}
 			return architecturev2.WithProductOpenTofuContractRoot(registration, openTofuRuntime)
 		},
+	}
+	// The Modern remote-only owners that have a node-local implementation run
+	// on their own node, and only inside an Advanced mutation Techstack
+	// dispatches to that node's agent. A hybrid Inventory process channel keeps
+	// them remote, and a standalone apply never registers them.
+	if _, hybrid, err := architectureV2ConfiguredStandardRuntimeFromInventory(options); err != nil {
+		return nil, err
+	} else if !hybrid && architectureV2AdvancedDispatched(workspaceRoot) {
+		constructors = append(constructors, func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			operations, err := nativehost.NewOSBridgePublicationOperations(workspaceRoot)
+			if err != nil {
+				return architecturev2.ProductRuntimeOwnerRegistration{}, err
+			}
+			registration, err := architecturev2.NewProductBridgePublicationRegistration(runtimeVersion, operations)
+			if err != nil {
+				return architecturev2.ProductRuntimeOwnerRegistration{}, err
+			}
+			return architecturev2.WithProductOpenTofuContractRoot(registration, openTofuRuntime)
+		}, func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			registration, err := architecturev2.NewProductFederationControlAgentRegistration(runtimeVersion, federationcontrol.NewControlAgentOperations(workspaceRoot))
+			if err != nil {
+				return architecturev2.ProductRuntimeOwnerRegistration{}, err
+			}
+			return architecturev2.WithProductOpenTofuContractRoot(registration, openTofuRuntime)
+		})
 	}
 	registrations := make([]architecturev2.ProductRuntimeOwnerRegistration, 0, len(constructors))
 	for index, construct := range constructors {

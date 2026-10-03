@@ -6,7 +6,7 @@
     "definitions/cloud-kit.json": "sha256:1c6b4aca9481901650f7a0bde9ab41fe08c8394bb01b83fef0ace8f7d097c32b",
     "definitions/modern-homelab.json": "sha256:39a20d68d9bf266a70b438b659caca33dc3b522f61c956080e4350d144122fef",
     "neutral-image-profiles.json": "sha256:65a76fc6498a7a436c1e0f2064bb833d3e3ca3c4056a7c2e3755f748280e4b9f",
-    "operations.json": "sha256:42277d336fbee519aef73a060be728c701be9815a3a77c76db5820a06e2666d0"
+    "operations.json": "sha256:7a5b7636db04f51ebbc5bc5ae205180bb0418f071e3785791cc59b759842c742"
   },
   "documents": {
     "catalog": "catalog.json",

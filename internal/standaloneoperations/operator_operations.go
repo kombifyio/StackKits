@@ -441,6 +441,15 @@ var operatorOperations = []Contract{
 	{ID: "stackkit.registry.info", ToolName: "stackkit_registry_info", Title: "Registry info", Description: "Summarize the embedded StackKits registry snapshot.", Command: []string{"registry", "info"}, Idempotent: true},
 
 	// Secret custody, without secret values.
+	{
+		ID: "stackkit.use-cases.add", ToolName: "stackkit_use_cases_add", Title: "Add use case",
+		Description: "Add a CUE-catalog use case to existing native standalone intent by spec-hash CAS and materialize its local secret slots without deploying services.",
+		Command:     []string{"use-cases", "add"}, Mutation: true, Idempotent: true, OwnerApproval: true,
+		Arguments: []Argument{
+			positionalArg("slug", "use case declared by the installed kit"),
+			flagArg("expected_spec_hash", ArgumentString, "--expected-spec-hash", "require this canonical current intent hash; omitted uses the hash read before authoring"),
+		},
+	},
 	{ID: "stackkit.secrets.materialize", ToolName: "stackkit_secrets_materialize", Title: "Materialize secret custody", Description: "Establish or reuse owner-bound local custody for every secret the current StackSpec declares; never returns values.", Command: []string{"secrets", "materialize"}, Mutation: true, Idempotent: true, OwnerApproval: true},
 
 	// Plan-declared services.

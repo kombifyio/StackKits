@@ -6150,8 +6150,34 @@
       "examples": [],
       "flags": [],
       "subcommands": [
+        "stackkit use-cases add",
         "stackkit use-cases pick"
       ]
+    },
+    {
+      "path": "stackkit use-cases add",
+      "name": "add",
+      "parent": "stackkit use-cases",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit use-cases add <slug> [flags]",
+      "short": "Add a catalog use case to an existing standalone installation",
+      "description": "Add a use case using the installed kit's CUE-owned alternative and module\nprofile defaults. Preserve existing workloads, routes, placement and storage.\nPersist the candidate by the current spec hash and materialize only the selected\nuse case's local secret slots. Existing custody is reused. No services are\ndeployed; generate and apply the updated intent through the normal lifecycle.\nNative stackkit/v2alpha2 and a single standalone node/site are required.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit use-cases add mail\nstackkit use-cases add mail --expected-spec-hash sha256:<current-hash>"
+        }
+      ],
+      "flags": [
+        {
+          "name": "expected-spec-hash",
+          "type": "string",
+          "description": "Require this canonical current spec hash; omitted uses the hash read before authoring",
+          "required": false
+        }
+      ],
+      "subcommands": []
     },
     {
       "path": "stackkit use-cases pick",

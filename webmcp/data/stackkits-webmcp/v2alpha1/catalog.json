@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "2174019dd62d6d0714c05a3e52a4362f06791099",
-  "authority_bundle_sha256": "f6236e265a641e1313794499a241b627c435869127b9196c2d7b05f6a5fdfece",
+  "source_sha": "daf15be329bd27f2b5cdc9aa8c727eb8e630d674",
+  "authority_bundle_sha256": "0396562d78331dfd965c5de110c6b3fc1d2028963e9ff4490e035450033b4836",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -14833,6 +14833,20 @@
       "owner_approval": true
     },
     {
+      "id": "stackkit.use-cases.add",
+      "tool_name": "stackkit_use_cases_add",
+      "title": "Add use case",
+      "description": "Add a CUE-catalog use case to existing native standalone intent by spec-hash CAS and materialize its local secret slots without deploying services.",
+      "command": [
+        "use-cases",
+        "add"
+      ],
+      "mutation": true,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
       "id": "stackkit.user.list",
       "tool_name": "stackkit_user_list",
       "title": "List users",
@@ -14907,5 +14921,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "05a2d38b6828f9a3950e61f2215b630a35ae0f6bf8d6b01ed05fc93da5994246"
+  "catalog_sha256": "db761f386177bfa9a7fe672fdfd910b5cbf446ac982c99829e3d99f376430233"
 }

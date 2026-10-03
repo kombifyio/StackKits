@@ -198,9 +198,34 @@ v0.6 compatibility Owner bootstrap modes:
 | `custom` | `--owner-bootstrap-mode custom --owner-source local --owner-email ... --owner-username ... --recovery-passphrase-hash ...` | Self-hosted explicit Owner. The hash is persisted; plaintext is never stored in `stack-spec.yaml`. |
 | `none` | `--owner-bootstrap-mode none` | Explicitly skip Owner bootstrap for OSS/BYOS or manually managed identity. |
 
+### `stackkit use-cases add <slug>`
+
+Add a catalog use case to an existing native `stackkit/v2alpha2` standalone
+installation with one node and one site:
+
+```bash
+stackkit use-cases add mail
+stackkit generate
+stackkit apply
+```
+
+The command uses the installed kit's CUE-owned alternative and module profile
+defaults, preserves existing workload, module, routing, storage and placement
+intent, and creates only the selected use case's missing secret slots under the
+existing local Owner. Existing custody is reused. It persists by the canonical
+hash read before authoring; pass `--expected-spec-hash sha256:<current-hash>` to
+require a reviewed hash. A hash mismatch detected on read or an invalid addition
+leaves intent and custody unchanged. Concurrent identical additions may finish
+as already selected; conflicting changes are refused. An already selected use
+case retains its current choices.
+If secret creation fails after intent persistence, retry the same add command
+to complete that use case's custody. No services are deployed by `add`.
+Legacy specs require explicit migration; Advanced and multi-site changes belong
+to Techstack dispatch.
+
 ### `stackkit secrets materialize`
 
-After adding a governed workload to an existing standalone StackSpec, run
+After manually adding a governed workload to an existing standalone StackSpec, run
 `stackkit secrets materialize` before `generate` and `apply`. The command
 validates the current intent through the embedded CUE authority, then creates
 or reuses owner-signed, owner-only custody for its `secret://` references. It
