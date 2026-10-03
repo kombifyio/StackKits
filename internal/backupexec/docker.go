@@ -541,7 +541,7 @@ func kopiaPasswordCommand(command []string) ([]string, error) {
 		`IFS= read -r KOPIA_PASSWORD; export KOPIA_PASSWORD; exec "$@"`,
 		"--",
 	}
-	if len(command) >= 6 && command[1] == "--config-file" && (command[2] == DefaultConfigFile || command[2] == OffsiteConfigFile) && command[3] == "repository" && command[4] == "connect" && command[5] == "s3" {
+	if len(command) >= 6 && command[1] == "--config-file" && (command[2] == DefaultConfigFile || command[2] == OffsiteConfigFile) && command[3] == "repository" && (command[4] == "connect" || command[4] == "create") && command[5] == "s3" {
 		argv[2] = `IFS= read -r KOPIA_PASSWORD; IFS= read -r AWS_ACCESS_KEY_ID; IFS= read -r AWS_SECRET_ACCESS_KEY; export KOPIA_PASSWORD AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; unset AWS_SESSION_TOKEN; exec "$@"`
 	}
 	if len(command) >= 3 && command[1] == "--config-file" && command[2] == OffsiteConfigFile {

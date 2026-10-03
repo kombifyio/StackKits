@@ -9,8 +9,38 @@ import (
 
 // ConnectS3Repository connects only to an existing repository. A different
 // configured target is rejected without disconnecting, creating or adopting it.
-// Kopia owns its repository configuration; this method never creates a bucket.
+// Kopia owns its repository configuration; this method never creates a bucket
+// or a repository.
 func (e V2Engine) ConnectS3Repository(ctx context.Context, repo S3Repository, password []byte) (RepositoryStatus, error) {
+	return e.attachS3Repository(ctx, repo, password, "connect")
+}
+
+// EnsureS3Repository connects the offsite engine to the bound S3 target and,
+// only when Kopia reports that the target holds no repository yet, initializes
+// one there. A fresh managed bucket is empty, so its first Apply has nothing to
+// connect to. Every other connect failure (rejected credentials, a wrong
+// repository password, an unreachable endpoint, a foreign repository) is
+// returned unchanged and never leads to a create. Kopia itself refuses to
+// create inside a location that already holds data. The bucket is never
+// created, and the local filesystem repository is never touched.
+func (e V2Engine) EnsureS3Repository(ctx context.Context, repo S3Repository, password []byte) (RepositoryStatus, error) {
+	status, err := e.attachS3Repository(ctx, repo, password, "connect")
+	if err == nil || !e.offsite || !s3RepositoryNotInitialized(err) {
+		return status, err
+	}
+	return e.attachS3Repository(ctx, repo, password, "create")
+}
+
+// s3RepositoryNotInitialized recognizes Kopia's answer to a connect against a
+// location without a repository (`repo.ErrRepositoryNotInitialized`).
+func s3RepositoryNotInitialized(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "repository not initialized in the provided storage")
+}
+
+// attachS3Repository runs one `repository <verb> s3` for the exact bound
+// target. Both verbs leave the repository connected under the engine's fixed
+// configuration, so both prove the result with the same exact-identity check.
+func (e V2Engine) attachS3Repository(ctx context.Context, repo S3Repository, password []byte, verb string) (RepositoryStatus, error) {
 	endpoint, input, err := prepareS3Repository(repo, password)
 	if err != nil {
 		return RepositoryStatus{}, err
@@ -37,7 +67,7 @@ func (e V2Engine) ConnectS3Repository(ctx context.Context, repo S3Repository, pa
 		}
 		return status, nil
 	}
-	args := []string{"repository", "connect", "s3", "--endpoint", endpoint, "--bucket", repo.Bucket, "--prefix", repo.Prefix, "--region", repo.Region}
+	args := []string{"repository", verb, "s3", "--endpoint", endpoint, "--bucket", repo.Bucket, "--prefix", repo.Prefix, "--region", repo.Region}
 	if e.offsite {
 		args = append(args, "--cache-directory", DefaultCacheDirectory+"/offsite")
 	}

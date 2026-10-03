@@ -1,5 +1,7 @@
 # Changelog
 
+- Fix: the first Cloud Apply that selects `offsite-object-backup` initializes the Kopia repository in an empty managed bucket. The offsite owner only connected, so a fresh per-stack bucket failed with `Cloud offsite repository connection failed`. It now creates the repository when Kopia reports that the bound target holds none, and never on any other connect failure (rejected credentials, wrong passphrase, foreign repository). The owner errors for connect, source policy, snapshot and restore now carry Kopia's own redacted reason instead of only the fixed operation message.
+
 - Add: sealed host delivery of the offsite backup target. `stackkit backup target recipient` creates the node's separate encryption recipient key and an Owner-signed, challenge-bound statement; `stackkit backup target import --sealed` opens an HPKE-sealed delivery from `pkg/hostdelivery` into the same encrypted local custody as plain import. The delivery is bound to tenant, Site/node, binding generation, operation, recipient key and a 15-minute expiry, and is consumed before use, so a wrong recipient, another node and a replay are denied. Techstack and any transport carry only ciphertext; the node still issues its own backup-target binding.
 
 - Fix: a Cloud Apply that selects `offsite-object-backup` no longer fails on the router step. The nested runtime dispatcher invoked a child that carries only a backup-target binding at the wall clock instead of its sealed authorization instant, so go-common rejected it with `authorization_time: must equal the exact invocation instant` before any owner ran. The Cloud offsite-backup owner also accepts the resolved-plan metadata artifacts that both dispatcher layers deliver next to its own artifact, like every other node-local owner.
@@ -65,6 +67,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **application adoption:** `stackkit application inspect|adopt|verify|control|release` can bind an existing initialized Home Assistant 2026.7.2 Compose container to the resolved Smart Home lifecycle without recreating its container, accounts, configuration or data. Inspection requires the exact immutable image and container, an existing native Owner grant and an exclusive configuration mount. Signed Owner receipts use the existing lifecycle journal; start, stop and restart target only that binding, interrupted dispatch reconciles without repeating the action, and release retains the native application. Unsupported sources stay unstacked, and fresh generation, apply, setup and removal are refused while adoption custody is active.
 
 ### Fixed
+
+* **Cloud offsite backup:** the first Apply against an empty managed bucket initializes the Kopia repository (`repository create s3`, same stdin credential transport as connect) only when Kopia reports no repository at the bound target; every other connect failure stays a failure and creates nothing. The offsite owner errors now include Kopia's redacted reason.
 
 * **Guard preparation:** the legacy Techstack handoff verifies the already bootstrapped `techstack-agent.service` and its protected enrollment before recording verified evidence. It no longer installs a second shell daemon or claims a local installation after writing only a handoff file. Missing or mismatched enrollment returns Techstack bootstrap guidance; existing Guard identity, configuration, credentials and durable journals remain under Techstack lifecycle authority.
 
@@ -158,6 +162,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.51.2](https://github.com/kombifyio/StackKits/compare/v0.51.1...v0.51.2) (2026-10-03)
+
+
+### Fixed
+
+* **backup:** initialize the offsite Kopia repository on a fresh bucket
 
 ## [0.51.1](https://github.com/kombifyio/StackKits/compare/v0.51.0...v0.51.1) (2026-10-03)
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -79,6 +80,23 @@ func cloudOffsiteRepository(material backupcustody.S3TargetMaterial) backupexec.
 	return backupexec.S3Repository{Endpoint: material.Endpoint, Bucket: material.Bucket, Prefix: material.Prefix, Region: material.Region, AccessKeyID: material.AccessKeyID, SecretAccessKey: material.SecretAccessKey}
 }
 
+// offsiteEngineFailure keeps the fixed operation message and appends the
+// engine's operator-safe diagnostic (Kopia's own reason, already redacted of
+// every secret that crossed stdin) when the failure came from the native
+// engine. Without it a rejected credential, an unreachable endpoint and a
+// foreign repository all read the same.
+func offsiteEngineFailure(message string, err error) error {
+	diagnostic, ok := backupexec.SafeDiagnostic(err)
+	if !ok {
+		return errors.New(message)
+	}
+	const limit = 600
+	if runes := []rune(diagnostic); len(runes) > limit {
+		diagnostic = string(runes[:limit]) + "..."
+	}
+	return fmt.Errorf("%s: %s", message, diagnostic)
+}
+
 func cloudOffsiteOSObservation(e CloudOffsiteBackupExpectation, operation, status string) CloudOffsiteBackupObservation {
 	return CloudOffsiteBackupObservation{Operation: operation, Status: status, PolicyDigest: e.PolicyDigest, RequestDigest: e.RequestDigest, ArtifactDigest: e.ArtifactDigest, StateDigest: e.StateDigest, EvaluatedAt: e.EvaluatedAt, ObservedAt: time.Now().UTC().Format(time.RFC3339Nano), StackID: e.StackID, SiteRef: e.SiteRef, NodeRef: e.NodeRef, ExecutionChannelRef: e.ExecutionChannelRef, BindingRef: e.BindingRef, BindingHash: e.BindingHash, BackupTargetRef: e.BackupTargetRef, CustodyAttestationRef: e.CustodyAttestationRef}
 }
@@ -90,11 +108,13 @@ func (o *osCloudOffsiteBackupOperations) BindOffsiteBackupTarget(ctx context.Con
 		return CloudOffsiteBackupObservation{}, err
 	}
 	defer backupcustody.Clear(material.Passphrase)
-	if _, err := engine.ConnectS3Repository(ctx, cloudOffsiteRepository(material), material.Passphrase); err != nil {
-		return CloudOffsiteBackupObservation{}, errors.New("Cloud offsite repository connection failed")
+	// A fresh managed bucket holds no repository: the first Apply initializes
+	// it. Every later operation only connects to the exact bound repository.
+	if _, err := engine.EnsureS3Repository(ctx, cloudOffsiteRepository(material), material.Passphrase); err != nil {
+		return CloudOffsiteBackupObservation{}, offsiteEngineFailure("Cloud offsite repository connection failed", err)
 	}
 	if err := engine.ConfigureSourcePolicy(ctx, policy.Source.ContainerPath, policy.Source.ExcludePaths, material.Passphrase); err != nil {
-		return CloudOffsiteBackupObservation{}, errors.New("Cloud offsite source policy did not configure")
+		return CloudOffsiteBackupObservation{}, offsiteEngineFailure("Cloud offsite source policy did not configure", err)
 	}
 	return cloudOffsiteOSObservation(e, "bind-offsite-backup-target", "bound"), nil
 }
@@ -108,7 +128,7 @@ func (o *osCloudOffsiteBackupOperations) RemoveObsoleteOffsiteBackupBindings(ctx
 	// One fixed offsite configuration is admitted. A foreign repository is
 	// rejected by ConnectS3Repository; it is never disconnected or replaced.
 	if _, err := engine.ConnectS3Repository(ctx, cloudOffsiteRepository(material), material.Passphrase); err != nil {
-		return CloudOffsiteBackupObservation{}, errors.New("Cloud offsite singleton binding did not reconcile")
+		return CloudOffsiteBackupObservation{}, offsiteEngineFailure("Cloud offsite singleton binding did not reconcile", err)
 	}
 	return cloudOffsiteOSObservation(e, "remove-obsolete-offsite-backup-binding", "reconciled"), nil
 }
@@ -120,17 +140,17 @@ func (o *osCloudOffsiteBackupOperations) VerifyOffsiteBackupTarget(ctx context.C
 	}
 	defer backupcustody.Clear(material.Passphrase)
 	if _, err := engine.ConnectS3Repository(ctx, cloudOffsiteRepository(material), material.Passphrase); err != nil {
-		return CloudOffsiteBackupObservation{}, errors.New("Cloud offsite target changed before backup")
+		return CloudOffsiteBackupObservation{}, offsiteEngineFailure("Cloud offsite target changed before backup", err)
 	}
 	if status, err := engine.SourcePolicy(ctx, policy.Source.ContainerPath, policy.Source.ExcludePaths, material.Passphrase); err != nil || !status.Exact {
-		return CloudOffsiteBackupObservation{}, errors.New("Cloud offsite source policy has drifted")
+		return CloudOffsiteBackupObservation{}, offsiteEngineFailure("Cloud offsite source policy has drifted", err)
 	}
 	operation := "cloud-offsite-" + strings.TrimPrefix(e.RequestDigest, "sha256:")
 	snapshot, err := engine.CreateSnapshot(ctx, backupexec.SnapshotRequest{Source: policy.Source.ContainerPath, Description: "StackKits Cloud offsite verification", OperationID: operation}, material.Passphrase)
 	if err != nil {
 		settleCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), backupexec.QuickOperationTimeout)
 		defer cancel()
-		return CloudOffsiteBackupObservation{}, errors.Join(errors.New("Cloud offsite snapshot did not complete"), o.settle(settleCtx, policy))
+		return CloudOffsiteBackupObservation{}, errors.Join(offsiteEngineFailure("Cloud offsite snapshot did not complete", err), o.settle(settleCtx, policy))
 	}
 	restoreCompleted := false
 	defer func() {
@@ -153,7 +173,7 @@ func (o *osCloudOffsiteBackupOperations) VerifyOffsiteBackupTarget(ctx context.C
 	}()
 	restore, err := engine.RestoreSnapshot(ctx, backupexec.RestoreRequest{SnapshotID: snapshot.ID, OperationID: operation, StagingPath: localbackuppolicy.RestorePathForOperation(operation)}, material.Passphrase)
 	if err != nil || !restore.RepositoryContentVerified {
-		return CloudOffsiteBackupObservation{}, errors.New("Cloud offsite staged restore did not verify")
+		return CloudOffsiteBackupObservation{}, offsiteEngineFailure("Cloud offsite staged restore did not verify", err)
 	}
 	restoreCompleted = true
 	backupDigest, err := o.persistProof("backup-observation", snapshot)
