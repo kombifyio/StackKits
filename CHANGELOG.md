@@ -1,8 +1,12 @@
 # Changelog
 
+- Docs: the compatibility matrix defines the Modern two-site target cell `modern-homelab-two-site-pve`, and `scripts/compat/import-managed-modern-evidence.mjs` imports Techstack Modern lane receipts. A phase blocked by an unbuilt owner is recorded as blocked and never counts as a pass. The Modern environment row stays unverified until a lane run is imported.
+
 - Fix: Verify waits up to 90 seconds for a running standalone Compose workload's pending health check after Start or Restart, using observation only. Stopped, unhealthy, foreign-image and transport failures still fail immediately; cancellation and deadlines never repeat a service action.
 
 - Fix: application service cards publish the same owner-controlled Start, Stop, Restart and Logs policy as the canonical standalone Compose controller, with its exact application project and component identity. Critical core services still deny Stop.
+
+- Docs: the owner decision that Modern Advanced runs Techstack-only is recorded in ADR-0045. The `execution-channel-unbound` Apply refusal now names Techstack as the route for a node the standalone CLI cannot execute; behaviour is unchanged.
 
 - Fix: Modern Homelab's initial StackSpec takes its generation target from the kit's default target instead of a hard-coded `compose`, so a later default switch also applies to new installs. The default stays `compose`, so behaviour is unchanged today.
 
@@ -148,6 +152,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.50.9](https://github.com/kombifyio/StackKits/compare/v0.50.8...v0.50.9) (2026-10-03)
+
+
+### Added
+
+* **compat:** Modern two-site target cell and lane receipt importer (N6, StackKits side)
 
 ## [0.50.8](https://github.com/kombifyio/StackKits/compare/v0.50.7...v0.50.8) (2026-10-03)
 
