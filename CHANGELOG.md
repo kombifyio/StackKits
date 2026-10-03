@@ -1,5 +1,7 @@
 # Changelog
 
+- Add: sealed host delivery of the offsite backup target. `stackkit backup target recipient` creates the node's separate encryption recipient key and an Owner-signed, challenge-bound statement; `stackkit backup target import --sealed` opens an HPKE-sealed delivery from `pkg/hostdelivery` into the same encrypted local custody as plain import. The delivery is bound to tenant, Site/node, binding generation, operation, recipient key and a 15-minute expiry, and is consumed before use, so a wrong recipient, another node and a replay are denied. Techstack and any transport carry only ciphertext; the node still issues its own backup-target binding.
+
 - Fix: a Cloud Apply that selects `offsite-object-backup` no longer fails on the router step. The nested runtime dispatcher invoked a child that carries only a backup-target binding at the wall clock instead of its sealed authorization instant, so go-common rejected it with `authorization_time: must equal the exact invocation instant` before any owner ran. The Cloud offsite-backup owner also accepts the resolved-plan metadata artifacts that both dispatcher layers deliver next to its own artifact, like every other node-local owner.
 
 - Add: `pkg/federationbinding`, the public producer contract for the external Federation link binding, mirroring `pkg/backupbinding`. An external fabric authority such as Techstack builds the opaque, unsigned binding for one compiler-derived `inter-site-link` requirement (`Build`, `Validate`, `OpaqueReference`); the local Owner signs and adopts it with `stackkit federation binding adopt`. It creates no fabric, key, interface or endpoint. A test proves the local authority decodes, signs and imports what it builds.
@@ -156,6 +158,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.51.1](https://github.com/kombifyio/StackKits/compare/v0.51.0...v0.51.1) (2026-10-03)
+
+
+### Added
+
+* **backup:** sealed host delivery of the offsite backup target
 
 ## [0.51.0] (2026-10-03)
 

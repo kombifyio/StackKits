@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/backupcustody"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
@@ -23,8 +24,34 @@ func newBackupTargetCommand() *cobra.Command {
 	var candidateDigest string
 	importCommand.Flags().BoolVar(&rebind, "rebind", false, "Renew Plan/source authority while preserving the existing target and credentials")
 	importCommand.Flags().StringVar(&candidateDigest, "candidate-digest", "", "Exact sha256 digest of the installed StackKits release candidate")
+	var sealed bool
+	var tenantRef string
+	importCommand.Flags().BoolVar(&sealed, "sealed", false, "Read a sealed host delivery envelope on stdin instead of plain JSON")
+	importCommand.Flags().StringVar(&tenantRef, "tenant-ref", "", "Tenant the sealed delivery must be addressed to (required with --sealed)")
 	importCommand.RunE = func(cmd *cobra.Command, _ []string) error {
-		return runBackupTargetImport(cmd, approved, rebind, candidateDigest)
+		return runBackupTargetImport(cmd, approved, rebind, candidateDigest, sealedImport{enabled: sealed, tenantRef: tenantRef})
+	}
+	var challenge string
+	recipient := &cobra.Command{Use: "recipient", Short: "Prove this node's sealed-delivery recipient key", Long: "Creates this node's separate encryption recipient key once and prints a statement, signed by the local Owner key, that binds the public key to this Site and node and answers the caller's challenge. The private key never leaves local custody. A delivering authority seals backup target material to this key; import it with `backup target import --sealed`.", Args: cobra.NoArgs, Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
+		Example: `  stackkit backup target recipient --challenge "$CHALLENGE" --owner-approve`}
+	recipientApproved := false
+	recipient.Flags().StringVar(&challenge, "challenge", "", "Fresh value from the delivering authority that the statement must echo")
+	recipient.Flags().BoolVar(&recipientApproved, "owner-approve", false, "Authorize this node's recipient key")
+	recipient.RunE = func(cmd *cobra.Command, _ []string) error {
+		if !recipientApproved {
+			return errors.New("backup target recipient requires --owner-approve")
+		}
+		generated, err := inspectNativeV2GeneratedAuthority(cmd.Context(), getWorkDir(), specFile)
+		if err != nil {
+			return err
+		}
+		return withLifecycleMutation(generated.WorkspaceRoot, "backup target recipient", func() error {
+			statement, err := backupcustody.RecipientStatement(generated.WorkspaceRoot, challenge, time.Now().UTC())
+			if err != nil {
+				return err
+			}
+			return writeCommandResult(cmd, cmd.CommandPath(), statement)
+		})
 	}
 	status := &cobra.Command{Use: "status", Short: "Verify local target custody without contacting S3", Args: cobra.NoArgs, Annotations: map[string]string{noDeployObservabilityAnnotation: "true"}, Example: `  # Confirm the imported target custody is intact
   stackkit backup target status`, RunE: func(cmd *cobra.Command, _ []string) error {
@@ -39,7 +66,7 @@ func newBackupTargetCommand() *cobra.Command {
 		}
 		return writeBackupTargetSummary(cmd, authority)
 	}}
-	target.AddCommand(importCommand, status)
+	target.AddCommand(importCommand, recipient, status)
 	return target
 }
 

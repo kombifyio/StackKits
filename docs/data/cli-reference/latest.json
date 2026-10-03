@@ -1752,6 +1752,7 @@
       "flags": [],
       "subcommands": [
         "stackkit backup target import",
+        "stackkit backup target recipient",
         "stackkit backup target status"
       ]
     },
@@ -1788,6 +1789,49 @@
           "name": "rebind",
           "type": "bool",
           "description": "Renew Plan/source authority while preserving the existing target and credentials",
+          "required": false
+        },
+        {
+          "name": "sealed",
+          "type": "bool",
+          "description": "Read a sealed host delivery envelope on stdin instead of plain JSON",
+          "required": false
+        },
+        {
+          "name": "tenant-ref",
+          "type": "string",
+          "description": "Tenant the sealed delivery must be addressed to (required with --sealed)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup target recipient",
+      "name": "recipient",
+      "parent": "stackkit backup target",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup target recipient [flags]",
+      "short": "Prove this node's sealed-delivery recipient key",
+      "description": "Creates this node's separate encryption recipient key once and prints a statement, signed by the local Owner key, that binds the public key to this Site and node and answers the caller's challenge. The private key never leaves local custody. A delivering authority seals backup target material to this key; import it with `backup target import --sealed`.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit backup target recipient --challenge \"$CHALLENGE\" --owner-approve"
+        }
+      ],
+      "flags": [
+        {
+          "name": "challenge",
+          "type": "string",
+          "description": "Fresh value from the delivering authority that the statement must echo",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize this node's recipient key",
           "required": false
         }
       ],

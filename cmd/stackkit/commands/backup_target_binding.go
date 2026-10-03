@@ -12,19 +12,47 @@ import (
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/pkg/hostdelivery"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
 
-func runBackupTargetImport(cmd *cobra.Command, approved, rebind bool, candidateDigest string) error {
+// sealedImport selects stdin as a sealed host delivery envelope. The envelope
+// is opened and consumed under the lifecycle lock before anything else happens,
+// so plaintext never reaches argv, logs or a stored command.
+type sealedImport struct {
+	enabled   bool
+	tenantRef string
+}
+
+func runBackupTargetImport(cmd *cobra.Command, approved, rebind bool, candidateDigest string, sealed sealedImport) error {
 	if !approved {
 		return errors.New("backup target import requires --owner-approve")
+	}
+	if sealed.enabled && sealed.tenantRef == "" {
+		return errors.New("sealed backup target import requires --tenant-ref")
 	}
 	raw, err := io.ReadAll(io.LimitReader(cmd.InOrStdin(), (32<<10)+1))
 	if err != nil || len(raw) > 32<<10 {
 		return errors.New("backup target input exceeds its bounded JSON contract")
 	}
 	defer backupcustody.Clear(raw)
+	if sealed.enabled {
+		operation := hostdelivery.OperationBackupTargetImport
+		if rebind {
+			operation = hostdelivery.OperationBackupTargetRebind
+		}
+		var plaintext []byte
+		if err := withLifecycleMutation(getWorkDir(), "backup target sealed delivery", func() error {
+			var openErr error
+			plaintext, openErr = backupcustody.OpenSealedDelivery(getWorkDir(), raw, backupcustody.SealedExpectation{TenantRef: sealed.tenantRef, Operation: operation}, time.Now().UTC())
+			return openErr
+		}); err != nil {
+			return err
+		}
+		defer backupcustody.Clear(plaintext)
+		raw = plaintext
+	}
 	var input struct {
 		backupcustody.S3TargetMaterial
 		Passphrase string `json:"passphrase"`
