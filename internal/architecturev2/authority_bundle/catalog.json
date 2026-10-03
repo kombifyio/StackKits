@@ -32824,7 +32824,7 @@
             "entrypoint": [
               "/bin/sh",
               "-ec",
-              "printf 'use_default_settings: true\\nsearch:\\n  formats:\\n    - html\\n    - json\\n' \u003e /etc/searxng/settings.yml \u0026\u0026 exec /usr/local/searxng/entrypoint.sh"
+              "printf 'use_default_settings: true\\nsearch:\\n  formats:\\n    - html\\n    - json\\n' \u003e /etc/searxng/settings.yml \u0026\u0026 if [ -f /run/stackkit/secrets/searxng-settings.yml ]; then cat /run/stackkit/secrets/searxng-settings.yml \u003e\u003e /etc/searxng/settings.yml \u0026\u0026 chmod 0600 /etc/searxng/settings.yml; fi \u0026\u0026 exec /usr/local/searxng/entrypoint.sh"
             ],
             "environment": {
               "SEARXNG_LIMITER": "false",
@@ -33893,7 +33893,7 @@
             "command": [
               "/bin/sh",
               "-ec",
-              "gitea -c \"$GITEA_APP_INI\" migrate \u0026\u0026 users=$(gitea -c \"$GITEA_APP_INI\" admin user list) \u0026\u0026 owner=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ \u0026\u0026 $2 == \"owner\" {print $3 \" \" $4 \" \" $5}') \u0026\u0026 if [ -n \"$owner\" ]; then [ \"$owner\" = \"$STACKKITS_OWNER_EMAIL true true\" ] || { echo 'Existing Gitea owner does not match local custody' \u003e\u00262; exit 1; }; else count=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ {n++} END {print n+0}'); [ \"$count\" = 0 ] || { echo 'Existing Gitea users require explicit owner reconciliation' \u003e\u00262; exit 1; }; gitea -c \"$GITEA_APP_INI\" admin user create --username owner --email \"$STACKKITS_OWNER_EMAIL\" --password \"$STACKKITS_OWNER_PASSWORD\" --admin --must-change-password=false; fi \u0026\u0026 unset STACKKITS_OWNER_PASSWORD \u0026\u0026 exec gitea -c \"$GITEA_APP_INI\" web"
+              "gitea -c \"$GITEA_APP_INI\" migrate \u0026\u0026 users=$(gitea -c \"$GITEA_APP_INI\" admin user list) \u0026\u0026 owner=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ \u0026\u0026 $2 == \"owner\" {print $3 \" \" $4 \" \" $5}') \u0026\u0026 if [ -n \"$owner\" ]; then [ \"$owner\" = \"$STACKKITS_OWNER_EMAIL true true\" ] || { echo 'Existing Gitea owner does not match local custody' \u003e\u00262; exit 1; }; else count=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ {n++} END {print n+0}'); [ \"$count\" = 0 ] || { echo 'Existing Gitea users require explicit owner reconciliation' \u003e\u00262; exit 1; }; password=$(cat \"$STACKKITS_OWNER_PASSWORD_FILE\"); gitea -c \"$GITEA_APP_INI\" admin user create --username owner --email \"$STACKKITS_OWNER_EMAIL\" --password \"$password\" --admin --must-change-password=false; fi \u0026\u0026 exec gitea -c \"$GITEA_APP_INI\" web"
             ],
             "dependsOn": [],
             "environment": {
@@ -33930,9 +33930,15 @@
               "memoryReservation": "256m"
             },
             "role": "application",
-            "secretEnvironment": {
-              "STACKKITS_OWNER_PASSWORD": "owner-password"
-            },
+            "secretFiles": [
+              {
+                "gid": 1000,
+                "pathEnvironment": "STACKKITS_OWNER_PASSWORD_FILE",
+                "slot": "owner-password",
+                "target": "/run/secrets/owner-password",
+                "uid": 1000
+              }
+            ],
             "volumes": [
               {
                 "backup": true,
@@ -34287,7 +34293,7 @@
             "command": [
               "/bin/sh",
               "-ec",
-              "forgejo migrate \u0026\u0026 users=$(forgejo admin user list) \u0026\u0026 owner=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ \u0026\u0026 $2 == \"owner\" {print $3 \" \" $4 \" \" $5}') \u0026\u0026 if [ -n \"$owner\" ]; then [ \"$owner\" = \"$STACKKITS_OWNER_EMAIL true true\" ] || { echo 'Existing Forgejo owner does not match local custody' \u003e\u00262; exit 1; }; else count=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ {n++} END {print n+0}'); [ \"$count\" = 0 ] || { echo 'Existing Forgejo users require explicit owner reconciliation' \u003e\u00262; exit 1; }; forgejo admin user create --username owner --email \"$STACKKITS_OWNER_EMAIL\" --password \"$STACKKITS_OWNER_PASSWORD\" --admin --must-change-password=false; fi \u0026\u0026 unset STACKKITS_OWNER_PASSWORD \u0026\u0026 exec forgejo web"
+              "forgejo migrate \u0026\u0026 users=$(forgejo admin user list) \u0026\u0026 owner=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ \u0026\u0026 $2 == \"owner\" {print $3 \" \" $4 \" \" $5}') \u0026\u0026 if [ -n \"$owner\" ]; then [ \"$owner\" = \"$STACKKITS_OWNER_EMAIL true true\" ] || { echo 'Existing Forgejo owner does not match local custody' \u003e\u00262; exit 1; }; else count=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ {n++} END {print n+0}'); [ \"$count\" = 0 ] || { echo 'Existing Forgejo users require explicit owner reconciliation' \u003e\u00262; exit 1; }; password=$(cat \"$STACKKITS_OWNER_PASSWORD_FILE\"); forgejo admin user create --username owner --email \"$STACKKITS_OWNER_EMAIL\" --password \"$password\" --admin --must-change-password=false; fi \u0026\u0026 exec forgejo web"
             ],
             "dependsOn": [],
             "environment": {
@@ -34324,9 +34330,15 @@
               "memoryReservation": "256m"
             },
             "role": "application",
-            "secretEnvironment": {
-              "STACKKITS_OWNER_PASSWORD": "owner-password"
-            },
+            "secretFiles": [
+              {
+                "gid": 1000,
+                "pathEnvironment": "STACKKITS_OWNER_PASSWORD_FILE",
+                "slot": "owner-password",
+                "target": "/run/secrets/owner-password",
+                "uid": 1000
+              }
+            ],
             "volumes": [
               {
                 "backup": true,
@@ -34720,9 +34732,6 @@
             "networkRefs": [
               "paperless-internal"
             ],
-            "ownerEnvironment": {
-              "PAPERLESS_ADMIN_MAIL": "email"
-            },
             "pocketIDClient": {
               "callbackPath": "/accounts/oidc/pocketid/login/callback/",
               "environment": {
@@ -35037,7 +35046,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:cb57a9c4f55d1675bd0f8b248b5a50ba00824468f766d253603a630e6c00c0c5",
+          "contractHash": "sha256:e52e29d64a9efc3e642876514650437c0da694fad56d2934fd12569d55039177",
           "id": "roundcube",
           "inputBindings": [
             {
@@ -35510,7 +35519,7 @@
             "entrypoint": [
               "/bin/sh",
               "-c",
-              "set -eu; printf '%s' '{\"@type\":\"RocksDb\",\"path\":\"/var/lib/stalwart/\"}' \u003e /etc/stalwart/config.json; export STALWART_RECOVERY_ADMIN=\"admin:${STACKKIT_ADMIN_SECRET:?}\"; unset STACKKIT_ADMIN_SECRET; if [ ! -f /var/lib/stalwart/.stackkit-seed-v1 ]; then /usr/local/bin/stalwart --config /etc/stalwart/config.json \u0026 pid=$!; i=0; until curl -fs -o /dev/null http://127.0.0.1:8080/healthz/ready; do i=$((i+1)); [ \"$i\" -lt 90 ] || exit 1; sleep 1; done; printf 'user = \"%s\"\\n' \"$STALWART_RECOVERY_ADMIN\" | curl -fsS -K - -H 'Content-Type: application/json' -o /tmp/stackkit-seed.json -d '{\"using\":[\"urn:ietf:params:jmap:core\",\"urn:stalwart:jmap\"],\"methodCalls\":[[\"x:Tracer/get\",{\"properties\":[\"id\"]},\"t0\"],[\"x:Tracer/set\",{\"#destroy\":{\"resultOf\":\"t0\",\"name\":\"x:Tracer/get\",\"path\":\"/list/*/id\"},\"create\":{\"stdout\":{\"@type\":\"Stdout\",\"level\":\"info\",\"ansi\":false}}},\"t1\"],[\"x:NetworkListener/set\",{\"create\":{\"submission\":{\"name\":\"submission\",\"bind\":{\"[::]:587\":true},\"protocol\":\"smtp\",\"tlsImplicit\":false}}},\"l1\"]]}' http://127.0.0.1:8080/jmap/; grep -q '\"submission\":{\"id\"' /tmp/stackkit-seed.json; grep -q '\"stdout\":{\"id\"' /tmp/stackkit-seed.json; rm -f /tmp/stackkit-seed.json; kill \"$pid\"; wait \"$pid\" || true; touch /var/lib/stalwart/.stackkit-seed-v1; fi; exec /usr/local/bin/stalwart --config /etc/stalwart/config.json"
+              "set -eu; printf '%s' '{\"@type\":\"RocksDb\",\"path\":\"/var/lib/stalwart/\"}' \u003e /etc/stalwart/config.json; secret=$(cat \"$STACKKIT_ADMIN_SECRET_FILE\"); export STALWART_RECOVERY_ADMIN=\"admin:${secret:?}\"; unset secret; if [ ! -f /var/lib/stalwart/.stackkit-seed-v1 ]; then /usr/local/bin/stalwart --config /etc/stalwart/config.json \u0026 pid=$!; i=0; until curl -fs -o /dev/null http://127.0.0.1:8080/healthz/ready; do i=$((i+1)); [ \"$i\" -lt 90 ] || exit 1; sleep 1; done; printf 'user = \"%s\"\\n' \"$STALWART_RECOVERY_ADMIN\" | curl -fsS -K - -H 'Content-Type: application/json' -o /tmp/stackkit-seed.json -d '{\"using\":[\"urn:ietf:params:jmap:core\",\"urn:stalwart:jmap\"],\"methodCalls\":[[\"x:Tracer/get\",{\"properties\":[\"id\"]},\"t0\"],[\"x:Tracer/set\",{\"#destroy\":{\"resultOf\":\"t0\",\"name\":\"x:Tracer/get\",\"path\":\"/list/*/id\"},\"create\":{\"stdout\":{\"@type\":\"Stdout\",\"level\":\"info\",\"ansi\":false}}},\"t1\"],[\"x:NetworkListener/set\",{\"create\":{\"submission\":{\"name\":\"submission\",\"bind\":{\"[::]:587\":true},\"protocol\":\"smtp\",\"tlsImplicit\":false}}},\"l1\"]]}' http://127.0.0.1:8080/jmap/; grep -q '\"submission\":{\"id\"' /tmp/stackkit-seed.json; grep -q '\"stdout\":{\"id\"' /tmp/stackkit-seed.json; rm -f /tmp/stackkit-seed.json; kill \"$pid\"; wait \"$pid\" || true; touch /var/lib/stalwart/.stackkit-seed-v1; fi; exec /usr/local/bin/stalwart --config /etc/stalwart/config.json"
             ],
             "health": {
               "kind": "http",
@@ -35556,9 +35565,15 @@
             "routeHostEnvironment": {
               "STALWART_HOSTNAME": "route-host"
             },
-            "secretEnvironment": {
-              "STACKKIT_ADMIN_SECRET": "admin-password"
-            },
+            "secretFiles": [
+              {
+                "gid": 2000,
+                "pathEnvironment": "STACKKIT_ADMIN_SECRET_FILE",
+                "slot": "admin-password",
+                "target": "/run/secrets/admin-password",
+                "uid": 2000
+              }
+            ],
             "volumes": [
               {
                 "backup": true,
@@ -38452,7 +38467,7 @@
             "command": [
               "/bin/sh",
               "-ec",
-              "printf 'per_listener_settings true\\npersistence true\\npersistence_location /mosquitto/data/\\nlistener 1883\\nallow_anonymous false\\npassword_file /mosquitto/data/passwd\\nlistener 8080\\nprotocol http_api\\nallow_anonymous true\\n' \u003e /mosquitto/data/mosquitto.conf \u0026\u0026 mosquitto_passwd -b -c /mosquitto/data/passwd stackkit \"$MQTT_PASSWORD\" \u0026\u0026 unset MQTT_PASSWORD \u0026\u0026 chown mosquitto:mosquitto /mosquitto/data/mosquitto.conf /mosquitto/data/passwd \u0026\u0026 exec mosquitto -c /mosquitto/data/mosquitto.conf"
+              "printf 'per_listener_settings true\\npersistence true\\npersistence_location /mosquitto/data/\\nlistener 1883\\nallow_anonymous false\\npassword_file /mosquitto/data/passwd\\nlistener 8080\\nprotocol http_api\\nallow_anonymous true\\n' \u003e /mosquitto/data/mosquitto.conf \u0026\u0026 password=$(cat \"$MQTT_PASSWORD_FILE\") \u0026\u0026 rm -f /mosquitto/data/passwd \u0026\u0026 mosquitto_passwd -b -c /mosquitto/data/passwd stackkit \"$password\" \u0026\u0026 chown mosquitto:mosquitto /mosquitto/data/mosquitto.conf /mosquitto/data/passwd \u0026\u0026 exec mosquitto -c /mosquitto/data/mosquitto.conf"
             ],
             "dependsOn": [],
             "health": {
@@ -38481,9 +38496,15 @@
               "memoryReservation": "32m"
             },
             "role": "application",
-            "secretEnvironment": {
-              "MQTT_PASSWORD": "mqtt-password"
-            },
+            "secretFiles": [
+              {
+                "gid": 0,
+                "pathEnvironment": "MQTT_PASSWORD_FILE",
+                "slot": "mqtt-password",
+                "target": "/run/secrets/mqtt-password",
+                "uid": 0
+              }
+            ],
             "volumes": [
               {
                 "backup": true,

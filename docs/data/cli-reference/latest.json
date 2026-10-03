@@ -2408,7 +2408,7 @@
         {
           "name": "inventory",
           "type": "string",
-          "description": "Workspace-confined inventory.json to update atomically",
+          "description": "Workspace-confined inventory.json or inventory.yaml to update atomically (default: the Inventory generate uses)",
           "required": false
         },
         {
@@ -2441,7 +2441,7 @@
         {
           "name": "inventory",
           "type": "string",
-          "description": "Workspace-confined inventory.json to update atomically",
+          "description": "Workspace-confined inventory.json or inventory.yaml to update atomically (default: the Inventory generate uses)",
           "required": false
         },
         {

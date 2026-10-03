@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/kombifyio/stackkits/cmd/stackkit/commands"
+	"github.com/kombifyio/stackkits/internal/secretexec"
 )
 
 // Version information (set by build)
@@ -16,6 +17,11 @@ var (
 )
 
 func main() {
+	// Started as a native container's governed entrypoint shim: read the
+	// mounted secret files and exec the image's own entrypoint.
+	if secretexec.Invoked(os.Args[0]) {
+		os.Exit(secretexec.Main(os.Args[1:]))
+	}
 	commands.SetVersionInfo(Version, GitCommit, BuildDate)
 
 	if isAPIMode(os.Args) {

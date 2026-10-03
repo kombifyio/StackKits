@@ -57,7 +57,7 @@
         "nodeRef": { "type": "string", "minLength": 1 },
         "runtimeRoot": { "type": "string", "pattern": "^\\.stackkit/runtime/.+/opentofu$" },
         "status": {
-          "description": "converged: plan exit 0. drifted: plan exit 2 after apply (fails the change set). failed: the plan could not run. pending_root: the runtime root has no main.tf yet; fails the change set for core and workload roles only. other_host: the stack belongs to another host project and runs through that host's execution channel.",
+          "description": "converged: plan exit 0. drifted: plan exit 2 after apply (fails the change set). failed: the plan could not run. pending_root: the runtime root has no main.tf; fails the change set unless the module is remote-owned (its owner runs as a process-dispatched operations process, so no host holds its root). other_host: the stack belongs to another host project and runs through that host's execution channel.",
           "enum": ["converged", "drifted", "failed", "pending_root", "other_host"]
         },
         "planExitCode": {

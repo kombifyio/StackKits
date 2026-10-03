@@ -235,7 +235,7 @@ func validateStalwartRuntimeComponents(components []selectedPaaSRuntimeComponent
 		!exactStringList(c.NetworkRefs, []string{"mail-server-internal"}) || !c.Egress || !slices.Equal(c.Entrypoint, entrypoint) ||
 		len(c.Command) != 0 || c.RouteHostLoopback || c.DockerLifecycleOwner != nil || len(c.OwnerEnvironment) != 0 ||
 		len(c.Environment) != 0 ||
-		!reflect.DeepEqual(c.SecretEnvironment, map[string]string{"STACKKIT_ADMIN_SECRET": "admin-password"}) ||
+		len(c.SecretEnvironment) != 0 || !reflect.DeepEqual(c.SecretFiles, []selectedPaaSSecretFile{stalwartAdminPasswordFile}) ||
 		!reflect.DeepEqual(c.RouteHostEnvironment, map[string]string{StalwartHostnameEnv: "route-host"}) ||
 		!reflect.DeepEqual(c.PublishedPorts, stalwartPublishedPorts()) || c.AcmeTLSALPNPort != StalwartACMETLSALPNPort ||
 		c.Health.Kind != "http" || c.Health.Path != "/healthz/ready" || c.Health.Port != stalwartHTTPPort || len(c.Health.Command) != 0 {

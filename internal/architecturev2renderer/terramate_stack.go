@@ -28,6 +28,7 @@ type TerramateStackSpec struct {
 	Description string
 	Tags        []string
 	After       []string
+	Before      []string
 }
 
 // RenderTerramateStack emits the canonical `stack` block. Values are limited
@@ -38,7 +39,7 @@ func RenderTerramateStack(spec TerramateStackSpec) ([]byte, error) {
 		return nil, fail(ErrRendererFailure, "renderer.terramate-stack", "stack id, name, description and tags are required")
 	}
 	values := append([]string{spec.ID, spec.Name, spec.Description}, spec.Tags...)
-	for _, value := range append(values, spec.After...) {
+	for _, value := range append(append(values, spec.After...), spec.Before...) {
 		if !terramateLiteralSafe(value) {
 			return nil, fail(ErrRendererFailure, "renderer.terramate-stack", "value %q is not a literal-safe HCL string", value)
 		}
@@ -51,6 +52,9 @@ func RenderTerramateStack(spec TerramateStackSpec) ([]byte, error) {
 	out.WriteString(`  tags        = ` + terramateStringList(spec.Tags) + "\n")
 	if len(spec.After) > 0 {
 		out.WriteString(`  after       = ` + terramateStringList(spec.After) + "\n")
+	}
+	if len(spec.Before) > 0 {
+		out.WriteString(`  before      = ` + terramateStringList(spec.Before) + "\n")
 	}
 	out.WriteString("}\n")
 	return out.Bytes(), nil
@@ -73,6 +77,20 @@ func terramateLiteralSafe(value string) bool {
 		}
 	}
 	return true
+}
+
+// RenderHostPrestepStack emits the `stack.tm.hcl` of the host pre-step stack
+// of one host (owner decision O1). The stack has no render unit, so the
+// executor renders it from the same identity authority as every other stack.
+func RenderHostPrestepStack(siteRef, nodeRef string) ([]byte, error) {
+	definition, err := terramatestackgraph.Define(terramatestackgraph.RoleHost, terramatestackgraph.HostModuleRef, siteRef, nodeRef)
+	if err != nil {
+		return nil, wrap(ErrInvalidPlan, "terramate.host", "derive the host pre-step stack identity", err)
+	}
+	return RenderTerramateStack(TerramateStackSpec{
+		ID: definition.ID, Name: definition.Name, Description: definition.Description,
+		Tags: definition.Tags, After: definition.AfterQueries, Before: definition.BeforeQueries,
+	})
 }
 
 // renderTerramateStackForUnit derives the stack of one node-local render

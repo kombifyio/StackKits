@@ -103,7 +103,8 @@ func (p servicePlanProjection) applicationServiceControls(declared []serviceDefi
 		taken["key\x00"+workload.ID] = struct{}{}
 		taken["ref\x00"+serviceRef] = struct{}{}
 		result = append(result, serviceDefinition{
-			Key: workload.ID, ServiceRef: serviceRef, Adapter: applicationComposeAdapter,
+			ModuleID: workload.Alternative.ModuleRef,
+			Key:      workload.ID, ServiceRef: serviceRef, Adapter: applicationComposeAdapter,
 			RuntimeRef: workload.ID + "-" + workload.NodeRefs[0], ComponentRefs: components,
 			AllowedActions: []string{ActionLogs, ActionRestart, ActionStart, ActionStop},
 		})

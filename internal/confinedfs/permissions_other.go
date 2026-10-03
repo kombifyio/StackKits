@@ -4,4 +4,4 @@ package confinedfs
 
 import "os"
 
-func verifyMode0600(_ os.FileInfo) (bool, error) { return false, nil }
+func verifyMode(os.FileInfo, os.FileMode) (bool, error) { return false, nil }

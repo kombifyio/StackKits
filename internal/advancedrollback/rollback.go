@@ -12,8 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/terramatehost"
+	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 )
 
 // Request is one coordinated rollback of the local host to one verified
@@ -115,6 +117,11 @@ func Plan(request Request) ([]Step, error) {
 		step := Step{StackID: stack.ID, Role: stack.Role, RuntimeRoot: stack.RuntimeRoot, Action: ActionUnchanged}
 		files, captured := targetRoots[stack.RuntimeRoot]
 		switch {
+		case stack.Role == hostRole:
+			// The host pre-step owns no root and is never destroyed: it is
+			// reconciled to its baseline, whatever the checkpoint's graph
+			// held (a checkpoint older than the host stack has none).
+			step.Action = ActionRestored
 		case !inTarget[stack.RuntimeRoot]:
 			// Added after the checkpoint: tear it down if anything of it
 			// exists on disk.
@@ -259,6 +266,9 @@ func runStep(ctx context.Context, request Request, journal *Journal, step Step, 
 		return result
 	}
 	stack := Stack{ID: step.StackID, Role: step.Role, RuntimeRoot: step.RuntimeRoot}
+	if step.Role == hostRole {
+		return runHostStep(ctx, request, step, result, finish)
+	}
 	var environment []string
 	if request.Environment != nil && step.Action != ActionUnchanged {
 		var err error
@@ -284,7 +294,9 @@ func runStep(ctx context.Context, request Request, journal *Journal, step Step, 
 			if detail := ensureInitialized(request.WorkspaceRoot, step.RuntimeRoot, run); detail != "" {
 				return finish(StackFailed, detail)
 			}
-			destroyed, err := run("destroy", "-auto-approve", "-input=false", "-no-color")
+			// A native root forgets its data volumes (`destroy = false`);
+			// the flag keeps that successful destroy from exiting 1.
+			destroyed, err := run("destroy", "-auto-approve", "-input=false", "-no-color", "-suppress-forget-errors")
 			if err != nil || destroyed.ExitCode != 0 {
 				return finish(StackFailed, commandDetail("tofu destroy", destroyed, err))
 			}
@@ -298,7 +310,27 @@ func runStep(ctx context.Context, request Request, journal *Journal, step Step, 
 		if !captured {
 			return finish(StackFailed, "the target checkpoint has no captured root for this stack")
 		}
+		targetNative, err := architecturev2renderer.NativeDockerRootConfig(files.Config)
+		if err != nil {
+			return finish(StackFailed, "read the checkpoint root: "+err.Error())
+		}
+		currentNative := currentExecutionNative(request.WorkspaceRoot, step.RuntimeRoot)
 		if !result.FilesRestored {
+			// A native Docker-provider root on either side is left with a
+			// forget-safe destroy of the current root before the checkpoint
+			// files are written: the restored state does not track the
+			// containers a newer revision created, so they would block the
+			// restored ones by name, and a wrapper and a native root never
+			// own the same containers at once. Data volumes stay.
+			if step.Action == ActionRestored && (targetNative || currentNative) {
+				if detail := ensureInitialized(request.WorkspaceRoot, step.RuntimeRoot, run); detail != "" {
+					return finish(StackFailed, detail)
+				}
+				left, err := run("destroy", "-auto-approve", "-input=false", "-no-color", "-suppress-forget-errors")
+				if err != nil || left.ExitCode != 0 {
+					return finish(StackFailed, commandDetail("tofu destroy of the current root", left, err))
+				}
+			}
 			if err := restoreRoot(request.WorkspaceRoot, step.RuntimeRoot, files); err != nil {
 				return finish(StackFailed, err.Error())
 			}
@@ -308,11 +340,21 @@ func runStep(ctx context.Context, request Request, journal *Journal, step Step, 
 				return finish(StackFailed, err.Error())
 			}
 		}
-		address, err := terramatehost.ReplaceTriggerAddress(files.Config)
+		if err := opentofu.AlignRestoredWorkloadRoot(request.WorkspaceRoot, step.RuntimeRoot); err != nil {
+			return finish(StackFailed, "align the restored workload root: "+err.Error())
+		}
+		applyArgs, err := terramatehost.ForcedApplyArgs(files.Config)
 		if err != nil {
 			return finish(StackFailed, err.Error())
 		}
-		if detail := ensureInitialized(request.WorkspaceRoot, step.RuntimeRoot, run); detail != "" {
+		if targetNative || currentNative {
+			// The restored lock can name other providers than the ones the
+			// root was initialized with.
+			initialized, err := run("init", "-input=false", "-lockfile=readonly", "-no-color")
+			if err != nil || initialized.ExitCode != 0 {
+				return finish(StackFailed, commandDetail("tofu init", initialized, err))
+			}
+		} else if detail := ensureInitialized(request.WorkspaceRoot, step.RuntimeRoot, run); detail != "" {
 			return finish(StackFailed, detail)
 		}
 		var complete func(context.Context) error
@@ -322,12 +364,12 @@ func runStep(ctx context.Context, request Request, journal *Journal, step Step, 
 			}
 		}
 		// Restored state and payload plan as a no-op even when newer
-		// containers still run, so the wrapper trigger is replaced
+		// containers still run, so a wrapper trigger is replaced
 		// explicitly: its create-time provisioner runs `up` against the
-		// restored payload.
-		applied, err := run("apply", "-auto-approve", "-input=false", "-no-color", "-replace="+address)
+		// restored payload. A native root converges with a plain apply.
+		applied, err := run(applyArgs...)
 		if err != nil || applied.ExitCode != 0 {
-			return finish(StackFailed, commandDetail("tofu apply -replace="+address, applied, err))
+			return finish(StackFailed, commandDetail("tofu "+strings.Join(applyArgs, " "), applied, err))
 		}
 		if complete != nil {
 			if err := complete(ctx); err != nil {
@@ -347,6 +389,17 @@ func runStep(ctx context.Context, request Request, journal *Journal, step Step, 
 	default:
 		return finish(StackFailed, "unknown action "+step.Action)
 	}
+}
+
+// currentExecutionNative reports whether the workload root's executor marker
+// records a native Docker-provider execution.
+func currentExecutionNative(workspaceRoot, runtimeRoot string) bool {
+	absolute, err := confinedFile(workspaceRoot, runtimeRoot, false)
+	if err != nil {
+		return false
+	}
+	marker, err := opentofu.ReadRootMarker(absolute)
+	return err == nil && marker.Execution == opentofu.RootExecutionNativeDocker
 }
 
 func commandDetail(command string, result terramatehost.StackTofuResult, err error) string {
@@ -521,4 +574,27 @@ func removeRoot(workspaceRoot, runtimeRoot string) error {
 		return fmt.Errorf("remove %s: %w", filepath.ToSlash(target), err)
 	}
 	return nil
+}
+
+// hostRole is the role of the host pre-step stack (owner decision O1).
+const hostRole = "host"
+
+// runHostStep reconciles the host pre-step through the pinned StackKits CLI:
+// repair, then the verify loop as the convergence proof, in place of the
+// forced apply and detailed-exitcode plan of an OpenTofu root.
+func runHostStep(
+	ctx context.Context, request Request, step Step, result StepResult,
+	finish func(status, detail string) StepResult,
+) StepResult {
+	restored, err := terramatehost.RestoreHostStep(ctx, request.WorkspaceRoot, request.Tools, request.Timeout, terramatestackgraph.Stack{
+		ID: step.StackID, Role: terramatestackgraph.RoleHost, RuntimeRoot: step.RuntimeRoot,
+	})
+	if err != nil {
+		return finish(StackFailed, err.Error())
+	}
+	result.PlanExitCode = restored.PlanExitCode
+	if restored.Status != terramatehost.StackConverged {
+		return finish(StackFailed, restored.Detail)
+	}
+	return finish(StackConverged, "")
 }

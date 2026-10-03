@@ -7,9 +7,9 @@ import (
 	"os"
 )
 
-func verifyMode0600(info os.FileInfo) (bool, error) {
-	if info.Mode().Perm() != 0o600 {
-		return false, fmt.Errorf("mode is %04o, want 0600", info.Mode().Perm())
+func verifyMode(info os.FileInfo, want os.FileMode) (bool, error) {
+	if info.Mode().Perm() != want {
+		return false, fmt.Errorf("mode is %04o, want %04o", info.Mode().Perm(), want)
 	}
 	return true, nil
 }

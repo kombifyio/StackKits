@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -37,9 +38,11 @@ const (
 	StackDrifted = "drifted"
 	// StackFailed: the plan could not run (exit 1 or a Terramate error).
 	StackFailed = "failed"
-	// StackPendingRoot: the runtime root has no `main.tf` yet. Tolerated only
-	// for artifact-only roles (edge, federation), whose roots the executor
-	// does not materialize yet; a core or workload root must exist.
+	// StackPendingRoot: the runtime root has no `main.tf`. Tolerated only for
+	// a stack whose module is remote-owned (LocalRootRequired): its owner runs
+	// as a remote operations process, so no host holds its root. Every other
+	// root (core, workload, and the edge and federation contract roots) must
+	// exist after apply.
 	StackPendingRoot = "pending_root"
 	// StackOtherHost: the stack belongs to another host project. Its change
 	// runs through that host's execution channel (Techstack dispatch).
@@ -103,6 +106,9 @@ func Reason(err error) (ErrorCode, bool) {
 type Tools struct {
 	Terramate string
 	Tofu      string
+	// StackKit is the pinned StackKits CLI the host pre-step runs. Empty
+	// fails the host stack closed.
+	StackKit string
 }
 
 // PackagedTools resolves the release-packaged Terramate and OpenTofu binaries
@@ -114,7 +120,12 @@ func PackagedTools() (Tools, error) {
 	if !terramateOK || !tofuOK {
 		return Tools{}, &Error{Code: ErrToolMissing, Detail: "Advanced change sets require the Terramate and OpenTofu binaries packaged with the StackKit release (or STACKKIT_TERRAMATE_BINARY and STACKKIT_TOFU_BINARY)"}
 	}
-	return Tools{Terramate: terramateBinary, Tofu: tofuBinary}, nil
+	stackkit := os.Getenv("STACKKIT_CLI_BINARY")
+	if stackkit == "" {
+		// The pinned StackKits CLI is the executable running the command.
+		stackkit, _ = os.Executable()
+	}
+	return Tools{Terramate: terramateBinary, Tofu: tofuBinary, StackKit: stackkit}, nil
 }
 
 // StackResult is the outcome of one affected stack.
@@ -163,9 +174,21 @@ type ConvergeRequest struct {
 	ExpectedManifestSHA256 string
 	// AffectedStacks are the change set's stack IDs in graph run order.
 	AffectedStacks []string
-	Tools          Tools
-	Timeout        time.Duration
-	Event          EventFunc
+	// RemoteOwnedModules are the module refs whose runtime owner runs as a
+	// remote operations process (Techstack dispatch). Only their stacks may
+	// stay pending_root.
+	RemoteOwnedModules []string
+	Tools              Tools
+	Timeout            time.Duration
+	Event              EventFunc
+}
+
+// LocalRootRequired reports whether a stack's OpenTofu root must exist on its
+// host after apply. Every stack that owns a root needs it, except a stack
+// whose module is remote-owned: its owner runs as a remote operations process
+// and no host materializes its root. The host pre-step owns no root.
+func LocalRootRequired(role, moduleRef string, remoteOwnedModules []string) bool {
+	return role != string(terramatestackgraph.RoleHost) && !slices.Contains(remoteOwnedModules, moduleRef)
 }
 
 // Converge materializes the host project, proves that Terramate orders the
@@ -252,6 +275,8 @@ func Converge(ctx context.Context, request ConvergeRequest) (Report, error) {
 		switch {
 		case stack.SiteRef != layout.Host.SiteRef || stack.NodeRef != layout.Host.NodeRef:
 			result.Status = StackOtherHost
+		case stack.Role == terramatestackgraph.RoleHost:
+			result = verifyHostStep(ctx, workspace, request, stack, result)
 		default:
 			result = planStack(ctx, workspace, request, stack, result)
 		}
@@ -261,8 +286,10 @@ func Converge(ctx context.Context, request ConvergeRequest) (Report, error) {
 		case StackFailed:
 			failed = append(failed, stack.ID)
 		case StackPendingRoot:
-			if stack.Role == terramatestackgraph.RoleCore || stack.Role == terramatestackgraph.RoleWorkload {
+			if LocalRootRequired(string(stack.Role), stack.ModuleRef, request.RemoteOwnedModules) {
 				failed = append(failed, stack.ID)
+			} else {
+				result.Detail = "the module's owner runs as a remote operations process; no host holds its OpenTofu root"
 			}
 		}
 		attributes := map[string]string{

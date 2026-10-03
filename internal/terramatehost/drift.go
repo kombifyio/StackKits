@@ -52,6 +52,9 @@ func PlanLocalStack(ctx context.Context, workspaceRoot string, layout Layout, to
 		result.Status = StackOtherHost
 		return StackPlan{Result: result}, nil
 	}
+	if stack.Role == terramatestackgraph.RoleHost {
+		return StackPlan{Result: verifyHostStep(ctx, workspace, request, stack, result)}, nil
+	}
 	result, stdout := runStackPlan(ctx, workspace, request, stack, result)
 	return StackPlan{Result: result, Stdout: stdout}, nil
 }

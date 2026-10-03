@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -681,6 +682,13 @@ func appendCurrentStateControlBlobs(
 		{ID: runtimeCustody.ID, Path: runtimeCustody.Path, Mode: runtimeCustody.Mode, Data: append([]byte(nil), runtimeCustody.Data...)},
 		runtimeGraph,
 	}
+	hostEvidence, err := hostPrestepEvidenceBlob(input.WorkspaceRoot, input.Capture.GenerationTarget)
+	if err != nil {
+		return err
+	}
+	if hostEvidence != nil {
+		controls = append(controls, *hostEvidence)
+	}
 	for _, control := range controls {
 		for _, artifact := range input.Capture.Artifacts {
 			if artifact.ID == control.ID || strings.EqualFold(filepathToSlash(artifact.Path), control.Path) {
@@ -690,6 +698,33 @@ func appendCurrentStateControlBlobs(
 		input.Capture.Artifacts = append(input.Capture.Artifacts, control)
 	}
 	return nil
+}
+
+// HostPrestepEvidenceID and HostPrestepEvidencePath bind the host pre-step's
+// state to the executor-state checkpoint (owner decision O1, ADR-0045 addendum
+// A4): the host-security evidence its verify loop last recorded is a signed
+// control blob of every checkpoint of a Terramate install, so a coordinated
+// rollback restores it with the other stacks' state.
+const (
+	HostPrestepEvidenceID   = "host-security-evidence"
+	HostPrestepEvidencePath = ".stackkit/host-security-evidence.json"
+)
+
+// hostPrestepEvidenceBlob returns the recorded host-security evidence as a
+// checkpoint control blob, or nil when the target runs no host pre-step or the
+// host step has recorded nothing yet.
+func hostPrestepEvidenceBlob(workspaceRoot, generationTarget string) (*ExecutorStateBlobInput, error) {
+	if generationTarget != executorStateTargetTerramate {
+		return nil, nil
+	}
+	data, err := os.ReadFile(filepath.Join(workspaceRoot, filepath.FromSlash(HostPrestepEvidencePath)))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("current state authority: read the host pre-step evidence: %w", err)
+	}
+	return &ExecutorStateBlobInput{ID: HostPrestepEvidenceID, Path: HostPrestepEvidencePath, Mode: "0600", Data: data}, nil
 }
 
 func currentStateRelativePath(root, target string) string {

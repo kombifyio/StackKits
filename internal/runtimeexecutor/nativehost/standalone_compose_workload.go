@@ -469,86 +469,23 @@ func (o *osStandaloneComposeWorkloadOperations) prepareWithIdentityMutation(
 	}, nil
 }
 
-type standaloneComposeDocument struct {
-	Name     string                              `yaml:"name"`
-	Services map[string]standaloneComposeService `yaml:"services"`
-	Networks map[string]standaloneComposeNetwork `yaml:"networks"`
-	Volumes  map[string]map[string]any           `yaml:"volumes,omitempty"`
-	// Secrets are custody secrets Compose copies into a container as files;
-	// each reads its value from the private .env interpolation file.
-	Secrets map[string]standaloneComposeSecret `yaml:"secrets,omitempty"`
-}
-
-type standaloneComposeSecret struct {
-	Environment string `yaml:"environment"`
-}
-
-// standaloneComposeServiceSecret places one secret file. Compose writes an
-// environment-sourced secret into the container with this owner and mode.
-type standaloneComposeServiceSecret struct {
-	Source string `yaml:"source"`
-	Target string `yaml:"target"`
-	UID    string `yaml:"uid"`
-	GID    string `yaml:"gid"`
-	Mode   int    `yaml:"mode"`
-}
-
-type standaloneComposeService struct {
-	Image   string `yaml:"image"`
-	Restart string `yaml:"restart,omitempty"`
-	// Runtime names a registered OCI runtime other than the daemon default
-	// (gVisor's runsc for the governed agent harness).
-	Runtime     string                                 `yaml:"runtime,omitempty"`
-	Logging     *standaloneComposeLogging              `yaml:"logging,omitempty"`
-	OOMScoreAdj *int                                   `yaml:"oom_score_adj,omitempty"`
-	Deploy      *standaloneComposeDeploy               `yaml:"deploy,omitempty"`
-	Command     []string                               `yaml:"command,omitempty"`
-	Entrypoint  []string                               `yaml:"entrypoint,omitempty"`
-	DependsOn   map[string]standaloneComposeDependency `yaml:"depends_on,omitempty"`
-	Environment map[string]string                      `yaml:"environment,omitempty"`
-	Volumes     []any                                  `yaml:"volumes,omitempty"`
-	Networks    []string                               `yaml:"networks"`
-	Ports       []string                               `yaml:"ports,omitempty"`
-	Devices     []string                               `yaml:"devices,omitempty"`
-	ExtraHosts  []string                               `yaml:"extra_hosts,omitempty"`
-	StopSignal  string                                 `yaml:"stop_signal,omitempty"`
-	Init        *bool                                  `yaml:"init,omitempty"`
-	Labels      map[string]string                      `yaml:"labels,omitempty"`
-	Healthcheck *standaloneComposeHealthcheck          `yaml:"healthcheck,omitempty"`
-	Secrets     []standaloneComposeServiceSecret       `yaml:"secrets,omitempty"`
-}
-
-type standaloneComposeDependency struct {
-	Condition string `yaml:"condition"`
-}
-
-// standaloneComposeDeploy carries the declared per-container ceiling. Compose
-// applies deploy.resources outside Swarm, so this is the ordinary way to cap a
-// container on a single host.
-type standaloneComposeDeploy struct {
-	Resources standaloneComposeResources `yaml:"resources"`
-}
-
-type standaloneComposeResources struct {
-	Limits       *standaloneComposeResourceBounds `yaml:"limits,omitempty"`
-	Reservations *standaloneComposeResourceBounds `yaml:"reservations,omitempty"`
-}
-
-type standaloneComposeResourceBounds struct {
-	Memory string `yaml:"memory,omitempty"`
-	CPUs   string `yaml:"cpus,omitempty"`
-	// Devices are reservation-only device requests (a GPU through CDI).
-	Devices []standaloneComposeDeviceRequest `yaml:"devices,omitempty"`
-}
-
-// standaloneComposeDeviceRequest is one Compose device reservation. Docker
-// hands a request with driver "cdi" to its CDI device driver, which injects
-// the devices of the named CDI spec entry.
-type standaloneComposeDeviceRequest struct {
-	Driver       string   `yaml:"driver"`
-	DeviceIDs    []string `yaml:"device_ids"`
-	Capabilities []string `yaml:"capabilities"`
-}
+// The workload Compose project is the shared typed model of the renderer
+// package, so the Stage 2 native renderer translates exactly what this owner
+// emits.
+type (
+	standaloneComposeDocument       = architecturev2renderer.WorkloadComposeDocument
+	standaloneComposeSecret         = architecturev2renderer.WorkloadComposeSecret
+	standaloneComposeServiceSecret  = architecturev2renderer.WorkloadComposeServiceSecret
+	standaloneComposeService        = architecturev2renderer.WorkloadComposeService
+	standaloneComposeDependency     = architecturev2renderer.WorkloadComposeDependency
+	standaloneComposeDeploy         = architecturev2renderer.WorkloadComposeDeploy
+	standaloneComposeResources      = architecturev2renderer.WorkloadComposeResources
+	standaloneComposeResourceBounds = architecturev2renderer.WorkloadComposeResourceBounds
+	standaloneComposeDeviceRequest  = architecturev2renderer.WorkloadComposeDeviceRequest
+	standaloneComposeLogging        = architecturev2renderer.WorkloadComposeLogging
+	standaloneComposeNetwork        = architecturev2renderer.WorkloadComposeNetwork
+	standaloneComposeHealthcheck    = architecturev2renderer.WorkloadComposeHealthcheck
+)
 
 // NVIDIACDIAllGPUs is the CDI device the NVIDIA Container Toolkit spec
 // (nvidia-ctk cdi generate) declares for every GPU of the node.
@@ -606,14 +543,6 @@ func componentDeploy(declared *architecturev2renderer.ApplicationDeliveryResourc
 	return deploy
 }
 
-// standaloneComposeLogging bounds container logs. Without it the json-file
-// driver grows without limit, and a homelab that ran fine for weeks fills its
-// disk and takes the whole stack down with it.
-type standaloneComposeLogging struct {
-	Driver  string            `yaml:"driver"`
-	Options map[string]string `yaml:"options"`
-}
-
 // workloadLogging is the bounded log policy every workload container gets.
 func workloadLogging() *standaloneComposeLogging {
 	return &standaloneComposeLogging{
@@ -644,20 +573,6 @@ func oomScoreAdjForRole(role string) *int {
 		return nil
 	}
 	return &score
-}
-
-type standaloneComposeNetwork struct {
-	Name     string `yaml:"name,omitempty"`
-	External bool   `yaml:"external,omitempty"`
-	Internal bool   `yaml:"internal,omitempty"`
-}
-
-type standaloneComposeHealthcheck struct {
-	Test        []string `yaml:"test"`
-	Interval    string   `yaml:"interval"`
-	Timeout     string   `yaml:"timeout"`
-	Retries     int      `yaml:"retries"`
-	StartPeriod string   `yaml:"start_period"`
 }
 
 // standaloneComposeGameNodeModuleRef is the only workload admitted to the
@@ -1172,7 +1087,8 @@ func standaloneComposeProjectFiles(project standaloneComposeProject) map[string]
 	return files
 }
 
-// persistFiles installs the given project files atomically and owner-only.
+// persistFiles installs the given project files atomically and owner-only;
+// only the public CA bundle is readable by a container user.
 func (o *osStandaloneComposeWorkloadOperations) persistFiles(project standaloneComposeProject, files map[string][]byte) error {
 	if err := os.MkdirAll(project.directory, 0o700); err != nil {
 		return fmt.Errorf("create standalone Compose runtime directory: %w", err)
@@ -1194,8 +1110,13 @@ func (o *osStandaloneComposeWorkloadOperations) persistFiles(project standaloneC
 			return fmt.Errorf("create standalone Compose config directory: %w", err)
 		}
 	}
+	readable := standaloneComposeReadableConfigFiles(project.bundle)
 	for name, content := range files {
-		result, err := view.WriteAtomic0600(name, content)
+		write := view.WriteAtomic0600
+		if readable[name] {
+			write = view.WriteAtomic0644
+		}
+		result, err := write(name, content)
 		if err != nil {
 			return fmt.Errorf("persist private standalone Compose %s: %w", name, err)
 		}
@@ -1205,6 +1126,36 @@ func (o *osStandaloneComposeWorkloadOperations) persistFiles(project standaloneC
 	}
 	return nil
 }
+
+// standaloneComposeReadableConfigFiles are the project files a container user
+// other than root must read: the CA bundle holds public certificates only,
+// and an image that drops to an unprivileged user (Paperless runs its web
+// server as uid 1000) cannot open an owner-only bind mount. The 0700 project
+// directory still keeps host users out.
+func standaloneComposeReadableConfigFiles(bundle architecturev2renderer.ApplicationDeliveryBundleDescriptor) map[string]bool {
+	readable := map[string]bool{}
+	for _, component := range bundle.Components {
+		if access := component.HomeIdentityAccess; access != nil {
+			readable[architecturev2renderer.StandaloneComposeConfigRelPath(access.CABundleTarget)] = true
+		}
+	}
+	return readable
+}
+
+// StandaloneComposeDriftError reports that a persisted project file differs
+// from the authorized rendering. It is drift, not a failed observation: the
+// caller reports it as a typed difference, and an Advanced reconcile restores
+// the authorized files by re-applying the workload.
+type StandaloneComposeDriftError struct{ projectRef string }
+
+func (err *StandaloneComposeDriftError) Error() string {
+	return "standalone Compose runtime differs from the authorized workload"
+}
+func (err *StandaloneComposeDriftError) DriftSubject() string { return "runtime-configuration" }
+func (err *StandaloneComposeDriftError) DriftCode() string {
+	return "standalone-compose-runtime-changed"
+}
+func (err *StandaloneComposeDriftError) DriftProjectRef() string { return err.projectRef }
 
 func (o *osStandaloneComposeWorkloadOperations) verifyPersisted(project standaloneComposeProject) error {
 	root, err := confinedfs.Open(project.directory)
@@ -1223,7 +1174,7 @@ func (o *osStandaloneComposeWorkloadOperations) verifyPersisted(project standalo
 			return errors.New("standalone Compose runtime custody is unavailable")
 		}
 		if !bytes.Equal(actual, expected) {
-			return errors.New("standalone Compose runtime differs from the authorized workload")
+			return &StandaloneComposeDriftError{projectRef: project.name}
 		}
 	}
 	return nil

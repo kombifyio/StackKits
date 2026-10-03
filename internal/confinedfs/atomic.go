@@ -28,17 +28,25 @@ type AtomicWriteResult struct {
 // recovery, callers may use this only in a private staging tree without
 // concurrent writers.
 func (v View) WriteAtomic0600(relative string, data []byte) (result AtomicWriteResult, returnErr error) {
-	return v.writeAtomic0600(relative, data, true)
+	return v.writeAtomic(relative, data, true, 0o600)
+}
+
+// WriteAtomic0644 is WriteAtomic0600 for a file that holds no secret and must
+// be readable by another user, such as public certificates bind-mounted into
+// a container that runs as an unprivileged user. Its parent directory still
+// decides who can reach it.
+func (v View) WriteAtomic0644(relative string, data []byte) (result AtomicWriteResult, returnErr error) {
+	return v.writeAtomic(relative, data, true, 0o644)
 }
 
 // WriteAtomic0600NoReplace publishes a fully written 0600 file through a
 // same-parent hard link. The link is the atomic commit point and fails if the
 // destination appeared concurrently; an existing file is never replaced.
 func (v View) WriteAtomic0600NoReplace(relative string, data []byte) (result AtomicWriteResult, returnErr error) {
-	return v.writeAtomic0600(relative, data, false)
+	return v.writeAtomic(relative, data, false, 0o600)
 }
 
-func (v View) writeAtomic0600(relative string, data []byte, replace bool) (result AtomicWriteResult, returnErr error) {
+func (v View) writeAtomic(relative string, data []byte, replace bool, mode os.FileMode) (result AtomicWriteResult, returnErr error) {
 	full, release, err := v.begin("atomic-write", relative, false)
 	if err != nil {
 		return result, err
@@ -70,7 +78,7 @@ func (v View) writeAtomic0600(relative string, data []byte, replace bool) (resul
 	// A failed write deliberately preserves the unpredictable 0600 temporary
 	// name. Portable deletion by identity is unavailable; recovery owns it.
 	defer func() { _ = temporary.Close() }()
-	openedInfo, permissionsVerified, err := writeSyncCloseTemporary(path.Join(parent, temporaryName), temporary, data)
+	openedInfo, permissionsVerified, err := writeSyncCloseTemporary(path.Join(parent, temporaryName), temporary, data, mode)
 	if err != nil {
 		return result, err
 	}
@@ -152,8 +160,8 @@ func requirePlainAtomicTarget(parentRoot *os.Root, targetName, displayPath strin
 	return nil
 }
 
-func writeSyncCloseTemporary(temporaryFull string, temporary *os.File, data []byte) (os.FileInfo, bool, error) {
-	if err := temporary.Chmod(0o600); err != nil {
+func writeSyncCloseTemporary(temporaryFull string, temporary *os.File, data []byte, mode os.FileMode) (os.FileInfo, bool, error) {
+	if err := temporary.Chmod(mode); err != nil {
 		return nil, false, wrap(ErrIO, "atomic-write", temporaryFull, "set temporary file permissions through its handle", err)
 	}
 	if _, err := io.Copy(temporary, bytes.NewReader(append([]byte(nil), data...))); err != nil {
@@ -169,7 +177,7 @@ func writeSyncCloseTemporary(temporaryFull string, temporary *os.File, data []by
 	if !isPlainRegular(openedInfo) {
 		return nil, false, fail(ErrUnsafeEntry, "atomic-write", temporaryFull, "temporary handle is not a plain regular file")
 	}
-	permissionsVerified, err := verifyMode0600(openedInfo)
+	permissionsVerified, err := verifyMode(openedInfo, mode)
 	if err != nil {
 		return nil, false, wrap(ErrUnsafeEntry, "atomic-write", temporaryFull, "verify temporary file permissions through its handle", err)
 	}

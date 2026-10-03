@@ -110,7 +110,7 @@ func (o *WorkloadOperations) ApplyWorkload(ctx context.Context, deployment nativ
 		if err != nil {
 			return nativehost.SelectedPaaSApplyReceipt{}, err
 		}
-		if err := writeNativeSecretEnvFiles(prepared, nativeRoot.SecretEnvFiles); err != nil {
+		if err := writeNativeSecretFiles(prepared, nativeRoot.SecretFiles); err != nil {
 			return nativehost.SelectedPaaSApplyReceipt{}, err
 		}
 		config, parityGaps = nativeRoot.Config, nativeRoot.ParityGaps
@@ -187,9 +187,43 @@ func RenderWorkloadRoot(prepared nativehost.NativeWorkloadCompose) ([]byte, erro
 // the containers of its Compose payload, secrets mounted from owner-only
 // files beside it.
 func RenderNativeWorkloadRoot(moduleRef string, prepared nativehost.NativeWorkloadCompose) (architecturev2renderer.NativeDockerRoot, error) {
-	return architecturev2renderer.RenderNativeDockerOpenTofu(architecturev2renderer.NativeDockerSpec{
+	return architecturev2renderer.RenderNativeDockerOpenTofu(nativeWorkloadSpec(moduleRef, prepared, false))
+}
+
+func nativeWorkloadSpec(moduleRef string, prepared nativehost.NativeWorkloadCompose, pilotAliases bool) architecturev2renderer.NativeDockerSpec {
+	return architecturev2renderer.NativeDockerSpec{
 		ModuleRef: moduleRef, ProjectName: prepared.ProjectName, Compose: prepared.Compose, Wait: prepared.Wait,
-	})
+		SecretExecBinary: SecretExecBinary(), PilotNetworkAliases: pilotAliases,
+	}
+}
+
+// SecretExecBinaryEnv overrides the host path of the governed entrypoint
+// shim binary (internal/secretexec).
+const SecretExecBinaryEnv = "STACKKIT_SECRET_EXEC_BINARY"
+
+// SecretExecBinary is the host path a native root mounts as the governed
+// entrypoint shim: SecretExecBinaryEnv, else the running stackkit binary,
+// else a stackkit binary beside the running executable (stackkit-server).
+// It is empty when none exists; a root that needs the shim then fails
+// closed in the renderer.
+func SecretExecBinary() string {
+	if path := os.Getenv(SecretExecBinaryEnv); path != "" {
+		return path
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if executable, err = filepath.EvalSymlinks(executable); err != nil {
+		return ""
+	}
+	if filepath.Base(executable) != "stackkit" {
+		executable = filepath.Join(filepath.Dir(executable), "stackkit")
+	}
+	if info, err := os.Stat(executable); err != nil || !info.Mode().IsRegular() {
+		return ""
+	}
+	return executable
 }
 
 // nativeDockerOptIn reports whether the operator opted moduleRef into the
@@ -235,9 +269,10 @@ func (o *WorkloadOperations) leaveOtherExecution(ctx context.Context, workspace,
 	return nil
 }
 
-// writeNativeSecretEnvFiles writes each container's secret env file from the
-// prepared private .env into the owner-only secrets directory of the project.
-func writeNativeSecretEnvFiles(prepared nativehost.NativeWorkloadCompose, files []architecturev2renderer.NativeDockerSecretEnvFile) error {
+// writeNativeSecretFiles writes each secret file of a native root from the
+// prepared private .env into the owner-only secrets directory of the
+// project, with the mode its reader needs (NativeDockerSecretFile.Mode).
+func writeNativeSecretFiles(prepared nativehost.NativeWorkloadCompose, files []architecturev2renderer.NativeDockerSecretFile) error {
 	if len(files) == 0 {
 		return nil
 	}
@@ -257,11 +292,11 @@ func writeNativeSecretEnvFiles(prepared nativehost.NativeWorkloadCompose, files 
 		return fmt.Errorf("restrict the native secret directory: %w", err)
 	}
 	for _, file := range files {
-		content, err := architecturev2renderer.RenderNativeDockerSecretEnvFile(file, dotenv)
+		content, err := architecturev2renderer.RenderNativeDockerSecretFile(file, dotenv)
 		if err != nil {
 			return err
 		}
-		err = writeFileAtomic(directory, filepath.Base(file.RelPath), content, 0o600)
+		err = writeFileAtomic(directory, filepath.Base(file.RelPath), content, file.Mode())
 		clear(content)
 		if err != nil {
 			return err

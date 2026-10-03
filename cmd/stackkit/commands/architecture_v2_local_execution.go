@@ -33,6 +33,18 @@ var architectureV2ProcessDispatchedOwners = []architecturev2.ProductRuntimeOwner
 	architecturev2.ProductRuntimeOwnerHAModernQuorum,
 }
 
+// architectureV2RemoteOwnedModules are the module refs of the process-dispatched
+// owners (an owner ID is its module ref). No host materializes their OpenTofu
+// roots, so per-stack Advanced convergence and drift tolerate only their
+// missing roots.
+func architectureV2RemoteOwnedModules() []string {
+	modules := make([]string, 0, len(architectureV2ProcessDispatchedOwners))
+	for _, owner := range architectureV2ProcessDispatchedOwners {
+		modules = append(modules, string(owner))
+	}
+	return modules
+}
+
 // architectureV2LocalEvidenceObservers supplies the requirement observers of
 // the local Apply evidence collector. Tests replace it with stubbed observers.
 var architectureV2LocalEvidenceObservers = func(workspaceRoot string) (map[string]localevidence.Observer, error) {

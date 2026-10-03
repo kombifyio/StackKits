@@ -644,6 +644,38 @@ func architectureV2ProductExecutionChannels(options architectureV2ExecutionCLIOp
 	return channels, nil
 }
 
+// architectureV2ExecutionChannelBinder reports which Site/node pairs the
+// execution channels of this host cover: every Inventory-declared channel, or
+// else the explicit local flags or the persisted local custody binding. It
+// mirrors architectureV2ProductExecutionChannels and the custody binding of
+// the product runtime authority, so plan readiness and Apply agree. scope is
+// the host scope a multi-host Apply uses, or nil.
+func architectureV2ExecutionChannelBinder(wd string, options architectureV2ExecutionCLIOptions, now time.Time) (func(siteRef, nodeRef string) bool, *generationartifact.ApplyExecutionScope, error) {
+	var scope *generationartifact.ApplyExecutionScope
+	local, localErr := loadArchitectureV2LocalExecution(wd, now)
+	if localErr == nil {
+		scope = local.scope
+	}
+	configuredRuntime, active, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
+	if err != nil {
+		return nil, nil, err
+	}
+	covered := map[[2]string]struct{}{}
+	if active {
+		for _, binding := range configuredRuntime.bindings {
+			covered[[2]string{binding.SiteRef, binding.NodeRef}] = struct{}{}
+		}
+	} else if strings.TrimSpace(options.localSiteRef) != "" && strings.TrimSpace(options.localNodeRef) != "" && strings.TrimSpace(options.localChannelRef) != "" {
+		covered[[2]string{options.localSiteRef, options.localNodeRef}] = struct{}{}
+	} else if localErr == nil && local.binding.ChannelRef != "" {
+		covered[[2]string{local.binding.SiteRef, local.binding.NodeRef}] = struct{}{}
+	}
+	return func(siteRef, nodeRef string) bool {
+		_, ok := covered[[2]string{siteRef, nodeRef}]
+		return ok
+	}, scope, nil
+}
+
 // architectureV2UnavailableExecutionChannels keeps resolution, generation,
 // and authenticated evidence validation usable without granting mutation. A
 // target can cross this boundary only after an explicit local binding or a

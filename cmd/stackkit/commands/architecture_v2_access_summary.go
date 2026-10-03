@@ -12,6 +12,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/servicecatalog"
+	"github.com/kombifyio/stackkits/internal/servicecontrol"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
@@ -71,15 +72,7 @@ type architectureV2AccessRuntimeComponent struct {
 	} `json:"health"`
 }
 
-type architectureV2AccessServiceControl struct {
-	Key            string   `json:"key"`
-	ServiceRef     string   `json:"serviceRef"`
-	Adapter        string   `json:"adapter"`
-	RuntimeRef     string   `json:"runtimeRef"`
-	ComponentRefs  []string `json:"componentRefs"`
-	AllowedActions []string `json:"allowedActions"`
-	Critical       bool     `json:"critical"`
-}
+type architectureV2AccessServiceControl = servicecontrol.Control
 
 type architectureV2AccessRoute struct {
 	ID, ModuleRef, ServiceRef, Exposure, Protocol, Host, Path string
@@ -114,6 +107,14 @@ func buildArchitectureV2AccessSummaryFromCanonical(canonical []byte, binding arc
 	}
 	if !architectureV2AccessDigestPattern.MatchString(binding.PlanHash) || !architectureV2AccessDigestPattern.MatchString(binding.ApplyResultHash) || binding.AppliedAt.IsZero() {
 		return nil, fmt.Errorf("verified Architecture v2 access projection requires exact plan and Apply result identity")
+	}
+
+	projectedControls, err := servicecontrol.ProjectPlanControls(canonical)
+	if err != nil {
+		return nil, fmt.Errorf("project verified service controls: %w", err)
+	}
+	for i := range projection.Modules {
+		projection.Modules[i].ServiceControls = projectedControls[projection.Modules[i].ID]
 	}
 
 	exposed := map[string]struct{}{}
@@ -337,6 +338,10 @@ func architectureV2RuntimeIdentity(engine, adapter, runtimeRef, componentID stri
 		identity.Kind = "docker_compose_service"
 		identity.Project = "stackkit-" + runtimeRef
 		identity.File = ".stackkit/runtime/" + runtimeRef + "/compose.yaml"
+	case "application-compose":
+		identity.Kind = "docker_compose_service"
+		identity.Project = "stackkit-" + runtimeRef
+		identity.File = ".stackkit/runtime/applications/stackkit-" + runtimeRef + "/compose.yaml"
 	case "komodo":
 		identity.Kind = "komodo_service"
 		identity.Deployment = runtimeRef
@@ -391,7 +396,7 @@ func architectureV2AccessServiceControls(modules []architectureV2AccessModule) (
 		for _, control := range module.ServiceControls {
 			key := architectureV2AccessServiceKey(control.Key)
 			if key == "" || architectureV2AccessServiceKey(control.ServiceRef) != key ||
-				(control.Adapter != "compose" && control.Adapter != "komodo") ||
+				(control.Adapter != "compose" && control.Adapter != "application-compose" && control.Adapter != "komodo") ||
 				strings.TrimSpace(control.RuntimeRef) == "" || len(control.ComponentRefs) == 0 || len(control.AllowedActions) == 0 {
 				return nil, fmt.Errorf("verified Architecture v2 plan has an invalid service-control projection")
 			}

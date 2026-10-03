@@ -204,9 +204,11 @@ func (e *Executor) ApplySuppressingForgetErrors(ctx context.Context, planFile st
 	return e.run(ctx, "apply", "-input=false", "-suppress-forget-errors", planFile)
 }
 
-// Destroy runs tofu destroy
+// Destroy runs tofu destroy. Resources kept by `lifecycle { destroy = false }`
+// (native data volumes) are forgotten; without -suppress-forget-errors
+// OpenTofu 1.12 exits 1 after an otherwise successful destroy.
 func (e *Executor) Destroy(ctx context.Context) (*Result, error) {
-	args := []string{"destroy", "-input=false"}
+	args := []string{"destroy", "-input=false", "-suppress-forget-errors"}
 	if e.autoApprove {
 		args = append(args, "-auto-approve")
 	}

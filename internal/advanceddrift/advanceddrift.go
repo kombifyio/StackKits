@@ -71,7 +71,11 @@ type Request struct {
 	// ToolsErr reports that the packaged binaries are unavailable; every
 	// stack is then failed without any process run.
 	ToolsErr error
-	Timeout  time.Duration
+	// RemoteOwnedModules are the module refs whose runtime owner runs as a
+	// remote operations process; only their roots may be pending
+	// (terramatehost.LocalRootRequired).
+	RemoteOwnedModules []string
+	Timeout            time.Duration
 	// Event receives every finished stack entry in run order.
 	Event func(Stack)
 }
@@ -138,8 +142,11 @@ func Detect(ctx context.Context, request Request) ([]Stack, error) {
 		entry.DurationMS = plan.Result.DurationMS
 		entry.Detail = plan.Result.Detail
 		entry.Summary = ParseSummary(plan.Stdout)
-		if entry.Status == StackDrifted {
+		if entry.Status == StackDrifted && stack.Role != terramatestackgraph.RoleHost {
 			entry.Detail = "tofu plan reports changes against the recorded OpenTofu state"
+		}
+		if entry.Status == StackPendingRoot && !terramatehost.LocalRootRequired(entry.Role, entry.ModuleRef, request.RemoteOwnedModules) {
+			entry.Detail = "the module's owner runs as a remote operations process; no host holds its OpenTofu root"
 		}
 		finish(entry)
 	}
@@ -173,17 +180,17 @@ func ParseSummary(stdout string) *Summary {
 	return &Summary{Add: add, Change: change, Destroy: destroy}
 }
 
-// Required reports whether a pending_root stack prevents a clean report.
-// Core and workload roots must exist; edge and federation roots are not
-// materialized by the executor yet.
+// Required reports whether a stack runs Compose-bearing containers (core and
+// workload), the stacks native drift can be attributed to.
 func Required(role string) bool {
 	return role == string(terramatestackgraph.RoleCore) || role == string(terramatestackgraph.RoleWorkload)
 }
 
 // OverallStatus combines native drift and the stack entries: drifted when the
 // native report or any stack drifted, otherwise unknown when any stack failed
-// or a required root is pending, otherwise clean.
-func OverallStatus(nativeDrift bool, stacks []Stack) string {
+// or a root that must exist on this host is pending, otherwise clean. Only a
+// remote-owned module's root may be pending in a clean report.
+func OverallStatus(nativeDrift bool, stacks []Stack, remoteOwnedModules []string) string {
 	unknown := false
 	for _, stack := range stacks {
 		switch stack.Status {
@@ -192,7 +199,7 @@ func OverallStatus(nativeDrift bool, stacks []Stack) string {
 		case StackFailed:
 			unknown = true
 		case StackPendingRoot:
-			if Required(stack.Role) {
+			if terramatehost.LocalRootRequired(stack.Role, stack.ModuleRef, remoteOwnedModules) {
 				unknown = true
 			}
 		}

@@ -24,8 +24,9 @@ type TerramateScope struct {
 //
 // A changed artifact affects every stack whose module owns it: added and
 // modified paths resolve their owner in the candidate, removed paths in the
-// baseline. Plan-owned artifacts (the graph itself) and modules that are not
-// stacks (host bootstrap, security baseline) affect no stack. A module
+// baseline. Plan-owned artifacts (the graph itself) affect no stack; the host
+// bootstrap and security baseline modules affect the host pre-step stack
+// (owner decision O1). A module
 // rendered on several nodes affects each of its node stacks; stacks that
 // exist only in the baseline (a removed workload) are not part of the
 // candidate graph and are not listed.
@@ -63,11 +64,24 @@ func DeriveTerramateScope(
 	affected := make([]string, 0)
 	for _, id := range order {
 		stack, _ := layout.Stack(id)
-		if _, touched := modules[stack.ModuleRef]; touched {
+		if _, touched := modules[stack.ModuleRef]; touched || (stack.Role == terramatestackgraph.RoleHost && touchesHost(modules)) {
 			affected = append(affected, id)
 		}
 	}
 	return TerramateScope{AffectedStacks: affected, HostManifestSHA256: layout.ManifestSHA256}, nil
+}
+
+// hostOwnerModules are the plan modules whose artifacts the host pre-step
+// stack converges: host preparation (core host bootstrap) and host security.
+var hostOwnerModules = []string{"stackkits-core-host-bootstrap", "security-baseline"}
+
+func touchesHost(modules map[string]struct{}) bool {
+	for _, module := range hostOwnerModules {
+		if _, touched := modules[module]; touched {
+			return true
+		}
+	}
+	return false
 }
 
 func validateTerramateScope(record Record) error {

@@ -30,12 +30,17 @@ const (
 const (
 	// ActionDestroyed: the stack is absent from the checkpoint's stack graph
 	// (added after it). Its root is destroyed through OpenTofu, which runs the
-	// wrapper's destroy-time `docker compose down` without volumes, and then
-	// removed.
+	// wrapper's destroy-time `docker compose down` without volumes or, for a
+	// native Docker-provider root, removes its containers and networks and
+	// forgets its data volumes, and then removed.
 	ActionDestroyed = "destroyed"
 	// ActionRestored: the root exists and differs from the checkpoint. Its
 	// state, configuration and payload are restored and convergence is
-	// forced with `tofu apply -replace` on the wrapper trigger.
+	// forced with `tofu apply -replace` on the wrapper trigger. When the
+	// current or the checkpoint root is a native Docker-provider root, the
+	// current root is first destroyed (data volumes kept), the restored
+	// workload root's marker and secret env files are aligned with the
+	// checkpoint, and a plain apply converges a native checkpoint root.
 	ActionRestored = "restored"
 	// ActionRecreated: the checkpoint has the root but the workspace has no
 	// applied root (the stack was removed after the checkpoint). Restored

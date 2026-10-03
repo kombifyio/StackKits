@@ -1,5 +1,15 @@
 # Changelog
 
+- Fix: application service cards publish the same owner-controlled Start, Stop, Restart and Logs policy as the canonical standalone Compose controller, with its exact application project and component identity. Critical core services still deny Stop.
+
+- Fix: Modern Homelab's initial StackSpec takes its generation target from the kit's default target instead of a hard-coded `compose`, so a later default switch also applies to new installs. The default stays `compose`, so behaviour is unchanged today.
+
+- Fix: `stackkit plan` no longer reports Apply `ready` when a runtime target's Site/node has no execution channel on this host (Inventory `executionChannels` or the local custody binding). Apply readiness carries `execution-channel-unbound [node:…, site:…]`, and `stackkit apply` refuses with the same `execution_readiness_blocked` before it prepares the host. A standalone Modern Home owner therefore sees the unreachable Cloud node at plan time.
+
+- Fix: `federation binding adopt` and `import` update the Inventory `generate` uses when `--inventory` is omitted (`.stackkit/inventory.yaml`, kept as YAML with its measured node facts) and read the plan from the StackSpec's output root. Adoption no longer leaves a second `inventory.json` that made every later command without `--inventory` fail as ambiguous.
+
+- Feature: under the `terramate` generation target every host runs host preparation and host security as an ordered `host` pre-step stack of its Advanced Mode project (owner decision O1, ADR-0045 addendum A4). Change-set convergence, per-stack drift detection, drift reconcile and coordinated rollback run it through the pinned StackKits CLI (`host security verify` as the drift signal, `repair` as the reconcile, which still refuses a change that would cut the SSH management channel), and its recorded evidence is a signed control blob of the executor-state checkpoint. Standard Mode is unchanged.
+
 - Fix: `backup status` no longer takes the exclusive output transaction lock. It only reads the repository and authenticated receipts, yet a periodic status observation (kombify Guard runs one beside owner operations) made a concurrent `backup run`, restore or apply fail with `output_transaction_busy`, reported as not retryable. Status now uses the same lock-free pending-transaction check as `plan` and `verify`; every mutation still owns the lock.
 
 - Fix: the StackKits CLI evaluates the embedded Architecture v2 authority once per process and no longer re-evaluates the governed catalog or its concrete catalog projections at start. A command that previously held 1.3-1.6 GB (and grew by about 0.7 GB for every additional internal service construction) now peaks near 0.2 GB, so `backup run`, `apply` and the Guard's status probes no longer exhaust a 3 GiB Core Lite host.
@@ -136,6 +146,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.50.6](https://github.com/kombifyio/StackKits/compare/v0.50.5...v0.50.6) (2026-10-03)
+
+
+### Added
+
+* **opentofu:** admit Mosquitto to native execution; fix broker restart
+* **opentofu:** admit Stalwart to native execution; record zigbee2mqtt as fail-closed
+* **opentofu:** admit zigbee2mqtt, SearXNG, Roundcube and Euro-Office to native execution
+* **opentofu:** fixed-path secret readers for native roots (pgpass, value, dotenv, config file)
+* **opentofu:** native renderer translates LAN listener ports and device nodes
+
+
+### Fixed
+
+* **inventory:** publish canonical application service controls
+* **modern-homelab:** bind the initial target to the default target; record unprofiled Modern runtimes (N3)
+* **modern:** block Apply readiness without an execution channel; adopt into the generate Inventory (N2)
+* **paperless:** Pocket ID sign-in works; close native parity criteria 8-10
+
+## [0.50.5](https://github.com/kombifyio/StackKits/compare/v0.50.4...v0.50.5) (2026-10-02)
+
+
+### Added
+
+* **opentofu:** governed entrypoint shim for images that read secrets only from the environment
+* **opentofu:** S2.1 native renderer on the typed workload model; Paperless opt-in
+* **workloads:** governed commands read their credential from a custody file
+
+
+### Fixed
+
+* **terramate:** require edge and federation contract roots in Advanced convergence
+
+## [0.50.4](https://github.com/kombifyio/StackKits/compare/v0.50.3...v0.50.4) (2026-10-02)
+
+
+### Added
+
+* **opentofu:** S2.2 governed NAME_FILE secret delivery and per-image secret inventory
+* **opentofu:** S2.3 forget-safe destroy and Advanced rollback/reconcile of native roots
+* **terramate:** O1 host pre-step stack for Advanced Mode
+
+
+### Fixed
+
+* **nativehost:** report an edited standalone Compose file as typed drift
 
 ## [0.50.3](https://github.com/kombifyio/StackKits/compare/v0.50.2...v0.50.3) (2026-10-02)
 

@@ -1,9 +1,10 @@
 <?php
 // Governed by StackKits (mail workload bundle); edits are replaced on apply.
 // No secret lives here: the key is derived from the custody-backed
-// environment, and the mailbox endpoints come from the owner file that
-// `stackkit setup mail` writes. Until that file exists, logins go to an
-// unresolvable placeholder and fail, so no free-form server is ever used.
+// environment (or a native root's custody-backed key file), and the mailbox
+// endpoints come from the owner file that `stackkit setup mail` writes. Until
+// that file exists, logins go to an unresolvable placeholder and fail, so no
+// free-form server is ever used.
 $config['imap_host'] = 'ssl://setup-required.invalid:993';
 $config['smtp_host'] = 'ssl://setup-required.invalid:465';
 $config['product_name'] = 'Mail - not set up yet: run "stackkit setup mail"';
@@ -19,7 +20,13 @@ if (is_readable($stackkitMailbox)) {
 unset($stackkitMailbox, $stackkitEndpoints);
 $config['smtp_user'] = '%u';
 $config['smtp_pass'] = '%p';
-$config['des_key'] = substr((string) getenv('ROUNDCUBEMAIL_DES_KEY'), 0, 24);
+// A native OpenTofu root delivers the key as the image's secret file instead.
+$stackkitDesKey = (string) getenv('ROUNDCUBEMAIL_DES_KEY');
+if ($stackkitDesKey === '' && is_readable('/run/secrets/roundcube_des_key')) {
+    $stackkitDesKey = (string) file_get_contents('/run/secrets/roundcube_des_key');
+}
+$config['des_key'] = substr($stackkitDesKey, 0, 24);
+unset($stackkitDesKey);
 $config['cipher_method'] = 'DES-EDE3-CBC';
 $config['enable_installer'] = false;
 $config['login_rate_limit'] = 3;

@@ -64,6 +64,7 @@ var (
 )
 
 type serviceDefinition struct {
+	ModuleID       string   `json:"-"`
 	Key            string   `json:"key"`
 	ServiceRef     string   `json:"serviceRef"`
 	Adapter        string   `json:"adapter"`
@@ -72,6 +73,9 @@ type serviceDefinition struct {
 	AllowedActions []string `json:"allowedActions"`
 	Critical       bool     `json:"critical"`
 }
+
+// Control is the existing canonical service control, including its module provenance.
+type Control = serviceDefinition
 
 type DesiredService struct {
 	State     string    `json:"state"`
@@ -417,13 +421,37 @@ func (c *Controller) authority() (runtimeAuthority, error) {
 	if err := c.verifyPlan(raw); err != nil {
 		return runtimeAuthority{}, &Error{ReasonCode: ReasonPlanChanged, Message: "canonical ResolvedPlan differs from the CUE-verified execution authority"}
 	}
+	return projectServiceAuthority(raw)
+}
+
+// ProjectPlanControls shares the controller projection with manifests built from
+// an independently verified canonical ResolvedPlan. It does not authorize execution.
+func ProjectPlanControls(raw []byte) (map[string][]Control, error) {
+	authority, err := projectServiceAuthority(raw)
+	if err != nil {
+		return nil, err
+	}
+	controls := map[string][]Control{}
+	for _, definition := range authority.Services {
+		controls[definition.ModuleID] = append(controls[definition.ModuleID], definition)
+	}
+	for moduleID := range controls {
+		sort.Slice(controls[moduleID], func(i, j int) bool { return controls[moduleID][i].Key < controls[moduleID][j].Key })
+	}
+	return controls, nil
+}
+
+func projectServiceAuthority(raw []byte) (runtimeAuthority, error) {
 	var plan servicePlanProjection
 	if json.Unmarshal(raw, &plan) != nil || !cursorPattern.MatchString(plan.PlanHash) {
 		return runtimeAuthority{}, &Error{ReasonCode: "resolved_plan_invalid", Message: "canonical ResolvedPlan has no valid planHash"}
 	}
 	declared := make([]serviceDefinition, 0)
 	for _, module := range plan.Modules {
-		declared = append(declared, module.ServiceControls...)
+		for _, definition := range module.ServiceControls {
+			definition.ModuleID = module.ID
+			declared = append(declared, definition)
+		}
 	}
 	definitions := make([]serviceDefinition, 0)
 	services := map[string]serviceDefinition{}

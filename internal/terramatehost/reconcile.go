@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
@@ -38,8 +39,9 @@ type ReconcileRequest struct {
 // -replace=<wrapper trigger>` in the root of every requested local stack.
 // The trigger is the root's `terraform_data` `_up` resource
 // (ReplaceTriggerAddress), so the replacement never runs the destroy-time
-// `docker compose down`. The apply also applies any other planned change of
-// the root, such as a rewritten payload file. The host project is
+// `docker compose down`. A native Docker-provider root runs a plain apply
+// instead (ForcedApplyArgs). The apply also applies any other planned change
+// of the root, such as a rewritten payload file. The host project is
 // materialized first; the first failed stack stops the run.
 func ForceConverge(ctx context.Context, request ReconcileRequest) ([]StackResult, error) {
 	emit := request.Event
@@ -66,11 +68,17 @@ func ForceConverge(ctx context.Context, request ReconcileRequest) ([]StackResult
 			continue
 		}
 		stack, found := layout.Stack(id)
-		if !found || stack.SiteRef != layout.Host.SiteRef || stack.NodeRef != layout.Host.NodeRef ||
-			!hasOpenTofuRoot(workspace, stack.RuntimeRoot) {
+		if !found || stack.SiteRef != layout.Host.SiteRef || stack.NodeRef != layout.Host.NodeRef {
 			continue
 		}
-		result := forceStack(ctx, workspace, request, stack)
+		var result StackResult
+		if stack.Role == terramatestackgraph.RoleHost {
+			result = repairHostStep(ctx, workspace, request, stack)
+		} else if !hasOpenTofuRoot(workspace, stack.RuntimeRoot) {
+			continue
+		} else {
+			result = forceStack(ctx, workspace, request, stack)
+		}
 		results = append(results, result)
 		attributes := map[string]string{
 			"stackId": stack.ID, "role": string(stack.Role), "runtimeRoot": stack.RuntimeRoot,
@@ -100,7 +108,7 @@ func forceStack(ctx context.Context, workspace string, request ReconcileRequest,
 	if err != nil {
 		return finish(StackFailed, "read the stack root: "+err.Error())
 	}
-	address, err := ReplaceTriggerAddress(config)
+	applyArgs, err := ForcedApplyArgs(config)
 	if err != nil {
 		return finish(StackFailed, err.Error())
 	}
@@ -122,9 +130,9 @@ func forceStack(ctx context.Context, workspace string, request ReconcileRequest,
 			return finish(StackFailed, stackCommandDetail("tofu init", initialized, initErr))
 		}
 	}
-	applied, err := run("apply", "-auto-approve", "-input=false", "-no-color", "-replace="+address)
+	applied, err := run(applyArgs...)
 	if err != nil || applied.ExitCode != 0 {
-		return finish(StackFailed, stackCommandDetail("tofu apply -replace="+address, applied, err))
+		return finish(StackFailed, stackCommandDetail("tofu "+strings.Join(applyArgs, " "), applied, err))
 	}
 	return finish(StackConverged, "")
 }

@@ -309,6 +309,7 @@ func (orchestration *advancedTerramateOrchestration) step(
 			WorkspaceRoot: workspace, ChangeSetID: verified.record.ChangeSetID, Layout: layout,
 			ExpectedManifestSHA256: verified.record.TerramateHostManifestSHA256,
 			AffectedStacks:         stacks, Tools: orchestration.tools,
+			RemoteOwnedModules: architectureV2RemoteOwnedModules(),
 			Event: func(phase, status string, attributes map[string]string) {
 				if attributes == nil {
 					attributes = map[string]string{}

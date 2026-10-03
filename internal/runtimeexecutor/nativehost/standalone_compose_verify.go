@@ -106,7 +106,28 @@ func VerifyAppliedStandaloneComposeWorkloads(
 			Status: status, Components: components, Route: observation.Route,
 		})
 	}
-	return observations, errors.Join(failures...)
+	return observations, joinStandaloneComposeVerifyFailures(failures)
+}
+
+// joinStandaloneComposeVerifyFailures keeps a typed drift difference visible
+// to the caller only when every failure is drift; a workload that failed
+// observation for any other reason must not be masked as reportable drift.
+func joinStandaloneComposeVerifyFailures(failures []error) error {
+	allDrift := true
+	for _, failure := range failures {
+		var drift *StandaloneComposeDriftError
+		if !errors.As(failure, &drift) {
+			allDrift = false
+		}
+	}
+	if allDrift {
+		return errors.Join(failures...)
+	}
+	flattened := make([]error, len(failures))
+	for i, failure := range failures {
+		flattened[i] = errors.New(failure.Error())
+	}
+	return errors.Join(flattened...)
 }
 
 // standaloneComposeDeploymentFromApplied rebuilds the deployment of one

@@ -26,6 +26,8 @@ const (
 	// OpenTofuRootExecutor marks a stack whose `main.tf` the executor
 	// materializes at apply time (workloads, edge and federation owners).
 	OpenTofuRootExecutor = "executor-materialized"
+	// OpenTofuRootNone marks the host pre-step, which owns no OpenTofu root.
+	OpenTofuRootNone = "none"
 )
 
 // Graph is the complete Terramate stack graph of one resolved plan. Every
@@ -72,7 +74,7 @@ type Stack struct {
 
 // StackArtifacts names the generation artifacts that belong to a stack.
 type StackArtifacts struct {
-	Stack    string `json:"stack"`
+	Stack    string `json:"stack,omitempty"`
 	OpenTofu string `json:"openTofu,omitempty"`
 }
 
@@ -233,6 +235,14 @@ func Build(canonicalPlan []byte) (Graph, error) {
 		hosts = append(hosts, host)
 	}
 
+	for _, host := range hosts {
+		hostStack, err := buildHostStack(host.SiteRef, host.NodeRef)
+		if err != nil {
+			return Graph{}, err
+		}
+		stacks = append(stacks, hostStack)
+	}
+
 	graph := Graph{
 		APIVersion: APIVersion, StackID: plan.StackID, PlanHash: plan.PlanHash,
 		GenerationTarget: GenerationTarget, TerramateRequiredVersion: RequiredVersion,
@@ -283,7 +293,24 @@ func buildStack(role Role, templateRef, moduleRef, unitRef, instanceRef, siteRef
 	return stack, nil
 }
 
-// expectedAfter applies the ordering rules: the site core first; the edge and
+// buildHostStack synthesizes the host pre-step stack of one host (owner
+// decision O1, ADR-0045 addendum A4). It has no render unit, so it owns no
+// plan artifact: the executor renders its `stack.tm.hcl` from Define.
+func buildHostStack(siteRef, nodeRef string) (Stack, error) {
+	definition, err := Define(RoleHost, HostModuleRef, siteRef, nodeRef)
+	if err != nil {
+		return Stack{}, err
+	}
+	return Stack{
+		ID: definition.ID, Name: definition.Name, Role: RoleHost,
+		ModuleRef: HostModuleRef, UnitRef: HostUnitRef, InstanceRef: HostInstanceRef,
+		SiteRef: siteRef, NodeRef: nodeRef, RuntimeRoot: HostRuntimeRoot,
+		OpenTofuRoot: OpenTofuRootNone, Tags: definition.Tags,
+	}, nil
+}
+
+// expectedAfter applies the ordering rules: the host pre-step of a host first
+// (every other stack of the host runs after it); then the site core; the edge and
 // workloads of a host after that host's cores; federation and bridge owners
 // after every core and edge of every site, so a link starts only when both
 // ends are up.
@@ -296,6 +323,9 @@ func expectedAfter(stacks []Stack) map[string][]string {
 				continue
 			}
 			sameHost := other.SiteRef == stack.SiteRef && other.NodeRef == stack.NodeRef
+			if sameHost && stack.Role != RoleHost && other.Role == RoleHost {
+				after = append(after, other.ID)
+			}
 			switch stack.Role {
 			case RoleEdge, RoleWorkload:
 				if sameHost && other.Role == RoleCore {
@@ -466,6 +496,17 @@ func Parse(raw []byte) (Graph, error) {
 		}
 		hosts[hostKey{host.SiteRef, host.NodeRef}] = struct{}{}
 	}
+	hostStacks := make(map[hostKey]int, len(graph.Hosts))
+	for _, stack := range graph.Stacks {
+		if stack.Role == RoleHost {
+			hostStacks[hostKey{stack.SiteRef, stack.NodeRef}]++
+		}
+	}
+	for key := range hosts {
+		if hostStacks[key] != 1 {
+			return Graph{}, fmt.Errorf("host %s/%s has %d host pre-step stacks, want exactly one", key.site, key.node, hostStacks[key])
+		}
+	}
 	for _, stack := range graph.Stacks {
 		definition, err := Define(stack.Role, stack.ModuleRef, stack.SiteRef, stack.NodeRef)
 		if err != nil {
@@ -476,6 +517,18 @@ func Parse(raw []byte) (Graph, error) {
 		}
 		if _, exists := hosts[hostKey{stack.SiteRef, stack.NodeRef}]; !exists {
 			return Graph{}, fmt.Errorf("stack %s has no host", stack.ID)
+		}
+		if stack.Role == RoleHost {
+			want, hostErr := buildHostStack(stack.SiteRef, stack.NodeRef)
+			if hostErr != nil {
+				return Graph{}, hostErr
+			}
+			if stack.ID != want.ID || stack.UnitRef != HostUnitRef || stack.InstanceRef != HostInstanceRef ||
+				stack.RuntimeRoot != HostRuntimeRoot || stack.OpenTofuRoot != OpenTofuRootNone ||
+				stack.Artifacts != (StackArtifacts{}) || stack.WorkloadRef != "" || stack.After == nil {
+				return Graph{}, fmt.Errorf("stack %s is not the host pre-step of its host", stack.ID)
+			}
+			continue
 		}
 		if stack.UnitRef == "" || stack.InstanceRef == "" || stack.Artifacts.Stack == "" || stack.After == nil {
 			return Graph{}, fmt.Errorf("stack %s is incomplete", stack.ID)

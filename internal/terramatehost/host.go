@@ -177,6 +177,13 @@ func Plan(graph terramatestackgraph.Graph, artifacts map[string][]byte, siteRef,
 			return Layout{}, fmt.Errorf("host run order names unknown stack %s", id)
 		}
 		stackBytes, exists := artifacts[stack.Artifacts.Stack]
+		if stack.Role == terramatestackgraph.RoleHost {
+			var renderErr error
+			if stackBytes, renderErr = architecturev2renderer.RenderHostPrestepStack(stack.SiteRef, stack.NodeRef); renderErr != nil {
+				return Layout{}, fmt.Errorf("stack %s: render the host pre-step: %w", stack.ID, renderErr)
+			}
+			exists = true
+		}
 		if !exists || len(stackBytes) == 0 {
 			return Layout{}, fmt.Errorf("stack %s: stack artifact %s was not rendered", stack.ID, stack.Artifacts.Stack)
 		}

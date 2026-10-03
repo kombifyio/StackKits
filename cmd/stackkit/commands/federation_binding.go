@@ -19,6 +19,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -135,7 +136,7 @@ func newFederationCommand(deps federationBindingCommandDeps) *cobra.Command {
 	)
 	importCommand.Flags().StringVar(
 		&options.inventory, "inventory", "",
-		"Workspace-confined inventory.json to update atomically",
+		"Workspace-confined inventory.json or inventory.yaml to update atomically (default: the Inventory generate uses)",
 	)
 	importCommand.Flags().StringVar(
 		&options.resolvedPlan, "resolved-plan", "",
@@ -161,7 +162,7 @@ func newFederationCommand(deps federationBindingCommandDeps) *cobra.Command {
 	)
 	adoptCommand.Flags().StringVar(
 		&adoptOptions.inventory, "inventory", "",
-		"Workspace-confined inventory.json to update atomically",
+		"Workspace-confined inventory.json or inventory.yaml to update atomically (default: the Inventory generate uses)",
 	)
 	adoptCommand.Flags().StringVar(
 		&adoptOptions.resolvedPlan, "resolved-plan", "",
@@ -177,8 +178,8 @@ func runFederationBindingAdopt(
 	deps federationBindingCommandDeps,
 	options federationBindingAdoptOptions,
 ) error {
-	if strings.TrimSpace(options.binding) == "" || strings.TrimSpace(options.inventory) == "" {
-		return errors.New("federation binding adopt requires --binding and --inventory")
+	if strings.TrimSpace(options.binding) == "" {
+		return errors.New("federation binding adopt requires --binding")
 	}
 	workspace, err := federationWorkspace(deps.workspace())
 	if err != nil {
@@ -188,12 +189,9 @@ func runFederationBindingAdopt(
 	if err != nil {
 		return err
 	}
-	inventoryPath, err := federationWorkspacePath(workspace, options.inventory, "Inventory")
+	inventoryPath, err := federationInventoryPath(workspace, options.inventory)
 	if err != nil {
 		return err
-	}
-	if path.Base(inventoryPath) != "inventory.json" {
-		return errors.New("federation binding adopt requires an inventory.json target")
 	}
 	planPath, err := federationResolvedPlanPath(workspace, options.resolvedPlan, inventoryPath)
 	if err != nil {
@@ -244,9 +242,9 @@ func runFederationBindingAdopt(
 		if err != nil {
 			return fmt.Errorf("revalidate Owner-signed Federation binding import: %w", err)
 		}
-		canonicalInventory, err := resolvedplan.CanonicalJSON(updated)
+		canonicalInventory, err := encodeFederationInventory(updated, inventoryPath)
 		if err != nil {
-			return fmt.Errorf("canonicalize adopted Federation Inventory: %w", err)
+			return fmt.Errorf("encode adopted Federation Inventory: %w", err)
 		}
 		bindingHash := stringValue(current.binding, "bindingHash")
 		evidencePath := path.Join(
@@ -369,8 +367,8 @@ func runFederationBindingImport(
 	deps federationBindingCommandDeps,
 	options federationBindingImportOptions,
 ) error {
-	if strings.TrimSpace(options.admission) == "" || strings.TrimSpace(options.inventory) == "" {
-		return errors.New("federation binding import requires --admission and --inventory")
+	if strings.TrimSpace(options.admission) == "" {
+		return errors.New("federation binding import requires --admission")
 	}
 	if options.allowHermeticProof {
 		if err := requireFederationHermeticBuild(); err != nil {
@@ -385,12 +383,9 @@ func runFederationBindingImport(
 	if err != nil {
 		return err
 	}
-	inventoryPath, err := federationWorkspacePath(workspace, options.inventory, "Inventory")
+	inventoryPath, err := federationInventoryPath(workspace, options.inventory)
 	if err != nil {
 		return err
-	}
-	if path.Base(inventoryPath) != "inventory.json" {
-		return errors.New("federation binding import requires an inventory.json target")
 	}
 	planPath, err := federationResolvedPlanPath(workspace, options.resolvedPlan, inventoryPath)
 	if err != nil {
@@ -427,9 +422,9 @@ func runFederationBindingImport(
 		if err != nil {
 			return fmt.Errorf("revalidate Federation binding import under lifecycle lock: %w", err)
 		}
-		canonical, err := resolvedplan.CanonicalJSON(updated)
+		canonical, err := encodeFederationInventory(updated, inventoryPath)
 		if err != nil {
-			return fmt.Errorf("canonicalize updated Inventory: %w", err)
+			return fmt.Errorf("encode updated Inventory: %w", err)
 		}
 		if err := writeFederationPrivateAtomic(workspace, inventoryPath, canonical); err != nil {
 			return fmt.Errorf("persist Federation binding Inventory: %w", err)
@@ -591,10 +586,45 @@ func federationPlanPathForInventory(inventoryPath string) string {
 }
 
 func federationResolvedPlanPath(workspace, explicit, inventoryPath string) (string, error) {
-	if strings.TrimSpace(explicit) == "" {
-		return federationPlanPathForInventory(inventoryPath), nil
+	if strings.TrimSpace(explicit) != "" {
+		return federationWorkspacePath(workspace, explicit, "resolved plan")
 	}
-	return federationWorkspacePath(workspace, explicit, "resolved plan")
+	beside := federationPlanPathForInventory(inventoryPath)
+	if _, err := os.Stat(filepath.Join(workspace, filepath.FromSlash(beside))); err == nil {
+		return beside, nil
+	}
+	// generate writes the plan below the StackSpec's governed outputRoot.
+	return path.Join(federationSpecOutputRoot(workspace), federationCanonicalPlanName), nil
+}
+
+// federationSpecOutputRoot reads generation.outputRoot from the workspace
+// StackSpec; the plan it names is still verified before use.
+func federationSpecOutputRoot(workspace string) string {
+	const fallback = "deploy"
+	specPath := specFile
+	if strings.TrimSpace(specPath) == "" {
+		specPath = "stack-spec.yaml"
+	}
+	if !filepath.IsAbs(specPath) {
+		specPath = filepath.Join(workspace, specPath)
+	}
+	raw, err := os.ReadFile(specPath)
+	if err != nil {
+		return fallback
+	}
+	var spec struct {
+		Generation struct {
+			OutputRoot string `yaml:"outputRoot"`
+		} `yaml:"generation"`
+	}
+	if err := yaml.Unmarshal(raw, &spec); err != nil {
+		return fallback
+	}
+	root := path.Clean(filepath.ToSlash(strings.TrimSpace(spec.Generation.OutputRoot)))
+	if root == "." || root == "" || path.IsAbs(root) || root == ".." || strings.HasPrefix(root, "../") {
+		return fallback
+	}
+	return root
 }
 
 func loadFederationBindingMutationInput(
@@ -676,11 +706,63 @@ func readFederationInventory(
 	if err != nil {
 		return nil, fmt.Errorf("read stable Inventory: %w", err)
 	}
+	if federationInventoryIsYAML(inventoryPath) {
+		document, err := decodeInventoryDocument(raw)
+		if err != nil {
+			return nil, err
+		}
+		if raw, err = resolvedplan.CanonicalJSON(document); err != nil {
+			return nil, fmt.Errorf("canonicalize Inventory YAML: %w", err)
+		}
+	}
 	inventory, err := resolvedplan.DecodeDocument[resolvedplan.InventoryFacts](raw)
 	if err != nil {
-		return nil, fmt.Errorf("decode closed Inventory JSON: %w", err)
+		return nil, fmt.Errorf("decode closed Inventory: %w", err)
 	}
 	return inventory, nil
+}
+
+// federationInventoryPath selects the Inventory that adoption updates: the
+// explicit --inventory, else the one conventional Inventory every other
+// command selects (generate persists .stackkit/inventory.yaml), else that
+// generate default. Adoption therefore never creates a second Inventory
+// beside the one generate uses.
+func federationInventoryPath(workspace, explicit string) (string, error) {
+	candidate := explicit
+	if strings.TrimSpace(candidate) == "" {
+		_, located, err := locateArchitectureV2Inventory(workspace, "")
+		if err != nil {
+			return "", err
+		}
+		candidate = located
+		if candidate == "" {
+			candidate = path.Join(".stackkit", "inventory.yaml")
+		}
+	}
+	inventoryPath, err := federationWorkspacePath(workspace, candidate, "Inventory")
+	if err != nil {
+		return "", err
+	}
+	switch path.Base(inventoryPath) {
+	case "inventory.json", "inventory.yaml", "inventory.yml":
+		return inventoryPath, nil
+	default:
+		return "", errors.New("federation binding Inventory must be an inventory.json or inventory.yaml file")
+	}
+}
+
+func federationInventoryIsYAML(inventoryPath string) bool {
+	extension := strings.ToLower(path.Ext(inventoryPath))
+	return extension == ".yaml" || extension == ".yml"
+}
+
+// encodeFederationInventory keeps the Inventory in its own format: canonical
+// JSON for inventory.json, YAML for the inventory.yaml generate persists.
+func encodeFederationInventory(inventory resolvedplan.InventoryFacts, inventoryPath string) ([]byte, error) {
+	if !federationInventoryIsYAML(inventoryPath) {
+		return resolvedplan.CanonicalJSON(inventory)
+	}
+	return encodeInventoryDocument(inventory, inventoryPath)
 }
 
 func readFederationStableFile(workspace, relative string) ([]byte, error) {

@@ -25,3 +25,35 @@ func parseGovernedCustodyNodeFields(component selectedPaaSRuntimeComponent, modu
 	}
 	return parse(component, secretRefs, path)
 }
+
+// governedCommandSecretFile admits exactly one custody file, read by the
+// StackKits-governed command of moduleRef's componentID instead of a secret
+// environment variable (plan 20, S2.2 inventory): the value never enters the
+// container configuration, so a Compose and a native root deliver it alike.
+func governedCommandSecretFile(componentID string, file selectedPaaSSecretFile) func(selectedPaaSRuntimeComponent, map[string]string, string) ([]ApplicationDeliverySecretFile, []string, error) {
+	return func(component selectedPaaSRuntimeComponent, secretRefs map[string]string, path string) ([]ApplicationDeliverySecretFile, []string, error) {
+		if component.ID != componentID || len(component.RestoreActivationEnvironment) != 0 ||
+			len(component.SecretFiles) != 1 || component.SecretFiles[0] != file {
+			return nil, nil, fail(ErrInvalidPlan, path, "the custody file is admitted only for the governed command of %s", componentID)
+		}
+		if _, exists := secretRefs[file.Slot]; !exists {
+			return nil, nil, fail(ErrInvalidPlan, path+".secretFiles", "references an undeclared secret slot")
+		}
+		return []ApplicationDeliverySecretFile{{Slot: file.Slot, Target: file.Target, PathEnvironment: file.PathEnvironment, UID: file.UID, GID: file.GID}}, nil, nil
+	}
+}
+
+// Custody files of the StackKits-governed commands.
+var (
+	giteaOwnerPasswordFile    = selectedPaaSSecretFile{Slot: "owner-password", Target: "/run/secrets/owner-password", PathEnvironment: "STACKKITS_OWNER_PASSWORD_FILE", UID: 1000, GID: 1000}
+	forgejoOwnerPasswordFile  = giteaOwnerPasswordFile
+	mosquittoPasswordFile     = selectedPaaSSecretFile{Slot: "mqtt-password", Target: "/run/secrets/mqtt-password", PathEnvironment: "MQTT_PASSWORD_FILE"}
+	stalwartAdminPasswordFile = selectedPaaSSecretFile{Slot: "admin-password", Target: "/run/secrets/admin-password", PathEnvironment: "STACKKIT_ADMIN_SECRET_FILE", UID: 2000, GID: 2000}
+)
+
+func init() {
+	governedCustodyNodeRights[giteaWorkloadModuleID] = governedCommandSecretFile("gitea", giteaOwnerPasswordFile)
+	governedCustodyNodeRights[forgejoWorkloadModuleID] = governedCommandSecretFile("forgejo", forgejoOwnerPasswordFile)
+	governedCustodyNodeRights[mosquittoWorkloadModuleID] = governedCommandSecretFile("mosquitto", mosquittoPasswordFile)
+	governedCustodyNodeRights[stalwartWorkloadModuleID] = governedCommandSecretFile("stalwart", stalwartAdminPasswordFile)
+}

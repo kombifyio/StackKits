@@ -1491,7 +1491,7 @@ Compose fallback behind the `compose` unit (S-F structure rule, see
   the Debian package installs it at `/usr/local/lib/stackkit/providers`). Its
   canonical manifest pins `hashicorp/local` 2.5.3, `sebastianfs82/komodo`
   0.12.0 and `kreuzwerker/docker` 4.6.0 (used only by roots of modules opted
-  in to the ADR-0045 Stage 2 pilot through `STACKKIT_OPENTOFU_NATIVE_MODULES`)
+  in to ADR-0045 Stage 2 native rendering through `STACKKIT_OPENTOFU_NATIVE_MODULES`)
   for the five release platforms, verifies each upstream archive `zh:` against the published
   SHA256SUMS, and verifies the unpacked package's whole-directory `h1:`. The
   bundle carries a deterministic lock with all five `h1:` and `zh:` hashes.
@@ -1629,7 +1629,25 @@ both use it, so the files and the graph cannot disagree.
   edge exist. In `stack.tm.hcl` this is expressed with Terramate tag queries
   (`after = ["tag:role/core"]`, and `tag:role/edge` for federation), which
   resolve inside one host project. Cross-host order exists only in the graph.
-  Host and security baseline owners are not stacks.
+  Only the host pre-step below is a stack among the host owners; the other
+  host owners (PKI, TLS, backup, edge, federation, policy manifests) are not.
+- Host pre-step (owner decision O1, ADR-0045 addendum A4): host preparation and
+  host security are exempt from the provider-resource standard, not from the
+  execution standard. Every host of the graph has one synthesized `host` stack
+  (module `stackkits-host`, runtime root `.stackkit/runtime/host`, no render
+  unit and no OpenTofu root; `openTofuRoot: "none"`). It runs before every
+  other stack of its host: the graph gives each of them `after` the host stack,
+  and its own `stack.tm.hcl` carries `before` tag queries for the other roles,
+  so no existing stack file changes. Terramate runs the pinned StackKits CLI
+  in its stack directory: `host security verify --mode advanced --fail-on-drift`
+  is the drift signal (exit 5 drifted, 6 unknown), `host security repair
+  --apply --mode advanced` is the reconcile and the rollback restore, and
+  repair keeps refusing a change that would cut the SSH management channel.
+  A change that touches the host bootstrap or security baseline module affects
+  the host stack. The recorded host-security evidence is a signed control blob
+  of every executor-state checkpoint of a Terramate install, so a coordinated
+  rollback restores it with the other stacks' state. Guard bootstrap stays
+  Techstack-owned, and Standard Mode is unchanged.
 - Runtime roots: `.stackkit/runtime/<runtime>/opentofu` for cores (the P1.2
   wrapper roots), `.stackkit/runtime/applications/stackkit-<workloadRef>-<nodeRef>/opentofu`
   for workloads and `.stackkit/runtime/modules/<moduleRef>/opentofu` for
@@ -1756,9 +1774,13 @@ Terramate (`stackkit apply` under `compose` or `opentofu` is unchanged).
 - Results: per stack `converged` (exit 0), `drifted` (exit 2 after apply),
   `failed` (the plan could not run), `pending_root` (no `main.tf` in the root)
   or `other_host` (the stack belongs to another host and runs through that
-  host's execution channel). `pending_root` fails the change set for core and
-  workload stacks and is tolerated for edge and federation stacks, whose roots
-  the executor does not materialize yet. Any drifted, failed or required
+  host's execution channel). `pending_root` fails the change set for every
+  stack whose owner runs on the host: core, workload, and the edge and
+  federation contract roots (Cloud public edge, federation link, bridge origin
+  mTLS). It is tolerated only for a remote-owned module, whose owner runs as a
+  process-dispatched operations process (bridge publication, federation
+  control agent), so no host materializes its root; the CLI derives that set
+  from its remote-only owner registrations. Any drifted, failed or required
   pending stack fails the change set with
   `advanced_change_set_not_converged`, `failedPhase: advanced-terramate`, and
   the same rollback path as a failed verify. The
@@ -1806,9 +1828,10 @@ drift detection. `stackkit drift detect` combines both in one
   (`add`, `change`, `destroy` from the `Plan:` line, zero for `No changes.`),
   `durationMs` and `detail`. The report adds `mode: advanced`, `stackId`,
   `detectedAt` and an overall `status`: `drifted` when a native subject or a
-  stack drifted, otherwise `unknown` when a stack failed or a core or workload
-  root is pending, otherwise `clean`. A pending edge or federation root does
-  not block `clean`, as in a change set.
+  stack drifted, otherwise `unknown` when a stack failed or a
+  root that must exist on the host is pending, otherwise `clean`. As in a
+  change set, only a remote-owned module's pending root does not block
+  `clean`.
 - Streaming: every stack entry is also one `advanced.drift.stack` rollout event
   (status is the stack status; attributes carry the entry fields), so
   Techstack can map each stack to one drift subject.
@@ -1862,6 +1885,12 @@ drift detection. `stackkit drift detect` combines both in one
   apply's health observation would fail on a stopped container, so the
   forced replacement runs first: its create-time `docker compose up`
   restarts what stopped, and the same apply rewrites an edited payload file.
+  A native Docker-provider workload root (ADR-0045 Stage 2, opt-in) keeps its
+  execution through the governed restore (`opentofu.RestoreWorkloadRoot`
+  re-renders it natively and rewrites its owner-only secret env files from
+  the restored `.env`) and is forced with a plain `tofu apply`
+  (`terramatehost.ForcedApplyArgs`): the refresh of its containers shows the
+  drift, so no trigger exists or is needed.
   Each forced stack emits an `advanced.change-set.reconcile` rollout event and
   is reported in `data.reconciledStacks`. Generate, plan, apply and verify
   then run as for a change set, and after the target apply the convergence
@@ -1951,10 +1980,13 @@ of `stackkit advanced change-set apply` runs the same path.
   stackkit -- tofu ...` in the stack root with the change-set process
   environment plus the root's Compose project name and, for a Core root, the
   native Compose interpolation environment:
-  - `destroyed`: `tofu destroy -auto-approve -input=false`, whose wrapper
-    destroy-time provisioner runs `docker compose down` without `-v`, so data
-    volumes stay; then the root (and a workload's or module's project
-    directory with its `compose.yaml` and `.env`) is removed.
+  - `destroyed`: `tofu destroy -auto-approve -input=false
+    -suppress-forget-errors`, whose wrapper destroy-time provisioner runs
+    `docker compose down` without `-v`; a native Docker-provider root (ADR-0045
+    Stage 2) removes its containers and networks and forgets its
+    `destroy = false` data volumes. Data volumes stay either way; then the
+    root (and a workload's or module's project directory with its
+    `compose.yaml` and `.env`) is removed.
   - `restored` and `recreated`: the checkpoint `.env`, `compose.yaml`,
     `main.tf` and `terraform.tfstate` are written back (a recreated root must
     still hold the executor's root marker), then `tofu apply -replace` on the
@@ -1967,6 +1999,20 @@ of `stackkit advanced change-set apply` runs the same path.
     before `up`. Restored state and payload alone plan as a no-op even while
     newer containers run; the explicit replacement is what makes the
     containers converge to the restored payload.
+  - Native Docker-provider roots (ADR-0045 Stage 2, opt-in): when the current
+    or the checkpoint root of a `restored` stack is native, the current root
+    is first destroyed with `-suppress-forget-errors` (data volumes stay),
+    because the restored state does not track containers a newer revision
+    created and a wrapper and a native root never own the same containers.
+    After the files are written, `opentofu.AlignRestoredWorkloadRoot` sets
+    the root marker's execution from the restored `main.tf` and, for a native
+    checkpoint, renders the owner-only `secrets/<service>.env` files from the
+    restored `.env`; it refuses a native `main.tf` that is not the native
+    rendering of the restored `compose.yaml`. The root is re-initialized
+    (its lock may name other providers) and a native checkpoint converges
+    with a plain `tofu apply` (`terramatehost.ForcedApplyArgs`): the refresh
+    of its containers shows what changed. The joined apply afterwards follows
+    the operator's current `STACKKIT_OPENTOFU_NATIVE_MODULES` opt-in.
 - Lifecycle: the rollback runs under an upgrade-kind lifecycle mutation whose
   checkpoint is the target (its own, or the failed change set's):
   `rollback-started` (plan), `rollback-generate` (the checkpoint StackSpec and

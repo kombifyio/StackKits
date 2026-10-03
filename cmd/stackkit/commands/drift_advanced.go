@@ -61,6 +61,7 @@ func attachAdvancedStackDrift(
 	tools, toolsErr := terramatehost.PackagedTools()
 	stacks, err := advanceddrift.Detect(ctx, advanceddrift.Request{
 		WorkspaceRoot: workspace, Layout: layout, Tools: tools, ToolsErr: toolsErr,
+		RemoteOwnedModules: architectureV2RemoteOwnedModules(),
 		Event: func(stack advanceddrift.Stack) {
 			rolloutEvent(advanceddrift.EventPhase, stack.Status,
 				"advanced drift stack "+stack.StackID+" "+stack.Status,
@@ -74,7 +75,7 @@ func attachAdvancedStackDrift(
 	report.StackID = layout.Manifest.StackID
 	report.DetectedAt = time.Now().UTC().Format(time.RFC3339)
 	report.Stacks = stacks
-	report.Status = advanceddrift.OverallStatus(report.HasDrift, stacks)
+	report.Status = advanceddrift.OverallStatus(report.HasDrift, stacks, architectureV2RemoteOwnedModules())
 	return nil
 }
 

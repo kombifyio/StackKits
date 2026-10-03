@@ -96,7 +96,7 @@ _architectureV2StalwartImage: {ref: "docker.io/stalwartlabs/stalwart:v0.16.23", 
 // pointer, binds the custody password to the recovery administrator and, on
 // the first start only, seeds the submission listener (587) and stdout
 // logging before the server's real start. No secret enters a file or argument.
-_architectureV2StalwartEntrypointScript: ##"set -eu; printf '%s' '{"@type":"RocksDb","path":"/var/lib/stalwart/"}' > /etc/stalwart/config.json; export STALWART_RECOVERY_ADMIN="admin:${STACKKIT_ADMIN_SECRET:?}"; unset STACKKIT_ADMIN_SECRET; if [ ! -f /var/lib/stalwart/.stackkit-seed-v1 ]; then /usr/local/bin/stalwart --config /etc/stalwart/config.json & pid=$!; i=0; until curl -fs -o /dev/null http://127.0.0.1:8080/healthz/ready; do i=$((i+1)); [ "$i" -lt 90 ] || exit 1; sleep 1; done; printf 'user = "%s"\n' "$STALWART_RECOVERY_ADMIN" | curl -fsS -K - -H 'Content-Type: application/json' -o /tmp/stackkit-seed.json -d '{"using":["urn:ietf:params:jmap:core","urn:stalwart:jmap"],"methodCalls":[["x:Tracer/get",{"properties":["id"]},"t0"],["x:Tracer/set",{"#destroy":{"resultOf":"t0","name":"x:Tracer/get","path":"/list/*/id"},"create":{"stdout":{"@type":"Stdout","level":"info","ansi":false}}},"t1"],["x:NetworkListener/set",{"create":{"submission":{"name":"submission","bind":{"[::]:587":true},"protocol":"smtp","tlsImplicit":false}}},"l1"]]}' http://127.0.0.1:8080/jmap/; grep -q '"submission":{"id"' /tmp/stackkit-seed.json; grep -q '"stdout":{"id"' /tmp/stackkit-seed.json; rm -f /tmp/stackkit-seed.json; kill "$pid"; wait "$pid" || true; touch /var/lib/stalwart/.stackkit-seed-v1; fi; exec /usr/local/bin/stalwart --config /etc/stalwart/config.json"##
+_architectureV2StalwartEntrypointScript: ##"set -eu; printf '%s' '{"@type":"RocksDb","path":"/var/lib/stalwart/"}' > /etc/stalwart/config.json; secret=$(cat "$STACKKIT_ADMIN_SECRET_FILE"); export STALWART_RECOVERY_ADMIN="admin:${secret:?}"; unset secret; if [ ! -f /var/lib/stalwart/.stackkit-seed-v1 ]; then /usr/local/bin/stalwart --config /etc/stalwart/config.json & pid=$!; i=0; until curl -fs -o /dev/null http://127.0.0.1:8080/healthz/ready; do i=$((i+1)); [ "$i" -lt 90 ] || exit 1; sleep 1; done; printf 'user = "%s"\n' "$STALWART_RECOVERY_ADMIN" | curl -fsS -K - -H 'Content-Type: application/json' -o /tmp/stackkit-seed.json -d '{"using":["urn:ietf:params:jmap:core","urn:stalwart:jmap"],"methodCalls":[["x:Tracer/get",{"properties":["id"]},"t0"],["x:Tracer/set",{"#destroy":{"resultOf":"t0","name":"x:Tracer/get","path":"/list/*/id"},"create":{"stdout":{"@type":"Stdout","level":"info","ansi":false}}},"t1"],["x:NetworkListener/set",{"create":{"submission":{"name":"submission","bind":{"[::]:587":true},"protocol":"smtp","tlsImplicit":false}}},"l1"]]}' http://127.0.0.1:8080/jmap/; grep -q '"submission":{"id"' /tmp/stackkit-seed.json; grep -q '"stdout":{"id"' /tmp/stackkit-seed.json; rm -f /tmp/stackkit-seed.json; kill "$pid"; wait "$pid" || true; touch /var/lib/stalwart/.stackkit-seed-v1; fi; exec /usr/local/bin/stalwart --config /etc/stalwart/config.json"##
 
 _architectureV2CoreCapabilities: [
 	"topology-core",
@@ -9511,8 +9511,10 @@ _architectureV2Modules: list.Concat([[
 				// The upstream container entrypoint (searxng/searxng container/)
 				// creates settings.yml only when absent; StackKits writes the
 				// minimal override at every start so JSON results stay enabled.
-				// The secret key comes from custody through SEARXNG_SECRET.
-				entrypoint: ["/bin/sh", "-ec", "printf 'use_default_settings: true\\nsearch:\\n  formats:\\n    - html\\n    - json\\n' > /etc/searxng/settings.yml && exec /usr/local/searxng/entrypoint.sh"]
+				// The secret key comes from custody through SEARXNG_SECRET; a
+				// native OpenTofu root instead delivers it as a settings file,
+				// which is appended here (ADR-0045 Stage 2 config-file reader).
+				entrypoint: ["/bin/sh", "-ec", "printf 'use_default_settings: true\\nsearch:\\n  formats:\\n    - html\\n    - json\\n' > /etc/searxng/settings.yml && if [ -f /run/stackkit/secrets/searxng-settings.yml ]; then cat /run/stackkit/secrets/searxng-settings.yml >> /etc/searxng/settings.yml && chmod 0600 /etc/searxng/settings.yml; fi && exec /usr/local/searxng/entrypoint.sh"]
 				environment: {SEARXNG_LIMITER: "false", SEARXNG_PUBLIC_INSTANCE: "false"}
 				secretEnvironment: {SEARXNG_SECRET: "searxng-secret"}
 				health: {kind: "http", path: "/healthz", port: 8080}
@@ -9821,7 +9823,7 @@ _architectureV2Modules: list.Concat([[
 					"command": [
 						"/bin/sh",
 						"-ec",
-						"gitea -c \"$GITEA_APP_INI\" migrate && users=$(gitea -c \"$GITEA_APP_INI\" admin user list) && owner=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ && $2 == \"owner\" {print $3 \" \" $4 \" \" $5}') && if [ -n \"$owner\" ]; then [ \"$owner\" = \"$STACKKITS_OWNER_EMAIL true true\" ] || { echo 'Existing Gitea owner does not match local custody' >&2; exit 1; }; else count=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ {n++} END {print n+0}'); [ \"$count\" = 0 ] || { echo 'Existing Gitea users require explicit owner reconciliation' >&2; exit 1; }; gitea -c \"$GITEA_APP_INI\" admin user create --username owner --email \"$STACKKITS_OWNER_EMAIL\" --password \"$STACKKITS_OWNER_PASSWORD\" --admin --must-change-password=false; fi && unset STACKKITS_OWNER_PASSWORD && exec gitea -c \"$GITEA_APP_INI\" web",
+						"gitea -c \"$GITEA_APP_INI\" migrate && users=$(gitea -c \"$GITEA_APP_INI\" admin user list) && owner=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ && $2 == \"owner\" {print $3 \" \" $4 \" \" $5}') && if [ -n \"$owner\" ]; then [ \"$owner\" = \"$STACKKITS_OWNER_EMAIL true true\" ] || { echo 'Existing Gitea owner does not match local custody' >&2; exit 1; }; else count=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ {n++} END {print n+0}'); [ \"$count\" = 0 ] || { echo 'Existing Gitea users require explicit owner reconciliation' >&2; exit 1; }; password=$(cat \"$STACKKITS_OWNER_PASSWORD_FILE\"); gitea -c \"$GITEA_APP_INI\" admin user create --username owner --email \"$STACKKITS_OWNER_EMAIL\" --password \"$password\" --admin --must-change-password=false; fi && exec gitea -c \"$GITEA_APP_INI\" web",
 					]
 					"environment": {
 						"GITEA__database__DB_TYPE":             "sqlite3"
@@ -9838,9 +9840,15 @@ _architectureV2Modules: list.Concat([[
 					"ownerEnvironment": {
 						"STACKKITS_OWNER_EMAIL": "email"
 					}
-					"secretEnvironment": {
-						"STACKKITS_OWNER_PASSWORD": "owner-password"
-					}
+					// The governed command reads the owner password from its custody
+					// file; the value never enters the container environment.
+					"secretFiles": [{
+						"slot":            "owner-password"
+						"target":          "/run/secrets/owner-password"
+						"pathEnvironment": "STACKKITS_OWNER_PASSWORD_FILE"
+						"uid":             1000
+						"gid":             1000
+					}]
 					"volumes": [
 						{
 							"id":     "data"
@@ -9973,7 +9981,7 @@ _architectureV2Modules: list.Concat([[
 					"command": [
 						"/bin/sh",
 						"-ec",
-						"forgejo migrate && users=$(forgejo admin user list) && owner=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ && $2 == \"owner\" {print $3 \" \" $4 \" \" $5}') && if [ -n \"$owner\" ]; then [ \"$owner\" = \"$STACKKITS_OWNER_EMAIL true true\" ] || { echo 'Existing Forgejo owner does not match local custody' >&2; exit 1; }; else count=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ {n++} END {print n+0}'); [ \"$count\" = 0 ] || { echo 'Existing Forgejo users require explicit owner reconciliation' >&2; exit 1; }; forgejo admin user create --username owner --email \"$STACKKITS_OWNER_EMAIL\" --password \"$STACKKITS_OWNER_PASSWORD\" --admin --must-change-password=false; fi && unset STACKKITS_OWNER_PASSWORD && exec forgejo web",
+						"forgejo migrate && users=$(forgejo admin user list) && owner=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ && $2 == \"owner\" {print $3 \" \" $4 \" \" $5}') && if [ -n \"$owner\" ]; then [ \"$owner\" = \"$STACKKITS_OWNER_EMAIL true true\" ] || { echo 'Existing Forgejo owner does not match local custody' >&2; exit 1; }; else count=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ {n++} END {print n+0}'); [ \"$count\" = 0 ] || { echo 'Existing Forgejo users require explicit owner reconciliation' >&2; exit 1; }; password=$(cat \"$STACKKITS_OWNER_PASSWORD_FILE\"); forgejo admin user create --username owner --email \"$STACKKITS_OWNER_EMAIL\" --password \"$password\" --admin --must-change-password=false; fi && exec forgejo web",
 					]
 					"environment": {
 						"FORGEJO__database__DB_TYPE":             "sqlite3"
@@ -9990,9 +9998,15 @@ _architectureV2Modules: list.Concat([[
 					"ownerEnvironment": {
 						"STACKKITS_OWNER_EMAIL": "email"
 					}
-					"secretEnvironment": {
-						"STACKKITS_OWNER_PASSWORD": "owner-password"
-					}
+					// The governed command reads the owner password from its custody
+					// file; the value never enters the container environment.
+					"secretFiles": [{
+						"slot":            "owner-password"
+						"target":          "/run/secrets/owner-password"
+						"pathEnvironment": "STACKKITS_OWNER_PASSWORD_FILE"
+						"uid":             1000
+						"gid":             1000
+					}]
 					"volumes": [
 						{
 							"id":     "data"
@@ -10112,10 +10126,12 @@ _architectureV2Modules: list.Concat([[
 						PAPERLESS_DBUSER:     "paperless"
 						PAPERLESS_ADMIN_USER: "owner"
 					}
-					ownerEnvironment: {PAPERLESS_ADMIN_MAIL: "email"}
 					// Sign-in through Pocket ID (owner direction 2026-09-26): the owner
 					// group maps to the Paperless superuser; the local owner account
-					// stays as the break-glass login.
+					// stays as the break-glass login. The break-glass account carries
+					// no owner email (Paperless defaults it to root@localhost): allauth
+					// refuses to sign up a Pocket ID account whose email a local account
+					// already holds, and sends the owner to a signup form instead.
 					homeIdentityAccess: {caBundleTarget: "/etc/stackkit/ca-bundle.pem", caBundleEnvironment: ["REQUESTS_CA_BUNDLE", "SSL_CERT_FILE"]}
 					pocketIDClient: {
 						callbackPath: "/accounts/oidc/pocketid/login/callback/"
@@ -10241,7 +10257,7 @@ _architectureV2Modules: list.Concat([[
 			id: "roundcube", kind: "native-config", rendererRef: "stackkit"
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/roundcube/bundle/v1.json", version: "1.0.0"
-			contractHash: "sha256:cb57a9c4f55d1675bd0f8b248b5a50ba00824468f766d253603a630e6c00c0c5"
+			contractHash: "sha256:e52e29d64a9efc3e642876514650437c0da694fad56d2934fd12569d55039177"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
 			secretInputRefs: ["session-key"]
@@ -10288,9 +10304,11 @@ _architectureV2Modules: list.Concat([[
 				// interface downloads.
 				egress: true
 				entrypoint: ["/bin/sh", "-c", _architectureV2StalwartEntrypointScript]
-				// The custody password reaches only the entrypoint, which hands
-				// it to Stalwart as STALWART_RECOVERY_ADMIN=admin:<password>.
-				secretEnvironment: STACKKIT_ADMIN_SECRET: "admin-password"
+				// The custody password reaches only the entrypoint, as a file it
+				// reads and hands to Stalwart's process environment as
+				// STALWART_RECOVERY_ADMIN=admin:<password>; it never enters the
+				// container configuration.
+				secretFiles: [{slot: "admin-password", target: "/run/secrets/admin-password", pathEnvironment: "STACKKIT_ADMIN_SECRET_FILE", uid: 2000, gid: 2000}]
 				// ADR-0046 mail-node fields: the route host is the mail host
 				// name, the mail ports are published on the node, and the router
 				// passes TLS-ALPN-01 challenges for that host to Stalwart.
@@ -11068,8 +11086,12 @@ _architectureV2Modules: list.Concat([[
 				}
 				dependsOn: []
 				networkRefs: ["mosquitto-internal"]
-				command: ["/bin/sh", "-ec", "printf 'per_listener_settings true\\npersistence true\\npersistence_location /mosquitto/data/\\nlistener 1883\\nallow_anonymous false\\npassword_file /mosquitto/data/passwd\\nlistener 8080\\nprotocol http_api\\nallow_anonymous true\\n' > /mosquitto/data/mosquitto.conf && mosquitto_passwd -b -c /mosquitto/data/passwd stackkit \"$MQTT_PASSWORD\" && unset MQTT_PASSWORD && chown mosquitto:mosquitto /mosquitto/data/mosquitto.conf /mosquitto/data/passwd && exec mosquitto -c /mosquitto/data/mosquitto.conf"]
-				secretEnvironment: {MQTT_PASSWORD: "mqtt-password"}
+				command: ["/bin/sh", "-ec", "printf 'per_listener_settings true\\npersistence true\\npersistence_location /mosquitto/data/\\nlistener 1883\\nallow_anonymous false\\npassword_file /mosquitto/data/passwd\\nlistener 8080\\nprotocol http_api\\nallow_anonymous true\\n' > /mosquitto/data/mosquitto.conf && password=$(cat \"$MQTT_PASSWORD_FILE\") && rm -f /mosquitto/data/passwd && mosquitto_passwd -b -c /mosquitto/data/passwd stackkit \"$password\" && chown mosquitto:mosquitto /mosquitto/data/mosquitto.conf /mosquitto/data/passwd && exec mosquitto -c /mosquitto/data/mosquitto.conf"]
+				// The governed command reads the password from its custody file.
+				// It runs on every container start: mosquitto_passwd -c refuses
+				// an existing file, so the previous password file goes first and
+				// the custody value is authoritative after each restart.
+				secretFiles: [{slot: "mqtt-password", target: "/run/secrets/mqtt-password", pathEnvironment: "MQTT_PASSWORD_FILE", uid: 0, gid: 0}]
 				lanListeners: [{port: 1883, protocol: "tcp", settingRef: "lan-listener"}]
 				volumes: [for allocation in _architectureV2MosquittoInfrastructure.storageAllocation.allocations {
 					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup

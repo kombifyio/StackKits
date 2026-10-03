@@ -311,11 +311,20 @@ var childExitStatus = regexp.MustCompile(`\(in [^)]*\): exit status ([0-9]+)\s*$
 // process itself (for example 2 from `plan -detailed-exitcode`). An error is
 // returned only when Terramate failed without a command exit status.
 func (e *Executor) RunStackTofu(ctx context.Context, tags string, args ...string) (*Result, error) {
+	return e.RunStackCommand(ctx, tags, e.tofuBinary, args...)
+}
+
+// RunStackCommand runs `terramate run --no-recursive -- <binary> <args>` in
+// the working directory, which must be one stack directory. It is the same
+// run as RunStackTofu for a stack whose command is not OpenTofu, such as the
+// host pre-step that runs the StackKits CLI. The returned Result carries the
+// exit code of the command itself.
+func (e *Executor) RunStackCommand(ctx context.Context, tags, binary string, args ...string) (*Result, error) {
 	command := []string{"run", "--no-recursive"}
 	if tags != "" {
 		command = append(command, "--tags", tags)
 	}
-	command = append(command, "--", e.tofuBinary)
+	command = append(command, "--", binary)
 	command = append(command, args...)
 	result, err := e.run(ctx, command...)
 	if err == nil {
@@ -369,10 +378,12 @@ func (e *Executor) RunApply(ctx context.Context, autoApprove bool) (*Result, err
 	return e.run(ctx, args...)
 }
 
-// RunDestroy runs tofu destroy on all stacks
+// RunDestroy runs tofu destroy on all stacks. Native data volumes
+// (`lifecycle { destroy = false }`) are forgotten, not deleted, and their
+// forget error is suppressed like in every other destroy caller.
 func (e *Executor) RunDestroy(ctx context.Context, autoApprove bool) (*Result, error) {
 	args := []string{"run", "--reverse"}
-	destroyArgs := []string{e.tofuBinary, "destroy", "-input=false"}
+	destroyArgs := []string{e.tofuBinary, "destroy", "-input=false", "-suppress-forget-errors"}
 	if autoApprove {
 		destroyArgs = append(destroyArgs, "-auto-approve")
 	}

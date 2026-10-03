@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 )
 
 const (
@@ -209,7 +210,7 @@ func validateMosquittoRuntimeComponents(components []selectedPaaSRuntimeComponen
 	if len(components) != 1 || components[0].ID != "mosquitto" || components[0].Lifecycle != "daemon" ||
 		components[0].Image.Ref != mosquittoImageRef || components[0].Image.Digest != mosquittoImageDigest ||
 		components[0].Health.Kind != "http" || components[0].Health.Path != "/api/v1/systree" || components[0].Health.Port != 8080 || !sameEnvironment(components[0].Environment, mosquittoEnvironment()) ||
-		!sameEnvironment(components[0].SecretEnvironment, map[string]string{"MQTT_PASSWORD": "mqtt-password"}) || !mosquittoCommandMatches(components[0].Command) {
+		len(components[0].SecretEnvironment) != 0 || !slices.Equal(components[0].SecretFiles, []selectedPaaSSecretFile{mosquittoPasswordFile}) || !mosquittoCommandMatches(components[0].Command) {
 		return nil, fail(ErrInvalidPlan, path, "Mosquitto runtime graph differs from the closed "+mosquittoRelease+" contract")
 	}
 	want := map[string]selectedPaaSRuntimeVolume{

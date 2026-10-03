@@ -248,7 +248,7 @@ func validateForgejoRuntimeComponents(components []selectedPaaSRuntimeComponent,
 			actual[k] = v
 		}
 	}
-	if !reflect.DeepEqual(actual, expected) || !reflect.DeepEqual(c.OwnerEnvironment, map[string]string{"STACKKITS_OWNER_EMAIL": "email"}) || !reflect.DeepEqual(c.SecretEnvironment, map[string]string{"STACKKITS_OWNER_PASSWORD": "owner-password"}) || c.Health.Kind != "http" || c.Health.Port != 3000 || c.Health.Path != "/api/healthz" || len(c.Health.Command) != 0 {
+	if !reflect.DeepEqual(actual, expected) || !reflect.DeepEqual(c.OwnerEnvironment, map[string]string{"STACKKITS_OWNER_EMAIL": "email"}) || len(c.SecretEnvironment) != 0 || !reflect.DeepEqual(c.SecretFiles, []selectedPaaSSecretFile{forgejoOwnerPasswordFile}) || c.Health.Kind != "http" || c.Health.Port != 3000 || c.Health.Path != "/api/healthz" || len(c.Health.Command) != 0 {
 		return nil, fail(ErrInvalidPlan, path, "Forgejo owner, private repository or SQLite boundary differs")
 	}
 	if len(c.Volumes) != 1 {

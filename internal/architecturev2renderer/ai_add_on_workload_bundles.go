@@ -65,7 +65,9 @@ func searxngWorkload() aiAddOnWorkload {
 			ID: "searxng", Role: "application", Lifecycle: "daemon", Egress: true,
 			Image:     selectedPaaSRuntimeImage{Ref: searxngImageRef, Digest: searxngImageDigest},
 			DependsOn: []string{}, NetworkRefs: []string{"searxng-internal"},
-			Entrypoint:        []string{"/bin/sh", "-ec", `printf 'use_default_settings: true\nsearch:\n  formats:\n    - html\n    - json\n' > /etc/searxng/settings.yml && exec /usr/local/searxng/entrypoint.sh`},
+			Entrypoint: []string{"/bin/sh", "-ec", `printf 'use_default_settings: true\nsearch:\n  formats:\n    - html\n    - json\n' > /etc/searxng/settings.yml && ` +
+				`if [ -f ` + SearxngSecretSettingsPath + ` ]; then cat ` + SearxngSecretSettingsPath + ` >> /etc/searxng/settings.yml && chmod 0600 /etc/searxng/settings.yml; fi && ` +
+				`exec /usr/local/searxng/entrypoint.sh`},
 			Environment:       map[string]string{"SEARXNG_LIMITER": "false", "SEARXNG_PUBLIC_INSTANCE": "false"},
 			SecretEnvironment: map[string]string{"SEARXNG_SECRET": "searxng-secret"},
 			Health:            selectedPaaSRuntimeHealth{Kind: "http", Path: "/healthz", Port: 8080},

@@ -547,6 +547,15 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 			if g.now != nil {
 				now = g.now
 			}
+			// A target without an execution channel would be refused at
+			// recovery preparation; refuse before any host preparation.
+			bound, scope, err := architectureV2ExecutionChannelBinder(wd, options, now().UTC())
+			if err != nil {
+				return err
+			}
+			if err := persisted.RequireExecutionChannels(scope, bound); err != nil {
+				return err
+			}
 			canonicalPlan, err := resolvedplan.DecodeCanonicalPlan(persisted.Canonical())
 			if err != nil {
 				return fmt.Errorf("decode verified canonical plan for external host freshness: %w", err)
@@ -809,6 +818,11 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		if err != nil {
 			return err
 		}
+		bound, scope, err := architectureV2ExecutionChannelBinder(wd, options, time.Now().UTC())
+		if err != nil {
+			return err
+		}
+		inspection = inspection.WithApplyBlockers(persisted.ExecutionChannelBlockers(scope, bound))
 		if options.inspectionSink != nil {
 			return options.inspectionSink(inspection)
 		}

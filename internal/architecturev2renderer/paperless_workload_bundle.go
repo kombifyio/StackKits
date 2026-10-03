@@ -230,7 +230,7 @@ func validatePaperlessRuntimeComponents(components []selectedPaaSRuntimeComponen
 			if routeOrigin != "" {
 				expected["PAPERLESS_URL"], expected["PAPERLESS_CSRF_TRUSTED_ORIGINS"] = routeOrigin, routeOrigin
 			}
-			if c.Role != "application" || c.Image.Ref != paperlessImageRef || c.Image.Digest != paperlessImageDigest || !exactStringList(c.DependsOn, []string{"paperless-postgres", "paperless-valkey"}) || len(c.Command) != 0 || !reflect.DeepEqual(c.Environment, expected) || !reflect.DeepEqual(c.OwnerEnvironment, map[string]string{"PAPERLESS_ADMIN_MAIL": "email"}) || !reflect.DeepEqual(c.SecretEnvironment, map[string]string{"PAPERLESS_DBPASS": "database-password", "PAPERLESS_ADMIN_PASSWORD": "owner-password", "PAPERLESS_SECRET_KEY": "session-key"}) || c.Health.Kind != "http" || c.Health.Path != "/" || c.Health.Port != 8000 || len(c.Health.Command) != 0 {
+			if c.Role != "application" || c.Image.Ref != paperlessImageRef || c.Image.Digest != paperlessImageDigest || !exactStringList(c.DependsOn, []string{"paperless-postgres", "paperless-valkey"}) || len(c.Command) != 0 || !reflect.DeepEqual(c.Environment, expected) || len(c.OwnerEnvironment) != 0 || !reflect.DeepEqual(c.SecretEnvironment, map[string]string{"PAPERLESS_DBPASS": "database-password", "PAPERLESS_ADMIN_PASSWORD": "owner-password", "PAPERLESS_SECRET_KEY": "session-key"}) || c.Health.Kind != "http" || c.Health.Path != "/" || c.Health.Port != 8000 || len(c.Health.Command) != 0 {
 				return nil, fail(ErrInvalidPlan, path, "Paperless image, owner bootstrap, database or route configuration differs")
 			}
 			if !reflect.DeepEqual(c.HomeIdentityAccess, paperlessHomeIdentityAccess) || !reflect.DeepEqual(c.PocketIDClient, paperlessPocketIDClient) {

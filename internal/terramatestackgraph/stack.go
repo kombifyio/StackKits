@@ -17,11 +17,20 @@ import (
 	"strings"
 )
 
-// Role orders stacks inside a plan. Host and security baseline owners are not
-// stacks; they stay native executor operations.
+// Role orders stacks inside a plan. Host preparation and host security are the
+// one exception to "one stack per module render instance": the O1 decision
+// (ADR-0045 addendum A4) runs them as the ordered `host` pre-step of every host
+// project, through the pinned StackKits CLI instead of an OpenTofu root. Every
+// other host owner stays a native executor operation.
 type Role string
 
 const (
+	// RoleHost is the host preparation and host security pre-step of one
+	// host. It is synthesized per host (no render unit), runs before every
+	// other stack of the host, and owns no OpenTofu root: its runtime root is
+	// the directory of its `stack.tm.hcl` and its commands are the StackKits
+	// `host security` verify (drift signal) and repair (reconcile).
+	RoleHost Role = "host"
 	// RoleCore is the site core of one host (Basement core, Basement core
 	// Lite, Cloud core, Cloud standalone core). Its OpenTofu root is generated.
 	RoleCore Role = "core"
@@ -49,6 +58,17 @@ const (
 	EdgeStackTemplateRef = "builtin://terramate/stack/edge/v1"
 	// FederationStackTemplateRef identifies the generic federation stack unit.
 	FederationStackTemplateRef = "builtin://terramate/stack/federation/v1"
+
+	// HostModuleRef is the module identity of the synthesized host pre-step
+	// stack of every host.
+	HostModuleRef = "stackkits-host"
+	// HostUnitRef and HostInstanceRef identify the synthesized host stack in
+	// the graph; it has no plan render unit.
+	HostUnitRef     = "host-prestep"
+	HostInstanceRef = "host-prestep"
+	// HostRuntimeRoot is the stack directory of the host pre-step, relative
+	// to the host workspace. It holds only `stack.tm.hcl`.
+	HostRuntimeRoot = RuntimeRoot + "/host"
 
 	stackIDNamespace = "stackkit.terramate-stack/v1"
 )
@@ -109,6 +129,10 @@ type Definition struct {
 	Description  string
 	Tags         []string
 	AfterQueries []string
+	// BeforeQueries order this stack before others. Only the host pre-step
+	// uses it: it runs before every core, edge, workload and federation stack
+	// of its project without changing the render of any of them.
+	BeforeQueries []string
 }
 
 // Define derives the stack identity for one module render instance on one
@@ -124,6 +148,10 @@ func Define(role Role, moduleRef, siteRef, nodeRef string) (Definition, error) {
 	if err != nil {
 		return Definition{}, err
 	}
+	var before []string
+	if role == RoleHost {
+		before = hostBeforeQueries()
+	}
 	return Definition{
 		ID:          StackID(moduleRef, siteRef, nodeRef),
 		Name:        moduleRef + " @ " + siteRef + "/" + nodeRef,
@@ -135,7 +163,8 @@ func Define(role Role, moduleRef, siteRef, nodeRef string) (Definition, error) {
 			"node/" + nodeRef,
 			"module/" + moduleRef,
 		},
-		AfterQueries: after,
+		AfterQueries:  after,
+		BeforeQueries: before,
 	}, nil
 }
 
@@ -151,7 +180,7 @@ func StackID(moduleRef, siteRef, nodeRef string) string {
 // site core and edge. Cross-host order lives only in the graph.
 func afterQueries(role Role) ([]string, error) {
 	switch role {
-	case RoleCore:
+	case RoleHost, RoleCore:
 		return nil, nil
 	case RoleEdge, RoleWorkload:
 		return []string{"tag:role/" + string(RoleCore)}, nil
@@ -187,4 +216,13 @@ func sortedUnique(values []string) []string {
 	}
 	sort.Strings(result)
 	return result
+}
+
+// hostBeforeQueries are the in-project Terramate ordering rules of the host
+// pre-step: before every other StackKits role of its project.
+func hostBeforeQueries() []string {
+	return []string{
+		"tag:role/" + string(RoleCore), "tag:role/" + string(RoleEdge),
+		"tag:role/" + string(RoleWorkload), "tag:role/" + string(RoleFederation),
+	}
 }

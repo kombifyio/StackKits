@@ -13,6 +13,8 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 )
 
 // StackTofuRequest runs one OpenTofu command in one local stack root through
@@ -81,6 +83,28 @@ func RunStackTofu(ctx context.Context, request StackTofuRequest, args ...string)
 		return result, err
 	}
 	return result, nil
+}
+
+// ForcedApplyArgs returns the `tofu apply` arguments that force one stack
+// root to re-converge against its current configuration. A Stage 1 wrapper
+// root replaces its trigger (ReplaceTriggerAddress), because runtime drift
+// leaves its desired state unchanged; a native Docker-provider root
+// (ADR-0045 Stage 2) needs no trigger: the refresh of its containers,
+// networks and images shows the drift and a plain apply converges it.
+func ForcedApplyArgs(mainTF []byte) ([]string, error) {
+	args := []string{"apply", "-auto-approve", "-input=false", "-no-color"}
+	native, err := architecturev2renderer.NativeDockerRootConfig(mainTF)
+	if err != nil {
+		return nil, err
+	}
+	if native {
+		return args, nil
+	}
+	address, err := ReplaceTriggerAddress(mainTF)
+	if err != nil {
+		return nil, err
+	}
+	return append(args, "-replace="+address), nil
 }
 
 // ReplaceTriggerAddress returns the `terraform_data` resource whose
