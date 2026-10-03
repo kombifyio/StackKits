@@ -775,6 +775,29 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("resolve owner-only material for secret slot %q: %w", slot, err)
 			}
+			if file, governed := architecturev2renderer.GovernedWorkloadSecretReferenceFile(bundle.ModuleRef, component.ID, environmentName); governed {
+				// The variable carries only the reference; the value reaches
+				// the container as a 0400 file outside every data volume.
+				if standaloneComposeVolumeOwnsPath(component.Volumes, file.Target) {
+					return nil, nil, nil, errors.New("a secret reference file must stay outside the workload volumes")
+				}
+				content, err := file.Content(string(material))
+				if err != nil {
+					return nil, nil, nil, fmt.Errorf("secret slot %q: %w", slot, err)
+				}
+				variable := standaloneComposeSecretVariable(component.ID, "FILE_"+slot)
+				secretValues[variable] = content
+				if document.Secrets == nil {
+					document.Secrets = map[string]standaloneComposeSecret{}
+				}
+				name := component.ID + "-" + slot
+				document.Secrets[name] = standaloneComposeSecret{Environment: variable}
+				service.Secrets = append(service.Secrets, standaloneComposeServiceSecret{
+					Source: name, Target: file.Target, UID: strconv.Itoa(file.UID), GID: strconv.Itoa(file.GID), Mode: 0o400,
+				})
+				service.Environment[environmentName] = strings.ReplaceAll(file.Reference, "$", "$$")
+				continue
+			}
 			variable := standaloneComposeSecretVariable(component.ID, environmentName)
 			secretValues[variable] = string(material)
 			service.Environment[environmentName] = "${" + variable + ":?required}"
@@ -902,6 +925,7 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 			service.Healthcheck = &standaloneComposeHealthcheck{
 				Test:     append([]string{"CMD"}, standaloneComposeLiteralArguments(component.HealthCommand)...),
 				Interval: "10s", Timeout: "5s", Retries: 12, StartPeriod: "10s",
+				StartInterval: architecturev2renderer.WorkloadImageHealthcheckStartInterval(component.ImageDigest),
 			}
 		}
 		if component.ID == bundle.EntryComponent {

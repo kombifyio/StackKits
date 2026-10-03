@@ -147,6 +147,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## [0.50.7](https://github.com/kombifyio/StackKits/compare/v0.50.6...v0.50.7) (2026-10-03)
+
+
+### Added
+
+* **opentofu:** admit seven wave 1 modules without secrets to native execution
+
+
+### Fixed
+
+* **compose:** keep the zigbee2mqtt MQTT password out of the data volume
+* **renderer:** pin the Immich database health-check start interval
+
 ## [0.50.6](https://github.com/kombifyio/StackKits/compare/v0.50.5...v0.50.6) (2026-10-03)
 
 

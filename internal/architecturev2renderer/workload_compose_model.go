@@ -118,6 +118,10 @@ type WorkloadComposeHealthcheck struct {
 	Timeout     string   `yaml:"timeout"`
 	Retries     int      `yaml:"retries"`
 	StartPeriod string   `yaml:"start_period"`
+	// StartInterval pins the image's own HEALTHCHECK start interval, which
+	// Docker otherwise merges into a Compose health check that sets none
+	// (see WorkloadImageHealthcheckStartInterval).
+	StartInterval string `yaml:"start_interval,omitempty"`
 }
 
 // Lifecycle labels the Compose renderer sets on every workload service.

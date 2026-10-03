@@ -70,16 +70,27 @@ var nativeDockerPilotModules = map[string]struct{}{
 	// entrypoint's Compose secret file (provider upload); receipt
 	// evidence/stage2-native-stalwart-2026-10-03.json.
 	"stackkits-stalwart-runtime": {},
+	// zigbee2mqtt: the USB device and the MQTT password reference file, a
+	// Compose secret file (provider upload) on both executions; receipt
+	// evidence/stage2-native-zigbee2mqtt-2026-10-03.json.
+	"stackkits-zigbee2mqtt-runtime": {},
 	// Modules whose secrets the fixed-path readers cover; receipts
 	// evidence/stage2-native-<module>-2026-10-03.json.
-	// zigbee2mqtt: the USB device and the MQTT password as secret.yaml.
-	"stackkits-zigbee2mqtt-runtime": {},
 	// SearXNG: the secret settings file.
 	"stackkits-searxng-runtime": {},
 	// Roundcube: the des_key file and the governed project files.
 	"stackkits-roundcube-runtime": {},
 	// Euro-Office: the JWT secret pre-seeded in the data volume.
 	"stackkits-euro-office-runtime": {},
+	// Wave 1 single-container modules without secrets; receipts
+	// evidence/stage2-native-<module>-2026-10-03.json.
+	"stackkits-cloudreve-runtime":      {},
+	"stackkits-navidrome-runtime":      {},
+	"stackkits-audiobookshelf-runtime": {},
+	"stackkits-esphome-runtime":        {},
+	"stackkits-tika-runtime":           {},
+	"stackkits-docling-runtime":        {},
+	"stackkits-emby-runtime":           {},
 }
 
 // nativeDockerNoImageHealthcheck names, per module, the daemon services
@@ -97,6 +108,16 @@ var nativeDockerNoImageHealthcheck = map[string]map[string]bool{
 	"stackkits-searxng-runtime":     {"searxng": true},
 	"stackkits-roundcube-runtime":   {"roundcube": true},
 	"stackkits-euro-office-runtime": {"euro-office": true},
+	// cloudreve 4.18.0, navidrome 0.64.2, audiobookshelf 2.36.1, tika
+	// 4.0.0-1, docling-serve-cpu v1.35.0,
+	// embyserver 4.10.0.40: no HEALTHCHECK; health is the catalog's HTTP probe. esphome 2026.9.0
+	// declares one (curl /version), so its container renders `wait`.
+	"stackkits-cloudreve-runtime":      {"cloudreve": true},
+	"stackkits-navidrome-runtime":      {"navidrome": true},
+	"stackkits-audiobookshelf-runtime": {"audiobookshelf": true},
+	"stackkits-tika-runtime":           {"tika": true},
+	"stackkits-docling-runtime":        {"docling": true},
+	"stackkits-emby-runtime":           {"emby": true},
 }
 
 // NativeDockerPilotModule reports whether moduleRef has a native renderer.
@@ -130,8 +151,8 @@ type nativeDockerSecretReader struct {
 	// container is bound by exactly one file.
 	Files []nativeDockerSecretFileSpec
 	// Environment holds the literal, non-secret variables a Files reader
-	// needs to find its files (a path such as PGPASSFILE, or a reference
-	// such as zigbee2mqtt's `!secret` tag). Only valid with Files.
+	// needs to find its files (a path such as PGPASSFILE). Only valid with
+	// Files.
 	Environment map[string]string
 }
 
@@ -204,20 +225,6 @@ var nativeDockerSecretReaders = map[string]map[string]nativeDockerSecretReader{
 		ImageDigest: "sha256:0bb87c70270ee7a95848a5b8ecbd90cd850e7bdacc0f64b70e33e4524f123fa4",
 		Entrypoint:  []string{"docker-entrypoint.sh"}, Command: []string{"node", "server.js"},
 	}}},
-	// zigbee2mqtt 2.14.1 (lib/util/settings.ts) resolves `!secret <key>`
-	// from secret.yaml in its data directory, and writes every
-	// ZIGBEE2MQTT_CONFIG_* variable into configuration.yaml on each start:
-	// the reference replaces the value there, and the value stays in
-	// secret.yaml. Both sit in the data volume, where the Compose path
-	// persists the value itself; an opt-out back to the wrapper still
-	// resolves the reference. The process runs as root.
-	"stackkits-zigbee2mqtt-runtime": {"zigbee2mqtt": {
-		Files: []nativeDockerSecretFileSpec{{
-			Target: "/app/data/secret.yaml", Format: NativeDockerSecretFormatYAML,
-			Variables: []string{"ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD"}, Keys: []string{"mqtt_password"}, UID: "0", GID: "0", Mode: 0o600,
-		}},
-		Environment: map[string]string{"ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD": "!secret mqtt_password"},
-	}},
 	// SearXNG reads server.secret_key from settings.yml unless SEARXNG_SECRET
 	// is set; the governed entrypoint appends this file to the settings it
 	// writes, as root, before the image entrypoint.
@@ -1130,7 +1137,7 @@ func nativeHealthcheck(servicePath string, block *hclwrite.Body, check *Workload
 	}
 	health := block.AppendNewBlock("healthcheck", nil).Body()
 	health.SetAttributeValue("test", test)
-	for _, duration := range [][2]string{{"interval", check.Interval}, {"timeout", check.Timeout}, {"start_period", check.StartPeriod}} {
+	for _, duration := range [][2]string{{"interval", check.Interval}, {"timeout", check.Timeout}, {"start_period", check.StartPeriod}, {"start_interval", check.StartInterval}} {
 		if duration[1] == "" {
 			continue
 		}
