@@ -30962,7 +30962,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:8d970983e433a9f06a6ee4461fd61cddce41ff9f3d25e18febc7e8828f6f5666",
+          "contractHash": "sha256:2642ab792a7504a2a723185d2b15d3ef552ec598e1a7c9ca322db8fd39f9c99e",
           "id": "hermes",
           "inputBindings": [
             {
@@ -31166,10 +31166,22 @@
               "STACKKIT_HERMES_RESTORE_ACTIVATION": "restore-activation"
             },
             "role": "application",
-            "secretEnvironment": {
-              "HERMES_DASHBOARD_BASIC_AUTH_PASSWORD": "dashboard-password",
-              "HERMES_DASHBOARD_BASIC_AUTH_SECRET": "dashboard-session-secret"
-            },
+            "secretFiles": [
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_DASHBOARD_PASSWORD_FILE",
+                "slot": "dashboard-password",
+                "target": "/run/secrets/dashboard-password",
+                "uid": 0
+              },
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_DASHBOARD_SESSION_SECRET_FILE",
+                "slot": "dashboard-session-secret",
+                "target": "/run/secrets/dashboard-session-secret",
+                "uid": 0
+              }
+            ],
             "volumes": [
               {
                 "backup": true,
@@ -31783,7 +31795,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:aa576e46286af91e77de7bdc1485606c24fe2cb16dd4e9a668672b9998cf51fa",
+          "contractHash": "sha256:5ec8fe19733ac6ff112443d5ed129f18160529298d974ee25a5c2e9aab4f5d6c",
           "id": "paperclip",
           "inputBindings": [
             {
@@ -31949,7 +31961,7 @@
             "entrypoint": [
               "/bin/sh",
               "-ec",
-              "export DATABASE_URL=\"$(node -e 'const u = new URL(\"postgres://paperclip@paperclip-postgres:5432/paperclip\"); u.password = process.env.STACKKIT_PAPERCLIP_DB_PASSWORD; process.stdout.write(u.href);')\"; unset STACKKIT_PAPERCLIP_DB_PASSWORD; exec /usr/bin/tini -- docker-entrypoint.sh node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js"
+              "export DATABASE_URL=\"$(node -e 'const u = new URL(\"postgres://paperclip@paperclip-postgres:5432/paperclip\"); u.password = require(\"fs\").readFileSync(process.env.STACKKIT_PAPERCLIP_DB_PASSWORD_FILE, \"utf8\"); process.stdout.write(u.href);')\"; export BETTER_AUTH_SECRET=\"$(cat \"$STACKKIT_SESSION_SECRET_FILE\")\"; unset STACKKIT_PAPERCLIP_DB_PASSWORD_FILE STACKKIT_SESSION_SECRET_FILE; exec /usr/bin/tini -- docker-entrypoint.sh node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js"
             ],
             "environment": {
               "HOST": "0.0.0.0",
@@ -31992,10 +32004,22 @@
               "PAPERCLIP_ALLOWED_HOSTNAMES": "route-host"
             },
             "sandboxRuntime": "runsc",
-            "secretEnvironment": {
-              "BETTER_AUTH_SECRET": "session-secret",
-              "STACKKIT_PAPERCLIP_DB_PASSWORD": "database-password"
-            },
+            "secretFiles": [
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_PAPERCLIP_DB_PASSWORD_FILE",
+                "slot": "database-password",
+                "target": "/run/secrets/database-password",
+                "uid": 0
+              },
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_SESSION_SECRET_FILE",
+                "slot": "session-secret",
+                "target": "/run/secrets/session-secret",
+                "uid": 0
+              }
+            ],
             "volumes": [
               {
                 "backup": true,
@@ -36037,11 +36061,29 @@
             },
             "role": "application",
             "routeHostLoopback": true,
-            "secretEnvironment": {
-              "DB_PASSWORD": "database-password",
-              "STACKKIT_APP_KEY": "app-key",
-              "STACKKIT_HASHIDS_SALT": "hashids-salt"
-            },
+            "secretFiles": [
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_DB_PASSWORD_FILE",
+                "slot": "database-password",
+                "target": "/run/secrets/database-password",
+                "uid": 0
+              },
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_APP_KEY_FILE",
+                "slot": "app-key",
+                "target": "/run/secrets/app-key",
+                "uid": 0
+              },
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_HASHIDS_SALT_FILE",
+                "slot": "hashids-salt",
+                "target": "/run/secrets/hashids-salt",
+                "uid": 0
+              }
+            ],
             "volumes": [
               {
                 "backup": true,
@@ -36182,14 +36224,50 @@
               "STACKKIT_OWNER_EMAIL": "email"
             },
             "role": "database-init",
-            "secretEnvironment": {
-              "DB_PASSWORD": "database-password",
-              "STACKKIT_APPLICATION_API_KEY": "application-api-key",
-              "STACKKIT_APP_KEY": "app-key",
-              "STACKKIT_CLIENT_API_KEY": "client-api-key",
-              "STACKKIT_HASHIDS_SALT": "hashids-salt",
-              "STACKKIT_OWNER_PASSWORD": "owner-password"
-            },
+            "secretFiles": [
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_DB_PASSWORD_FILE",
+                "slot": "database-password",
+                "target": "/run/secrets/database-password",
+                "uid": 0
+              },
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_APP_KEY_FILE",
+                "slot": "app-key",
+                "target": "/run/secrets/app-key",
+                "uid": 0
+              },
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_HASHIDS_SALT_FILE",
+                "slot": "hashids-salt",
+                "target": "/run/secrets/hashids-salt",
+                "uid": 0
+              },
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_OWNER_PASSWORD_FILE",
+                "slot": "owner-password",
+                "target": "/run/secrets/owner-password",
+                "uid": 0
+              },
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_APPLICATION_API_KEY_FILE",
+                "slot": "application-api-key",
+                "target": "/run/secrets/application-api-key",
+                "uid": 0
+              },
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_CLIENT_API_KEY_FILE",
+                "slot": "client-api-key",
+                "target": "/run/secrets/client-api-key",
+                "uid": 0
+              }
+            ],
             "volumes": [
               {
                 "backup": false,

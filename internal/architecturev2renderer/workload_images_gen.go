@@ -72,7 +72,7 @@ const (
 	paperclipImageRef              = "ghcr.io/paperclipai/paperclip:2026.916.1"
 	paperclipImageDigest           = "sha256:a02ac35ac41df911af477422ea0e781cf41d2b2c600c66f0a5ac9d8c63f52c2c"
 	paperclipRelease               = "2026.916.1"
-	paperclipEntrypointJSON        = "[\"/bin/sh\",\"-ec\",\"export DATABASE_URL=\\\"$(node -e 'const u = new URL(\\\"postgres://paperclip@paperclip-postgres:5432/paperclip\\\"); u.password = process.env.STACKKIT_PAPERCLIP_DB_PASSWORD; process.stdout.write(u.href);')\\\"; unset STACKKIT_PAPERCLIP_DB_PASSWORD; exec /usr/bin/tini -- docker-entrypoint.sh node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js\"]"
+	paperclipEntrypointJSON        = "[\"/bin/sh\",\"-ec\",\"export DATABASE_URL=\\\"$(node -e 'const u = new URL(\\\"postgres://paperclip@paperclip-postgres:5432/paperclip\\\"); u.password = require(\\\"fs\\\").readFileSync(process.env.STACKKIT_PAPERCLIP_DB_PASSWORD_FILE, \\\"utf8\\\"); process.stdout.write(u.href);')\\\"; export BETTER_AUTH_SECRET=\\\"$(cat \\\"$STACKKIT_SESSION_SECRET_FILE\\\")\\\"; unset STACKKIT_PAPERCLIP_DB_PASSWORD_FILE STACKKIT_SESSION_SECRET_FILE; exec /usr/bin/tini -- docker-entrypoint.sh node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js\"]"
 	paperclipPostgresImageRef      = "docker.io/library/postgres:17-alpine"
 	paperclipPostgresImageDigest   = "sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24"
 	paperclipPostgresRelease       = "17-alpine"

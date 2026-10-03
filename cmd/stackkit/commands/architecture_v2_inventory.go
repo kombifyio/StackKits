@@ -38,8 +38,7 @@ type inventorySpecInstall struct {
 }
 
 type inventorySpecStorage struct {
-	DataRoot     string `yaml:"dataRoot"`
-	VolumeDriver string `yaml:"volumeDriver"`
+	DataRoot string `yaml:"dataRoot"`
 }
 
 type inventorySpecContainer struct {
@@ -279,11 +278,6 @@ func localInventoryStorageProbe(wd string, rawSpec []byte) (hostconformance.Loca
 	view, err := decodeInventorySpecView(normalized.CanonicalStackSpec)
 	if err != nil {
 		return hostconformance.LocalProbe{}, err
-	}
-	if strings.EqualFold(strings.TrimSpace(view.Storage.VolumeDriver), "nfs") {
-		// NFS free space is owned by the remote storage authority and cannot be
-		// represented by this local host observation.
-		return hostconformance.LocalProbe{}, nil
 	}
 	if strings.TrimSpace(view.Container.DataRoot) != "" || strings.EqualFold(strings.TrimSpace(view.Install.Runtime), "docker") || strings.EqualFold(strings.TrimSpace(view.Install.Runtime), "podman") {
 		dataRoot := strings.TrimSpace(view.Container.DataRoot)

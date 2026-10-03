@@ -280,10 +280,9 @@ func hermesComponent() selectedPaaSRuntimeComponent {
 			"HERMES_DASHBOARD_BASIC_AUTH_USERNAME": "owner",
 			"SEARXNG_URL":                          "http://searxng:8080",
 		},
-		SecretEnvironment: map[string]string{
-			"HERMES_DASHBOARD_BASIC_AUTH_PASSWORD": "dashboard-password",
-			"HERMES_DASHBOARD_BASIC_AUTH_SECRET":   "dashboard-session-secret",
-		},
+		// start.sh reads both into HERMES_DASHBOARD_BASIC_AUTH_PASSWORD and
+		// HERMES_DASHBOARD_BASIC_AUTH_SECRET of the Hermes process.
+		SecretFiles:                  slices.Clone(hermesSecretFiles),
 		RestoreActivationEnvironment: maps.Clone(hermesRestoreActivationEnvironment),
 		Volumes: []selectedPaaSRuntimeVolume{
 			{ID: "data", Target: "/opt/data", Class: "persistent", Backup: true},
@@ -303,14 +302,18 @@ func init() {
 	governedCustodyNodeRights[hermesWorkloadModuleID] = parseHermesNodeFields
 }
 
-// parseHermesNodeFields admits the restore-activation variable only for the
-// governed Hermes component; Hermes receives no custody file.
-func parseHermesNodeFields(component selectedPaaSRuntimeComponent, _ map[string]string, path string) ([]ApplicationDeliverySecretFile, []string, error) {
-	if component.ID != hermesWorkloadUnitID || len(component.SecretFiles) != 0 ||
+// parseHermesNodeFields admits the restore-activation variable and the
+// dashboard custody files only for the governed Hermes component.
+func parseHermesNodeFields(component selectedPaaSRuntimeComponent, secretRefs map[string]string, path string) ([]ApplicationDeliverySecretFile, []string, error) {
+	if component.ID != hermesWorkloadUnitID || !slices.Equal(component.SecretFiles, hermesSecretFiles) ||
 		!reflect.DeepEqual(component.RestoreActivationEnvironment, hermesRestoreActivationEnvironment) {
-		return nil, nil, fail(ErrInvalidPlan, path, "a restore activation variable is admitted only for the governed Hermes component")
+		return nil, nil, fail(ErrInvalidPlan, path, "custody files and a restore activation variable are admitted only for the governed Hermes component")
 	}
-	return nil, slices.Sorted(maps.Keys(hermesRestoreActivationEnvironment)), nil
+	files, _, err := governedSecretFileDescriptors(hermesSecretFiles, secretRefs, path)
+	if err != nil {
+		return nil, nil, err
+	}
+	return files, slices.Sorted(maps.Keys(hermesRestoreActivationEnvironment)), nil
 }
 
 // validateHermesRuntimeComponents admits exactly the governed component:

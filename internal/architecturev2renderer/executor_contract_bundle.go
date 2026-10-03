@@ -667,11 +667,6 @@ type executorBundleExternalStorage struct {
 	MountPoint string `json:"mountPoint"`
 }
 
-type executorBundleNFSStorage struct {
-	Server string `json:"server"`
-	Path   string `json:"path"`
-}
-
 type executorBundleStoragePolicy struct {
 	DataRoot     string                         `json:"dataRoot"`
 	BackupRoot   string                         `json:"backupRoot"`
@@ -679,7 +674,6 @@ type executorBundleStoragePolicy struct {
 	MediaRoot    string                         `json:"mediaRoot,omitempty"`
 	VolumeDriver string                         `json:"volumeDriver"`
 	External     *executorBundleExternalStorage `json:"external,omitempty"`
-	NFS          *executorBundleNFSStorage      `json:"nfs,omitempty"`
 }
 
 type executorBundleDomainPolicy struct {
@@ -939,17 +933,11 @@ func validateStoragePolicy(policy executorBundleStoragePolicy, path string) erro
 	if policy.MediaRoot != "" && !absoluteExecutorBundlePath(policy.MediaRoot) {
 		return fail(ErrInvalidPlan, path+".mediaRoot", "storage path must be absolute")
 	}
-	if policy.VolumeDriver != "local" && policy.VolumeDriver != "nfs" {
+	if policy.VolumeDriver != "local" {
 		return fail(ErrInvalidPlan, path+".volumeDriver", "unsupported storage driver")
 	}
 	if policy.External != nil && !absoluteExecutorBundlePath(policy.External.MountPoint) {
 		return fail(ErrInvalidPlan, path+".external.mountPoint", "external mount point must be absolute")
-	}
-	if policy.VolumeDriver == "nfs" && (policy.NFS == nil || !validExecutorBundleHost(policy.NFS.Server) || !absoluteExecutorBundlePath(policy.NFS.Path)) {
-		return fail(ErrInvalidPlan, path+".nfs", "NFS storage requires server and absolute path")
-	}
-	if policy.VolumeDriver != "nfs" && policy.NFS != nil {
-		return fail(ErrInvalidPlan, path+".nfs", "NFS settings require the NFS volume driver")
 	}
 	return nil
 }

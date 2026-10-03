@@ -31,6 +31,10 @@ type StandaloneComposeWorkloadVerifyObservation struct {
 	Route      SelectedPaaSRouteObservation
 }
 
+type standaloneComposeReadinessObserver interface {
+	observeReadyWorkload(context.Context, SelectedPaaSWorkloadDeployment) (SelectedPaaSWorkloadObservation, error)
+}
+
 // AppliedStandaloneComposeWorkloads selects every standalone Compose workload
 // the sealed applied request placed on the local binding and rebuilds the
 // deployment its executor applied. Targets of other hosts are not this host's
@@ -74,6 +78,8 @@ func VerifyAppliedStandaloneComposeWorkloads(
 	if ctx == nil || operations == nil {
 		return nil, errors.New("standalone Compose workload verification requires a context and operations owner")
 	}
+	ctx, cancel := context.WithTimeout(ctx, standaloneComposeVerifyReadinessBudget)
+	defer cancel()
 	deployments, err := AppliedStandaloneComposeWorkloads(request, binding)
 	if err != nil {
 		return nil, err
@@ -86,7 +92,17 @@ func VerifyAppliedStandaloneComposeWorkloads(
 	var failures []error
 	for _, deployment := range deployments {
 		projectRef := "stackkit-" + deployment.WorkloadRef + "-" + deployment.NodeRef
-		observation, err := operations.ObserveWorkload(ctx, deployment)
+		observe := operations.ObserveWorkload
+		if readiness, ok := operations.(standaloneComposeReadinessObserver); ok {
+			observe = readiness.observeReadyWorkload
+		}
+		observation, err := observe(ctx, deployment)
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return observations, fmt.Errorf("workload %q readiness interrupted: %w", deployment.WorkloadRef, err)
+		}
+		if ctx.Err() != nil {
+			return observations, fmt.Errorf("standalone Compose verification interrupted: %w", ctx.Err())
+		}
 		if err == nil {
 			err = validate(deployment, observation)
 		}

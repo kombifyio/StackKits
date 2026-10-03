@@ -822,16 +822,10 @@ import (
 	backupRoot:   #AbsolutePath | *"/opt/backups"
 	stacksRoot:   #AbsolutePath | *"/opt/stacks"
 	mediaRoot?:   #AbsolutePath
-	volumeDriver: *"local" | "nfs"
+	volumeDriver: "local"
 	external?: {
 		deviceRef?: string & =~"^(/dev/|uuid:|label:).+$"
 		mountPoint: #AbsolutePath
-	}
-	if volumeDriver == "nfs" {
-		nfs: {
-			server: #NetworkHostV2
-			path:   #AbsolutePath
-		}
 	}
 }
 

@@ -263,10 +263,7 @@ func paperclipComponents() ([]selectedPaaSRuntimeComponent, error) {
 				"PAPERCLIP_SETTING_DEFAULTS":    `{"feedbackDataSharingPreference":"not_allowed"}`,
 				"PAPERCLIP_HIDDEN_SETTINGS":     "instance.general.feedbackDataSharingPreference",
 			},
-			SecretEnvironment: map[string]string{
-				"STACKKIT_PAPERCLIP_DB_PASSWORD": "database-password",
-				"BETTER_AUTH_SECRET":             "session-secret",
-			},
+			SecretFiles:          slices.Clone(paperclipSecretFiles),
 			RouteHostEnvironment: map[string]string{PaperclipAllowedHostnamesEnv: "route-host"},
 			Volumes: []selectedPaaSRuntimeVolume{
 				{ID: "home", Target: "/paperclip", Class: "persistent", Backup: true},

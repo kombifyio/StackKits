@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"reflect"
+	"slices"
 	"strings"
 )
 
@@ -317,11 +318,6 @@ func validatePterodactylRuntimeComponents(components []selectedPaaSRuntimeCompon
 	if len(components) != 5 {
 		return nil, fail(ErrInvalidPlan, path, "requires panel, database, cache, bootstrap and Wings")
 	}
-	panelSecrets := map[string]string{"DB_PASSWORD": "database-password", "STACKKIT_APP_KEY": "app-key", "STACKKIT_HASHIDS_SALT": "hashids-salt"}
-	bootstrapSecrets := map[string]string{
-		"DB_PASSWORD": "database-password", "STACKKIT_APP_KEY": "app-key", "STACKKIT_HASHIDS_SALT": "hashids-salt",
-		"STACKKIT_OWNER_PASSWORD": "owner-password", "STACKKIT_APPLICATION_API_KEY": "application-api-key", "STACKKIT_CLIENT_API_KEY": "client-api-key",
-	}
 	seen := map[string]bool{}
 	for _, c := range components {
 		if seen[c.ID] || c.Egress || c.HealthFailure != "" || !exactStringList(c.NetworkRefs, []string{"game-internal"}) {
@@ -344,7 +340,7 @@ func validatePterodactylRuntimeComponents(components []selectedPaaSRuntimeCompon
 			if c.Role != "application" || c.Lifecycle != "daemon" || c.Image.Ref != pterodactylPanelImageRef || c.Image.Digest != pterodactylPanelImageDigest ||
 				!exactStringList(c.DependsOn, []string{"panel-cache", "panel-database"}) || !exactStringList(c.Entrypoint, []string{"/bin/ash", "/stackkit/panel-entrypoint.sh"}) ||
 				!exactStringList(c.Command, []string{"supervisord", "-n", "-c", "/etc/supervisord.conf"}) ||
-				!reflect.DeepEqual(c.OwnerEnvironment, map[string]string{"APP_SERVICE_AUTHOR": "email"}) || !reflect.DeepEqual(c.SecretEnvironment, panelSecrets) ||
+				!reflect.DeepEqual(c.OwnerEnvironment, map[string]string{"APP_SERVICE_AUTHOR": "email"}) || len(c.SecretEnvironment) != 0 || !slices.Equal(c.SecretFiles, pterodactylPanelSecretFiles) ||
 				!c.RouteHostLoopback || c.DockerLifecycleOwner != nil ||
 				c.Health.Kind != "http" || c.Health.Path != "/auth/login" || c.Health.Port != 80 || len(c.Health.Command) != 0 ||
 				!pterodactylVolumes(c.Volumes, []selectedPaaSRuntimeVolume{
@@ -375,7 +371,7 @@ func validatePterodactylRuntimeComponents(components []selectedPaaSRuntimeCompon
 			if c.Role != "database-init" || c.Lifecycle != "one-shot" || c.Image.Ref != pterodactylPanelImageRef || c.Image.Digest != pterodactylPanelImageDigest ||
 				!exactStringList(c.DependsOn, []string{"panel"}) || !exactStringList(c.Entrypoint, []string{"/bin/ash"}) ||
 				!exactStringList(c.Command, []string{"/stackkit/bootstrap.sh"}) ||
-				!reflect.DeepEqual(c.OwnerEnvironment, map[string]string{"STACKKIT_OWNER_EMAIL": "email"}) || !reflect.DeepEqual(c.SecretEnvironment, bootstrapSecrets) ||
+				!reflect.DeepEqual(c.OwnerEnvironment, map[string]string{"STACKKIT_OWNER_EMAIL": "email"}) || len(c.SecretEnvironment) != 0 || !slices.Equal(c.SecretFiles, pterodactylBootstrapSecretFiles) ||
 				c.RouteHostLoopback || c.DockerLifecycleOwner != nil || c.Health.Kind != "completion" ||
 				!pterodactylVolumes(c.Volumes, []selectedPaaSRuntimeVolume{
 					{ID: "stackkit", Target: "/stackkit", Class: "cache"},
@@ -445,9 +441,11 @@ func validPterodactylSecretRefs(refs map[string]string) bool {
 }
 
 // pterodactylConfigFiles are the governed startup files. They carry no secret
-// material; custody values reach the containers only as secret environment.
+// material; custody values reach the containers only as custody files.
 func pterodactylConfigFiles() []selectedPaaSConfigFile {
 	files := []selectedPaaSConfigFile{
+		{Path: "/stackkit/credentials.sh", Body: pterodactylCredentialsShell},
+		{Path: "/stackkit/artisan.sh", Body: pterodactylArtisanShell},
 		{Path: "/stackkit/panel-entrypoint.sh", Body: pterodactylPanelEntrypoint},
 		{Path: "/stackkit/nginx-panel.conf", Body: pterodactylNginxTemplate},
 		{Path: "/stackkit/bootstrap.sh", Body: pterodactylBootstrapShell},
@@ -459,13 +457,37 @@ func pterodactylConfigFiles() []selectedPaaSConfigFile {
 	return files
 }
 
+// pterodactylCredentialsShell is sourced by every governed Panel script: the
+// credentials come from their custody files (root, 0400) into the process
+// environment; none is in the container configuration.
+const pterodactylCredentialsShell = `export DB_PASSWORD="$(cat "$STACKKIT_DB_PASSWORD_FILE")"
+export APP_KEY="base64:$(cat "$STACKKIT_APP_KEY_FILE")="
+export HASHIDS_SALT="$(tr -dc 'A-Za-z0-9' < "$STACKKIT_HASHIDS_SALT_FILE" | cut -c1-20)"
+`
+
+// pterodactylArtisanShell runs php artisan with the governed credentials:
+// a plain docker exec gets only the container configuration, which holds
+// none of them, so operators run
+// docker exec <panel> ash /stackkit/artisan.sh <command>.
+const pterodactylArtisanShell = `#!/bin/ash
+set -eu
+cd /app
+. /stackkit/credentials.sh
+exec php artisan "$@"
+`
+
 // The Panel derives Laravel's key from custody material, serves its node paths
 // to Wings, and trusts a node certificate that exists only inside the Panel.
 const pterodactylPanelEntrypoint = `#!/bin/ash
 set -eu
-export APP_KEY="base64:${STACKKIT_APP_KEY}="
-export HASHIDS_SALT="$(printf %s "$STACKKIT_HASHIDS_SALT" | tr -dc 'A-Za-z0-9' | cut -c1-20)"
-unset STACKKIT_APP_KEY STACKKIT_HASHIDS_SALT
+. /stackkit/credentials.sh
+# Without /app/var/.env the upstream entrypoint writes APP_KEY and
+# HASHIDS_SALT into it, in the persistent var volume. The governed
+# environment always carries both (artisan.sh for docker exec), so they
+# never belong there: the file is created empty, and an earlier install's
+# copies are removed. Every other line stays.
+touch /app/var/.env
+sed -i -e '/^APP_KEY=/d' -e '/^HASHIDS_SALT=/d' /app/var/.env
 mkdir -p /stackkit-local/tls
 openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj "/CN=${STACKKIT_ROUTE_HOST}" \
   -addext "subjectAltName=DNS:${STACKKIT_ROUTE_HOST}" \
@@ -542,8 +564,10 @@ const pterodactylNginxTemplate = `server {
 const pterodactylBootstrapShell = `#!/bin/ash
 set -eu
 cd /app
-export APP_KEY="base64:${STACKKIT_APP_KEY}="
-export HASHIDS_SALT="$(printf %s "$STACKKIT_HASHIDS_SALT" | tr -dc 'A-Za-z0-9' | cut -c1-20)"
+. /stackkit/credentials.sh
+export STACKKIT_OWNER_PASSWORD="$(cat "$STACKKIT_OWNER_PASSWORD_FILE")"
+export STACKKIT_APPLICATION_API_KEY="$(cat "$STACKKIT_APPLICATION_API_KEY_FILE")"
+export STACKKIT_CLIENT_API_KEY="$(cat "$STACKKIT_CLIENT_API_KEY_FILE")"
 exec php /stackkit/bootstrap.php
 `
 

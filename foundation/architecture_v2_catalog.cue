@@ -4375,7 +4375,7 @@ _architectureV2OpenHandsTerramateStack: _architectureV2WorkloadTerramateStack & 
 // with Node's URL encoder, drops the raw variable and hands over to the image
 // entrypoint (tini, then docker-entrypoint.sh, which chowns the home volume
 // and drops to the unprivileged node user).
-_architectureV2PaperclipEntrypointScript: "export DATABASE_URL=\"$(node -e 'const u = new URL(\"postgres://paperclip@paperclip-postgres:5432/paperclip\"); u.password = process.env.STACKKIT_PAPERCLIP_DB_PASSWORD; process.stdout.write(u.href);')\"; unset STACKKIT_PAPERCLIP_DB_PASSWORD; exec /usr/bin/tini -- docker-entrypoint.sh node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js"
+_architectureV2PaperclipEntrypointScript: "export DATABASE_URL=\"$(node -e 'const u = new URL(\"postgres://paperclip@paperclip-postgres:5432/paperclip\"); u.password = require(\"fs\").readFileSync(process.env.STACKKIT_PAPERCLIP_DB_PASSWORD_FILE, \"utf8\"); process.stdout.write(u.href);')\"; export BETTER_AUTH_SECRET=\"$(cat \"$STACKKIT_SESSION_SECRET_FILE\")\"; unset STACKKIT_PAPERCLIP_DB_PASSWORD_FILE STACKKIT_SESSION_SECRET_FILE; exec /usr/bin/tini -- docker-entrypoint.sh node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js"
 _architectureV2PaperclipTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "paperclip", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2SpeechKitTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "speechkit", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2SearxngTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "searxng", _placement: {scope: "node-local", cardinality: "one-per-node"}}
@@ -8991,10 +8991,13 @@ _architectureV2Modules: list.Concat([[
 					// Resolves only while the web-search module runs on this node.
 					SEARXNG_URL: "http://searxng:8080"
 				}
-				secretEnvironment: {
-					HERMES_DASHBOARD_BASIC_AUTH_PASSWORD: "dashboard-password"
-					HERMES_DASHBOARD_BASIC_AUTH_SECRET:   "dashboard-session-secret"
-				}
+				// The governed start script reads the dashboard credentials from
+				// their custody files into the Hermes process environment; the
+				// values never enter the container configuration.
+				secretFiles: [
+					{slot: "dashboard-password", target: "/run/secrets/dashboard-password", pathEnvironment: "STACKKIT_DASHBOARD_PASSWORD_FILE", uid: 0, gid: 0},
+					{slot: "dashboard-session-secret", target: "/run/secrets/dashboard-session-secret", pathEnvironment: "STACKKIT_DASHBOARD_SESSION_SECRET_FILE", uid: 0, gid: 0},
+				]
 				restoreActivationEnvironment: STACKKIT_HERMES_RESTORE_ACTIVATION: "restore-activation"
 				volumes: [for allocation in _architectureV2HermesInfrastructure.storageAllocation.allocations {
 					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
@@ -9010,7 +9013,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/hermes/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:8d970983e433a9f06a6ee4461fd61cddce41ff9f3d25e18febc7e8828f6f5666"
+			contractHash: "sha256:2642ab792a7504a2a723185d2b15d3ef552ec598e1a7c9ca322db8fd39f9c99e"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -9244,10 +9247,11 @@ _architectureV2Modules: list.Concat([[
 						PAPERCLIP_SETTING_DEFAULTS: "{\"feedbackDataSharingPreference\":\"not_allowed\"}"
 						PAPERCLIP_HIDDEN_SETTINGS:  "instance.general.feedbackDataSharingPreference"
 					}
-					secretEnvironment: {
-						STACKKIT_PAPERCLIP_DB_PASSWORD: "database-password"
-						BETTER_AUTH_SECRET:             "session-secret"
-					}
+					// The governed entrypoint reads both values from their custody files.
+					secretFiles: [
+						{slot: "database-password", target: "/run/secrets/database-password", pathEnvironment: "STACKKIT_PAPERCLIP_DB_PASSWORD_FILE", uid: 0, gid: 0},
+						{slot: "session-secret", target: "/run/secrets/session-secret", pathEnvironment: "STACKKIT_SESSION_SECRET_FILE", uid: 0, gid: 0},
+					]
 					// Paperclip's private-mode hostname guard admits only allowed
 					// hosts; the route host is bound at apply time.
 					routeHostEnvironment: PAPERCLIP_ALLOWED_HOSTNAMES: "route-host"
@@ -9278,7 +9282,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/paperclip/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:aa576e46286af91e77de7bdc1485606c24fe2cb16dd4e9a668672b9998cf51fa"
+			contractHash: "sha256:5ec8fe19733ac6ff112443d5ed129f18160529298d974ee25a5c2e9aab4f5d6c"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -10392,11 +10396,13 @@ _architectureV2Modules: list.Concat([[
 						RECAPTCHA_ENABLED:             "false"
 					}
 					ownerEnvironment: {APP_SERVICE_AUTHOR: "email"}
-					secretEnvironment: {
-						DB_PASSWORD:           "database-password"
-						STACKKIT_APP_KEY:      "app-key"
-						STACKKIT_HASHIDS_SALT: "hashids-salt"
-					}
+					// The governed entrypoint reads the credentials from their
+					// custody files into the Panel process environment.
+					secretFiles: [
+						{slot: "database-password", target: "/run/secrets/database-password", pathEnvironment: "STACKKIT_DB_PASSWORD_FILE", uid: 0, gid: 0},
+						{slot: "app-key", target: "/run/secrets/app-key", pathEnvironment: "STACKKIT_APP_KEY_FILE", uid: 0, gid: 0},
+						{slot: "hashids-salt", target: "/run/secrets/hashids-salt", pathEnvironment: "STACKKIT_HASHIDS_SALT_FILE", uid: 0, gid: 0},
+					]
 					// The Panel reaches its node under its own route host on
 					// loopback, so console and API calls never cross the router.
 					routeHostLoopback: true
@@ -10456,14 +10462,16 @@ _architectureV2Modules: list.Concat([[
 						RECAPTCHA_ENABLED:             "false"
 					}
 					ownerEnvironment: {STACKKIT_OWNER_EMAIL: "email"}
-					secretEnvironment: {
-						DB_PASSWORD:                  "database-password"
-						STACKKIT_APP_KEY:             "app-key"
-						STACKKIT_HASHIDS_SALT:        "hashids-salt"
-						STACKKIT_OWNER_PASSWORD:      "owner-password"
-						STACKKIT_APPLICATION_API_KEY: "application-api-key"
-						STACKKIT_CLIENT_API_KEY:      "client-api-key"
-					}
+					// The governed bootstrap reads every credential from its custody
+					// file into the bootstrap process environment.
+					secretFiles: [
+						{slot: "database-password", target: "/run/secrets/database-password", pathEnvironment: "STACKKIT_DB_PASSWORD_FILE", uid: 0, gid: 0},
+						{slot: "app-key", target: "/run/secrets/app-key", pathEnvironment: "STACKKIT_APP_KEY_FILE", uid: 0, gid: 0},
+						{slot: "hashids-salt", target: "/run/secrets/hashids-salt", pathEnvironment: "STACKKIT_HASHIDS_SALT_FILE", uid: 0, gid: 0},
+						{slot: "owner-password", target: "/run/secrets/owner-password", pathEnvironment: "STACKKIT_OWNER_PASSWORD_FILE", uid: 0, gid: 0},
+						{slot: "application-api-key", target: "/run/secrets/application-api-key", pathEnvironment: "STACKKIT_APPLICATION_API_KEY_FILE", uid: 0, gid: 0},
+						{slot: "client-api-key", target: "/run/secrets/client-api-key", pathEnvironment: "STACKKIT_CLIENT_API_KEY_FILE", uid: 0, gid: 0},
+					]
 					volumes: [
 						{id: "stackkit", target: "/stackkit", class: "cache", backup: false},
 						{id: "data", target: "/stackkit/game-data", class: "persistent", backup: true, sharedFrom: {componentRef: "wings", volumeRef: "data"}},

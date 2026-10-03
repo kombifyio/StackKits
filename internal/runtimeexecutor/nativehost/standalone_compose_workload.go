@@ -40,7 +40,19 @@ const (
 	standaloneComposeEnvFile = ".env"
 	// standaloneComposeApplyBudget bounds startup plus readiness.
 	standaloneComposeApplyBudget = 600 * time.Second
+	// Verification permits one ordinary image health interval after a service
+	// Start or Restart. It never extends the caller's cancellation/deadline.
+	standaloneComposeVerifyReadinessBudget = 90 * time.Second
 )
+
+// standaloneComposeStartingError is limited to an exact, running component
+// whose Docker health check is still starting. Missing, stopped, unhealthy,
+// or foreign-image components remain permanent observation failures.
+type standaloneComposeStartingError struct{ component string }
+
+func (err *standaloneComposeStartingError) Error() string {
+	return fmt.Sprintf("standalone Compose daemon component %q is still starting", err.component)
+}
 
 type standaloneComposeProcessRunner interface {
 	Run(context.Context, []string, string) ([]byte, error)
@@ -190,6 +202,16 @@ func (o *osStandaloneComposeWorkloadOperations) waitForBlockingComponents(
 	ctx context.Context,
 	project standaloneComposeProject,
 ) error {
+	return o.waitForComponentReadiness(ctx, project, func(statuses map[string]standaloneComposePS) (bool, error) {
+		return blockingStandaloneComposeReadiness(project.bundle.Components, statuses)
+	})
+}
+
+func (o *osStandaloneComposeWorkloadOperations) waitForComponentReadiness(
+	ctx context.Context,
+	project standaloneComposeProject,
+	validate func(map[string]standaloneComposePS) (bool, error),
+) error {
 	for {
 		raw, err := o.runner.Run(ctx, standaloneComposeArgs(project, "ps"), project.directory)
 		if err != nil {
@@ -199,7 +221,7 @@ func (o *osStandaloneComposeWorkloadOperations) waitForBlockingComponents(
 		if err != nil {
 			return err
 		}
-		ready, err := blockingStandaloneComposeReadiness(project.bundle.Components, statuses)
+		ready, err := validate(statuses)
 		if err != nil {
 			return err
 		}
@@ -293,6 +315,46 @@ func (o *osStandaloneComposeWorkloadOperations) waitForApplicationHTTP(ctx conte
 		case <-timer.C:
 		}
 	}
+}
+
+// observeReadyWorkload is used only by Verify. Ordinary inventory and backup
+// observations keep their immediate readback behavior. The existing readiness
+// owner polls Compose status without invoking a runtime action or completion.
+func (o *osStandaloneComposeWorkloadOperations) observeReadyWorkload(
+	ctx context.Context,
+	deployment SelectedPaaSWorkloadDeployment,
+) (SelectedPaaSWorkloadObservation, error) {
+	observation, err := o.ObserveWorkload(ctx, deployment)
+	var starting *standaloneComposeStartingError
+	if !errors.As(err, &starting) {
+		return observation, err
+	}
+	project, err := o.prepareWithIdentityMutation(ctx, deployment, false)
+	if err != nil {
+		return SelectedPaaSWorkloadObservation{}, err
+	}
+	if err := o.verifyPersisted(project); err != nil {
+		return SelectedPaaSWorkloadObservation{}, err
+	}
+	if err := o.waitForComponentReadiness(ctx, project, func(statuses map[string]standaloneComposePS) (bool, error) {
+		if err := o.verifyPersisted(project); err != nil {
+			return false, err
+		}
+		if err := validateStandaloneComposeRouteReadback(statuses[project.bundle.EntryComponent], project.bundle.Route); err != nil {
+			return false, err
+		}
+		// The strict observer validates the entire authorized graph and its pins
+		// before classifying starting. Apply keeps its broader startup semantics.
+		_, err := observeStandaloneComposeComponents(project.bundle.Components, statuses)
+		var starting *standaloneComposeStartingError
+		if errors.As(err, &starting) {
+			return false, nil
+		}
+		return err == nil, err
+	}); err != nil {
+		return SelectedPaaSWorkloadObservation{}, err
+	}
+	return o.ObserveWorkload(ctx, deployment)
 }
 
 func (o *osStandaloneComposeWorkloadOperations) ObserveWorkload(
@@ -1452,6 +1514,7 @@ func observeStandaloneComposeComponentsWithIdentity(
 		return nil, err
 	}
 	result := make([]SelectedPaaSComponentObservation, len(components))
+	var starting *standaloneComposeStartingError
 	for index, component := range components {
 		status, exists := statuses[component.ID]
 		if !exists {
@@ -1482,6 +1545,10 @@ func observeStandaloneComposeComponentsWithIdentity(
 			if len(component.HealthCommand) > 0 {
 				if status.Health != "healthy" {
 					if component.HealthFailure != "degraded" {
+						if status.Health == "starting" {
+							starting = &standaloneComposeStartingError{component: component.ID}
+							continue
+						}
 						return nil, fmt.Errorf("standalone Compose daemon component %q is not healthy", component.ID)
 					}
 					observation.Status, observation.Health = "degraded", standaloneComposeObservedHealth(status)
@@ -1491,6 +1558,10 @@ func observeStandaloneComposeComponentsWithIdentity(
 				}
 			} else if status.Health != "" && status.Health != "healthy" {
 				if component.HealthFailure != "degraded" {
+					if status.Health == "starting" {
+						starting = &standaloneComposeStartingError{component: component.ID}
+						continue
+					}
 					return nil, fmt.Errorf("standalone Compose daemon component %q is not healthy", component.ID)
 				}
 				observation.Status, observation.Health = "degraded", standaloneComposeObservedHealth(status)
@@ -1501,6 +1572,9 @@ func observeStandaloneComposeComponentsWithIdentity(
 			observation.Status, observation.Health = "running", "healthy"
 		}
 		result[index] = observation
+	}
+	if starting != nil {
+		return nil, starting
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
 	return result, nil

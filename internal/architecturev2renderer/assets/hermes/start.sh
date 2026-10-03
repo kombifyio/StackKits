@@ -1,7 +1,8 @@
 #!/bin/sh
 # StackKits governed start for the Private AI assistant (Hermes Agent).
 #
-# Runs as root before the upstream entrypoint and does three things:
+# Runs as root before the upstream entrypoint. It reads the dashboard
+# credentials from their custody files, then does three things:
 #   1. installs the StackKits policy as Hermes managed scope (/etc/hermes,
 #      root-owned, pins specific keys over the owner's own config);
 #   2. seeds the owner's config once, with every grant off;
@@ -11,6 +12,14 @@
 set -eu
 
 policy=/opt/stackkit
+
+# The dashboard credentials come from their custody files (root, 0400) into
+# the environment the upstream entrypoint hands to Hermes; neither is in the
+# container configuration.
+HERMES_DASHBOARD_BASIC_AUTH_PASSWORD="$(cat "$STACKKIT_DASHBOARD_PASSWORD_FILE")"
+HERMES_DASHBOARD_BASIC_AUTH_SECRET="$(cat "$STACKKIT_DASHBOARD_SESSION_SECRET_FILE")"
+export HERMES_DASHBOARD_BASIC_AUTH_PASSWORD HERMES_DASHBOARD_BASIC_AUTH_SECRET
+unset STACKKIT_DASHBOARD_PASSWORD_FILE STACKKIT_DASHBOARD_SESSION_SECRET_FILE
 home="${HERMES_HOME:-/opt/data}"
 
 install -d -m 0755 /etc/hermes
