@@ -123,6 +123,8 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 			// other execution path.
 			runAutomaticBackupRebind(cmd.Context(), wd)
 			runAutomaticOwnerSetup(cmd.Context(), wd)
+			// A server carried to another network recovers by itself.
+			runAutomaticNetworkWatch(cmd.Context(), wd)
 		}
 		return err
 	}

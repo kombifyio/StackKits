@@ -227,6 +227,7 @@ func init() {
 	rootCmd.AddCommand(hostCmd)
 	rootCmd.AddCommand(serviceCmd)
 	rootCmd.AddCommand(newAddressCommand())
+	rootCmd.AddCommand(newNetworkCommand())
 	rootCmd.AddCommand(outputTransactionCmd)
 	rootCmd.AddCommand(user.NewCommandWithFilesProvisioner(nativeFilesHouseholdProvisioner{}))
 }

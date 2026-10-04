@@ -205,7 +205,7 @@ func (o *osPublicTLSOperations) observe(ctx context.Context, policyDigest, evalu
 		if index > 0 && route.ID <= routeRefs[index-1] {
 			return PublicTLSObservation{}, nil, errors.New("public TLS routes are not unique and sorted")
 		}
-		observation, err := o.probe.Probe(ctx, route)
+		observation, err := o.probeRoute(ctx, route)
 		if err != nil {
 			return PublicTLSObservation{}, nil, fmt.Errorf("probe public TLS route %q: %w", route.ID, err)
 		}

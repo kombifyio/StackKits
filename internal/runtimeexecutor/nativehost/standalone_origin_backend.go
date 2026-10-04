@@ -23,7 +23,7 @@ func (o *osStandaloneComposeWorkloadOperations) recordOriginBackend(ctx context.
 	if _, err := observeStandaloneComposeComponents(project.bundle.Components, statuses); err != nil {
 		return err
 	}
-	if err := validateStandaloneComposeRouteReadback(statuses[project.bundle.EntryComponent], project.bundle.Route); err != nil {
+	if err := validateStandaloneComposeRouteReadback(statuses[project.bundle.EntryComponent], project.bundle.Route, o.originServes(project.bundle.Route)); err != nil {
 		return err
 	}
 	return localorigin.RecordBackend(o.workspaceRoot, localorigin.Backend{

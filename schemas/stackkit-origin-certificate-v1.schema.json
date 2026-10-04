@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.dev/schemas/stackkit-origin-certificate-v1.schema.json",
+  "title": "StackKit origin certificate result v1",
+  "description": "Data subject of the stackkit.command-result/v1 envelope emitted by `stackkit advanced origin-certificate request` and `install`. The node generates the key pair; results carry the CSR or the certificate identity and never key material.",
+  "type": "object",
+  "required": ["schemaVersion", "phase", "hosts"],
+  "properties": {
+    "schemaVersion": { "const": "stackkit.origin-certificate/v1" },
+    "phase": { "enum": ["request", "install"] },
+    "hosts": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "keyAlgorithm": { "const": "ecdsa-p256" },
+    "csrPem": { "type": "string" },
+    "csrSha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "serialHex": { "type": "string" },
+    "notBefore": { "type": "string" },
+    "notAfter": { "type": "string" },
+    "certificateSha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+  },
+  "allOf": [
+    { "if": { "properties": { "phase": { "const": "request" } } }, "then": { "required": ["keyAlgorithm", "csrPem", "csrSha256"] } },
+    { "if": { "properties": { "phase": { "const": "install" } } }, "then": { "required": ["serialHex", "notBefore", "notAfter", "certificateSha256"] } }
+  ],
+  "additionalProperties": false
+}

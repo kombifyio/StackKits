@@ -1,5 +1,11 @@
 # Changelog
 
+- Add: home network move. A Basement server set up in one network and carried to another (new DHCP address, gateway or subnet, cable or WiFi) re-binds itself. `stackkit network status` reports the current address, interface, gateway, WiFi SSID and the addresses recorded in the LAN resolver custody and the inventory, with a `moved`/`in-place` verdict. `stackkit network rebind` re-issues the signed LAN resolver record for the new address (Owner-MAC'd and re-signed through a replayable journal, previous record kept as a backup), then regenerates and applies. `stackkit network watch enable|disable|status` installs a systemd timer that runs the rebind every minute with a lock and a five-minute back-off; a successful `stackkit apply` enables it best-effort on systemd hosts (opt out with `STACKKIT_NETWORK_WATCH=off`). `stackkit network wifi add|list|remove` pre-stages the destination WiFi before the move through NetworkManager or a netplan `wifis` drop-in, leaves ethernet DHCP untouched and never prints or stores the passphrase elsewhere. Before this, a moved server kept the old address in the resolver record and the Compose listeners, `lan-dns` could not start and every LAN name went dark.
+
+- Fix: the host preflight namespace probe ran `unshare --mount --pid` without privilege, which fails on every host that restricts user namespaces (Ubuntu 24.04 default), so a non-root `curl -sSL https://base.stackkit.cc | sh` install was refused with `kernel-namespaces`. The probe now runs through non-interactive sudo and reports `unknown` when it cannot prove either way.
+
+- Add: managed kombify.me origins take a Cloudflare Origin CA certificate instead of Let's Encrypt in Advanced mode (ADR-0047). The Terramate-generated Cloud core carries no ACME resolver for `kombify.me` and mounts the delivered certificate read-only from owner custody; managed workload routes follow once a certificate covers their host. Two capability-gated operations, `public-tls.origin-certificate.request` (the node generates an ECDSA P-256 key in custody and returns only the CSR) and `public-tls.origin-certificate.install` (verifies the delivered certificate against the pending node key, the requested hostnames and the Origin CA roots, then publishes it), are in the Advanced operations catalog. Standard Mode and custom domains keep ACME. Node probes of a managed route trust the Origin CA roots.
+
 - Fix: `kit prepare-source-generation` explicitly caches and authenticates the historical release that authored a retained generation, then verifies its signed offline Owner/Apply evidence before returning preparation proof. The existing verified installer is reused without a full Upgrade or replacing the running release; Plan stays read-only and unchanged custody remains required before recipient renewal.
 
 - Fix: explicit `plan --source-generation --json` preparation inspects an applied historical generation through its already installed attested source CLI and signed offline Owner/Apply evidence. Backup recipient renewal can use the same proof before the existing same-credentials rebind generates under the current compiler. Ordinary Plan, Apply, Restore and full Upgrade health gates stay unchanged; missing or changed source custody fails closed.
@@ -178,6 +184,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.51.8](https://github.com/kombifyio/StackKits/compare/v0.51.7...v0.51.8) (2026-10-04)
+
+
+### Fixed
+
+* **public:** export the network move guide linked from the CLI reference
+
+## [0.51.7](https://github.com/kombifyio/StackKits/compare/v0.51.6...v0.51.7) (2026-10-04)
+
+
+### Added
+
+* **network:** home network move re-binds a carried server
+* **tls:** Origin CA certificates for managed kombify.me origins in Advanced mode (ADR-0047)
+
+
+### Fixed
+
+* **delivery:** repin Delivery v2 and its runtime to the PAT rate-limit fix
 
 ## [0.51.6](https://github.com/kombifyio/StackKits/compare/v0.51.5...v0.51.6) (2026-10-04)
 

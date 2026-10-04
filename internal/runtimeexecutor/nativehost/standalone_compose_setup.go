@@ -163,7 +163,7 @@ func (o *osStandaloneComposeWorkloadOperations) withHTTP(ctx context.Context, de
 		if entry.ID == "" {
 			return "", "", errors.New("application setup requires an exact live container identity")
 		}
-		if err := validateStandaloneComposeRouteReadback(entry, project.bundle.Route); err != nil {
+		if err := validateStandaloneComposeRouteReadback(entry, project.bundle.Route, o.originServes(project.bundle.Route)); err != nil {
 			return "", "", err
 		}
 		port, err := o.runner.Run(ctx, standaloneComposeArgs(project, "port"), project.directory)

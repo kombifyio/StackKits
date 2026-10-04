@@ -1002,6 +1002,11 @@ if [ "$APPLY_STATUS" -ne 0 ]; then
   exit "$APPLY_STATUS"
 fi
 
+# Best effort: let this server re-bind itself after it is moved to another
+# network. Apply already enables the watcher on root systemd hosts; this covers
+# the remaining cases and must never fail the install.
+run_stackkit network watch enable >/dev/null 2>&1 || true
+
 # --- Done: print access summary -----------------------------------------------
 
 DOMAIN_EFFECTIVE="home"
@@ -1109,6 +1114,8 @@ case "$DOMAIN_EFFECTIVE" in
 esac
 echo "  Commands:"
 echo "    stackkit logs latest --json  Inspect local rollout evidence"
+echo "    Moving this server to another network? Run: stackkit network wifi add --ssid <name> --password-stdin"
+echo "    before the move; it re-binds itself after the move."
 echo "    cat $ACCESS_JSON             Read service URLs and setup evidence"
 echo ""
 echo "  Uninstall: deletes ALL StackKits projects and application volumes on this host."

@@ -154,6 +154,7 @@
       "flags": [],
       "subcommands": [
         "stackkit advanced change-set",
+        "stackkit advanced origin-certificate",
         "stackkit advanced restore-drill",
         "stackkit advanced rollback",
         "stackkit advanced trust"
@@ -243,6 +244,89 @@
           "name": "capability",
           "type": "string",
           "description": "Path to a canonical stackkit.advanced-capability/v1 file",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit advanced origin-certificate",
+      "name": "origin-certificate",
+      "parent": "stackkit advanced",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit advanced origin-certificate [flags]",
+      "short": "Manage the Cloudflare Origin CA certificate of managed kombify.me origins",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit advanced origin-certificate install",
+        "stackkit advanced origin-certificate request"
+      ]
+    },
+    {
+      "path": "stackkit advanced origin-certificate install",
+      "name": "install",
+      "parent": "stackkit advanced origin-certificate",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit advanced origin-certificate install [flags]",
+      "short": "Verify and install the delivered origin certificate",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "capability",
+          "type": "string",
+          "description": "Path to a canonical stackkit.advanced-capability/v1 file that allows the origin-certificate operation",
+          "required": false
+        },
+        {
+          "name": "certificate-file",
+          "type": "string",
+          "description": "Path to the PEM certificate Cloudflare issued for the pending CSR",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit advanced origin-certificate request",
+      "name": "request",
+      "parent": "stackkit advanced origin-certificate",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit advanced origin-certificate request [flags]",
+      "short": "Generate the node-local origin key pair and print its CSR",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "capability",
+          "type": "string",
+          "description": "Path to a canonical stackkit.advanced-capability/v1 file that allows the origin-certificate operation",
+          "required": false
+        },
+        {
+          "name": "hosts",
+          "type": "string",
+          "description": "Comma-separated managed kombify.me hostnames the certificate covers",
           "required": false
         },
         {
@@ -5151,6 +5235,292 @@
           "name": "print",
           "type": "bool",
           "description": "Print rendered artifacts to stdout instead of writing",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit network",
+      "name": "network",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit network [flags]",
+      "short": "Move this server to another network: status, re-bind, WiFi and watcher",
+      "description": "Operations for carrying this server from one network to another.\n\nBefore the move, stage the destination WiFi (stackkit network wifi add). After\nthe move the server gets a new address from the destination DHCP; the network\nwatcher (stackkit network watch enable, installed by stackkit apply) notices\nthat the recorded site address is stale and re-binds the stack by itself.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit network rebind",
+        "stackkit network status",
+        "stackkit network watch",
+        "stackkit network wifi"
+      ]
+    },
+    {
+      "path": "stackkit network rebind",
+      "name": "rebind",
+      "parent": "stackkit network",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit network rebind [flags]",
+      "short": "Re-bind the stack to this server's new network address",
+      "description": "After the server moved to another network, re-issue the signed LAN resolver\nrecord for the new address and regenerate and apply the stack so listeners bind\nto it. Nothing happens when the server did not move.\n\nOwner identity, secrets, certificate authorities and data are not touched; the\nprevious resolver record is kept under .stackkit/custody/backups. LAN clients\nand the router's DNS must point at the new resolver address afterwards.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit network rebind --yes\nstackkit network rebind --yes --json\nstackkit network rebind --no-apply"
+        }
+      ],
+      "flags": [
+        {
+          "name": "auto",
+          "type": "bool",
+          "description": "Unattended run for the network watcher: quiet when nothing moved, one run at a time, backs off after a failure",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the result as JSON",
+          "required": false
+        },
+        {
+          "name": "no-apply",
+          "type": "bool",
+          "description": "Re-issue the resolver record only; do not regenerate and apply",
+          "required": false
+        },
+        {
+          "name": "yes",
+          "type": "bool",
+          "description": "Re-bind without asking for confirmation",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit network status",
+      "name": "status",
+      "parent": "stackkit network",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit network status [flags]",
+      "short": "Show whether this server moved to another network",
+      "description": "Compare the address this server has now with the address recorded in the\nLAN resolver custody and in .stackkit/inventory.yaml. The verdict is \"in-place\"\nwhen they match, \"moved\" when a recorded address is stale, and \"unknown\" when\nthere is nothing to compare. The command always exits 0.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit network status\nstackkit network status --json"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the observation as JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit network watch",
+      "name": "watch",
+      "parent": "stackkit network",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit network watch [flags]",
+      "short": "Re-bind automatically after the server moved (systemd timer)",
+      "description": "Install a systemd timer that runs \"stackkit network rebind --yes --auto\" every\nminute and shortly after boot. It is silent while the network is unchanged,\nruns one rebind at a time and waits five minutes after a failed attempt.\nstackkit apply enables it on systemd hosts; set STACKKIT_NETWORK_WATCH=off or\nrun \"stackkit network watch disable\" to opt out.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit network watch disable",
+        "stackkit network watch enable",
+        "stackkit network watch status"
+      ]
+    },
+    {
+      "path": "stackkit network watch disable",
+      "name": "disable",
+      "parent": "stackkit network watch",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit network watch disable [flags]",
+      "short": "Stop and remove the network watcher timer",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit network watch enable",
+      "name": "enable",
+      "parent": "stackkit network watch",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit network watch enable [flags]",
+      "short": "Install and start the network watcher timer",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit network watch status",
+      "name": "status",
+      "parent": "stackkit network watch",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit network watch status [flags]",
+      "short": "Show whether the network watcher timer is installed and running",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the status as JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit network wifi",
+      "name": "wifi",
+      "parent": "stackkit network",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit network wifi [flags]",
+      "short": "Pre-stage the destination WiFi before moving the server",
+      "description": "Stage WiFi networks in the host's own network configuration so the server\njoins the destination WiFi by itself after the move. NetworkManager is used\nwhen it is running, otherwise netplan. The wired DHCP connection is not touched\nand passphrases are written only to the system network configuration (root\nonly, mode 0600); they are never printed or stored by StackKits.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit network wifi add",
+        "stackkit network wifi list",
+        "stackkit network wifi remove"
+      ]
+    },
+    {
+      "path": "stackkit network wifi add",
+      "name": "add",
+      "parent": "stackkit network wifi",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit network wifi add [flags]",
+      "short": "Stage a WiFi network that is joined automatically when in range",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "printf '%s' \"$WIFI_PASSPHRASE\" | sudo stackkit network wifi add --ssid OfficeNet --password-stdin",
+          "description": "Read the passphrase from stdin so it never appears in the process list"
+        },
+        {
+          "command": "sudo stackkit network wifi add --ssid OfficeNet --password-stdin --priority 20 < passphrase.txt",
+          "description": "Prefer this network over others staged on the host"
+        }
+      ],
+      "flags": [
+        {
+          "name": "apply-now",
+          "type": "bool",
+          "description": "Apply the change immediately (netplan apply) instead of at the next boot",
+          "required": false
+        },
+        {
+          "name": "force",
+          "type": "bool",
+          "description": "Stage the network even when this host has no wireless interface",
+          "required": false
+        },
+        {
+          "name": "open",
+          "type": "bool",
+          "description": "Stage a network without a passphrase",
+          "required": false
+        },
+        {
+          "name": "password",
+          "type": "string",
+          "description": "Passphrase (visible in the process list; prefer --password-stdin)",
+          "required": false
+        },
+        {
+          "name": "password-stdin",
+          "type": "bool",
+          "description": "Read the passphrase from the first line of stdin",
+          "required": false
+        },
+        {
+          "name": "priority",
+          "type": "int",
+          "description": "Connection priority; higher wins (NetworkManager only)",
+          "required": false
+        },
+        {
+          "name": "ssid",
+          "type": "string",
+          "description": "Name of the WiFi network",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit network wifi list",
+      "name": "list",
+      "parent": "stackkit network wifi",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit network wifi list [flags]",
+      "short": "List the staged WiFi networks (never their passphrases)",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the list as JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit network wifi remove",
+      "name": "remove",
+      "parent": "stackkit network wifi",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit network wifi remove [flags]",
+      "short": "Remove a staged WiFi network",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "apply-now",
+          "type": "bool",
+          "description": "Apply the change immediately (netplan apply)",
+          "required": false
+        },
+        {
+          "name": "ssid",
+          "type": "string",
+          "description": "Name of the WiFi network to remove",
           "required": false
         }
       ],

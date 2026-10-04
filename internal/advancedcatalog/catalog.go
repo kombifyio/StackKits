@@ -77,6 +77,8 @@ const (
 	ChangeSetResultSchema           = "schemas/stackkit-change-set-result-v1.schema.json"
 	DriftReportSchemaVersion        = "stackkit.drift-report/v1"
 	DriftReportSchema               = "schemas/stackkit-drift-report-v1.schema.json"
+	OriginCertificateSchemaVersion  = "stackkit.origin-certificate/v1"
+	OriginCertificateSchema         = "schemas/stackkit-origin-certificate-v1.schema.json"
 	RestoreDrillReportSchemaVersion = "stackkit.restore-drill-report/v1"
 	RestoreDrillReportSchema        = "schemas/stackkit-restore-drill-report-v1.schema.json"
 )
@@ -214,6 +216,16 @@ var (
 		Placeholder: "changeSetId",
 		ContractRef: ref(ChangeSetSchemaVersion, ChangeSetRecordSchema),
 		Description: "Content address of the Owner-signed change-set record created by terramate.change-set.create; {changeSetSha256} pins its exact stored bytes.",
+	}
+	hostsInput = Input{
+		Placeholder: "hostsCsv",
+		ContractRef: ref(OriginCertificateSchemaVersion, OriginCertificateSchema),
+		Description: "Comma-separated managed kombify.me hostnames the certificate covers, from the managed address authority.",
+	}
+	certificateInput = Input{
+		Placeholder: "certificateFile",
+		ContractRef: ref(OriginCertificateSchemaVersion, OriginCertificateSchema),
+		Description: "PEM certificate issued by Cloudflare Origin CA for the CSR of the preceding request; public data.",
 	}
 	denialOutcome = Outcome{
 		Status:      "denied",
@@ -365,6 +377,12 @@ func New() Catalog {
 				}},
 				Modes: capabilityModes,
 			},
+			originCertificateEntry(advancedcapability.OperationOriginCertificateRequest, "request",
+				"Generate the origin key pair on the node (custody, never exported) and return the CSR for a managed kombify.me origin certificate; Techstack has Cloudflare issue it.",
+				[]string{"--hosts", "{hostsCsv}"}, []Input{capabilityInput, hostsInput}),
+			originCertificateEntry(advancedcapability.OperationOriginCertificateInstall, "install",
+				"Verify and install the delivered Cloudflare Origin CA certificate against the pending node key; the managed kombify.me routes are then served without an ACME order.",
+				[]string{"--certificate-file", "{certificateFile}"}, []Input{capabilityInput, certificateInput}),
 			rollbackEntry(),
 			{
 				Operation: advancedcapability.OperationTerramateChangeSetApply, Status: StatusAvailable, SinceRelease: "v0.15.8",
@@ -424,6 +442,30 @@ func Render() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
+func originCertificateEntry(operation, word, summary string, args []string, inputs []Input) Operation {
+	argv := append([]string{"advanced", "origin-certificate", word, "--capability", "{capabilityFile}"}, args...)
+	argv = append(argv, "--json")
+	return Operation{
+		Operation: operation, Status: StatusAvailable, SinceRelease: SincePending,
+		Summary:      summary,
+		Command:      "stackkit advanced origin-certificate " + word,
+		Argv:         argv,
+		OptionalArgs: []OptionalArgs{},
+		Mutates:      true,
+		Requires: Requirements{
+			Capability: true, CapabilityOperation: operation, TrustImported: true,
+		},
+		Inputs: inputs,
+		Results: []Outcome{
+			{Status: "success", ContractRef: ref(OriginCertificateSchemaVersion, OriginCertificateSchema)},
+			{Status: "failed", ContractRef: ref(OriginCertificateSchemaVersion, OriginCertificateSchema)},
+			denialOutcome,
+		},
+		Events: []EventPhase{},
+		Modes:  capabilityModes,
+	}
+}
+
 func placeholders() []Placeholder {
 	sha := `^sha256:[0-9a-f]{64}$`
 	return []Placeholder{
@@ -439,6 +481,8 @@ func placeholders() []Placeholder {
 		{Name: "capabilityFile", Description: "Path to the canonical capability file."},
 		{Name: "changeSetId", Description: "Content address of the Owner-signed change set.", Pattern: sha},
 		{Name: "changeSetSha256", Description: "Exact digest of the stored change-set bytes.", Pattern: sha},
+		{Name: "certificateFile", Description: "Path to the PEM origin certificate delivered by Techstack."},
+		{Name: "hostsCsv", Description: "Comma-separated managed kombify.me hostnames.", Pattern: `^[a-z0-9*][a-z0-9.*,-]*$`},
 		{Name: "correlationId", Description: "Caller correlation ID."},
 		{Name: "operationId", Description: "Stable lowercase operation ID.", Pattern: `^[a-z0-9][a-z0-9._-]{7,99}$`},
 		{Name: "progressFile", Description: "Path the rollout event JSONL is written to; never `-` together with --json."},
@@ -463,6 +507,7 @@ func reasonCodes() []ReasonCode {
 		{string(advancedcapability.ReasonAdvancedChangeSetInvalid), "The change-set request or record is invalid."},
 		{string(advancedcapability.ReasonAdvancedChangeSetStale), "The change set no longer matches the current baseline; create a new one."},
 		{"advanced_change_set_io", "The change-set record could not be read or written."},
+		{"origin_certificate_invalid", "The origin certificate request or delivered certificate is invalid (hostname outside the managed zone, no pending request, or a certificate that does not match the node key)."},
 		{"owner_approval_required", "The operation requires --owner-approve."},
 		{"restore_drill_request_invalid", "The restore-drill request is invalid (anchor, operation ID or workspace state)."},
 		{"advanced_rollback_request_invalid", "The rollback request is invalid (--to is not a sha256 snapshot or change-set ID)."},

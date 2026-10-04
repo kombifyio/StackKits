@@ -35,6 +35,8 @@ var (
 
 var allowedOperationSet = map[string]struct{}{
 	OperationDriftReconcileAdvanced:   {},
+	OperationOriginCertificateInstall: {},
+	OperationOriginCertificateRequest: {},
 	OperationRestoreDrill:             {},
 	OperationRollbackCoordinated:      {},
 	OperationTerramateChangeSetApply:  {},

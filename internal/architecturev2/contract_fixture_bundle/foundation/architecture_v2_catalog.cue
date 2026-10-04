@@ -6878,7 +6878,7 @@ _architectureV2Modules: list.Concat([[
 		}, {
 			id:              "terramate", kind:                            "terramate", rendererRef: "stackkit"
 			templateRef:     "builtin://cloud/core/terramate/v1", version: "1.0.0"
-			contractHash:    "sha256:a8c77f4ae0e44044f38f3ecc97fa881d1dec3e185d1ffa1d0aa71100af128beb"
+			contractHash:    "sha256:4dcd7068652e6e9ec38a7a4a6cfb6f3b727f244b8a48f673f75bac0948e1f68c"
 			publicInputRefs: _architectureV2TinyAuthRouteACLInputs.publicInputRefs, secretInputRefs: [], planInputRefs: []
 			inputBindings: _architectureV2TinyAuthRouteACLInputs.inputBindings
 			outputs: ["platform/cloud-core/main.tf", "platform/cloud-core/stack.tm.hcl"]

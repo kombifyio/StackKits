@@ -604,6 +604,14 @@ func buildPlan(input plannerInput) testPlan {
 			Reason: "provider HTTP fixture verifies exact-live deployment reuse without duplicate activation",
 		})
 	}
+	if anyPathUnder(files, "scripts/test-window/", ".github/workflows/test-window.yml") {
+		commands = append(commands, testCommand{
+			Kind:   "node",
+			Scope:  "test-window-report",
+			Argv:   []string{"node", "--test", "scripts/test-window/aggregate-window-report.test.mjs"},
+			Reason: "the consolidated window report keeps missing results pending and clusters failures by signature",
+		})
+	}
 	if anyPathUnder(files, "scripts/release/website-delivery-phase.mjs", "scripts/release/website-delivery-phase.test.mjs", "scripts/release/dispatch-website-installer-smoke.mjs", ".github/workflows/website-live-installer-smoke.yml", ".github/workflows/publish-oss.yml") {
 		commands = append(commands, testCommand{
 			Kind:   "node",

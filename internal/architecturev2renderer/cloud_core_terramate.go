@@ -17,7 +17,7 @@ const (
 	cloudStandaloneCoreTerramateTemplateRef       = "builtin://cloud/core-standalone/terramate/v1"
 	cloudStandaloneCoreTerramateOpenTofuOutputRef = "platform/cloud-core-standalone/main.tf"
 	cloudStandaloneCoreTerramateStackOutputRef    = "platform/cloud-core-standalone/stack.tm.hcl"
-	cloudCoreTerramateSchema                      = `stackkit.cloud-core-terramate/v1|artifact-revision:2|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl|stack:terramatestackgraph-core,project-root-per-host|root:` + cloudCoreOpenTofuSchema
+	cloudCoreTerramateSchema                      = `stackkit.cloud-core-terramate/v1|artifact-revision:3|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl|stack:terramatestackgraph-core,project-root-per-host|managed-kombify-me-tls:origin-ca-file-provider,no-acme-resolver|root:` + cloudCoreOpenTofuSchema
 	cloudStandaloneCoreTerramateSchema            = `stackkit.cloud-core-standalone-terramate/v1|artifact-revision:2|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl|stack:terramatestackgraph-core,project-root-per-host|root:` + cloudStandaloneCoreOpenTofuSchema
 )
 
@@ -46,9 +46,18 @@ func newCloudCoreTerramateRenderer() cloudCoreTerramateRenderer {
 	contract := CloudCoreTerramateRendererContract()
 	return cloudCoreTerramateRenderer{
 		contract: contract, openTofuOutput: cloudCoreTerramateOpenTofuOutputRef, stackOutput: cloudCoreTerramateStackOutputRef,
-		root: cloudCoreTerramatePayloadRenderer(contract, cloudCoreRenderProfileForCloudCore(),
+		root: cloudCoreTerramatePayloadRenderer(contract, cloudCoreOriginCertificateRenderProfile(),
 			cloudCoreTerramateOpenTofuOutputRef, cloudCoreOpenTofuResourcePrefix, cloudCoreComposeProjectName),
 	}
+}
+
+// cloudCoreOriginCertificateRenderProfile is the Cloud core profile of the
+// Terramate (Advanced) twin: a managed kombify.me address is served by the
+// delivered Origin CA certificate, every other domain keeps ACME.
+func cloudCoreOriginCertificateRenderProfile() cloudCoreRenderProfile {
+	profile := cloudCoreRenderProfileForCloudCore()
+	profile.renderCompose = RenderCloudCoreComposeForOriginCertificate
+	return profile
 }
 
 func newCloudStandaloneCoreTerramateRenderer() cloudCoreTerramateRenderer {

@@ -25,6 +25,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/localowner"
+	"github.com/kombifyio/stackkits/internal/originca"
 	"gopkg.in/yaml.v3"
 )
 
@@ -340,7 +341,7 @@ func (o *osStandaloneComposeWorkloadOperations) observeReadyWorkload(
 		if err := o.verifyPersisted(project); err != nil {
 			return false, err
 		}
-		if err := validateStandaloneComposeRouteReadback(statuses[project.bundle.EntryComponent], project.bundle.Route); err != nil {
+		if err := validateStandaloneComposeRouteReadback(statuses[project.bundle.EntryComponent], project.bundle.Route, o.originServes(project.bundle.Route)); err != nil {
 			return false, err
 		}
 		// The strict observer validates the entire authorized graph and its pins
@@ -382,6 +383,7 @@ func (o *osStandaloneComposeWorkloadOperations) ObserveWorkload(
 	if err := validateStandaloneComposeRouteReadback(
 		statuses[project.bundle.EntryComponent],
 		project.bundle.Route,
+		o.originServes(project.bundle.Route),
 	); err != nil {
 		return SelectedPaaSWorkloadObservation{}, err
 	}
@@ -995,7 +997,7 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 			if bundle.Route.ID != "" {
 				document.Networks["stackkit-routing"] = standaloneComposeNetwork{Name: routingNetwork, External: true}
 				service.Networks = append(service.Networks, "stackkit-routing")
-				for key, value := range standaloneComposeRouteLabels(bundle.Route) {
+				for key, value := range standaloneComposeRouteLabels(bundle.Route, o.originServes(bundle.Route)) {
 					service.Labels[key] = value
 				}
 			} else {
@@ -1092,7 +1094,7 @@ func standaloneComposeVolumeOwnsPath(volumes []architecturev2renderer.Applicatio
 	return false
 }
 
-func standaloneComposeRouteLabels(route architecturev2renderer.ApplicationDeliveryRouteDescriptor) map[string]string {
+func standaloneComposeRouteLabels(route architecturev2renderer.ApplicationDeliveryRouteDescriptor, originServed bool) map[string]string {
 	routingNetwork, _ := standaloneComposeCoreNetwork(route.CoreModuleRef) // validated before render or readback
 	router := "stackkit-" + route.ServiceRef
 	rule := "PathPrefix(`" + route.Path + "`)"
@@ -1132,7 +1134,9 @@ func standaloneComposeRouteLabels(route architecturev2renderer.ApplicationDelive
 	}
 	if route.TLSRequired {
 		labels["traefik.http.routers."+router+".tls"] = "true"
-		if route.TLSIssuerRef != "" {
+		// A managed kombify.me route served by the delivered Origin CA
+		// certificate (ADR-0047) requests no ACME certificate.
+		if route.TLSIssuerRef != "" && !originServed {
 			// The plan carries provider-neutral issuer/profile identities. All
 			// supported Compose core owners expose that authority to Traefik
 			// through their installed resolver named "stackkits".
@@ -1407,6 +1411,7 @@ func parseStandaloneComposeStatuses(raw []byte) (map[string]standaloneComposePS,
 func validateStandaloneComposeRouteReadback(
 	status standaloneComposePS,
 	route architecturev2renderer.ApplicationDeliveryRouteDescriptor,
+	originServed bool,
 ) error {
 	labels := standaloneComposeCSVMap(status.Labels)
 	networks := standaloneComposeCSVSet(status.Networks)
@@ -1429,7 +1434,7 @@ func validateStandaloneComposeRouteReadback(
 	if err != nil {
 		return err
 	}
-	for key, expected := range standaloneComposeRouteLabels(route) {
+	for key, expected := range standaloneComposeRouteLabels(route, originServed) {
 		if labels[key] != expected {
 			return fmt.Errorf("standalone Compose route readback differs at label %q", key)
 		}
@@ -1652,3 +1657,9 @@ func standaloneComposeComponent(
 }
 
 var _ SelectedPaaSWorkloadOperations = (*osStandaloneComposeWorkloadOperations)(nil)
+
+// originServes reports whether the node holds an installed origin certificate
+// for a TLS route's host.
+func (o *osStandaloneComposeWorkloadOperations) originServes(route architecturev2renderer.ApplicationDeliveryRouteDescriptor) bool {
+	return route.TLSRequired && route.Host != "" && originca.Covers(o.workspaceRoot, route.Host)
+}

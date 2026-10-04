@@ -189,7 +189,21 @@ func observeNamespaces(ctx context.Context) *bool {
 	}
 	bounded, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
-	available := exec.CommandContext(bounded, "unshare", "--mount", "--pid", "--fork", "true").Run() == nil
+	argv := []string{"unshare", "--mount", "--pid", "--fork", "true"}
+	if os.Geteuid() != 0 {
+		// Mount and PID namespaces need privilege. An unprivileged probe fails
+		// on every host that restricts user namespaces (Ubuntu 24.04+ by
+		// default), which says nothing about what dockerd may do. Probe through
+		// non-interactive sudo; without it the syscall cannot be proven.
+		if _, err := exec.LookPath("sudo"); err != nil {
+			return nil
+		}
+		if exec.CommandContext(bounded, "sudo", "-n", "true").Run() != nil {
+			return nil
+		}
+		argv = append([]string{"sudo", "-n"}, argv...)
+	}
+	available := exec.CommandContext(bounded, argv[0], argv[1:]...).Run() == nil
 	return &available
 }
 

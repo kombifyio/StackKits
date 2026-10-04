@@ -124,6 +124,7 @@ bounded logs are the first post-install evidence; `status` and HTTP `verify` rem
 | `registry` | Inspect or reproduce the embedded Git/CUE registry snapshot. |
 | `secrets` | Establish owner-bound local custody for secret references in canonical StackSpec intent. |
 | `user` | Invite, list, and remove PocketID household users. Mutations require `--owner-approve`. |
+| `network` | Move this server to another network: status, signed LAN re-bind, WiFi pre-staging and the self-re-binding watcher. |
 | `completion` | Generate shell completions. |
 | `version` | Print version, commit, build date, Go version, and OS/arch. |
 
@@ -800,6 +801,27 @@ serves the stack from the install zone `<label>.<domain>`: the zone becomes the
 stack's domain and hosts are `<service>.<label>.<domain>`, so Cloud identity
 and TinyAuth derive their URLs and cookie scope from the zone exactly as for an
 own domain. Pass exactly one of the two.
+
+### `stackkit network`
+
+Carry a standalone server from one network to another (new DHCP address,
+possibly WiFi only). The server recovers by itself; the owner only stages the
+destination WiFi beforehand. See [network-move.md](network-move.md).
+
+- `network status [--json]` compares the current site address with the address
+  recorded in the LAN resolver custody and in `.stackkit/inventory.yaml` and
+  reports `in-place`, `moved` or `unknown`. It always exits 0.
+- `network rebind [--yes] [--no-apply] [--json]` re-issues the owner-signed
+  LAN resolver record for the new address (the previous bundle is kept under
+  `.stackkit/custody/backups`), then runs `generate` and `apply`. It is a no-op
+  when the server did not move. `--auto` is the unattended mode used by the
+  watcher.
+- `network wifi add|list|remove` stages destination WiFi through
+  NetworkManager (keyfile) or netplan (`/etc/netplan/90-kombify-wifi.yaml`).
+  Pass the passphrase with `--password-stdin`; it is never printed.
+- `network watch enable|disable|status` manages the systemd timer
+  `kombify-stackkit-network-watch.timer`. `stackkit apply` enables it on
+  systemd hosts when run as root; opt out with `STACKKIT_NETWORK_WATCH=off`.
 
 ### `stackkit migrate [v1-spec-file]`
 

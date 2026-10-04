@@ -20,6 +20,8 @@ const (
 
 const (
 	OperationDriftReconcileAdvanced   = "drift.reconcile.advanced"
+	OperationOriginCertificateInstall = "public-tls.origin-certificate.install"
+	OperationOriginCertificateRequest = "public-tls.origin-certificate.request"
 	OperationRestoreDrill             = "restore.drill"
 	OperationRollbackCoordinated      = "rollback.coordinated"
 	OperationTerramateChangeSetApply  = "terramate.change-set.apply"

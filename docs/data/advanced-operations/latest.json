@@ -83,6 +83,10 @@
         "description": "The change-set record could not be read or written."
       },
       {
+        "code": "origin_certificate_invalid",
+        "description": "The origin certificate request or delivered certificate is invalid (hostname outside the managed zone, no pending request, or a certificate that does not match the node key)."
+      },
+      {
         "code": "owner_approval_required",
         "description": "The operation requires --owner-approve."
       },
@@ -174,6 +178,15 @@
       "name": "changeSetSha256",
       "description": "Exact digest of the stored change-set bytes.",
       "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    {
+      "name": "certificateFile",
+      "description": "Path to the PEM origin certificate delivered by Techstack."
+    },
+    {
+      "name": "hostsCsv",
+      "description": "Comma-separated managed kombify.me hostnames.",
+      "pattern": "^[a-z0-9*][a-z0-9.*,-]*$"
     },
     {
       "name": "correlationId",
@@ -696,6 +709,134 @@
           ]
         }
       ],
+      "modes": {
+        "standard": "denied",
+        "advanced": "capability"
+      }
+    },
+    {
+      "operation": "public-tls.origin-certificate.install",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Verify and install the delivered Cloudflare Origin CA certificate against the pending node key; the managed kombify.me routes are then served without an ACME order.",
+      "command": "stackkit advanced origin-certificate install",
+      "argv": [
+        "advanced",
+        "origin-certificate",
+        "install",
+        "--capability",
+        "{capabilityFile}",
+        "--certificate-file",
+        "{certificateFile}",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": true,
+      "requires": {
+        "capability": true,
+        "capabilityOperation": "public-tls.origin-certificate.install",
+        "trustImported": true,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "capabilityFile",
+          "schemaVersion": "stackkit.advanced-capability/v1",
+          "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
+          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+        },
+        {
+          "placeholder": "certificateFile",
+          "schemaVersion": "stackkit.origin-certificate/v1",
+          "schema": "schemas/stackkit-origin-certificate-v1.schema.json",
+          "description": "PEM certificate issued by Cloudflare Origin CA for the CSR of the preceding request; public data."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.origin-certificate/v1",
+          "schema": "schemas/stackkit-origin-certificate-v1.schema.json"
+        },
+        {
+          "status": "failed",
+          "schemaVersion": "stackkit.origin-certificate/v1",
+          "schema": "schemas/stackkit-origin-certificate-v1.schema.json"
+        },
+        {
+          "status": "denied",
+          "schemaVersion": "stackkit.operation-denial/v1",
+          "schema": "schemas/stackkit-operation-denial-v1.schema.json",
+          "description": "Fail-closed admission denial before any side effect."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "denied",
+        "advanced": "capability"
+      }
+    },
+    {
+      "operation": "public-tls.origin-certificate.request",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Generate the origin key pair on the node (custody, never exported) and return the CSR for a managed kombify.me origin certificate; Techstack has Cloudflare issue it.",
+      "command": "stackkit advanced origin-certificate request",
+      "argv": [
+        "advanced",
+        "origin-certificate",
+        "request",
+        "--capability",
+        "{capabilityFile}",
+        "--hosts",
+        "{hostsCsv}",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": true,
+      "requires": {
+        "capability": true,
+        "capabilityOperation": "public-tls.origin-certificate.request",
+        "trustImported": true,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "capabilityFile",
+          "schemaVersion": "stackkit.advanced-capability/v1",
+          "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
+          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+        },
+        {
+          "placeholder": "hostsCsv",
+          "schemaVersion": "stackkit.origin-certificate/v1",
+          "schema": "schemas/stackkit-origin-certificate-v1.schema.json",
+          "description": "Comma-separated managed kombify.me hostnames the certificate covers, from the managed address authority."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.origin-certificate/v1",
+          "schema": "schemas/stackkit-origin-certificate-v1.schema.json"
+        },
+        {
+          "status": "failed",
+          "schemaVersion": "stackkit.origin-certificate/v1",
+          "schema": "schemas/stackkit-origin-certificate-v1.schema.json"
+        },
+        {
+          "status": "denied",
+          "schemaVersion": "stackkit.operation-denial/v1",
+          "schema": "schemas/stackkit-operation-denial-v1.schema.json",
+          "description": "Fail-closed admission denial before any side effect."
+        }
+      ],
+      "events": [],
       "modes": {
         "standard": "denied",
         "advanced": "capability"

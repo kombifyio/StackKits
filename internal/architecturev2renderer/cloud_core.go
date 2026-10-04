@@ -286,6 +286,34 @@ func RenderCloudCoreComposeForAddress(domain, prefix string) []byte {
 	return []byte(strings.ReplaceAll(output, "{{STACKKIT_SERVICE}}", ""))
 }
 
+const (
+	managedOriginCertificateZone = "kombify.me"
+	originCertificateRouterArg   = "      - --providers.docker.exposedbydefault=false\n"
+	originCertificateRouterVols  = "    volumes: [public-tls-acme:/letsencrypt]\n"
+)
+
+var originCertificateResolverLabel = regexp.MustCompile(`(?m)^      - traefik[.]http[.]routers[.][a-z-]+[.]tls[.]certresolver=stackkits\n`)
+
+// RenderCloudCoreComposeForOriginCertificate renders the Advanced
+// (Terramate-generated, Techstack-dispatched) Cloud core for a managed
+// kombify.me address (ADR-0047). The core routers carry no ACME resolver: the
+// router serves the Cloudflare Origin CA certificate delivered to the node by
+// the capability-gated origin-certificate operation, mounted read-only from
+// owner custody through the file provider. Other domains keep ACME.
+func RenderCloudCoreComposeForOriginCertificate(domain, prefix string) []byte {
+	output := RenderCloudCoreComposeForAddress(domain, prefix)
+	if output == nil || domain != managedOriginCertificateZone {
+		return output
+	}
+	text := string(output)
+	text = originCertificateResolverLabel.ReplaceAllString(text, "")
+	text = strings.Replace(text, originCertificateRouterArg, originCertificateRouterArg+
+		"      - --providers.file.directory=/origin-tls\n      - --providers.file.watch=true\n", 1)
+	text = strings.Replace(text, originCertificateRouterVols,
+		"    volumes: [public-tls-acme:/letsencrypt, \"${STACKKIT_CUSTODY_DIR:?}/public-tls-origin/live:/origin-tls:ro\"]\n", 1)
+	return []byte(text)
+}
+
 // ExpectedCloudCoreComposeArtifact returns the immutable default-domain
 // artifact used by executor contract tests.
 func ExpectedCloudCoreComposeArtifact() []byte {
@@ -315,7 +343,8 @@ func CloudComposeIdentityAddress(content []byte) (domain, prefix string, ok bool
 func ValidateCloudCoreComposeArtifact(content []byte) bool {
 	domain, prefix, ok := CloudComposeIdentityAddress(content)
 	stripped, aclOK := stripTinyAuthRouteACLs(content)
-	return ok && aclOK && bytes.Equal(stripped, RenderCloudCoreComposeForAddress(domain, prefix))
+	return ok && aclOK && (bytes.Equal(stripped, RenderCloudCoreComposeForAddress(domain, prefix)) ||
+		domain == managedOriginCertificateZone && bytes.Equal(stripped, RenderCloudCoreComposeForOriginCertificate(domain, prefix)))
 }
 
 func CloudCoreServiceContracts() []BasementCoreServiceContract {

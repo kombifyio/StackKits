@@ -80,6 +80,16 @@
       "if": {
         "required": ["command", "status"],
         "properties": {
+          "command": { "enum": ["stackkit advanced origin-certificate request", "stackkit advanced origin-certificate install"] },
+          "status": { "enum": ["success", "failed"] }
+        }
+      },
+      "then": { "properties": { "data": { "$ref": "stackkit-origin-certificate-v1.schema.json" } } }
+    },
+    {
+      "if": {
+        "required": ["command", "status"],
+        "properties": {
           "command": { "const": "stackkit advanced restore-drill run" },
           "status": { "enum": ["success", "failed"] }
         }
@@ -100,7 +110,7 @@
       "if": {
         "required": ["command", "status"],
         "properties": {
-          "command": { "enum": ["stackkit advanced change-set create", "stackkit advanced restore-drill run", "stackkit advanced rollback run", "stackkit drift reconcile"] },
+          "command": { "enum": ["stackkit advanced change-set create", "stackkit advanced origin-certificate request", "stackkit advanced origin-certificate install", "stackkit advanced restore-drill run", "stackkit advanced rollback run", "stackkit drift reconcile"] },
           "status": { "const": "denied" }
         }
       },
@@ -153,6 +163,8 @@
             "stackkit advanced trust inspect",
             "stackkit advanced change-set create",
             "stackkit advanced change-set apply",
+            "stackkit advanced origin-certificate request",
+            "stackkit advanced origin-certificate install",
             "stackkit advanced restore-drill run",
             "stackkit advanced rollback run",
             "stackkit drift detect",

@@ -115,6 +115,8 @@
       "items": {
         "enum": [
           "drift.reconcile.advanced",
+          "public-tls.origin-certificate.install",
+          "public-tls.origin-certificate.request",
           "restore.drill",
           "rollback.coordinated",
           "terramate.change-set.apply",
