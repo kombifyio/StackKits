@@ -74,6 +74,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+* **Apply recovery:** an Apply that recovers through refreshed evidence no longer leaves a result whose applied runtime request cannot be loaded. A node with an off-site backup target (or Home access) binding resumes a reconcile-required Apply through a continuation sealed to the fresh evidence, so the result binds the continuation's request digest while only the first attempt's recovery capsule was retained. Verify, upgrade checkpoints and Advanced drift reconcile then failed with `load applied runtime request: Product Apply recovery capsule does not exist` after the target had converged, and the reconcile rolled back. The continuation's exact request is now retained under its own digest before any mutation, bounded by the original recovery authority; a missing capsule still fails closed.
+
+* **Advanced rollback:** a coordinated rollback to the checkpoint taken before a successful change set no longer fails its apply with `Cloud offsite target custody does not verify` on a node that holds an off-site backup target. The checkpoint restores the StackSpec and the Inventory with the binding the node issued for the checkpoint's spec, but the owner custody authority still named the change set's candidate binding, so the offsite owner refused the restored Inventory and drift detection and the restore drill failed afterwards. Before the joined generate, the rollback now moves the custody authority to the one the checkpoint's own plan and backup source policy carry, from the credentials already in custody, and refuses any other target (same Stack, Site, node, capability, contract, backup target and custody attestation, and the binding of the restored Inventory).
+
 * **Advanced rollback:** the coordinated rollback of a host with the host pre-step no longer refuses its own plan with `advanced_rollback_invalid`. The journal required every step's runtime root to end in `opentofu`, but the host pre-step owns no OpenTofu root (`.stackkit/runtime/host`), so a failed change-set convergence aborted the rollback at planning and left the lifecycle mutation active at `rollback-started`, which denied every later mutation (drift detection included). The host step is now planned, journaled and restored last (`host security repair --apply`, then the verify loop). A rollback stranded at `rollback-started` without a journal is reopened by the next `advanced rollback run` for the same checkpoint.
 
 * **Advanced change sets:** `stackkit advanced change-set create` no longer fails with `external_backup_target_binding_mismatch` on a node that holds an off-site backup target. The binding the node issued binds the applied spec hash, so every candidate spec invalidated it. Create now resolves the candidate with the node's own binding for the candidate's backup target requirement (same target, custody attestation, release and validity window; a requirement naming another target is refused) and persists nothing. Apply persists that binding into the node Inventory and moves the custody authority to it before the target generate, restores the custody authority if the target fails, and so keeps the next drift detection, `generate`, backup and change set working.
@@ -172,6 +176,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.51.4](https://github.com/kombifyio/StackKits/compare/v0.51.3...v0.51.4) (2026-10-04)
+
+
+### Fixed
+
+* **advanced:** move backup target custody to the checkpoint's authority on coordinated rollback
+* **apply:** retain the applied runtime request of an Apply recovered through fresh evidence
+* **deps:** update internal products
 
 ## [0.51.3](https://github.com/kombifyio/StackKits/compare/v0.51.2...v0.51.3) (2026-10-04)
 

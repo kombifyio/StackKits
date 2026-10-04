@@ -1741,8 +1741,11 @@ Terramate (`stackkit apply` under `compose` or `opentofu` is unchanged).
   moves the custody authority with the credentials already in custody
   (`backupcustody.RebindStoredS3Target`). A failed target restores the prior
   custody authority before the rollback regenerates the baseline; the
-  checkpoint recovery restores the Inventory. A candidate equal to the
-  baseline (drift reconcile) keeps the persisted binding.
+  checkpoint recovery restores the Inventory, and a coordinated rollback to a
+  checkpoint (after a failed or a successful change set) moves the custody
+  authority to the checkpoint's own (see Coordinated rollback across stacks).
+  A candidate equal to the baseline (drift reconcile) keeps the persisted
+  binding.
 - Apply: the mutation skeleton stays generate, plan, apply, verify through the
   target release (see Release authority) under the lifecycle journal. Missing packaged Terramate or
   OpenTofu fails before the checkpoint. After the target apply succeeds and
@@ -2043,7 +2046,8 @@ of `stackkit advanced change-set apply` runs the same path.
   checkpoint is the target (its own, or the failed change set's):
   `rollback-started` (plan), `rollback-generate` (the checkpoint StackSpec and
   Inventory restored through `ExecutorStateStore.RecoverWith` with
-  `ReplaceAuthority` and `SkipOpenTofuRoots`, then a joined `generate`), the
+  `ReplaceAuthority` and `SkipOpenTofuRoots`, the backup target custody moved
+  to the checkpoint's authority, then a joined `generate`), the
   per-stack execution while the journal is at `rollback-generate-done`,
   `rollback-apply` (a joined `apply --auto-approve` of the regenerated
   checkpoint generation), `rollback-verify` (a joined `verify --json`
@@ -2077,8 +2081,25 @@ of `stackkit advanced change-set apply` runs the same path.
   verify flags, the checkpoint sealed after a converged standalone rollback,
   and `converged` or `failed`. A failed change set carries it as
   `data.rollbackResult`. Rollout events: `advanced.rollback.resolve-target`,
-  `.plan`, `.restore-authority`, `.generate`, per-stack `.stack`, `.verify`
-  and `.seal`.
+  `.plan`, `.restore-authority`, `.restore-backup-custody`, `.generate`,
+  per-stack `.stack`, `.verify` and `.seal`.
+- Backup target custody: the checkpoint restores the StackSpec and the
+  Inventory, whose backup target binding is the one the node issued for the
+  checkpoint's spec, but not the owner custody authority of the S3 target. A
+  change set that succeeded since the checkpoint moved that authority to its
+  candidate's binding, so the rollback apply's offsite owner would refuse the
+  restored Inventory (`Cloud offsite target custody does not verify`). Before
+  the joined generate, the rollback derives the authority the checkpoint's
+  verified ResolvedPlan and generated backup source policy carry for the node
+  (the derivation a change set uses for its candidate) and moves custody to it
+  with the credentials already in custody (`backupcustody.RebindStoredS3Target`;
+  nobody supplies material). It refuses any other target: the Stack, Site,
+  node, capability, contract owner, contract, backup target and custody
+  attestation must equal the custody it replaces, and the restored Inventory
+  must hold the binding the checkpoint plan was generated from. It changes
+  nothing for a node without backup target custody, for a checkpoint without a
+  binding, and when custody already holds the checkpoint's authority, so a
+  resumed rollback repeats it harmlessly.
 - The upgrade checkpoint seals for `opentofu` and `terramate` installs (see
   State custody under the OpenTofu runtime executor), so a change set on a
   `terramate` install seals its checkpoint before the target apply and the
@@ -2769,6 +2790,11 @@ evidence must remain valid. Slow collection or custody reads therefore cannot
 extend an expired authorization. The shared request retains its sealed
 evaluation instant; the independently checked admission time is not a caller
 override. An expired original capsule requires a newly authorized Apply.
+A continuation's result binds the continuation's own request digest, so the
+registry seals and retains a capsule for the exact continuation request under
+that digest before the first executor call, valid no longer than the original
+recovery authority. Verify, upgrade checkpoints and Advanced reconcile load
+the applied runtime request by that digest.
 
 The v0.8 CLI registers all factories and local transport required by the
 closed single-node Basement default graph. It opts into the durable file

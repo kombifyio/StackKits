@@ -128,6 +128,10 @@ func advancedBackupBindingSuccessor(
 	return encoded, &advancedCandidateBackupBinding{requirement: requirement, binding: binding, previousHash: stored.Binding.BindingHash}, nil
 }
 
+// errNoNodeBackupTargetBinding reports a verified plan that carries no backup
+// target binding for this node.
+var errNoNodeBackupTargetBinding = errors.New("the plan carries no backup target binding for this node")
+
 // advancedCandidateBackupAuthority is the owner custody authority the
 // candidate's Apply verifies: the candidate plan's projection of the node's
 // binding and the digest of the backup source policy the candidate renders.
@@ -136,34 +140,51 @@ func advancedBackupBindingSuccessor(
 func advancedCandidateBackupAuthority(
 	plan generationartifact.VerifiedPlan, render architecturev2renderer.RenderResult, owner localevidence.OwnerCustody,
 ) (backupcustody.S3TargetAuthority, error) {
+	rendered := render.Artifacts()
+	return nodeBackupTargetAuthority(plan, owner, func(id string) ([]byte, bool) {
+		for _, artifact := range rendered {
+			if artifact.ID == id {
+				return artifact.Bytes, true
+			}
+		}
+		return nil, false
+	})
+}
+
+// nodeBackupTargetAuthority is the owner custody authority a plan's Apply
+// verifies for the node: the plan's projection of the node's backup target
+// binding and the digest of the backup source policy artifact the plan
+// renders, which policyBytes returns by artifact ID. It reads only the
+// verified plan and the generated policy, never custody.
+func nodeBackupTargetAuthority(
+	plan generationartifact.VerifiedPlan, owner localevidence.OwnerCustody, policyBytes func(artifactID string) ([]byte, bool),
+) (backupcustody.S3TargetAuthority, error) {
 	var authority backupcustody.S3TargetAuthority
 	for _, binding := range plan.ApplyRequirements().BackupTargetBindings {
 		if binding.SiteRef == owner.Binding.SiteRef && slices.Equal(binding.TargetNodeRefs, []string{owner.Binding.NodeRef}) {
 			if authority.Binding.BindingHash != "" {
-				return authority, errors.New("candidate backup target authority is ambiguous")
+				return authority, errors.New("backup target authority is ambiguous")
 			}
 			authority.Binding = binding
 		}
 	}
 	if authority.Binding.BindingHash == "" {
-		return authority, errors.New("candidate plan carries no backup target binding for this node")
+		return authority, errNoNodeBackupTargetBinding
 	}
 	_, requirement, err := nativeV2BackupPolicyRequirement(plan, owner.Binding.SiteRef, owner.Binding.NodeRef)
 	if err != nil {
 		return authority, err
 	}
-	for _, artifact := range render.Artifacts() {
-		if artifact.ID != requirement.ID {
-			continue
-		}
-		policy, err := localbackuppolicy.Decode(artifact.Bytes)
-		if err != nil {
-			return authority, err
-		}
-		authority.SourceDigest, err = localbackuppolicy.SourceDigest(policy.SourceProjection())
+	raw, found := policyBytes(requirement.ID)
+	if !found {
+		return authority, errors.New("no backup source policy is generated for the plan")
+	}
+	policy, err := localbackuppolicy.Decode(raw)
+	if err != nil {
 		return authority, err
 	}
-	return authority, errors.New("candidate render carries no backup source policy")
+	authority.SourceDigest, err = localbackuppolicy.SourceDigest(policy.SourceProjection())
+	return authority, err
 }
 
 // adoptAdvancedCandidateBackupBinding makes the candidate the applied baseline
@@ -171,7 +192,9 @@ func advancedCandidateBackupAuthority(
 // Inventory and moves owner custody to the candidate's authority, with the
 // credentials already in custody. The caller holds the lifecycle mutation and
 // runs this before the target generate. The returned restore moves custody
-// back when the target fails; the checkpoint recovery restores the Inventory.
+// back when the target fails; the checkpoint recovery restores the Inventory,
+// and the coordinated rollback moves custody to the checkpoint's authority
+// (followCheckpointBackupCustody).
 func adoptAdvancedCandidateBackupBinding(workspace string, verified verifiedAdvancedMutation) (restore func() error, err error) {
 	successor := verified.admission.candidateBackup
 	if successor == nil {

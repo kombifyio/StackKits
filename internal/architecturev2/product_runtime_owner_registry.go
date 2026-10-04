@@ -299,6 +299,26 @@ func (r *ProductRuntimeOwnerRegistry) executeProductApplyContinuation(ctx contex
 	if continuation.Shared.Executor != r.identity {
 		return runtimeexecutor.ExecutionResult{}, errors.New("Product Apply continuation does not bind the service-owned registry identity")
 	}
+	// The continuation is sealed to its own request digest, so the Apply result
+	// it produces binds that digest, not the one of the recovery capsule it
+	// resumes. Retain the exact continuation request under its own digest
+	// before any mutation, as a first Apply does: Verify, upgrade checkpoints
+	// and further recovery load the applied runtime request by the digest the
+	// result carries. The refreshed evidence never extends the original
+	// recovery authority.
+	continuationValidUntil := validUntil
+	if recoveryValidUntil.Before(continuationValidUntil) {
+		continuationValidUntil = recoveryValidUntil
+	}
+	continuationCapsule, err := newProductApplyRecoveryCapsule(
+		continuation.Request, continuation.Shared, capsule.OutputRoot, continuationValidUntil,
+	)
+	if err != nil {
+		return runtimeexecutor.ExecutionResult{}, fmt.Errorf("seal Product Apply continuation recovery authority: %w", err)
+	}
+	if err := r.storeProductApplyRecovery(ctx, continuation.Shared.RequestDigest, continuationCapsule); err != nil {
+		return runtimeexecutor.ExecutionResult{}, fmt.Errorf("persist Product Apply continuation recovery authority: %w", err)
+	}
 	// The shared request is sealed to its evaluation instant. The live clock
 	// above independently bounds admission after loading recovery custody.
 	return runtimeexecutor.InvokeAt(ctx, r, continuation.Shared, evaluatedAt)

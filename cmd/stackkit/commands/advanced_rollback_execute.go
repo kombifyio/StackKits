@@ -35,7 +35,8 @@ import (
 // set hands over its own.
 //
 // Journal phases: rollback-started (plan persisted), rollback-generate
-// (checkpoint StackSpec and Inventory restored, then a joined `generate`),
+// (checkpoint StackSpec and Inventory restored and the backup target custody
+// moved to the checkpoint's authority, then a joined `generate`),
 // after rollback-generate-done the per-stack destroy, restore and forced
 // convergence in reverse run order (resumable per stack), rollback-apply (a
 // joined `apply` of the regenerated checkpoint generation, which records its
@@ -178,6 +179,11 @@ func (rollback *coordinatedRollback) phases(
 	session := rollback.session
 	snapshot := rollback.custody.Snapshot
 	operationID := session.Record().OperationID
+	// The checkpoint's Inventory holds the backup target binding of its own
+	// spec; the owner custody the joined apply verifies must name the same.
+	if err := rollback.restoreBackupCustody(); err != nil {
+		return err
+	}
 	runner := newPublicUpgradeTransactionRunner()
 	common := publicUpgradeCommandPrefix(rollback.workspace, specFile)
 	digest, err := hashPublicUpgradeExecutable(binary)
