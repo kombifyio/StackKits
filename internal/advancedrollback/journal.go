@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 )
 
 var snapshotIDPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
@@ -82,7 +84,7 @@ func SaveJournal(workspaceRoot string, journal Journal) error {
 
 func validateStep(step Step) error {
 	clean := path.Clean(step.RuntimeRoot)
-	if clean != step.RuntimeRoot || !strings.HasPrefix(clean, ".stackkit/runtime/") || path.Base(clean) != "opentofu" {
+	if clean != step.RuntimeRoot || !stepRuntimeRootAllowed(step.Role, clean) {
 		return &Error{Code: ErrInvalid, Detail: fmt.Sprintf("stack runtime root %q is outside the runtime tree", step.RuntimeRoot)}
 	}
 	switch step.Action {
@@ -91,6 +93,17 @@ func validateStep(step Step) error {
 	default:
 		return &Error{Code: ErrInvalid, Detail: fmt.Sprintf("stack %s has unknown action %q", step.StackID, step.Action)}
 	}
+}
+
+// stepRuntimeRootAllowed binds a step to the runtime root its stack role can
+// own. The host pre-step (ADR-0045 addendum A4) owns no OpenTofu root: its
+// runtime root is the fixed host stack directory, which never ends in
+// `opentofu`. Every other stack owns an OpenTofu root below the runtime tree.
+func stepRuntimeRootAllowed(role, runtimeRoot string) bool {
+	if role == hostRole {
+		return runtimeRoot == terramatestackgraph.HostRuntimeRoot
+	}
+	return strings.HasPrefix(runtimeRoot, ".stackkit/runtime/") && path.Base(runtimeRoot) == "opentofu"
 }
 
 // confinedFile resolves a workspace-relative path below .stackkit and refuses

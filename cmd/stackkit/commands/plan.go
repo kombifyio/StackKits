@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -18,6 +19,7 @@ var (
 	planOut                string
 	planDestroy            bool
 	planJSON               bool
+	planSourceGeneration   bool
 	planV2ExecutionOptions architectureV2ExecutionCLIOptions
 )
 
@@ -42,6 +44,7 @@ func init() {
 	planCmd.Flags().StringVarP(&planOut, "out", "o", "", "Save plan to file")
 	planCmd.Flags().BoolVar(&planDestroy, "destroy", false, "Create destroy plan")
 	planCmd.Flags().BoolVar(&planJSON, "json", false, "Emit the native Architecture v2 plan inspection as JSON")
+	planCmd.Flags().BoolVar(&planSourceGeneration, "source-generation", false, "Inspect the retained generation through its already installed attested source release; never authorize current execution")
 	planCmd.Flags().StringVar(&planV2ExecutionOptions.inventoryPath, "inventory", "", "Architecture v2 observed Inventory (otherwise one conventional inventory file is selected)")
 	planCmd.Flags().StringVar(&planV2ExecutionOptions.planPath, "resolved-plan", "", "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)")
 	planCmd.Flags().StringVar(&planV2ExecutionOptions.manifestPath, "artifact-manifest", "", "Architecture v2 generation manifest (default: <outputRoot>/.stackkit/generation-manifest.json)")
@@ -51,6 +54,14 @@ func init() {
 func runPlan(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	wd := getWorkDir()
+	if planSourceGeneration {
+		if !planJSON || planOut != "" || planDestroy || planV2ExecutionOptions.inventoryPath != "" || planV2ExecutionOptions.planPath != "" || planV2ExecutionOptions.manifestPath != "" || planV2ExecutionOptions.receiptPath != "" {
+			return errors.New("source generation inspection requires --json and canonical retained inputs")
+		}
+		if handled, err := runSourceGenerationPlan(cmd.Context(), wd, specFile, cmd.OutOrStdout()); handled || err != nil {
+			return err
+		}
+	}
 	options := planV2ExecutionOptions
 	options.planOut = planOut
 	options.planDestroy = planDestroy

@@ -109,6 +109,17 @@ func inspectAttestedSourceRelease(
 	receipt releaseindex.Receipt,
 	freezeSourceInventory bool,
 ) (publicUpgradeBridge, error) {
+	return inspectAttestedSourceAuthority(ctx, workspace, requestedSpec, receipt, freezeSourceInventory, false)
+}
+
+// sourceOnly retains the source's exact generation and signed offline Owner /
+// Apply proof. Only the full upgrade bridge additionally admits live recovery.
+func inspectAttestedSourceAuthority(
+	ctx context.Context,
+	workspace, requestedSpec string,
+	receipt releaseindex.Receipt,
+	freezeSourceInventory, sourceOnly bool,
+) (publicUpgradeBridge, error) {
 	bridge := publicUpgradeBridge{Receipt: receipt}
 	inventoryPath, cleanup, err := materializeAttestedSourceInventory(
 		workspace, requestedSpec, receipt.Version, freezeSourceInventory,
@@ -134,6 +145,9 @@ func inspectAttestedSourceRelease(
 		if err != nil {
 			return fmt.Errorf("run attested source plan proof: %w", err)
 		}
+		if sourceOnly && len(rawPlan) > maxSourceGenerationInspectionBytes {
+			return errors.New("source generation Plan proof exceeds its bound")
+		}
 		if err := decodeUpgradeExactJSON(rawPlan, &bridge.Current); err != nil {
 			return fmt.Errorf("decode attested source plan proof: %w", err)
 		}
@@ -151,11 +165,17 @@ func inspectAttestedSourceRelease(
 		if err != nil {
 			return fmt.Errorf("run attested source offline verification: %w", err)
 		}
+		if sourceOnly && len(rawVerify) > maxSourceGenerationInspectionBytes {
+			return errors.New("source generation Owner/Apply proof exceeds its bound")
+		}
 		bridge.Verify, err = validatePublishedStableVerifyResult(
 			rawVerify, bridge.Current, receipt,
 		)
 		if err != nil {
 			return err
+		}
+		if sourceOnly {
+			return nil
 		}
 		rawLive, err := runner.Run(
 			ctx, binary, withInventory("verify", "--json"), workspace,

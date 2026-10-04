@@ -1,5 +1,9 @@
 # Changelog
 
+- Fix: explicit `plan --source-generation --json` preparation inspects an applied historical generation through its already installed attested source CLI and signed offline Owner/Apply evidence. Backup recipient renewal can use the same proof before the existing same-credentials rebind generates under the current compiler. Ordinary Plan, Apply, Restore and full Upgrade health gates stay unchanged; missing or changed source custody fails closed.
+
+- Fix: the Advanced host pre-step no longer reports a freshly applied host as `drifted`. Its drift signal and the verify after a coordinated rollback's host repair judged every host-security control, so patch lag (`updates.pending_security`), a pending reboot and exposure that could not be judged (`exposure.published_ports`) failed the stack even though no apply or repair can make them true, and a rollback ended `advanced_rollback_not_converged`. `host security verify` takes `--drift-scope enforced` (default `all`, unchanged) so `--fail-on-drift` is decided only by the controls the baseline itself enforces; the pre-step passes it. The continuous controls are still observed and recorded in the evidence and the JSON output, and kombify Guard supervises them.
+
 - Fix: the first Cloud Apply that selects `offsite-object-backup` initializes the Kopia repository in an empty managed bucket. The offsite owner only connected, so a fresh per-stack bucket failed with `Cloud offsite repository connection failed`. It now creates the repository when Kopia reports that the bound target holds none, and never on any other connect failure (rejected credentials, wrong passphrase, foreign repository). The owner errors for connect, source policy, snapshot and restore now carry Kopia's own redacted reason instead of only the fixed operation message.
 
 - Add: sealed host delivery of the offsite backup target. `stackkit backup target recipient` creates the node's separate encryption recipient key and an Owner-signed, challenge-bound statement; `stackkit backup target import --sealed` opens an HPKE-sealed delivery from `pkg/hostdelivery` into the same encrypted local custody as plain import. The delivery is bound to tenant, Site/node, binding generation, operation, recipient key and a 15-minute expiry, and is consumed before use, so a wrong recipient, another node and a replay are denied. Techstack and any transport carry only ciphertext; the node still issues its own backup-target binding.
@@ -64,9 +68,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+* **Modern edge listener:** `stackkit-server --bridge-edge-listen` serves only the Owner-signed bridge publication route table on the Cloud node. It is default closed (an absent, unsigned or foreign-target table, an unlisted host, path or method, or a rule without a bound rate limit is refused), enforces each rule's TLS minimum, rate limit and authentication per request, and reaches Home only through the activated federation link. Without a human/device verifier every rule still refuses requests. Verify reports a route `servedReadback` only after a real request through the listener reached the pinned origin. The bridge publication and federation control agent modules declare an `experimental` `standard` profile with their resident components for resource sampling; it has no measured values yet.
+
 * **application adoption:** `stackkit application inspect|adopt|verify|control|release` can bind an existing initialized Home Assistant 2026.7.2 Compose container to the resolved Smart Home lifecycle without recreating its container, accounts, configuration or data. Inspection requires the exact immutable image and container, an existing native Owner grant and an exclusive configuration mount. Signed Owner receipts use the existing lifecycle journal; start, stop and restart target only that binding, interrupted dispatch reconciles without repeating the action, and release retains the native application. Unsupported sources stay unstacked, and fresh generation, apply, setup and removal are refused while adoption custody is active.
 
 ### Fixed
+
+* **Advanced rollback:** the coordinated rollback of a host with the host pre-step no longer refuses its own plan with `advanced_rollback_invalid`. The journal required every step's runtime root to end in `opentofu`, but the host pre-step owns no OpenTofu root (`.stackkit/runtime/host`), so a failed change-set convergence aborted the rollback at planning and left the lifecycle mutation active at `rollback-started`, which denied every later mutation (drift detection included). The host step is now planned, journaled and restored last (`host security repair --apply`, then the verify loop). A rollback stranded at `rollback-started` without a journal is reopened by the next `advanced rollback run` for the same checkpoint.
+
+* **Advanced change sets:** `stackkit advanced change-set create` no longer fails with `external_backup_target_binding_mismatch` on a node that holds an off-site backup target. The binding the node issued binds the applied spec hash, so every candidate spec invalidated it. Create now resolves the candidate with the node's own binding for the candidate's backup target requirement (same target, custody attestation, release and validity window; a requirement naming another target is refused) and persists nothing. Apply persists that binding into the node Inventory and moves the custody authority to it before the target generate, restores the custody authority if the target fails, and so keeps the next drift detection, `generate`, backup and change set working.
 
 * **Cloud offsite backup:** the first Apply against an empty managed bucket initializes the Kopia repository (`repository create s3`, same stdin credential transport as connect) only when Kopia reports no repository at the bound target; every other connect failure stays a failure and creates nothing. The offsite owner errors now include Kopia's redacted reason.
 
@@ -162,6 +172,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.51.3](https://github.com/kombifyio/StackKits/compare/v0.51.2...v0.51.3) (2026-10-04)
+
+
+### Added
+
+* **modern:** Cloud edge listener serving the signed bridge publication route table (N5f)
+
+
+### Fixed
+
+* **advanced:** re-issue the node's backup target binding for a change-set candidate
+* **rollback:** plan and restore the host pre-step root, reopen a rollback stranded at rollback-started
+* **terramatehost:** judge only enforced host controls in the host pre-step
 
 ## [0.51.2](https://github.com/kombifyio/StackKits/compare/v0.51.1...v0.51.2) (2026-10-03)
 

@@ -1833,6 +1833,12 @@
           "type": "bool",
           "description": "Authorize this node's recipient key",
           "required": false
+        },
+        {
+          "name": "source-generation",
+          "type": "bool",
+          "description": "Verify the retained generation with its installed attested source before same-custody renewal",
+          "required": false
         }
       ],
       "subcommands": []
@@ -3422,6 +3428,13 @@
       "examples": [],
       "flags": [
         {
+          "name": "drift-scope",
+          "type": "string",
+          "default": "all",
+          "description": "Controls that decide --fail-on-drift: all, or enforced (only the controls the baseline itself enforces; patch lag, pending reboot, exposure and certificates are still observed and reported)",
+          "required": false
+        },
+        {
           "name": "fail-on-drift",
           "type": "bool",
           "description": "Exit 5 when the host is drifted and 6 when its state is unknown",
@@ -3453,7 +3466,11 @@
         },
         {
           "command": "sudo stackkit host security verify --mode advanced --json --fail-on-drift",
-          "description": "What Techstack runs: machine-readable, advanced mode, exit non-zero on drift"
+          "description": "Machine-readable, advanced mode, exit non-zero on any drifted control"
+        },
+        {
+          "command": "sudo stackkit host security verify --mode advanced --json --fail-on-drift --drift-scope enforced",
+          "description": "What the Techstack host pre-step runs: only the controls the baseline enforces decide the exit code; patch lag, pending reboot, exposure and certificates are still observed and reported"
         },
         {
           "command": "sudo stackkit host security verify --resolved-plan plan.json --local-node node-1",
@@ -3465,6 +3482,13 @@
           "name": "declared-port",
           "type": "stringArray",
           "description": "Declared service port as tcp/443 or udp/5353 (repeatable)",
+          "required": false
+        },
+        {
+          "name": "drift-scope",
+          "type": "string",
+          "default": "all",
+          "description": "Controls that decide --fail-on-drift: all, or enforced (only the controls the baseline itself enforces; patch lag, pending reboot, exposure and certificates are still observed and reported)",
           "required": false
         },
         {
@@ -5251,6 +5275,12 @@
           "name": "resolved-plan",
           "type": "string",
           "description": "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)",
+          "required": false
+        },
+        {
+          "name": "source-generation",
+          "type": "bool",
+          "description": "Inspect the retained generation through its already installed attested source release; never authorize current execution",
           "required": false
         }
       ],

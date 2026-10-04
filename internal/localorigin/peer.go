@@ -187,34 +187,13 @@ func ProbePeerOriginRequest(ctx context.Context, root, peerRef, address, serverN
 	if (method != http.MethodGet && method != http.MethodHead) || !strings.HasPrefix(path, "/") {
 		return 0, errors.New("localorigin: probe request must be a GET or HEAD of an absolute path")
 	}
-	if err := validateLoopbackAddress(address); err != nil {
-		return 0, err
-	}
-	var credential PeerCredential
-	if err := readState(root, stateRef("peer-credential", peerRef), "peer-credential", &credential); err != nil {
-		return 0, err
-	}
-	if serverName != "" && credential.ServerName != serverName {
-		return 0, errors.New("localorigin: installed peer belongs to another origin")
-	}
-	block, _ := pem.Decode([]byte(credential.RootCertificatePEM))
-	if block == nil {
-		return 0, errors.New("localorigin: installed root missing")
-	}
-	digest := sha256.Sum256(block.Bytes)
-	certificate, err := peerTLSCertificate(root, credential, "sha256:"+hex.EncodeToString(digest[:]))
+	transport, pinnedName, err := NewPeerTransport(root, peerRef, address, serverName)
 	if err != nil {
 		return 0, err
 	}
-	roots := x509.NewCertPool()
-	roots.AppendCertsFromPEM([]byte(credential.RootCertificatePEM))
-	dialer := net.Dialer{Timeout: 5 * time.Second}
-	transport := &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS13, ServerName: credential.ServerName, RootCAs: roots, Certificates: []tls.Certificate{certificate}}, DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-		return dialer.DialContext(ctx, "tcp", address)
-	}}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	endpoint := url.URL{Scheme: "https", Host: credential.ServerName, Path: path}
+	endpoint := url.URL{Scheme: "https", Host: pinnedName, Path: path}
 	request, err := http.NewRequestWithContext(ctx, method, endpoint.String(), nil)
 	if err != nil {
 		return 0, err
@@ -226,6 +205,51 @@ func ProbePeerOriginRequest(ctx context.Context, root, peerRef, address, serverN
 	defer response.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 64<<10))
 	return response.StatusCode, nil
+}
+
+// NewPeerTransport returns the one outbound transport of the installed Cloud
+// workload credential: it dials only the explicit loopback federation origin
+// socket, presents the custodied client certificate and verifies the pinned
+// Home root and origin name. It returns that pinned origin name; callers
+// address requests to it and never choose a destination.
+func NewPeerTransport(root, peerRef, address, serverName string) (*http.Transport, string, error) {
+	if err := validateLoopbackAddress(address); err != nil {
+		return nil, "", err
+	}
+	var credential PeerCredential
+	if err := readState(root, stateRef("peer-credential", peerRef), "peer-credential", &credential); err != nil {
+		return nil, "", err
+	}
+	if serverName != "" && credential.ServerName != serverName {
+		return nil, "", errors.New("localorigin: installed peer belongs to another origin")
+	}
+	block, _ := pem.Decode([]byte(credential.RootCertificatePEM))
+	if block == nil {
+		return nil, "", errors.New("localorigin: installed root missing")
+	}
+	digest := sha256.Sum256(block.Bytes)
+	certificate, err := peerTLSCertificate(root, credential, "sha256:"+hex.EncodeToString(digest[:]))
+	if err != nil {
+		return nil, "", err
+	}
+	roots := x509.NewCertPool()
+	roots.AppendCertsFromPEM([]byte(credential.RootCertificatePEM))
+	dialer := net.Dialer{Timeout: 5 * time.Second}
+	return &http.Transport{Proxy: nil, TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS13, ServerName: credential.ServerName, RootCAs: roots, Certificates: []tls.Certificate{certificate}}, DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return dialer.DialContext(ctx, "tcp", address)
+	}}, credential.ServerName, nil
+}
+
+// StripForwardedIdentity removes every header through which a caller could
+// present a human, device or proxy identity to the origin. Workload possession
+// never becomes a forwarded identity.
+func StripForwardedIdentity(header http.Header) {
+	for key := range header {
+		if originProxyIdentityHeader(strings.ToLower(key)) {
+			header.Del(key)
+		}
+	}
+	header["X-Forwarded-For"] = nil
 }
 
 func peerTLSCertificate(root string, credential PeerCredential, rootFingerprint string) (tls.Certificate, error) {

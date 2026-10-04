@@ -396,24 +396,32 @@ func executeAdvancedRollback(
 		}
 		rollback.rollbackID = "rollback-" + strings.TrimPrefix(snapshotID, "sha256:")[:16] + "-" +
 			strings.ToLower(request.now.Format("20060102t150405z"))
-		if err := release.withExecutable(ctx, func(string) error { return nil }); err != nil {
-			return report, err
+		stranded, adopted, strandedErr := openStrandedRollbackMutation(workspace, custody.Snapshot)
+		if strandedErr != nil {
+			return report, strandedErr
 		}
-		begun, beginErr := beginPublicUpgradeMutation(workspace, func() (lifecyclemutation.BeginRequest, error) {
-			return lifecyclemutation.BeginRequest{
-				OperationID: rollback.rollbackID, OwnerRef: custody.Snapshot.OwnerRef,
-				Checkpoint: lifecyclemutation.CheckpointAuthority{
-					ExecutorStateSnapshotID: custody.Snapshot.ID,
-					KopiaAnchorID:           custody.Snapshot.KopiaSnapshotAnchor.ID,
-				},
-				Target: release.journal(release.record.SHA256),
-				Prior:  priorReleaseAuthority(custody.Snapshot),
-			}, nil
-		})
-		if beginErr != nil {
-			return report, beginErr
+		if adopted {
+			session = stranded
+		} else {
+			if err := release.withExecutable(ctx, func(string) error { return nil }); err != nil {
+				return report, err
+			}
+			begun, beginErr := beginPublicUpgradeMutation(workspace, func() (lifecyclemutation.BeginRequest, error) {
+				return lifecyclemutation.BeginRequest{
+					OperationID: rollback.rollbackID, OwnerRef: custody.Snapshot.OwnerRef,
+					Checkpoint: lifecyclemutation.CheckpointAuthority{
+						ExecutorStateSnapshotID: custody.Snapshot.ID,
+						KopiaAnchorID:           custody.Snapshot.KopiaSnapshotAnchor.ID,
+					},
+					Target: release.journal(release.record.SHA256),
+					Prior:  priorReleaseAuthority(custody.Snapshot),
+				}, nil
+			})
+			if beginErr != nil {
+				return report, beginErr
+			}
+			session = begun
 		}
-		session = begun
 	}
 	defer func() { _ = session.Close() }()
 	rollback.session = session
@@ -434,6 +442,39 @@ func executeAdvancedRollback(
 	_ = session.Close()
 	sealAdvancedRollback(ctx, workspace, release.kit, release.resolution(), &rollback.report)
 	return rollback.report, nil
+}
+
+// openStrandedRollbackMutation reopens the upgrade mutation of a coordinated
+// rollback to snapshot that stopped at rollback-started before it had a
+// journal, because its plan did not validate. The resume path finds the
+// mutation through the journal, so without this the active mutation denies
+// every ordinary mutation (drift detection included) and a new rollback cannot
+// begin. Only that exact state is adopted: another active mutation, or one at
+// any other phase, stays denied.
+func openStrandedRollbackMutation(
+	workspace string,
+	snapshot upgradelifecycle.ExecutorStateSnapshot,
+) (publicUpgradeLifecycleSession, bool, error) {
+	active, found, err := lifecyclemutation.ActiveRecord(workspace)
+	if err != nil || !found || !isStrandedRollback(active, snapshot) {
+		return nil, false, err
+	}
+	session, record, err := lifecyclemutation.OpenUpgradeRecovery(workspace, active.OperationID)
+	if err != nil {
+		return nil, false, fmt.Errorf("resume stranded coordinated rollback %s: %w", active.OperationID, err)
+	}
+	if !isStrandedRollback(record, snapshot) {
+		return nil, false, errors.Join(
+			fmt.Errorf("lifecycle mutation %s changed while it was reopened", active.OperationID), session.Close(),
+		)
+	}
+	return session, true, nil
+}
+
+func isStrandedRollback(record lifecyclemutation.Record, snapshot upgradelifecycle.ExecutorStateSnapshot) bool {
+	return record.Kind == lifecyclemutation.KindUpgrade && record.Status == lifecyclemutation.StatusActive &&
+		record.Phase == lifecyclemutation.PhaseRollbackStarted &&
+		record.Checkpoint.ExecutorStateSnapshotID == snapshot.ID
 }
 
 // sealAdvancedRollback seals a new executor-state checkpoint of the rolled

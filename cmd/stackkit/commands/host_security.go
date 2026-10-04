@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -23,6 +24,13 @@ const (
 	ExitCodeHostSecurityUnknown = 6
 )
 
+// observeHostSecurity observes this node and judges it against the baseline.
+// It is a variable so a test can supply a canned observation instead of the
+// real node.
+var observeHostSecurity = func(ctx context.Context, options hostsecurity.Options) hostsecurity.Evidence {
+	return hostsecurity.Engine{Host: hostsecurity.LocalHost{}}.Verify(ctx, options)
+}
+
 type hostSecurityFlags struct {
 	json              bool
 	kit               string
@@ -36,6 +44,7 @@ type hostSecurityFlags struct {
 	managementSources []string
 	noRecord          bool
 	failOnDrift       bool
+	driftScope        string
 	apply             bool
 	controls          []string
 }
@@ -72,6 +81,20 @@ func bindHostSecurityFlags(cmd *cobra.Command, flags *hostSecurityFlags) {
 	cmd.Flags().StringVar(&flags.localNode, "local-node", "", "Exact local Node in the supplied ResolvedPlan")
 	cmd.Flags().StringArrayVar(&flags.declaredPorts, "declared-port", nil, "Declared service port as tcp/443 or udp/5353 (repeatable)")
 	cmd.Flags().StringArrayVar(&flags.managementSources, "management-source", nil, "Network that must always reach ssh, as a CIDR (repeatable)")
+}
+
+func bindFailOnDriftFlags(cmd *cobra.Command, flags *hostSecurityFlags) {
+	cmd.Flags().BoolVar(&flags.failOnDrift, "fail-on-drift", false, "Exit 5 when the host is drifted and 6 when its state is unknown")
+	cmd.Flags().StringVar(&flags.driftScope, "drift-scope", string(hostsecurity.ScopeAll),
+		"Controls that decide --fail-on-drift: all, or enforced (only the controls the baseline itself enforces; patch lag, pending reboot, exposure and certificates are still observed and reported)")
+}
+
+func (flags hostSecurityFlags) failOnDriftScope() (hostsecurity.Scope, error) {
+	scope, err := hostsecurity.ParseScope(flags.driftScope)
+	if err != nil {
+		return "", fmt.Errorf("--drift-scope: %w", err)
+	}
+	return scope, nil
 }
 
 func (flags hostSecurityFlags) options(workspace string) (hostsecurity.Options, error) {
@@ -166,8 +189,13 @@ given, and it expires after --freshness.`,
 		Example: `  # Verify this host and record the evidence
   sudo stackkit host security verify
 
-  # What Techstack runs: machine-readable, advanced mode, exit non-zero on drift
+  # Machine-readable, advanced mode, exit non-zero on any drifted control
   sudo stackkit host security verify --mode advanced --json --fail-on-drift
+
+  # What the Techstack host pre-step runs: only the controls the baseline
+  # enforces decide the exit code; patch lag, pending reboot, exposure and
+  # certificates are still observed and reported
+  sudo stackkit host security verify --mode advanced --json --fail-on-drift --drift-scope enforced
 
   # Judge exposure against the ports the verified plan declares
   sudo stackkit host security verify --resolved-plan plan.json --local-node node-1`,
@@ -178,8 +206,11 @@ given, and it expires after --freshness.`,
 			if err != nil {
 				return machineAwareCommandError(cmd, err)
 			}
+			if _, err := flags.failOnDriftScope(); err != nil {
+				return machineAwareCommandError(cmd, err)
+			}
 			engine := hostsecurity.Engine{Host: hostsecurity.LocalHost{}}
-			evidence := engine.Verify(cmd.Context(), options)
+			evidence := observeHostSecurity(cmd.Context(), options)
 			if !flags.noRecord {
 				if path, saveErr := engine.SaveEvidence(workspace, evidence); saveErr != nil {
 					evidence.Notices = append(evidence.Notices, "evidence was not recorded locally: "+saveErr.Error())
@@ -192,7 +223,7 @@ given, and it expires after --freshness.`,
 	}
 	bindHostSecurityFlags(cmd, flags)
 	cmd.Flags().BoolVar(&flags.noRecord, "no-record", false, "Do not write the evidence under .stackkit/")
-	cmd.Flags().BoolVar(&flags.failOnDrift, "fail-on-drift", false, "Exit 5 when the host is drifted and 6 when its state is unknown")
+	bindFailOnDriftFlags(cmd, flags)
 	return cmd
 }
 
@@ -206,6 +237,9 @@ current time. Evidence past its freshness budget is unknown: an old observation
 proves nothing about the host now.`,
 		Args: machineAwareNoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if _, err := flags.failOnDriftScope(); err != nil {
+				return machineAwareCommandError(cmd, err)
+			}
 			engine := hostsecurity.Engine{Host: hostsecurity.LocalHost{}}
 			stored, err := engine.LoadEvidence(getWorkDir())
 			if err != nil {
@@ -218,7 +252,7 @@ proves nothing about the host now.`,
 		},
 	}
 	cmd.Flags().BoolVar(&flags.json, "json", false, "Emit the evidence as machine-readable JSON")
-	cmd.Flags().BoolVar(&flags.failOnDrift, "fail-on-drift", false, "Exit 5 when the host is drifted and 6 when its state is unknown")
+	bindFailOnDriftFlags(cmd, flags)
 	return cmd
 }
 
@@ -233,11 +267,19 @@ func finishHostSecurityEvidence(cmd *cobra.Command, flags *hostSecurityFlags, ev
 	if !flags.failOnDrift {
 		return nil
 	}
-	switch evidence.Overall {
+	scope, err := flags.failOnDriftScope()
+	if err != nil {
+		return machineAwareCommandError(cmd, err)
+	}
+	drifted, unknown := "host security baseline is drifted", "host security baseline state is unknown"
+	if scope == hostsecurity.ScopeEnforced {
+		drifted, unknown = "an enforced host security control is drifted", "the state of an enforced host security control is unknown"
+	}
+	switch evidence.OverallFor(scope) {
 	case hostsecurity.StateDrifted:
-		return &exitCodeError{code: ExitCodeHostSecurityDrift, err: errors.New("host security baseline is drifted")}
+		return &exitCodeError{code: ExitCodeHostSecurityDrift, err: errors.New(drifted)}
 	case hostsecurity.StateUnknown:
-		return &exitCodeError{code: ExitCodeHostSecurityUnknown, err: errors.New("host security baseline state is unknown")}
+		return &exitCodeError{code: ExitCodeHostSecurityUnknown, err: errors.New(unknown)}
 	}
 	return nil
 }

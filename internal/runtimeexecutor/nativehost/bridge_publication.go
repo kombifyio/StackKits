@@ -78,6 +78,9 @@ type BridgePublicationRuleObservation struct {
 	VerifierPolicyObservedAt string                                                 `json:"verifierPolicyObservedAt"`
 	TLSPolicyObservedAt      string                                                 `json:"tlsPolicyObservedAt"`
 	BackendReadback          []BridgePublicationBackendObservation                  `json:"backendReadback,omitempty"`
+	// ServedReadback exists only when a real request through the edge listener
+	// reached the pinned origin; configuration alone never produces it.
+	ServedReadback *BridgePublicationServedObservation `json:"servedReadback,omitempty"`
 }
 
 type BridgePublicationBackendObservation struct {
@@ -353,10 +356,20 @@ func validBridgePublicationObservation(observation BridgePublicationObservation,
 			}
 		}
 		if status != "ready" {
-			if len(actual.BackendReadback) != 0 {
+			if len(actual.BackendReadback) != 0 || actual.ServedReadback != nil {
 				return false
 			}
 			continue
+		}
+		if served := actual.ServedReadback; served != nil {
+			timestamp, parseErr := time.Parse(time.RFC3339Nano, served.ObservedAt)
+			if served.Status != "served" || served.OriginServerName == "" || want.HealthProbe == nil ||
+				want.HealthProbe.Kind != "http" || !slices.Contains(want.HealthProbe.ExpectedStatuses, served.HTTPStatus) ||
+				parseErr != nil || timestamp.Format(time.RFC3339Nano) != served.ObservedAt ||
+				timestamp.Before(evaluatedAt) || timestamp.After(observedAt) ||
+				checkedAt.Sub(timestamp) > bridgePublicationMaxStaleness {
+				return false
+			}
 		}
 		if want.HealthProbe == nil || len(actual.BackendReadback) != len(want.OriginTargets) {
 			return false

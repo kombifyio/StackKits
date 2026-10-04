@@ -455,12 +455,23 @@ Terramate stacks whose modules own a changed artifact in stack graph run order,
 and `terramateHostManifestSha256`, the digest of the local Terramate host
 project the candidate materializes.
 
+When the node holds an off-site backup target, the binding it issued for the
+applied spec does not satisfy the candidate's backup target requirement, which
+binds the candidate's spec hash. Create then resolves the candidate with the
+node's own binding for it: the same target, custody attestation, release and
+validity window, so nothing is renewed and the credentials never move. Create
+persists nothing of it; a candidate that names another target than the
+custodied one is refused.
+
 Capability denial is emitted as `stackkit.operation-denial/v1` with a stable
 public reason code. Creating a change set does not invoke Terramate, OpenTofu,
 Docker, Techstack, or a network service.
 
 `stackkit advanced change-set apply` runs the approved candidate through the
-checkpointed generate, plan, apply and verify transaction. Between apply and
+checkpointed generate, plan, apply and verify transaction. Before the target
+generate it persists that candidate binding into the node Inventory and moves
+the custody authority to it; a failed target restores the custody authority
+and the checkpoint restores the Inventory. Between apply and
 verify it materializes the local Terramate host project under
 `.stackkit/runtime`, requires the packaged Terramate run order to equal the
 stack graph, and runs a detailed-exitcode OpenTofu plan through Terramate in
@@ -967,7 +978,7 @@ never cuts the management path. It works on its own (Standard Mode, no account)
 and is what Techstack runs through the pinned CLI (`--mode advanced`). The
 baseline itself is described in [SECURITY.md](SECURITY.md#host-security-baseline).
 
-- `host security verify [--json] [--mode standard|advanced] [--site-kind home|cloud] [--freshness 15m] [--exceptions <file>] [--resolved-plan <plan> --local-node <node>] [--declared-port tcp/443] [--management-source <cidr>] [--fail-on-drift] [--no-record]`
+- `host security verify [--json] [--mode standard|advanced] [--site-kind home|cloud] [--freshness 15m] [--exceptions <file>] [--resolved-plan <plan> --local-node <node>] [--declared-port tcp/443] [--management-source <cidr>] [--fail-on-drift [--drift-scope all|enforced]] [--no-record]`
   observes every control and never changes the host. Each control reports
   `state` (`compliant`, `drifted`, `unknown`, `exception`), `expected`,
   `observed`, `observed_at` and `remediation.capability`. The controls are
@@ -989,8 +1000,16 @@ baseline itself is described in [SECURITY.md](SECURITY.md#host-security-baseline
   are `unknown`, not compliant. The evidence is also written to
   `.stackkit/host-security-evidence.json`. `--fail-on-drift` exits `5` for
   `drifted` and `6` for `unknown`; without it a verification that produced
-  evidence exits `0`.
-- `host security status [--json]` reads the stored evidence and judges it now:
+  evidence exits `0`. `--drift-scope enforced` narrows what decides that exit
+  code to the controls the baseline itself enforces (`firewall.default_inbound`,
+  `ssh.password_authentication`, `ssh.root_login`, `ssh.port`,
+  `bruteforce.fail2ban`, `updates.unattended_upgrades`, `kernel.sysctl`);
+  the other controls (patch lag, pending reboot, exposure, certificate expiry)
+  are continuous evidence that no apply or repair can make true, so they are
+  still observed and reported in the evidence but do not fail the exit code.
+  The default is `all`. The Advanced host pre-step runs `--fail-on-drift
+  --drift-scope enforced`.
+- `host security status [--json] [--fail-on-drift [--drift-scope all|enforced]]` reads the stored evidence and judges it now:
   evidence past `expires_at` is `unknown`.
 - `host security repair [--apply] [--control <id>]... [--management-source <cidr>]...`
   plans by default and changes the host only with `--apply`. It restores the

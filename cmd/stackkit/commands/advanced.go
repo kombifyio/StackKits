@@ -171,6 +171,10 @@ type advancedChangeSetAdmission struct {
 	candidateRaw     []byte
 	owner            localevidence.OwnerCustody
 	trustSHA256      string
+	// candidateBackup is the node's own backup target binding for the
+	// candidate, set only when the candidate's requirement differs from the
+	// persisted binding's. The candidate plan hash covers it.
+	candidateBackup *advancedCandidateBackupBinding
 }
 
 // advancedAdmissionFingerprint is the comparable identity of an admission. A

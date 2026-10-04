@@ -1,6 +1,9 @@
 package hostsecurity
 
 import (
+	"fmt"
+	"slices"
+	"strings"
 	"time"
 )
 
@@ -78,6 +81,50 @@ var enforcedControls = []string{
 
 // EnforcedControls lists the control IDs the baseline enforces.
 func EnforcedControls() []string { return append([]string(nil), enforcedControls...) }
+
+// Scope selects which controls decide a verdict on the host.
+type Scope string
+
+const (
+	// ScopeAll judges every control, the continuous evidence included.
+	ScopeAll Scope = "all"
+	// ScopeEnforced judges only the controls the baseline itself enforces. The
+	// continuous evidence is still observed and reported; it just does not
+	// decide the verdict.
+	ScopeEnforced Scope = "enforced"
+)
+
+// ParseScope reads a scope name. The empty string is ScopeAll.
+func ParseScope(value string) (Scope, error) {
+	switch scope := Scope(strings.ToLower(strings.TrimSpace(value))); scope {
+	case "", ScopeAll:
+		return ScopeAll, nil
+	case ScopeEnforced:
+		return scope, nil
+	}
+	return "", fmt.Errorf("scope must be %s or %s, not %q", ScopeAll, ScopeEnforced, value)
+}
+
+// OverallFor returns the overall state of the evidence restricted to scope.
+// Under ScopeEnforced only the enforced controls count: a control the
+// evidence does not carry is unknown, never compliant, and an approved
+// exception is not drift. Evidence that is no longer fresh has every control
+// unknown (see AtTime), so it never reads as compliant under any scope.
+func (e Evidence) OverallFor(scope Scope) State {
+	if scope != ScopeEnforced {
+		return e.Overall
+	}
+	enforced := make([]Control, 0, len(enforcedControls))
+	for _, id := range enforcedControls {
+		index := slices.IndexFunc(e.Controls, func(control Control) bool { return control.ID == id })
+		if index < 0 {
+			enforced = append(enforced, Control{ID: id, State: StateUnknown})
+			continue
+		}
+		enforced = append(enforced, e.Controls[index])
+	}
+	return overall(enforced)
+}
 
 // ReasonNoAuthorizedKey marks ssh.password_authentication drift that cannot be
 // repaired yet because disabling password logins would lock the owner out: no

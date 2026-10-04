@@ -103,6 +103,9 @@ type verifiedAdvancedMutation struct {
 	// bytes by ID, kept for an Advanced drift reconcile only: the governed
 	// runtime files it restores before its checkpoint are rendered from them.
 	baselineArtifacts map[string][]byte
+	// candidateBackupAuthority is the owner custody authority of the node's
+	// backup target under the candidate; set with admission.candidateBackup.
+	candidateBackupAuthority *backupcustody.S3TargetAuthority
 }
 
 // advancedMutationFingerprint is the comparable identity of a pre-side-effect
@@ -799,6 +802,14 @@ func verifyAdvancedMutation(
 			baselineArtifacts[artifact.ID] = artifact.Bytes
 		}
 	}
+	var backupAuthority *backupcustody.S3TargetAuthority
+	if admission.candidateBackup != nil {
+		authority, authorityErr := advancedCandidateBackupAuthority(candidatePlan, candidate, admission.owner)
+		if authorityErr != nil {
+			return verifiedAdvancedMutation{}, fmt.Errorf("derive the candidate backup target authority: %w", authorityErr)
+		}
+		backupAuthority = &authority
+	}
 	digest := sha256.Sum256(raw)
 	// The target regenerates through the installed release; the embedded
 	// authority and both resolutions are no longer needed.
@@ -810,6 +821,7 @@ func verifyAdvancedMutation(
 		digest:    "sha256:" + hex.EncodeToString(digest[:]),
 		candidate: candidate, candidatePlan: candidatePlan,
 		baselineLayout: baselineLayout, baselineArtifacts: baselineArtifacts,
+		candidateBackupAuthority: backupAuthority,
 	}, nil
 }
 
@@ -985,6 +997,7 @@ func executeAdvancedMutation(
 		}
 
 		advancedMutationStage("target", "started")
+		restoreBackupBinding := func() error { return nil }
 		targetErr := release.withExecutable(
 			operationCtx, func(binary string) error {
 				// A reconcile first forces its drifted stacks back to the
@@ -1007,6 +1020,15 @@ func executeAdvancedMutation(
 				); secretErr != nil {
 					return fmt.Errorf("materialize Advanced candidate secret custody: %w", secretErr)
 				}
+				// The candidate's backup target binding is the node's own and
+				// becomes the applied one before the target resolves the
+				// candidate; the checkpoint restores the Inventory if the
+				// target fails.
+				restore, adoptErr := adoptAdvancedCandidateBackupBinding(workspace, revalidated)
+				if adoptErr != nil {
+					return fmt.Errorf("adopt the candidate backup target binding: %w", adoptErr)
+				}
+				restoreBackupBinding = restore
 				return executeAdvancedTarget(
 					operationCtx, binary, workspace, release, snapshot,
 					revalidated.admission.candidate,
@@ -1015,6 +1037,13 @@ func executeAdvancedMutation(
 				)
 			},
 		)
+		if targetErr != nil {
+			// Custody follows the prior baseline again before the rollback
+			// regenerates and applies it.
+			if restoreErr := restoreBackupBinding(); restoreErr != nil {
+				targetErr = errors.Join(targetErr, fmt.Errorf("restore the backup target custody: %w", restoreErr))
+			}
+		}
 		// A checkpoint of a Terramate-target install rolls back per stack
 		// (coordinated rollback); every other checkpoint keeps the existing
 		// upgrade rollback.

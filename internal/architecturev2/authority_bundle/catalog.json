@@ -41842,6 +41842,17 @@
       ]
     },
     {
+      "computeProfiles": {
+        "standard": {
+          "components": [
+            "stackkits-edge-publication"
+          ],
+          "description": "Resident Cloud edge listener in the stackkit-server process; measured resource values are pending a Modern lane run.",
+          "executable": true,
+          "maturity": "experimental",
+          "realization": "apply-ready"
+        }
+      },
       "enforcementRequirement": {
         "operations": [
           "apply-service-publication",
@@ -42029,7 +42040,10 @@
       "runtime": {
         "delivery": "stackkit",
         "execution": "executable",
-        "kind": "native"
+        "kind": "native",
+        "residentComponents": [
+          "stackkits-edge-publication"
+        ]
       },
       "serviceControls": [],
       "supportedSiteKinds": [
@@ -42236,6 +42250,17 @@
       ]
     },
     {
+      "computeProfiles": {
+        "standard": {
+          "components": [
+            "stackkits-federation-control-agent"
+          ],
+          "description": "Resident federation control receiver in the stackkit-server process; measured resource values are pending a Modern lane run.",
+          "executable": true,
+          "maturity": "experimental",
+          "realization": "apply-ready"
+        }
+      },
       "enforcementRequirement": {
         "operations": [
           "bind-outbound-control-agent",
@@ -42424,7 +42449,10 @@
       "runtime": {
         "delivery": "stackkit",
         "execution": "executable",
-        "kind": "host"
+        "kind": "host",
+        "residentComponents": [
+          "stackkits-federation-control-agent"
+        ]
       },
       "serviceControls": [],
       "supportedSiteKinds": [

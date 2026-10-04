@@ -58,6 +58,16 @@ func validateCatalogModuleProfileComponents(catalog Catalog) error {
 			materialized = append(materialized, id)
 		}
 		materialized = sortStringsUnique(materialized)
+		// Resident parts of a native or host module (parts that run inside an
+		// existing StackKits process) are the closure when it has no Compose
+		// components; the profile still cannot name anything undeclared.
+		resident, err := stringListField(runtime, "catalog.modules."+moduleID+".runtime", "residentComponents", false)
+		if err != nil {
+			return err
+		}
+		if len(materialized) == 0 {
+			materialized = sortStringsUnique(resident)
+		}
 		for _, dimension := range []struct {
 			field string
 			exact bool

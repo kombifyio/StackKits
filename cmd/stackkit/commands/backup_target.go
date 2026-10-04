@@ -35,11 +35,31 @@ func newBackupTargetCommand() *cobra.Command {
 	recipient := &cobra.Command{Use: "recipient", Short: "Prove this node's sealed-delivery recipient key", Long: "Creates this node's separate encryption recipient key once and prints a statement, signed by the local Owner key, that binds the public key to this Site and node and answers the caller's challenge. The private key never leaves local custody. A delivering authority seals backup target material to this key; import it with `backup target import --sealed`.", Args: cobra.NoArgs, Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 		Example: `  stackkit backup target recipient --challenge "$CHALLENGE" --owner-approve`}
 	recipientApproved := false
+	recipientSourceGeneration := false
 	recipient.Flags().StringVar(&challenge, "challenge", "", "Fresh value from the delivering authority that the statement must echo")
 	recipient.Flags().BoolVar(&recipientApproved, "owner-approve", false, "Authorize this node's recipient key")
+	recipient.Flags().BoolVar(&recipientSourceGeneration, "source-generation", false, "Verify the retained generation with its installed attested source before same-custody renewal")
 	recipient.RunE = func(cmd *cobra.Command, _ []string) error {
 		if !recipientApproved {
 			return errors.New("backup target recipient requires --owner-approve")
+		}
+		if recipientSourceGeneration {
+			return withLifecycleMutation(getWorkDir(), "backup target recipient", func() error {
+				_, historical, err := inspectSourceGeneration(cmd.Context(), getWorkDir(), specFile)
+				if err != nil {
+					return err
+				}
+				if !historical {
+					if _, err := inspectNativeV2GeneratedAuthority(cmd.Context(), getWorkDir(), specFile); err != nil {
+						return err
+					}
+				}
+				statement, err := backupcustody.RecipientStatement(getWorkDir(), challenge, time.Now().UTC())
+				if err != nil {
+					return err
+				}
+				return writeCommandResult(cmd, cmd.CommandPath(), statement)
+			})
 		}
 		generated, err := inspectNativeV2GeneratedAuthority(cmd.Context(), getWorkDir(), specFile)
 		if err != nil {

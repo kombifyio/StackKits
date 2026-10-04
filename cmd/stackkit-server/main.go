@@ -31,6 +31,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/federationcontrol"
 	"github.com/kombifyio/stackkits/internal/localorigin"
 	"github.com/kombifyio/stackkits/internal/localowner"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/stackkitmcp"
 	"github.com/kombifyio/stackkits/internal/telemetry"
 )
@@ -59,6 +60,7 @@ func main() {
 	mcpAllowWrite := flag.Bool("mcp-allow-write", false, "Enable mutating MCP tools (or set STACKKIT_MCP_ALLOW_WRITE=true)")
 	originListen := flag.String("origin-listen", "", "Optional loopback socket for owner-bound origin mTLS; disabled by default")
 	controlListen := flag.String("federation-control-listen", "", "Optional owner-bound Cloud mTLS receiver socket for Home plan/verify actions")
+	edgeListen := flag.String("bridge-edge-listen", "", "Optional Cloud edge listener serving only the Owner-signed bridge publication route table; disabled by default")
 	flag.Parse()
 
 	setupLogging(*logLevel)
@@ -98,7 +100,17 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	runServer(httpServer, originServer, controlServer)
+	var edgeServer *http.Server
+	if *edgeListen != "" {
+		// No human/device verifier exists in this process yet, so every route
+		// refuses requests until one is supplied: the edge stays default-closed.
+		edgeServer, cfgErr = nativehost.NewBridgePublicationEdgeServer(cfg.BaseDir, *edgeListen, nil)
+		if cfgErr != nil {
+			slog.Error("bridge publication edge configuration rejected", "error", cfgErr)
+			os.Exit(1)
+		}
+	}
+	runServer(httpServer, originServer, controlServer, edgeServer)
 }
 
 func initServerTelemetry(version string) func() {

@@ -45,10 +45,11 @@ type bridgePublicationRouteTable struct {
 }
 
 type osBridgePublicationOperations struct {
-	root  string
-	probe BridgePublicationOriginProbe
-	now   func() time.Time
-	mu    sync.Mutex
+	root   string
+	probe  BridgePublicationOriginProbe
+	served BridgePublicationServedProbe
+	now    func() time.Time
+	mu     sync.Mutex
 }
 
 // NewOSBridgePublicationOperations selects the local node as the owner of the
@@ -63,7 +64,7 @@ func newOSBridgePublicationOperations(workspaceRoot string, probe BridgePublicat
 	if err != nil {
 		return nil, err
 	}
-	return &osBridgePublicationOperations{root: root, probe: probe, now: now}, nil
+	return &osBridgePublicationOperations{root: root, probe: probe, served: probeBridgePublicationServed, now: now}, nil
 }
 
 func (o *osBridgePublicationOperations) checkTarget(site, node, channel string) (localevidence.LocalBinding, error) {
@@ -187,8 +188,21 @@ func (o *osBridgePublicationOperations) observe(ctx context.Context, expectation
 			}
 		}
 	}
+	// A route is reported served only after a real request through the edge
+	// listener reached the pinned origin; without a declared listener the
+	// observation makes no served claim.
+	served := make([]*BridgePublicationServedObservation, len(expectation.Publications))
+	if backends {
+		for index, rule := range expectation.Publications {
+			proof, err := o.served(ctx, o.root, rule, o.now())
+			if err != nil {
+				return BridgePublicationObservation{}, err
+			}
+			served[index] = proof
+		}
+	}
 	// Configuration-time fields are read back from the table just verified;
-	// serving enforcement is the edge listener's, not claimed here.
+	// request-time enforcement is the edge listener's, proven by ServedReadback.
 	stamp := o.now().UTC().Format(time.RFC3339Nano)
 	for index, rule := range expectation.Publications {
 		publications[index] = BridgePublicationRuleObservation{
@@ -209,7 +223,7 @@ func (o *osBridgePublicationOperations) observe(ctx context.Context, expectation
 			OriginIdentityBound: rule.OriginIdentityRef != "", TLSPolicyBound: rule.TLSMinVersion != "",
 			AuthenticationBound: rule.AuthPolicyRef != "", RateLimitBound: rule.RateLimitRequests > 0 && rule.RateLimitWindowSeconds > 0,
 			ConfigurationObservedAt: stamp, VerifierPolicyObservedAt: stamp, TLSPolicyObservedAt: stamp,
-			BackendReadback: readbacks[index],
+			BackendReadback: readbacks[index], ServedReadback: served[index],
 		}
 	}
 	return BridgePublicationObservation{
@@ -281,8 +295,14 @@ func (o *osBridgePublicationOperations) writeTable(table bridgePublicationRouteT
 // readTable returns the verified table. An absent, unsigned, substituted or
 // foreign-target table is an error: the edge stays closed.
 func (o *osBridgePublicationOperations) readTable() (bridgePublicationRouteTable, error) {
+	return readBridgePublicationTable(o.root)
+}
+
+// readBridgePublicationTable is shared by the owner and the edge listener, so
+// both hold the table to the same signature and custody check.
+func readBridgePublicationTable(root string) (bridgePublicationRouteTable, error) {
 	var table bridgePublicationRouteTable
-	fs, err := confinedfs.Open(o.root)
+	fs, err := confinedfs.Open(root)
 	if err != nil {
 		return table, err
 	}
@@ -305,10 +325,10 @@ func (o *osBridgePublicationOperations) readTable() (bridgePublicationRouteTable
 	if err != nil {
 		return table, err
 	}
-	if err := localevidence.VerifyOwnerPolicyState(o.root, unsigned, signature); err != nil {
+	if err := localevidence.VerifyOwnerPolicyState(root, unsigned, signature); err != nil {
 		return table, err
 	}
-	owner, err := localevidence.LoadOwnerCustody(o.root)
+	owner, err := localevidence.LoadOwnerCustody(root)
 	if err != nil {
 		return table, err
 	}
@@ -318,24 +338,34 @@ func (o *osBridgePublicationOperations) readTable() (bridgePublicationRouteTable
 	return table, nil
 }
 
-// probeBridgePublicationOrigin uses the one activated Cloud federation link:
-// its loopback origin socket, pinned origin name and mTLS peer credential.
-func probeBridgePublicationOrigin(ctx context.Context, root string, probe architecturev2renderer.BridgePublicationHealthProbe) (int, error) {
+// activatedCloudFederationLink returns the one activated Cloud federation link:
+// the only upstream the Cloud edge may use.
+func activatedCloudFederationLink(root string) (*WireGuardFabricCustody, error) {
 	records, err := activatedWireGuardCustodies(root)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	var link *WireGuardFabricCustody
 	for index := range records {
 		if records[index].Fabric.SiteKind == "cloud" {
 			if link != nil {
-				return 0, errors.New("bridge publication: more than one activated Cloud federation link")
+				return nil, errors.New("bridge publication: more than one activated Cloud federation link")
 			}
 			link = &records[index].Fabric
 		}
 	}
 	if link == nil {
-		return 0, errors.New("bridge publication: no activated Cloud federation link")
+		return nil, errors.New("bridge publication: no activated Cloud federation link")
+	}
+	return link, nil
+}
+
+// probeBridgePublicationOrigin uses the one activated Cloud federation link:
+// its loopback origin socket, pinned origin name and mTLS peer credential.
+func probeBridgePublicationOrigin(ctx context.Context, root string, probe architecturev2renderer.BridgePublicationHealthProbe) (int, error) {
+	link, err := activatedCloudFederationLink(root)
+	if err != nil {
+		return 0, err
 	}
 	switch probe.Kind {
 	case "tcp":

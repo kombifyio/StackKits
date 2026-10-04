@@ -1639,8 +1639,11 @@ both use it, so the files and the graph cannot disagree.
   other stack of its host: the graph gives each of them `after` the host stack,
   and its own `stack.tm.hcl` carries `before` tag queries for the other roles,
   so no existing stack file changes. Terramate runs the pinned StackKits CLI
-  in its stack directory: `host security verify --mode advanced --fail-on-drift`
-  is the drift signal (exit 5 drifted, 6 unknown), `host security repair
+  in its stack directory: `host security verify --mode advanced --fail-on-drift
+  --drift-scope enforced` is the drift signal (exit 5 drifted, 6 unknown) and
+  judges only the controls the baseline enforces, so patch lag, a pending
+  reboot and exposure never drift the stack (they stay in the recorded
+  evidence and under kombify Guard's continuous supervision), `host security repair
   --apply --mode advanced` is the reconcile and the rollback restore, and
   repair keeps refusing a change that would cut the SSH management channel.
   A change that touches the host bootstrap or security baseline module affects
@@ -1721,6 +1724,25 @@ Terramate (`stackkit apply` under `compose` or `opentofu` is unchanged).
   (`resolve-baseline`, `resolve-candidate`, `render-baseline`,
   `render-candidate`, and `diff` for create), so a stuck or killed run names
   its phase. Peak memory stays within one `generate`.
+- Backup target binding: the node-issued `ExternalBackupTargetBinding` binds
+  the spec hash through its requirement hash, so the persisted binding never
+  satisfies a candidate spec. When the candidate resolution is rejected for
+  exactly that reason, admission has the node re-issue its own binding for the
+  candidate requirement (`resolvedplan.ReissueExternalBackupTargetBinding`):
+  same target and custody attestation as the owner custody, same release,
+  Candidate and validity window as the binding it succeeds, so nothing is
+  renewed, the credentials never move, the same inputs give the same bytes at
+  create and at apply, and the signed candidate plan hash covers it. A
+  requirement naming another Stack, Site, capability, contract owner or
+  contract is refused. Create persists nothing. Apply derives the candidate
+  custody authority during admission (the candidate plan's projection of the
+  binding and the digest of the candidate's rendered backup source policy) and,
+  before the target generate, attaches the binding to the node Inventory and
+  moves the custody authority with the credentials already in custody
+  (`backupcustody.RebindStoredS3Target`). A failed target restores the prior
+  custody authority before the rollback regenerates the baseline; the
+  checkpoint recovery restores the Inventory. A candidate equal to the
+  baseline (drift reconcile) keeps the persisted binding.
 - Apply: the mutation skeleton stays generate, plan, apply, verify through the
   target release (see Release authority) under the lifecycle journal. Missing packaged Terramate or
   OpenTofu fails before the checkpoint. After the target apply succeeds and
@@ -1974,8 +1996,12 @@ of `stackkit advanced change-set apply` runs the same path.
   or a stack the checkpoint graph has without a captured root, is `unchanged`
   (a stack the checkpoint ran natively is never destroyed). Stacks only the
   checkpoint graph has are then `recreated` in run order, because they run
-  after the restored cores. The plan is persisted in the rollback journal
-  `.stackkit/advanced/rollbacks/<snapshot>.json` before any runtime change.
+  after the restored cores. The host pre-step owns no OpenTofu root: it is
+  always `restored`, runs last (it runs first in the graph) and its journal
+  runtime root is the host stack directory `.stackkit/runtime/host`, the only
+  root a step may have without ending in `opentofu`. The plan is persisted in
+  the rollback journal `.stackkit/advanced/rollbacks/<snapshot>.json` before
+  any runtime change.
 - Execution per local stack, through `terramate run --no-recursive --tags
   stackkit -- tofu ...` in the stack root with the change-set process
   environment plus the root's Compose project name and, for a Core root, the
@@ -2037,7 +2063,11 @@ of `stackkit advanced change-set apply` runs the same path.
   invocation with the same `--to` reopens the recorded lifecycle mutation,
   keeps the original plan and skips converged steps; a restored root whose
   forced apply did not converge keeps its written files and repeats the
-  apply. An interruption inside the joined `generate`, `apply` or `verify`
+  apply. A rollback whose plan was refused stops at `rollback-started` before
+  it has a journal; the next run for the same checkpoint finds no journal, sees
+  that exact active mutation (upgrade kind, `rollback-started`, same
+  checkpoint) and reopens it instead of failing on its lock. An interruption
+  inside the joined `generate`, `apply` or `verify`
   child needs explicit upgrade recovery, because the child's one-use
   admission may be consumed.
 - Result: `stackkit.rollback-result/v1`

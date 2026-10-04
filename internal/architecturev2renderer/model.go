@@ -251,14 +251,17 @@ type rawModuleRuntimeListener struct {
 }
 
 type rawModuleRuntime struct {
-	Execution         string                     `json:"execution"`
-	Kind              string                     `json:"kind"`
-	Delivery          string                     `json:"delivery"`
-	Engine            optionalStringField        `json:"engine,omitempty"`
-	Image             *rawModuleRuntimeImage     `json:"image,omitempty"`
-	EntryComponentRef optionalStringField        `json:"entryComponentRef,omitempty"`
-	Components        []json.RawMessage          `json:"components,omitempty"`
-	Settings          map[string]json.RawMessage `json:"settings,omitempty"`
+	Execution         string                 `json:"execution"`
+	Kind              string                 `json:"kind"`
+	Delivery          string                 `json:"delivery"`
+	Engine            optionalStringField    `json:"engine,omitempty"`
+	Image             *rawModuleRuntimeImage `json:"image,omitempty"`
+	EntryComponentRef optionalStringField    `json:"entryComponentRef,omitempty"`
+	Components        []json.RawMessage      `json:"components,omitempty"`
+	// ResidentComponents are parts of a native module that run inside an
+	// existing StackKits process; they render nothing.
+	ResidentComponents []string                   `json:"residentComponents,omitempty"`
+	Settings           map[string]json.RawMessage `json:"settings,omitempty"`
 }
 
 type rawModuleRenderInputBinding struct {

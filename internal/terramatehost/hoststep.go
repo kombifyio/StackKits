@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/hostsecurity"
 	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 )
 
@@ -24,15 +25,25 @@ const (
 // root: Terramate runs the pinned StackKits CLI in its stack directory.
 //
 //   - verify is the drift signal: `host security verify --mode advanced
-//     --fail-on-drift` records fresh host-security evidence and exits 5 when a
-//     control drifted, so an unchanged host is converged and a drifted one is
-//     drifted, exactly like `tofu plan -detailed-exitcode`.
+//     --fail-on-drift --drift-scope enforced` records fresh host-security
+//     evidence and exits 5 when an enforced control drifted and 6 when one is
+//     unknown, so an unchanged host is converged and a drifted one is drifted,
+//     exactly like `tofu plan -detailed-exitcode`. Only the enforced controls
+//     (hostsecurity.EnforcedControls) decide: patch lag, a pending reboot,
+//     exposure and certificate expiry are continuous evidence that no apply or
+//     repair can make true, so they are recorded in the evidence and left to
+//     kombify Guard's continuous supervision instead of failing the stack.
 //   - repair is the reconcile: `host security repair --apply --mode advanced`
 //     restores drifted controls and still refuses a change that would cut the
 //     SSH management channel (exit 3, reported as failed).
 func verifyHostStep(ctx context.Context, workspace string, request ConvergeRequest, stack terramatestackgraph.Stack, result StackResult) StackResult {
-	return runHostStep(ctx, workspace, request, stack, result,
-		"host", "security", "verify", "--mode", "advanced", "--json", "--fail-on-drift")
+	return runHostStep(ctx, workspace, request, stack, result, HostVerifyArgs()...)
+}
+
+// HostVerifyArgs is the StackKits CLI invocation (after the global flags) that
+// is the drift signal of the host pre-step.
+func HostVerifyArgs() []string {
+	return []string{"host", "security", "verify", "--mode", "advanced", "--json", "--fail-on-drift", "--drift-scope", string(hostsecurity.ScopeEnforced)}
 }
 
 func repairHostStep(ctx context.Context, workspace string, request ReconcileRequest, stack terramatestackgraph.Stack) StackResult {
@@ -67,9 +78,9 @@ func runHostStep(ctx context.Context, workspace string, request ConvergeRequest,
 		case 0:
 			result.Status = StackConverged
 		case hostStepExitDrifted:
-			result.Status, result.Detail = StackDrifted, "host security baseline is drifted"
+			result.Status, result.Detail = StackDrifted, "an enforced host security control is drifted"
 		case hostStepExitUnknown:
-			result.Status, result.Detail = StackFailed, "host security baseline state is unknown"
+			result.Status, result.Detail = StackFailed, "the state of an enforced host security control is unknown"
 		case hostStepExitBlocked:
 			result.Status, result.Detail = StackFailed, "a host security repair was refused; the refused change was not made"
 		default:

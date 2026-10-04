@@ -8,6 +8,30 @@ import (
 // IssueExternalBackupTargetBinding projects a local owner's opaque custody
 // commitments onto the existing provider-neutral external target contract.
 func IssueExternalBackupTargetBinding(requirement BackupTargetRequirement, targetRef, custodyRef, version, candidateDigest string, at time.Time) (ExternalBackupTargetBinding, error) {
+	return issueExternalBackupTargetBinding(requirement, targetRef, custodyRef, version, candidateDigest,
+		at.UTC().Format(time.RFC3339Nano), at.Add(maxExternalBackupBindingValidity).UTC().Format(time.RFC3339Nano))
+}
+
+// ReissueExternalBackupTargetBinding carries an issued binding over to the
+// requirement of a successor StackSpec. The requirement hash binds the spec
+// hash, so every spec change invalidates the binding although the target and
+// its custody are unchanged. The successor names the same target and custody
+// attestation, the same release and Candidate, and the same validity window as
+// the binding it succeeds: re-issuing never renews an authority, and the same
+// inputs always yield the same bytes. A requirement that names another Stack,
+// Site, capability, contract owner or contract is refused.
+func ReissueExternalBackupTargetBinding(previous ExternalBackupTargetBinding, requirement BackupTargetRequirement) (ExternalBackupTargetBinding, error) {
+	for _, field := range []string{"stackId", "siteRef", "capabilityRef", "contractOwnerRef", "capabilityContractHash"} {
+		if previous[field] == nil || previous[field] != requirement[field] {
+			return nil, errors.New("backup target requirement names a different target than the custodied binding")
+		}
+	}
+	text := func(field string) string { value, _ := previous[field].(string); return value }
+	return issueExternalBackupTargetBinding(requirement, text("backupTargetRef"), text("custodyAttestationRef"),
+		text("stackkitsVersion"), text("candidateDigest"), text("issuedAt"), text("validUntil"))
+}
+
+func issueExternalBackupTargetBinding(requirement BackupTargetRequirement, targetRef, custodyRef, version, candidateDigest, issuedAt, validUntil string) (ExternalBackupTargetBinding, error) {
 	hash, err := ComputeBackupTargetRequirementHash(requirement)
 	if err != nil || requirement["requirementsHash"] != hash {
 		return nil, errors.New("backup target requirement hash does not verify")
@@ -16,7 +40,7 @@ func IssueExternalBackupTargetBinding(requirement BackupTargetRequirement, targe
 		"apiVersion": externalBackupTargetAPIVersion, "kind": "ExternalBackupTargetBinding",
 		"backupTargetRef": targetRef, "custodyAttestationRef": custodyRef,
 		"stackkitsVersion": version, "candidateDigest": candidateDigest,
-		"issuedAt": at.UTC().Format(time.RFC3339Nano), "validUntil": at.Add(maxExternalBackupBindingValidity).UTC().Format(time.RFC3339Nano),
+		"issuedAt": issuedAt, "validUntil": validUntil,
 	}
 	for _, field := range []string{"stackId", "siteRef", "capabilityRef", "contractOwnerRef", "capabilityContractHash", "requirementsHash", "specHash"} {
 		binding[field] = requirement[field]

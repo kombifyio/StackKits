@@ -3410,6 +3410,16 @@ _servicePublicationShape: {
 	}
 	entryComponentRef?: #ContractID
 	components?: [...#ModuleRuntimeComponentV2] & list.MinItems(1)
+	// residentComponents names the parts of a native or host module that run
+	// inside an existing StackKits process (for example the edge listener in
+	// stackkit-server). They render nothing; a compute profile may name them
+	// so a lane can sample that process by component name.
+	residentComponents?: [...#ContractID] & list.MinItems(1)
+	if residentComponents != _|_ {
+		components?: _|_
+		kind:        "native" | "host"
+		_residentComponentsUnique: list.UniqueItems(residentComponents) & true
+	}
 	settings?: #PublicSettings
 
 	if components != _|_ {

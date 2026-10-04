@@ -425,34 +425,48 @@ func openRecoveryForKind(workspace, operationID, kind string) (*Session, Record,
 }
 
 func RequireIdle(workspace string) error {
-	if _, err := os.Lstat(
-		filepath.Join(workspace, filepath.FromSlash(journalRoot)),
-	); os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("inspect lifecycle mutation root: %w", err)
-	}
-	root, err := confinedfs.Open(workspace)
+	record, active, err := ActiveRecord(workspace)
 	if err != nil {
 		return err
 	}
-	defer root.Close()
-	transaction, err := root.BeginTransaction()
-	if err != nil {
-		return err
-	}
-	defer transaction.Close()
-	record, _, exists, err := loadRecord(workspace, transaction)
-	if err != nil {
-		return err
-	}
-	if exists && record.Status == StatusActive {
+	if active {
 		return fmt.Errorf(
 			"lifecycle mutation %s is active at phase %s; ordinary mutation is denied",
 			record.OperationID, record.Phase,
 		)
 	}
 	return nil
+}
+
+// ActiveRecord returns the verified record of the active lifecycle mutation
+// without taking the lifecycle lock. It only inspects: acting on the mutation
+// still needs OpenRecovery, which revalidates the record under the lock.
+func ActiveRecord(workspace string) (Record, bool, error) {
+	if _, err := os.Lstat(
+		filepath.Join(workspace, filepath.FromSlash(journalRoot)),
+	); os.IsNotExist(err) {
+		return Record{}, false, nil
+	} else if err != nil {
+		return Record{}, false, fmt.Errorf("inspect lifecycle mutation root: %w", err)
+	}
+	root, err := confinedfs.Open(workspace)
+	if err != nil {
+		return Record{}, false, err
+	}
+	defer root.Close()
+	transaction, err := root.BeginTransaction()
+	if err != nil {
+		return Record{}, false, err
+	}
+	defer transaction.Close()
+	record, _, exists, err := loadRecord(workspace, transaction)
+	if err != nil {
+		return Record{}, false, err
+	}
+	if !exists || record.Status != StatusActive {
+		return Record{}, false, nil
+	}
+	return record, true, nil
 }
 
 // WithIdleMutation holds the same lock as an upgrade Session across the exact

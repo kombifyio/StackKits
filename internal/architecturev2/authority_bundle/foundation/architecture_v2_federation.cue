@@ -460,7 +460,17 @@ _architectureV2ProfileExtensionModules: [
 		role: "platform", providerRef: "stackkits-service-publication-contract", provides: ["service-publication"]
 		requires: ["stackkits-cloud-public-edge-runtime", "stackkits-modern-cloud-identity-verifier-policy-manifest"]
 		supportedSiteKinds: ["cloud"]
-		runtime: {execution: "executable", kind: "native", delivery: "stackkit"}
+		runtime: {execution: "executable", kind: "native", delivery: "stackkit", residentComponents: ["stackkits-edge-publication"]}
+		// Resident part of stackkit-server (edge listener / control receiver). Its
+		// footprint is the stackkit-server unit; the lane samples that cgroup under
+		// this component name. No measured value exists yet, so the profile stays
+		// non-supported and declares no reservation or recommended budget until a
+		// Modern lane run (N6) measures it under the provenance gate.
+		computeProfiles: standard: {
+			description: "Resident Cloud edge listener in the stackkit-server process; measured resource values are pending a Modern lane run."
+			maturity:    "experimental", executable: true, realization: "apply-ready"
+			components: ["stackkits-edge-publication"]
+		}
 		enforcementRequirement: {
 			status: "bound", ownerRef: "stackkits-bridge-publication-executor"
 			policyArtifactRefs: ["bridge-publication-executor-contract"]
@@ -508,7 +518,17 @@ _architectureV2ProfileExtensionModules: [
 		role: "platform", providerRef: "stackkits-federation-control-agent", provides: ["outbound-control-agent"]
 		requires: ["stackkits-modern-federation-policy-manifest", "stackkits-modern-home-identity-trust-policy-manifest", "stackkits-modern-cloud-identity-verifier-policy-manifest"]
 		supportedSiteKinds: ["home", "cloud"]
-		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit", residentComponents: ["stackkits-federation-control-agent"]}
+		// Resident part of stackkit-server (edge listener / control receiver). Its
+		// footprint is the stackkit-server unit; the lane samples that cgroup under
+		// this component name. No measured value exists yet, so the profile stays
+		// non-supported and declares no reservation or recommended budget until a
+		// Modern lane run (N6) measures it under the provenance gate.
+		computeProfiles: standard: {
+			description: "Resident federation control receiver in the stackkit-server process; measured resource values are pending a Modern lane run."
+			maturity:    "experimental", executable: true, realization: "apply-ready"
+			components: ["stackkits-federation-control-agent"]
+		}
 		enforcementRequirement: {
 			status: "bound", ownerRef: "stackkits-federation-control-agent-executor"
 			policyArtifactRefs: ["federation-control-agent-executor-contract"]

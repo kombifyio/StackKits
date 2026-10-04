@@ -55,6 +55,24 @@ func StoredS3TargetAuthority(workspace string) (S3TargetAuthority, error) {
 	return record.Authority, err
 }
 
+// RebindStoredS3Target moves the stored target to a successor source/Plan
+// authority from the credentials already in owner custody. No caller supplies
+// material, so the target and credentials cannot change; the authority must
+// still commit exactly the stored target and custody attestation. The caller
+// must hold the owner-authorized lifecycle mutation.
+func RebindStoredS3Target(workspace string, authority S3TargetAuthority) error {
+	record, err := readS3TargetRecord(workspace)
+	if err != nil {
+		return err
+	}
+	material, err := decryptS3Target(workspace, record)
+	if err != nil {
+		return err
+	}
+	defer Clear(material.Passphrase)
+	return RebindS3Target(workspace, authority, material)
+}
+
 // RebindS3Target renews source/Plan authority while preserving identical target
 // and credentials. The caller must hold the owner-authorized lifecycle mutation.
 func RebindS3Target(workspace string, authority S3TargetAuthority, material S3TargetMaterial) error {
