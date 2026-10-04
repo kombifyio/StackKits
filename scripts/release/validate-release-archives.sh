@@ -137,6 +137,7 @@ check_archive_contents() {
     stackkit \
     stackkit-server \
     stackkit-mcp \
+    stackkit-content-bridge \
     tofu \
     terramate \
     providers/stackkit-provider-manifest.json \
@@ -227,6 +228,7 @@ validate_public_archive_executables() {
   "$extract_dir/terramate" version >/dev/null
   "$extract_dir/stackkit-server" --help >/dev/null 2>&1
   "$extract_dir/stackkit-mcp" --help >/dev/null 2>&1
+  "$extract_dir/stackkit-content-bridge" -version >/dev/null
   node "$extract_dir/scripts/release/validate-architecture-contract-fixture.mjs" \
     --repo-root "$extract_dir" --proof-only
 }

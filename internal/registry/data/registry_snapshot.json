@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-10-04T07:24:19Z",
+  "generated_at": "2026-10-04T08:21:44Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -809,6 +809,19 @@
       "layer": "L3-application",
       "description": "ComfyUI image and video generation on an NVIDIA GPU with reviewed workflow templates; no ComfyUI-Manager, custom nodes or API nodes; private route behind the kit login.",
       "contract_hash": "82e17af78d2d45f283bb45b8dcd52d6a430c99753a4f23b8eb47a00f78c6fbb1",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
+      "slug": "content-bridge",
+      "display_name": "kombify Content Bridge",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Read-only, consent-gated homelab content counts (Photos from Immich) for kombify Cloud and the Companion",
+      "contract_hash": "449eadd1e32530d3cb75ac0c41121d625518e95284f94043e167bc915148844a",
       "supported_contexts": [
         "local",
         "cloud",

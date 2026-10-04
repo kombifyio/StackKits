@@ -77,6 +77,28 @@ builds:
       - -X main.GitCommit={{ .Commit }}
       - -X main.BuildDate={{ .Date }}
 
+  - id: stackkit-content-bridge
+    main: ./cmd/stackkit-content-bridge
+    binary: stackkit-content-bridge
+    env:
+      - CGO_ENABLED=0
+      - GOFLAGS=-mod=readonly
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.Version={{ .Version }}
+      - -X main.GitCommit={{ .Commit }}
+      - -X main.BuildDate={{ .Date }}
+
 archives:
   # Default public bundle — CLI + BaseKit catalog.
   - id: default
@@ -84,6 +106,7 @@ archives:
       - stackkit
       - stackkit-server
       - stackkit-mcp
+      - stackkit-content-bridge
     # GoReleaser assembles uncompressed Unix tar archives. The release workflow
     # compresses them deterministically at level 1 and in parallel, then creates
     # the checksum over the final publishable bytes.
@@ -168,6 +191,7 @@ archives:
       - stackkit
       - stackkit-server
       - stackkit-mcp
+      - stackkit-content-bridge
     formats:
       - tar
     format_overrides:
@@ -246,6 +270,7 @@ archives:
       - stackkit
       - stackkit-server
       - stackkit-mcp
+      - stackkit-content-bridge
     formats:
       - tar
     format_overrides:
@@ -324,6 +349,7 @@ archives:
       - stackkit
       - stackkit-server
       - stackkit-mcp
+      - stackkit-content-bridge
     formats:
       - tar
     format_overrides:

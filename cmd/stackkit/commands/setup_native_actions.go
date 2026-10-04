@@ -423,7 +423,7 @@ func executeImmichAddOnAPIKey(ctx context.Context, client *http.Client, immichUR
 		return nativeOwnerSetupObservation{}, err
 	}
 	defer func() { credentials.Password = "" }()
-	issued, issueErr := appsetup.IssueImmichAddOnAPIKey(ctx, client, immichURL, credentials.Email, credentials.Password, "stackkits-"+deployment.WorkloadRef)
+	issued, issueErr := appsetup.IssueImmichAddOnAPIKey(ctx, client, immichURL, credentials.Email, credentials.Password, "stackkits-"+deployment.WorkloadRef, appsetup.ImmichAllPermissions())
 	if issueErr != nil {
 		return nativeOwnerSetupObservation{}, issueErr
 	}

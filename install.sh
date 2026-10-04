@@ -305,6 +305,9 @@ if [ "$(id -u)" -eq 0 ]; then
   if [ -f "$TMP/stackkit-mcp" ]; then
     install -m 755 "$TMP/stackkit-mcp" "$INSTALL_DIR/stackkit-mcp"
   fi
+  if [ -f "$TMP/stackkit-content-bridge" ]; then
+    install -m 755 "$TMP/stackkit-content-bridge" "$INSTALL_DIR/stackkit-content-bridge"
+  fi
 else
   echo "  -> Need sudo to install to $INSTALL_DIR"
   sudo install -m 755 "$TMP/stackkit" "$INSTALL_DIR/stackkit"
@@ -317,6 +320,9 @@ else
   fi
   if [ -f "$TMP/stackkit-mcp" ]; then
     sudo install -m 755 "$TMP/stackkit-mcp" "$INSTALL_DIR/stackkit-mcp"
+  fi
+  if [ -f "$TMP/stackkit-content-bridge" ]; then
+    sudo install -m 755 "$TMP/stackkit-content-bridge" "$INSTALL_DIR/stackkit-content-bridge"
   fi
 fi
 

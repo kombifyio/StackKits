@@ -128,6 +128,13 @@ Package: foundation.#UseCasePackage & {
 			rationale:  "Bulk library maintenance through the Immich API."
 			capabilities: ["library-maintenance"]
 		}
+		"content-bridge": {
+			moduleSlug: "content-bridge"
+			role:       "supporting"
+			required:   false
+			rationale:  "Opt-in, read-only photo counts for kombify Cloud and the Companion. Off until the owner consents per use case; separate from kombify Guard."
+			capabilities: ["homelab-content"]
+		}
 	}
 
 	connectors: {

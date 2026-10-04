@@ -3,6 +3,7 @@ package appsetup
 import (
 	"context"
 	"net/http"
+	"regexp"
 	"strings"
 
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
@@ -17,16 +18,30 @@ type ImmichAPIKeyResult struct {
 	Replaced    int    `json:"replaced"`
 }
 
+// ImmichAllPermissions is the full-access permission set of the add-ons that
+// act on the owner library (Kiosk, Power Tools). An add-on that only reads
+// states the narrow set it needs instead.
+func ImmichAllPermissions() []string { return []string{"all"} }
+
+// immichPermissionPattern admits the dotted permission names of the Immich
+// permission enum (for example asset.statistics) and nothing else.
+var immichPermissionPattern = regexp.MustCompile(`^[A-Za-z]+(\.[A-Za-z]+)*$`)
+
 // IssueImmichAddOnAPIKey signs in as the Immich owner, deletes an earlier key
 // with the same name (one key per add-on, so a rotation never leaves an older
-// StackKits key active), issues a new one and signs out again.
-func IssueImmichAddOnAPIKey(ctx context.Context, client *http.Client, baseURL, email, password, keyName string) (result ImmichAPIKeyResult, returnErr *skerrors.StackKitError) {
+// StackKits key active), issues a new one carrying exactly permissions and
+// signs out again. A caller states its permissions explicitly: Immich grants a
+// key no more than the names it is created with.
+func IssueImmichAddOnAPIKey(ctx context.Context, client *http.Client, baseURL, email, password, keyName string, permissions []string) (result ImmichAPIKeyResult, returnErr *skerrors.StackKitError) {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" || strings.TrimSpace(email) == "" || strings.TrimSpace(password) == "" || strings.TrimSpace(keyName) == "" {
 		return ImmichAPIKeyResult{}, skerrors.NewValidationError(
 			"setup_credentials_missing",
 			"Immich API key issuance requires the Immich URL and the owner credentials",
 		)
+	}
+	if err := validateImmichPermissions(permissions); err != nil {
+		return ImmichAPIKeyResult{}, err
 	}
 	if client == nil {
 		client = NewImmichHTTPClient()
@@ -74,10 +89,22 @@ func IssueImmichAddOnAPIKey(ctx context.Context, client *http.Client, baseURL, e
 		} `json:"apiKey"`
 	}
 	if err := ImmichRequest(ctx, client, baseURL, http.MethodPost, "/api/api-keys", map[string]any{
-		"name": keyName, "permissions": []string{"all"},
+		"name": keyName, "permissions": permissions,
 	}, token, &created); err != nil || strings.TrimSpace(created.Secret) == "" || created.APIKey.ID == "" {
 		return ImmichAPIKeyResult{}, skerrors.NewValidationError("immich_api_key_issue_failed", "Immich did not issue the add-on API key")
 	}
 	result.Secret, result.KeyID, result.OwnerUserID = created.Secret, created.APIKey.ID, login.UserID
 	return result, nil
+}
+
+func validateImmichPermissions(permissions []string) *skerrors.StackKitError {
+	if len(permissions) == 0 {
+		return skerrors.NewValidationError("immich_api_key_permissions_missing", "an Immich API key needs an explicit permission list")
+	}
+	for _, permission := range permissions {
+		if !immichPermissionPattern.MatchString(permission) {
+			return skerrors.NewValidationError("immich_api_key_permission_invalid", "an Immich API key permission must be a dotted permission name")
+		}
+	}
+	return nil
 }
