@@ -4479,6 +4479,7 @@
       "flags": [],
       "subcommands": [
         "stackkit kit list",
+        "stackkit kit prepare-source-generation",
         "stackkit kit upgrade",
         "stackkit kit verify"
       ]
@@ -4515,6 +4516,27 @@
           "name": "json",
           "type": "bool",
           "description": "Emit stackkit.command-result/v1 JSON.",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit kit prepare-source-generation",
+      "name": "prepare-source-generation",
+      "parent": "stackkit kit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit kit prepare-source-generation [flags]",
+      "short": "Cache and verify the attested release that authored the retained generation",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit bounded source-generation inspection proof after authenticated cache preparation.",
           "required": false
         }
       ],

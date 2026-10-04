@@ -12,10 +12,84 @@ import (
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
+	"github.com/spf13/cobra"
 	"golang.org/x/mod/semver"
 )
 
 const maxSourceGenerationInspectionBytes = 2 << 20
+
+func init() {
+	kitCmd.AddCommand(newSourceGenerationPrepareCmd())
+}
+
+// Preparing cache is an explicit operation. PLAN, including historical source
+// inspection, remains read-only and cannot acquire missing release custody.
+func newSourceGenerationPrepareCmd() *cobra.Command {
+	var asJSON bool
+	command := &cobra.Command{
+		Use:         "prepare-source-generation",
+		Short:       "Cache and verify the attested release that authored the retained generation",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			workspace := getWorkDir()
+			current, err := releaseindex.ExactTagForBuildVersion(version)
+			if err != nil {
+				return err
+			}
+			tag, err := currentGenerationSourceHint(workspace, specFile)
+			if err != nil {
+				return err
+			}
+			if tag == "" {
+				return errors.New("source generation release is unavailable")
+			}
+			if semver.Compare(tag, current) > 0 {
+				return errors.New("source generation cannot follow the installed compiler")
+			}
+			if tag == current {
+				if asJSON {
+					return writeCommandResult(cmd, cmd.CommandPath(), struct {
+						Prepared bool `json:"prepared"`
+					}{})
+				}
+				return nil
+			}
+			owner, err := localevidence.LoadOwnerCustody(workspace)
+			if err != nil {
+				return err
+			}
+			binding, err := localevidence.LoadOwnerRuntimeBinding(workspace)
+			if err != nil {
+				return err
+			}
+			if binding.OwnerRef != owner.OwnerRef || binding.KeyID != owner.KeyID {
+				return errors.New("source cache preparation differs from retained Owner custody")
+			}
+			kit, err := loadWorkspaceKit(workspace)
+			if err != nil {
+				return err
+			}
+			if err := installAttestedSourceForGeneration(cmd.Context(), workspace, specFile, kit, current, currentReleasePlatform()); err != nil {
+				return err
+			}
+			bridge, historical, err := inspectSourceGeneration(cmd.Context(), workspace, specFile)
+			if err != nil {
+				return err
+			}
+			if !historical || bridge.Receipt.Version != tag || bridge.Verify.Owner.OwnerRef != owner.OwnerRef || bridge.Verify.Owner.KeyID != owner.KeyID || bridge.Verify.Owner.OwnerBindingDigest != localevidence.OwnerRuntimeBindingDigest(binding) {
+				return errors.New("source cache preparation changed its historical or current Owner authority")
+			}
+			if asJSON {
+				return writeSourceGenerationInspection(cmd.OutOrStdout(), bridge)
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Verified source release %s for the retained generation\n", bridge.Receipt.Version)
+			return err
+		},
+	}
+	command.Flags().BoolVar(&asJSON, "json", false, "Emit bounded source-generation inspection proof after authenticated cache preparation.")
+	return command
+}
 
 // Export public distribution identity only, never workspace paths or custody.
 type sourceGenerationReleaseProof struct {

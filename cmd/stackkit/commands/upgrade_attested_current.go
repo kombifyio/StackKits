@@ -323,15 +323,25 @@ func installAttestedSourceForCurrentGeneration(
 	workspace, requestedSpec, kit string,
 	target releaseindex.Resolution,
 ) error {
+	return installAttestedSourceForGeneration(ctx, workspace, requestedSpec, kit, target.Asset.Version, target.Asset.Platform)
+}
+
+// Cache preparation reuses the same authenticated installer without requiring
+// an Upgrade transaction or constructing a synthetic target Resolution.
+func installAttestedSourceForGeneration(
+	ctx context.Context,
+	workspace, requestedSpec, kit, currentTag string,
+	platform releaseindex.Platform,
+) error {
 	tag, err := currentGenerationSourceHint(workspace, requestedSpec)
 	if err != nil || tag == "" {
 		return err
 	}
-	if semver.Compare(tag, target.Asset.Version) >= 0 {
+	if semver.Compare(tag, currentTag) >= 0 {
 		return nil
 	}
 	installDir := filepath.Join(workspace, ".stackkit", "releases", kit,
-		tag, target.Asset.Platform.OS+"-"+target.Asset.Platform.Arch)
+		tag, platform.OS+"-"+platform.Arch)
 	if _, err := os.Stat(filepath.Join(installDir, releaseindex.ReleaseReceiptName)); err == nil {
 		return nil // InspectInstalled below still verifies the cached release.
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -343,7 +353,7 @@ func installAttestedSourceForCurrentGeneration(
 		Source: source, Attestations: attestations,
 	}).Resolve(ctx, releaseindex.ResolveRequest{
 		Kit: kit, Target: tag,
-		OS: target.Asset.Platform.OS, Arch: target.Asset.Platform.Arch,
+		OS: platform.OS, Arch: platform.Arch,
 	})
 	if err != nil {
 		return fmt.Errorf("resolve attested source release %s: %w", tag, err)
